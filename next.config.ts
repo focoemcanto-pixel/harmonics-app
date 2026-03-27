@@ -8,14 +8,13 @@ const nextConfig: NextConfig = {
   experimental: {
     serverSourceMaps: false,
     workerThreads: false,
-    cpus: 1,
   },
-
-  // Optimize output
-  output: 'standalone',
 
   // Additional webpack config to ensure no source maps and optimize memory
   webpack: (config, { isServer }) => {
+    // CRITICAL: Disable cache to prevent large .pack files
+    config.cache = false;
+
     if (isServer) {
       config.devtool = false;
     }
@@ -35,9 +34,6 @@ const nextConfig: NextConfig = {
 
     return config;
   },
-
-  // Note: 'eslint' config removed - no longer supported in Next.js 16
-  // Use .eslintrc or eslint.config.mjs instead
 
   typescript: {
     ignoreBuildErrors: false,

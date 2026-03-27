@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "NODE_OPTIONS='--max-old-space-size=4096' next build --webpack && rm -rf .next/cache && rm -rf cache && node scripts/remove-source-maps.js",
+    "build:cloudflare": "NODE_OPTIONS='--max-old-space-size=4096' next build --webpack && rm -rf .next/cache && rm -rf cache && node scripts/remove-source-maps.js && npx opennext build",
+    "deploy": "npm run build:cloudflare && npx wrangler pages deploy .open-next/cloudflare",
     "start": "next start",
     "lint": "eslint"
   },
@@ -16,13 +18,16 @@
     "react-dom": "19.2.4"
   },
   "devDependencies": {
+    "@opennextjs/cloudflare": "^1.17.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.1",
+    "open-next": "^3.1.7",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "wrangler": "^3.114.17"
   }
 }

@@ -1,0 +1,16 @@
+name = "harmonics-app"
+compatibility_date = "2024-05-01"
+main = ".open-next/cloudflare/index.mjs"
+
+# Pages configuration
+pages_build_output_dir = ".open-next/cloudflare"
+
+# Environment variables (add your Supabase keys here)
+[vars]
+# NEXT_PUBLIC_SUPABASE_URL = "your-supabase-url"
+# NEXT_PUBLIC_SUPABASE_ANON_KEY = "your-anon-key"
+
+# KV namespaces for ISR/caching (optional)
+# [[kv_namespaces]]
+# binding = "CACHE_KV"
+# id = "your-kv-namespace-id"

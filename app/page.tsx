@@ -69,6 +69,7 @@ export default function Home() {
           badge="Harmonics Admin"
           title="Dashboard"
           subtitle="Visão geral do sistema de gestão de eventos musicais."
+          actions={null}
         />
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">

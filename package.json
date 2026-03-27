@@ -4,9 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "NODE_OPTIONS='--max-old-space-size=4096' next build --webpack && rm -rf .next/cache && rm -rf cache && node scripts/remove-source-maps.js",
-    "build:cloudflare": "NODE_OPTIONS='--max-old-space-size=4096' next build --webpack && rm -rf .next/cache && rm -rf cache && node scripts/remove-source-maps.js && npx opennext build",
+    "build": "next build && rm -rf .next/cache && rm -rf cache",
+    "build:cloudflare": "next build && rm -rf .next/cache && rm -rf cache && npx @opennextjs/cloudflare build",
     "deploy": "npm run build:cloudflare && npx wrangler pages deploy .open-next/cloudflare",
+    "preview": "wrangler pages dev .open-next/cloudflare",
     "start": "next start",
     "lint": "eslint"
   },
@@ -25,9 +26,8 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.1",
-    "open-next": "^3.1.7",
     "tailwindcss": "^4",
     "typescript": "^5",
-    "wrangler": "^3.114.17"
+    "wrangler": "^4.65.0"
   }
 }

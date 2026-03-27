@@ -12,7 +12,7 @@ export default function Home() {
   const [eventos, setEventos] = useState<any[]>([]);
   const [carregando, setCarregando] = useState(true);
 
-  const mobileActions = [];
+  const mobileActions: any[] = [];
 
   async function carregarEventos() {
     try {

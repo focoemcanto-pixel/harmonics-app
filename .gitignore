@@ -44,3 +44,10 @@ coverage/
 cache/
 *.pack
 *.pack.gz
+
+# OpenNext build output
+.open-next/
+
+# Wrangler
+.wrangler/
+.dev.vars

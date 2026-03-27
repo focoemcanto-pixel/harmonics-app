@@ -3,7 +3,6 @@ main = ".open-next/worker.js"
 compatibility_date = "2026-03-27"
 compatibility_flags = ["nodejs_compat"]
 
-# Assets binding for static files (CSS, JS, fonts, images)
-[[assets]]
-binding = "ASSETS"
+# Assets configuration for static files (CSS, JS, fonts, images)
+[assets]
 directory = ".open-next/assets"

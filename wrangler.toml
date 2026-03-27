@@ -1,1 +1,3 @@
+name = "harmonics-app"
 main = ".open-next/worker.js"
+compatibility_date = "2026-03-27"

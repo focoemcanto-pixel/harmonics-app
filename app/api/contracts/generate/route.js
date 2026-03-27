@@ -3,30 +3,37 @@ import { createClient } from '@supabase/supabase-js';
 import { buildContractTemplateData } from '../../../../lib/contracts/buildContractTemplateData';
 import { generateGoogleContract } from '../../../../lib/contracts/googleContractGenerator';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const templateId = process.env.CONTRACT_TEMPLATE_DOC_ID;
-const rootFolderId = process.env.CONTRACTS_DRIVE_FOLDER_ID;
+export const dynamic = 'force-dynamic';
 
-if (!supabaseUrl) {
-  throw new Error('NEXT_PUBLIC_SUPABASE_URL não está definida no .env.local');
+function validateEnv() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const templateId = process.env.CONTRACT_TEMPLATE_DOC_ID;
+  const rootFolderId = process.env.CONTRACTS_DRIVE_FOLDER_ID;
+
+  const missing = [];
+  if (!supabaseUrl) missing.push('NEXT_PUBLIC_SUPABASE_URL');
+  if (!supabaseServiceRoleKey) missing.push('SUPABASE_SERVICE_ROLE_KEY');
+  if (!templateId) missing.push('CONTRACT_TEMPLATE_DOC_ID');
+  if (!rootFolderId) missing.push('CONTRACTS_DRIVE_FOLDER_ID');
+
+  if (missing.length > 0) {
+    return {
+      valid: false,
+      error: `Variáveis de ambiente faltando: ${missing.join(', ')}`,
+    };
+  }
+
+  return {
+    valid: true,
+    supabaseUrl,
+    supabaseServiceRoleKey,
+    templateId,
+    rootFolderId,
+  };
 }
 
-if (!supabaseServiceRoleKey) {
-  throw new Error('SUPABASE_SERVICE_ROLE_KEY não está definida no .env.local');
-}
-
-if (!templateId) {
-  throw new Error('CONTRACT_TEMPLATE_DOC_ID não está definida no .env.local');
-}
-
-if (!rootFolderId) {
-  throw new Error('CONTRACTS_DRIVE_FOLDER_ID não está definida no .env.local');
-}
-
-const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
-
-async function getContractContext({ contractId, precontractId }) {
+async function getContractContext({ contractId, precontractId, supabase }) {
   let contract = null;
 
   if (contractId) {
@@ -141,13 +148,27 @@ export async function GET() {
 
 export async function POST(request) {
   try {
+    const envCheck = validateEnv();
+    if (!envCheck.valid) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: envCheck.error,
+        },
+        { status: 500 }
+      );
+    }
+
+    const { supabaseUrl, supabaseServiceRoleKey, templateId, rootFolderId } = envCheck;
+    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+
     const body = await request.json();
 
     const contractId = body?.contractId || null;
     const precontractId = body?.precontractId || null;
     const previewOnly = !!body?.previewOnly;
 
-    const context = await getContractContext({ contractId, precontractId });
+    const context = await getContractContext({ contractId, precontractId, supabase });
     const templateData = buildContractTemplateData(context);
 
     if (previewOnly) {

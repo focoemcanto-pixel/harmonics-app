@@ -175,6 +175,10 @@ export default function ContatosPage() {
     return lista;
   }, [contatos, busca, tagFilter, activeFilter, sortMode]);
 
+  // ========================================
+  // COMPUTED VALUES & HELPERS
+  // ========================================
+
   const resumo = useMemo(() => {
     const total = contatos.length;
     const ativos = contatos.filter((c) => c.is_active !== false).length;
@@ -203,6 +207,10 @@ export default function ContatosPage() {
     </button>
   );
 
+  // ========================================
+  // LOADING STATE
+  // ========================================
+
   if (carregando) {
     return (
       <AdminShell pageTitle="Contatos" activeItem="contatos" mobileActions={mobileActions}>
@@ -212,6 +220,10 @@ export default function ContatosPage() {
       </AdminShell>
     );
   }
+
+  // ========================================
+  // MAIN RENDER
+  // ========================================
 
   return (
     <AdminShell pageTitle="Contatos" activeItem="contatos" mobileActions={mobileActions}>
@@ -244,6 +256,10 @@ export default function ContatosPage() {
           <AdminSummaryCard label="Com email" value={resumo.comEmail} helper="Acesso ao painel" tone="accent" />
         </div>
 
+        {/* ======================================== */}
+        {/* DESKTOP TABS                             */}
+        {/* ======================================== */}
+
         <div className="hidden md:block">
           <div className="rounded-[24px] border border-[#dbe3ef] bg-white p-2 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
             <div className="flex flex-wrap gap-2">
@@ -268,7 +284,7 @@ export default function ContatosPage() {
           </div>
         </div>
 
-        <div className="hidden md:block space-y-5">
+        <div className="space-y-5 hidden md:block">
           {desktopTab === 'lista' && (
             <ContatosListaTab
               contatosFiltrados={contatosFiltrados}
@@ -298,6 +314,10 @@ export default function ContatosPage() {
             />
           )}
         </div>
+
+        {/* ======================================== */}
+        {/* MOBILE TABS                              */}
+        {/* ======================================== */}
 
         <div className="md:hidden">
           <AdminSegmentTabs items={mobileTabs} active={mobileTab} onChange={setMobileTab} />

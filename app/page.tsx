@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import Sidebar from '../components/layout/Sidebar';
-import Header from '../components/layout/Header';
+import Sidebar from '../components/Sidebar';
+import Header from '../components/Header';
 
 export default function Home() {
-  const [eventos, setEventos] = useState([]);
+  const [eventos, setEventos] = useState<any[]>([]);
 
   async function carregarEventos() {
     const { data, error } = await supabase

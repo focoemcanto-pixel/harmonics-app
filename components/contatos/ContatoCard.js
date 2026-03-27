@@ -1,92 +1,72 @@
 'use client';
 
-import { getTagToneClasses, getStatusPillClasses } from '../../lib/contatos/contatos-ui';
-import { formatPhoneDisplay } from '../../lib/contatos/contatos-format';
+import ContatoPill from './ContatoPill';
+import { formatPhoneDisplay, formatInitials, getWhatsAppLink } from '../../lib/contatos/contatos-format';
+import { getTagTone, getInitialsClasses } from '../../lib/contatos/contatos-ui';
 
 export default function ContatoCard({
+  id,
   name,
   email,
   phone,
   tag,
   notes,
-  isActive,
-  initials,
+  isActive = true,
   onEdit,
   onDelete,
-  onToggleStatus,
 }) {
+  const tone = getTagTone(tag);
+  const initials = formatInitials(name);
+  const whatsappLink = getWhatsAppLink(phone);
+
   return (
-    <div className="rounded-[22px] border border-[#edf2f7] bg-[#fcfdff] p-4">
-      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-        <div className="flex min-w-0 gap-4">
-          {/* Avatar */}
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-violet-100 text-[14px] font-black text-violet-700">
-            {initials}
-          </div>
-
-          {/* Info */}
-          <div className="min-w-0">
-            <div className="text-[15px] font-black text-[#0f172a]">
-              {name || 'Sem nome'}
-            </div>
-
-            {phone ? (
-              <div className="mt-0.5 text-[13px] font-semibold text-[#475569]">
-                {formatPhoneDisplay(phone)}
-              </div>
-            ) : null}
-
-            {email ? (
-              <div className="mt-0.5 text-[13px] text-[#64748b]">{email}</div>
-            ) : null}
-
-            {notes ? (
-              <div className="mt-1 text-[13px] text-[#94a3b8]">{notes}</div>
-            ) : null}
-
-            <div className="mt-2 flex flex-wrap gap-2">
-              {tag ? (
-                <span
-                  className={`rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-wide ${getTagToneClasses(tag)}`}
-                >
-                  {tag}
-                </span>
-              ) : null}
-
-              <span
-                className={`rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-wide ${getStatusPillClasses(isActive)}`}
-              >
-                {isActive ? 'Ativo' : 'Inativo'}
-              </span>
-            </div>
-          </div>
+    <div className="rounded-[24px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)] transition hover:shadow-[0_14px_32px_rgba(15,23,42,0.08)]">
+      <div className="flex items-start gap-4">
+        <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-lg font-black ${getInitialsClasses(tone)}`}>
+          {initials}
         </div>
 
-        {/* Actions */}
-        <div className="flex flex-wrap gap-2 md:shrink-0">
-          <button
-            type="button"
-            onClick={onEdit}
-            className="rounded-[14px] border border-[#dbe3ef] bg-white px-3 py-2 text-[12px] font-black text-[#0f172a]"
-          >
-            Editar
-          </button>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-[17px] font-black text-[#0f172a]">{name || 'Sem nome'}</h3>
+            {!isActive && <ContatoPill tone="red">Inativo</ContatoPill>}
+            {tag && <ContatoPill tone={tone}>{tag}</ContatoPill>}
+          </div>
 
-          <button
-            type="button"
-            onClick={onToggleStatus}
-            className="rounded-[14px] border border-[#dbe3ef] bg-white px-3 py-2 text-[12px] font-black text-[#475569]"
-          >
-            {isActive ? 'Desativar' : 'Ativar'}
-          </button>
+          <div className="mt-2 space-y-1 text-[14px] text-[#64748b]">
+            <p><strong>Email:</strong> {email || '-'}</p>
+            <p><strong>WhatsApp:</strong> {formatPhoneDisplay(phone)}</p>
+            {notes && <p className="text-[13px] italic text-[#94a3b8]">{notes}</p>}
+          </div>
 
-          <button
-            type="button"
-            onClick={onDelete}
-            className="rounded-[14px] border border-red-100 bg-red-50 px-3 py-2 text-[12px] font-black text-red-600"
-          >
-            Excluir
-          </button>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={onEdit}
+              className="rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-2 text-[13px] font-black text-[#0f172a] transition hover:bg-[#f8fafc]"
+            >
+              Editar
+            </button>
+
+            {whatsappLink && (
+              <a
+                href={whatsappLink}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-2 text-[13px] font-black text-[#0f172a] transition hover:bg-[#f8fafc]"
+              >
+                WhatsApp
+              </a>
+            )}
+
+            <button
+              type="button"
+              onClick={onDelete}
+              className="rounded-[16px] bg-red-600 px-4 py-2 text-[13px] font-black text-white transition hover:bg-red-700"
+            >
+              Excluir
+            </button>
+          </div>
         </div>
       </div>
     </div>

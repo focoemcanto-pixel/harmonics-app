@@ -1,7 +1,7 @@
 'use client';
 
 import AdminSectionTitle from '../admin/AdminSectionTitle';
-import Pill from './EventPill';
+import Pill from '../admin/AdminPill';
 import OperacaoContractInline from './OperacaoContractInline';
 
 export default function EventosOperacaoTab({

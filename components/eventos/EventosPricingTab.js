@@ -1,7 +1,7 @@
 'use client';
 
 import AdminSectionTitle from '../admin/AdminSectionTitle';
-import { Field, Input } from './EventFormPrimitives';
+import { Field, Input } from '../admin/AdminFormPrimitives';
 
 export default function EventosPricingTab({
   pricing,

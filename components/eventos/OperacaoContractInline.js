@@ -1,6 +1,6 @@
 'use client';
 
-import Pill from './EventPill';
+import Pill from '../admin/AdminPill';
 
 export default function OperacaoContractInline({
   ev,

@@ -45,3 +45,17 @@ export function Textarea({ value, onChange, placeholder = '', rows = 3 }) {
     />
   );
 }
+
+export function Checkbox({ checked, onChange, label }) {
+  return (
+    <label className="flex items-center gap-2 cursor-pointer">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={onChange}
+        className="h-5 w-5 rounded border-[#dbe3ef] text-violet-600 focus:ring-2 focus:ring-violet-100"
+      />
+      <span className="text-[14px] font-semibold text-[#0f172a]">{label}</span>
+    </label>
+  );
+}

@@ -12,6 +12,8 @@ export default function Home() {
   const [eventos, setEventos] = useState<any[]>([]);
   const [carregando, setCarregando] = useState(true);
 
+  const mobileActions = [];
+
   async function carregarEventos() {
     try {
       setCarregando(true);
@@ -34,13 +36,21 @@ export default function Home() {
   }, []);
 
   const totalEventos = eventos.length;
-  const concluidos = eventos.filter((e) => e.status === 'done' || e.status === 'Pago').length;
-  const rascunhos = eventos.filter((e) => e.status === 'draft' || e.status === 'Rascunho').length;
+  const concluidos = eventos.filter(
+    (e) => e.status === 'done' || e.status === 'Pago'
+  ).length;
+  const rascunhos = eventos.filter(
+    (e) => e.status === 'draft' || e.status === 'Rascunho'
+  ).length;
   const confirmados = eventos.filter((e) => e.status === 'Confirmado').length;
 
   if (carregando) {
     return (
-      <AdminShell pageTitle="Dashboard" activeItem="dashboard">
+      <AdminShell
+        pageTitle="Dashboard"
+        activeItem="dashboard"
+        mobileActions={mobileActions}
+      >
         <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-6 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
           <p className="text-center text-[#64748b]">Carregando dashboard...</p>
         </section>
@@ -49,7 +59,11 @@ export default function Home() {
   }
 
   return (
-    <AdminShell pageTitle="Dashboard" activeItem="dashboard">
+    <AdminShell
+      pageTitle="Dashboard"
+      activeItem="dashboard"
+      mobileActions={mobileActions}
+    >
       <div className="space-y-5">
         <AdminPageHero
           badge="Harmonics Admin"

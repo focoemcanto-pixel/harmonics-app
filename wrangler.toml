@@ -2,3 +2,8 @@ name = "harmonics-app"
 main = ".open-next/worker.js"
 compatibility_date = "2026-03-27"
 compatibility_flags = ["nodejs_compat"]
+
+# Assets binding for static files (CSS, JS, fonts, images)
+[[assets]]
+binding = "ASSETS"
+directory = ".open-next/assets"

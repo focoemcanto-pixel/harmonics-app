@@ -1,7 +1,7 @@
 'use client';
 
 import AdminSectionTitle from '../admin/AdminSectionTitle';
-import { Input, Select } from './ContatoFormPrimitives';
+import { Input, Select } from '../admin/AdminFormPrimitives';
 import ContatoCard from './ContatoCard';
 
 export default function ContatosListaTab({

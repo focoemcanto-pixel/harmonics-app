@@ -1,7 +1,7 @@
 'use client';
 
 import AdminSummaryCard from '../admin/AdminSummaryCard';
-import Pill from './EventPill';
+import Pill from '../admin/AdminPill';
 
 export default function EventosResumoTab({
   resumo,

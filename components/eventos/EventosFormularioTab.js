@@ -1,8 +1,8 @@
 'use client';
 
 import AdminSectionTitle from '../admin/AdminSectionTitle';
-import { Field, Input, Select } from './EventFormPrimitives';
-import Pill from './EventPill';
+import { Field, Input, Select } from '../admin/AdminFormPrimitives';
+import Pill from '../admin/AdminPill';
 
 function SectionCard({ eyebrow, title, subtitle, children }) {
   return (

@@ -1,6 +1,6 @@
 'use client';
 
-import ContatoPill from './ContatoPill';
+import ContatoPill from '../admin/AdminPill';
 import { formatPhoneDisplay, formatInitials, getWhatsAppLink } from '../../lib/contatos/contatos-format';
 import { getTagTone, getInitialsClasses } from '../../lib/contatos/contatos-ui';
 

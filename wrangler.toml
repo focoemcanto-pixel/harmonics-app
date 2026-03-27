@@ -1,6 +1,5 @@
 name = "harmonics-app"
 compatibility_date = "2024-05-01"
-main = ".open-next/cloudflare/index.mjs"
 
 # Pages configuration
 pages_build_output_dir = ".open-next/cloudflare"
@@ -14,3 +13,4 @@ pages_build_output_dir = ".open-next/cloudflare"
 # [[kv_namespaces]]
 # binding = "CACHE_KV"
 # id = "your-kv-namespace-id"
+# preview_id = "your-preview-kv-namespace-id"

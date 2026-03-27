@@ -38,3 +38,9 @@ temp/
 
 # Coverage (testes)
 coverage/
+
+# Webpack cache (exclude from Cloudflare Pages)
+.next/cache/
+cache/
+*.pack
+*.pack.gz

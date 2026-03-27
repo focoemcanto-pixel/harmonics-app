@@ -7,13 +7,8 @@ const nextConfig: NextConfig = {
   // CRITICAL: OpenNext requires standalone mode
   output: "standalone",
 
-  // Disable source maps for server bundles
-  webpack: (config, { isServer }) => {
-    if (isServer) {
-      config.devtool = false;
-    }
-    return config;
-  },
+  // Turbopack configuration (Next.js 16 default)
+  turbopack: {},
 
   typescript: {
     ignoreBuildErrors: false,

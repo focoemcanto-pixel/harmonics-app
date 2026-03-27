@@ -9,6 +9,10 @@ const config: OpenNextConfig = {
   },
   middleware: {
     external: true,
+    override: {
+      wrapper: "cloudflare-edge",
+      converter: "edge",
+    },
   },
 };
 

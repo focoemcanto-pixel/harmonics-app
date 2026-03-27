@@ -3,8 +3,6 @@
 import AdminSectionTitle from '../admin/AdminSectionTitle';
 import { Field, Input, Select, Textarea } from '../admin/AdminFormPrimitives';
 import { formatPhoneDisplay } from '../../lib/contatos/contatos-format';
-import { getTagTone } from '../../lib/contatos/contatos-ui';
-import ContatoPill from '../admin/AdminPill';
 
 const DEFAULT_TAGS = ['vocal', 'noivo', 'músico', 'cliente', 'fornecedor'];
 

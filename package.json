@@ -4,10 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build && rm -rf .next/cache && rm -rf cache",
-    "build:cloudflare": "next build && rm -rf .next/cache && rm -rf cache && npx @opennextjs/cloudflare build",
-    "deploy": "npm run build:cloudflare && npx wrangler pages deploy .open-next/cloudflare",
-    "preview": "wrangler pages dev .open-next/cloudflare",
+    "build": "next build",
+    "build:worker": "next build && open-next build",
+    "deploy": "npm run build:worker && wrangler deploy",
+    "deploy:preview": "npm run build:worker && wrangler deploy --env preview",
+    "preview:local": "wrangler dev",
     "start": "next start",
     "lint": "eslint"
   },

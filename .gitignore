@@ -51,3 +51,4 @@ cache/
 # Wrangler
 .wrangler/
 .dev.vars
+wrangler.toml.bak

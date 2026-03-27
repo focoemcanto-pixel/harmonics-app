@@ -1,0 +1,40 @@
+# Dependências
+node_modules/
+
+# Build do Next.js
+.next/
+out/
+dist/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Ambiente (SENSÍVEL)
+.env
+.env.local
+.env.development
+.env.production
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# IDE / Editor
+.vscode/
+.idea/
+
+# Cache
+.cache/
+*.tsbuildinfo
+
+# Supabase local (se estiver usando)
+.supabase/
+
+# Arquivos temporários
+tmp/
+temp/
+
+# Coverage (testes)
+coverage/

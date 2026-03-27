@@ -1,0 +1,233 @@
+import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+import { buildContractTemplateData } from '../../../../lib/contracts/buildContractTemplateData';
+import { generateGoogleContract } from '../../../../lib/contracts/googleContractGenerator';
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const templateId = process.env.CONTRACT_TEMPLATE_DOC_ID;
+const rootFolderId = process.env.CONTRACTS_DRIVE_FOLDER_ID;
+
+if (!supabaseUrl) {
+  throw new Error('NEXT_PUBLIC_SUPABASE_URL não está definida no .env.local');
+}
+
+if (!supabaseServiceRoleKey) {
+  throw new Error('SUPABASE_SERVICE_ROLE_KEY não está definida no .env.local');
+}
+
+if (!templateId) {
+  throw new Error('CONTRACT_TEMPLATE_DOC_ID não está definida no .env.local');
+}
+
+if (!rootFolderId) {
+  throw new Error('CONTRACTS_DRIVE_FOLDER_ID não está definida no .env.local');
+}
+
+const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+
+async function getContractContext({ contractId, precontractId }) {
+  let contract = null;
+
+  if (contractId) {
+    const { data, error } = await supabase
+      .from('contracts')
+      .select('*')
+      .eq('id', contractId)
+      .single();
+
+    if (error) {
+      throw new Error(`Erro ao buscar contract: ${error.message}`);
+    }
+
+    contract = data;
+  } else if (precontractId) {
+    const { data, error } = await supabase
+      .from('contracts')
+      .select('*')
+      .eq('precontract_id', precontractId)
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`Erro ao buscar contract por precontract: ${error.message}`);
+    }
+
+    contract = data || null;
+  }
+
+  if (!contract && !precontractId) {
+    throw new Error('Informe contractId ou precontractId.');
+  }
+
+  const targetPrecontractId = contract?.precontract_id || precontractId || null;
+
+  if (!targetPrecontractId) {
+    throw new Error('PrecontractId não encontrado.');
+  }
+
+  const { data: precontract, error: preError } = await supabase
+    .from('precontracts')
+    .select('*')
+    .eq('id', targetPrecontractId)
+    .single();
+
+  if (preError) {
+    throw new Error(`Erro ao buscar precontract: ${preError.message}`);
+  }
+
+  let contact = null;
+  const targetContactId = contract?.contact_id || precontract?.contact_id || null;
+
+  if (targetContactId) {
+    const { data, error } = await supabase
+      .from('contacts')
+      .select('*')
+      .eq('id', targetContactId)
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`Erro ao buscar contact: ${error.message}`);
+    }
+
+    contact = data || null;
+  }
+
+  let event = null;
+  const targetEventId = contract?.event_id || precontract?.event_id || null;
+
+  if (targetEventId) {
+    const { data, error } = await supabase
+      .from('events')
+      .select('*')
+      .eq('id', targetEventId)
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`Erro ao buscar event: ${error.message}`);
+    }
+
+    event = data || null;
+  }
+
+  return {
+    contract,
+    precontract,
+    contact,
+    event,
+  };
+}
+
+function getContractName(context) {
+  const clientName =
+    context.contact?.name ||
+    context.precontract?.client_name ||
+    context.event?.client_name ||
+    'Cliente';
+
+  const eventDate =
+    context.event?.event_date ||
+    context.precontract?.event_date ||
+    new Date().toISOString().slice(0, 10);
+
+  return `Contrato - ${clientName} - ${eventDate}`;
+}
+
+export async function GET() {
+  return NextResponse.json({
+    ok: true,
+    message: 'Use POST para gerar preview ou contrato final.',
+  });
+}
+
+export async function POST(request) {
+  try {
+    const body = await request.json();
+
+    const contractId = body?.contractId || null;
+    const precontractId = body?.precontractId || null;
+    const previewOnly = !!body?.previewOnly;
+
+    const context = await getContractContext({ contractId, precontractId });
+    const templateData = buildContractTemplateData(context);
+
+    if (previewOnly) {
+      return NextResponse.json({
+        ok: true,
+        mode: 'preview',
+        message: 'Template data gerado com sucesso.',
+        ids: {
+          contractId: context.contract?.id || null,
+          precontractId: context.precontract?.id || null,
+          contactId: context.contact?.id || null,
+          eventId: context.event?.id || null,
+        },
+        templateData,
+      });
+    }
+
+    if (!context.contract?.id) {
+      throw new Error(
+        'Contract não encontrado. Gere/assine o contrato antes de tentar criar o documento final.'
+      );
+    }
+
+    const contractName = getContractName(context);
+
+    const generated = await generateGoogleContract({
+      templateId,
+      rootFolderId,
+      templateData,
+      contractName,
+      eventDate:
+        context.event?.event_date ||
+        context.precontract?.event_date ||
+        new Date().toISOString().slice(0, 10),
+
+      // Ajuste se seu template usar outro formato:
+      // 'double_curly' => {{CLIENTE_NOME}}
+      // 'double_angle' => <<CLIENTE_NOME>>
+      // qualquer outro => [CLIENTE_NOME]
+      placeholderStyle: 'double_curly',
+    });
+
+    const { error: updateError } = await supabase
+      .from('contracts')
+      .update({
+        doc_template_id: templateId,
+        doc_url: generated.docUrl,
+        pdf_url: generated.pdfUrl,
+      })
+      .eq('id', context.contract.id);
+
+    if (updateError) {
+      throw new Error(`Erro ao salvar links do contrato: ${updateError.message}`);
+    }
+
+    return NextResponse.json({
+      ok: true,
+      mode: 'generated',
+      message: 'Contrato gerado com sucesso.',
+      ids: {
+        contractId: context.contract?.id || null,
+        precontractId: context.precontract?.id || null,
+        contactId: context.contact?.id || null,
+        eventId: context.event?.id || null,
+      },
+      docUrl: generated.docUrl,
+      pdfUrl: generated.pdfUrl,
+      folderYear: generated.folderYear,
+      folderMonth: generated.folderMonth,
+      templateData,
+    });
+  } catch (error) {
+    console.error('Erro em /api/contracts/generate:', error);
+
+    return NextResponse.json(
+      {
+        ok: false,
+        message: error?.message || 'Erro interno ao gerar contrato.',
+      },
+      { status: 500 }
+    );
+  }
+}

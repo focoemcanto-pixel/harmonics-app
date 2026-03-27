@@ -2,47 +2,54 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../lib/supabase';
-
-// Layout premium
 import AdminShell from '../../components/admin/AdminShell';
 import AdminPageHero from '../../components/admin/AdminPageHero';
+import AdminSummaryCard from '../../components/admin/AdminSummaryCard';
 import AdminSegmentTabs from '../../components/admin/AdminSegmentTabs';
-import AdminSectionTitle from '../../components/admin/AdminSectionTitle';
 
-// Componentes de contatos
-import ContatoCard from '../../components/contatos/ContatoCard';
-import ContatosResumoTab from '../../components/contatos/ContatosResumoTab';
+import { cleanPhone } from '../../lib/contatos/contatos-format';
+import {
+  filterBySearchTerm,
+  filterByTag,
+  filterByActive,
+  sortContatos,
+  getUniqueTags,
+} from '../../lib/contatos/contatos-filters';
+
 import ContatosFormularioTab from '../../components/contatos/ContatosFormularioTab';
-import { Input, Select } from '../../components/eventos/EventFormPrimitives';
+import ContatosListaTab from '../../components/contatos/ContatosListaTab';
 
-// Lógica modular
-import { applyFilters, getTagsList } from '../../lib/contatos/contatos-filters';
-import { cleanPhone, getInitials } from '../../lib/contatos/contatos-format';
-import { getHealthStatus } from '../../lib/contatos/contatos-ui';
-
-export default function ContatosPage() {
-  const [contatos, setContatos] = useState([]);
-  const [editandoId, setEditandoId] = useState(null);
-  const [salvando, setSalvando] = useState(false);
-  const [carregando, setCarregando] = useState(true);
-
-  const [busca, setBusca] = useState('');
-  const [tagFiltro, setTagFiltro] = useState('todas');
-  const [statusFiltro, setStatusFiltro] = useState('todos');
-
-  const [form, setForm] = useState({
+function getInitialForm() {
+  return {
     name: '',
     email: '',
     phone: '',
     tag: '',
     notes: '',
     is_active: true,
-  });
+  };
+}
 
-  const [mobileTab, setMobileTab] = useState('resumo');
-  const [desktopTab, setDesktopTab] = useState('visao');
+const DESKTOP_TABS = [
+  { key: 'lista', label: 'Lista' },
+  { key: 'novo', label: 'Novo / Editar' },
+];
 
-  // ─── Backend ────────────────────────────────────────────────────────────────
+export default function ContatosPage() {
+  const [contatos, setContatos] = useState([]);
+  const [carregando, setCarregando] = useState(true);
+  const [salvando, setSalvando] = useState(false);
+  const [editandoId, setEditandoId] = useState(null);
+
+  const [form, setForm] = useState(getInitialForm());
+
+  const [busca, setBusca] = useState('');
+  const [tagFilter, setTagFilter] = useState('all');
+  const [activeFilter, setActiveFilter] = useState('all');
+  const [sortMode, setSortMode] = useState('name_asc');
+
+  const [desktopTab, setDesktopTab] = useState('lista');
+  const [mobileTab, setMobileTab] = useState('lista');
 
   async function carregarContatos() {
     try {
@@ -78,28 +85,21 @@ export default function ContatosPage() {
       phone: contato.phone || '',
       tag: contato.tag || '',
       notes: contato.notes || '',
-      is_active: contato.is_active ?? true,
+      is_active: contato.is_active !== false,
     });
-    setDesktopTab('formulario');
-    setMobileTab('formulario');
+    setDesktopTab('novo');
+    setMobileTab('novo');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   function cancelarEdicao() {
     setEditandoId(null);
-    setForm({
-      name: '',
-      email: '',
-      phone: '',
-      tag: '',
-      notes: '',
-      is_active: true,
-    });
+    setForm(getInitialForm());
   }
 
   async function salvarContato() {
     if (!form.name.trim()) {
-      alert('Informe o nome');
+      alert('Informe o nome do contato.');
       return;
     }
 
@@ -112,20 +112,27 @@ export default function ContatosPage() {
         phone: cleanPhone(form.phone),
         tag: form.tag.trim() || null,
         notes: form.notes.trim() || null,
-        is_active: form.is_active,
+        is_active: !!form.is_active,
       };
 
-      let result;
       if (editandoId) {
-        result = await supabase.from('contacts').update(payload).eq('id', editandoId);
-      } else {
-        result = await supabase.from('contacts').insert([payload]);
-      }
+        const { error } = await supabase
+          .from('contacts')
+          .update(payload)
+          .eq('id', editandoId);
 
-      if (result.error) throw result.error;
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('contacts')
+          .insert([payload]);
+
+        if (error) throw error;
+      }
 
       cancelarEdicao();
       await carregarContatos();
+      setDesktopTab('lista');
       setMobileTab('lista');
     } catch (error) {
       console.error('Erro ao salvar contato:', error);
@@ -136,13 +143,18 @@ export default function ContatosPage() {
   }
 
   async function excluirContato(id) {
-    if (!confirm('Excluir contato?')) return;
+    if (!confirm('Tem certeza que deseja excluir este contato?')) return;
 
     try {
-      const { error } = await supabase.from('contacts').delete().eq('id', id);
+      const { error } = await supabase
+        .from('contacts')
+        .delete()
+        .eq('id', id);
+
       if (error) throw error;
 
       if (editandoId === id) cancelarEdicao();
+
       await carregarContatos();
     } catch (error) {
       console.error('Erro ao excluir contato:', error);
@@ -150,68 +162,40 @@ export default function ContatosPage() {
     }
   }
 
-  async function toggleStatus(id, currentStatus) {
-    const { error } = await supabase
-      .from('contacts')
-      .update({ is_active: !currentStatus })
-      .eq('id', id);
-
-    if (error) {
-      alert('Erro ao atualizar status');
-      return;
-    }
-
-    setContatos((prev) =>
-      prev.map((c) =>
-        c.id === id ? { ...c, is_active: !currentStatus } : c
-      )
-    );
-  }
-
-  // ─── Computed ───────────────────────────────────────────────────────────────
+  const uniqueTags = useMemo(() => getUniqueTags(contatos), [contatos]);
 
   const contatosFiltrados = useMemo(() => {
-    return applyFilters(contatos, { busca, tagFiltro, statusFiltro });
-  }, [contatos, busca, tagFiltro, statusFiltro]);
+    let lista = [...contatos];
 
-  const tags = useMemo(() => getTagsList(contatos), [contatos]);
+    lista = filterBySearchTerm(lista, busca);
+    lista = filterByTag(lista, tagFilter);
+    lista = filterByActive(lista, activeFilter);
+    lista = sortContatos(lista, sortMode);
+
+    return lista;
+  }, [contatos, busca, tagFilter, activeFilter, sortMode]);
 
   const resumo = useMemo(() => {
-    const total = contatosFiltrados.length;
-    const ativos = contatosFiltrados.filter((c) => c.is_active).length;
-    const completos = contatosFiltrados.filter(
-      (c) => c.name && c.email && c.phone
-    ).length;
+    const total = contatos.length;
+    const ativos = contatos.filter((c) => c.is_active !== false).length;
+    const inativos = total - ativos;
+    const comEmail = contatos.filter((c) => c.email).length;
 
-    return { total, ativos, completos };
-  }, [contatosFiltrados]);
-
-  const healthStatus = useMemo(() => {
-    return getHealthStatus(resumo);
-  }, [resumo]);
-
-  // ─── Tabs ───────────────────────────────────────────────────────────────────
-
-  const DESKTOP_TABS = [
-    { key: 'visao', label: 'Visão geral' },
-    { key: 'formulario', label: editandoId ? 'Editar' : 'Novo' },
-  ];
+    return { total, ativos, inativos, comEmail };
+  }, [contatos]);
 
   const mobileTabs = [
-    { key: 'resumo', label: 'Resumo' },
-    { key: 'formulario', label: editandoId ? 'Editar' : 'Novo contato' },
     { key: 'lista', label: 'Lista' },
+    { key: 'novo', label: editandoId ? 'Editar' : 'Novo' },
   ];
-
-  // ─── Mobile action ──────────────────────────────────────────────────────────
 
   const mobileActions = (
     <button
       type="button"
       onClick={() => {
         setEditandoId(null);
-        cancelarEdicao();
-        setMobileTab('formulario');
+        setForm(getInitialForm());
+        setMobileTab('novo');
       }}
       className="rounded-[16px] bg-[#0f172a] px-4 py-3 text-[13px] font-black text-white"
     >
@@ -219,72 +203,15 @@ export default function ContatosPage() {
     </button>
   );
 
-  // ─── Lista ──────────────────────────────────────────────────────────────────
-
-  function renderLista() {
+  if (carregando) {
     return (
-      <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_26px_rgba(17,24,39,0.04)] md:p-6">
-        <AdminSectionTitle
-          title="Contatos"
-          subtitle="Pesquise, filtre e gerencie seus contatos."
-        />
-
-        <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-3">
-          <Input
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-            placeholder="Buscar por nome, email, telefone..."
-          />
-
-          <Select value={tagFiltro} onChange={(e) => setTagFiltro(e.target.value)}>
-            <option value="todas">Todas as tags</option>
-            {tags.map((tag) => (
-              <option key={tag.tag} value={tag.tag}>
-                {tag.tag} ({tag.count})
-              </option>
-            ))}
-          </Select>
-
-          <Select value={statusFiltro} onChange={(e) => setStatusFiltro(e.target.value)}>
-            <option value="todos">Todos</option>
-            <option value="ativos">Ativos</option>
-            <option value="inativos">Inativos</option>
-          </Select>
-        </div>
-
-        <div className="space-y-4">
-          {carregando ? (
-            <div className="rounded-[20px] bg-[#f8fafc] px-4 py-5 text-[14px] font-semibold text-[#64748b]">
-              Carregando contatos...
-            </div>
-          ) : contatosFiltrados.length === 0 ? (
-            <div className="rounded-[20px] bg-[#f8fafc] px-4 py-5 text-[14px] font-semibold text-[#64748b]">
-              Nenhum contato encontrado.
-            </div>
-          ) : (
-            contatosFiltrados.map((c) => (
-              <ContatoCard
-                key={c.id}
-                id={c.id}
-                name={c.name}
-                email={c.email}
-                phone={c.phone}
-                tag={c.tag}
-                notes={c.notes}
-                isActive={c.is_active}
-                initials={getInitials(c.name)}
-                onEdit={() => iniciarEdicao(c)}
-                onDelete={() => excluirContato(c.id)}
-                onToggleStatus={() => toggleStatus(c.id, c.is_active)}
-              />
-            ))
-          )}
-        </div>
-      </section>
+      <AdminShell pageTitle="Contatos" activeItem="contatos" mobileActions={mobileActions}>
+        <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-6 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
+          <p className="text-center text-[#64748b]">Carregando contatos...</p>
+        </section>
+      </AdminShell>
     );
   }
-
-  // ─── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <AdminShell pageTitle="Contatos" activeItem="contatos" mobileActions={mobileActions}>
@@ -292,15 +219,15 @@ export default function ContatosPage() {
         <AdminPageHero
           badge="Harmonics Admin"
           title="Contatos"
-          subtitle="Gerencie clientes, músicos e convidados com visão centralizada."
+          subtitle="Gerencie clientes, músicos, fornecedores e todos os seus contatos em um só lugar."
           actions={
             <button
               type="button"
               onClick={() => {
                 setEditandoId(null);
-                cancelarEdicao();
-                setDesktopTab('formulario');
-                setMobileTab('formulario');
+                setForm(getInitialForm());
+                setDesktopTab('novo');
+                setMobileTab('novo');
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
               className="rounded-[18px] bg-violet-600 px-5 py-4 text-[14px] font-black text-white shadow-[0_12px_28px_rgba(124,58,237,0.18)]"
@@ -310,7 +237,13 @@ export default function ContatosPage() {
           }
         />
 
-        {/* Desktop tabs */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <AdminSummaryCard label="Total de contatos" value={resumo.total} helper="Cadastrados no sistema" />
+          <AdminSummaryCard label="Ativos" value={resumo.ativos} helper="Contatos ativos" tone="success" />
+          <AdminSummaryCard label="Inativos" value={resumo.inativos} helper="Contatos inativos" tone="warning" />
+          <AdminSummaryCard label="Com email" value={resumo.comEmail} helper="Acesso ao painel" tone="accent" />
+        </div>
+
         <div className="hidden md:block">
           <div className="rounded-[24px] border border-[#dbe3ef] bg-white p-2 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
             <div className="flex flex-wrap gap-2">
@@ -335,23 +268,25 @@ export default function ContatosPage() {
           </div>
         </div>
 
-        {/* Desktop content */}
         <div className="hidden md:block space-y-5">
-          {desktopTab === 'visao' && (
-            <>
-              <ContatosResumoTab
-                resumo={resumo}
-                healthStatus={healthStatus}
-                tags={tags}
-                setTagFiltro={setTagFiltro}
-                setDesktopTab={setDesktopTab}
-                setMobileTab={setMobileTab}
-              />
-              {renderLista()}
-            </>
+          {desktopTab === 'lista' && (
+            <ContatosListaTab
+              contatosFiltrados={contatosFiltrados}
+              busca={busca}
+              setBusca={setBusca}
+              tagFilter={tagFilter}
+              setTagFilter={setTagFilter}
+              activeFilter={activeFilter}
+              setActiveFilter={setActiveFilter}
+              sortMode={sortMode}
+              setSortMode={setSortMode}
+              uniqueTags={uniqueTags}
+              iniciarEdicao={iniciarEdicao}
+              excluirContato={excluirContato}
+            />
           )}
 
-          {desktopTab === 'formulario' && (
+          {desktopTab === 'novo' && (
             <ContatosFormularioTab
               editandoId={editandoId}
               form={form}
@@ -359,29 +294,34 @@ export default function ContatosPage() {
               salvarContato={salvarContato}
               cancelarEdicao={cancelarEdicao}
               salvando={salvando}
+              uniqueTags={uniqueTags}
             />
           )}
         </div>
 
-        {/* Mobile tabs */}
         <div className="md:hidden">
           <AdminSegmentTabs items={mobileTabs} active={mobileTab} onChange={setMobileTab} />
         </div>
 
-        {/* Mobile content */}
         <div className="space-y-5 md:hidden">
-          {mobileTab === 'resumo' && (
-            <ContatosResumoTab
-              resumo={resumo}
-              healthStatus={healthStatus}
-              tags={tags}
-              setTagFiltro={setTagFiltro}
-              setDesktopTab={setDesktopTab}
-              setMobileTab={setMobileTab}
+          {mobileTab === 'lista' && (
+            <ContatosListaTab
+              contatosFiltrados={contatosFiltrados}
+              busca={busca}
+              setBusca={setBusca}
+              tagFilter={tagFilter}
+              setTagFilter={setTagFilter}
+              activeFilter={activeFilter}
+              setActiveFilter={setActiveFilter}
+              sortMode={sortMode}
+              setSortMode={setSortMode}
+              uniqueTags={uniqueTags}
+              iniciarEdicao={iniciarEdicao}
+              excluirContato={excluirContato}
             />
           )}
 
-          {mobileTab === 'formulario' && (
+          {mobileTab === 'novo' && (
             <ContatosFormularioTab
               editandoId={editandoId}
               form={form}
@@ -389,10 +329,9 @@ export default function ContatosPage() {
               salvarContato={salvarContato}
               cancelarEdicao={cancelarEdicao}
               salvando={salvando}
+              uniqueTags={uniqueTags}
             />
           )}
-
-          {mobileTab === 'lista' && renderLista()}
         </div>
       </div>
     </AdminShell>

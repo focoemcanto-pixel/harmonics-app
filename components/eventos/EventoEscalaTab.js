@@ -423,16 +423,16 @@ export default function EventoEscalaTab({ eventId }) {
       setSalvando(true);
 
       const payload = escalaLocal.map((item) => ({
-        event_id: eventId,
-        musician_id: item.musician_id,
-        role: item.role || null,
-        status: item.status || 'pending',
-        notes: item.notes || null,
-        confirmed_at:
-          item.status === 'confirmed'
-            ? item.confirmed_at || new Date().toISOString()
-            : null,
-      }));
+  event_id: eventId,
+  musician_id: item.musician_id,
+  role: item.role || item.contact_tag_text || null,
+  status: item.status || 'pending',
+  notes: item.notes || null,
+  confirmed_at:
+    item.status === 'confirmed'
+      ? item.confirmed_at || new Date().toISOString()
+      : null,
+}));
 
       const { error: deleteError } = await supabase
         .from('event_musicians')

@@ -271,6 +271,11 @@ const [ultimoPagamentoAtualizadoId, setUltimoPagamentoAtualizadoId] = useState(n
 
     if (!error) setContatos(data || []);
   }
+    useEffect(() => {
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, []);
 
   useEffect(() => {
     async function carregar() {
@@ -408,6 +413,17 @@ window.scrollTo({ top: 0, behavior: 'smooth' });
     setEditandoId(null);
     setForm(getInitialForm());
   }
+    function abrirEscala(evento) {
+    setEventoEscala(evento);
+    setEscalaAberta(true);
+    document.body.style.overflow = 'hidden';
+  }
+
+  function fecharEscala() {
+    setEscalaAberta(false);
+    setEventoEscala(null);
+    document.body.style.overflow = '';
+  }
 
   const financial = useMemo(() => {
   const formationPrice = toNumber(form.formation_price);
@@ -451,6 +467,7 @@ window.scrollTo({ top: 0, behavior: 'smooth' });
     profitAmountFormatted: formatMoney(profitAmount),
   };
 }, [form, pricing]);
+  
 
   async function salvarPricing() {
     if (!pricingId) {
@@ -901,7 +918,7 @@ window.scrollTo({ top: 0, behavior: 'smooth' });
   const contractInfo = contractsByEventId.get(String(ev.id));
 
   return (
-    <AdminEventCard
+       <AdminEventCard
       key={ev.id}
       id={ev.id}
       cliente={ev.client_name}
@@ -923,8 +940,12 @@ window.scrollTo({ top: 0, behavior: 'smooth' });
       operationalStatus={ev.status || 'Rascunho'}
       timelineText={timeline.text}
       timelineTone={timeline.tone}
+      contractLabel={contractInfo?.label || 'Sem contrato'}
+      contractTone={contractInfo?.tone || 'default'}
+      contractLink={contractInfo?.link || ''}
       onEdit={() => iniciarEdicao(ev)}
       onDelete={() => excluirEvento(ev.id)}
+      onOpenEscala={() => abrirEscala(ev)}
     />
   );
 })
@@ -1157,6 +1178,45 @@ setContratoAbertoId={setContratoAbertoId}
 )}
         </div>
       </div>
+            {escalaAberta && eventoEscala ? (
+        <div className="fixed inset-0 z-[120] bg-black/40 backdrop-blur-[2px]">
+          <div className="flex min-h-screen items-stretch justify-center md:p-6">
+            <div className="flex min-h-screen w-full flex-col bg-white md:min-h-0 md:max-h-[92vh] md:max-w-4xl md:rounded-[28px] md:border md:border-[#dbe3ef] md:shadow-[0_25px_60px_rgba(15,23,42,0.18)] overflow-hidden">
+              <div className="sticky top-0 z-10 border-b border-[#e6ebf2] bg-white px-5 py-4 md:px-6 md:py-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <h2 className="text-[32px] font-black tracking-[-0.04em] text-[#0f172a]">
+                      Escala
+                    </h2>
+
+                    <div className="mt-2 text-[15px] font-semibold leading-7 text-[#64748b] md:text-[16px]">
+                      {formatDateBR(eventoEscala.event_date)} • {String(eventoEscala.event_time || '-').slice(0, 5)} • {eventoEscala.client_name || 'Evento'}
+                      {eventoEscala.location_name ? ` • ${eventoEscala.location_name}` : ''}
+                    </div>
+
+                    <div className="mt-2 text-[15px] font-semibold leading-7 text-[#64748b] md:text-[16px]">
+                      {eventoEscala.formation || 'Sem formação definida'}
+                      {eventoEscala.instruments ? ` — ${eventoEscala.instruments}` : ''}
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={fecharEscala}
+                    className="shrink-0 rounded-[18px] bg-[#f1f5f9] px-5 py-3 text-[15px] font-black text-[#0f172a]"
+                  >
+                    Fechar
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto px-5 py-5 md:px-6 md:py-6">
+                <EventoEscalaTab eventId={eventoEscala.id} />
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </AdminShell>
   );
 }

@@ -2,6 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../../lib/supabase';
+import {
+  pickBestScaleTemplate,
+  splitCsvLike,
+  normalizeText,
+} from '../../lib/templates-escala/templates-escala-match';
 
 function formatDateBR(value) {
   if (!value) return '-';
@@ -14,22 +19,6 @@ function formatDateTimeBR(dateValue, timeValue) {
   const date = formatDateBR(dateValue);
   const time = timeValue ? String(timeValue).slice(0, 5) : '--:--';
   return `${date} • ${time}`;
-}
-
-function normalizeText(value) {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .trim();
-}
-
-function splitCsvLike(value) {
-  if (!value) return [];
-  return String(value)
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean);
 }
 
 function getContactTagText(contact) {
@@ -68,7 +57,6 @@ function getStatusMeta(status) {
     return {
       label: 'Confirmado',
       badge: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-      soft: 'bg-emerald-50 text-emerald-700',
       dot: 'bg-emerald-500',
     };
   }
@@ -77,7 +65,6 @@ function getStatusMeta(status) {
     return {
       label: 'Recusado',
       badge: 'border-red-200 bg-red-50 text-red-700',
-      soft: 'bg-red-50 text-red-700',
       dot: 'bg-red-500',
     };
   }
@@ -86,7 +73,6 @@ function getStatusMeta(status) {
     return {
       label: 'Reserva',
       badge: 'border-sky-200 bg-sky-50 text-sky-700',
-      soft: 'bg-sky-50 text-sky-700',
       dot: 'bg-sky-500',
     };
   }
@@ -94,7 +80,6 @@ function getStatusMeta(status) {
   return {
     label: 'Pendente',
     badge: 'border-amber-200 bg-amber-50 text-amber-700',
-    soft: 'bg-amber-50 text-amber-700',
     dot: 'bg-amber-500',
   };
 }
@@ -279,6 +264,7 @@ export default function EventoEscalaTab({ eventId }) {
   const [contatos, setContatos] = useState([]);
   const [escalaSalva, setEscalaSalva] = useState([]);
   const [escalaLocal, setEscalaLocal] = useState([]);
+  const [templateAplicado, setTemplateAplicado] = useState(null);
 
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
@@ -296,26 +282,37 @@ export default function EventoEscalaTab({ eventId }) {
       setCarregando(true);
       setErro('');
 
-      const [eventoResp, contatosResp, escalaResp] = await Promise.all([
-        supabase
-          .from('events')
-          .select('id, client_name, event_date, event_time, location_name, formation, instruments')
-          .eq('id', eventId)
-          .single(),
-        supabase
-          .from('contacts')
-          .select('*')
-          .order('name', { ascending: true }),
-        supabase
-          .from('event_musicians')
-          .select('id, event_id, musician_id, role, status, notes, confirmed_at, created_at, updated_at')
-          .eq('event_id', eventId)
-          .order('created_at', { ascending: true }),
-      ]);
+      const [eventoResp, contatosResp, escalaResp, templatesResp, templateItemsResp] =
+        await Promise.all([
+          supabase
+            .from('events')
+            .select('id, client_name, event_date, event_time, location_name, formation, instruments')
+            .eq('id', eventId)
+            .single(),
+          supabase
+            .from('contacts')
+            .select('*')
+            .order('name', { ascending: true }),
+          supabase
+            .from('event_musicians')
+            .select('id, event_id, musician_id, role, status, notes, confirmed_at, created_at, updated_at')
+            .eq('event_id', eventId)
+            .order('created_at', { ascending: true }),
+          supabase
+            .from('scale_templates')
+            .select('*')
+            .eq('is_active', true),
+          supabase
+            .from('scale_template_items')
+            .select('*')
+            .order('sort_order', { ascending: true }),
+        ]);
 
       if (eventoResp.error) throw eventoResp.error;
       if (contatosResp.error) throw contatosResp.error;
       if (escalaResp.error) throw escalaResp.error;
+      if (templatesResp.error) throw templatesResp.error;
+      if (templateItemsResp.error) throw templateItemsResp.error;
 
       const eventoData = eventoResp.data || null;
       const contatosData = contatosResp.data || [];
@@ -339,10 +336,56 @@ export default function EventoEscalaTab({ eventId }) {
         };
       });
 
+      let escalaInicial = escalaData;
+      let templateSelecionado = null;
+
+      if (escalaData.length === 0 && eventoData) {
+        const bestTemplate = pickBestScaleTemplate(
+          templatesResp.data || [],
+          eventoData.formation,
+          eventoData.instruments
+        );
+
+        if (bestTemplate) {
+          const templateItems = (templateItemsResp.data || [])
+            .filter((item) => String(item.template_id) === String(bestTemplate.id))
+            .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+
+          const suggestedItems = templateItems
+            .map((item) => {
+              const contact = contatosMap.get(String(item.contact_id)) || null;
+              if (!contact) return null;
+
+              const tagText = getContactTagText(contact);
+
+              return {
+                id: undefined,
+                event_id: eventId,
+                musician_id: item.contact_id,
+                role: item.role || tagText || '',
+                status: 'pending',
+                notes: '',
+                confirmed_at: null,
+                musician_name: contact.name || '',
+                musician_phone: contact.phone || '',
+                musician_email: contact.email || '',
+                contact_tag_text: tagText,
+              };
+            })
+            .filter(Boolean);
+
+          if (suggestedItems.length > 0) {
+            escalaInicial = suggestedItems;
+            templateSelecionado = bestTemplate;
+          }
+        }
+      }
+
       setEvento(eventoData);
       setContatos(contatosData);
       setEscalaSalva(escalaData);
-      setEscalaLocal(escalaData);
+      setEscalaLocal(escalaInicial);
+      setTemplateAplicado(templateSelecionado);
     } catch (e) {
       console.error('Erro ao carregar escala do evento:', e);
       setErro(
@@ -385,6 +428,8 @@ export default function EventoEscalaTab({ eventId }) {
     return splitCsvLike(evento?.formation);
   }, [evento]);
 
+  const escalaParaExibir = editando ? escalaLocal : (escalaSalva.length > 0 ? escalaSalva : escalaLocal);
+
   const contatosDisponiveis = useMemo(() => {
     const usados = new Set(escalaLocal.map((item) => String(item.musician_id)));
     return contatos.filter((contact) => !usados.has(String(contact.id)));
@@ -400,23 +445,24 @@ export default function EventoEscalaTab({ eventId }) {
   }, [busca, contatosDisponiveis]);
 
   const resumoStatus = useMemo(() => {
-    const total = escalaSalva.length;
-    const confirmados = escalaSalva.filter((item) => item.status === 'confirmed').length;
-    const pendentes = escalaSalva.filter((item) => item.status === 'pending').length;
-    const recusados = escalaSalva.filter((item) => item.status === 'declined').length;
+    const base = escalaParaExibir;
+    const total = base.length;
+    const confirmados = base.filter((item) => item.status === 'confirmed').length;
+    const pendentes = base.filter((item) => item.status === 'pending').length;
+    const recusados = base.filter((item) => item.status === 'declined').length;
 
     return { total, confirmados, pendentes, recusados };
-  }, [escalaSalva]);
+  }, [escalaParaExibir]);
 
   function iniciarEdicao() {
-    setEscalaLocal(escalaSalva);
+    setEscalaLocal(escalaParaExibir);
     setBusca('');
     setSucesso('');
     setEditando(true);
   }
 
   function cancelarEdicao() {
-    setEscalaLocal(escalaSalva);
+    setEscalaLocal(escalaSalva.length > 0 ? escalaSalva : escalaLocal);
     setBusca('');
     setEditando(false);
   }
@@ -500,6 +546,7 @@ export default function EventoEscalaTab({ eventId }) {
 
       await carregarTudo();
       setEditando(false);
+      setTemplateAplicado(null);
       setSucesso('Escala salva com sucesso.');
     } catch (e) {
       console.error('Erro ao salvar escala:', e);
@@ -563,6 +610,20 @@ export default function EventoEscalaTab({ eventId }) {
           </div>
         </div>
 
+        {templateAplicado && escalaSalva.length === 0 ? (
+          <div className="mt-5 rounded-[22px] border border-violet-200 bg-violet-50 px-4 py-4">
+            <div className="text-[12px] font-black uppercase tracking-[0.08em] text-violet-700">
+              Pré-escala sugerida
+            </div>
+            <div className="mt-1 text-[15px] font-semibold text-violet-800">
+              Template aplicado: {templateAplicado.name}
+            </div>
+            <div className="mt-1 text-[14px] leading-6 text-violet-700">
+              A sugestão foi montada a partir da formação do evento. Revise e ajuste antes de salvar.
+            </div>
+          </div>
+        ) : null}
+
         <div className="mt-5 flex flex-wrap gap-3">
           {!editando ? (
             <button
@@ -570,7 +631,7 @@ export default function EventoEscalaTab({ eventId }) {
               onClick={iniciarEdicao}
               className="rounded-[18px] bg-violet-600 px-5 py-3 text-[14px] font-black text-white shadow-[0_12px_28px_rgba(124,58,237,0.18)] transition hover:translate-y-[-1px]"
             >
-              {escalaSalva.length > 0 ? 'Editar escala' : 'Montar escala'}
+              {escalaParaExibir.length > 0 ? 'Editar escala' : 'Montar escala'}
             </button>
           ) : (
             <div className="rounded-[18px] border border-violet-200 bg-violet-50 px-4 py-3 text-[13px] font-black text-violet-700">
@@ -588,7 +649,7 @@ export default function EventoEscalaTab({ eventId }) {
 
       {!editando ? (
         <>
-          {escalaSalva.length === 0 ? (
+          {escalaParaExibir.length === 0 ? (
             <EmptyState
               title="Sem escala ainda"
               text="Nenhum músico escalado neste evento. Monte a equipe para começar a operação deste evento."
@@ -597,7 +658,7 @@ export default function EventoEscalaTab({ eventId }) {
             />
           ) : (
             <div className="space-y-4">
-              {escalaSalva.map((item) => (
+              {escalaParaExibir.map((item) => (
                 <PreviewScaleCard
                   key={`${item.musician_id}-${item.role}-${item.id || 'novo'}`}
                   item={item}

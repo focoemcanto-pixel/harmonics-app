@@ -42,7 +42,6 @@ export default function EscalasFormularioTab({
 
   function handleSubmit(e) {
     e.preventDefault();
-
     if (!form.event_id) {
       alert('Selecione um evento');
       return;
@@ -55,9 +54,14 @@ export default function EscalasFormularioTab({
       alert('Informe a função/instrumento');
       return;
     }
-
     onSave(form);
   }
+
+  // CORREÇÃO DO SELECT DE EVENTO:
+  const optionsEventos = eventos.map((evento) => ({
+    value: evento.id,
+    label: evento.client_name || `Evento #${evento.id}`,
+  }));
 
   return (
     <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-6 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
@@ -75,9 +79,9 @@ export default function EscalasFormularioTab({
             disabled={salvando}
           >
             <option value="">Selecione um evento</option>
-            {eventos.map((evt) => (
-              <option key={evt.id} value={evt.id}>
-                {evt.client_name} - {evt.event_date}
+            {optionsEventos.map((evt) => (
+              <option key={evt.value} value={evt.value}>
+                {evt.label}
               </option>
             ))}
           </Select>

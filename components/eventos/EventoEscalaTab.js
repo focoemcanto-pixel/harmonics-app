@@ -374,23 +374,25 @@ export default function EventoEscalaTab({ eventId }) {
   }
 
   function adicionarMusico(contact) {
-    const novoItem = {
-      id: undefined,
-      event_id: eventId,
-      musician_id: contact.id,
-      role: '',
-      status: 'pending',
-      notes: '',
-      confirmed_at: null,
-      musician_name: contact.name || '',
-      musician_phone: contact.phone || '',
-      musician_email: contact.email || '',
-      contact_tag_text: getContactTagText(contact),
-    };
+  const tagText = getContactTagText(contact);
 
-    setEscalaLocal((prev) => [...prev, novoItem]);
-    setBusca('');
-  }
+  const novoItem = {
+    id: undefined,
+    event_id: eventId,
+    musician_id: contact.id,
+    role: tagText || '',
+    status: 'pending',
+    notes: '',
+    confirmed_at: null,
+    musician_name: contact.name || '',
+    musician_phone: contact.phone || '',
+    musician_email: contact.email || '',
+    contact_tag_text: tagText,
+  };
+
+  setEscalaLocal((prev) => [...prev, novoItem]);
+  setBusca('');
+}
 
   function removerMusico(index) {
     setEscalaLocal((prev) => prev.filter((_, i) => i !== index));

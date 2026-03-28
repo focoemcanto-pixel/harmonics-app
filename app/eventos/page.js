@@ -15,6 +15,7 @@ import EventosOperacaoTab from '../../components/eventos/EventosOperacaoTab';
 import EventosResumoTab from '../../components/eventos/EventosResumoTab';
 import EventosPricingTab from '../../components/eventos/EventosPricingTab';
 import EventosFormularioTab from '../../components/eventos/EventosFormularioTab';
+import EventoEscalaTab from '../../components/eventos/EventoEscalaTab';
 import {
   isContratoPendente,
   isFinanceiroPendente,
@@ -161,9 +162,11 @@ const [ultimoPagamentoAtualizadoId, setUltimoPagamentoAtualizadoId] = useState(n
   const [pricingId, setPricingId] = useState(null);
   const [pricing, setPricing] = useState(getDefaultPricing());
 
-  const [form, setForm] = useState(getInitialForm());
-const [mobileTab, setMobileTab] = useState('resumo');
-const [desktopTab, setDesktopTab] = useState('visao');
+    const [form, setForm] = useState(getInitialForm());
+  const [mobileTab, setMobileTab] = useState('resumo');
+  const [desktopTab, setDesktopTab] = useState('visao');
+  const [escalaAberta, setEscalaAberta] = useState(false);
+  const [eventoEscala, setEventoEscala] = useState(null);
 
   async function carregarEventos() {
     try {

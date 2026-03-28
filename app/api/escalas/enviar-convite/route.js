@@ -72,6 +72,12 @@ export async function POST(request) {
         { status: 400 }
       );
     }
+    if (!escala.invite_token) {
+  return NextResponse.json(
+    { error: 'Invite token inválido ou ausente' },
+    { status: 400 }
+  );
+}
 
     // Gerar link do convite
     const inviteLink = generateInviteLink(escala.invite_token);

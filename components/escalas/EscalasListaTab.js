@@ -13,6 +13,7 @@ export default function EscalasListaTab({
   onEdit,
   onDelete,
   onChangeStatus,
+  onInviteSent,
 }) {
   return (
     <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_26px_rgba(17,24,39,0.04)] md:p-6">
@@ -60,6 +61,7 @@ export default function EscalasListaTab({
             onEdit={onEdit}
             onDelete={onDelete}
             onChangeStatus={onChangeStatus}
+            onInviteSent={onInviteSent}
           />
         ))}
       </div>

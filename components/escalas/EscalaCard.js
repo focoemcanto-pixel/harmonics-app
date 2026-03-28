@@ -5,7 +5,7 @@ import { getRoleIcon, formatDateBR } from '../../lib/escalas/escalas-format';
 import { getStatusLabel, getStatusColor } from '../../lib/escalas/escalas-ui';
 import EscalaInviteButton from './EscalaInviteButton';
 
-export default function EscalaCard({ escala, onEdit, onDelete, onChangeStatus, onInviteSent }) {
+export default function EscalaCard({ escala, onEdit, onDelete, onChangeStatus, onEnviarConvite }) {
   const musicianName = escala.musician_name || escala.contacts?.name || 'Músico não identificado';
   const clientName = escala.events?.client_name || 'Evento não identificado';
   const eventDate = escala.events?.event_date || '';
@@ -57,7 +57,7 @@ export default function EscalaCard({ escala, onEdit, onDelete, onChangeStatus, o
         </button>
 
         {/* Botão de convite */}
-        <EscalaInviteButton escala={escala} onInviteSent={onInviteSent} />
+        <EscalaInviteButton escala={escala} onEnviarConvite={onEnviarConvite} />
 
         {escala.status !== 'confirmed' && (
           <button

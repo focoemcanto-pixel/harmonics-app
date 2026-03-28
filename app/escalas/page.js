@@ -43,8 +43,8 @@ export default function EscalasPage() {
         .from('escalas')
         .select(`
           *,
-          events (id, client_name, event_date),
-          contacts (id, name, phone)
+          events (id, client_name, event_date, event_time, location),
+          contacts (id, name, phone, email)
         `)
         .order('created_at', { ascending: false });
 
@@ -194,6 +194,10 @@ export default function EscalasPage() {
     setMobileTab('formulario');
   }
 
+  async function handleInviteSent() {
+    await carregar();
+  }
+
   function handleNovo() {
     setEscalaSelecionada(null);
     setMostrarFormulario(true);
@@ -251,6 +255,7 @@ export default function EscalasPage() {
             onEdit={handleEdit}
             onDelete={handleDelete}
             onChangeStatus={handleChangeStatus}
+            onInviteSent={handleInviteSent}
           />
           {mostrarFormulario && (
             <EscalasFormularioTab
@@ -290,6 +295,7 @@ export default function EscalasPage() {
               onEdit={handleEdit}
               onDelete={handleDelete}
               onChangeStatus={handleChangeStatus}
+              onInviteSent={handleInviteSent}
             />
           )}
           {mobileTab === 'formulario' && (

@@ -41,11 +41,11 @@ export default function EscalasPage() {
       setErro('');
 
       const { data, error } = await supabase
-        .from('escalas')
+        .from('event_musicians')
         .select(`
           *,
-          events (id, client_name, event_date, event_time, location),
-          contacts (id, name, phone, email)
+          event:events(id, client_name, event_date, event_time, location),
+          musician:contacts(id, name, phone, email)
         `)
         .order('created_at', { ascending: false });
 
@@ -62,19 +62,17 @@ export default function EscalasPage() {
   async function carregarEventos() {
     const { data } = await supabase
       .from('events')
-      .select('id, client_name, event_date')
+      .select('id, client_name, event_date, event_time, location')
       .order('event_date', { ascending: false });
-
     setEventos(data || []);
   }
 
   async function carregarContatos() {
     const { data } = await supabase
       .from('contacts')
-      .select('id, name')
+      .select('id, name, email, phone')
       .eq('is_active', true)
       .order('name', { ascending: true });
-
     setContatos(data || []);
   }
 
@@ -115,7 +113,7 @@ export default function EscalasPage() {
         }
 
         const { error } = await supabase
-          .from('escalas')
+          .from('event_musicians')
           .update(payload)
           .eq('id', escalaSelecionada.id);
 
@@ -134,7 +132,7 @@ export default function EscalasPage() {
         }
 
         const { error } = await supabase
-          .from('escalas')
+          .from('event_musicians')
           .insert([payload]);
 
         if (error) throw error;
@@ -155,12 +153,11 @@ export default function EscalasPage() {
   async function handleDelete(escalaId) {
     try {
       const { error } = await supabase
-        .from('escalas')
+        .from('event_musicians')
         .delete()
         .eq('id', escalaId);
 
       if (error) throw error;
-
       await carregar();
     } catch (error) {
       console.error('Erro ao deletar escala:', error);
@@ -176,12 +173,11 @@ export default function EscalasPage() {
       };
 
       const { error } = await supabase
-        .from('escalas')
+        .from('event_musicians')
         .update(payload)
         .eq('id', escalaId);
 
       if (error) throw error;
-
       await carregar();
     } catch (error) {
       console.error('Erro ao alterar status:', error);
@@ -201,24 +197,18 @@ export default function EscalasPage() {
     const confirmMessage = isResend
       ? 'Reenviar convite para este músico?'
       : 'Enviar convite por email para este músico?';
-
     if (!confirm(confirmMessage)) return;
-
     try {
       setEnviando(true);
-
       const response = await fetch('/api/escalas/enviar-convite', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ escalaId }),
       });
-
       const data = await response.json();
-
       if (!response.ok) {
         throw new Error(data.error || 'Erro ao enviar convite');
       }
-
       await carregar();
       alert('✅ Convite enviado com sucesso!');
     } catch (error) {
@@ -348,4 +338,3 @@ export default function EscalasPage() {
     </AdminShell>
   );
 }
-

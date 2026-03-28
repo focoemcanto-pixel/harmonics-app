@@ -214,12 +214,13 @@ export default function AdminEventCard({
         </div>
 
         <div className={`mt-5 flex flex-wrap gap-3 ${flat ? 'mt-4' : ''}`}>
-          <Link
-            href={`/eventos/${id}?tab=escala`}
-            className="rounded-[16px] bg-violet-600 px-4 py-3 text-[14px] font-black text-white shadow-[0_10px_24px_rgba(124,58,237,0.25)]"
-          >
-            Escala
-          </Link>
+          <button
+  type="button"
+  onClick={onOpenEscala}
+  className="rounded-[16px] bg-violet-600 px-4 py-3 text-[14px] font-black text-white shadow-[0_10px_24px_rgba(124,58,237,0.25)]"
+>
+  Escala
+</button>
 
           <Link
             href={`/eventos/${id}`}

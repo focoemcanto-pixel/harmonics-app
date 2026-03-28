@@ -117,6 +117,7 @@ export default function AdminEventCard({
   contractLink,
   onEdit,
   onDelete,
+  onOpenEscala,
   flat = false,
 }) {
   const phoneDigits = String(whatsappNumero || '').replace(/\D/g, '');

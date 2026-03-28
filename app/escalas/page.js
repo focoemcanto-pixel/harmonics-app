@@ -12,8 +12,8 @@ import { getEscalasSummary } from '../../lib/escalas/escalas-summary';
 
 // Components
 import EscalasResumoTab from '../../components/escalas/EscalasResumoTab';
-import EscalasListaTab from '../../components/escalas/EscalasListaTab';
 import EscalasFormularioTab from '../../components/escalas/EscalasFormularioTab';
+import EscalaCard from '../../components/escalas/EscalaCard';
 
 export default function EscalasPage() {
   const [mobileTab, setMobileTab] = useState('resumo');
@@ -39,7 +39,6 @@ export default function EscalasPage() {
     try {
       setCarregando(true);
       setErro('');
-
       const { data, error } = await supabase
         .from('event_musicians')
         .select(`
@@ -48,7 +47,6 @@ export default function EscalasPage() {
           musician:contacts(id, name, phone, email)
         `)
         .order('created_at', { ascending: false });
-
       if (error) throw error;
       setEscalas(data || []);
     } catch (e) {
@@ -71,7 +69,6 @@ export default function EscalasPage() {
     const { data } = await supabase
       .from('contacts')
       .select('id, name, email, phone')
-      .eq('is_active', true)
       .order('name', { ascending: true });
     setContatos(data || []);
   }
@@ -94,7 +91,6 @@ export default function EscalasPage() {
   async function handleSave(form) {
     try {
       setSalvando(true);
-
       if (escalaSelecionada?.id) {
         const payload = {
           event_id: form.event_id,
@@ -103,20 +99,16 @@ export default function EscalasPage() {
           status: form.status,
           notes: form.notes,
         };
-
         if (form.status === 'confirmed' && escalaSelecionada.status !== 'confirmed') {
           payload.confirmed_at = new Date().toISOString();
         }
-
         if (form.status !== 'confirmed' && escalaSelecionada.status === 'confirmed') {
           payload.confirmed_at = null;
         }
-
         const { error } = await supabase
           .from('event_musicians')
           .update(payload)
           .eq('id', escalaSelecionada.id);
-
         if (error) throw error;
       } else {
         const payload = {
@@ -126,18 +118,14 @@ export default function EscalasPage() {
           status: form.status,
           notes: form.notes,
         };
-
         if (form.status === 'confirmed') {
           payload.confirmed_at = new Date().toISOString();
         }
-
         const { error } = await supabase
           .from('event_musicians')
           .insert([payload]);
-
         if (error) throw error;
       }
-
       await carregar();
       setEscalaSelecionada(null);
       setMostrarFormulario(false);
@@ -156,7 +144,6 @@ export default function EscalasPage() {
         .from('event_musicians')
         .delete()
         .eq('id', escalaId);
-
       if (error) throw error;
       await carregar();
     } catch (error) {
@@ -171,12 +158,10 @@ export default function EscalasPage() {
         status: novoStatus,
         confirmed_at: novoStatus === 'confirmed' ? new Date().toISOString() : null,
       };
-
       const { error } = await supabase
         .from('event_musicians')
         .update(payload)
         .eq('id', escalaId);
-
       if (error) throw error;
       await carregar();
     } catch (error) {
@@ -264,75 +249,40 @@ export default function EscalasPage() {
           </button>
         </div>
 
-        {/* Desktop - always shows all sections */}
-        <div className="hidden space-y-5 md:block">
-          <EscalasResumoTab resumo={resumo} setMobileTab={setMobileTab} />
-          <EscalasListaTab
-            escalas={escalasFiltradas}
-            busca={busca}
-            setBusca={setBusca}
-            statusFiltro={statusFiltro}
-            setStatusFiltro={setStatusFiltro}
-            onEdit={handleEdit}
-            onDelete={handleDelete}
-            onChangeStatus={handleChangeStatus}
-            onEnviarConvite={handleEnviarConvite}
-          />
-          {mostrarFormulario && (
-            <EscalasFormularioTab
-              escalaSelecionada={escalaSelecionada}
-              eventos={eventos}
-              contatos={contatos}
-              onSave={handleSave}
-              onCancel={() => {
-                setEscalaSelecionada(null);
-                setMostrarFormulario(false);
-              }}
-              salvando={salvando}
+        {/* Renderização de escalas (corrigida) */}
+        <div className="space-y-4">
+          {escalasFiltradas.map((escala) => (
+            <EscalaCard
+              key={escala.id}
+              escala={{ ...escala, status: escala.status || 'pending' }}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+              onChangeStatus={handleChangeStatus}
             />
-          )}
+          ))}
         </div>
 
-        {/* Mobile tabs */}
+        {/* Tabs e formulários mantidos para fluxo atual */}
+        {mostrarFormulario && (
+          <EscalasFormularioTab
+            escalaSelecionada={escalaSelecionada}
+            eventos={eventos}
+            contatos={contatos}
+            onSave={handleSave}
+            onCancel={() => {
+              setEscalaSelecionada(null);
+              setMostrarFormulario(false);
+            }}
+            salvando={salvando}
+          />
+        )}
+
         <div className="md:hidden">
           <AdminSegmentTabs
             items={mobileTabs}
             active={mobileTab}
             onChange={setMobileTab}
           />
-        </div>
-
-        <div className="space-y-5 md:hidden">
-          {mobileTab === 'resumo' && (
-            <EscalasResumoTab resumo={resumo} setMobileTab={setMobileTab} />
-          )}
-          {mobileTab === 'lista' && (
-            <EscalasListaTab
-              escalas={escalasFiltradas}
-              busca={busca}
-              setBusca={setBusca}
-              statusFiltro={statusFiltro}
-              setStatusFiltro={setStatusFiltro}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              onChangeStatus={handleChangeStatus}
-              onEnviarConvite={handleEnviarConvite}
-            />
-          )}
-          {mobileTab === 'formulario' && (
-            <EscalasFormularioTab
-              escalaSelecionada={escalaSelecionada}
-              eventos={eventos}
-              contatos={contatos}
-              onSave={handleSave}
-              onCancel={() => {
-                setEscalaSelecionada(null);
-                setMostrarFormulario(false);
-                setMobileTab('lista');
-              }}
-              salvando={salvando}
-            />
-          )}
         </div>
       </div>
     </AdminShell>

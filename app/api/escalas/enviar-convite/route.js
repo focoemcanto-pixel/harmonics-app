@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
+import { generateInviteLink } from '@/lib/escalas/escalas-invite';
+import fs from 'fs';
+import path from 'path';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -37,7 +40,7 @@ export async function POST(request) {
 
     const supabase = getAdminSupabase();
 
-    // Buscar escala com dados do evento
+    // Buscar escala com dados do evento e contato
     const { data: escala, error: escalaError } = await supabase
       .from('escalas')
       .select(`
@@ -48,7 +51,8 @@ export async function POST(request) {
           event_date,
           event_time,
           location
-        )
+        ),
+        contacts (id, name, email)
       `)
       .eq('id', escalaId)
       .single();
@@ -70,8 +74,7 @@ export async function POST(request) {
     }
 
     // Gerar link do convite
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-    const inviteLink = `${baseUrl}/membro/${escala.invite_token}`;
+    const inviteLink = generateInviteLink(escala.invite_token);
 
     // Formatar data
     const eventDate = escala.events?.event_date
@@ -82,100 +85,28 @@ export async function POST(request) {
         })
       : 'Data não informada';
 
-    const eventTime = escala.events?.event_time || 'Horário não informado';
+    // Carregar template HTML
+    const templatePath = path.join(process.cwd(), 'templates/email/convite-escala.html');
+    let htmlContent;
+    try {
+      htmlContent = fs.readFileSync(templatePath, 'utf-8');
+    } catch {
+      throw new Error('Falha ao carregar template de email: templates/email/convite-escala.html');
+    }
 
-    // Template do email (HTML)
-    const htmlContent = `
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Convite de Escala</title>
-</head>
-<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f8fafc;">
-  <div style="max-width: 600px; margin: 40px auto; background-color: #ffffff; border-radius: 24px; overflow: hidden; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);">
+    // Substituir placeholders
+    const musicianName = escala.musician_name || escala.contacts?.name || 'Músico';
+    const eventName = escala.events?.client_name || 'Evento não identificado';
+    const role = escala.role || 'Sem função';
+    const year = new Date().getFullYear();
 
-    <!-- Header -->
-    <div style="background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%); padding: 40px 32px; text-align: center;">
-      <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 900; letter-spacing: -0.5px;">
-        🎵 Convite de Escala
-      </h1>
-    </div>
-
-    <!-- Corpo -->
-    <div style="padding: 40px 32px;">
-      <p style="margin: 0 0 24px; font-size: 16px; line-height: 24px; color: #0f172a;">
-        Olá, <strong>${escala.musician_name}</strong>!
-      </p>
-
-      <p style="margin: 0 0 32px; font-size: 16px; line-height: 24px; color: #475569;">
-        Você foi escalado(a) para participar do seguinte evento:
-      </p>
-
-      <!-- Card do Evento -->
-      <div style="background-color: #f8fafc; border: 2px solid #e2e8f0; border-radius: 20px; padding: 28px; margin-bottom: 32px;">
-        <div style="margin-bottom: 16px;">
-          <div style="font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #7c3aed; margin-bottom: 8px;">
-            Evento
-          </div>
-          <div style="font-size: 20px; font-weight: 900; color: #0f172a;">
-            ${escala.events?.client_name || 'Evento não informado'}
-          </div>
-        </div>
-
-        <div style="margin-bottom: 16px;">
-          <div style="font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; margin-bottom: 4px;">
-            📅 Data
-          </div>
-          <div style="font-size: 16px; font-weight: 700; color: #1e293b;">
-            ${eventDate}
-          </div>
-        </div>
-
-        <div style="margin-bottom: 16px;">
-          <div style="font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; margin-bottom: 4px;">
-            ⏰ Horário
-          </div>
-          <div style="font-size: 16px; font-weight: 700; color: #1e293b;">
-            ${eventTime}
-          </div>
-        </div>
-
-        <div>
-          <div style="font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; margin-bottom: 4px;">
-            🎸 Sua função
-          </div>
-          <div style="font-size: 16px; font-weight: 700; color: #7c3aed;">
-            ${escala.role}
-          </div>
-        </div>
-      </div>
-
-      <!-- CTA -->
-      <div style="text-align: center; margin-bottom: 32px;">
-        <a href="${inviteLink}"
-           style="display: inline-block; background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%); color: #ffffff; text-decoration: none; padding: 18px 48px; border-radius: 16px; font-size: 16px; font-weight: 900; letter-spacing: 0.3px; box-shadow: 0 8px 20px rgba(124, 58, 237, 0.3);">
-          Acessar convite
-        </a>
-      </div>
-
-      <p style="margin: 0; font-size: 14px; line-height: 20px; color: #64748b; text-align: center;">
-        Clique no botão acima para confirmar sua participação ou enviar recusa.
-      </p>
-    </div>
-
-    <!-- Footer -->
-    <div style="background-color: #f8fafc; padding: 24px 32px; text-align: center; border-top: 1px solid #e2e8f0;">
-      <p style="margin: 0; font-size: 12px; color: #94a3b8;">
-        Harmonics • Sistema de gestão musical
-      </p>
-    </div>
-
-  </div>
-</body>
-</html>
-    `;
+    htmlContent = htmlContent
+      .replace(/\{\{MUSICIAN_NAME\}\}/g, musicianName)
+      .replace(/\{\{EVENT_NAME\}\}/g, eventName)
+      .replace(/\{\{EVENT_DATE\}\}/g, eventDate)
+      .replace(/\{\{ROLE\}\}/g, role)
+      .replace(/\{\{INVITE_LINK\}\}/g, inviteLink)
+      .replace(/\{\{YEAR\}\}/g, String(year));
 
     // Enviar email via Resend
     const resend = new Resend(resendApiKey);
@@ -183,7 +114,7 @@ export async function POST(request) {
     const { data: emailData, error: emailError } = await resend.emails.send({
       from: process.env.RESEND_FROM_EMAIL || 'Harmonics <convites@harmonics.app>',
       to: escala.musician_email,
-      subject: `Convite de escala: ${escala.events?.client_name || 'Evento'}`,
+      subject: `🎵 Convite: ${eventName} - ${eventDate}`,
       html: htmlContent,
     });
 

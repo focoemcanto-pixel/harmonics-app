@@ -27,6 +27,7 @@ export default function EscalasPage() {
   const [escalaSelecionada, setEscalaSelecionada] = useState(null);
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
   const [salvando, setSalvando] = useState(false);
+  const [enviando, setEnviando] = useState(false);
 
   const mobileTabs = [
     { key: 'resumo', label: 'Resumo' },
@@ -194,8 +195,38 @@ export default function EscalasPage() {
     setMobileTab('formulario');
   }
 
-  async function handleInviteSent() {
-    await carregar();
+  async function handleEnviarConvite(escalaId) {
+    const escala = escalas.find((e) => e.id === escalaId);
+    const isResend = escala?.invite_sent_at != null;
+    const confirmMessage = isResend
+      ? 'Reenviar convite para este músico?'
+      : 'Enviar convite por email para este músico?';
+
+    if (!confirm(confirmMessage)) return;
+
+    try {
+      setEnviando(true);
+
+      const response = await fetch('/api/escalas/enviar-convite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ escalaId }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Erro ao enviar convite');
+      }
+
+      await carregar();
+      alert('✅ Convite enviado com sucesso!');
+    } catch (error) {
+      console.error('Erro ao enviar convite:', error);
+      alert('❌ Erro: ' + error.message);
+    } finally {
+      setEnviando(false);
+    }
   }
 
   function handleNovo() {
@@ -255,7 +286,7 @@ export default function EscalasPage() {
             onEdit={handleEdit}
             onDelete={handleDelete}
             onChangeStatus={handleChangeStatus}
-            onInviteSent={handleInviteSent}
+            onEnviarConvite={handleEnviarConvite}
           />
           {mostrarFormulario && (
             <EscalasFormularioTab
@@ -295,7 +326,7 @@ export default function EscalasPage() {
               onEdit={handleEdit}
               onDelete={handleDelete}
               onChangeStatus={handleChangeStatus}
-              onInviteSent={handleInviteSent}
+              onEnviarConvite={handleEnviarConvite}
             />
           )}
           {mobileTab === 'formulario' && (

@@ -15,6 +15,8 @@ export default function ContatosListaTab({
   sortMode,
   setSortMode,
   uniqueTags,
+  tipoFiltro,
+  setTipoFiltro,
   iniciarEdicao,
   excluirContato,
 }) {
@@ -25,12 +27,20 @@ export default function ContatosListaTab({
         subtitle="Busque, filtre e gerencie todos os seus contatos."
       />
 
-      <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
         <Input
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
           placeholder="Buscar por nome, email, telefone..."
         />
+
+        <Select value={tipoFiltro} onChange={(e) => setTipoFiltro(e.target.value)}>
+          <option value="all">Todos os tipos</option>
+          <option value="musician">Músicos</option>
+          <option value="staff">Técnicos/Prestadores</option>
+          <option value="vendor">Fornecedores</option>
+          <option value="client">Clientes</option>
+        </Select>
 
         <Select value={tagFilter} onChange={(e) => setTagFilter(e.target.value)}>
           <option value="all">Todas as tags</option>

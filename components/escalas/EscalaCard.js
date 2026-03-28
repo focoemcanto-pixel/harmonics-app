@@ -4,8 +4,10 @@ import AdminPill from '../admin/AdminPill';
 import { getRoleIcon, formatDateBR } from '../../lib/escalas/escalas-format';
 import { getStatusLabel, getStatusColor } from '../../lib/escalas/escalas-ui';
 
-export default function EscalaCard({ escala }) {
-  const musicianName = escala.contacts?.name || 'Músico não identificado';
+export default function EscalaCard({ escala, onEdit, onDelete, onChangeStatus }) {
+  // Priorizar snapshots
+  const musicianName = escala.musician_name || escala.contacts?.name || 'Músico não identificado';
+  const musicianEmail = escala.musician_email || escala.contacts?.email || null;
   const clientName = escala.events?.client_name || 'Evento não identificado';
   const eventDate = escala.events?.event_date || '';
   const role = escala.role || 'Sem função';
@@ -44,6 +46,45 @@ export default function EscalaCard({ escala }) {
           </p>
         ) : null}
       </div>
+
+      {/* Warning se músico sem email */}
+      {!musicianEmail && (
+        <div className="mt-3 rounded-[14px] border border-amber-200 bg-amber-50 px-3 py-2 text-[13px] text-amber-700">
+          <strong>⚠️ Atenção:</strong> Músico sem email cadastrado — não poderá receber convites de confirmação.
+        </div>
+      )}
+
+      {(onEdit || onDelete || onChangeStatus) && (
+        <div className="mt-4 flex flex-wrap gap-2">
+          {onEdit && (
+            <button
+              type="button"
+              onClick={() => onEdit(escala)}
+              className="rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-2 text-[13px] font-black text-[#0f172a] transition hover:bg-[#f8fafc]"
+            >
+              Editar
+            </button>
+          )}
+          {onChangeStatus && status !== 'confirmed' && (
+            <button
+              type="button"
+              onClick={() => onChangeStatus(escala.id, 'confirmed')}
+              className="rounded-[16px] bg-emerald-600 px-4 py-2 text-[13px] font-black text-white transition hover:bg-emerald-700"
+            >
+              Confirmar
+            </button>
+          )}
+          {onDelete && (
+            <button
+              type="button"
+              onClick={() => onDelete(escala.id)}
+              className="rounded-[16px] bg-red-600 px-4 py-2 text-[13px] font-black text-white transition hover:bg-red-700"
+            >
+              Excluir
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

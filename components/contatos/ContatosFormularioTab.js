@@ -39,7 +39,20 @@ export default function ContatosFormularioTab({
           />
         </Field>
 
-        <Field label="Email (login do painel)">
+        <Field label="Tipo de contato">
+          <Select
+            value={form.contact_type || 'musician'}
+            onChange={(e) => handleFormChange('contact_type', e.target.value)}
+            disabled={salvando}
+          >
+            <option value="musician">Músico</option>
+            <option value="staff">Técnico/Prestador</option>
+            <option value="vendor">Fornecedor</option>
+            <option value="client">Cliente</option>
+          </Select>
+        </Field>
+
+        <Field label="Email (convites e painel)">
           <Input
             type="email"
             value={form.email}

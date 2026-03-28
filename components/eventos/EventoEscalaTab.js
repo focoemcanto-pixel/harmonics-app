@@ -68,6 +68,7 @@ function getStatusMeta(status) {
     return {
       label: 'Confirmado',
       badge: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+      soft: 'bg-emerald-50 text-emerald-700',
       dot: 'bg-emerald-500',
     };
   }
@@ -76,6 +77,7 @@ function getStatusMeta(status) {
     return {
       label: 'Recusado',
       badge: 'border-red-200 bg-red-50 text-red-700',
+      soft: 'bg-red-50 text-red-700',
       dot: 'bg-red-500',
     };
   }
@@ -84,6 +86,7 @@ function getStatusMeta(status) {
     return {
       label: 'Reserva',
       badge: 'border-sky-200 bg-sky-50 text-sky-700',
+      soft: 'bg-sky-50 text-sky-700',
       dot: 'bg-sky-500',
     };
   }
@@ -91,17 +94,34 @@ function getStatusMeta(status) {
   return {
     label: 'Pendente',
     badge: 'border-amber-200 bg-amber-50 text-amber-700',
+    soft: 'bg-amber-50 text-amber-700',
     dot: 'bg-amber-500',
   };
 }
 
+function SummaryChip({ children, tone = 'default' }) {
+  const classes = {
+    default: 'border-[#dbe3ef] bg-white text-[#0f172a]',
+    violet: 'border-violet-200 bg-violet-50 text-violet-700',
+    slate: 'border-[#dbe3ef] bg-[#f8fafc] text-[#475569]',
+  };
+
+  return (
+    <div
+      className={`inline-flex rounded-full border px-4 py-2 text-[13px] font-black ${classes[tone] || classes.default}`}
+    >
+      {children}
+    </div>
+  );
+}
+
 function EmptyState({ title, text, actionLabel, onAction }) {
   return (
-    <div className="rounded-[24px] border border-dashed border-[#dbe3ef] bg-[#f8fafc] px-5 py-6">
-      <div className="text-[13px] font-black uppercase tracking-[0.08em] text-[#64748b]">
-        {title}
-      </div>
-      <p className="mt-2 text-[15px] leading-7 text-[#64748b]">{text}</p>
+    <div className="rounded-[26px] border border-dashed border-[#dbe3ef] bg-[#f8fafc] px-5 py-7 text-center">
+      <div className="text-[18px] font-black text-[#0f172a]">{title}</div>
+      <p className="mx-auto mt-2 max-w-xl text-[15px] leading-7 text-[#64748b]">
+        {text}
+      </p>
 
       {actionLabel ? (
         <button
@@ -120,25 +140,30 @@ function PreviewScaleCard({ item }) {
   const statusMeta = getStatusMeta(item.status);
 
   return (
-    <div className="rounded-[22px] border border-[#dbe3ef] bg-white p-4 shadow-[0_8px_22px_rgba(17,24,39,0.04)]">
+    <div className="rounded-[24px] border border-[#dbe3ef] bg-white p-4 shadow-[0_8px_22px_rgba(17,24,39,0.04)] transition hover:shadow-[0_14px_30px_rgba(17,24,39,0.06)] md:p-5">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div className="min-w-0">
-          <div className="text-[18px] font-black text-[#0f172a]">
-            {item.musician_name || 'Músico sem nome'}
+          <div className="flex items-center gap-2">
+            <span className={`h-2.5 w-2.5 rounded-full ${statusMeta.dot}`} />
+            <div className="text-[19px] font-black text-[#0f172a]">
+              {item.musician_name || 'Músico sem nome'}
+            </div>
           </div>
 
-          <div className="mt-1 text-[14px] text-[#64748b]">
-            {item.role || 'Função não definida'}
+          <div className="mt-2 text-[15px] font-semibold text-[#475569]">
+            {item.role || item.contact_tag_text || 'Função não definida'}
           </div>
 
-          <div className="mt-1 text-[13px] text-[#94a3b8]">
+          <div className="mt-1 text-[14px] text-[#94a3b8]">
             {item.musician_phone || 'Sem telefone'}
             {item.musician_email ? ` • ${item.musician_email}` : ''}
           </div>
 
           {item.contact_tag_text ? (
-            <div className="mt-2 text-[13px] font-semibold text-violet-600">
-              {item.contact_tag_text}
+            <div className="mt-3">
+              <span className="inline-flex rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-violet-700">
+                {item.contact_tag_text}
+              </span>
             </div>
           ) : null}
         </div>
@@ -151,7 +176,7 @@ function PreviewScaleCard({ item }) {
       </div>
 
       {item.notes ? (
-        <div className="mt-3 rounded-[16px] bg-[#f8fafc] px-4 py-3 text-[14px] leading-6 text-[#64748b]">
+        <div className="mt-4 rounded-[18px] bg-[#f8fafc] px-4 py-3 text-[14px] leading-6 text-[#64748b]">
           {item.notes}
         </div>
       ) : null}
@@ -180,7 +205,7 @@ function SelectedMusicianCard({ item, index, onChange, onRemove }) {
 
           {item.contact_tag_text ? (
             <div className="mt-2 text-[13px] font-semibold text-violet-600">
-              {item.contact_tag_text}
+              Tag base: {item.contact_tag_text}
             </div>
           ) : null}
         </div>
@@ -258,6 +283,7 @@ export default function EventoEscalaTab({ eventId }) {
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState('');
+  const [sucesso, setSucesso] = useState('');
   const [busca, setBusca] = useState('');
   const [editando, setEditando] = useState(false);
 
@@ -335,11 +361,23 @@ export default function EventoEscalaTab({ eventId }) {
 
   useEffect(() => {
     if (!editando) return;
+
     const timer = setTimeout(() => {
       if (buscaRef.current) buscaRef.current.focus();
     }, 180);
+
     return () => clearTimeout(timer);
   }, [editando]);
+
+  useEffect(() => {
+    if (!sucesso) return;
+
+    const timer = setTimeout(() => {
+      setSucesso('');
+    }, 2200);
+
+    return () => clearTimeout(timer);
+  }, [sucesso]);
 
   const instrumentosEsperados = useMemo(() => {
     const fromInstruments = splitCsvLike(evento?.instruments);
@@ -361,9 +399,19 @@ export default function EventoEscalaTab({ eventId }) {
       .slice(0, 12);
   }, [busca, contatosDisponiveis]);
 
+  const resumoStatus = useMemo(() => {
+    const total = escalaSalva.length;
+    const confirmados = escalaSalva.filter((item) => item.status === 'confirmed').length;
+    const pendentes = escalaSalva.filter((item) => item.status === 'pending').length;
+    const recusados = escalaSalva.filter((item) => item.status === 'declined').length;
+
+    return { total, confirmados, pendentes, recusados };
+  }, [escalaSalva]);
+
   function iniciarEdicao() {
     setEscalaLocal(escalaSalva);
     setBusca('');
+    setSucesso('');
     setEditando(true);
   }
 
@@ -374,25 +422,25 @@ export default function EventoEscalaTab({ eventId }) {
   }
 
   function adicionarMusico(contact) {
-  const tagText = getContactTagText(contact);
+    const tagText = getContactTagText(contact);
 
-  const novoItem = {
-    id: undefined,
-    event_id: eventId,
-    musician_id: contact.id,
-    role: tagText || '',
-    status: 'pending',
-    notes: '',
-    confirmed_at: null,
-    musician_name: contact.name || '',
-    musician_phone: contact.phone || '',
-    musician_email: contact.email || '',
-    contact_tag_text: tagText,
-  };
+    const novoItem = {
+      id: undefined,
+      event_id: eventId,
+      musician_id: contact.id,
+      role: tagText || '',
+      status: 'pending',
+      notes: '',
+      confirmed_at: null,
+      musician_name: contact.name || '',
+      musician_phone: contact.phone || '',
+      musician_email: contact.email || '',
+      contact_tag_text: tagText,
+    };
 
-  setEscalaLocal((prev) => [...prev, novoItem]);
-  setBusca('');
-}
+    setEscalaLocal((prev) => [...prev, novoItem]);
+    setBusca('');
+  }
 
   function removerMusico(index) {
     setEscalaLocal((prev) => prev.filter((_, i) => i !== index));
@@ -421,18 +469,19 @@ export default function EventoEscalaTab({ eventId }) {
   async function salvarEscala() {
     try {
       setSalvando(true);
+      setSucesso('');
 
       const payload = escalaLocal.map((item) => ({
-  event_id: eventId,
-  musician_id: item.musician_id,
-  role: item.role || item.contact_tag_text || null,
-  status: item.status || 'pending',
-  notes: item.notes || null,
-  confirmed_at:
-    item.status === 'confirmed'
-      ? item.confirmed_at || new Date().toISOString()
-      : null,
-}));
+        event_id: eventId,
+        musician_id: item.musician_id,
+        role: item.role || item.contact_tag_text || null,
+        status: item.status || 'pending',
+        notes: item.notes || null,
+        confirmed_at:
+          item.status === 'confirmed'
+            ? item.confirmed_at || new Date().toISOString()
+            : null,
+      }));
 
       const { error: deleteError } = await supabase
         .from('event_musicians')
@@ -451,6 +500,7 @@ export default function EventoEscalaTab({ eventId }) {
 
       await carregarTudo();
       setEditando(false);
+      setSucesso('Escala salva com sucesso.');
     } catch (e) {
       console.error('Erro ao salvar escala:', e);
       alert(e?.message ? `Erro ao salvar escala: ${e.message}` : 'Erro ao salvar escala. Tente novamente.');
@@ -476,48 +526,63 @@ export default function EventoEscalaTab({ eventId }) {
   }
 
   return (
-    <div className="space-y-5">
-      <div className="rounded-[24px] border border-[#dbe3ef] bg-[#f8fafc] p-5">
-        <div className="text-[12px] font-black uppercase tracking-[0.14em] text-violet-600">
-          Escala do evento
-        </div>
+    <div className="space-y-5 md:space-y-6">
+      <div className="rounded-[26px] border border-[#dbe3ef] bg-gradient-to-br from-[#fcfcff] to-[#f8fafc] p-5 shadow-[0_10px_26px_rgba(17,24,39,0.04)] md:p-6">
+        <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+          <div className="min-w-0">
+            <div className="text-[12px] font-black uppercase tracking-[0.14em] text-violet-600">
+              Escala do evento
+            </div>
 
-        <h3 className="mt-2 text-[26px] font-black tracking-[-0.03em] text-[#0f172a]">
-          {evento?.client_name || 'Evento'}
-        </h3>
+            <h3 className="mt-2 text-[28px] font-black tracking-[-0.04em] text-[#0f172a]">
+              {evento?.client_name || 'Evento'}
+            </h3>
 
-        <div className="mt-3 text-[15px] font-semibold leading-7 text-[#64748b]">
-          {formatDateTimeBR(evento?.event_date, evento?.event_time)}
-          {evento?.location_name ? ` • ${evento.location_name}` : ''}
-        </div>
+            <div className="mt-3 text-[15px] font-semibold leading-7 text-[#64748b]">
+              {formatDateTimeBR(evento?.event_date, evento?.event_time)}
+              {evento?.location_name ? ` • ${evento.location_name}` : ''}
+            </div>
 
-        <div className="mt-3 text-[15px] font-semibold leading-7 text-[#64748b]">
-          <span className="font-black text-[#0f172a]">
-            {evento?.formation || 'Sem formação definida'}
-          </span>
-          {instrumentosEsperados.length > 0 ? (
-            <span>{` — ${instrumentosEsperados.join(', ')}`}</span>
-          ) : null}
-        </div>
-
-        <div className="mt-4 flex flex-wrap gap-3">
-          <div className="rounded-full border border-[#dbe3ef] bg-white px-4 py-2 text-[13px] font-black text-[#0f172a]">
-            {escalaSalva.length} músico(s) na escala
+            <div className="mt-2 text-[15px] font-semibold leading-7 text-[#64748b]">
+              <span className="font-black text-[#0f172a]">
+                {evento?.formation || 'Sem formação definida'}
+              </span>
+              {instrumentosEsperados.length > 0 ? (
+                <span>{` — ${instrumentosEsperados.join(', ')}`}</span>
+              ) : null}
+            </div>
           </div>
 
+          <div className="flex flex-wrap gap-2 xl:max-w-[360px] xl:justify-end">
+            <SummaryChip>{resumoStatus.total} músico(s)</SummaryChip>
+            <SummaryChip tone="slate">{resumoStatus.confirmados} confirmados</SummaryChip>
+            <SummaryChip tone="slate">{resumoStatus.pendentes} pendentes</SummaryChip>
+            {resumoStatus.recusados > 0 ? (
+              <SummaryChip tone="slate">{resumoStatus.recusados} recusados</SummaryChip>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="mt-5 flex flex-wrap gap-3">
           {!editando ? (
             <button
               type="button"
               onClick={iniciarEdicao}
-              className="rounded-full bg-violet-600 px-4 py-2 text-[13px] font-black text-white shadow-[0_10px_24px_rgba(124,58,237,0.18)]"
+              className="rounded-[18px] bg-violet-600 px-5 py-3 text-[14px] font-black text-white shadow-[0_12px_28px_rgba(124,58,237,0.18)] transition hover:translate-y-[-1px]"
             >
               {escalaSalva.length > 0 ? 'Editar escala' : 'Montar escala'}
             </button>
           ) : (
-            <div className="rounded-full border border-violet-200 bg-violet-50 px-4 py-2 text-[13px] font-black text-violet-700">
-              Modo edição
+            <div className="rounded-[18px] border border-violet-200 bg-violet-50 px-4 py-3 text-[13px] font-black text-violet-700">
+              Modo edição ativo
             </div>
           )}
+
+          {sucesso ? (
+            <div className="rounded-[18px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-[13px] font-black text-emerald-700">
+              {sucesso}
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -526,7 +591,7 @@ export default function EventoEscalaTab({ eventId }) {
           {escalaSalva.length === 0 ? (
             <EmptyState
               title="Sem escala ainda"
-              text="Nenhum músico escalado neste evento."
+              text="Nenhum músico escalado neste evento. Monte a equipe para começar a operação deste evento."
               actionLabel="Montar escala"
               onAction={iniciarEdicao}
             />
@@ -543,12 +608,23 @@ export default function EventoEscalaTab({ eventId }) {
         </>
       ) : (
         <>
-          <div className="rounded-[24px] border border-[#dbe3ef] bg-white p-5 shadow-[0_8px_22px_rgba(17,24,39,0.04)]">
-            <div className="text-[13px] font-black uppercase tracking-[0.08em] text-[#64748b]">
-              Adicionar músicos
+          <div className="rounded-[26px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_26px_rgba(17,24,39,0.04)] md:p-6">
+            <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+              <div>
+                <div className="text-[12px] font-black uppercase tracking-[0.08em] text-[#64748b]">
+                  Adicionar músicos
+                </div>
+                <div className="mt-1 text-[16px] font-semibold text-[#475569]">
+                  Busque por nome, tag, WhatsApp ou email.
+                </div>
+              </div>
+
+              <div className="text-[13px] font-semibold text-[#94a3b8]">
+                {contatosDisponiveis.length} disponível(is)
+              </div>
             </div>
 
-            <div className="mt-4 rounded-[22px] border border-[#dbe3ef] bg-[#fafbff] p-4">
+            <div className="mt-4 rounded-[22px] border border-[#e7edf5] bg-[#fafbff] p-4">
               <input
                 ref={buscaRef}
                 type="text"
@@ -576,6 +652,7 @@ export default function EventoEscalaTab({ eventId }) {
                       <div className="text-[16px] font-black text-[#0f172a]">
                         {contact.name || 'Sem nome'}
                       </div>
+
                       <div className="mt-1 text-[14px] font-semibold leading-6 text-[#64748b]">
                         {[getContactTagText(contact), contact.phone, contact.email]
                           .filter(Boolean)
@@ -588,8 +665,8 @@ export default function EventoEscalaTab({ eventId }) {
             </div>
 
             {escalaLocal.length === 0 ? (
-              <div className="mt-5 text-[15px] font-semibold text-[#64748b]">
-                Nenhum músico selecionado.
+              <div className="mt-5 rounded-[18px] bg-[#f8fafc] px-4 py-4 text-[15px] font-semibold text-[#64748b]">
+                Nenhum músico selecionado ainda.
               </div>
             ) : null}
           </div>
@@ -607,30 +684,36 @@ export default function EventoEscalaTab({ eventId }) {
               ))}
             </div>
           ) : (
-            <div className="rounded-[20px] border border-[#dbe3ef] bg-white px-4 py-5 text-[15px] font-semibold text-[#64748b]">
+            <div className="rounded-[22px] border border-[#dbe3ef] bg-white px-4 py-5 text-[15px] font-semibold text-[#64748b]">
               Selecione músicos acima.
             </div>
           )}
 
           <div className="sticky bottom-0 z-10 -mx-5 border-t border-[#e6ebf2] bg-white/95 px-5 py-4 backdrop-blur md:-mx-6 md:px-6">
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={cancelarEdicao}
-                disabled={salvando}
-                className="rounded-[18px] border border-[#dbe3ef] bg-white px-5 py-4 text-[15px] font-black text-[#0f172a] disabled:opacity-60"
-              >
-                Cancelar
-              </button>
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div className="text-[13px] font-semibold text-[#64748b]">
+                {escalaLocal.length} músico(s) prontos para salvar
+              </div>
 
-              <button
-                type="button"
-                onClick={salvarEscala}
-                disabled={salvando}
-                className="rounded-[18px] bg-violet-600 px-5 py-4 text-[15px] font-black text-white shadow-[0_12px_28px_rgba(124,58,237,0.18)] disabled:opacity-60"
-              >
-                {salvando ? 'Salvando...' : 'Salvar escala'}
-              </button>
+              <div className="grid grid-cols-2 gap-3 md:w-auto">
+                <button
+                  type="button"
+                  onClick={cancelarEdicao}
+                  disabled={salvando}
+                  className="rounded-[18px] border border-[#dbe3ef] bg-white px-5 py-4 text-[15px] font-black text-[#0f172a] disabled:opacity-60"
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="button"
+                  onClick={salvarEscala}
+                  disabled={salvando}
+                  className="rounded-[18px] bg-violet-600 px-5 py-4 text-[15px] font-black text-white shadow-[0_12px_28px_rgba(124,58,237,0.18)] disabled:opacity-60"
+                >
+                  {salvando ? 'Salvando...' : 'Salvar escala'}
+                </button>
+              </div>
             </div>
           </div>
         </>

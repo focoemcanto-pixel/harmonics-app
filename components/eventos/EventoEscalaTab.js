@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../../lib/supabase';
+import { diffEscala } from '../../lib/escalas/escalas-sync';
 import {
   pickBestScaleTemplate,
   splitCsvLike,
@@ -513,48 +514,103 @@ export default function EventoEscalaTab({ eventId }) {
   }
 
   async function salvarEscala() {
-    try {
-      setSalvando(true);
-      setSucesso('');
+  try {
+    setSalvando(true);
+    setSucesso('');
 
-      const payload = escalaLocal.map((item) => ({
+    // 🔥 1. CALCULAR DIFERENÇA
+    const { novos, removidos } = diffEscala(escalaSalva, escalaLocal);
+
+    // 🔥 2. SALVAR ESCALA (como já fazia)
+    const payload = escalaLocal.map((item) => ({
+      event_id: eventId,
+      musician_id: item.musician_id,
+      role: item.role || item.contact_tag_text || null,
+      status: item.status || 'pending',
+      notes: item.notes || null,
+      confirmed_at:
+        item.status === 'confirmed'
+          ? item.confirmed_at || new Date().toISOString()
+          : null,
+    }));
+
+    const { error: deleteError } = await supabase
+      .from('event_musicians')
+      .delete()
+      .eq('event_id', eventId);
+
+    if (deleteError) throw deleteError;
+
+    if (payload.length > 0) {
+      const { error: insertError } = await supabase
+        .from('event_musicians')
+        .insert(payload);
+
+      if (insertError) throw insertError;
+    }
+
+    // 🔥 3. BUSCAR INVITES EXISTENTES
+    const { data: invitesExistentes, error: invitesError } = await supabase
+      .from('invites')
+      .select('*')
+      .eq('event_id', eventId);
+
+    if (invitesError) throw invitesError;
+
+    const inviteMap = new Map(
+      invitesExistentes.map((i) => [String(i.contact_id), i])
+    );
+
+    // 🔥 4. CRIAR INVITES PARA NOVOS (sem duplicar)
+    const novosParaCriar = novos.filter(
+      (item) => !inviteMap.has(String(item.musician_id))
+    );
+
+    if (novosParaCriar.length > 0) {
+      const invitesPayload = novosParaCriar.map((item) => ({
         event_id: eventId,
-        musician_id: item.musician_id,
-        role: item.role || item.contact_tag_text || null,
-        status: item.status || 'pending',
-        notes: item.notes || null,
-        confirmed_at:
-          item.status === 'confirmed'
-            ? item.confirmed_at || new Date().toISOString()
-            : null,
+        contact_id: item.musician_id,
+        suggested_role_name: item.role || item.contact_tag_text || null,
+        status: 'pending',
       }));
 
-      const { error: deleteError } = await supabase
-        .from('event_musicians')
-        .delete()
-        .eq('event_id', eventId);
+      const { error: insertInviteError } = await supabase
+        .from('invites')
+        .insert(invitesPayload);
 
-      if (deleteError) throw deleteError;
-
-      if (payload.length > 0) {
-        const { error: insertError } = await supabase
-          .from('event_musicians')
-          .insert(payload);
-
-        if (insertError) throw insertError;
-      }
-
-      await carregarTudo();
-      setEditando(false);
-      setTemplateAplicado(null);
-      setSucesso('Escala salva com sucesso.');
-    } catch (e) {
-      console.error('Erro ao salvar escala:', e);
-      alert(e?.message ? `Erro ao salvar escala: ${e.message}` : 'Erro ao salvar escala. Tente novamente.');
-    } finally {
-      setSalvando(false);
+      if (insertInviteError) throw insertInviteError;
     }
+
+    // 🔥 5. MARCAR REMOVIDOS COMO "REMOVED"
+    const removidosIds = removidos.map((item) => item.musician_id);
+
+    if (removidosIds.length > 0) {
+      const { error: updateError } = await supabase
+        .from('invites')
+        .update({ status: 'removed' })
+        .eq('event_id', eventId)
+        .in('contact_id', removidosIds);
+
+      if (updateError) throw updateError;
+    }
+
+    // 🔥 FINAL
+    await carregarTudo();
+    setEditando(false);
+    setTemplateAplicado(null);
+    setSucesso('Escala salva e convites sincronizados.');
+
+  } catch (e) {
+    console.error('Erro ao salvar escala:', e);
+    alert(
+      e?.message
+        ? `Erro ao salvar escala: ${e.message}`
+        : 'Erro ao salvar escala.'
+    );
+  } finally {
+    setSalvando(false);
   }
+}
 
   if (carregando) {
     return (

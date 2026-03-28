@@ -12,6 +12,7 @@ import {
   filterBySearchTerm,
   filterByTag,
   filterByActive,
+  filterByType,
   sortContatos,
   getUniqueTags,
 } from '../../lib/contatos/contatos-filters';
@@ -27,6 +28,7 @@ function getInitialForm() {
     tag: '',
     notes: '',
     is_active: true,
+    contact_type: 'musician',
   };
 }
 
@@ -46,6 +48,7 @@ export default function ContatosPage() {
   const [busca, setBusca] = useState('');
   const [tagFilter, setTagFilter] = useState('all');
   const [activeFilter, setActiveFilter] = useState('all');
+  const [tipoFiltro, setTipoFiltro] = useState('all');
   const [sortMode, setSortMode] = useState('name_asc');
 
   const [desktopTab, setDesktopTab] = useState('lista');
@@ -86,6 +89,7 @@ export default function ContatosPage() {
       tag: contato.tag || '',
       notes: contato.notes || '',
       is_active: contato.is_active !== false,
+      contact_type: contato.contact_type || 'musician',
     });
     setDesktopTab('novo');
     setMobileTab('novo');
@@ -103,6 +107,13 @@ export default function ContatosPage() {
       return;
     }
 
+    // Validação: músicos/staff precisam de email
+    const contactType = form.contact_type || 'musician';
+    if ((contactType === 'musician' || contactType === 'staff') && !form.email?.trim()) {
+      alert('Músicos e prestadores precisam de email cadastrado para receber convites de escala.');
+      return;
+    }
+
     try {
       setSalvando(true);
 
@@ -113,6 +124,7 @@ export default function ContatosPage() {
         tag: form.tag.trim() || null,
         notes: form.notes.trim() || null,
         is_active: !!form.is_active,
+        contact_type: form.contact_type || 'musician',
       };
 
       if (editandoId) {
@@ -170,10 +182,11 @@ export default function ContatosPage() {
     lista = filterBySearchTerm(lista, busca);
     lista = filterByTag(lista, tagFilter);
     lista = filterByActive(lista, activeFilter);
+    lista = filterByType(lista, tipoFiltro);
     lista = sortContatos(lista, sortMode);
 
     return lista;
-  }, [contatos, busca, tagFilter, activeFilter, sortMode]);
+  }, [contatos, busca, tagFilter, activeFilter, tipoFiltro, sortMode]);
 
   const resumo = useMemo(() => {
     const total = contatos.length;
@@ -219,7 +232,7 @@ export default function ContatosPage() {
         <AdminPageHero
           badge="Harmonics Admin"
           title="Contatos"
-          subtitle="Gerencie clientes, músicos, fornecedores e todos os seus contatos em um só lugar."
+          subtitle="Cadastre músicos, técnicos e prestadores. Base operacional para escalas."
           actions={
             <button
               type="button"
@@ -241,7 +254,7 @@ export default function ContatosPage() {
           <AdminSummaryCard label="Total de contatos" value={resumo.total} helper="Cadastrados no sistema" />
           <AdminSummaryCard label="Ativos" value={resumo.ativos} helper="Contatos ativos" tone="success" />
           <AdminSummaryCard label="Inativos" value={resumo.inativos} helper="Contatos inativos" tone="warning" />
-          <AdminSummaryCard label="Com email" value={resumo.comEmail} helper="Acesso ao painel" tone="accent" />
+          <AdminSummaryCard label="Com email" value={resumo.comEmail} helper="Com email cadastrado para receber convites" tone="accent" />
         </div>
 
         <div className="hidden md:block">
@@ -281,6 +294,8 @@ export default function ContatosPage() {
               sortMode={sortMode}
               setSortMode={setSortMode}
               uniqueTags={uniqueTags}
+              tipoFiltro={tipoFiltro}
+              setTipoFiltro={setTipoFiltro}
               iniciarEdicao={iniciarEdicao}
               excluirContato={excluirContato}
             />
@@ -316,6 +331,8 @@ export default function ContatosPage() {
               sortMode={sortMode}
               setSortMode={setSortMode}
               uniqueTags={uniqueTags}
+              tipoFiltro={tipoFiltro}
+              setTipoFiltro={setTipoFiltro}
               iniciarEdicao={iniciarEdicao}
               excluirContato={excluirContato}
             />

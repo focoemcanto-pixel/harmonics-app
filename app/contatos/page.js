@@ -54,16 +54,18 @@ export default function ContatosPage() {
   async function carregarContatos() {
     try {
       setCarregando(true);
+
       const { data, error } = await supabase
         .from('contacts')
         .select('*')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
+
       setContatos(data || []);
     } catch (error) {
-      console.error('Erro ao carregar contatos:', error);
-      alert(`Erro ao carregar contatos: ${error?.message}`);
+      console.error('Erro ao carregar membros:', error);
+      alert(`Erro ao carregar membros: ${error?.message}`);
     } finally {
       setCarregando(false);
     }
@@ -79,6 +81,7 @@ export default function ContatosPage() {
 
   function iniciarEdicao(contato) {
     setEditandoId(contato.id);
+
     setForm({
       name: contato.name || '',
       email: contato.email || '',
@@ -87,6 +90,7 @@ export default function ContatosPage() {
       notes: contato.notes || '',
       is_active: contato.is_active !== false,
     });
+
     setDesktopTab('novo');
     setMobileTab('novo');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -99,7 +103,7 @@ export default function ContatosPage() {
 
   async function salvarContato() {
     if (!form.name.trim()) {
-      alert('Informe o nome do contato.');
+      alert('Informe o nome do membro.');
       return;
     }
 
@@ -135,15 +139,15 @@ export default function ContatosPage() {
       setDesktopTab('lista');
       setMobileTab('lista');
     } catch (error) {
-      console.error('Erro ao salvar contato:', error);
-      alert(`Erro ao salvar contato: ${error?.message}`);
+      console.error('Erro ao salvar membro:', error);
+      alert(`Erro ao salvar membro: ${error?.message}`);
     } finally {
       setSalvando(false);
     }
   }
 
   async function excluirContato(id) {
-    if (!confirm('Tem certeza que deseja excluir este contato?')) return;
+    if (!confirm('Tem certeza que deseja excluir este membro?')) return;
 
     try {
       const { error } = await supabase
@@ -157,8 +161,8 @@ export default function ContatosPage() {
 
       await carregarContatos();
     } catch (error) {
-      console.error('Erro ao excluir contato:', error);
-      alert(`Erro ao excluir contato: ${error?.message}`);
+      console.error('Erro ao excluir membro:', error);
+      alert(`Erro ao excluir membro: ${error?.message}`);
     }
   }
 
@@ -205,21 +209,21 @@ export default function ContatosPage() {
 
   if (carregando) {
     return (
-      <AdminShell pageTitle="Contatos" activeItem="contatos" mobileActions={mobileActions}>
+      <AdminShell pageTitle="Membros" activeItem="contatos" mobileActions={mobileActions}>
         <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-6 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
-          <p className="text-center text-[#64748b]">Carregando contatos...</p>
+          <p className="text-center text-[#64748b]">Carregando membros...</p>
         </section>
       </AdminShell>
     );
   }
 
   return (
-    <AdminShell pageTitle="Contatos" activeItem="contatos" mobileActions={mobileActions}>
+    <AdminShell pageTitle="Membros" activeItem="contatos" mobileActions={mobileActions}>
       <div className="space-y-5">
         <AdminPageHero
           badge="Harmonics Admin"
-          title="Contatos"
-          subtitle="Gerencie clientes, músicos, fornecedores e todos os seus contatos em um só lugar."
+          title="Membros da equipe"
+          subtitle="Cadastre e gerencie os músicos e prestadores que participam das suas escalas."
           actions={
             <button
               type="button"
@@ -232,16 +236,35 @@ export default function ContatosPage() {
               }}
               className="rounded-[18px] bg-violet-600 px-5 py-4 text-[14px] font-black text-white shadow-[0_12px_28px_rgba(124,58,237,0.18)]"
             >
-              Novo contato
+              Novo membro
             </button>
           }
         />
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <AdminSummaryCard label="Total de contatos" value={resumo.total} helper="Cadastrados no sistema" />
-          <AdminSummaryCard label="Ativos" value={resumo.ativos} helper="Contatos ativos" tone="success" />
-          <AdminSummaryCard label="Inativos" value={resumo.inativos} helper="Contatos inativos" tone="warning" />
-          <AdminSummaryCard label="Com email" value={resumo.comEmail} helper="Acesso ao painel" tone="accent" />
+          <AdminSummaryCard
+            label="Total de membros"
+            value={resumo.total}
+            helper="Base operacional da equipe"
+          />
+          <AdminSummaryCard
+            label="Ativos"
+            value={resumo.ativos}
+            helper="Disponíveis para escala"
+            tone="success"
+          />
+          <AdminSummaryCard
+            label="Inativos"
+            value={resumo.inativos}
+            helper="Ocultos da operação"
+            tone="warning"
+          />
+          <AdminSummaryCard
+            label="Com email"
+            value={resumo.comEmail}
+            helper="Prontos para acesso"
+            tone="accent"
+          />
         </div>
 
         <div className="hidden md:block">
@@ -249,6 +272,7 @@ export default function ContatosPage() {
             <div className="flex flex-wrap gap-2">
               {DESKTOP_TABS.map((tab) => {
                 const active = desktopTab === tab.key;
+
                 return (
                   <button
                     key={tab.key}

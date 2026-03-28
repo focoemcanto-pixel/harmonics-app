@@ -10,38 +10,41 @@ export function Field({ label, children, helper }) {
   );
 }
 
-export function Input({ value, onChange, placeholder = '', type = 'text' }) {
+export function Input({ value, onChange, placeholder = '', type = 'text', disabled = false }) {
   return (
     <input
       type={type}
       value={value}
       onChange={onChange}
       placeholder={placeholder}
-      className="w-full rounded-[18px] border border-[#dbe3ef] bg-white px-4 py-4 text-[15px] font-semibold text-[#0f172a] outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
+      disabled={disabled}
+      className="w-full rounded-[18px] border border-[#dbe3ef] bg-white px-4 py-4 text-[15px] font-semibold text-[#0f172a] outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100 disabled:bg-slate-50 disabled:text-slate-400"
     />
   );
 }
 
-export function Select({ value, onChange, children }) {
+export function Select({ value, onChange, children, disabled = false }) {
   return (
     <select
       value={value}
       onChange={onChange}
-      className="w-full rounded-[18px] border border-[#dbe3ef] bg-white px-4 py-4 text-[15px] font-semibold text-[#0f172a] outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
+      disabled={disabled}
+      className="w-full rounded-[18px] border border-[#dbe3ef] bg-white px-4 py-4 text-[15px] font-semibold text-[#0f172a] outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100 disabled:bg-slate-50 disabled:text-slate-400"
     >
       {children}
     </select>
   );
 }
 
-export function Textarea({ value, onChange, placeholder = '', rows = 3 }) {
+export function Textarea({ value, onChange, placeholder = '', rows = 3, disabled = false }) {
   return (
     <textarea
       value={value}
       onChange={onChange}
       placeholder={placeholder}
       rows={rows}
-      className="w-full rounded-[18px] border border-[#dbe3ef] bg-white px-4 py-4 text-[15px] font-semibold text-[#0f172a] outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
+      disabled={disabled}
+      className="w-full rounded-[18px] border border-[#dbe3ef] bg-white px-4 py-4 text-[15px] font-semibold text-[#0f172a] outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100 disabled:bg-slate-50 disabled:text-slate-400"
     />
   );
 }

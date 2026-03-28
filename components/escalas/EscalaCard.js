@@ -4,7 +4,7 @@ import AdminPill from '../admin/AdminPill';
 import { getRoleIcon, formatDateBR } from '../../lib/escalas/escalas-format';
 import { getStatusLabel, getStatusColor } from '../../lib/escalas/escalas-ui';
 
-export default function EscalaCard({ escala }) {
+export default function EscalaCard({ escala, onEdit, onDelete, onChangeStatus }) {
   const musicianName = escala.contacts?.name || 'Músico não identificado';
   const clientName = escala.events?.client_name || 'Evento não identificado';
   const eventDate = escala.events?.event_date || '';
@@ -43,6 +43,59 @@ export default function EscalaCard({ escala }) {
             <strong>Obs:</strong> {escala.notes}
           </p>
         ) : null}
+      </div>
+
+      {/* Ações */}
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => onEdit(escala)}
+          className="rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-2 text-[13px] font-black text-[#0f172a] transition hover:bg-slate-50"
+        >
+          Editar
+        </button>
+
+        {escala.status !== 'confirmed' && (
+          <button
+            type="button"
+            onClick={() => onChangeStatus(escala.id, 'confirmed')}
+            className="rounded-[16px] border border-emerald-200 bg-emerald-50 px-4 py-2 text-[13px] font-black text-emerald-700 transition hover:bg-emerald-100"
+          >
+            Confirmar
+          </button>
+        )}
+
+        {escala.status !== 'pending' && (
+          <button
+            type="button"
+            onClick={() => onChangeStatus(escala.id, 'pending')}
+            className="rounded-[16px] border border-amber-200 bg-amber-50 px-4 py-2 text-[13px] font-black text-amber-700 transition hover:bg-amber-100"
+          >
+            Marcar pendente
+          </button>
+        )}
+
+        {escala.status !== 'declined' && (
+          <button
+            type="button"
+            onClick={() => onChangeStatus(escala.id, 'declined')}
+            className="rounded-[16px] border border-red-200 bg-red-50 px-4 py-2 text-[13px] font-black text-red-700 transition hover:bg-red-100"
+          >
+            Recusar
+          </button>
+        )}
+
+        <button
+          type="button"
+          onClick={() => {
+            if (confirm('Tem certeza que deseja deletar esta escala?')) {
+              onDelete(escala.id);
+            }
+          }}
+          className="rounded-[16px] bg-red-600 px-4 py-2 text-[13px] font-black text-white transition hover:bg-red-700"
+        >
+          Deletar
+        </button>
       </div>
     </div>
   );

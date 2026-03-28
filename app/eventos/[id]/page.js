@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '../../../lib/supabase';
 import AppShell from '../../../components/layout/AppShell';
 import Card from '../../../components/ui/Card';
@@ -154,6 +154,7 @@ export default function EventoDetalhePage() {
   const params = useParams();
   const router = useRouter();
   const id = params?.id;
+    const searchParams = useSearchParams();
 
   const [evento, setEvento] = useState(null);
   const [carregando, setCarregando] = useState(true);
@@ -185,6 +186,30 @@ export default function EventoDetalhePage() {
 
     carregarEvento();
   }, [id]);
+    useEffect(() => {
+    const tab = searchParams.get('tab');
+
+    if (tab !== 'escala' || !evento?.id) return;
+
+    const el = document.getElementById('escala-section');
+
+    if (!el) return;
+
+    const timer = setTimeout(() => {
+      el.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+
+      el.classList.add('ring-2', 'ring-violet-500', 'ring-offset-2');
+
+      setTimeout(() => {
+        el.classList.remove('ring-2', 'ring-violet-500', 'ring-offset-2');
+      }, 2200);
+    }, 150);
+
+    return () => clearTimeout(timer);
+  }, [searchParams, evento?.id]);
 
   async function excluirEvento() {
     if (!evento?.id) return;
@@ -462,9 +487,11 @@ export default function EventoDetalhePage() {
               </div>
             </Card>
 
-            <Card title="Escala">
-              <EventoEscalaTab eventId={evento.id} />
-            </Card>
+                        <div id="escala-section" className="rounded-[24px] transition-all">
+              <Card title="Escala">
+                <EventoEscalaTab eventId={evento.id} />
+              </Card>
+            </div>
 
             <Card title="Contrato e pagamentos">
               <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5">

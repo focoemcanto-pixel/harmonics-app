@@ -8,6 +8,7 @@ import AppShell from '../../../components/layout/AppShell';
 import Card from '../../../components/ui/Card';
 import Button from '../../../components/ui/Button';
 import Badge from '../../../components/ui/Badge';
+import EventoEscalaTab from '../../../components/eventos/EventoEscalaTab';
 
 function toNumber(value) {
   if (value === null || value === undefined || value === '') return 0;
@@ -462,14 +463,7 @@ export default function EventoDetalhePage() {
             </Card>
 
             <Card title="Escala">
-              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5">
-                <p className="text-sm font-medium text-slate-900">
-                  Módulo em preparação
-                </p>
-                <p className="mt-2 text-sm text-slate-500">
-                  Aqui entra a escala dos músicos vinculados ao evento.
-                </p>
-              </div>
+              <EventoEscalaTab eventId={evento.id} />
             </Card>
 
             <Card title="Contrato e pagamentos">

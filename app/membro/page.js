@@ -133,12 +133,13 @@ export default function MembroPage() {
         step: 'querying-contact',
       }));
 
-      const { data, error: memberError } = await supabase
-        .from('contacts')
-        .select('id, name, email, phone, tag, is_active')
-       .eq('email', sessionEmail.trim().toLowerCase())
-        console.log('EMAIL GOOGLE:', sessionEmail);
-        .maybeSingle();
+      console.log('EMAIL GOOGLE:', sessionEmail);
+
+const { data, error: memberError } = await supabase
+  .from('contacts')
+  .select('id, name, email, phone, tag, is_active')
+  .eq('email', sessionEmail.trim().toLowerCase())
+  .maybeSingle();
 
       if (memberError) {
         setMember(null);

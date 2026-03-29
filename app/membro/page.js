@@ -562,9 +562,7 @@ export default function MembroPage() {
     );
   }
 
-  if (!member) {
-    return (
-       if (!member) {
+    if (!member) {
     return (
       <div>
         <LoginScreen
@@ -572,6 +570,18 @@ export default function MembroPage() {
           loggingIn={loggingIn}
           error={error}
         />
+
+        <div className="fixed bottom-4 left-4 right-4 z-[200] mx-auto max-w-2xl rounded-[18px] border border-yellow-300/20 bg-black/80 p-4 text-[12px] text-yellow-100 backdrop-blur">
+          <div><strong>step:</strong> {debugAuth.step}</div>
+          <div><strong>sessionEmail:</strong> {debugAuth.sessionEmail || '-'}</div>
+          <div><strong>contactFound:</strong> {String(debugAuth.contactFound)}</div>
+          <div><strong>contactActive:</strong> {String(debugAuth.contactActive)}</div>
+          <div><strong>contactName:</strong> {debugAuth.contactName || '-'}</div>
+          <div><strong>rawError:</strong> {debugAuth.rawError || '-'}</div>
+        </div>
+      </div>
+    );
+  }
 
         <div className="fixed bottom-4 left-4 right-4 z-[200] mx-auto max-w-2xl rounded-[18px] border border-yellow-300/20 bg-black/80 p-4 text-[12px] text-yellow-100 backdrop-blur">
           <div><strong>step:</strong> {debugAuth.step}</div>

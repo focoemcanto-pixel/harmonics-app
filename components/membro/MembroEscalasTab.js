@@ -100,33 +100,13 @@ function getEventBadge(item) {
 function getFormationTone(value) {
   const normalized = String(value || '').trim().toLowerCase();
 
-  if (!normalized) {
-    return 'border-white/10 bg-white/8 text-white/70';
-  }
-
-  if (normalized.includes('solo')) {
-    return 'border-sky-400/20 bg-sky-500/12 text-sky-200';
-  }
-
-  if (normalized.includes('duo')) {
-    return 'border-cyan-400/20 bg-cyan-500/12 text-cyan-200';
-  }
-
-  if (normalized.includes('trio')) {
-    return 'border-violet-400/20 bg-violet-500/12 text-violet-200';
-  }
-
-  if (normalized.includes('quarteto')) {
-    return 'border-fuchsia-400/20 bg-fuchsia-500/12 text-fuchsia-200';
-  }
-
-  if (normalized.includes('quinteto')) {
-    return 'border-emerald-400/20 bg-emerald-500/12 text-emerald-200';
-  }
-
-  if (normalized.includes('sexteto')) {
-    return 'border-amber-400/20 bg-amber-500/12 text-amber-200';
-  }
+  if (!normalized) return 'border-white/10 bg-white/8 text-white/70';
+  if (normalized.includes('solo')) return 'border-slate-400/20 bg-slate-500/12 text-slate-200';
+  if (normalized.includes('duo')) return 'border-sky-400/20 bg-sky-500/12 text-sky-200';
+  if (normalized.includes('trio')) return 'border-violet-400/20 bg-violet-500/12 text-violet-200';
+  if (normalized.includes('quarteto')) return 'border-amber-400/20 bg-amber-500/12 text-amber-200';
+  if (normalized.includes('quinteto')) return 'border-emerald-400/20 bg-emerald-500/12 text-emerald-200';
+  if (normalized.includes('sexteto')) return 'border-pink-400/20 bg-pink-500/12 text-pink-200';
 
   return 'border-indigo-400/20 bg-indigo-500/12 text-indigo-200';
 }
@@ -168,20 +148,20 @@ function MiniStatCard({ value, label, tone = 'default' }) {
 
 function MonthNavigator({ label, onPrev, onNext }) {
   return (
-    <div className="grid grid-cols-[56px_1fr_56px] items-center gap-3">
+    <div className="grid grid-cols-[58px_1fr_58px] items-center gap-3">
       <button
         type="button"
         onClick={onPrev}
-        className="flex h-14 w-14 items-center justify-center rounded-[18px] border border-white/10 bg-white/5 text-[20px] text-white shadow-[0_10px_24px_rgba(0,0,0,0.16)]"
+        className="flex h-[58px] w-[58px] items-center justify-center rounded-[18px] border border-white/10 bg-white/5 text-[24px] font-black text-white shadow-[0_10px_24px_rgba(0,0,0,0.16)] active:scale-[0.98]"
       >
         ‹
       </button>
 
-      <div className="rounded-[22px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.04),rgba(139,92,246,0.10))] px-4 py-4 text-center shadow-[0_10px_26px_rgba(0,0,0,0.18)]">
+      <div className="rounded-[24px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.04),rgba(139,92,246,0.10))] px-4 py-4 text-center shadow-[0_10px_26px_rgba(0,0,0,0.18)]">
         <div className="text-[11px] font-black uppercase tracking-[0.14em] text-white/45">
           Agenda mensal
         </div>
-        <div className="mt-1 text-[28px] font-black tracking-[-0.04em] text-white">
+        <div className="mt-1 text-[24px] font-black tracking-[-0.04em] text-white sm:text-[28px]">
           {label}
         </div>
       </div>
@@ -189,7 +169,7 @@ function MonthNavigator({ label, onPrev, onNext }) {
       <button
         type="button"
         onClick={onNext}
-        className="flex h-14 w-14 items-center justify-center rounded-[18px] border border-white/10 bg-white/5 text-[20px] text-white shadow-[0_10px_24px_rgba(0,0,0,0.16)]"
+        className="flex h-[58px] w-[58px] items-center justify-center rounded-[18px] border border-white/10 bg-white/5 text-[24px] font-black text-white shadow-[0_10px_24px_rgba(0,0,0,0.16)] active:scale-[0.98]"
       >
         ›
       </button>
@@ -201,7 +181,7 @@ function SectionDivider({ label }) {
   return (
     <div className="flex items-center gap-3 pt-1">
       <div className="h-px flex-1 bg-white/10" />
-      <div className="text-[13px] font-black uppercase tracking-[0.16em] text-white/55">
+      <div className="text-[12px] font-black uppercase tracking-[0.16em] text-white/55">
         {label}
       </div>
       <div className="h-px flex-1 bg-white/10" />
@@ -211,20 +191,19 @@ function SectionDivider({ label }) {
 
 function ActionButton({ icon, label, onClick, tone = 'default' }) {
   const tones = {
-    default:
-      'border-white/10 bg-white/5 text-white hover:bg-white/10',
+    default: 'border-white/10 bg-white/5 text-white active:scale-[0.985]',
     success:
-      'border-emerald-400/25 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/16',
+      'border-emerald-400/25 bg-emerald-500/10 text-emerald-200 active:scale-[0.985]',
   };
 
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`flex min-w-0 items-center justify-center gap-2 rounded-[16px] border px-3 py-3 text-[13px] font-black transition ${tones[tone] || tones.default}`}
+      className={`flex h-[50px] min-w-0 flex-1 items-center justify-center gap-2 rounded-[16px] border px-3 text-[12px] font-black transition ${tones[tone] || tones.default}`}
     >
-      <span className="text-[15px] leading-none">{icon}</span>
-      <span className="truncate">{label}</span>
+      <span className="shrink-0 text-[15px] leading-none">{icon}</span>
+      <span className="truncate whitespace-nowrap">{label}</span>
     </button>
   );
 }
@@ -246,9 +225,9 @@ function EventCard({
 
   return (
     <article
-      className={`relative overflow-hidden rounded-[28px] border p-4 text-white shadow-[0_16px_34px_rgba(0,0,0,0.18)] ${
+      className={`relative overflow-hidden rounded-[26px] border p-4 text-white shadow-[0_16px_34px_rgba(0,0,0,0.18)] ${
         item?.isDone
-          ? 'border-emerald-400/20 bg-[linear-gradient(135deg,rgba(16,185,129,0.08),rgba(255,255,255,0.03))]'
+          ? 'border-emerald-400/20 bg-[linear-gradient(135deg,rgba(16,185,129,0.07),rgba(255,255,255,0.03))]'
           : 'border-violet-400/20 bg-[linear-gradient(135deg,rgba(99,65,190,0.18),rgba(255,255,255,0.03))]'
       }`}
     >
@@ -261,7 +240,7 @@ function EventCard({
       <div className="pl-1">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-[15px] font-black tracking-[-0.02em] text-violet-200">
+            <div className="text-[14px] font-black tracking-[-0.02em] text-violet-200">
               {formatEventHeader(item?.eventDate, item?.eventTime)}
             </div>
           </div>
@@ -273,21 +252,21 @@ function EventCard({
           </span>
         </div>
 
-        <h3 className="mt-3 line-clamp-1 text-[26px] font-black tracking-[-0.05em] text-white">
+        <h3 className="mt-3 line-clamp-1 text-[24px] font-black tracking-[-0.05em] text-white">
           {item?.clientName || 'Evento'}
         </h3>
 
-        <div className="mt-3 space-y-1.5 text-[14px] leading-6 text-white/74">
+        <div className="mt-3 space-y-1.5 text-[14px] leading-5 text-white/74">
           {item?.locationName ? (
             <div className="flex items-start gap-2">
-              <span className="mt-[1px]">📍</span>
+              <span className="mt-[1px] shrink-0">📍</span>
               <span className="line-clamp-1">{item.locationName}</span>
             </div>
           ) : null}
 
           {item?.instruments ? (
             <div className="flex items-start gap-2">
-              <span className="mt-[1px]">🎵</span>
+              <span className="mt-[1px] shrink-0">🎵</span>
               <span className="line-clamp-1">{item.instruments}</span>
             </div>
           ) : null}
@@ -306,7 +285,7 @@ function EventCard({
           <FormationBadge value={item?.formation} />
         </div>
 
-        <div className="mt-4 grid grid-cols-4 gap-2">
+        <div className="mt-4 flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <ActionButton
             icon="👥"
             label="Escala"
@@ -327,7 +306,7 @@ function EventCard({
 
           <ActionButton
             icon={item?.isDone ? '✅' : '⬜'}
-            label={item?.isDone ? 'Feito' : 'Marcar'}
+            label={item?.isDone ? 'Concluído' : 'Marcar'}
             onClick={() => onMarkDone(item)}
             tone={item?.isDone ? 'success' : 'default'}
           />
@@ -448,21 +427,9 @@ export default function MembroEscalasTab({
       />
 
       <div className="grid grid-cols-3 gap-3">
-        <MiniStatCard
-          value={monthItems.length}
-          label="eventos"
-          tone="default"
-        />
-        <MiniStatCard
-          value={concluidosDoMes.length}
-          label="concluídos"
-          tone="emerald"
-        />
-        <MiniStatCard
-          value={pendentesDoMes.length}
-          label="pendentes"
-          tone="amber"
-        />
+        <MiniStatCard value={monthItems.length} label="eventos" tone="default" />
+        <MiniStatCard value={concluidosDoMes.length} label="concluídos" tone="emerald" />
+        <MiniStatCard value={pendentesDoMes.length} label="pendentes" tone="amber" />
       </div>
 
       {monthItems.length === 0 ? (

@@ -12,6 +12,8 @@ import MembroBottomNav from '../../components/membro/MembroBottomNav';
 import MembroPlayerModal from '../../components/membro/MembroPlayerModal';
 import MiniPlayerBar from '../../components/membro/MiniPlayerBar';
 import { buildMemberDashboardData } from '../../lib/membro/membro-invites';
+import MembroEscalaModal from '../../components/membro/MembroEscalaModal';
+import MembroRepertorioResumoModal from '../../components/membro/MembroRepertorioResumoModal';
 
 function LoginScreen({ onGoogleLogin, loggingIn, error }) {
   return (
@@ -78,6 +80,83 @@ export default function MembroPage() {
   const [playerPlaylist, setPlayerPlaylist] = useState([]);
   const [playerIndex, setPlayerIndex] = useState(0);
   const [playerEventTitle, setPlayerEventTitle] = useState('');
+    const [scaleModalOpen, setScaleModalOpen] = useState(false);
+  const [scaleModalEvent, setScaleModalEvent] = useState(null);
+  const [scaleModalMusicians, setScaleModalMusicians] = useState([]);
+
+  const [repertorioResumoOpen, setRepertorioResumoOpen] = useState(false);
+  const [repertorioResumoItem, setRepertorioResumoItem] = useState(null);
+    async function handleOpenScale(item) {
+    try {
+      const { data, error } = await supabase
+        .from('event_musicians')
+        .select(`
+          id,
+          musician_id,
+          role,
+          status,
+          notes,
+          contacts (
+            id,
+            name,
+            email,
+            phone,
+            tag
+          )
+        `)
+        .eq('event_id', item.eventId);
+
+      if (error) throw error;
+
+      const musicians = (data || []).map((row) => ({
+        id: row.id,
+        musician_id: row.musician_id,
+        role: row.role || row.contacts?.tag || '',
+        status: row.status || 'pending',
+        musician_name: row.contacts?.name || '',
+        musician_email: row.contacts?.email || '',
+        musician_phone: row.contacts?.phone || '',
+        contact_tag_text: row.contacts?.tag || '',
+      }));
+
+      setScaleModalEvent(item);
+      setScaleModalMusicians(musicians);
+      setScaleModalOpen(true);
+    } catch (e) {
+      console.error('Erro ao abrir escala:', e);
+      setError(e?.message || 'Não foi possível carregar a escala do evento.');
+    }
+  }
+
+  function handleOpenRepertoireSummary(item) {
+    setRepertorioResumoItem(item);
+    setRepertorioResumoOpen(true);
+  }
+
+  function handleOpenMaps(item) {
+    if (!item?.locationName) return;
+    const query = encodeURIComponent(item.locationName);
+    window.open(`https://www.google.com/maps/search/?api=1&query=${query}`, '_blank', 'noopener,noreferrer');
+  }
+
+  async function handleMarkDone(item) {
+    try {
+      const nextDone = !item.isDone;
+      const nextStatus = nextDone ? 'done' : 'confirmed';
+
+      const { error } = await supabase
+        .from('events')
+        .update({ status: nextStatus })
+        .eq('id', item.eventId);
+
+      if (error) throw error;
+
+      await loadDashboardData(member);
+    } catch (e) {
+      console.error('Erro ao marcar evento:', e);
+      setError(e?.message || 'Não foi possível atualizar o status do evento.');
+    }
+  }
 
   async function resolveMemberFromSession() {
     try {
@@ -401,14 +480,16 @@ export default function MembroPage() {
             />
           ) : null}
 
-          {!loadingData && activeTab === 'agenda' ? (
-            <MembroEscalasTab
-              confirmados={dashboard.confirmados}
-              onOpenRepertoire={openRepertoire}
-              onOpenPdf={openPdf}
-              onOpenMaps={openMaps}
-            />
-          ) : null}
+                  {!loadingData && activeTab === 'escalas' ? (
+          <MembroEscalasTab
+            confirmados={dashboard.confirmados}
+            onOpenRepertoire={handleOpenRepertoireSummary}
+            onOpenPdf={openPdf}
+            onOpenMaps={handleOpenMaps}
+            onOpenScale={handleOpenScale}
+            onMarkDone={handleMarkDone}
+          />
+        ) : null}
 
           {!loadingData && activeTab === 'repertorios' ? (
             <MembroRepertoriosTab
@@ -425,6 +506,36 @@ export default function MembroPage() {
       </div>
 
       <MembroBottomNav activeTab={activeTab} onChange={setActiveTab} />
+                <MembroEscalaModal
+        open={scaleModalOpen}
+        eventTitle={scaleModalEvent?.clientName || 'Escala'}
+        musicians={scaleModalMusicians}
+        onClose={() => {
+          setScaleModalOpen(false);
+          setScaleModalEvent(null);
+          setScaleModalMusicians([]);
+        }}
+      />
+
+      <MembroRepertorioResumoModal
+        open={repertorioResumoOpen}
+        item={repertorioResumoItem}
+        onClose={() => {
+          setRepertorioResumoOpen(false);
+          setRepertorioResumoItem(null);
+        }}
+        onOpenPdf={(item) => {
+          openPdf(item);
+        }}
+        onOpenPlayer={(item) => {
+          setRepertorioResumoOpen(false);
+          openRepertoire(item, { autoplay: true });
+        }}
+        onGoToRepertorios={() => {
+          setRepertorioResumoOpen(false);
+          setActiveTab('repertorios');
+        }}
+      />
 
       <MembroPlayerModal
         open={playerOpen}

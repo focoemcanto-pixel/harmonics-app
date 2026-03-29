@@ -284,32 +284,32 @@ function EventCard({
           <FormationBadge value={item?.formation} />
         </div>
 
-        <div className="mt-4 flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <ActionButton
-            icon="👥"
-            label="Escala"
-            onClick={() => onOpenScale(item)}
-          />
+        <div className="mt-4 grid grid-cols-2 gap-2">
+  <ActionButton
+    icon="👥"
+    label="Escala"
+    onClick={() => onOpenScale(item)}
+  />
 
-          <ActionButton
-            icon="🎼"
-            label="Repertório"
-            onClick={() => onOpenRepertoire(item)}
-          />
+  <ActionButton
+    icon="🎼"
+    label="Repertório"
+    onClick={() => onOpenRepertoire(item)}
+  />
 
-          <ActionButton
-            icon="🗺️"
-            label="Maps"
-            onClick={() => onOpenMaps(item)}
-          />
+  <ActionButton
+    icon="🗺️"
+    label="Maps"
+    onClick={() => onOpenMaps(item)}
+  />
 
-          <ActionButton
-            icon={item?.isDone ? '✅' : '⬜'}
-            label={item?.isDone ? 'Concluído' : 'Marcar'}
-            onClick={() => onMarkDone(item)}
-            tone={item?.isDone ? 'success' : 'default'}
-          />
-        </div>
+  <ActionButton
+    icon={item?.isDone ? '✅' : '⬜'}
+    label={item?.isDone ? 'Concluído' : 'Marcar'}
+    onClick={() => onMarkDone(item)}
+    tone={item?.isDone ? 'success' : 'default'}
+  />
+</div>
       </div>
     </article>
   );

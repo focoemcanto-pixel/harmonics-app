@@ -251,11 +251,11 @@ function EventCard({
           </span>
         </div>
 
-        <h3 className="mt-3 line-clamp-1 text-[24px] font-black tracking-[-0.05em] text-white">
+       <h3 className="mt-2 line-clamp-1 text-[22px] font-black tracking-[-0.05em] text-white">
           {item?.clientName || 'Evento'}
         </h3>
 
-        <div className="mt-3 space-y-1.5 text-[14px] leading-5 text-white/74">
+        <div className="mt-2 space-y-1 text-[14px] leading-5 text-white/74">
           {item?.locationName ? (
             <div className="flex items-start gap-2">
               <span className="mt-[1px] shrink-0">📍</span>
@@ -280,7 +280,7 @@ function EventCard({
           )}
         </div>
 
-        <div className="mt-3">
+        <div className="mt-2">
           <FormationBadge value={item?.formation} />
         </div>
 

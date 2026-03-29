@@ -632,7 +632,7 @@ export default function MembroPage() {
 
   return (
     <div className="min-h-screen bg-[#050814] text-white">
-      <div className="mx-auto max-w-6xl px-4 py-4 pb-28 md:px-6 md:py-6 md:pb-32">
+      <div className="mx-auto max-w-6xl px-4 pt-4 pb-[170px] md:px-6 md:pt-6 md:pb-32">
         <div className="space-y-5 md:space-y-6">
           {error ? (
             <div className="rounded-[20px] border border-red-300/15 bg-red-400/10 px-4 py-3 text-[14px] font-semibold text-red-100">

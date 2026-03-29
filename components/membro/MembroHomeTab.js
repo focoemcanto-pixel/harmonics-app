@@ -33,6 +33,14 @@ function NextEventCard({ item, onGoAgenda, onGoRepertoire }) {
         <p className="mt-2 text-[15px] leading-7 text-white/60">
           Quando você confirmar novos eventos, eles aparecem aqui como seu próximo compromisso.
         </p>
+
+        <button
+          type="button"
+          onClick={onGoAgenda}
+          className="mt-5 rounded-[18px] border border-white/10 bg-white/10 px-5 py-4 text-[15px] font-black text-white"
+        >
+          Abrir agenda
+        </button>
       </div>
     );
   }
@@ -44,6 +52,8 @@ function NextEventCard({ item, onGoAgenda, onGoRepertoire }) {
       ? 'bg-rose-400/15 text-rose-200 border-rose-300/20'
       : badge.tone === 'future' || badge.tone === 'soon'
       ? 'bg-violet-400/15 text-violet-100 border-violet-300/20'
+      : badge.tone === 'past'
+      ? 'bg-amber-400/15 text-amber-100 border-amber-300/20'
       : 'bg-emerald-400/15 text-emerald-100 border-emerald-300/20';
 
   return (
@@ -54,7 +64,7 @@ function NextEventCard({ item, onGoAgenda, onGoRepertoire }) {
             Próximo evento
           </div>
           <h3 className="mt-2 text-[28px] font-black tracking-[-0.04em]">
-            {item.clientName}
+            {item.clientName || 'Evento'}
           </h3>
           <div className="mt-3 text-[15px] font-semibold text-white/70">
             {formatDateBR(item.eventDate)} • {item.weekday || '-'} • {formatTimeShort(item.eventTime)}
@@ -68,13 +78,21 @@ function NextEventCard({ item, onGoAgenda, onGoRepertoire }) {
 
       <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
         <div className="rounded-[18px] border border-white/10 bg-black/10 px-4 py-4">
-          <div className="text-[11px] font-black uppercase tracking-[0.08em] text-white/50">Local</div>
-          <div className="mt-2 text-[15px] font-semibold">{item.locationName || '-'}</div>
+          <div className="text-[11px] font-black uppercase tracking-[0.08em] text-white/50">
+            Local
+          </div>
+          <div className="mt-2 text-[15px] font-semibold">
+            {item.locationName || '-'}
+          </div>
         </div>
 
         <div className="rounded-[18px] border border-white/10 bg-black/10 px-4 py-4">
-          <div className="text-[11px] font-black uppercase tracking-[0.08em] text-white/50">Formação</div>
-          <div className="mt-2 text-[15px] font-semibold">{item.formation || '-'}</div>
+          <div className="text-[11px] font-black uppercase tracking-[0.08em] text-white/50">
+            Formação
+          </div>
+          <div className="mt-2 text-[15px] font-semibold">
+            {item.formation || '-'}
+          </div>
         </div>
       </div>
 
@@ -89,7 +107,7 @@ function NextEventCard({ item, onGoAgenda, onGoRepertoire }) {
 
         <button
           type="button"
-          onClick={onGoRepertoire}
+          onClick={() => onGoRepertoire(item)}
           className="rounded-[18px] border border-white/10 bg-white/10 px-5 py-4 text-[15px] font-black text-white"
         >
           Ver repertório
@@ -101,10 +119,14 @@ function NextEventCard({ item, onGoAgenda, onGoRepertoire }) {
 
 export default function MembroHomeTab({
   resumo,
-  proximosConfirmados,
+  proximosConfirmados = [],
   onGoAgenda,
   onGoRepertoire,
 }) {
+  const nextItem = Array.isArray(proximosConfirmados)
+    ? proximosConfirmados[0] || null
+    : null;
+
   return (
     <section className="space-y-5">
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -139,9 +161,9 @@ export default function MembroHomeTab({
         </div>
 
         <NextEventCard
-          item={proximosConfirmados[0]}
+          item={nextItem}
           onGoAgenda={onGoAgenda}
-          onGoRepertoire={() => onGoRepertoire(proximosConfirmados[0])}
+          onGoRepertoire={onGoRepertoire}
         />
       </div>
     </section>

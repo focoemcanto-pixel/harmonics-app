@@ -670,16 +670,16 @@ export default function MembroPage() {
             />
           ) : null}
 
-          {!loadingData && activeTab === 'escalas' ? (
-            <MembroEscalasTab
-              confirmados={confirmados}
-              onOpenRepertoire={handleOpenRepertoireSummary}
-              onOpenPdf={openPdf}
-              onOpenMaps={openMaps}
-              onOpenScale={handleOpenScale}
-              onMarkDone={handleMarkDone}
-            />
-          ) : null}
+         {!loadingData && activeTab === 'escalas' ? (
+  <MembroEscalasTab
+    member={member}
+    confirmados={confirmados}
+    onOpenRepertoire={handleOpenRepertoireSummary}
+    onOpenMaps={openMaps}
+    onOpenScale={handleOpenScale}
+    onMarkDone={handleMarkDone}
+  />
+) : null}
 
           {!loadingData && activeTab === 'repertorios' ? (
             <MembroRepertoriosTab

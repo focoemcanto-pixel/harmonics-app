@@ -200,14 +200,13 @@ function ActionButton({ icon, label, onClick, tone = 'default' }) {
     <button
       type="button"
       onClick={onClick}
-      className={`flex h-[50px] min-w-0 flex-1 items-center justify-center gap-2 rounded-[16px] border px-3 text-[12px] font-black transition ${tones[tone] || tones.default}`}
+      className={`flex min-h-[50px] items-center justify-center gap-2 rounded-[16px] border px-3 py-3 text-[13px] font-black transition ${tones[tone] || tones.default}`}
     >
       <span className="shrink-0 text-[15px] leading-none">{icon}</span>
-      <span className="truncate whitespace-nowrap">{label}</span>
+      <span className="leading-none">{label}</span>
     </button>
   );
 }
-
 function EventCard({
   item,
   onOpenRepertoire,

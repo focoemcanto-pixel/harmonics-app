@@ -596,30 +596,6 @@ export default function MembroPage() {
       return (prev - 1 + playerPlaylist.length) % playerPlaylist.length;
     });
   }
-    useEffect(() => {
-    const hasOverlayOpen =
-      scaleModalOpen || repertorioResumoOpen || playerOpen;
-
-    if (typeof document === 'undefined') return;
-
-    const previousHtmlOverflow = document.documentElement.style.overflow;
-    const previousBodyOverflow = document.body.style.overflow;
-    const previousBodyTouchAction = document.body.style.touchAction;
-
-    if (hasOverlayOpen) {
-      document.documentElement.style.overflow = 'hidden';
-      document.body.style.overflow = 'hidden';
-      document.body.style.touchAction = 'none';
-    }
-
-    return () => {
-      document.documentElement.style.overflow = previousHtmlOverflow;
-      document.body.style.overflow = previousBodyOverflow;
-      document.body.style.touchAction = previousBodyTouchAction;
-    };
-  }, [scaleModalOpen, repertorioResumoOpen, playerOpen]);
-  
-
   const currentTrack = playerPlaylist[playerIndex] || null;
 
   if (!sessionChecked) {

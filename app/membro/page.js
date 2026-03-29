@@ -3,104 +3,60 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import MembroHeader from '../../components/membro/MembroHeader';
-import MembroResumoCards from '../../components/membro/MembroResumoCards';
+import MembroHomeTab from '../../components/membro/MembroHomeTab';
 import MembroSolicitacoesTab from '../../components/membro/MembroSolicitacoesTab';
 import MembroEscalasTab from '../../components/membro/MembroEscalasTab';
 import MembroRepertoriosTab from '../../components/membro/MembroRepertoriosTab';
+import MembroPerfilTab from '../../components/membro/MembroPerfilTab';
+import MembroBottomNav from '../../components/membro/MembroBottomNav';
 import MembroPlayerModal from '../../components/membro/MembroPlayerModal';
 import MiniPlayerBar from '../../components/membro/MiniPlayerBar';
 import { buildMemberDashboardData } from '../../lib/membro/membro-invites';
 
 function LoginScreen({ onGoogleLogin, loggingIn, error }) {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#060914] px-5 py-8">
-      <div className="w-full max-w-md rounded-[32px] border border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(139,92,246,0.22),_rgba(15,23,42,0.96)_55%)] p-6 text-white shadow-[0_30px_80px_rgba(0,0,0,0.45)]">
-        <div className="inline-flex rounded-full border border-violet-300/20 bg-violet-400/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] text-violet-200">
-          Harmonics Member
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#050814] px-5 py-8 text-white">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(139,92,246,0.35),_transparent_38%),radial-gradient(circle_at_bottom,_rgba(59,130,246,0.14),_transparent_30%)]" />
+      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,11,24,0.15)_0%,rgba(5,8,20,0.92)_65%)]" />
+
+      <div className="relative z-10 w-full max-w-md rounded-[34px] border border-white/10 bg-[linear-gradient(180deg,rgba(29,20,58,0.96),rgba(10,14,30,0.98))] p-6 shadow-[0_30px_90px_rgba(0,0,0,0.55)] md:p-7">
+        <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full border border-violet-300/15 bg-black text-center shadow-[0_0_50px_rgba(139,92,246,0.25)]">
+          <span className="font-serif text-[28px] italic tracking-[-0.02em] text-white">
+            H
+          </span>
         </div>
 
-        <h1 className="mt-4 text-[34px] font-black tracking-[-0.05em]">
-          Seu painel de ensaio
-        </h1>
+        <div className="mt-6 text-center">
+          <div className="inline-flex rounded-full border border-violet-300/15 bg-violet-400/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em] text-violet-200">
+            Harmonics Member
+          </div>
 
-        <p className="mt-3 text-[15px] leading-7 text-white/70">
-          Entre com Google para acessar suas solicitações, suas escalas e seus repertórios.
-        </p>
+          <h1 className="mt-4 text-[34px] font-black tracking-[-0.05em]">
+            Harmonics
+          </h1>
+
+          <p className="mt-2 text-[15px] leading-7 text-white/65">
+            Entre com Google para acessar suas solicitações, sua agenda e seus repertórios.
+          </p>
+        </div>
 
         <button
           type="button"
           onClick={onGoogleLogin}
           disabled={loggingIn}
-          className="mt-8 flex w-full items-center justify-center gap-3 rounded-[20px] bg-white px-5 py-4 text-[15px] font-black text-[#111827] shadow-[0_14px_30px_rgba(255,255,255,0.14)] disabled:opacity-60"
+          className="mt-8 flex w-full items-center justify-center gap-3 rounded-[20px] bg-white px-5 py-4 text-[16px] font-black text-[#111827] shadow-[0_18px_35px_rgba(255,255,255,0.14)] disabled:opacity-60"
         >
-          {loggingIn ? 'Entrando...' : 'Entrar com Google'}
+          <span className="text-[20px]">G</span>
+          {loggingIn ? 'Entrando...' : 'Continuar com Google'}
         </button>
 
         {error ? (
-          <div className="mt-4 rounded-[18px] border border-red-300/20 bg-red-400/10 px-4 py-3 text-[14px] font-semibold text-red-100">
+          <div className="mt-4 rounded-[18px] border border-red-300/15 bg-red-400/10 px-4 py-3 text-[14px] font-semibold text-red-100">
             {error}
           </div>
         ) : null}
       </div>
     </div>
-  );
-}
-
-function SectionTabs({ active, onChange }) {
-  const items = [
-    { key: 'pendentes', label: 'Pendentes' },
-    { key: 'escalas', label: 'Minhas escalas' },
-    { key: 'repertorios', label: 'Repertórios' },
-  ];
-
-  return (
-    <>
-      <div className="hidden md:block">
-        <div className="rounded-[24px] border border-white/10 bg-white/5 p-2 shadow-[0_10px_26px_rgba(17,24,39,0.12)]">
-          <div className="flex flex-wrap gap-2">
-            {items.map((item) => {
-              const isActive = active === item.key;
-              return (
-                <button
-                  key={item.key}
-                  type="button"
-                  onClick={() => onChange(item.key)}
-                  className={`rounded-[18px] px-4 py-3 text-[14px] font-black transition ${
-                    isActive
-                      ? 'bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white shadow-[0_12px_28px_rgba(124,58,237,0.22)]'
-                      : 'bg-white/5 text-white/70 hover:bg-white/10'
-                  }`}
-                >
-                  {item.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      <div className="md:hidden">
-        <div className="grid grid-cols-3 gap-2 rounded-[24px] border border-white/10 bg-white/5 p-2 shadow-[0_10px_26px_rgba(17,24,39,0.12)]">
-          {items.map((item) => {
-            const isActive = active === item.key;
-            return (
-              <button
-                key={item.key}
-                type="button"
-                onClick={() => onChange(item.key)}
-                className={`rounded-[16px] px-3 py-3 text-[12px] font-black transition ${
-                  isActive
-                    ? 'bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white'
-                    : 'bg-transparent text-white/70'
-                }`}
-              >
-                {item.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    </>
   );
 }
 
@@ -115,7 +71,7 @@ export default function MembroPage() {
   const [contracts, setContracts] = useState([]);
   const [loadingData, setLoadingData] = useState(true);
 
-  const [activeTab, setActiveTab] = useState('pendentes');
+  const [activeTab, setActiveTab] = useState('home');
   const [loadingKey, setLoadingKey] = useState('');
 
   const [playerOpen, setPlayerOpen] = useState(false);
@@ -162,6 +118,7 @@ export default function MembroPage() {
       setError('Não foi possível validar seu acesso.');
     } finally {
       setSessionChecked(true);
+      setLoggingIn(false);
     }
   }
 
@@ -184,16 +141,7 @@ export default function MembroPage() {
             sent_at,
             responded_at,
             created_at,
-            events (
-              id,
-              client_name,
-              event_date,
-              event_time,
-              location_name,
-              formation,
-              instruments,
-              observations
-            )
+            events (*)
           `)
           .eq('contact_id', currentMember.id)
           .neq('status', 'removed')
@@ -244,6 +192,16 @@ export default function MembroPage() {
     );
   }, [dashboard.confirmados]);
 
+  const proximasEscalas = useMemo(() => {
+    return [...dashboard.confirmados]
+      .sort((a, b) => {
+        const aDate = new Date(`${a.eventDate || ''}T${a.eventTime || '00:00:00'}`).getTime();
+        const bDate = new Date(`${b.eventDate || ''}T${b.eventTime || '00:00:00'}`).getTime();
+        return aDate - bDate;
+      })
+      .slice(0, 2);
+  }, [dashboard.confirmados]);
+
   async function handleGoogleLogin() {
     try {
       setLoggingIn(true);
@@ -280,6 +238,7 @@ export default function MembroPage() {
       setPlayerIndex(0);
       setPlayerEventTitle('');
       setPlayerOpen(false);
+      setActiveTab('home');
     } catch (e) {
       console.error('Erro ao sair:', e);
     }
@@ -322,7 +281,7 @@ export default function MembroPage() {
       await loadDashboardData(member);
 
       if (nextStatus === 'confirmed') {
-        setActiveTab('escalas');
+        setActiveTab('agenda');
       }
     } catch (e) {
       console.error('Erro ao responder convite:', e);
@@ -333,12 +292,10 @@ export default function MembroPage() {
   }
 
   function buildPlaylistFromRow(item) {
-    const tracks = (item.youtubeUrls || []).map((url, index) => ({
+    return (item.youtubeUrls || []).map((url, index) => ({
       title: `${item.clientName} • Faixa ${index + 1}`,
       url,
     }));
-
-    return tracks;
   }
 
   function openRepertoire(item, options = {}) {
@@ -363,6 +320,12 @@ export default function MembroPage() {
     }
   }
 
+  function openMaps(item) {
+    if (!item.locationName) return;
+    const query = encodeURIComponent(item.locationName);
+    window.open(`https://www.google.com/maps/search/?api=1&query=${query}`, '_blank', 'noopener,noreferrer');
+  }
+
   function handleNextTrack() {
     setPlayerIndex((prev) => {
       if (playerPlaylist.length === 0) return 0;
@@ -381,7 +344,7 @@ export default function MembroPage() {
 
   if (!sessionChecked) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#060914] text-white">
+      <div className="flex min-h-screen items-center justify-center bg-[#050814] text-white">
         <div className="rounded-[24px] border border-white/10 bg-white/5 px-5 py-4 text-[15px] font-semibold">
           Carregando acesso...
         </div>
@@ -400,51 +363,68 @@ export default function MembroPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#060914] px-4 py-5 text-white md:px-6 md:py-6">
-      <div className="mx-auto max-w-6xl space-y-5 md:space-y-6">
-        <MembroHeader member={member} onLogout={handleLogout} />
+    <div className="min-h-screen bg-[#050814] text-white">
+      <div className="mx-auto max-w-6xl px-4 py-4 pb-28 md:px-6 md:py-6 md:pb-32">
+        <div className="space-y-5 md:space-y-6">
+          <MembroHeader member={member} onLogout={handleLogout} />
 
-        <MembroResumoCards resumo={dashboard.resumo} />
+          {error ? (
+            <div className="rounded-[20px] border border-red-300/15 bg-red-400/10 px-4 py-3 text-[14px] font-semibold text-red-100">
+              {error}
+            </div>
+          ) : null}
 
-        <SectionTabs active={activeTab} onChange={setActiveTab} />
+          {loadingData ? (
+            <div className="rounded-[24px] border border-white/10 bg-white/5 px-5 py-6 text-[15px] font-semibold text-white/70">
+              Carregando seu painel...
+            </div>
+          ) : null}
 
-        {error ? (
-          <div className="rounded-[20px] border border-red-300/15 bg-red-400/10 px-4 py-3 text-[14px] font-semibold text-red-100">
-            {error}
-          </div>
-        ) : null}
+          {!loadingData && activeTab === 'home' ? (
+            <MembroHomeTab
+              resumo={dashboard.resumo}
+              proximasEscalas={proximasEscalas}
+              pendentes={dashboard.pendentes}
+              onGoTab={setActiveTab}
+              onOpenRepertoire={openRepertoire}
+              onOpenPdf={openPdf}
+              onOpenMaps={openMaps}
+            />
+          ) : null}
 
-        {loadingData ? (
-          <div className="rounded-[24px] border border-white/10 bg-white/5 px-5 py-6 text-[15px] font-semibold text-white/70">
-            Carregando seu painel...
-          </div>
-        ) : null}
+          {!loadingData && activeTab === 'solicitacoes' ? (
+            <MembroSolicitacoesTab
+              pendentes={dashboard.pendentes}
+              onAccept={(item) => updateInviteStatus(item, 'confirmed')}
+              onDecline={(item) => updateInviteStatus(item, 'declined')}
+              loadingKey={loadingKey}
+            />
+          ) : null}
 
-        {!loadingData && activeTab === 'pendentes' ? (
-          <MembroSolicitacoesTab
-            pendentes={dashboard.pendentes}
-            onAccept={(item) => updateInviteStatus(item, 'confirmed')}
-            onDecline={(item) => updateInviteStatus(item, 'declined')}
-            loadingKey={loadingKey}
-          />
-        ) : null}
+          {!loadingData && activeTab === 'agenda' ? (
+            <MembroEscalasTab
+              confirmados={dashboard.confirmados}
+              onOpenRepertoire={openRepertoire}
+              onOpenPdf={openPdf}
+              onOpenMaps={openMaps}
+            />
+          ) : null}
 
-        {!loadingData && activeTab === 'escalas' ? (
-          <MembroEscalasTab
-            confirmados={dashboard.confirmados}
-            onOpenRepertoire={openRepertoire}
-            onOpenPdf={openPdf}
-          />
-        ) : null}
+          {!loadingData && activeTab === 'repertorios' ? (
+            <MembroRepertoriosTab
+              repertorios={repertorios}
+              onOpenRepertoire={openRepertoire}
+              onOpenPdf={openPdf}
+            />
+          ) : null}
 
-        {!loadingData && activeTab === 'repertorios' ? (
-          <MembroRepertoriosTab
-            repertorios={repertorios}
-            onOpenRepertoire={openRepertoire}
-            onOpenPdf={openPdf}
-          />
-        ) : null}
+          {!loadingData && activeTab === 'perfil' ? (
+            <MembroPerfilTab member={member} onLogout={handleLogout} />
+          ) : null}
+        </div>
       </div>
+
+      <MembroBottomNav activeTab={activeTab} onChange={setActiveTab} />
 
       <MembroPlayerModal
         open={playerOpen}

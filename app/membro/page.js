@@ -62,6 +62,8 @@ function LoginScreen({ onGoogleLogin, loggingIn, error }) {
 }
 
 export default function MembroPage() {
+  const authBootstrappedRef = useRef(false);
+
   const [sessionChecked, setSessionChecked] = useState(false);
   const [member, setMember] = useState(null);
   const [loggingIn, setLoggingIn] = useState(false);
@@ -86,8 +88,8 @@ export default function MembroPage() {
 
   const [repertorioResumoOpen, setRepertorioResumoOpen] = useState(false);
   const [repertorioResumoItem, setRepertorioResumoItem] = useState(null);
-    const authBootstrappedRef = useRef(false);
-    const [debugAuth, setDebugAuth] = useState({
+
+  const [debugAuth, setDebugAuth] = useState({
     sessionEmail: '',
     contactFound: false,
     contactActive: null,
@@ -96,7 +98,7 @@ export default function MembroPage() {
     rawError: '',
   });
 
-   async function resolveMemberFromSession() {
+  async function resolveMemberFromSession() {
     try {
       setError('');
       setDebugAuth({
@@ -110,9 +112,16 @@ export default function MembroPage() {
 
       const {
         data: { session },
+        error: sessionError,
       } = await supabase.auth.getSession();
 
-      const sessionEmail = String(session?.user?.email || '').trim().toLowerCase();
+      if (sessionError) {
+        throw sessionError;
+      }
+
+      const sessionEmail = String(session?.user?.email || '')
+        .trim()
+        .toLowerCase();
 
       if (!sessionEmail) {
         setMember(null);
@@ -135,11 +144,11 @@ export default function MembroPage() {
 
       console.log('EMAIL GOOGLE:', sessionEmail);
 
-const { data, error: memberError } = await supabase
-  .from('contacts')
-  .select('id, name, email, phone, tag, is_active')
-  .eq('email', sessionEmail.trim().toLowerCase())
-  .maybeSingle();
+      const { data, error: memberError } = await supabase
+        .from('contacts')
+        .select('id, name, email, phone, tag, is_active')
+        .eq('email', sessionEmail)
+        .maybeSingle();
 
       if (memberError) {
         setMember(null);
@@ -194,6 +203,7 @@ const { data, error: memberError } = await supabase
       });
     } catch (e) {
       console.error('Erro ao resolver membro:', e);
+      setMember(null);
       setError('Não foi possível validar seu acesso.');
       setDebugAuth((prev) => ({
         ...prev,
@@ -211,6 +221,7 @@ const { data, error: memberError } = await supabase
 
     try {
       setLoadingData(true);
+      setError('');
 
       const [invitesResp, precontractsResp, contractsResp] = await Promise.all([
         supabase
@@ -230,9 +241,11 @@ const { data, error: memberError } = await supabase
           .eq('contact_id', currentMember.id)
           .neq('status', 'removed')
           .order('created_at', { ascending: false }),
+
         supabase
           .from('precontracts')
           .select('id, event_id, public_token'),
+
         supabase
           .from('contracts')
           .select('id, precontract_id, event_id, pdf_url, doc_url, signed_at'),
@@ -242,18 +255,21 @@ const { data, error: memberError } = await supabase
       if (precontractsResp.error) throw precontractsResp.error;
       if (contractsResp.error) throw contractsResp.error;
 
-      setInvites(invitesResp.data || []);
-      setPrecontracts(precontractsResp.data || []);
-      setContracts(contractsResp.data || []);
+      setInvites(Array.isArray(invitesResp.data) ? invitesResp.data : []);
+      setPrecontracts(Array.isArray(precontractsResp.data) ? precontractsResp.data : []);
+      setContracts(Array.isArray(contractsResp.data) ? contractsResp.data : []);
     } catch (e) {
       console.error('Erro ao carregar painel do membro:', e);
       setError(e?.message || 'Não foi possível carregar seu painel.');
+      setInvites([]);
+      setPrecontracts([]);
+      setContracts([]);
     } finally {
       setLoadingData(false);
     }
   }
 
-    useEffect(() => {
+  useEffect(() => {
     let mounted = true;
 
     async function bootstrapAuth() {
@@ -262,11 +278,18 @@ const { data, error: memberError } = await supabase
 
         const {
           data: { session },
+          error: sessionError,
         } = await supabase.auth.getSession();
 
-        if (mounted && session?.user?.email) {
+        if (sessionError) {
+          throw sessionError;
+        }
+
+        if (!mounted) return;
+
+        if (session?.user?.email) {
           await resolveMemberFromSession();
-        } else if (mounted) {
+        } else {
           setSessionChecked(true);
           setLoggingIn(false);
         }
@@ -285,28 +308,29 @@ const { data, error: memberError } = await supabase
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (!authBootstrappedRef.current) return;
+      if (!mounted) return;
 
       if (session?.user?.email) {
         await resolveMemberFromSession();
         return;
       }
 
-      if (!session) {
-        if (mounted) {
-          setMember(null);
-          setSessionChecked(true);
-          setLoggingIn(false);
-        }
-      }
+      setMember(null);
+      setInvites([]);
+      setPrecontracts([]);
+      setContracts([]);
+      setSessionChecked(true);
+      setLoggingIn(false);
     });
 
     return () => {
       mounted = false;
-      subscription.unsubscribe();
+      subscription?.unsubscribe?.();
     };
   }, []);
+
   useEffect(() => {
     if (!member?.id) return;
     loadDashboardData(member);
@@ -322,22 +346,21 @@ const { data, error: memberError } = await supabase
 
   const confirmados = Array.isArray(dashboard?.confirmados) ? dashboard.confirmados : [];
   const pendentes = Array.isArray(dashboard?.pendentes) ? dashboard.pendentes : [];
-  const resumo = dashboard?.resumo || { pendentes: 0, confirmados: 0, repertorios: 0 };
+  const proximosConfirmados = Array.isArray(dashboard?.proximosConfirmados)
+    ? dashboard.proximosConfirmados
+    : [];
+  const resumo = dashboard?.resumo || {
+    pendentes: 0,
+    confirmados: 0,
+    repertorios: 0,
+  };
 
   const repertorios = useMemo(() => {
     return confirmados.filter(
-      (row) => row?.contractInfo?.pdfUrl || (Array.isArray(row?.youtubeUrls) && row.youtubeUrls.length > 0)
+      (row) =>
+        row?.contractInfo?.pdfUrl ||
+        (Array.isArray(row?.youtubeUrls) && row.youtubeUrls.length > 0)
     );
-  }, [confirmados]);
-
-  const proximasEscalas = useMemo(() => {
-    return [...confirmados]
-      .sort((a, b) => {
-        const aDate = new Date(`${a?.eventDate || ''}T${a?.eventTime || '00:00:00'}`).getTime();
-        const bDate = new Date(`${b?.eventDate || ''}T${b?.eventTime || '00:00:00'}`).getTime();
-        return aDate - bDate;
-      })
-      .slice(0, 2);
   }, [confirmados]);
 
   async function handleGoogleLogin() {
@@ -350,7 +373,7 @@ const { data, error: memberError } = await supabase
           ? `${window.location.origin}/membro`
           : undefined;
 
-            const { error } = await supabase.auth.signInWithOAuth({
+      const { error: authError } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo,
@@ -361,7 +384,7 @@ const { data, error: memberError } = await supabase
         },
       });
 
-      if (error) throw error;
+      if (authError) throw authError;
     } catch (e) {
       console.error('Erro no login Google:', e);
       setError(e?.message || 'Falha ao entrar com Google.');
@@ -372,6 +395,9 @@ const { data, error: memberError } = await supabase
   async function handleLogout() {
     try {
       await supabase.auth.signOut();
+    } catch (e) {
+      console.error('Erro ao sair:', e);
+    } finally {
       setMember(null);
       setInvites([]);
       setPrecontracts([]);
@@ -380,9 +406,12 @@ const { data, error: memberError } = await supabase
       setPlayerIndex(0);
       setPlayerEventTitle('');
       setPlayerOpen(false);
+      setScaleModalOpen(false);
+      setScaleModalEvent(null);
+      setScaleModalMusicians([]);
+      setRepertorioResumoOpen(false);
+      setRepertorioResumoItem(null);
       setActiveTab('home');
-    } catch (e) {
-      console.error('Erro ao sair:', e);
     }
   }
 
@@ -391,6 +420,7 @@ const { data, error: memberError } = await supabase
 
     try {
       setLoadingKey(key);
+      setError('');
 
       const nowIso = new Date().toISOString();
 
@@ -416,7 +446,7 @@ const { data, error: memberError } = await supabase
         .from('event_musicians')
         .update(musicianUpdate)
         .eq('event_id', item.eventId)
-        .eq('musician_id', member.id);
+        .eq('musician_id', member?.id);
 
       if (musicianError) throw musicianError;
 
@@ -434,13 +464,16 @@ const { data, error: memberError } = await supabase
   }
 
   function buildPlaylistFromRow(item) {
-    return (item?.youtubeUrls || []).map((url, index) => ({
-      title: `${item.clientName} • Faixa ${index + 1}`,
+    if (!Array.isArray(item?.youtubeUrls)) return [];
+    return item.youtubeUrls.map((url, index) => ({
+      title: `${item?.clientName || 'Evento'} • Faixa ${index + 1}`,
       url,
     }));
   }
 
   function openRepertoire(item, options = {}) {
+    if (!item) return;
+
     const playlist = buildPlaylistFromRow(item);
 
     setPlayerPlaylist(playlist);
@@ -449,28 +482,35 @@ const { data, error: memberError } = await supabase
 
     if (playlist.length > 0 || options.autoplay) {
       setPlayerOpen(true);
+      return;
     }
 
-    if (playlist.length === 0 && item?.contractInfo?.publicToken) {
+    if (item?.contractInfo?.publicToken && typeof window !== 'undefined') {
       window.open(`/cliente/${item.contractInfo.publicToken}`, '_blank', 'noopener,noreferrer');
     }
   }
 
   function openPdf(item) {
-    if (item?.contractInfo?.pdfUrl) {
+    if (item?.contractInfo?.pdfUrl && typeof window !== 'undefined') {
       window.open(item.contractInfo.pdfUrl, '_blank', 'noopener,noreferrer');
     }
   }
 
   function openMaps(item) {
-    if (!item?.locationName) return;
+    if (!item?.locationName || typeof window === 'undefined') return;
     const query = encodeURIComponent(item.locationName);
-    window.open(`https://www.google.com/maps/search/?api=1&query=${query}`, '_blank', 'noopener,noreferrer');
+    window.open(
+      `https://www.google.com/maps/search/?api=1&query=${query}`,
+      '_blank',
+      'noopener,noreferrer'
+    );
   }
 
   async function handleOpenScale(item) {
     try {
-      const { data, error } = await supabase
+      setError('');
+
+      const { data, error: scaleError } = await supabase
         .from('event_musicians')
         .select(`
           id,
@@ -488,16 +528,18 @@ const { data, error: memberError } = await supabase
         `)
         .eq('event_id', item.eventId);
 
-      if (error) throw error;
+      if (scaleError) throw scaleError;
 
-      const musicians = (data || []).map((row) => {
-        const contact = Array.isArray(row.contacts) ? row.contacts[0] : row.contacts;
+      const musicians = (Array.isArray(data) ? data : []).map((row) => {
+        const contact = Array.isArray(row?.contacts)
+          ? row.contacts[0] || null
+          : row?.contacts || null;
 
         return {
-          id: row.id,
-          musician_id: row.musician_id,
-          role: row.role || contact?.tag || '',
-          status: row.status || 'pending',
+          id: row?.id,
+          musician_id: row?.musician_id,
+          role: row?.role || contact?.tag || '',
+          status: row?.status || 'pending',
           musician_name: contact?.name || '',
           musician_email: contact?.email || '',
           musician_phone: contact?.phone || '',
@@ -515,21 +557,24 @@ const { data, error: memberError } = await supabase
   }
 
   function handleOpenRepertoireSummary(item) {
+    if (!item) return;
     setRepertorioResumoItem(item);
     setRepertorioResumoOpen(true);
   }
 
   async function handleMarkDone(item) {
     try {
+      setError('');
+
       const nextDone = !item?.isDone;
       const nextStatus = nextDone ? 'done' : 'confirmed';
 
-      const { error } = await supabase
+      const { error: updateError } = await supabase
         .from('events')
         .update({ status: nextStatus })
         .eq('id', item.eventId);
 
-      if (error) throw error;
+      if (updateError) throw updateError;
 
       await loadDashboardData(member);
     } catch (e) {
@@ -564,7 +609,7 @@ const { data, error: memberError } = await supabase
     );
   }
 
-    if (!member) {
+  if (!member) {
     return (
       <div>
         <LoginScreen
@@ -584,6 +629,7 @@ const { data, error: memberError } = await supabase
       </div>
     );
   }
+
   return (
     <div className="min-h-screen bg-[#050814] text-white">
       <div className="mx-auto max-w-6xl px-4 py-4 pb-28 md:px-6 md:py-6 md:pb-32">
@@ -602,13 +648,16 @@ const { data, error: memberError } = await supabase
 
           {!loadingData && activeTab === 'home' ? (
             <MembroHomeTab
-              member={member}
               resumo={resumo}
-              nextPending={pendentes[0] || null}
-              nextConfirmed={proximasEscalas[0] || null}
-              onGoToPendentes={() => setActiveTab('pendentes')}
-              onGoToEscalas={() => setActiveTab('escalas')}
-              onGoToRepertorios={() => setActiveTab('repertorios')}
+              proximosConfirmados={proximosConfirmados}
+              onGoAgenda={() => setActiveTab('escalas')}
+              onGoRepertoire={(item) => {
+                if (item) {
+                  handleOpenRepertoireSummary(item);
+                  return;
+                }
+                setActiveTab('repertorios');
+              }}
             />
           ) : null}
 

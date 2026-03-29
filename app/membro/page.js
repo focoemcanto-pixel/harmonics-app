@@ -87,44 +87,117 @@ export default function MembroPage() {
   const [repertorioResumoOpen, setRepertorioResumoOpen] = useState(false);
   const [repertorioResumoItem, setRepertorioResumoItem] = useState(null);
     const authBootstrappedRef = useRef(false);
+    const [debugAuth, setDebugAuth] = useState({
+    sessionEmail: '',
+    contactFound: false,
+    contactActive: null,
+    contactName: '',
+    step: 'idle',
+    rawError: '',
+  });
 
-  async function resolveMemberFromSession() {
+   async function resolveMemberFromSession() {
     try {
       setError('');
+      setDebugAuth({
+        sessionEmail: '',
+        contactFound: false,
+        contactActive: null,
+        contactName: '',
+        step: 'getting-session',
+        rawError: '',
+      });
 
       const {
         data: { session },
       } = await supabase.auth.getSession();
 
-      if (!session?.user?.email) {
+      const sessionEmail = String(session?.user?.email || '').trim().toLowerCase();
+
+      if (!sessionEmail) {
         setMember(null);
+        setDebugAuth({
+          sessionEmail: '',
+          contactFound: false,
+          contactActive: null,
+          contactName: '',
+          step: 'no-session-email',
+          rawError: '',
+        });
         return;
       }
 
-      const email = String(session.user.email).trim().toLowerCase();
+      setDebugAuth((prev) => ({
+        ...prev,
+        sessionEmail,
+        step: 'querying-contact',
+      }));
 
       const { data, error: memberError } = await supabase
         .from('contacts')
         .select('id, name, email, phone, tag, is_active')
-        .eq('email', email)
-        .single();
+        .ilike('email', sessionEmail)
+        .maybeSingle();
 
-      if (memberError || !data) {
+      if (memberError) {
         setMember(null);
+        setDebugAuth({
+          sessionEmail,
+          contactFound: false,
+          contactActive: null,
+          contactName: '',
+          step: 'contact-query-error',
+          rawError: memberError.message || 'Erro na consulta',
+        });
+        setError('Não foi possível validar seu acesso.');
+        return;
+      }
+
+      if (!data) {
+        setMember(null);
+        setDebugAuth({
+          sessionEmail,
+          contactFound: false,
+          contactActive: null,
+          contactName: '',
+          step: 'contact-not-found',
+          rawError: '',
+        });
         setError('Este e-mail não está autorizado no painel do membro.');
         return;
       }
 
       if (data.is_active === false) {
         setMember(null);
+        setDebugAuth({
+          sessionEmail,
+          contactFound: true,
+          contactActive: false,
+          contactName: data.name || '',
+          step: 'contact-inactive',
+          rawError: '',
+        });
         setError('Seu acesso está inativo no momento.');
         return;
       }
 
       setMember(data);
+      setDebugAuth({
+        sessionEmail,
+        contactFound: true,
+        contactActive: true,
+        contactName: data.name || '',
+        step: 'success',
+        rawError: '',
+      });
     } catch (e) {
       console.error('Erro ao resolver membro:', e);
       setError('Não foi possível validar seu acesso.');
+      setDebugAuth((prev) => ({
+        ...prev,
+        step: 'unexpected-error',
+        rawError: e?.message || 'Erro inesperado',
+      }));
     } finally {
       setSessionChecked(true);
       setLoggingIn(false);
@@ -491,14 +564,26 @@ export default function MembroPage() {
 
   if (!member) {
     return (
-      <LoginScreen
-        onGoogleLogin={handleGoogleLogin}
-        loggingIn={loggingIn}
-        error={error}
-      />
+       if (!member) {
+    return (
+      <div>
+        <LoginScreen
+          onGoogleLogin={handleGoogleLogin}
+          loggingIn={loggingIn}
+          error={error}
+        />
+
+        <div className="fixed bottom-4 left-4 right-4 z-[200] mx-auto max-w-2xl rounded-[18px] border border-yellow-300/20 bg-black/80 p-4 text-[12px] text-yellow-100 backdrop-blur">
+          <div><strong>step:</strong> {debugAuth.step}</div>
+          <div><strong>sessionEmail:</strong> {debugAuth.sessionEmail || '-'}</div>
+          <div><strong>contactFound:</strong> {String(debugAuth.contactFound)}</div>
+          <div><strong>contactActive:</strong> {String(debugAuth.contactActive)}</div>
+          <div><strong>contactName:</strong> {debugAuth.contactName || '-'}</div>
+          <div><strong>rawError:</strong> {debugAuth.rawError || '-'}</div>
+        </div>
+      </div>
     );
   }
-
   return (
     <div className="min-h-screen bg-[#050814] text-white">
       <div className="mx-auto max-w-6xl px-4 py-4 pb-28 md:px-6 md:py-6 md:pb-32">

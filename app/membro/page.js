@@ -582,18 +582,6 @@ export default function MembroPage() {
       </div>
     );
   }
-
-        <div className="fixed bottom-4 left-4 right-4 z-[200] mx-auto max-w-2xl rounded-[18px] border border-yellow-300/20 bg-black/80 p-4 text-[12px] text-yellow-100 backdrop-blur">
-          <div><strong>step:</strong> {debugAuth.step}</div>
-          <div><strong>sessionEmail:</strong> {debugAuth.sessionEmail || '-'}</div>
-          <div><strong>contactFound:</strong> {String(debugAuth.contactFound)}</div>
-          <div><strong>contactActive:</strong> {String(debugAuth.contactActive)}</div>
-          <div><strong>contactName:</strong> {debugAuth.contactName || '-'}</div>
-          <div><strong>rawError:</strong> {debugAuth.rawError || '-'}</div>
-        </div>
-      </div>
-    );
-  }
   return (
     <div className="min-h-screen bg-[#050814] text-white">
       <div className="mx-auto max-w-6xl px-4 py-4 pb-28 md:px-6 md:py-6 md:pb-32">

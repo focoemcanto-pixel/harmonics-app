@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import MembroHomeTab from '../../components/membro/MembroHomeTab';
 import MembroSolicitacoesTab from '../../components/membro/MembroSolicitacoesTab';
@@ -86,6 +86,7 @@ export default function MembroPage() {
 
   const [repertorioResumoOpen, setRepertorioResumoOpen] = useState(false);
   const [repertorioResumoItem, setRepertorioResumoItem] = useState(null);
+    const authBootstrappedRef = useRef(false);
 
   async function resolveMemberFromSession() {
     try {
@@ -177,10 +178,60 @@ export default function MembroPage() {
     }
   }
 
-  useEffect(() => {
-    resolveMemberFromSession();
-  }, []);
+    useEffect(() => {
+    let mounted = true;
 
+    async function bootstrapAuth() {
+      try {
+        setError('');
+
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (mounted && session?.user?.email) {
+          await resolveMemberFromSession();
+        } else if (mounted) {
+          setSessionChecked(true);
+          setLoggingIn(false);
+        }
+      } catch (e) {
+        console.error('Erro no bootstrap de auth:', e);
+        if (mounted) {
+          setSessionChecked(true);
+          setLoggingIn(false);
+        }
+      } finally {
+        authBootstrappedRef.current = true;
+      }
+    }
+
+    bootstrapAuth();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!authBootstrappedRef.current) return;
+
+      if (session?.user?.email) {
+        await resolveMemberFromSession();
+        return;
+      }
+
+      if (!session) {
+        if (mounted) {
+          setMember(null);
+          setSessionChecked(true);
+          setLoggingIn(false);
+        }
+      }
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
   useEffect(() => {
     if (!member?.id) return;
     loadDashboardData(member);
@@ -224,9 +275,15 @@ export default function MembroPage() {
           ? `${window.location.origin}/membro`
           : undefined;
 
-      const { error } = await supabase.auth.signInWithOAuth({
+            const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: { redirectTo },
+        options: {
+          redirectTo,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'select_account',
+          },
+        },
       });
 
       if (error) throw error;

@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../lib/supabase';
-import MembroHeader from '../../components/membro/MembroHeader';
 import MembroHomeTab from '../../components/membro/MembroHomeTab';
 import MembroSolicitacoesTab from '../../components/membro/MembroSolicitacoesTab';
 import MembroEscalasTab from '../../components/membro/MembroEscalasTab';
@@ -11,9 +10,9 @@ import MembroPerfilTab from '../../components/membro/MembroPerfilTab';
 import MembroBottomNav from '../../components/membro/MembroBottomNav';
 import MembroPlayerModal from '../../components/membro/MembroPlayerModal';
 import MiniPlayerBar from '../../components/membro/MiniPlayerBar';
-import { buildMemberDashboardData } from '../../lib/membro/membro-invites';
 import MembroEscalaModal from '../../components/membro/MembroEscalaModal';
 import MembroRepertorioResumoModal from '../../components/membro/MembroRepertorioResumoModal';
+import { buildMemberDashboardData } from '../../lib/membro/membro-invites';
 
 function LoginScreen({ onGoogleLogin, loggingIn, error }) {
   return (
@@ -80,83 +79,13 @@ export default function MembroPage() {
   const [playerPlaylist, setPlayerPlaylist] = useState([]);
   const [playerIndex, setPlayerIndex] = useState(0);
   const [playerEventTitle, setPlayerEventTitle] = useState('');
-    const [scaleModalOpen, setScaleModalOpen] = useState(false);
+
+  const [scaleModalOpen, setScaleModalOpen] = useState(false);
   const [scaleModalEvent, setScaleModalEvent] = useState(null);
   const [scaleModalMusicians, setScaleModalMusicians] = useState([]);
 
   const [repertorioResumoOpen, setRepertorioResumoOpen] = useState(false);
   const [repertorioResumoItem, setRepertorioResumoItem] = useState(null);
-    async function handleOpenScale(item) {
-    try {
-      const { data, error } = await supabase
-        .from('event_musicians')
-        .select(`
-          id,
-          musician_id,
-          role,
-          status,
-          notes,
-          contacts (
-            id,
-            name,
-            email,
-            phone,
-            tag
-          )
-        `)
-        .eq('event_id', item.eventId);
-
-      if (error) throw error;
-
-      const musicians = (data || []).map((row) => ({
-        id: row.id,
-        musician_id: row.musician_id,
-        role: row.role || row.contacts?.tag || '',
-        status: row.status || 'pending',
-        musician_name: row.contacts?.name || '',
-        musician_email: row.contacts?.email || '',
-        musician_phone: row.contacts?.phone || '',
-        contact_tag_text: row.contacts?.tag || '',
-      }));
-
-      setScaleModalEvent(item);
-      setScaleModalMusicians(musicians);
-      setScaleModalOpen(true);
-    } catch (e) {
-      console.error('Erro ao abrir escala:', e);
-      setError(e?.message || 'Não foi possível carregar a escala do evento.');
-    }
-  }
-
-  function handleOpenRepertoireSummary(item) {
-    setRepertorioResumoItem(item);
-    setRepertorioResumoOpen(true);
-  }
-
-  function handleOpenMaps(item) {
-    if (!item?.locationName) return;
-    const query = encodeURIComponent(item.locationName);
-    window.open(`https://www.google.com/maps/search/?api=1&query=${query}`, '_blank', 'noopener,noreferrer');
-  }
-
-  async function handleMarkDone(item) {
-    try {
-      const nextDone = !item.isDone;
-      const nextStatus = nextDone ? 'done' : 'confirmed';
-
-      const { error } = await supabase
-        .from('events')
-        .update({ status: nextStatus })
-        .eq('id', item.eventId);
-
-      if (error) throw error;
-
-      await loadDashboardData(member);
-    } catch (e) {
-      console.error('Erro ao marcar evento:', e);
-      setError(e?.message || 'Não foi possível atualizar o status do evento.');
-    }
-  }
 
   async function resolveMemberFromSession() {
     try {
@@ -265,21 +194,25 @@ export default function MembroPage() {
     });
   }, [invites, contracts, precontracts]);
 
+  const confirmados = Array.isArray(dashboard?.confirmados) ? dashboard.confirmados : [];
+  const pendentes = Array.isArray(dashboard?.pendentes) ? dashboard.pendentes : [];
+  const resumo = dashboard?.resumo || { pendentes: 0, confirmados: 0, repertorios: 0 };
+
   const repertorios = useMemo(() => {
-    return dashboard.confirmados.filter(
-      (row) => row.contractInfo?.pdfUrl || row.youtubeUrls.length > 0
+    return confirmados.filter(
+      (row) => row?.contractInfo?.pdfUrl || (Array.isArray(row?.youtubeUrls) && row.youtubeUrls.length > 0)
     );
-  }, [dashboard.confirmados]);
+  }, [confirmados]);
 
   const proximasEscalas = useMemo(() => {
-    return [...dashboard.confirmados]
+    return [...confirmados]
       .sort((a, b) => {
-        const aDate = new Date(`${a.eventDate || ''}T${a.eventTime || '00:00:00'}`).getTime();
-        const bDate = new Date(`${b.eventDate || ''}T${b.eventTime || '00:00:00'}`).getTime();
+        const aDate = new Date(`${a?.eventDate || ''}T${a?.eventTime || '00:00:00'}`).getTime();
+        const bDate = new Date(`${b?.eventDate || ''}T${b?.eventTime || '00:00:00'}`).getTime();
         return aDate - bDate;
       })
       .slice(0, 2);
-  }, [dashboard.confirmados]);
+  }, [confirmados]);
 
   async function handleGoogleLogin() {
     try {
@@ -293,9 +226,7 @@ export default function MembroPage() {
 
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: {
-          redirectTo,
-        },
+        options: { redirectTo },
       });
 
       if (error) throw error;
@@ -360,7 +291,7 @@ export default function MembroPage() {
       await loadDashboardData(member);
 
       if (nextStatus === 'confirmed') {
-        setActiveTab('agenda');
+        setActiveTab('escalas');
       }
     } catch (e) {
       console.error('Erro ao responder convite:', e);
@@ -371,7 +302,7 @@ export default function MembroPage() {
   }
 
   function buildPlaylistFromRow(item) {
-    return (item.youtubeUrls || []).map((url, index) => ({
+    return (item?.youtubeUrls || []).map((url, index) => ({
       title: `${item.clientName} • Faixa ${index + 1}`,
       url,
     }));
@@ -382,27 +313,97 @@ export default function MembroPage() {
 
     setPlayerPlaylist(playlist);
     setPlayerIndex(0);
-    setPlayerEventTitle(item.clientName || 'Repertório');
+    setPlayerEventTitle(item?.clientName || 'Repertório');
 
     if (playlist.length > 0 || options.autoplay) {
       setPlayerOpen(true);
     }
 
-    if (playlist.length === 0 && item.contractInfo?.publicToken) {
+    if (playlist.length === 0 && item?.contractInfo?.publicToken) {
       window.open(`/cliente/${item.contractInfo.publicToken}`, '_blank', 'noopener,noreferrer');
     }
   }
 
   function openPdf(item) {
-    if (item.contractInfo?.pdfUrl) {
+    if (item?.contractInfo?.pdfUrl) {
       window.open(item.contractInfo.pdfUrl, '_blank', 'noopener,noreferrer');
     }
   }
 
   function openMaps(item) {
-    if (!item.locationName) return;
+    if (!item?.locationName) return;
     const query = encodeURIComponent(item.locationName);
     window.open(`https://www.google.com/maps/search/?api=1&query=${query}`, '_blank', 'noopener,noreferrer');
+  }
+
+  async function handleOpenScale(item) {
+    try {
+      const { data, error } = await supabase
+        .from('event_musicians')
+        .select(`
+          id,
+          musician_id,
+          role,
+          status,
+          notes,
+          contacts (
+            id,
+            name,
+            email,
+            phone,
+            tag
+          )
+        `)
+        .eq('event_id', item.eventId);
+
+      if (error) throw error;
+
+      const musicians = (data || []).map((row) => {
+        const contact = Array.isArray(row.contacts) ? row.contacts[0] : row.contacts;
+
+        return {
+          id: row.id,
+          musician_id: row.musician_id,
+          role: row.role || contact?.tag || '',
+          status: row.status || 'pending',
+          musician_name: contact?.name || '',
+          musician_email: contact?.email || '',
+          musician_phone: contact?.phone || '',
+          contact_tag_text: contact?.tag || '',
+        };
+      });
+
+      setScaleModalEvent(item);
+      setScaleModalMusicians(musicians);
+      setScaleModalOpen(true);
+    } catch (e) {
+      console.error('Erro ao abrir escala:', e);
+      setError(e?.message || 'Não foi possível carregar a escala do evento.');
+    }
+  }
+
+  function handleOpenRepertoireSummary(item) {
+    setRepertorioResumoItem(item);
+    setRepertorioResumoOpen(true);
+  }
+
+  async function handleMarkDone(item) {
+    try {
+      const nextDone = !item?.isDone;
+      const nextStatus = nextDone ? 'done' : 'confirmed';
+
+      const { error } = await supabase
+        .from('events')
+        .update({ status: nextStatus })
+        .eq('id', item.eventId);
+
+      if (error) throw error;
+
+      await loadDashboardData(member);
+    } catch (e) {
+      console.error('Erro ao marcar evento:', e);
+      setError(e?.message || 'Não foi possível atualizar o status do evento.');
+    }
   }
 
   function handleNextTrack() {
@@ -445,8 +446,6 @@ export default function MembroPage() {
     <div className="min-h-screen bg-[#050814] text-white">
       <div className="mx-auto max-w-6xl px-4 py-4 pb-28 md:px-6 md:py-6 md:pb-32">
         <div className="space-y-5 md:space-y-6">
-          <MembroHeader member={member} onLogout={handleLogout} />
-
           {error ? (
             <div className="rounded-[20px] border border-red-300/15 bg-red-400/10 px-4 py-3 text-[14px] font-semibold text-red-100">
               {error}
@@ -461,35 +460,35 @@ export default function MembroPage() {
 
           {!loadingData && activeTab === 'home' ? (
             <MembroHomeTab
-              resumo={dashboard.resumo}
-              proximasEscalas={proximasEscalas}
-              pendentes={dashboard.pendentes}
-              onGoTab={setActiveTab}
-              onOpenRepertoire={openRepertoire}
-              onOpenPdf={openPdf}
-              onOpenMaps={openMaps}
+              member={member}
+              resumo={resumo}
+              nextPending={pendentes[0] || null}
+              nextConfirmed={proximasEscalas[0] || null}
+              onGoToPendentes={() => setActiveTab('pendentes')}
+              onGoToEscalas={() => setActiveTab('escalas')}
+              onGoToRepertorios={() => setActiveTab('repertorios')}
             />
           ) : null}
 
-          {!loadingData && activeTab === 'solicitacoes' ? (
+          {!loadingData && activeTab === 'pendentes' ? (
             <MembroSolicitacoesTab
-              pendentes={dashboard.pendentes}
+              pendentes={pendentes}
               onAccept={(item) => updateInviteStatus(item, 'confirmed')}
               onDecline={(item) => updateInviteStatus(item, 'declined')}
               loadingKey={loadingKey}
             />
           ) : null}
 
-                  {!loadingData && activeTab === 'escalas' ? (
-          <MembroEscalasTab
-            confirmados={dashboard.confirmados}
-            onOpenRepertoire={handleOpenRepertoireSummary}
-            onOpenPdf={openPdf}
-            onOpenMaps={handleOpenMaps}
-            onOpenScale={handleOpenScale}
-            onMarkDone={handleMarkDone}
-          />
-        ) : null}
+          {!loadingData && activeTab === 'escalas' ? (
+            <MembroEscalasTab
+              confirmados={confirmados}
+              onOpenRepertoire={handleOpenRepertoireSummary}
+              onOpenPdf={openPdf}
+              onOpenMaps={openMaps}
+              onOpenScale={handleOpenScale}
+              onMarkDone={handleMarkDone}
+            />
+          ) : null}
 
           {!loadingData && activeTab === 'repertorios' ? (
             <MembroRepertoriosTab
@@ -505,8 +504,13 @@ export default function MembroPage() {
         </div>
       </div>
 
-      <MembroBottomNav activeTab={activeTab} onChange={setActiveTab} />
-                <MembroEscalaModal
+      <MembroBottomNav
+        active={activeTab}
+        onChange={setActiveTab}
+        pendingCount={resumo?.pendentes || 0}
+      />
+
+      <MembroEscalaModal
         open={scaleModalOpen}
         eventTitle={scaleModalEvent?.clientName || 'Escala'}
         musicians={scaleModalMusicians}

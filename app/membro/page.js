@@ -596,6 +596,29 @@ export default function MembroPage() {
       return (prev - 1 + playerPlaylist.length) % playerPlaylist.length;
     });
   }
+    useEffect(() => {
+    const hasOverlayOpen =
+      scaleModalOpen || repertorioResumoOpen || playerOpen;
+
+    if (typeof document === 'undefined') return;
+
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousBodyTouchAction = document.body.style.touchAction;
+
+    if (hasOverlayOpen) {
+      document.documentElement.style.overflow = 'hidden';
+      document.body.style.overflow = 'hidden';
+      document.body.style.touchAction = 'none';
+    }
+
+    return () => {
+      document.documentElement.style.overflow = previousHtmlOverflow;
+      document.body.style.overflow = previousBodyOverflow;
+      document.body.style.touchAction = previousBodyTouchAction;
+    };
+  }, [scaleModalOpen, repertorioResumoOpen, playerOpen]);
+  
 
   const currentTrack = playerPlaylist[playerIndex] || null;
 
@@ -632,7 +655,7 @@ export default function MembroPage() {
 
   return (
     <div className="min-h-screen bg-[#050814] text-white">
-      <div className="mx-auto max-w-6xl px-4 pt-4 pb-[170px] md:px-6 md:pt-6 md:pb-32">
+     <div className="mx-auto max-w-6xl px-4 pt-4 pb-[220px] md:px-6 md:pt-6 md:pb-36">
         <div className="space-y-5 md:space-y-6">
           {error ? (
             <div className="rounded-[20px] border border-red-300/15 bg-red-400/10 px-4 py-3 text-[14px] font-semibold text-red-100">

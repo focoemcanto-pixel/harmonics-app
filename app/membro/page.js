@@ -136,7 +136,8 @@ export default function MembroPage() {
       const { data, error: memberError } = await supabase
         .from('contacts')
         .select('id, name, email, phone, tag, is_active')
-        .ilike('email', sessionEmail)
+       .eq('email', sessionEmail.trim().toLowerCase())
+        console.log('EMAIL GOOGLE:', sessionEmail);
         .maybeSingle();
 
       if (memberError) {

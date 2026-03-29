@@ -1,0 +1,102 @@
+'use client';
+
+export default function MembroRepertorioResumoModal({
+  open,
+  item,
+  onClose,
+  onOpenPdf,
+  onOpenPlayer,
+  onGoToRepertorios,
+}) {
+  if (!open || !item) return null;
+
+  return (
+    <div className="fixed inset-0 z-[150] bg-black/70 backdrop-blur-[3px]">
+      <div className="flex min-h-screen items-end justify-center px-0 md:items-center md:px-6">
+        <div className="max-h-[88vh] w-full overflow-hidden rounded-t-[28px] border border-white/10 bg-[#111827] text-white shadow-[0_24px_80px_rgba(0,0,0,0.45)] md:max-w-2xl md:rounded-[28px]">
+          <div className="border-b border-white/10 px-5 py-4">
+            <div className="mx-auto mb-3 h-1.5 w-14 rounded-full bg-white/15 md:hidden" />
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="text-[12px] font-black uppercase tracking-[0.12em] text-fuchsia-200/70">
+                  Repertório do evento
+                </div>
+                <h3 className="mt-2 text-[28px] font-black tracking-[-0.04em]">
+                  {item.clientName || 'Repertório'}
+                </h3>
+              </div>
+
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-[16px] border border-white/10 bg-white/10 px-4 py-3 text-[14px] font-black text-white"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+
+          <div className="max-h-[68vh] overflow-y-auto px-5 py-5">
+            <div className="space-y-4">
+              <div className="rounded-[22px] border border-white/10 bg-white/5 p-4">
+                <div className="text-[11px] font-black uppercase tracking-[0.08em] text-white/50">
+                  Formação
+                </div>
+                <div className="mt-2 text-[16px] font-semibold">
+                  {item.formation || '-'}
+                </div>
+              </div>
+
+              <div className="rounded-[22px] border border-white/10 bg-white/5 p-4">
+                <div className="text-[11px] font-black uppercase tracking-[0.08em] text-white/50">
+                  Instrumentos
+                </div>
+                <div className="mt-2 text-[15px] leading-7 text-white/80">
+                  {item.instruments || '-'}
+                </div>
+              </div>
+
+              <div className="rounded-[22px] border border-white/10 bg-white/5 p-4">
+                <div className="text-[11px] font-black uppercase tracking-[0.08em] text-white/50">
+                  Material disponível
+                </div>
+                <div className="mt-2 space-y-2 text-[14px] text-white/75">
+                  <div>PDF: {item.contractInfo?.pdfUrl ? 'Disponível' : 'Não disponível'}</div>
+                  <div>Faixas: {item.youtubeUrls?.length || 0}</div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                <button
+                  type="button"
+                  onClick={() => onOpenPdf(item)}
+                  disabled={!item.contractInfo?.pdfUrl}
+                  className="rounded-[18px] border border-white/10 bg-white/10 px-5 py-4 text-[15px] font-black text-white disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Baixar PDF
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => onOpenPlayer(item)}
+                  disabled={!item.youtubeUrls?.length}
+                  className="rounded-[18px] bg-gradient-to-r from-violet-500 to-fuchsia-500 px-5 py-4 text-[15px] font-black text-white disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Abrir player
+                </button>
+
+                <button
+                  type="button"
+                  onClick={onGoToRepertorios}
+                  className="rounded-[18px] border border-white/10 bg-white/10 px-5 py-4 text-[15px] font-black text-white"
+                >
+                  Ir para repertórios
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

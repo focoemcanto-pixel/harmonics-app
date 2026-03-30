@@ -120,6 +120,7 @@ export default function AdminEventCard({
   onDelete,
   onOpenEscala,
   onOpenContract,
+  onCopyContractLink,
   gerandoContrato = false,
   flat = false,
 }) {
@@ -254,6 +255,16 @@ export default function AdminEventCard({
           >
             {contractButtonLabel}
           </button>
+
+          {contractLink ? (
+            <button
+              type="button"
+              onClick={onCopyContractLink}
+              className="rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3 text-[14px] font-black text-[#0f172a]"
+            >
+              Copiar link
+            </button>
+          ) : null}
 
           {whatsappHref ? (
             <a

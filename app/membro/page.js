@@ -81,6 +81,9 @@ export default function MembroPage() {
   const [playerPlaylist, setPlayerPlaylist] = useState([]);
   const [playerIndex, setPlayerIndex] = useState(0);
   const [playerEventTitle, setPlayerEventTitle] = useState('');
+  const [currentTrack, setCurrentTrack] = useState(null);
+const [playlist, setPlaylist] = useState([]);
+const [isPlaying, setIsPlaying] = useState(false);
 
   const [scaleModalOpen, setScaleModalOpen] = useState(false);
   const [scaleModalEvent, setScaleModalEvent] = useState(null);
@@ -90,6 +93,7 @@ export default function MembroPage() {
   const [repertorioResumoItem, setRepertorioResumoItem] = useState(null);
   const [repertoireConfigs, setRepertoireConfigs] = useState([]);
 const [repertoireItems, setRepertoireItems] = useState([]);
+  
 
   const [debugAuth, setDebugAuth] = useState({
     sessionEmail: '',

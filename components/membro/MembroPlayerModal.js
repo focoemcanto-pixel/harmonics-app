@@ -1,6 +1,46 @@
 'use client';
 
-import { buildYoutubeEmbedUrl } from '../../lib/membro/membro-invites';
+import { useEffect, useMemo, useRef } from 'react';
+import { extractYoutubeId } from '../../lib/membro/membro-invites';
+
+function ensureYouTubeAPI() {
+  return new Promise((resolve) => {
+    if (typeof window === 'undefined') return resolve(null);
+
+    if (window.YT && window.YT.Player) {
+      resolve(window.YT);
+      return;
+    }
+
+    const existing = document.querySelector('script[data-youtube-iframe-api="true"]');
+    if (!existing) {
+      const tag = document.createElement('script');
+      tag.src = 'https://www.youtube.com/iframe_api';
+      tag.async = true;
+      tag.setAttribute('data-youtube-iframe-api', 'true');
+      document.body.appendChild(tag);
+    }
+
+    const previous = window.onYouTubeIframeAPIReady;
+
+    window.onYouTubeIframeAPIReady = () => {
+      if (typeof previous === 'function') previous();
+      resolve(window.YT || null);
+    };
+
+    const checkReady = setInterval(() => {
+      if (window.YT && window.YT.Player) {
+        clearInterval(checkReady);
+        resolve(window.YT);
+      }
+    }, 150);
+
+    setTimeout(() => {
+      clearInterval(checkReady);
+      resolve(window.YT || null);
+    }, 10000);
+  });
+}
 
 export default function MembroPlayerModal({
   open,
@@ -13,14 +53,100 @@ export default function MembroPlayerModal({
   onPrev,
   onNext,
   onTogglePlay,
+  onPlayerStateChange,
 }) {
-  if (!open) return null;
+  const playerHostRef = useRef(null);
+  const playerRef = useRef(null);
+  const currentVideoIdRef = useRef('');
 
   const currentTrack = playlist[currentIndex] || null;
-  const embedUrl =
-    currentTrack?.url && isPlaying
-      ? buildYoutubeEmbedUrl(currentTrack.url)
-      : '';
+  const currentVideoId = useMemo(
+    () => extractYoutubeId(currentTrack?.url || ''),
+    [currentTrack?.url]
+  );
+
+  useEffect(() => {
+    if (!open || !currentVideoId || typeof window === 'undefined') return;
+
+    let cancelled = false;
+
+    async function setupPlayer() {
+      const YT = await ensureYouTubeAPI();
+      if (!YT || cancelled || !playerHostRef.current) return;
+
+      const handleStateChange = (event) => {
+        const state = event?.data;
+        if (state === window.YT.PlayerState.PLAYING) {
+          onPlayerStateChange?.(true);
+        } else if (
+          state === window.YT.PlayerState.PAUSED ||
+          state === window.YT.PlayerState.ENDED
+        ) {
+          onPlayerStateChange?.(false);
+        }
+      };
+
+      if (!playerRef.current) {
+        playerRef.current = new YT.Player(playerHostRef.current, {
+          videoId: currentVideoId,
+          playerVars: {
+            autoplay: 1,
+            rel: 0,
+            modestbranding: 1,
+          },
+          events: {
+            onReady: (event) => {
+              currentVideoIdRef.current = currentVideoId;
+              event.target.playVideo();
+              onPlayerStateChange?.(true);
+            },
+            onStateChange: handleStateChange,
+          },
+        });
+        return;
+      }
+
+      if (currentVideoIdRef.current !== currentVideoId) {
+        currentVideoIdRef.current = currentVideoId;
+        playerRef.current.loadVideoById(currentVideoId);
+        onPlayerStateChange?.(true);
+        return;
+      }
+
+      if (isPlaying) {
+        playerRef.current.playVideo?.();
+      } else {
+        playerRef.current.pauseVideo?.();
+      }
+    }
+
+    setupPlayer();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, currentVideoId, onPlayerStateChange]);
+
+  useEffect(() => {
+    if (!open || !playerRef.current || !currentVideoId) return;
+
+    if (isPlaying) {
+      playerRef.current.playVideo?.();
+    } else {
+      playerRef.current.pauseVideo?.();
+    }
+  }, [isPlaying, open, currentVideoId]);
+
+  useEffect(() => {
+    return () => {
+      try {
+        playerRef.current?.destroy?.();
+      } catch {}
+      playerRef.current = null;
+    };
+  }, []);
+
+  if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-[150] bg-black/70 backdrop-blur-[4px]">
@@ -50,14 +176,8 @@ export default function MembroPlayerModal({
           <div className="grid flex-1 grid-cols-1 overflow-hidden md:grid-cols-[1.35fr_0.95fr]">
             <div className="border-b border-white/10 p-5 md:border-b-0 md:border-r md:p-6">
               <div className="overflow-hidden rounded-[24px] border border-white/10 bg-black/20">
-                {embedUrl ? (
-                  <iframe
-                    src={embedUrl}
-                    title={currentTrack?.title || 'YouTube player'}
-                    className="aspect-video w-full"
-                    allow="autoplay; encrypted-media; picture-in-picture"
-                    allowFullScreen
-                  />
+                {currentVideoId ? (
+                  <div ref={playerHostRef} className="aspect-video w-full" />
                 ) : (
                   <div className="flex aspect-video items-center justify-center px-5 text-center text-[15px] font-semibold text-white/60">
                     Nenhuma faixa disponível para tocar neste repertório.

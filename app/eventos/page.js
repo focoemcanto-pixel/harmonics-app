@@ -1172,44 +1172,45 @@ export default function EventosPage() {
           )}
 
           {desktopTab === 'operacao' && (
-            <EventosOperacaoTab
-              eventosOperacionais={eventosOperacionais}
-              eventosOperacionaisFiltrados={eventosOperacionaisFiltrados}
-              resumoOperacao={resumoOperacao}
-              operacaoFiltro={operacaoFiltro}
-              setOperacaoFiltro={setOperacaoFiltro}
-              contractsByEventId={contractsByEventId}
-              contratoAbertoId={contratoAbertoId}
-              setContratoAbertoId={setContratoAbertoId}
-              iniciarEdicao={iniciarEdicao}
-              confirmarRapido={confirmarRapido}
-              salvarPagamento={salvarPagamento}
-              pagamentoAbertoId={pagamentoAbertoId}
-              setPagamentoAbertoId={setPagamentoAbertoId}
-              valorPagamento={valorPagamento}
-              setValorPagamento={setValorPagamento}
-              salvandoPagamentoId={salvandoPagamentoId}
-              ultimoPagamentoAtualizadoId={ultimoPagamentoAtualizadoId}
-              setDesktopTab={setDesktopTab}
-              setMobileTab={setMobileTab}
-              getContractStatus={getContractStatus}
-              getOperacaoAlert={getOperacaoAlert}
-              getQuickActions={getQuickActions}
-              getOperacaoPrimaryAction={getOperacaoPrimaryAction}
-              isContratoPendente={isContratoPendente}
-              isFinanceiroPendente={isFinanceiroPendente}
-              isUpcomingEvent={isUpcomingEvent}
-              isRascunho={isRascunho}
-              getTimelineLabel={getTimelineLabel}
-              getOperationalTone={getOperationalTone}
-              getPaymentTone={getPaymentTone}
-              getPriorityBannerClasses={getPriorityBannerClasses}
-              formatMoney={formatMoney}
-              formatDateBR={formatDateBR}
-              formatPhoneDisplay={formatPhoneDisplay}
-              onOpenContract={abrirContratoRapido}
-              gerandoContratoId={gerandoContratoId}
-            />
+           <EventosOperacaoTab
+  eventosOperacionais={eventosOperacionais}
+  eventosOperacionaisFiltrados={eventosOperacionaisFiltrados}
+  resumoOperacao={resumoOperacao}
+  operacaoFiltro={operacaoFiltro}
+  setOperacaoFiltro={setOperacaoFiltro}
+  contractsByEventId={contractsByEventId}
+  contratoAbertoId={contratoAbertoId}
+  setContratoAbertoId={setContratoAbertoId}
+  iniciarEdicao={iniciarEdicao}
+  confirmarRapido={confirmarRapido}
+  salvarPagamento={salvarPagamento}
+  pagamentoAbertoId={pagamentoAbertoId}
+  setPagamentoAbertoId={setPagamentoAbertoId}
+  valorPagamento={valorPagamento}
+  setValorPagamento={setValorPagamento}
+  salvandoPagamentoId={salvandoPagamentoId}
+  ultimoPagamentoAtualizadoId={ultimoPagamentoAtualizadoId}
+  setDesktopTab={setDesktopTab}
+  setMobileTab={setMobileTab}
+  getContractStatus={getContractStatus}
+  getOperacaoAlert={getOperacaoAlert}
+  getQuickActions={getQuickActions}
+  getOperacaoPrimaryAction={getOperacaoPrimaryAction}
+  isContratoPendente={isContratoPendente}
+  isFinanceiroPendente={isFinanceiroPendente}
+  isUpcomingEvent={isUpcomingEvent}
+  isRascunho={isRascunho}
+  getTimelineLabel={getTimelineLabel}
+  getOperationalTone={getOperationalTone}
+  getPaymentTone={getPaymentTone}
+  getPriorityBannerClasses={getPriorityBannerClasses}
+  formatMoney={formatMoney}
+  formatDateBR={formatDateBR}
+  formatPhoneDisplay={formatPhoneDisplay}
+  onOpenContract={abrirContratoRapido}
+  onCopyContractLink={copiarLinkContrato}
+  gerandoContratoId={gerandoContratoId}
+/>
           )}
 
           {desktopTab === 'evento' && (

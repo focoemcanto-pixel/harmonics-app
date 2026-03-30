@@ -684,46 +684,62 @@ function MiniStep({
   );
 }
 
-function RepertorioTab({ data, selectedSongs }) {
+function RepertorioTab({ data, selectedSongs, onSaved }) {
   const travado = ['ENVIADO', 'ENVIADO_TRANCADO', 'FINALIZADO', 'CONCLUIDO'].includes(
     String(data.repertorio.status || '').toUpperCase()
   );
 
   const [step, setStep] = useState(1);
 
-  const [querAntessala, setQuerAntessala] = useState(
-  data.repertorio.temAntessala ? null : false
+  const initialState = data?.repertorio?.initialState || {};
+
+const [querAntessala, setQuerAntessala] = useState(
+  data.repertorio.temAntessala
+    ? (initialState.querAntessala ?? null)
+    : false
 );
-  const [temReceptivo, setTemReceptivo] = useState(!!data.repertorio.temReceptivo);
 
-  const [antessala, setAntessala] = useState({
-  estilo: '',
-  generos: '',
-  artistas: '',
-  observacao: '',
-});
+const [temReceptivo, setTemReceptivo] = useState(!!data.repertorio.temReceptivo);
 
-  const [cortejo, setCortejo] = useState([
+const [antessala, setAntessala] = useState(
+  initialState.antessala || {
+    estilo: '',
+    generos: '',
+    artistas: '',
+    observacao: '',
+  }
+);
+
+const [cortejo, setCortejo] = useState(
+  initialState.cortejo || [
     { label: 'Padrinhos', musica: '', referencia: '', observacao: '' },
     { label: 'Noiva', musica: '', referencia: '', observacao: '' },
-  ]);
+  ]
+);
 
-  const [cerimonia, setCerimonia] = useState([
+const [cerimonia, setCerimonia] = useState(
+  initialState.cerimonia || [
     { label: 'Alianças', musica: '', referencia: '', observacao: '' },
-  ]);
+  ]
+);
 
-  const [saida, setSaida] = useState({
+const [saida, setSaida] = useState(
+  initialState.saida || {
     musica: '',
     referencia: '',
     observacao: '',
-  });
+  }
+);
 
-  const [receptivo, setReceptivo] = useState({
+const [receptivo, setReceptivo] = useState(
+  initialState.receptivo || {
     duracao: '1h',
     generos: '',
     artistas: '',
     observacao: '',
-  });
+  }
+);
+  const [savingMode, setSavingMode] = useState('');
 
   const quickCortejo = [
     'Padrinhos',
@@ -791,6 +807,163 @@ function RepertorioTab({ data, selectedSongs }) {
 />
       );
     }
+    function buildItemsPayload() {
+  const items = [];
+
+  if (querAntessala === true) {
+    items.push({
+      section: 'antessala',
+      item_order: 0,
+      who_enters: '',
+      moment: 'Antessala',
+      song_name: antessala.estilo || '',
+      reference_link: '',
+      notes: antessala.observacao || '',
+      type: 'ante_room',
+      group_name: '',
+      label: 'Antessala',
+      genres: antessala.generos || '',
+      artists: antessala.artistas || '',
+    });
+  }
+
+  cortejo.forEach((item, index) => {
+    items.push({
+      section: 'cortejo',
+      item_order: index,
+      who_enters: item.label || '',
+      moment: 'Entrada',
+      song_name: item.musica || '',
+      reference_link: item.referencia || '',
+      notes: item.observacao || '',
+      type: 'entrada',
+      group_name: '',
+      label: item.label || '',
+      genres: '',
+      artists: '',
+    });
+  });
+
+  cerimonia.forEach((item, index) => {
+    items.push({
+      section: 'cerimonia',
+      item_order: index,
+      who_enters: '',
+      moment: item.label || 'Cerimônia',
+      song_name: item.musica || '',
+      reference_link: item.referencia || '',
+      notes: item.observacao || '',
+      type: 'cerimonia',
+      group_name: '',
+      label: item.label || '',
+      genres: '',
+      artists: '',
+    });
+  });
+
+  if (saida.musica || saida.referencia || saida.observacao) {
+    items.push({
+      section: 'saida',
+      item_order: 0,
+      who_enters: 'Saída dos noivos',
+      moment: 'Saída',
+      song_name: saida.musica || '',
+      reference_link: saida.referencia || '',
+      notes: saida.observacao || '',
+      type: 'saida',
+      group_name: '',
+      label: 'Saída dos noivos',
+      genres: '',
+      artists: '',
+    });
+  }
+
+  if (temReceptivo) {
+    items.push({
+      section: 'receptivo',
+      item_order: 0,
+      who_enters: '',
+      moment: 'Receptivo',
+      song_name: '',
+      reference_link: '',
+      notes: receptivo.observacao || '',
+      type: 'reception',
+      group_name: '',
+      label: 'Receptivo',
+      genres: receptivo.generos || '',
+      artists: receptivo.artistas || '',
+    });
+  }
+
+  return items;
+}
+
+function buildConfigPayload() {
+  return {
+    has_ante_room: querAntessala === true,
+    ante_room_style: antessala.estilo || '',
+    ante_room_notes: antessala.observacao || '',
+    has_reception: temReceptivo,
+    reception_duration: temReceptivo ? receptivo.duracao || '' : '',
+    reception_genres: temReceptivo ? receptivo.generos || '' : '',
+    reception_artists: temReceptivo ? receptivo.artistas || '' : '',
+    reception_notes: temReceptivo ? receptivo.observacao || '' : '',
+    exit_song: saida.musica || '',
+    exit_reference: saida.referencia || '',
+    exit_notes: saida.observacao || '',
+    desired_songs: '',
+    general_notes: '',
+  };
+}
+
+async function saveRepertorio(mode = 'draft') {
+  try {
+    setSavingMode(mode);
+
+    const response = await fetch('/api/cliente/repertorio', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        token: data.token,
+        mode,
+        config: buildConfigPayload(),
+        items: buildItemsPayload(),
+      }),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok || !result?.ok) {
+      throw new Error(result?.error || 'Não foi possível salvar o repertório.');
+    }
+
+    showToast(
+      mode === 'final'
+        ? 'Repertório finalizado com sucesso 💜'
+        : 'Rascunho salvo com sucesso 💾',
+      'success'
+    );
+
+    onSaved?.({
+      mode,
+      result,
+    });
+
+    if (mode === 'final') {
+      window.location.reload();
+    }
+  } catch (error) {
+    console.error('Erro ao salvar repertório:', error);
+    showToast(
+      error?.message || 'Não foi possível salvar o repertório.',
+      'error'
+    );
+  } finally {
+    setSavingMode('');
+  }
+}
 
     return (
       <div className="space-y-3">

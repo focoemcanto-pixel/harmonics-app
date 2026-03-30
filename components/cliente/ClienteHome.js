@@ -685,9 +685,11 @@ function MiniStep({
 }
 
 function RepertorioTab({ data, selectedSongs, onSaved }) {
+    const { showToast } = useToast();
   const travado = ['ENVIADO', 'ENVIADO_TRANCADO', 'FINALIZADO', 'CONCLUIDO'].includes(
     String(data.repertorio.status || '').toUpperCase()
   );
+  
 
   const [step, setStep] = useState(1);
 

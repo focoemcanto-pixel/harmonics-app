@@ -87,6 +87,7 @@ function formatContractLabel(contractLabel) {
   if (value === 'preenchendo contrato') return 'Preenchendo';
   if (value === 'link do contrato gerado') return 'Link gerado';
   if (value === 'sem contrato') return 'Sem contrato';
+  if (value === 'gerando contrato...') return 'Gerando contrato';
 
   return contractLabel;
 }
@@ -118,12 +119,20 @@ export default function AdminEventCard({
   onEdit,
   onDelete,
   onOpenEscala,
+  onOpenContract,
+  gerandoContrato = false,
   flat = false,
 }) {
   const phoneDigits = String(whatsappNumero || '').replace(/\D/g, '');
   const whatsappHref = phoneDigits
     ? `https://wa.me/55${phoneDigits}`
     : null;
+
+  const contractButtonLabel = gerandoContrato
+    ? 'Gerando contrato...'
+    : contractLink
+    ? 'Abrir contrato'
+    : 'Gerar contrato';
 
   return (
     <article
@@ -136,7 +145,9 @@ export default function AdminEventCard({
       <div className={flat ? 'space-y-4' : ''}>
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div className="min-w-0">
-            <div className="text-[20px] font-black text-[#0f172a]">{cliente}</div>
+            <div className="text-[20px] font-black tracking-[-0.03em] text-[#0f172a]">
+              {cliente}
+            </div>
             <div className="mt-1 text-[14px] font-semibold text-[#64748b]">
               {tipo || 'Evento'}
             </div>
@@ -215,12 +226,12 @@ export default function AdminEventCard({
 
         <div className={`mt-5 flex flex-wrap gap-3 ${flat ? 'mt-4' : ''}`}>
           <button
-  type="button"
-  onClick={onOpenEscala}
-  className="rounded-[16px] bg-violet-600 px-4 py-3 text-[14px] font-black text-white shadow-[0_10px_24px_rgba(124,58,237,0.25)]"
->
-  Escala
-</button>
+            type="button"
+            onClick={onOpenEscala}
+            className="rounded-[16px] bg-violet-600 px-4 py-3 text-[14px] font-black text-white shadow-[0_10px_24px_rgba(124,58,237,0.25)]"
+          >
+            Escala
+          </button>
 
           <Link
             href={`/eventos/${id}`}
@@ -229,18 +240,20 @@ export default function AdminEventCard({
             Ver detalhe
           </Link>
 
-          {contractLink ? (
-            <Link
-              href={contractLink}
-              className="rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3 text-[14px] font-black text-[#0f172a]"
-            >
-              Contrato
-            </Link>
-          ) : (
-            <span className="rounded-[16px] border border-[#e5e7eb] bg-[#f8fafc] px-4 py-3 text-[14px] font-black text-[#94a3b8]">
-              Sem contrato
-            </span>
-          )}
+          <button
+            type="button"
+            onClick={onOpenContract}
+            disabled={gerandoContrato}
+            className={`rounded-[16px] px-4 py-3 text-[14px] font-black transition ${
+              gerandoContrato
+                ? 'cursor-not-allowed border border-[#e5e7eb] bg-[#f8fafc] text-[#94a3b8]'
+                : contractLink
+                ? 'border border-[#dbe3ef] bg-white text-[#0f172a] hover:bg-[#f8fafc]'
+                : 'bg-[#0f172a] text-white shadow-[0_10px_24px_rgba(15,23,42,0.20)] hover:bg-[#111827]'
+            }`}
+          >
+            {contractButtonLabel}
+          </button>
 
           {whatsappHref ? (
             <a

@@ -646,19 +646,20 @@ export default function MembroPage() {
           ) : null}
 
           {!loadingData && activeTab === 'home' ? (
-            <MembroHomeTab
-              resumo={resumo}
-              proximosConfirmados={proximosConfirmados}
-              onGoAgenda={() => setActiveTab('escalas')}
-              onGoRepertoire={(item) => {
-                if (item) {
-                  handleOpenRepertoireSummary(item);
-                  return;
-                }
-                setActiveTab('repertorios');
-              }}
-            />
-          ) : null}
+  <MembroHomeTab
+    resumo={resumo}
+    proximosConfirmados={proximosConfirmados}
+    onGoAgenda={() => setActiveTab('escalas')}
+    onGoPendentes={() => setActiveTab('pendentes')}
+    onGoRepertoire={(item) => {
+      if (item) {
+        handleOpenRepertoireSummary(item);
+        return;
+      }
+      setActiveTab('repertorios');
+    }}
+  />
+) : null}
 
           {!loadingData && activeTab === 'pendentes' ? (
             <MembroSolicitacoesTab

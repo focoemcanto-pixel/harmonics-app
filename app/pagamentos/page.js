@@ -29,11 +29,27 @@ function normalizePaymentStatus(status, paidAmount, openAmount, agreedAmount) {
   return 'Pendente';
 }
 
+function normalizeEntryStatus(status) {
+  const raw = String(status || '').trim().toLowerCase();
+  if (raw === 'confirmed' || raw === 'confirmado') return 'Confirmado';
+  if (raw === 'cancelled' || raw === 'cancelado') return 'Cancelado';
+  if (raw === 'pending' || raw === 'pendente') return 'Pendente';
+  return status || 'Pendente';
+}
+
 function getPaymentTone(status) {
   const s = String(status || '').trim().toLowerCase();
   if (s === 'pago') return 'emerald';
   if (s === 'parcial') return 'amber';
   if (s === 'pendente') return 'red';
+  return 'slate';
+}
+
+function getEntryTone(status) {
+  const s = String(status || '').trim().toLowerCase();
+  if (s === 'confirmado') return 'emerald';
+  if (s === 'cancelado') return 'red';
+  if (s === 'pendente') return 'amber';
   return 'slate';
 }
 
@@ -101,30 +117,48 @@ function FeedbackBanner({ feedback, onClose }) {
   );
 }
 
+function formatPaymentMethod(method) {
+  if (!method) return '-';
+  return String(method)
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (m) => m.toUpperCase());
+}
+
 export default function PagamentosPage() {
   const [events, setEvents] = useState([]);
+  const [payments, setPayments] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [feedback, setFeedback] = useState(null);
 
   const [busca, setBusca] = useState('');
   const [statusFiltro, setStatusFiltro] = useState('todos');
   const [somentePendentes, setSomentePendentes] = useState(false);
+  const [historicoAbertoId, setHistoricoAbertoId] = useState(null);
 
-  async function carregarEventos() {
-    const { data, error } = await supabase
-      .from('events')
-      .select('*')
-      .order('event_date', { ascending: true });
+  async function carregarTudo() {
+    const [eventsRes, paymentsRes] = await Promise.all([
+      supabase
+        .from('events')
+        .select('*')
+        .order('event_date', { ascending: true }),
+      supabase
+        .from('payments')
+        .select('*')
+        .order('payment_date', { ascending: false }),
+    ]);
 
-    if (error) throw error;
-    setEvents(data || []);
+    if (eventsRes.error) throw eventsRes.error;
+    if (paymentsRes.error) throw paymentsRes.error;
+
+    setEvents(eventsRes.data || []);
+    setPayments(paymentsRes.data || []);
   }
 
   useEffect(() => {
     async function init() {
       try {
         setCarregando(true);
-        await carregarEventos();
+        await carregarTudo();
       } catch (error) {
         console.error('Erro ao carregar pagamentos:', error);
         setFeedback({
@@ -139,6 +173,26 @@ export default function PagamentosPage() {
 
     init();
   }, []);
+
+  const paymentsByEventId = useMemo(() => {
+    const map = new Map();
+
+    for (const payment of payments) {
+      const key = String(payment.event_id);
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(payment);
+    }
+
+    for (const [, list] of map) {
+      list.sort((a, b) => {
+        const aDate = a.payment_date ? new Date(a.payment_date).getTime() : 0;
+        const bDate = b.payment_date ? new Date(b.payment_date).getTime() : 0;
+        return bDate - aDate;
+      });
+    }
+
+    return map;
+  }, [payments]);
 
   const pagamentos = useMemo(() => {
     return events.map((ev) => {
@@ -158,6 +212,13 @@ export default function PagamentosPage() {
         ev.agreed_amount
       );
 
+      const paymentEntries = paymentsByEventId.get(String(ev.id)) || [];
+      const totalHistorico = paymentEntries.reduce(
+        (acc, item) => acc + toNumber(item.amount),
+        0
+      );
+      const ultimoPagamento = paymentEntries[0] || null;
+
       return {
         ...ev,
         bruto,
@@ -166,9 +227,12 @@ export default function PagamentosPage() {
         custos,
         liquido,
         paymentStatus,
+        paymentEntries,
+        totalHistorico,
+        ultimoPagamento,
       };
     });
-  }, [events]);
+  }, [events, paymentsByEventId]);
 
   const pagamentosFiltrados = useMemo(() => {
     const termo = busca.trim().toLowerCase();
@@ -200,6 +264,10 @@ export default function PagamentosPage() {
     const totalQuitado = pagamentos.reduce((acc, item) => acc + item.quitado, 0);
     const totalAberto = pagamentos.reduce((acc, item) => acc + item.aberto, 0);
     const totalLiquido = pagamentos.reduce((acc, item) => acc + item.liquido, 0);
+    const totalHistorico = pagamentos.reduce(
+      (acc, item) => acc + item.totalHistorico,
+      0
+    );
 
     const pagos = pagamentos.filter((item) => item.paymentStatus === 'Pago').length;
     const parciais = pagamentos.filter((item) => item.paymentStatus === 'Parcial').length;
@@ -210,6 +278,7 @@ export default function PagamentosPage() {
       totalQuitado,
       totalAberto,
       totalLiquido,
+      totalHistorico,
       pagos,
       parciais,
       pendentes,
@@ -232,7 +301,7 @@ export default function PagamentosPage() {
         <AdminPageHero
           badge="Harmonics Admin"
           title="Pagamentos"
-          subtitle="Acompanhe recebimentos, pendências, bruto, custos e líquido por evento."
+          subtitle="Acompanhe recebimentos, histórico de entradas, pendências, bruto, custos e líquido por evento."
         />
 
         {feedback ? (
@@ -252,7 +321,7 @@ export default function PagamentosPage() {
           <AdminSummaryCard
             label="Quitado"
             value={formatMoney(resumo.totalQuitado)}
-            helper="Valores já recebidos"
+            helper="Consolidado em eventos"
             tone="success"
             size="highlight"
           />
@@ -272,7 +341,12 @@ export default function PagamentosPage() {
           />
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
+          <AdminSummaryCard
+            label="Histórico em payments"
+            value={formatMoney(resumo.totalHistorico)}
+            helper="Soma das entradas registradas"
+          />
           <AdminSummaryCard
             label="Pagos"
             value={String(resumo.pagos)}
@@ -289,14 +363,13 @@ export default function PagamentosPage() {
             label="Pendentes"
             value={String(resumo.pendentes)}
             helper="Sem quitação"
-            tone="default"
           />
         </div>
 
         <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-6 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
           <AdminSectionTitle
             title="Controle financeiro"
-            subtitle="Filtre os eventos e acompanhe a fotografia financeira completa de cada operação."
+            subtitle="Filtre os eventos e acompanhe a fotografia financeira consolidada e o histórico real de entradas."
           />
 
           <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -339,6 +412,7 @@ export default function PagamentosPage() {
             ) : (
               pagamentosFiltrados.map((item) => {
                 const tone = getPaymentTone(item.paymentStatus);
+                const historicoAberto = historicoAbertoId === item.id;
 
                 return (
                   <div
@@ -363,23 +437,35 @@ export default function PagamentosPage() {
                           <PaymentPill tone="slate">
                             {item.formation || 'Sem formação'}
                           </PaymentPill>
+
+                          <PaymentPill tone={item.paymentEntries.length > 0 ? 'blue' : 'slate'}>
+                            {item.paymentEntries.length > 0
+                              ? `${item.paymentEntries.length} lançamento(s)`
+                              : 'Sem histórico'}
+                          </PaymentPill>
                         </div>
 
                         <div className="mt-4 text-[13px] font-semibold leading-6 text-[#64748b]">
+                          <div>
+                            <strong>Último pagamento:</strong>{' '}
+                            {item.ultimoPagamento?.payment_date
+                              ? formatDateBR(item.ultimoPagamento.payment_date)
+                              : '-'}
+                          </div>
+                          <div>
+                            <strong>Última forma:</strong>{' '}
+                            {formatPaymentMethod(item.ultimoPagamento?.payment_method)}
+                          </div>
                           <div>
                             <strong>Atualizado em:</strong>{' '}
                             {item.updated_at
                               ? new Date(item.updated_at).toLocaleDateString('pt-BR')
                               : '-'}
                           </div>
-                          <div>
-                            <strong>Observação:</strong>{' '}
-                            Histórico detalhado de datas/comprovantes depende da integração com a tabela de pagamentos.
-                          </div>
                         </div>
                       </div>
 
-                      <div className="grid w-full gap-3 md:grid-cols-2 xl:w-[420px]">
+                      <div className="grid w-full gap-3 md:grid-cols-2 xl:w-[430px]">
                         <div className="rounded-[18px] border border-[#e8edf5] bg-[#f8fafc] px-4 py-4 text-[13px] text-[#475569]">
                           <div>
                             <strong>Bruto:</strong> {formatMoney(item.bruto)}
@@ -396,6 +482,9 @@ export default function PagamentosPage() {
                           <div>
                             <strong>Quitado:</strong> {formatMoney(item.quitado)}
                           </div>
+                          <div className="mt-1">
+                            <strong>Histórico:</strong> {formatMoney(item.totalHistorico)}
+                          </div>
                           <div className="mt-1 font-semibold text-amber-700">
                             Em aberto: {formatMoney(item.aberto)}
                           </div>
@@ -404,6 +493,16 @@ export default function PagamentosPage() {
                     </div>
 
                     <div className="mt-5 flex flex-wrap gap-3">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setHistoricoAbertoId((prev) => (prev === item.id ? null : item.id))
+                        }
+                        className="rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3 text-[14px] font-black text-[#0f172a]"
+                      >
+                        {historicoAberto ? 'Ocultar histórico' : 'Ver histórico'}
+                      </button>
+
                       <Link
                         href="/eventos"
                         className="rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3 text-[14px] font-black text-[#0f172a]"
@@ -418,6 +517,68 @@ export default function PagamentosPage() {
                         Ver detalhe
                       </Link>
                     </div>
+
+                    {historicoAberto ? (
+                      <div className="mt-5 rounded-[20px] border border-[#e8edf5] bg-[#fcfdff] p-4">
+                        {item.paymentEntries.length === 0 ? (
+                          <div className="text-[14px] font-semibold text-[#64748b]">
+                            Nenhum lançamento encontrado em payments para este evento.
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            {item.paymentEntries.map((entry) => {
+                              const entryStatus = normalizeEntryStatus(entry.status);
+                              const entryTone = getEntryTone(entryStatus);
+
+                              return (
+                                <div
+                                  key={entry.id}
+                                  className="rounded-[18px] border border-[#eef2f7] bg-white px-4 py-4"
+                                >
+                                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                                    <div className="min-w-0">
+                                      <div className="text-[16px] font-black text-[#0f172a]">
+                                        {formatMoney(entry.amount)}
+                                      </div>
+
+                                      <div className="mt-1 text-[13px] font-semibold text-[#64748b]">
+                                        {entry.payment_date
+                                          ? formatDateBR(entry.payment_date)
+                                          : 'Data não informada'}{' '}
+                                        • {formatPaymentMethod(entry.payment_method)}
+                                      </div>
+
+                                      {entry.notes ? (
+                                        <div className="mt-2 text-[14px] text-[#475569]">
+                                          {entry.notes}
+                                        </div>
+                                      ) : null}
+                                    </div>
+
+                                    <div className="flex flex-wrap gap-2">
+                                      <PaymentPill tone={entryTone}>
+                                        {entryStatus}
+                                      </PaymentPill>
+
+                                      {entry.proof_file_url ? (
+                                        <a
+                                          href={entry.proof_file_url}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="rounded-full border border-[#dbe3ef] bg-white px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-[#0f172a]"
+                                        >
+                                          Comprovante
+                                        </a>
+                                      ) : null}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    ) : null}
                   </div>
                 );
               })

@@ -82,6 +82,8 @@ const [playerPlaylist, setPlayerPlaylist] = useState([]);
 const [playerIndex, setPlayerIndex] = useState(0);
 const [playerEventTitle, setPlayerEventTitle] = useState('');
 const [isPlaying, setIsPlaying] = useState(true);
+
+const currentTrack = playerPlaylist[playerIndex] || null;
   
   const [scaleModalOpen, setScaleModalOpen] = useState(false);
   const [scaleModalEvent, setScaleModalEvent] = useState(null);
@@ -497,41 +499,36 @@ setRepertoireItems([]);
   if (!Array.isArray(item?.repertorioItems)) return [];
 
   return item.repertorioItems
-    .filter((row) => !!row?.referencia)
-    .sort((a, b) => Number(a?.ordem || 0) - Number(b?.ordem || 0))
+    .filter((row) => !!(row?.referencia || row?.reference_link))
+    .sort((a, b) => Number(a?.ordem ?? a?.item_order ?? 0) - Number(b?.ordem ?? b?.item_order ?? 0))
     .map((row, index) => ({
-      title: row?.musica || `Faixa ${index + 1}`,
+      title: row?.musica || row?.song_name || `Faixa ${index + 1}`,
       subtitle:
         row?.quemEntra ||
         row?.momento ||
         row?.label ||
         row?.section ||
         '',
-      notes: row?.observacao || '',
-      url: row?.referencia,
-      order: row?.ordem || index + 1,
+      notes: row?.observacao || row?.notes || '',
+      url: row?.referencia || row?.reference_link || '',
+      order: row?.ordem ?? row?.item_order ?? index + 1,
     }));
 }
+ function openRepertoire(item, options = {}) {
+  if (!item) return;
 
-  function openRepertoire(item, options = {}) {
-    if (!item) return;
+  const playlist = buildPlaylistFromRow(item);
+  if (!playlist.length) return;
 
-    const playlist = buildPlaylistFromRow(item);
+  setPlayerPlaylist(playlist);
+  setPlayerIndex(0);
+  setPlayerEventTitle(item?.clientName || 'Repertório');
+  setIsPlaying(true);
 
-    setPlayerPlaylist(playlist);
-    setPlayerIndex(0);
-    setPlayerEventTitle(item?.clientName || 'Repertório');
-
-    if (playlist.length > 0 || options.autoplay) {
-      setPlayerOpen(true);
-      return;
-    }
-
-    if (item?.contractInfo?.publicToken && typeof window !== 'undefined') {
-      window.open(`/cliente/${item.contractInfo.publicToken}`, '_blank', 'noopener,noreferrer');
-    }
+  if (options.autoplay !== false) {
+    setPlayerOpen(true);
   }
-
+}
   function openPdf(item) {
     if (item?.contractInfo?.pdfUrl && typeof window !== 'undefined') {
       window.open(item.contractInfo.pdfUrl, '_blank', 'noopener,noreferrer');
@@ -624,21 +621,29 @@ setRepertoireItems([]);
       setError(e?.message || 'Não foi possível atualizar o status do evento.');
     }
   }
+  function handlePrevTrack() {
+  setPlayerIndex((prev) => {
+    if (playerPlaylist.length === 0) return 0;
+    return (prev - 1 + playerPlaylist.length) % playerPlaylist.length;
+  });
+  setIsPlaying(true);
+}
 
   function handleNextTrack() {
-    setPlayerIndex((prev) => {
-      if (playerPlaylist.length === 0) return 0;
-      return (prev + 1) % playerPlaylist.length;
-    });
-  }
+  setPlayerIndex((prev) => {
+    if (playerPlaylist.length === 0) return 0;
+    return (prev + 1) % playerPlaylist.length;
+  });
+  setIsPlaying(true);
+}
 
   function handlePrevTrack() {
-    setPlayerIndex((prev) => {
-      if (playerPlaylist.length === 0) return 0;
-      return (prev - 1 + playerPlaylist.length) % playerPlaylist.length;
-    });
-  }
-  const currentTrack = playerPlaylist[playerIndex] || null;
+  setPlayerIndex((prev) => {
+    if (playerPlaylist.length === 0) return 0;
+    return (prev - 1 + playerPlaylist.length) % playerPlaylist.length;
+  });
+  setIsPlaying(true);
+}
 
   if (!sessionChecked) {
     return (
@@ -783,28 +788,37 @@ setRepertoireItems([]);
       />
 
       <MembroPlayerModal
-        open={playerOpen}
-        eventTitle={playerEventTitle}
-        playlist={playerPlaylist}
-        currentIndex={playerIndex}
-        onClose={() => setPlayerOpen(false)}
-        onSelectTrack={setPlayerIndex}
-        onPrev={handlePrevTrack}
-        onNext={handleNextTrack}
-      />
+  open={playerOpen}
+  eventTitle={playerEventTitle}
+  playlist={playerPlaylist}
+  currentIndex={playerIndex}
+  isPlaying={isPlaying}
+  onClose={() => setPlayerOpen(false)}
+  onSelectTrack={(index) => {
+    setPlayerIndex(index);
+    setIsPlaying(true);
+  }}
+  onPrev={handlePrevTrack}
+  onNext={handleNextTrack}
+  onTogglePlay={handleTogglePlaying}
+/>
 
       <MiniPlayerBar
-        currentTrack={currentTrack}
-        eventTitle={playerEventTitle}
-        onOpen={() => setPlayerOpen(true)}
-        onClose={() => {
-          setPlayerOpen(false);
-          setPlayerPlaylist([]);
-          setPlayerIndex(0);
-          setPlayerEventTitle('');
-        }}
-        onNext={handleNextTrack}
-      />
+  currentTrack={currentTrack}
+  eventTitle={playerEventTitle}
+  isPlaying={isPlaying}
+  onOpen={() => setPlayerOpen(true)}
+  onClose={() => {
+    setPlayerOpen(false);
+    setPlayerPlaylist([]);
+    setPlayerIndex(0);
+    setPlayerEventTitle('');
+    setIsPlaying(false);
+  }}
+  onNext={handleNextTrack}
+  onPrev={handlePrevTrack}
+  onTogglePlay={handleTogglePlaying}
+/>
     </div>
   );
 }

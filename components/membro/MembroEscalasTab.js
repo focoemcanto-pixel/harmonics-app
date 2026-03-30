@@ -44,48 +44,48 @@ function getCountdown(item) {
   if (item?.isDone) {
     return {
       label: 'Concluído',
-      className: 'bg-emerald-500/12 text-emerald-300',
+      className: 'bg-emerald-500/12 text-emerald-300 border-emerald-400/20',
     };
   }
 
   if (days === 0) {
     return {
       label: 'HOJE! ⚡',
-      className: 'bg-rose-500/14 text-rose-200',
+      className: 'bg-rose-500/14 text-rose-200 border-rose-400/20',
     };
   }
 
   if (days === 1) {
     return {
       label: 'Amanhã! ⚡',
-      className: 'bg-rose-500/14 text-rose-200',
+      className: 'bg-rose-500/14 text-rose-200 border-rose-400/20',
     };
   }
 
   if (typeof days === 'number' && days < 0) {
     return {
       label: 'Já passou',
-      className: 'bg-emerald-500/12 text-emerald-300',
+      className: 'bg-emerald-500/12 text-emerald-300 border-emerald-400/20',
     };
   }
 
   if (typeof days === 'number' && days <= 7) {
     return {
       label: `Em ${days} dias`,
-      className: 'bg-amber-500/14 text-amber-200',
+      className: 'bg-amber-500/14 text-amber-200 border-amber-400/20',
     };
   }
 
   if (typeof days === 'number') {
     return {
       label: `Em ${days} dias`,
-      className: 'bg-violet-500/14 text-violet-200',
+      className: 'bg-violet-500/14 text-violet-200 border-violet-400/20',
     };
   }
 
   return {
     label: 'Agenda',
-    className: 'bg-white/10 text-white/70',
+    className: 'bg-white/10 text-white/70 border-white/10',
   };
 }
 
@@ -110,7 +110,7 @@ function MonthChip({ value, label, tone = 'default' }) {
   };
 
   return (
-    <div className="flex items-center gap-2 whitespace-nowrap rounded-[14px] border border-white/10 bg-[#1e1535] px-4 py-3 text-[13px] font-extrabold shadow-[0_4px_20px_rgba(0,0,0,.22)]">
+    <div className="flex items-center gap-2 whitespace-nowrap rounded-[12px] border border-[#352a55] bg-[#1e1535] px-4 py-3 text-[13px] font-extrabold shadow-[0_4px_20px_rgba(0,0,0,.22)]">
       <span className={`text-[18px] font-black ${tones[tone] || tones.default}`}>
         {value}
       </span>
@@ -194,7 +194,9 @@ function MonthPicker({
                     <input
                       type="number"
                       value={tempYear}
-                      onChange={(e) => setTempYear(Number(e.target.value || new Date().getFullYear()))}
+                      onChange={(e) =>
+                        setTempYear(Number(e.target.value || new Date().getFullYear()))
+                      }
                       className="w-full rounded-[14px] border border-white/10 bg-[#241b3d] px-4 py-3 text-[15px] font-extrabold text-white outline-none"
                     />
                   </label>
@@ -287,12 +289,15 @@ function EventCard({
   onOpenRepertoire,
   onOpenMaps,
   onMarkDone,
+  onOpenDetails,
 }) {
   const countdown = getCountdown(item);
   const arrivalTime = addHoursToTime(item?.eventTime, -2);
+  const formationTone = getFormationTone(item?.formation);
 
   return (
     <article
+      onClick={() => onOpenDetails?.(item)}
       className={`relative overflow-hidden rounded-[16px] border p-[18px] text-[#f1eeff] shadow-[0_4px_20px_rgba(0,0,0,.3)] transition active:scale-[0.995] ${
         item?.isDone
           ? 'border-emerald-400/25 bg-[linear-gradient(135deg,rgba(34,197,94,.06),#1e1535)]'
@@ -306,32 +311,33 @@ function EventCard({
       />
 
       <div className="flex items-start justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <div className="text-[13px] font-black text-violet-300">
-            📅 {formatDateBR(item?.eventDate)} • {getWeekdayLabel(item?.eventDate)} • {formatTimeShort(item?.eventTime)}
+            📅 {formatDateBR(item?.eventDate)} • {getWeekdayLabel(item?.eventDate)} •{' '}
+            {formatTimeShort(item?.eventTime)}
           </div>
         </div>
 
         <div
-          className={`rounded-full px-2 py-1 text-[11px] font-bold ${countdown.className}`}
+          className={`shrink-0 rounded-full border px-2 py-1 text-[11px] font-bold ${countdown.className}`}
         >
           {countdown.label}
         </div>
       </div>
 
-      <div className="mt-3 text-[17px] font-black">
+      <div className="mt-3 text-[17px] font-black tracking-[-0.02em]">
         {item?.isDone ? '✅ ' : ''}
         {item?.clientName || 'Evento'}
       </div>
 
       <div className="mt-1 flex items-start gap-2 text-[13px] font-semibold text-[#a89ec8]">
         <span className="shrink-0">📍</span>
-        <span>{item?.locationName || '-'}</span>
+        <span className="line-clamp-1">{item?.locationName || '-'}</span>
       </div>
 
       <div className="mt-1 flex items-start gap-2 text-[13px] font-semibold text-[#a89ec8]">
         <span className="shrink-0">🎵</span>
-        <span>{item?.instruments || item?.formation || '-'}</span>
+        <span className="line-clamp-1">{item?.instruments || item?.formation || '-'}</span>
       </div>
 
       <div className="mt-1 flex items-start gap-2 text-[13px] font-semibold text-[#a89ec8]">
@@ -354,9 +360,7 @@ function EventCard({
       ) : null}
 
       <span
-        className={`mt-3 inline-flex items-center gap-1 rounded-full border px-3 py-1 text-[11px] font-extrabold ${getFormationTone(
-          item?.formation
-        )}`}
+        className={`mt-3 inline-flex items-center gap-1 rounded-full border px-3 py-1 text-[11px] font-extrabold ${formationTone}`}
       >
         🎼 {item?.formation || '-'}
       </span>
@@ -479,6 +483,10 @@ export default function MembroEscalasTab({
     setCurrentMonth(new Date(date.getFullYear(), date.getMonth(), 1));
   }
 
+  function handleOpenDetails(item) {
+    onOpenScale?.(item);
+  }
+
   return (
     <section className="space-y-4">
       <div className="rounded-[28px] border border-white/10 bg-[linear-gradient(135deg,#0f0a1e_0%,#1a1040_50%,#2d1b69_100%)] px-5 py-4 shadow-[0_18px_40px_rgba(0,0,0,0.20)]">
@@ -548,6 +556,7 @@ export default function MembroEscalasTab({
               onOpenRepertoire={onOpenRepertoire}
               onOpenMaps={onOpenMaps}
               onMarkDone={onMarkDone}
+              onOpenDetails={handleOpenDetails}
             />
           ))}
 
@@ -569,6 +578,7 @@ export default function MembroEscalasTab({
               onOpenRepertoire={onOpenRepertoire}
               onOpenMaps={onOpenMaps}
               onMarkDone={onMarkDone}
+              onOpenDetails={handleOpenDetails}
             />
           ))}
         </div>

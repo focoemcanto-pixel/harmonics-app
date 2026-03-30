@@ -628,6 +628,9 @@ setRepertoireItems([]);
   });
   setIsPlaying(true);
 }
+  function handleTogglePlaying() {
+  setIsPlaying((prev) => !prev);
+}
 
   function handleNextTrack() {
   setPlayerIndex((prev) => {

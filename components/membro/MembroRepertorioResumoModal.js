@@ -11,8 +11,8 @@ function extractOrderedRepertorio(item) {
 
   if (repertorio.length > 0) {
     return [...repertorio].sort((a, b) => {
-      const ao = Number(a?.ordem || 0);
-      const bo = Number(b?.ordem || 0);
+      const ao = Number(a?.ordem ?? a?.item_order ?? 0);
+      const bo = Number(b?.ordem ?? b?.item_order ?? 0);
       return ao - bo;
     });
   }
@@ -27,52 +27,91 @@ function extractOrderedRepertorio(item) {
     momento: '',
     quemEntra: '',
     observacao: '',
+    section: '',
   }));
 }
 
-function RepertorioLinha({ row, index }) {
-  const titulo =
+function getSectionLabel(row) {
+  const section = String(row?.section || '').toLowerCase();
+
+  if (section === 'antessala') return '🎶 Antessala';
+  if (section === 'cortejo') return '🚶 Cortejo';
+  if (section === 'cerimonia') return '⛪ Cerimônia';
+  if (section === 'saida') return '🎉 Saída';
+  if (section === 'receptivo') return '🎤 Receptivo';
+
+  return '';
+}
+
+function getOrderLabel(row, index) {
+  const section = String(row?.section || '').toLowerCase();
+
+  if (section === 'cortejo') return `Entrada ${index + 1}`;
+  if (section === 'cerimonia') return row?.label || row?.momento || `Momento ${index + 1}`;
+  if (section === 'saida') return 'Saída dos noivos';
+  if (section === 'antessala') return 'Estilo';
+  if (section === 'receptivo') return 'Receptivo';
+
+  return row?.label || row?.momento || `Faixa ${index + 1}`;
+}
+
+function getMainTitle(row, index) {
+  return (
     row?.musica ||
+    row?.song_name ||
     row?.label ||
     row?.momento ||
     row?.quemEntra ||
-    `Faixa ${index + 1}`;
+    `Faixa ${index + 1}`
+  );
+}
 
-  const subtitulo =
-    row?.momento ||
-    row?.quemEntra ||
-    row?.tipo ||
-    '';
+function getSecondaryText(row) {
+  return row?.quemEntra || row?.momento || row?.tipo || '';
+}
+
+function RepertorioLinha({ row, index, showSection }) {
+  const sectionLabel = getSectionLabel(row);
+  const orderLabel = getOrderLabel(row, index);
+  const title = getMainTitle(row, index);
+  const secondary = getSecondaryText(row);
 
   return (
-    <div className="rounded-[14px] border border-white/10 bg-[#1e1535] px-4 py-3">
-      <div className="flex items-start gap-3">
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-violet-300/15 bg-violet-400/10 text-[12px] font-black text-violet-100">
-          {String(index + 1).padStart(2, '0')}
+    <div className="space-y-2">
+      {showSection && sectionLabel ? (
+        <div className="px-1 pt-2 text-[13px] font-black uppercase tracking-[0.08em] text-violet-300">
+          {sectionLabel}
         </div>
+      ) : null}
 
-        <div className="min-w-0 flex-1">
-          <div className="text-[14px] font-black text-white">
-            {titulo}
+      <div className="rounded-[18px] border border-white/10 bg-[#1e1535] px-4 py-4">
+        <div className="flex items-start gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-violet-300/15 bg-violet-400/10 text-[12px] font-black text-violet-100">
+            {String(index + 1).padStart(2, '0')}
           </div>
 
-          {subtitulo ? (
-            <div className="mt-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-violet-200/70">
-              {subtitulo}
+          <div className="min-w-0 flex-1">
+            <div className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-violet-200/60">
+              {orderLabel}
             </div>
-          ) : null}
 
-          {row?.observacao ? (
-            <div className="mt-1.5 text-[13px] leading-5 text-white/60">
-              {row.observacao}
+            <div className="mt-1 text-[17px] font-black text-white">
+              {title}
             </div>
-          ) : null}
 
-          {row?.referencia ? (
-            <div className="mt-1.5 break-all text-[12px] text-white/40">
-              {row.referencia}
-            </div>
-          ) : null}
+            {secondary && secondary !== orderLabel ? (
+              <div className="mt-1 text-[12px] font-semibold uppercase tracking-[0.08em] text-violet-200/70">
+                {secondary}
+              </div>
+            ) : null}
+
+            {row?.observacao ? (
+              <div className="mt-2 rounded-[14px] border border-white/10 bg-black/10 px-3 py-3 text-[13px] leading-5 text-white/70">
+                <span className="font-black text-white/85">Observação:</span>{' '}
+                {row.observacao}
+              </div>
+            ) : null}
+          </div>
         </div>
       </div>
     </div>
@@ -107,9 +146,8 @@ export default function MembroRepertorioResumoModal({
 
   const repertorio = useMemo(() => extractOrderedRepertorio(item), [item]);
 
-  const hasPdf = !!item?.contractInfo?.pdfUrl;
-  const hasPlayer =
-    Array.isArray(item?.youtubeUrls) && item.youtubeUrls.length > 0;
+  const hasPdf = !!item?.repertorioPdfUrl;
+  const hasPlayer = repertorio.some((row) => !!row?.referencia);
   const hasRepertorio = repertorio.length > 0;
 
   if (!open || !item) return null;
@@ -155,14 +193,21 @@ export default function MembroRepertorioResumoModal({
 
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">
             {hasRepertorio ? (
-              <div className="space-y-2">
-                {repertorio.map((row, index) => (
-                  <RepertorioLinha
-                    key={`${row?.ordem || index}-${row?.musica || row?.referencia || index}`}
-                    row={row}
-                    index={index}
-                  />
-                ))}
+              <div className="space-y-3">
+                {repertorio.map((row, index) => {
+                  const prevSection =
+                    index > 0 ? String(repertorio[index - 1]?.section || '') : '';
+                  const currentSection = String(row?.section || '');
+
+                  return (
+                    <RepertorioLinha
+                      key={`${row?.ordem || row?.item_order || index}-${row?.musica || row?.song_name || index}`}
+                      row={row}
+                      index={index}
+                      showSection={currentSection !== prevSection}
+                    />
+                  );
+                })}
               </div>
             ) : (
               <div className="rounded-[16px] border border-dashed border-white/10 bg-white/5 px-4 py-5 text-center text-[14px] font-semibold leading-6 text-white/60">

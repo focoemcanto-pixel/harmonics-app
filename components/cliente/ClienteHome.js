@@ -884,11 +884,11 @@ async function saveRepertorio(mode = 'draft') {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        token: data.token,
-        mode,
-        config: buildConfigPayload(),
-        items: buildItemsPayload(),
-      }),
+  token: data.repertorio?.repertoireToken || data.token,
+  mode,
+  config: buildConfigPayload(),
+  items: buildItemsPayload(),
+}),
     });
 
     const result = await response.json();

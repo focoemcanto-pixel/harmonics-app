@@ -64,9 +64,23 @@ export default function MembroPlayerModal({
                 <div className="text-[13px] font-black uppercase tracking-[0.08em] text-white/50">
                   Tocando agora
                 </div>
+
                 <div className="mt-2 text-[22px] font-black">
                   {currentTrack?.title || 'Nenhuma faixa'}
                 </div>
+
+                {currentTrack?.subtitle ? (
+                  <div className="mt-2 text-[13px] font-semibold uppercase tracking-[0.08em] text-fuchsia-200/70">
+                    {currentTrack.subtitle}
+                  </div>
+                ) : null}
+
+                {currentTrack?.notes ? (
+                  <div className="mt-3 rounded-[16px] border border-white/10 bg-white/5 px-4 py-3 text-[13px] leading-6 text-white/70">
+                    <span className="font-black text-white/85">Observação:</span>{' '}
+                    {currentTrack.notes}
+                  </div>
+                ) : null}
               </div>
 
               <div className="mt-5 grid grid-cols-3 gap-3">
@@ -80,7 +94,10 @@ export default function MembroPlayerModal({
 
                 <button
                   type="button"
-                  onClick={() => currentTrack?.url && window.open(currentTrack.url, '_blank', 'noopener,noreferrer')}
+                  onClick={() =>
+                    currentTrack?.url &&
+                    window.open(currentTrack.url, '_blank', 'noopener,noreferrer')
+                  }
                   disabled={!currentTrack?.url}
                   className="rounded-[18px] bg-gradient-to-r from-violet-500 to-fuchsia-500 px-4 py-4 text-[14px] font-black text-white disabled:opacity-50"
                 >
@@ -122,20 +139,31 @@ export default function MembroPlayerModal({
                             : 'border-white/10 bg-white/5 hover:bg-white/10'
                         }`}
                       >
-                        <div className="flex items-center gap-3">
-                          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[13px] font-black ${
-                            active ? 'bg-fuchsia-500 text-white' : 'bg-white/10 text-white/80'
-                          }`}>
+                        <div className="flex items-start gap-3">
+                          <div
+                            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[13px] font-black ${
+                              active ? 'bg-fuchsia-500 text-white' : 'bg-white/10 text-white/80'
+                            }`}
+                          >
                             {String(index + 1).padStart(2, '0')}
                           </div>
 
-                          <div className="min-w-0">
+                          <div className="min-w-0 flex-1">
                             <div className="truncate text-[15px] font-black text-white">
                               {track.title}
                             </div>
-                            <div className="mt-1 truncate text-[13px] text-white/55">
-                              {track.url}
-                            </div>
+
+                            {track.subtitle ? (
+                              <div className="mt-1 truncate text-[12px] font-semibold uppercase tracking-[0.08em] text-white/60">
+                                {track.subtitle}
+                              </div>
+                            ) : null}
+
+                            {track.notes ? (
+                              <div className="mt-2 text-[12px] leading-5 text-white/50">
+                                {track.notes}
+                              </div>
+                            ) : null}
                           </div>
                         </div>
                       </button>

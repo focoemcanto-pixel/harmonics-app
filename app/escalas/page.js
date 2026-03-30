@@ -39,7 +39,6 @@ function splitCsvLike(value) {
 
 function getContactTagText(contact) {
   const candidates = [
-    contact?.tags,
     contact?.tag,
     contact?.role,
     contact?.instrument,
@@ -438,7 +437,7 @@ export default function EscalasPage() {
             notes,
             confirmed_at,
             created_at,
-            musician:contacts(id, name, phone, email, tags, tag, role, instrument, instruments, category)
+            musician:contacts(id, name, phone, email, tag, role, instrument, instruments, category)
           `)
           .order('created_at', { ascending: true }),
         supabase
@@ -988,4 +987,4 @@ export default function EscalasPage() {
       </div>
     </AdminShell>
   );
-}
+} . se acha que o conjunto está bom, eu posso lhe pedir em seguida o documento final completo em pdf de onde paramos, objetivos do app e etc? pra irmos pro utro chat

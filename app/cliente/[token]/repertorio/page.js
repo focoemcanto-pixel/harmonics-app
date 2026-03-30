@@ -148,7 +148,7 @@ function mapItemsToInitialState(items) {
 }
 
 export default async function ClienteRepertorioPage({ params }) {
-  const { token } = params;
+  const { token } = await params;
   const supabase = getAdminSupabase();
 
   const { data: tokenRow, error: tokenError } = await supabase

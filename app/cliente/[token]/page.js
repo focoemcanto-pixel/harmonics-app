@@ -175,69 +175,63 @@ export default async function ClienteTokenPage({ params }) {
   const { token } = params;
   const supabase = getAdminSupabase();
 
-  const { data: tokenRow, error: tokenError } = await supabase
-    .from('repertoire_tokens')
-    .select('id, token, event_id, status, expires_at')
-    .eq('token', token)
+  const { data: precontract, error: precontractError } = await supabase
+    .from('precontracts')
+    .select('id, public_token, event_id')
+    .eq('public_token', token)
     .maybeSingle();
 
-  if (tokenError) throw tokenError;
-  if (!tokenRow) notFound();
+  if (precontractError) throw precontractError;
+  if (!precontract) notFound();
 
-  if (String(tokenRow.status || '').toLowerCase() !== 'open') {
-    notFound();
-  }
-
-  if (tokenRow.expires_at) {
-    const expiresAt = new Date(tokenRow.expires_at);
-    if (!Number.isNaN(expiresAt.getTime()) && expiresAt.getTime() < Date.now()) {
-      notFound();
-    }
-  }
+  const eventId = precontract.event_id;
+  if (!eventId) notFound();
 
   const [
     eventResp,
     configResp,
     itemsResp,
-    precontractsResp,
     contractsResp,
+    repertoireTokenResp,
   ] = await Promise.all([
     supabase
       .from('events')
       .select('*')
-      .eq('id', tokenRow.event_id)
+      .eq('id', eventId)
       .maybeSingle(),
 
     supabase
       .from('repertoire_config')
       .select('*')
-      .eq('event_id', tokenRow.event_id)
+      .eq('event_id', eventId)
       .maybeSingle(),
 
     supabase
       .from('repertoire_items')
       .select('*')
-      .eq('event_id', tokenRow.event_id)
+      .eq('event_id', eventId)
       .order('item_order', { ascending: true }),
-
-    supabase
-      .from('precontracts')
-      .select('id, public_token, event_id')
-      .eq('event_id', tokenRow.event_id)
-      .maybeSingle(),
 
     supabase
       .from('contracts')
       .select('id, event_id, precontract_id, pdf_url, doc_url, signed_at')
-      .eq('event_id', tokenRow.event_id)
+      .eq('event_id', eventId)
+      .maybeSingle(),
+
+    supabase
+      .from('repertoire_tokens')
+      .select('id, token, event_id, status, expires_at')
+      .eq('event_id', eventId)
+      .order('created_at', { ascending: false })
+      .limit(1)
       .maybeSingle(),
   ]);
 
   if (eventResp.error) throw eventResp.error;
   if (configResp.error) throw configResp.error;
   if (itemsResp.error) throw itemsResp.error;
-  if (precontractsResp.error) throw precontractsResp.error;
   if (contractsResp.error) throw contractsResp.error;
+  if (repertoireTokenResp.error) throw repertoireTokenResp.error;
 
   const event = eventResp.data;
   if (!event) notFound();
@@ -245,6 +239,7 @@ export default async function ClienteTokenPage({ params }) {
   const config = configResp.data || null;
   const items = Array.isArray(itemsResp.data) ? itemsResp.data : [];
   const contract = contractsResp.data || null;
+  const repertoireToken = repertoireTokenResp.data || null;
 
   const eventDate = parseLocalDate(event.event_date);
   const now = startOfDay(new Date());
@@ -258,6 +253,8 @@ export default async function ClienteTokenPage({ params }) {
   }
 
   const initialLists = mapItemsToInitialState(items);
+
+  const repertorioTokenValue = repertoireToken?.token || token;
 
   const data = {
     token,
@@ -301,6 +298,7 @@ export default async function ClienteTokenPage({ params }) {
           false
       ),
       pdfUrl: contract?.pdf_url || '#',
+      repertoireToken: repertorioTokenValue,
 
       initialState: {
         querAntessala: config?.has_ante_room ?? null,

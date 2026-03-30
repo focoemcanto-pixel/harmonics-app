@@ -5,11 +5,11 @@ import { useEffect } from 'react';
 function StatusBadge({ status }) {
   const normalized = String(status || 'pending').toLowerCase();
 
-  const map = {
-    confirmed: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-    pending: 'border-amber-200 bg-amber-50 text-amber-700',
-    declined: 'border-red-200 bg-red-50 text-red-700',
-    backup: 'border-sky-200 bg-sky-50 text-sky-700',
+  const tones = {
+    confirmed: 'bg-emerald-500/12 text-emerald-300 border-emerald-400/20',
+    pending: 'bg-amber-500/12 text-amber-300 border-amber-400/20',
+    declined: 'bg-red-500/12 text-red-300 border-red-400/20',
+    backup: 'bg-sky-500/12 text-sky-300 border-sky-400/20',
   };
 
   const labels = {
@@ -19,15 +19,59 @@ function StatusBadge({ status }) {
     backup: 'Reserva',
   };
 
-  const tone = map[normalized] || map.pending;
-  const label = labels[normalized] || 'Pendente';
-
   return (
     <span
-      className={`inline-flex rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] ${tone}`}
+      className={`inline-flex rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] ${
+        tones[normalized] || tones.pending
+      }`}
     >
-      {label}
+      {labels[normalized] || 'Pendente'}
     </span>
+  );
+}
+
+function getInitials(name) {
+  const parts = String(name || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (parts.length >= 2) {
+    return `${parts[0][0] || ''}${parts[parts.length - 1][0] || ''}`.toUpperCase();
+  }
+
+  return (parts[0] || 'M').slice(0, 2).toUpperCase();
+}
+
+function MusicianRow({ item }) {
+  return (
+    <div className="rounded-[16px] border border-white/10 bg-[#1e1535] px-4 py-3 shadow-[0_6px_18px_rgba(0,0,0,0.18)]">
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,#7c3aed,#a78bfa)] text-[13px] font-black text-white">
+          {getInitials(item?.musician_name || item?.name || 'Membro')}
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[14px] font-extrabold text-white">
+            {item?.musician_name || item?.name || 'Membro'}
+          </div>
+
+          <div className="mt-0.5 truncate text-[12px] font-semibold text-white/65">
+            {item?.role || item?.suggested_role_name || item?.contact_tag_text || '-'}
+          </div>
+
+          {(item?.musician_phone || item?.phone || item?.musician_email || item?.email) ? (
+            <div className="mt-1 truncate text-[12px] text-white/40">
+              {[item?.musician_phone || item?.phone || '', item?.musician_email || item?.email || '']
+                .filter(Boolean)
+                .join(' • ')}
+            </div>
+          ) : null}
+        </div>
+
+        <StatusBadge status={item?.status} />
+      </div>
+    </div>
   );
 }
 
@@ -65,76 +109,49 @@ export default function MembroEscalaModal({
 
   return (
     <div
-      className="fixed inset-0 z-[150] bg-black/75 backdrop-blur-[4px]"
+      className="fixed inset-0 z-[180] bg-black/70 backdrop-blur-[4px]"
       onClick={handleBackdropClick}
     >
-      <div className="flex h-[100dvh] items-end justify-center overflow-hidden px-0 md:items-center md:px-6">
+      <div className="flex h-[100dvh] items-end justify-center overflow-hidden px-0">
         <div
-          className="flex h-[88dvh] w-full flex-col overflow-hidden rounded-t-[28px] border border-white/10 bg-[#111827] text-white shadow-[0_24px_80px_rgba(0,0,0,0.45)] md:h-auto md:max-h-[88vh] md:max-w-2xl md:rounded-[28px]"
+          className="flex h-[92dvh] w-full max-w-[500px] flex-col overflow-hidden rounded-t-[22px] border border-white/10 bg-[#1a1230] text-white shadow-[0_24px_80px_rgba(0,0,0,0.42)] md:my-6 md:h-auto md:max-h-[88vh] md:rounded-[20px]"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="shrink-0 border-b border-white/10 px-5 py-4">
-            <div className="mx-auto mb-3 h-1.5 w-14 rounded-full bg-white/15 md:hidden" />
+          <div className="shrink-0">
+            <div className="mx-auto mt-3 h-1 w-9 rounded-full bg-white/15" />
 
-            <div className="flex items-start justify-between gap-4">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/10 bg-[#1a1230] px-5 py-4">
               <div className="min-w-0">
-                <div className="text-[12px] font-black uppercase tracking-[0.12em] text-violet-200/70">
-                  Escala do evento
+                <div className="text-[18px] font-black tracking-[-0.03em] text-white">
+                  👥 Escala
                 </div>
-
-                <h3 className="mt-2 line-clamp-2 text-[26px] font-black tracking-[-0.04em] md:text-[28px]">
-                  {eventTitle || 'Escala'}
-                </h3>
+                <div className="mt-1 truncate text-[12px] font-semibold text-white/55">
+                  {eventTitle || 'Evento'}
+                </div>
               </div>
 
               <button
                 type="button"
                 onClick={onClose}
-                className="shrink-0 rounded-[16px] border border-white/10 bg-white/10 px-4 py-3 text-[14px] font-black text-white"
+                className="rounded-[12px] border border-white/10 bg-[#241b3d] px-3 py-2 text-[13px] font-extrabold text-white transition active:scale-[0.98]"
               >
-                Fechar
+                ✕
               </button>
             </div>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">
             {musicians.length === 0 ? (
-              <div className="rounded-[22px] border border-dashed border-white/10 bg-white/5 px-4 py-5 text-[14px] font-semibold text-white/60">
+              <div className="rounded-[16px] border border-dashed border-white/10 bg-white/5 px-4 py-5 text-center text-[14px] font-semibold text-white/55">
                 Nenhum membro escalado neste evento.
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {musicians.map((item, index) => (
-                  <div
-                    key={`${item.id || item.musician_id || index}`}
-                    className="rounded-[22px] border border-white/10 bg-white/5 p-4"
-                  >
-                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                      <div className="min-w-0">
-                        <div className="text-[18px] font-black text-white">
-                          {item.musician_name || item.name || 'Membro'}
-                        </div>
-
-                        <div className="mt-1 text-[14px] font-semibold text-white/70">
-                          {item.role ||
-                            item.suggested_role_name ||
-                            item.contact_tag_text ||
-                            '-'}
-                        </div>
-
-                        <div className="mt-1 text-[13px] text-white/45">
-                          {item.musician_phone || item.phone || ''}
-                          {(item.musician_phone || item.phone) &&
-                          (item.musician_email || item.email)
-                            ? ' • '
-                            : ''}
-                          {item.musician_email || item.email || ''}
-                        </div>
-                      </div>
-
-                      <StatusBadge status={item.status} />
-                    </div>
-                  </div>
+                  <MusicianRow
+                    key={`${item?.id || item?.musician_id || index}`}
+                    item={item}
+                  />
                 ))}
               </div>
             )}

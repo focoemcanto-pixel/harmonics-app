@@ -406,6 +406,7 @@ export default function EventoEscalaTab({ eventId }) {
   const [sucesso, setSucesso] = useState('');
   const [busca, setBusca] = useState('');
   const [editando, setEditando] = useState(false);
+  const [enviandoConvites, setEnviandoConvites] = useState(false);
 
   const buscaRef = useRef(null);
 
@@ -743,99 +744,142 @@ export default function EventoEscalaTab({ eventId }) {
       })
     );
   }
+  async function persistirEscala() {
+  const { novos, removidos } = diffEscala(escalaSalva, escalaLocal);
+
+  const payload = escalaLocal.map((item) => ({
+    event_id: eventId,
+    musician_id: item.musician_id,
+    role: item.role || item.contact_tag_text || null,
+    status: item.status || 'pending',
+    notes: item.notes || null,
+    confirmed_at:
+      item.status === 'confirmed'
+        ? item.confirmed_at || new Date().toISOString()
+        : null,
+  }));
+
+  const { error: deleteError } = await supabase
+    .from('event_musicians')
+    .delete()
+    .eq('event_id', eventId);
+
+  if (deleteError) throw deleteError;
+
+  if (payload.length > 0) {
+    const { error: insertError } = await supabase
+      .from('event_musicians')
+      .insert(payload);
+
+    if (insertError) throw insertError;
+  }
+
+  const { data: invitesExistentes, error: invitesError } = await supabase
+    .from('invites')
+    .select('*')
+    .eq('event_id', eventId);
+
+  if (invitesError) throw invitesError;
+
+  const inviteMap = new Map(
+    (invitesExistentes || []).map((i) => [String(i.contact_id), i])
+  );
+
+  const novosParaCriar = novos.filter(
+    (item) => !inviteMap.has(String(item.musician_id))
+  );
+
+  if (novosParaCriar.length > 0) {
+    const invitesPayload = novosParaCriar.map((item) => ({
+      event_id: eventId,
+      contact_id: item.musician_id,
+      suggested_role_name: item.role || item.contact_tag_text || null,
+      status: 'pending',
+      invite_token:
+        typeof crypto !== 'undefined' && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `${Date.now()}-${item.musician_id}`,
+    }));
+
+    const { error: insertInviteError } = await supabase
+      .from('invites')
+      .insert(invitesPayload);
+
+    if (insertInviteError) throw insertInviteError;
+  }
+
+  const removidosIds = removidos.map((item) => item.musician_id);
+
+  if (removidosIds.length > 0) {
+    const { error: updateError } = await supabase
+      .from('invites')
+      .update({ status: 'removed' })
+      .eq('event_id', eventId)
+      .in('contact_id', removidosIds);
+
+    if (updateError) throw updateError;
+  }
+
+  await carregarTudo();
+  setEditando(false);
+  setTemplateAplicado(null);
+
+  return {
+    novos: novosParaCriar.length,
+  };
+}
 
   async function salvarEscala() {
-    try {
-      setSalvando(true);
-      setSucesso('');
+  try {
+    setSalvando(true);
+    setSucesso('');
 
-      const { novos, removidos } = diffEscala(escalaSalva, escalaLocal);
+    await persistirEscala();
 
-      const payload = escalaLocal.map((item) => ({
-        event_id: eventId,
-        musician_id: item.musician_id,
-        role: item.role || item.contact_tag_text || null,
-        status: item.status || 'pending',
-        notes: item.notes || null,
-        confirmed_at:
-          item.status === 'confirmed'
-            ? item.confirmed_at || new Date().toISOString()
-            : null,
-      }));
-
-      const { error: deleteError } = await supabase
-        .from('event_musicians')
-        .delete()
-        .eq('event_id', eventId);
-
-      if (deleteError) throw deleteError;
-
-      if (payload.length > 0) {
-        const { error: insertError } = await supabase
-          .from('event_musicians')
-          .insert(payload);
-
-        if (insertError) throw insertError;
-      }
-
-      const { data: invitesExistentes, error: invitesError } = await supabase
-        .from('invites')
-        .select('*')
-        .eq('event_id', eventId);
-
-      if (invitesError) throw invitesError;
-
-      const inviteMap = new Map(
-        (invitesExistentes || []).map((i) => [String(i.contact_id), i])
-      );
-
-      const novosParaCriar = novos.filter(
-        (item) => !inviteMap.has(String(item.musician_id))
-      );
-
-      if (novosParaCriar.length > 0) {
-        const invitesPayload = novosParaCriar.map((item) => ({
-  event_id: eventId,
-  contact_id: item.musician_id,
-  suggested_role_name: item.role || item.contact_tag_text || null,
-  status: 'pending',
-  invite_token: crypto.randomUUID(),
-}));
-
-        const { error: insertInviteError } = await supabase
-          .from('invites')
-          .insert(invitesPayload);
-
-        if (insertInviteError) throw insertInviteError;
-      }
-
-      const removidosIds = removidos.map((item) => item.musician_id);
-
-      if (removidosIds.length > 0) {
-        const { error: updateError } = await supabase
-          .from('invites')
-          .update({ status: 'removed' })
-          .eq('event_id', eventId)
-          .in('contact_id', removidosIds);
-
-        if (updateError) throw updateError;
-      }
-
-      await carregarTudo();
-      setEditando(false);
-      setTemplateAplicado(null);
-      setSucesso('Escala salva e convites sincronizados.');
-    } catch (e) {
-      console.error('Erro ao salvar escala:', e);
-      alert(
-        e?.message
-          ? `Erro ao salvar escala: ${e.message}`
-          : 'Erro ao salvar escala.'
-      );
-    } finally {
-      setSalvando(false);
-    }
+    setSucesso('Escala salva e convites sincronizados.');
+  } catch (e) {
+    console.error('Erro ao salvar escala:', e);
+    alert(e?.message || 'Erro ao salvar escala.');
+  } finally {
+    setSalvando(false);
   }
+}
+  async function salvarEEnviarConvites() {
+  try {
+    setSalvando(true);
+    setEnviandoConvites(true);
+    setSucesso('');
+
+    await persistirEscala();
+
+    const response = await fetch('/api/whatsapp/send-event-invites', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ eventId }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data?.error || 'Erro ao enviar convites');
+    }
+
+    const total = data?.total || 0;
+
+    setSucesso(
+      total > 0
+        ? `Escala salva e ${total} convite(s) enviado(s).`
+        : 'Escala salva. Nenhum convite pendente.'
+    );
+
+  } catch (e) {
+    console.error(e);
+    alert(e?.message || 'Erro ao enviar convites');
+  } finally {
+    setSalvando(false);
+    setEnviandoConvites(false);
+  }
+}
 
   if (carregando) {
     return (
@@ -1164,24 +1208,33 @@ export default function EventoEscalaTab({ eventId }) {
                 ) : null}
               </div>
 
-              <div className="grid grid-cols-2 gap-3 xl:w-auto">
+             <div className="grid grid-cols-1 gap-3 md:grid-cols-3 xl:w-auto">
                 <button
-                  type="button"
-                  onClick={cancelarEdicao}
-                  disabled={salvando}
-                  className="rounded-[18px] border border-[#dbe3ef] bg-white px-5 py-4 text-[15px] font-black text-[#0f172a] disabled:opacity-60"
-                >
-                  Cancelar
-                </button>
+  type="button"
+  onClick={cancelarEdicao}
+  disabled={salvando || enviandoConvites}
+  className="rounded-[18px] border border-[#dbe3ef] bg-white px-5 py-4 text-[15px] font-black text-[#0f172a] disabled:opacity-60"
+>
+  Cancelar
+</button>
 
-                <button
-                  type="button"
-                  onClick={salvarEscala}
-                  disabled={salvando}
-                  className="rounded-[18px] bg-violet-600 px-5 py-4 text-[15px] font-black text-white shadow-[0_12px_28px_rgba(124,58,237,0.18)] disabled:opacity-60"
-                >
-                  {salvando ? 'Salvando...' : 'Salvar escala'}
-                </button>
+<button
+  type="button"
+  onClick={salvarEscala}
+  disabled={salvando || enviandoConvites}
+  className="rounded-[18px] border border-violet-200 bg-violet-50 px-5 py-4 text-[15px] font-black text-violet-700 disabled:opacity-60"
+>
+  {salvando && !enviandoConvites ? 'Salvando...' : 'Salvar escala'}
+</button>
+
+<button
+  type="button"
+  onClick={salvarEEnviarConvites}
+  disabled={salvando || enviandoConvites}
+  className="rounded-[18px] bg-violet-600 px-5 py-4 text-[15px] font-black text-white shadow-[0_12px_28px_rgba(124,58,237,0.18)] disabled:opacity-60"
+>
+  {enviandoConvites ? 'Enviando convites...' : 'Salvar e enviar convites'}
+</button>
               </div>
             </div>
 

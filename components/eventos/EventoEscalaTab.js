@@ -59,14 +59,18 @@ function getStatusMeta(status) {
       label: 'Confirmado',
       badge: 'border-emerald-200 bg-emerald-50 text-emerald-700',
       dot: 'bg-emerald-500',
+      soft: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+      order: 1,
     };
   }
 
-  if (value === 'declined') {
+  if (value === 'pending') {
     return {
-      label: 'Recusado',
-      badge: 'border-red-200 bg-red-50 text-red-700',
-      dot: 'bg-red-500',
+      label: 'Pendente',
+      badge: 'border-amber-200 bg-amber-50 text-amber-700',
+      dot: 'bg-amber-500',
+      soft: 'bg-amber-50 text-amber-700 border-amber-200',
+      order: 2,
     };
   }
 
@@ -75,6 +79,18 @@ function getStatusMeta(status) {
       label: 'Reserva',
       badge: 'border-sky-200 bg-sky-50 text-sky-700',
       dot: 'bg-sky-500',
+      soft: 'bg-sky-50 text-sky-700 border-sky-200',
+      order: 3,
+    };
+  }
+
+  if (value === 'declined') {
+    return {
+      label: 'Recusado',
+      badge: 'border-red-200 bg-red-50 text-red-700',
+      dot: 'bg-red-500',
+      soft: 'bg-red-50 text-red-700 border-red-200',
+      order: 4,
     };
   }
 
@@ -82,7 +98,13 @@ function getStatusMeta(status) {
     label: 'Pendente',
     badge: 'border-amber-200 bg-amber-50 text-amber-700',
     dot: 'bg-amber-500',
+    soft: 'bg-amber-50 text-amber-700 border-amber-200',
+    order: 5,
   };
+}
+
+function normalizeRoleText(value) {
+  return normalizeText(String(value || '').trim());
 }
 
 function SummaryChip({ children, tone = 'default' }) {
@@ -90,6 +112,10 @@ function SummaryChip({ children, tone = 'default' }) {
     default: 'border-[#dbe3ef] bg-white text-[#0f172a]',
     violet: 'border-violet-200 bg-violet-50 text-violet-700',
     slate: 'border-[#dbe3ef] bg-[#f8fafc] text-[#475569]',
+    emerald: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    amber: 'border-amber-200 bg-amber-50 text-amber-700',
+    red: 'border-red-200 bg-red-50 text-red-700',
+    sky: 'border-sky-200 bg-sky-50 text-sky-700',
   };
 
   return (
@@ -98,6 +124,57 @@ function SummaryChip({ children, tone = 'default' }) {
     >
       {children}
     </div>
+  );
+}
+
+function MetricCard({ label, value, tone = 'default', helper }) {
+  const tones = {
+    default: 'border-[#dbe3ef] bg-white text-[#0f172a]',
+    emerald: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+    amber: 'border-amber-200 bg-amber-50 text-amber-800',
+    red: 'border-red-200 bg-red-50 text-red-800',
+    sky: 'border-sky-200 bg-sky-50 text-sky-800',
+    violet: 'border-violet-200 bg-violet-50 text-violet-800',
+  };
+
+  return (
+    <div className={`rounded-[22px] border p-4 ${tones[tone] || tones.default}`}>
+      <div className="text-[11px] font-black uppercase tracking-[0.1em] opacity-75">
+        {label}
+      </div>
+      <div className="mt-2 text-[28px] font-black tracking-[-0.04em]">{value}</div>
+      {helper ? (
+        <div className="mt-1 text-[13px] font-semibold opacity-80">{helper}</div>
+      ) : null}
+    </div>
+  );
+}
+
+function SectionCard({ eyebrow, title, subtitle, right, children }) {
+  return (
+    <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_26px_rgba(17,24,39,0.04)] md:p-6">
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div>
+          {eyebrow ? (
+            <div className="text-[12px] font-black uppercase tracking-[0.14em] text-violet-600">
+              {eyebrow}
+            </div>
+          ) : null}
+          <h3 className="mt-1 text-[24px] font-black tracking-[-0.03em] text-[#0f172a] md:text-[28px]">
+            {title}
+          </h3>
+          {subtitle ? (
+            <p className="mt-2 max-w-3xl text-[15px] leading-7 text-[#64748b]">
+              {subtitle}
+            </p>
+          ) : null}
+        </div>
+
+        {right ? <div className="shrink-0">{right}</div> : null}
+      </div>
+
+      <div className="mt-5">{children}</div>
+    </section>
   );
 }
 
@@ -119,6 +196,23 @@ function EmptyState({ title, text, actionLabel, onAction }) {
         </button>
       ) : null}
     </div>
+  );
+}
+
+function CoveragePill({ label, tone = 'default' }) {
+  const tones = {
+    covered: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    pending: 'border-amber-200 bg-amber-50 text-amber-700',
+    missing: 'border-red-200 bg-red-50 text-red-700',
+    default: 'border-[#dbe3ef] bg-[#f8fafc] text-[#475569]',
+  };
+
+  return (
+    <span
+      className={`inline-flex rounded-full border px-3 py-1.5 text-[12px] font-black ${tones[tone] || tones.default}`}
+    >
+      {label}
+    </span>
   );
 }
 
@@ -172,6 +266,7 @@ function PreviewScaleCard({ item }) {
 
 function SelectedMusicianCard({ item, index, onChange, onRemove }) {
   const statusMeta = getStatusMeta(item.status);
+  const hasEmptyRole = !String(item.role || '').trim();
 
   return (
     <div className="rounded-[24px] border border-[#dbe3ef] bg-white p-4 shadow-[0_8px_22px_rgba(17,24,39,0.04)] md:p-5">
@@ -189,11 +284,19 @@ function SelectedMusicianCard({ item, index, onChange, onRemove }) {
             {item.musician_email ? ` • ${item.musician_email}` : ''}
           </div>
 
-          {item.contact_tag_text ? (
-            <div className="mt-2 text-[13px] font-semibold text-violet-600">
-              Tag base: {item.contact_tag_text}
-            </div>
-          ) : null}
+          <div className="mt-3 flex flex-wrap gap-2">
+            {item.contact_tag_text ? (
+              <span className="inline-flex rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-violet-700">
+                Base: {item.contact_tag_text}
+              </span>
+            ) : null}
+
+            {hasEmptyRole ? (
+              <span className="inline-flex rounded-full border border-red-200 bg-red-50 px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-red-700">
+                Função pendente
+              </span>
+            ) : null}
+          </div>
         </div>
 
         <div
@@ -213,7 +316,11 @@ function SelectedMusicianCard({ item, index, onChange, onRemove }) {
             value={item.role}
             onChange={(e) => onChange(index, 'role', e.target.value)}
             placeholder="Ex.: Violão, Voz principal, Sax..."
-            className="w-full rounded-[18px] border border-[#dbe3ef] bg-white px-4 py-3 text-[15px] font-semibold text-[#0f172a] outline-none transition focus:border-violet-300 focus:ring-4 focus:ring-violet-100"
+            className={`w-full rounded-[18px] border bg-white px-4 py-3 text-[15px] font-semibold text-[#0f172a] outline-none transition focus:ring-4 ${
+              hasEmptyRole
+                ? 'border-red-200 focus:border-red-300 focus:ring-red-100'
+                : 'border-[#dbe3ef] focus:border-violet-300 focus:ring-violet-100'
+            }`}
           />
         </div>
 
@@ -257,6 +364,32 @@ function SelectedMusicianCard({ item, index, onChange, onRemove }) {
         </button>
       </div>
     </div>
+  );
+}
+
+function SearchResultCard({ contact, onAdd }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onAdd(contact)}
+      className="flex w-full items-start justify-between gap-3 rounded-[18px] border border-[#e7edf5] bg-white px-4 py-4 text-left transition hover:border-violet-200 hover:bg-[#fcfbff]"
+    >
+      <div className="min-w-0">
+        <div className="text-[16px] font-black text-[#0f172a]">
+          {contact.name || 'Sem nome'}
+        </div>
+
+        <div className="mt-1 text-[14px] font-semibold leading-6 text-[#64748b]">
+          {[getContactTagText(contact), contact.phone, contact.email]
+            .filter(Boolean)
+            .join(' — ')}
+        </div>
+      </div>
+
+      <div className="shrink-0 rounded-[14px] bg-violet-50 px-3 py-2 text-[12px] font-black text-violet-700">
+        Adicionar
+      </div>
+    </button>
   );
 }
 
@@ -418,7 +551,7 @@ export default function EventoEscalaTab({ eventId }) {
 
     const timer = setTimeout(() => {
       setSucesso('');
-    }, 2200);
+    }, 2600);
 
     return () => clearTimeout(timer);
   }, [sucesso]);
@@ -429,7 +562,21 @@ export default function EventoEscalaTab({ eventId }) {
     return splitCsvLike(evento?.formation);
   }, [evento]);
 
-  const escalaParaExibir = editando ? escalaLocal : (escalaSalva.length > 0 ? escalaSalva : escalaLocal);
+  const escalaParaExibir = editando
+    ? escalaLocal
+    : escalaSalva.length > 0
+      ? escalaSalva
+      : escalaLocal;
+
+  const escalaOrdenadaPreview = useMemo(() => {
+    return [...escalaParaExibir].sort((a, b) => {
+      const aMeta = getStatusMeta(a.status);
+      const bMeta = getStatusMeta(b.status);
+
+      if (aMeta.order !== bMeta.order) return aMeta.order - bMeta.order;
+      return String(a.musician_name || '').localeCompare(String(b.musician_name || ''));
+    });
+  }, [escalaParaExibir]);
 
   const contatosDisponiveis = useMemo(() => {
     const usados = new Set(escalaLocal.map((item) => String(item.musician_id)));
@@ -445,25 +592,109 @@ export default function EventoEscalaTab({ eventId }) {
       .slice(0, 12);
   }, [busca, contatosDisponiveis]);
 
+  const suggestedContacts = useMemo(() => {
+    if (busca.trim()) return [];
+
+    const expectedTokens = instrumentosEsperados.map((item) => normalizeText(item));
+    if (expectedTokens.length === 0) return contatosDisponiveis.slice(0, 6);
+
+    const scored = contatosDisponiveis
+      .map((contact) => {
+        const haystack = getContactSearchText(contact);
+        let score = 0;
+
+        expectedTokens.forEach((token) => {
+          if (token && haystack.includes(token)) score += 1;
+        });
+
+        return { contact, score };
+      })
+      .filter((item) => item.score > 0)
+      .sort((a, b) => b.score - a.score || String(a.contact.name || '').localeCompare(String(b.contact.name || '')))
+      .slice(0, 6)
+      .map((item) => item.contact);
+
+    if (scored.length > 0) return scored;
+    return contatosDisponiveis.slice(0, 6);
+  }, [busca, contatosDisponiveis, instrumentosEsperados]);
+
   const resumoStatus = useMemo(() => {
     const base = escalaParaExibir;
     const total = base.length;
     const confirmados = base.filter((item) => item.status === 'confirmed').length;
     const pendentes = base.filter((item) => item.status === 'pending').length;
     const recusados = base.filter((item) => item.status === 'declined').length;
+    const reservas = base.filter((item) => item.status === 'backup').length;
 
-    return { total, confirmados, pendentes, recusados };
+    return { total, confirmados, pendentes, recusados, reservas };
   }, [escalaParaExibir]);
 
+  const coverage = useMemo(() => {
+    const expected = instrumentosEsperados;
+    const used = escalaParaExibir;
+
+    const covered = [];
+    const pending = [];
+    const missing = [];
+
+    expected.forEach((expectedItem) => {
+      const normalizedExpected = normalizeText(expectedItem);
+
+      const matches = used.filter((item) => {
+        const roleText = normalizeRoleText(item.role);
+        const tagText = normalizeRoleText(item.contact_tag_text);
+        return (
+          (roleText && roleText.includes(normalizedExpected)) ||
+          (tagText && tagText.includes(normalizedExpected))
+        );
+      });
+
+      if (matches.some((item) => item.status === 'confirmed')) {
+        covered.push(expectedItem);
+      } else if (matches.some((item) => item.status === 'pending' || item.status === 'backup')) {
+        pending.push(expectedItem);
+      } else {
+        missing.push(expectedItem);
+      }
+    });
+
+    return {
+      expected,
+      covered,
+      pending,
+      missing,
+    };
+  }, [instrumentosEsperados, escalaParaExibir]);
+
+  const diffResumo = useMemo(() => {
+    const { novos, removidos } = diffEscala(escalaSalva, escalaLocal);
+    const pendentes = escalaLocal.filter((item) => item.status === 'pending').length;
+    const recusados = escalaLocal.filter((item) => item.status === 'declined').length;
+    const reservas = escalaLocal.filter((item) => item.status === 'backup').length;
+    const funcoesVazias = escalaLocal.filter((item) => !String(item.role || '').trim()).length;
+
+    return {
+      total: escalaLocal.length,
+      novos: novos.length,
+      removidos: removidos.length,
+      pendentes,
+      recusados,
+      reservas,
+      funcoesVazias,
+      convitesNovos: novos.length,
+      convitesRemovidos: removidos.length,
+    };
+  }, [escalaSalva, escalaLocal]);
+
   function iniciarEdicao() {
-    setEscalaLocal(escalaParaExibir);
+    setEscalaLocal([...escalaParaExibir]);
     setBusca('');
     setSucesso('');
     setEditando(true);
   }
 
   function cancelarEdicao() {
-    setEscalaLocal(escalaSalva.length > 0 ? escalaSalva : escalaLocal);
+    setEscalaLocal(escalaSalva.length > 0 ? [...escalaSalva] : [...escalaLocal]);
     setBusca('');
     setEditando(false);
   }
@@ -514,103 +745,96 @@ export default function EventoEscalaTab({ eventId }) {
   }
 
   async function salvarEscala() {
-  try {
-    setSalvando(true);
-    setSucesso('');
+    try {
+      setSalvando(true);
+      setSucesso('');
 
-    // 🔥 1. CALCULAR DIFERENÇA
-    const { novos, removidos } = diffEscala(escalaSalva, escalaLocal);
+      const { novos, removidos } = diffEscala(escalaSalva, escalaLocal);
 
-    // 🔥 2. SALVAR ESCALA (como já fazia)
-    const payload = escalaLocal.map((item) => ({
-      event_id: eventId,
-      musician_id: item.musician_id,
-      role: item.role || item.contact_tag_text || null,
-      status: item.status || 'pending',
-      notes: item.notes || null,
-      confirmed_at:
-        item.status === 'confirmed'
-          ? item.confirmed_at || new Date().toISOString()
-          : null,
-    }));
-
-    const { error: deleteError } = await supabase
-      .from('event_musicians')
-      .delete()
-      .eq('event_id', eventId);
-
-    if (deleteError) throw deleteError;
-
-    if (payload.length > 0) {
-      const { error: insertError } = await supabase
-        .from('event_musicians')
-        .insert(payload);
-
-      if (insertError) throw insertError;
-    }
-
-    // 🔥 3. BUSCAR INVITES EXISTENTES
-    const { data: invitesExistentes, error: invitesError } = await supabase
-      .from('invites')
-      .select('*')
-      .eq('event_id', eventId);
-
-    if (invitesError) throw invitesError;
-
-    const inviteMap = new Map(
-      invitesExistentes.map((i) => [String(i.contact_id), i])
-    );
-
-    // 🔥 4. CRIAR INVITES PARA NOVOS (sem duplicar)
-    const novosParaCriar = novos.filter(
-      (item) => !inviteMap.has(String(item.musician_id))
-    );
-
-    if (novosParaCriar.length > 0) {
-      const invitesPayload = novosParaCriar.map((item) => ({
+      const payload = escalaLocal.map((item) => ({
         event_id: eventId,
-        contact_id: item.musician_id,
-        suggested_role_name: item.role || item.contact_tag_text || null,
-        status: 'pending',
+        musician_id: item.musician_id,
+        role: item.role || item.contact_tag_text || null,
+        status: item.status || 'pending',
+        notes: item.notes || null,
+        confirmed_at:
+          item.status === 'confirmed'
+            ? item.confirmed_at || new Date().toISOString()
+            : null,
       }));
 
-      const { error: insertInviteError } = await supabase
+      const { error: deleteError } = await supabase
+        .from('event_musicians')
+        .delete()
+        .eq('event_id', eventId);
+
+      if (deleteError) throw deleteError;
+
+      if (payload.length > 0) {
+        const { error: insertError } = await supabase
+          .from('event_musicians')
+          .insert(payload);
+
+        if (insertError) throw insertError;
+      }
+
+      const { data: invitesExistentes, error: invitesError } = await supabase
         .from('invites')
-        .insert(invitesPayload);
+        .select('*')
+        .eq('event_id', eventId);
 
-      if (insertInviteError) throw insertInviteError;
+      if (invitesError) throw invitesError;
+
+      const inviteMap = new Map(
+        (invitesExistentes || []).map((i) => [String(i.contact_id), i])
+      );
+
+      const novosParaCriar = novos.filter(
+        (item) => !inviteMap.has(String(item.musician_id))
+      );
+
+      if (novosParaCriar.length > 0) {
+        const invitesPayload = novosParaCriar.map((item) => ({
+          event_id: eventId,
+          contact_id: item.musician_id,
+          suggested_role_name: item.role || item.contact_tag_text || null,
+          status: 'pending',
+        }));
+
+        const { error: insertInviteError } = await supabase
+          .from('invites')
+          .insert(invitesPayload);
+
+        if (insertInviteError) throw insertInviteError;
+      }
+
+      const removidosIds = removidos.map((item) => item.musician_id);
+
+      if (removidosIds.length > 0) {
+        const { error: updateError } = await supabase
+          .from('invites')
+          .update({ status: 'removed' })
+          .eq('event_id', eventId)
+          .in('contact_id', removidosIds);
+
+        if (updateError) throw updateError;
+      }
+
+      await carregarTudo();
+      setEditando(false);
+      setTemplateAplicado(null);
+      setSucesso('Escala salva e convites sincronizados.');
+    } catch (e) {
+      console.error('Erro ao salvar escala:', e);
+      alert(
+        e?.message
+          ? `Erro ao salvar escala: ${e.message}`
+          : 'Erro ao salvar escala.'
+      );
+    } finally {
+      setSalvando(false);
     }
-
-    // 🔥 5. MARCAR REMOVIDOS COMO "REMOVED"
-    const removidosIds = removidos.map((item) => item.musician_id);
-
-    if (removidosIds.length > 0) {
-      const { error: updateError } = await supabase
-        .from('invites')
-        .update({ status: 'removed' })
-        .eq('event_id', eventId)
-        .in('contact_id', removidosIds);
-
-      if (updateError) throw updateError;
-    }
-
-    // 🔥 FINAL
-    await carregarTudo();
-    setEditando(false);
-    setTemplateAplicado(null);
-    setSucesso('Escala salva e convites sincronizados.');
-
-  } catch (e) {
-    console.error('Erro ao salvar escala:', e);
-    alert(
-      e?.message
-        ? `Erro ao salvar escala: ${e.message}`
-        : 'Erro ao salvar escala.'
-    );
-  } finally {
-    setSalvando(false);
   }
-}
 
   if (carregando) {
     return (
@@ -630,14 +854,14 @@ export default function EventoEscalaTab({ eventId }) {
 
   return (
     <div className="space-y-5 md:space-y-6">
-      <div className="rounded-[26px] border border-[#dbe3ef] bg-gradient-to-br from-[#fcfcff] to-[#f8fafc] p-5 shadow-[0_10px_26px_rgba(17,24,39,0.04)] md:p-6">
+      <section className="rounded-[28px] border border-[#dbe3ef] bg-gradient-to-br from-[#fcfcff] via-white to-[#f8fafc] p-5 shadow-[0_10px_26px_rgba(17,24,39,0.04)] md:p-6">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
           <div className="min-w-0">
             <div className="text-[12px] font-black uppercase tracking-[0.14em] text-violet-600">
               Escala do evento
             </div>
 
-            <h3 className="mt-2 text-[28px] font-black tracking-[-0.04em] text-[#0f172a]">
+            <h3 className="mt-2 text-[28px] font-black tracking-[-0.04em] text-[#0f172a] md:text-[34px]">
               {evento?.client_name || 'Evento'}
             </h3>
 
@@ -656,12 +880,15 @@ export default function EventoEscalaTab({ eventId }) {
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-2 xl:max-w-[360px] xl:justify-end">
+          <div className="flex flex-wrap gap-2 xl:max-w-[380px] xl:justify-end">
             <SummaryChip>{resumoStatus.total} músico(s)</SummaryChip>
-            <SummaryChip tone="slate">{resumoStatus.confirmados} confirmados</SummaryChip>
-            <SummaryChip tone="slate">{resumoStatus.pendentes} pendentes</SummaryChip>
+            <SummaryChip tone="emerald">{resumoStatus.confirmados} confirmados</SummaryChip>
+            <SummaryChip tone="amber">{resumoStatus.pendentes} pendentes</SummaryChip>
             {resumoStatus.recusados > 0 ? (
-              <SummaryChip tone="slate">{resumoStatus.recusados} recusados</SummaryChip>
+              <SummaryChip tone="red">{resumoStatus.recusados} recusados</SummaryChip>
+            ) : null}
+            {resumoStatus.reservas > 0 ? (
+              <SummaryChip tone="sky">{resumoStatus.reservas} reservas</SummaryChip>
             ) : null}
           </div>
         </div>
@@ -675,7 +902,8 @@ export default function EventoEscalaTab({ eventId }) {
               Template aplicado: {templateAplicado.name}
             </div>
             <div className="mt-1 text-[14px] leading-6 text-violet-700">
-              A sugestão foi montada a partir da formação do evento. Revise e ajuste antes de salvar.
+              A equipe-base foi sugerida automaticamente com base na formação e nos instrumentos do evento.
+              Revise, ajuste e salve quando estiver pronta.
             </div>
           </div>
         ) : null}
@@ -701,118 +929,241 @@ export default function EventoEscalaTab({ eventId }) {
             </div>
           ) : null}
         </div>
-      </div>
+      </section>
+
+      <SectionCard
+        eyebrow="Cobertura da equipe"
+        title="Radar da escala"
+        subtitle="Veja rapidamente o que já está coberto, o que ainda está pendente e o que falta para fechar esta equipe."
+      >
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <MetricCard
+            label="Equipe atual"
+            value={resumoStatus.total}
+            tone="default"
+            helper="músico(s) na escala"
+          />
+          <MetricCard
+            label="Confirmados"
+            value={resumoStatus.confirmados}
+            tone="emerald"
+            helper="já responderam positivamente"
+          />
+          <MetricCard
+            label="Pendentes"
+            value={resumoStatus.pendentes}
+            tone="amber"
+            helper="ainda aguardando resposta"
+          />
+          <MetricCard
+            label="Lacunas"
+            value={coverage.missing.length}
+            tone={coverage.missing.length > 0 ? 'red' : 'sky'}
+            helper={
+              coverage.missing.length > 0
+                ? 'funções ainda sem cobertura'
+                : 'sem lacunas críticas'
+            }
+          />
+        </div>
+
+        <div className="mt-5 grid gap-4 xl:grid-cols-3">
+          <div className="rounded-[24px] border border-emerald-200 bg-emerald-50 p-4">
+            <div className="text-[12px] font-black uppercase tracking-[0.1em] text-emerald-700">
+              Cobertos
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {coverage.covered.length > 0 ? (
+                coverage.covered.map((item) => (
+                  <CoveragePill key={`covered-${item}`} label={item} tone="covered" />
+                ))
+              ) : (
+                <CoveragePill label="Nenhum ainda" />
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-[24px] border border-amber-200 bg-amber-50 p-4">
+            <div className="text-[12px] font-black uppercase tracking-[0.1em] text-amber-700">
+              Cobertura frágil
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {coverage.pending.length > 0 ? (
+                coverage.pending.map((item) => (
+                  <CoveragePill key={`pending-${item}`} label={item} tone="pending" />
+                ))
+              ) : (
+                <CoveragePill label="Nada crítico" />
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-[24px] border border-red-200 bg-red-50 p-4">
+            <div className="text-[12px] font-black uppercase tracking-[0.1em] text-red-700">
+              Faltando
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {coverage.missing.length > 0 ? (
+                coverage.missing.map((item) => (
+                  <CoveragePill key={`missing-${item}`} label={item} tone="missing" />
+                ))
+              ) : (
+                <CoveragePill label="Equipe coberta" />
+              )}
+            </div>
+          </div>
+        </div>
+      </SectionCard>
 
       {!editando ? (
         <>
-          {escalaParaExibir.length === 0 ? (
+          {escalaOrdenadaPreview.length === 0 ? (
             <EmptyState
               title="Sem escala ainda"
-              text="Nenhum músico escalado neste evento. Monte a equipe para começar a operação deste evento."
+              text="Nenhum músico escalado neste evento. Monte a equipe para iniciar a operação e preparar os convites."
               actionLabel="Montar escala"
               onAction={iniciarEdicao}
             />
           ) : (
-            <div className="space-y-4">
-              {escalaParaExibir.map((item) => (
-                <PreviewScaleCard
-                  key={`${item.musician_id}-${item.role}-${item.id || 'novo'}`}
-                  item={item}
-                />
-              ))}
-            </div>
+            <SectionCard
+              eyebrow="Equipe atual"
+              title="Visualização da escala"
+              subtitle="Acompanhe quem já está escalado, quem ainda está pendente e quem recusou sem precisar entrar no modo de edição."
+            >
+              <div className="space-y-4">
+                {escalaOrdenadaPreview.map((item) => (
+                  <PreviewScaleCard
+                    key={`${item.musician_id}-${item.role}-${item.id || 'novo'}`}
+                    item={item}
+                  />
+                ))}
+              </div>
+            </SectionCard>
           )}
         </>
       ) : (
         <>
-          <div className="rounded-[26px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_26px_rgba(17,24,39,0.04)] md:p-6">
-            <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-              <div>
-                <div className="text-[12px] font-black uppercase tracking-[0.08em] text-[#64748b]">
-                  Adicionar músicos
+          <div className="grid gap-5 xl:grid-cols-[0.95fr_1.05fr]">
+            <SectionCard
+              eyebrow="Montagem da equipe"
+              title="Adicionar músicos"
+              subtitle="Busque por nome, tag, WhatsApp ou email. O sistema já prioriza sugestões compatíveis com este evento."
+              right={
+                <div className="text-[13px] font-semibold text-[#94a3b8]">
+                  {contatosDisponiveis.length} disponível(is)
                 </div>
-                <div className="mt-1 text-[16px] font-semibold text-[#475569]">
-                  Busque por nome, tag, WhatsApp ou email.
+              }
+            >
+              <div className="space-y-4">
+                <div className="rounded-[22px] border border-[#e7edf5] bg-[#fafbff] p-4">
+                  <label className="mb-2 block text-[12px] font-black uppercase tracking-[0.08em] text-[#64748b]">
+                    Buscar músico
+                  </label>
+                  <input
+                    ref={buscaRef}
+                    type="text"
+                    value={busca}
+                    onChange={(e) => setBusca(e.target.value)}
+                    placeholder="Buscar por nome, tag, whatsapp ou email..."
+                    className="w-full rounded-[18px] border border-[#dbe3ef] bg-white px-4 py-3 text-[15px] font-semibold text-[#0f172a] outline-none transition focus:border-violet-300 focus:ring-4 focus:ring-violet-100"
+                  />
                 </div>
-              </div>
 
-              <div className="text-[13px] font-semibold text-[#94a3b8]">
-                {contatosDisponiveis.length} disponível(is)
-              </div>
-            </div>
+                {!busca.trim() ? (
+                  <div className="rounded-[22px] border border-violet-200 bg-violet-50 p-4">
+                    <div className="text-[12px] font-black uppercase tracking-[0.08em] text-violet-700">
+                      Sugestões rápidas
+                    </div>
+                    <div className="mt-2 text-[14px] leading-6 text-violet-700">
+                      Contatos com maior chance de encaixe para esta formação.
+                    </div>
 
-            <div className="mt-4 rounded-[22px] border border-[#e7edf5] bg-[#fafbff] p-4">
-              <input
-                ref={buscaRef}
-                type="text"
-                value={busca}
-                onChange={(e) => setBusca(e.target.value)}
-                placeholder="Buscar músico... (nome, tag, whatsapp)"
-                className="w-full rounded-[18px] border border-[#dbe3ef] bg-white px-4 py-3 text-[15px] font-semibold text-[#0f172a] outline-none transition focus:border-violet-300 focus:ring-4 focus:ring-violet-100"
-              />
-
-              <div className="mt-4 overflow-hidden rounded-[18px] border border-[#e7edf5] bg-white">
-                {contatosFiltrados.length === 0 ? (
-                  <div className="px-4 py-4 text-[14px] font-semibold text-[#64748b]">
-                    Nenhum músico encontrado.
+                    <div className="mt-4 space-y-3">
+                      {suggestedContacts.length > 0 ? (
+                        suggestedContacts.map((contact) => (
+                          <SearchResultCard
+                            key={`suggested-${contact.id}`}
+                            contact={contact}
+                            onAdd={adicionarMusico}
+                          />
+                        ))
+                      ) : (
+                        <div className="rounded-[18px] bg-white px-4 py-4 text-[14px] font-semibold text-[#64748b]">
+                          Nenhuma sugestão encontrada.
+                        </div>
+                      )}
+                    </div>
                   </div>
-                ) : (
-                  contatosFiltrados.map((contact, index) => (
-                    <button
-                      key={contact.id}
-                      type="button"
-                      onClick={() => adicionarMusico(contact)}
-                      className={`block w-full px-4 py-4 text-left transition hover:bg-[#f8fafc] ${
-                        index > 0 ? 'border-t border-[#eef2f7]' : ''
-                      }`}
-                    >
-                      <div className="text-[16px] font-black text-[#0f172a]">
-                        {contact.name || 'Sem nome'}
-                      </div>
+                ) : null}
 
-                      <div className="mt-1 text-[14px] font-semibold leading-6 text-[#64748b]">
-                        {[getContactTagText(contact), contact.phone, contact.email]
-                          .filter(Boolean)
-                          .join(' — ')}
-                      </div>
-                    </button>
-                  ))
-                )}
-              </div>
-            </div>
+                <div className="rounded-[22px] border border-[#e7edf5] bg-white p-4">
+                  <div className="text-[12px] font-black uppercase tracking-[0.08em] text-[#64748b]">
+                    Resultados
+                  </div>
 
-            {escalaLocal.length === 0 ? (
-              <div className="mt-5 rounded-[18px] bg-[#f8fafc] px-4 py-4 text-[15px] font-semibold text-[#64748b]">
-                Nenhum músico selecionado ainda.
+                  <div className="mt-4 space-y-3">
+                    {contatosFiltrados.length === 0 ? (
+                      <div className="rounded-[18px] bg-[#f8fafc] px-4 py-4 text-[14px] font-semibold text-[#64748b]">
+                        Nenhum músico encontrado.
+                      </div>
+                    ) : (
+                      contatosFiltrados.map((contact) => (
+                        <SearchResultCard
+                          key={contact.id}
+                          contact={contact}
+                          onAdd={adicionarMusico}
+                        />
+                      ))
+                    )}
+                  </div>
+                </div>
               </div>
-            ) : null}
+            </SectionCard>
+
+            <SectionCard
+              eyebrow="Equipe do evento"
+              title="Músicos selecionados"
+              subtitle="Ajuste função, status e observações antes de salvar a escala."
+            >
+              {escalaLocal.length > 0 ? (
+                <div className="space-y-4">
+                  {escalaLocal.map((item, index) => (
+                    <SelectedMusicianCard
+                      key={`${item.musician_id}-${index}`}
+                      item={item}
+                      index={index}
+                      onChange={atualizarItem}
+                      onRemove={removerMusico}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-[22px] border border-dashed border-[#dbe3ef] bg-[#f8fafc] px-4 py-5 text-[15px] font-semibold text-[#64748b]">
+                  Selecione músicos na coluna ao lado para montar esta equipe.
+                </div>
+              )}
+            </SectionCard>
           </div>
 
-          {escalaLocal.length > 0 ? (
-            <div className="space-y-4">
-              {escalaLocal.map((item, index) => (
-                <SelectedMusicianCard
-                  key={`${item.musician_id}-${index}`}
-                  item={item}
-                  index={index}
-                  onChange={atualizarItem}
-                  onRemove={removerMusico}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="rounded-[22px] border border-[#dbe3ef] bg-white px-4 py-5 text-[15px] font-semibold text-[#64748b]">
-              Selecione músicos acima.
-            </div>
-          )}
-
           <div className="sticky bottom-0 z-10 -mx-5 border-t border-[#e6ebf2] bg-white/95 px-5 py-4 backdrop-blur md:-mx-6 md:px-6">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div className="text-[13px] font-semibold text-[#64748b]">
-                {escalaLocal.length} músico(s) prontos para salvar
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+              <div className="flex flex-wrap gap-2">
+                <SummaryChip>{diffResumo.total} músico(s)</SummaryChip>
+                {diffResumo.novos > 0 ? (
+                  <SummaryChip tone="violet">{diffResumo.novos} novo(s)</SummaryChip>
+                ) : null}
+                {diffResumo.removidos > 0 ? (
+                  <SummaryChip tone="red">{diffResumo.removidos} removido(s)</SummaryChip>
+                ) : null}
+                {diffResumo.pendentes > 0 ? (
+                  <SummaryChip tone="amber">{diffResumo.pendentes} pendente(s)</SummaryChip>
+                ) : null}
+                {diffResumo.funcoesVazias > 0 ? (
+                  <SummaryChip tone="red">{diffResumo.funcoesVazias} função(ões) vazia(s)</SummaryChip>
+                ) : null}
               </div>
 
-              <div className="grid grid-cols-2 gap-3 md:w-auto">
+              <div className="grid grid-cols-2 gap-3 xl:w-auto">
                 <button
                   type="button"
                   onClick={cancelarEdicao}
@@ -831,6 +1182,12 @@ export default function EventoEscalaTab({ eventId }) {
                   {salvando ? 'Salvando...' : 'Salvar escala'}
                 </button>
               </div>
+            </div>
+
+            <div className="mt-3 text-[12px] font-semibold text-[#64748b]">
+              {diffResumo.convitesNovos > 0 || diffResumo.convitesRemovidos > 0
+                ? `Ao salvar: ${diffResumo.convitesNovos} convite(s) novo(s) e ${diffResumo.convitesRemovidos} atualização(ões) de remoção em invites.`
+                : 'Ao salvar, a escala será sincronizada com os convites existentes sem duplicidade.'}
             </div>
           </div>
         </>

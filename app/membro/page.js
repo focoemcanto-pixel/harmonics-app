@@ -640,7 +640,7 @@ setRepertoireItems([]);
   setIsPlaying(true);
 }
 
-  function handlePrevTrack() {
+function handlePrevTrack() {
   setPlayerIndex((prev) => {
     if (playerPlaylist.length === 0) return 0;
     return (prev - 1 + playerPlaylist.length) % playerPlaylist.length;
@@ -790,7 +790,7 @@ setRepertoireItems([]);
         }}
       />
 
-      <MembroPlayerModal
+     <MembroPlayerModal
   open={playerOpen}
   eventTitle={playerEventTitle}
   playlist={playerPlaylist}
@@ -804,6 +804,7 @@ setRepertoireItems([]);
   onPrev={handlePrevTrack}
   onNext={handleNextTrack}
   onTogglePlay={handleTogglePlaying}
+  onPlayerStateChange={(playing) => setIsPlaying(playing)}
 />
 
       <MiniPlayerBar

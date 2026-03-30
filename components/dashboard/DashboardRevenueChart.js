@@ -79,34 +79,40 @@ export default function DashboardRevenueChart({ events = [] }) {
   const totalLiquido = series.reduce((acc, item) => acc + item.liquido, 0);
 
   return (
-    <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-6 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
+    <section className="rounded-[30px] border border-[#dbe3ef] bg-[linear-gradient(180deg,#ffffff_0%,#fcfdff_100%)] p-6 shadow-[0_16px_40px_rgba(17,24,39,0.06)]">
       <AdminSectionTitle
         title="Evolução financeira"
-        subtitle="Leitura dos últimos 6 meses, comparando bruto e líquido real dos eventos."
+        subtitle="Leitura dos últimos 6 meses, acompanhando a progressão do bruto e do líquido da operação."
       />
 
-      <div className="mt-4 rounded-[22px] border border-[#eef2f7] bg-[#fcfdff] p-4">
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <div className="rounded-[18px] bg-[#f8fafc] px-4 py-4">
+      <div className="mt-4 rounded-[24px] border border-[#eef2f7] bg-[linear-gradient(180deg,#fcfdff_0%,#f8fafc_100%)] p-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="rounded-[20px] border border-violet-100 bg-white/90 px-4 py-4 shadow-[0_8px_20px_rgba(17,24,39,0.03)]">
             <div className="text-[11px] font-black uppercase tracking-[0.08em] text-[#64748b]">
               Bruto acumulado
             </div>
-            <div className="mt-2 text-[22px] font-black text-[#0f172a]">
+            <div className="mt-2 text-[24px] font-black tracking-[-0.04em] text-[#0f172a]">
               {formatMoney(totalBruto)}
+            </div>
+            <div className="mt-2 text-[13px] font-semibold leading-5 text-[#64748b]">
+              Soma do valor negociado nos últimos meses exibidos.
             </div>
           </div>
 
-          <div className="rounded-[18px] bg-[#f8fafc] px-4 py-4">
+          <div className="rounded-[20px] border border-emerald-100 bg-white/90 px-4 py-4 shadow-[0_8px_20px_rgba(17,24,39,0.03)]">
             <div className="text-[11px] font-black uppercase tracking-[0.08em] text-[#64748b]">
               Líquido acumulado
             </div>
-            <div className="mt-2 text-[22px] font-black text-[#0f172a]">
+            <div className="mt-2 text-[24px] font-black tracking-[-0.04em] text-[#0f172a]">
               {formatMoney(totalLiquido)}
+            </div>
+            <div className="mt-2 text-[13px] font-semibold leading-5 text-[#64748b]">
+              Margem final prevista após os custos da operação.
             </div>
           </div>
         </div>
 
-        <div className="mt-4 flex flex-wrap items-center gap-4">
+        <div className="mt-5 flex flex-wrap items-center gap-4">
           <div className="flex items-center gap-2 text-[12px] font-black text-[#475569]">
             <span className="inline-block h-3 w-3 rounded-full bg-violet-500" />
             Bruto
@@ -122,23 +128,20 @@ export default function DashboardRevenueChart({ events = [] }) {
           <div className="flex min-w-[560px] items-end gap-4">
             {series.map((item) => {
               const brutoHeight = Math.max(
-                8,
-                Math.round((item.bruto / maxValue) * 180)
+                10,
+                Math.round((item.bruto / maxValue) * 190)
               );
               const liquidoHeight = Math.max(
-                8,
-                Math.round((item.liquido / maxValue) * 180)
+                10,
+                Math.round((item.liquido / maxValue) * 190)
               );
 
               return (
-                <div
-                  key={item.key}
-                  className="flex flex-1 flex-col items-center"
-                >
-                  <div className="flex h-[220px] items-end gap-2">
+                <div key={item.key} className="flex flex-1 flex-col items-center">
+                  <div className="flex h-[228px] items-end gap-2">
                     <div className="flex flex-col items-center">
                       <div
-                        className="w-5 rounded-t-[10px] bg-violet-500 shadow-[0_8px_18px_rgba(124,58,237,0.22)]"
+                        className="w-5 rounded-t-[12px] bg-violet-500 shadow-[0_10px_22px_rgba(124,58,237,0.24)]"
                         style={{ height: `${brutoHeight}px` }}
                         title={`Bruto: ${formatMoney(item.bruto)}`}
                       />
@@ -146,14 +149,14 @@ export default function DashboardRevenueChart({ events = [] }) {
 
                     <div className="flex flex-col items-center">
                       <div
-                        className="w-5 rounded-t-[10px] bg-emerald-500 shadow-[0_8px_18px_rgba(16,185,129,0.18)]"
+                        className="w-5 rounded-t-[12px] bg-emerald-500 shadow-[0_10px_22px_rgba(16,185,129,0.20)]"
                         style={{ height: `${liquidoHeight}px` }}
                         title={`Líquido: ${formatMoney(item.liquido)}`}
                       />
                     </div>
                   </div>
 
-                  <div className="mt-3 text-center">
+                  <div className="mt-4 text-center">
                     <div className="text-[11px] font-black uppercase tracking-[0.08em] text-[#64748b]">
                       {item.label}
                     </div>

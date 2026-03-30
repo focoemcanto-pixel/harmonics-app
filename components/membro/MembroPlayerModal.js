@@ -26,9 +26,12 @@ export default function MembroPlayerModal({
                 <div className="text-[12px] font-black uppercase tracking-[0.12em] text-fuchsia-200/70">
                   Playlist do repertório
                 </div>
-                <h3 className="mt-2 text-[28px] font-black tracking-[-0.04em]">
+                <h3 className="mt-2 text-[28px] font-black tracking-[-0.04em] text-white">
                   {eventTitle || 'Repertório'}
                 </h3>
+                <div className="mt-2 inline-flex rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-white/70">
+                  {isPlaying ? 'Reproduzindo no mini player' : 'Pausado no mini player'}
+                </div>
               </div>
 
               <button
@@ -43,12 +46,12 @@ export default function MembroPlayerModal({
 
           <div className="grid flex-1 grid-cols-1 overflow-hidden md:grid-cols-[1.05fr_0.95fr]">
             <div className="border-b border-white/10 p-5 md:border-b-0 md:border-r md:p-6">
-              <div className="rounded-[24px] border border-white/10 bg-[linear-gradient(180deg,rgba(124,58,237,0.14),rgba(255,255,255,0.03))] p-5">
-                <div className="text-[13px] font-black uppercase tracking-[0.08em] text-white/50">
+              <div className="rounded-[26px] border border-white/10 bg-[linear-gradient(180deg,rgba(124,58,237,0.16),rgba(255,255,255,0.03))] p-5 shadow-[0_14px_34px_rgba(15,23,42,0.16)]">
+                <div className="text-[12px] font-black uppercase tracking-[0.08em] text-white/50">
                   Tocando agora
                 </div>
 
-                <div className="mt-3 text-[26px] font-black tracking-[-0.04em] text-white">
+                <div className="mt-3 text-[28px] font-black tracking-[-0.04em] text-white">
                   {currentTrack?.title || 'Nenhuma faixa'}
                 </div>
 
@@ -59,7 +62,7 @@ export default function MembroPlayerModal({
                 ) : null}
 
                 {currentTrack?.notes ? (
-                  <div className="mt-4 rounded-[16px] border border-white/10 bg-black/10 px-4 py-3 text-[13px] leading-6 text-white/70">
+                  <div className="mt-4 rounded-[18px] border border-white/10 bg-black/10 px-4 py-4 text-[13px] leading-6 text-white/70">
                     <span className="font-black text-white/85">Observação:</span>{' '}
                     {currentTrack.notes}
                   </div>
@@ -104,21 +107,24 @@ export default function MembroPlayerModal({
                 </div>
 
                 <div className="mt-5 rounded-[18px] border border-white/10 bg-white/5 px-4 py-4">
-                  <div className="text-[12px] font-black uppercase tracking-[0.08em] text-white/45">
-                    Reprodução
+                  <div className="text-[11px] font-black uppercase tracking-[0.08em] text-white/45">
+                    Como funciona
                   </div>
-                  <div className="mt-2 text-[14px] font-semibold text-white/75">
-                    {isPlaying
-                      ? 'O mini player inferior está reproduzindo esta faixa.'
-                      : 'A reprodução está pausada no mini player inferior.'}
+                  <div className="mt-2 text-[14px] leading-6 text-white/65">
+                    A reprodução permanece no mini player inferior. Este painel é a visão expandida do repertório atual.
                   </div>
                 </div>
               </div>
             </div>
 
             <div className="min-h-0 overflow-y-auto p-5 md:p-6">
-              <div className="text-[13px] font-black uppercase tracking-[0.08em] text-white/50">
-                Faixas do repertório
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-[13px] font-black uppercase tracking-[0.08em] text-white/50">
+                  Faixas do repertório
+                </div>
+                <div className="text-[12px] font-semibold text-white/40">
+                  {playlist.length} faixa(s)
+                </div>
               </div>
 
               <div className="mt-4 space-y-3">
@@ -137,7 +143,7 @@ export default function MembroPlayerModal({
                         onClick={() => onSelectTrack(index)}
                         className={`block w-full rounded-[22px] border px-4 py-4 text-left transition ${
                           active
-                            ? 'border-fuchsia-300/20 bg-fuchsia-400/10'
+                            ? 'border-fuchsia-300/20 bg-fuchsia-400/10 shadow-[0_12px_28px_rgba(217,70,239,0.12)]'
                             : 'border-white/10 bg-white/5 hover:bg-white/10'
                         }`}
                       >

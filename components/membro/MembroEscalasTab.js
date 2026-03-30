@@ -1,18 +1,11 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-
-function formatDateBR(value) {
-  if (!value) return '-';
-  const [y, m, d] = String(value).split('-');
-  if (!y || !m || !d) return value;
-  return `${d}/${m}/${y}`;
-}
-
-function formatTimeShort(value) {
-  if (!value) return '--:--';
-  return String(value).slice(0, 5);
-}
+import {
+  addHoursToTime,
+  formatDateBR,
+  formatTimeShort,
+} from '../../lib/membro/membro-invites';
 
 function getWeekdayLabel(dateValue) {
   if (!dateValue) return '';
@@ -30,10 +23,6 @@ function getWeekdayLabel(dateValue) {
   return weekdays[date.getDay()] || '';
 }
 
-function formatEventHeader(dateValue, timeValue) {
-  return `${formatDateBR(dateValue)} • ${getWeekdayLabel(dateValue)} • ${formatTimeShort(timeValue)}`;
-}
-
 function getDaysDiff(dateValue) {
   if (!dateValue) return null;
 
@@ -49,267 +38,348 @@ function getDaysDiff(dateValue) {
   return Math.round(diffMs / 86400000);
 }
 
-function getEventBadge(item) {
+function getCountdown(item) {
   const days = getDaysDiff(item?.eventDate);
 
   if (item?.isDone) {
     return {
       label: 'Concluído',
-      className:
-        'border-emerald-400/20 bg-emerald-500/12 text-emerald-300',
+      className: 'bg-emerald-500/12 text-emerald-300',
     };
   }
 
   if (days === 0) {
     return {
       label: 'HOJE! ⚡',
-      className: 'border-rose-400/20 bg-rose-500/14 text-rose-200',
+      className: 'bg-rose-500/14 text-rose-200',
+    };
+  }
+
+  if (days === 1) {
+    return {
+      label: 'Amanhã! ⚡',
+      className: 'bg-rose-500/14 text-rose-200',
     };
   }
 
   if (typeof days === 'number' && days < 0) {
     return {
       label: 'Já passou',
-      className:
-        'border-emerald-400/20 bg-emerald-500/12 text-emerald-300',
+      className: 'bg-emerald-500/12 text-emerald-300',
     };
   }
 
-  if (typeof days === 'number' && days === 1) {
+  if (typeof days === 'number' && days <= 7) {
     return {
-      label: 'Falta 1 dia',
-      className:
-        'border-violet-400/20 bg-violet-500/14 text-violet-200',
+      label: `Em ${days} dias`,
+      className: 'bg-amber-500/14 text-amber-200',
     };
   }
 
-  if (typeof days === 'number' && days > 1) {
+  if (typeof days === 'number') {
     return {
-      label: `Faltam ${days} dias`,
-      className:
-        'border-violet-400/20 bg-violet-500/14 text-violet-200',
+      label: `Em ${days} dias`,
+      className: 'bg-violet-500/14 text-violet-200',
     };
   }
 
   return {
     label: 'Agenda',
-    className: 'border-white/10 bg-white/10 text-white/75',
+    className: 'bg-white/10 text-white/70',
   };
 }
 
 function getFormationTone(value) {
-  const normalized = String(value || '').trim().toLowerCase();
+  const s = String(value || '').toLowerCase();
 
-  if (!normalized) return 'border-white/10 bg-white/8 text-white/70';
-  if (normalized.includes('solo')) return 'border-slate-400/20 bg-slate-500/12 text-slate-200';
-  if (normalized.includes('duo')) return 'border-sky-400/20 bg-sky-500/12 text-sky-200';
-  if (normalized.includes('trio')) return 'border-violet-400/20 bg-violet-500/12 text-violet-200';
-  if (normalized.includes('quarteto')) return 'border-amber-400/20 bg-amber-500/12 text-amber-200';
-  if (normalized.includes('quinteto')) return 'border-emerald-400/20 bg-emerald-500/12 text-emerald-200';
-  if (normalized.includes('sexteto')) return 'border-pink-400/20 bg-pink-500/12 text-pink-200';
+  if (s.includes('sexteto')) return 'bg-pink-500/12 text-pink-200 border-pink-400/20';
+  if (s.includes('quinteto')) return 'bg-emerald-500/12 text-emerald-200 border-emerald-400/20';
+  if (s.includes('quarteto')) return 'bg-amber-500/12 text-amber-200 border-amber-400/20';
+  if (s.includes('trio')) return 'bg-violet-500/12 text-violet-200 border-violet-400/20';
+  if (s.includes('duo')) return 'bg-sky-500/12 text-sky-200 border-sky-400/20';
+  if (s.includes('solo')) return 'bg-slate-500/12 text-slate-200 border-slate-400/20';
 
-  return 'border-indigo-400/20 bg-indigo-500/12 text-indigo-200';
+  return 'bg-violet-500/12 text-violet-200 border-violet-400/20';
 }
 
-function FormationBadge({ value }) {
-  if (!value) return null;
-
-  return (
-    <span
-      className={`inline-flex rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] ${getFormationTone(
-        value
-      )}`}
-    >
-      {value}
-    </span>
-  );
-}
-
-function MiniStatCard({ value, label, tone = 'default' }) {
+function MonthChip({ value, label, tone = 'default' }) {
   const tones = {
-    default: 'border-white/10 bg-white/5 text-white',
-    emerald: 'border-emerald-400/15 bg-emerald-500/10 text-emerald-200',
-    amber: 'border-amber-400/15 bg-amber-500/10 text-amber-200',
+    default: 'text-white',
+    emerald: 'text-emerald-300',
+    amber: 'text-amber-300',
   };
 
   return (
-    <div
-      className={`rounded-[18px] border px-4 py-3 shadow-[0_10px_24px_rgba(0,0,0,0.18)] ${tones[tone] || tones.default}`}
-    >
-      <div className="text-[11px] font-black uppercase tracking-[0.1em] text-white/55">
-        {label}
-      </div>
-      <div className="mt-1 text-[28px] font-black tracking-[-0.04em]">
+    <div className="flex items-center gap-2 whitespace-nowrap rounded-[14px] border border-white/10 bg-[#1e1535] px-4 py-3 text-[13px] font-extrabold shadow-[0_4px_20px_rgba(0,0,0,.22)]">
+      <span className={`text-[18px] font-black ${tones[tone] || tones.default}`}>
         {value}
-      </div>
+      </span>
+      <span className="text-white/82">{label}</span>
     </div>
   );
 }
 
-function MonthNavigator({ label, onPrev, onNext }) {
+function MonthPicker({
+  open,
+  currentMonth,
+  onClose,
+  onApplyMonth,
+  onApplyDate,
+}) {
+  const [tempYear, setTempYear] = useState(currentMonth.getFullYear());
+  const [tempMonth, setTempMonth] = useState(currentMonth.getMonth() + 1);
+  const [tempDate, setTempDate] = useState('');
+
+  const months = [
+    'Janeiro',
+    'Fevereiro',
+    'Março',
+    'Abril',
+    'Maio',
+    'Junho',
+    'Julho',
+    'Agosto',
+    'Setembro',
+    'Outubro',
+    'Novembro',
+    'Dezembro',
+  ];
+
+  if (!open) return null;
+
+  function handleBackdropClick(e) {
+    if (e.target === e.currentTarget) onClose?.();
+  }
+
   return (
-    <div className="grid grid-cols-[58px_1fr_58px] items-center gap-3">
-      <button
-        type="button"
-        onClick={onPrev}
-        className="flex h-[58px] w-[58px] items-center justify-center rounded-[18px] border border-white/10 bg-white/5 text-[24px] font-black text-white shadow-[0_10px_24px_rgba(0,0,0,0.16)] active:scale-[0.98]"
-      >
-        ‹
-      </button>
+    <div
+      className="fixed inset-0 z-[155] bg-black/70 backdrop-blur-[4px]"
+      onClick={handleBackdropClick}
+    >
+      <div className="flex h-[100dvh] items-end justify-center overflow-hidden px-0 md:items-center md:px-6">
+        <div
+          className="flex h-[78dvh] w-full max-w-xl flex-col overflow-hidden rounded-t-[28px] border border-white/10 bg-[#1a1230] text-white shadow-[0_24px_80px_rgba(0,0,0,0.45)] md:h-auto md:max-h-[88vh] md:rounded-[28px]"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="shrink-0 border-b border-white/10 px-5 py-4">
+            <div className="mx-auto mb-3 h-1.5 w-14 rounded-full bg-white/15 md:hidden" />
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <div className="text-[12px] font-black uppercase tracking-[0.12em] text-violet-200/70">
+                  Navegação da agenda
+                </div>
+                <div className="mt-1 text-[20px] font-black">Escolher mês ou data</div>
+              </div>
 
-      <div className="rounded-[24px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.04),rgba(139,92,246,0.10))] px-4 py-4 text-center shadow-[0_10px_26px_rgba(0,0,0,0.18)]">
-        <div className="text-[11px] font-black uppercase tracking-[0.14em] text-white/45">
-          Agenda mensal
-        </div>
-        <div className="mt-1 text-[24px] font-black tracking-[-0.04em] text-white sm:text-[28px]">
-          {label}
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-[14px] border border-white/10 bg-[#241b3d] px-4 py-2 text-[13px] font-extrabold"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
+            <div className="space-y-5">
+              <div className="rounded-[20px] border border-white/10 bg-[#1e1535] p-4">
+                <div className="text-[11px] font-black uppercase tracking-[0.1em] text-white/45">
+                  Seleção rápida
+                </div>
+
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  <label className="space-y-2">
+                    <span className="text-[12px] font-bold text-white/65">Ano</span>
+                    <input
+                      type="number"
+                      value={tempYear}
+                      onChange={(e) => setTempYear(Number(e.target.value || new Date().getFullYear()))}
+                      className="w-full rounded-[14px] border border-white/10 bg-[#241b3d] px-4 py-3 text-[15px] font-extrabold text-white outline-none"
+                    />
+                  </label>
+
+                  <label className="space-y-2">
+                    <span className="text-[12px] font-bold text-white/65">Mês</span>
+                    <select
+                      value={tempMonth}
+                      onChange={(e) => setTempMonth(Number(e.target.value))}
+                      className="w-full rounded-[14px] border border-white/10 bg-[#241b3d] px-4 py-3 text-[15px] font-extrabold text-white outline-none"
+                    >
+                      {months.map((month, index) => (
+                        <option key={month} value={index + 1}>
+                          {month}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    onApplyMonth?.(tempYear, tempMonth);
+                    onClose?.();
+                  }}
+                  className="mt-4 w-full rounded-[16px] bg-gradient-to-r from-violet-500 to-fuchsia-500 px-5 py-4 text-[15px] font-black text-white"
+                >
+                  Ir para mês selecionado
+                </button>
+              </div>
+
+              <div className="rounded-[20px] border border-white/10 bg-[#1e1535] p-4">
+                <div className="text-[11px] font-black uppercase tracking-[0.1em] text-white/45">
+                  Data específica
+                </div>
+
+                <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto]">
+                  <input
+                    type="date"
+                    value={tempDate}
+                    onChange={(e) => setTempDate(e.target.value)}
+                    className="rounded-[14px] border border-white/10 bg-[#241b3d] px-4 py-3 text-[15px] font-extrabold text-white outline-none"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!tempDate) return;
+                      onApplyDate?.(tempDate);
+                      onClose?.();
+                    }}
+                    className="rounded-[16px] border border-white/10 bg-white/10 px-5 py-4 text-[14px] font-black text-white"
+                  >
+                    Ir para data
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
-
-      <button
-        type="button"
-        onClick={onNext}
-        className="flex h-[58px] w-[58px] items-center justify-center rounded-[18px] border border-white/10 bg-white/5 text-[24px] font-black text-white shadow-[0_10px_24px_rgba(0,0,0,0.16)] active:scale-[0.98]"
-      >
-        ›
-      </button>
     </div>
   );
 }
 
-function SectionDivider({ label }) {
-  return (
-    <div className="flex items-center gap-3 pt-1">
-      <div className="h-px flex-1 bg-white/10" />
-      <div className="text-[12px] font-black uppercase tracking-[0.16em] text-white/55">
-        {label}
-      </div>
-      <div className="h-px flex-1 bg-white/10" />
-    </div>
-  );
-}
-
-function ActionButton({ icon, label, onClick, tone = 'default' }) {
+function EventActionButton({ children, onClick, tone = 'default' }) {
   const tones = {
-    default: 'border-white/10 bg-white/5 text-white active:scale-[0.985]',
-    success:
-      'border-emerald-400/25 bg-emerald-500/10 text-emerald-200 active:scale-[0.985]',
+    default: 'border-[#352a55] bg-[#241b3d] text-[#f1eeff]',
+    success: 'border-emerald-400/25 bg-emerald-500/10 text-emerald-200',
   };
 
   return (
     <button
       type="button"
-      onClick={onClick}
-      className={`flex min-h-[50px] items-center justify-center gap-2 rounded-[16px] border px-3 py-3 text-[13px] font-black transition ${tones[tone] || tones.default}`}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick?.();
+      }}
+      className={`flex min-h-[44px] flex-1 items-center justify-center gap-1 rounded-[12px] border px-3 py-2 text-[12px] font-extrabold transition active:scale-[0.98] ${tones[tone] || tones.default}`}
     >
-      <span className="shrink-0 text-[15px] leading-none">{icon}</span>
-      <span className="leading-none">{label}</span>
+      {children}
     </button>
   );
 }
+
 function EventCard({
   item,
+  onOpenScale,
   onOpenRepertoire,
   onOpenMaps,
-  onOpenScale,
   onMarkDone,
 }) {
-  const badge = getEventBadge(item);
-  const hasSound = !!item?.hasSound;
-  const hasReceptivo =
-    item?.receptionHours !== '' &&
-    item?.receptionHours !== null &&
-    item?.receptionHours !== undefined &&
-    String(item?.receptionHours) !== '0';
+  const countdown = getCountdown(item);
+  const arrivalTime = addHoursToTime(item?.eventTime, -2);
 
   return (
     <article
-      className={`relative overflow-hidden rounded-[26px] border p-4 text-white shadow-[0_16px_34px_rgba(0,0,0,0.18)] ${
+      className={`relative overflow-hidden rounded-[16px] border p-[18px] text-[#f1eeff] shadow-[0_4px_20px_rgba(0,0,0,.3)] transition active:scale-[0.995] ${
         item?.isDone
-          ? 'border-emerald-400/20 bg-[linear-gradient(135deg,rgba(16,185,129,0.07),rgba(255,255,255,0.03))]'
-          : 'border-violet-400/20 bg-[linear-gradient(135deg,rgba(99,65,190,0.18),rgba(255,255,255,0.03))]'
+          ? 'border-emerald-400/25 bg-[linear-gradient(135deg,rgba(34,197,94,.06),#1e1535)]'
+          : 'border-[#352a55] bg-[#1e1535]'
       }`}
     >
       <div
         className={`absolute left-0 top-0 h-full w-[4px] ${
-          item?.isDone ? 'bg-emerald-400' : 'bg-violet-400'
+          item?.isDone ? 'bg-emerald-500' : 'bg-violet-500'
         }`}
       />
 
-      <div className="pl-1">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="text-[14px] font-black tracking-[-0.02em] text-violet-200">
-              {formatEventHeader(item?.eventDate, item?.eventTime)}
-            </div>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-[13px] font-black text-violet-300">
+            📅 {formatDateBR(item?.eventDate)} • {getWeekdayLabel(item?.eventDate)} • {formatTimeShort(item?.eventTime)}
           </div>
-
-          <span
-            className={`inline-flex shrink-0 rounded-full border px-3 py-1.5 text-[12px] font-black ${badge.className}`}
-          >
-            {badge.label}
-          </span>
         </div>
 
-       <h3 className="mt-2 line-clamp-1 text-[22px] font-black tracking-[-0.05em] text-white">
-          {item?.clientName || 'Evento'}
-        </h3>
-
-        <div className="mt-2 space-y-1 text-[14px] leading-5 text-white/74">
-          {item?.locationName ? (
-            <div className="flex items-start gap-2">
-              <span className="mt-[1px] shrink-0">📍</span>
-              <span className="line-clamp-1">{item.locationName}</span>
-            </div>
-          ) : null}
-
-          {item?.instruments ? (
-            <div className="flex items-start gap-2">
-              <span className="mt-[1px] shrink-0">🎵</span>
-              <span className="line-clamp-1">{item.instruments}</span>
-            </div>
-          ) : null}
-
-          {(hasSound || hasReceptivo) && (
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-0.5 text-white/66">
-              {hasSound ? <span>🔊 Com sonorização</span> : null}
-              {hasReceptivo ? (
-                <span>⏱ Receptivo: {item.receptionHours}h</span>
-              ) : null}
-            </div>
-          )}
+        <div
+          className={`rounded-full px-2 py-1 text-[11px] font-bold ${countdown.className}`}
+        >
+          {countdown.label}
         </div>
+      </div>
 
-        <div className="mt-2">
-          <FormationBadge value={item?.formation} />
+      <div className="mt-3 text-[17px] font-black">
+        {item?.isDone ? '✅ ' : ''}
+        {item?.clientName || 'Evento'}
+      </div>
+
+      <div className="mt-1 flex items-start gap-2 text-[13px] font-semibold text-[#a89ec8]">
+        <span className="shrink-0">📍</span>
+        <span>{item?.locationName || '-'}</span>
+      </div>
+
+      <div className="mt-1 flex items-start gap-2 text-[13px] font-semibold text-[#a89ec8]">
+        <span className="shrink-0">🎵</span>
+        <span>{item?.instruments || item?.formation || '-'}</span>
+      </div>
+
+      <div className="mt-1 flex items-start gap-2 text-[13px] font-semibold text-[#a89ec8]">
+        <span className="shrink-0">🕑</span>
+        <span>Chegada às {arrivalTime}</span>
+      </div>
+
+      {item?.receptionHours ? (
+        <div className="mt-1 flex items-start gap-2 text-[13px] font-semibold text-[#a89ec8]">
+          <span className="shrink-0">🕓</span>
+          <span>Receptivo: {item.receptionHours}h</span>
         </div>
+      ) : null}
 
-        <div className="mt-4 grid grid-cols-2 gap-2">
-  <ActionButton
-    icon="👥"
-    label="Escala"
-    onClick={() => onOpenScale(item)}
-  />
+      {item?.hasSound ? (
+        <div className="mt-1 flex items-start gap-2 text-[13px] font-semibold text-[#a89ec8]">
+          <span className="shrink-0">🔊</span>
+          <span>Com sonorização</span>
+        </div>
+      ) : null}
 
-  <ActionButton
-    icon="🎼"
-    label="Repertório"
-    onClick={() => onOpenRepertoire(item)}
-  />
+      <span
+        className={`mt-3 inline-flex items-center gap-1 rounded-full border px-3 py-1 text-[11px] font-extrabold ${getFormationTone(
+          item?.formation
+        )}`}
+      >
+        🎼 {item?.formation || '-'}
+      </span>
 
-  <ActionButton
-    icon="🗺️"
-    label="Maps"
-    onClick={() => onOpenMaps(item)}
-  />
+      <div className="mt-[14px] flex flex-wrap gap-2">
+        <EventActionButton onClick={() => onOpenScale(item)}>
+          👥 Escala
+        </EventActionButton>
 
-  <ActionButton
-    icon={item?.isDone ? '✅' : '⬜'}
-    label={item?.isDone ? 'Concluído' : 'Marcar'}
-    onClick={() => onMarkDone(item)}
-    tone={item?.isDone ? 'success' : 'default'}
-  />
-</div>
+        <EventActionButton onClick={() => onOpenRepertoire(item)}>
+          🎼 Repertório
+        </EventActionButton>
+
+        <EventActionButton onClick={() => onOpenMaps(item)}>
+          🗺 Maps
+        </EventActionButton>
+
+        <EventActionButton
+          onClick={() => onMarkDone(item)}
+          tone={item?.isDone ? 'success' : 'default'}
+        >
+          {item?.isDone ? '✅ Concluído' : '☐ Marcar'}
+        </EventActionButton>
       </div>
     </article>
   );
@@ -354,20 +424,21 @@ export default function MembroEscalasTab({
   onOpenScale,
   onMarkDone,
 }) {
-  const initialMonthRef = useMemo(() => {
-    const futureOrCurrent = sortByEventDateAsc(confirmados).find((item) => {
+  const baseMonth = useMemo(() => {
+    const nearest = sortByEventDateAsc(confirmados).find((item) => {
       const days = getDaysDiff(item?.eventDate);
       return typeof days === 'number' && days >= -31;
     });
 
-    const base = futureOrCurrent?.eventDate
-      ? new Date(`${futureOrCurrent.eventDate}T12:00:00`)
+    const base = nearest?.eventDate
+      ? new Date(`${nearest.eventDate}T12:00:00`)
       : new Date();
 
     return new Date(base.getFullYear(), base.getMonth(), 1);
   }, [confirmados]);
 
-  const [currentMonth, setCurrentMonth] = useState(initialMonthRef);
+  const [currentMonth, setCurrentMonth] = useState(baseMonth);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const monthItems = useMemo(() => {
     return sortByEventDateAsc(confirmados).filter((item) =>
@@ -375,13 +446,15 @@ export default function MembroEscalasTab({
     );
   }, [confirmados, currentMonth]);
 
-  const pendentesDoMes = useMemo(() => {
-    return monthItems.filter((item) => !item?.isDone);
-  }, [monthItems]);
+  const pendentesDoMes = useMemo(
+    () => monthItems.filter((item) => !item?.isDone),
+    [monthItems]
+  );
 
-  const concluidosDoMes = useMemo(() => {
-    return monthItems.filter((item) => item?.isDone);
-  }, [monthItems]);
+  const concluidosDoMes = useMemo(
+    () => monthItems.filter((item) => item?.isDone),
+    [monthItems]
+  );
 
   const monthLabel = useMemo(() => {
     const label = getMonthLabel(currentMonth);
@@ -396,85 +469,118 @@ export default function MembroEscalasTab({
     setCurrentMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
   }
 
+  function applyMonth(year, month) {
+    setCurrentMonth(new Date(year, month - 1, 1));
+  }
+
+  function applyDate(dateValue) {
+    const date = new Date(`${dateValue}T12:00:00`);
+    if (Number.isNaN(date.getTime())) return;
+    setCurrentMonth(new Date(date.getFullYear(), date.getMonth(), 1));
+  }
+
   return (
     <section className="space-y-4">
-      <div className="rounded-[28px] border border-white/10 bg-[linear-gradient(135deg,rgba(109,40,217,0.16),rgba(255,255,255,0.03))] p-4 shadow-[0_18px_40px_rgba(0,0,0,0.20)]">
-        <div className="flex items-center gap-3">
-          <div className="flex h-14 w-14 items-center justify-center rounded-full border border-white/10 bg-black/30 text-center shadow-[0_8px_20px_rgba(0,0,0,0.22)]">
-            <span className="font-serif text-[22px] italic text-white">H</span>
+      <div className="rounded-[28px] border border-white/10 bg-[linear-gradient(135deg,#0f0a1e_0%,#1a1040_50%,#2d1b69_100%)] px-5 py-4 shadow-[0_18px_40px_rgba(0,0,0,0.20)]">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-black">
+              <span className="font-serif text-[13px] italic text-white">H</span>
+            </div>
+
+            <div className="min-w-0">
+              <div className="text-[18px] font-black text-white">Harmonics</div>
+              <div className="text-[11px] font-semibold text-[#a89ec8]">
+                {member?.name || 'Membro'} • Member
+              </div>
+            </div>
           </div>
 
-          <div className="min-w-0 flex-1">
-            <div className="line-clamp-1 text-[16px] font-black tracking-[-0.03em] text-white md:text-[18px]">
-              Harmonics
-            </div>
-            <div className="line-clamp-1 text-[14px] font-semibold text-white/60">
-              {member?.name || 'Membro'} • {member?.tag || 'Member'}
-            </div>
-          </div>
-
-          <div className="inline-flex rounded-full border border-violet-300/15 bg-violet-400/15 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.12em] text-violet-100">
-            Member
-          </div>
+          <span className="rounded-full bg-gradient-to-r from-violet-600 to-violet-300 px-3 py-1 text-[10px] font-extrabold tracking-[0.05em] text-white">
+            MEMBER
+          </span>
         </div>
       </div>
 
-      <MonthNavigator
-        label={monthLabel}
-        onPrev={goPrevMonth}
-        onNext={goNextMonth}
-      />
+      <div className="grid grid-cols-[56px_1fr_56px] items-center gap-4 px-1">
+        <button
+          type="button"
+          onClick={goPrevMonth}
+          className="flex h-14 w-14 items-center justify-center rounded-[12px] border border-[#352a55] bg-[#1e1535] text-[20px] font-extrabold text-white active:scale-[0.95]"
+        >
+          ◀
+        </button>
 
-      <div className="grid grid-cols-3 gap-3">
-        <MiniStatCard value={monthItems.length} label="eventos" tone="default" />
-        <MiniStatCard value={concluidosDoMes.length} label="concluídos" tone="emerald" />
-        <MiniStatCard value={pendentesDoMes.length} label="pendentes" tone="amber" />
+        <button
+          type="button"
+          onClick={() => setPickerOpen(true)}
+          className="w-full rounded-[12px] border border-[#352a55] bg-[#1e1535] px-4 py-4 text-center text-[20px] font-black text-white shadow-[0_4px_20px_rgba(0,0,0,.24)]"
+        >
+          {monthLabel}
+        </button>
+
+        <button
+          type="button"
+          onClick={goNextMonth}
+          className="flex h-14 w-14 items-center justify-center rounded-[12px] border border-[#352a55] bg-[#1e1535] text-[20px] font-extrabold text-white active:scale-[0.95]"
+        >
+          ▶
+        </button>
+      </div>
+
+      <div className="flex gap-2 overflow-x-auto px-1 pb-1">
+        <MonthChip value={monthItems.length} label="eventos" />
+        <MonthChip value={concluidosDoMes.length} label="concluídos" tone="emerald" />
+        <MonthChip value={pendentesDoMes.length} label="pendentes" tone="amber" />
       </div>
 
       {monthItems.length === 0 ? (
-        <div className="rounded-[26px] border border-dashed border-white/10 bg-white/5 px-5 py-8 text-center text-white">
-          <div className="text-[18px] font-black">
-            Nenhuma escala neste mês
-          </div>
-          <p className="mt-2 text-[15px] leading-7 text-white/60">
-            Use as setas para navegar entre os meses da sua agenda.
-          </p>
+        <div className="rounded-[16px] border border-dashed border-white/10 bg-white/5 px-5 py-10 text-center text-[15px] font-bold text-white/60">
+          Nenhuma escala em {monthLabel}
         </div>
       ) : (
-        <div className="space-y-4">
-          {pendentesDoMes.length > 0 ? (
-            <div className="space-y-3">
-              {pendentesDoMes.map((item) => (
-                <EventCard
-                  key={item.id}
-                  item={item}
-                  onOpenRepertoire={onOpenRepertoire}
-                  onOpenMaps={onOpenMaps}
-                  onOpenScale={onOpenScale}
-                  onMarkDone={onMarkDone}
-                />
-              ))}
+        <div className="space-y-3">
+          {pendentesDoMes.map((item) => (
+            <EventCard
+              key={item.id}
+              item={item}
+              onOpenScale={onOpenScale}
+              onOpenRepertoire={onOpenRepertoire}
+              onOpenMaps={onOpenMaps}
+              onMarkDone={onMarkDone}
+            />
+          ))}
+
+          {pendentesDoMes.length > 0 && concluidosDoMes.length > 0 ? (
+            <div className="flex items-center gap-3 px-1 pt-2">
+              <div className="h-px flex-1 bg-white/10" />
+              <div className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-white/40">
+                ✅ Concluídos
+              </div>
+              <div className="h-px flex-1 bg-white/10" />
             </div>
           ) : null}
 
-          {concluidosDoMes.length > 0 ? (
-            <div className="space-y-3 pt-2">
-              <SectionDivider label="Concluídos" />
-
-              {concluidosDoMes.map((item) => (
-                <EventCard
-                  key={item.id}
-                  item={item}
-                  onOpenRepertoire={onOpenRepertoire}
-                  onOpenMaps={onOpenMaps}
-                  onOpenScale={onOpenScale}
-                  onMarkDone={onMarkDone}
-                />
-              ))}
-            </div>
-          ) : null}
+          {concluidosDoMes.map((item) => (
+            <EventCard
+              key={item.id}
+              item={item}
+              onOpenScale={onOpenScale}
+              onOpenRepertoire={onOpenRepertoire}
+              onOpenMaps={onOpenMaps}
+              onMarkDone={onMarkDone}
+            />
+          ))}
         </div>
       )}
+
+      <MonthPicker
+        open={pickerOpen}
+        currentMonth={currentMonth}
+        onClose={() => setPickerOpen(false)}
+        onApplyMonth={applyMonth}
+        onApplyDate={applyDate}
+      />
     </section>
   );
 }

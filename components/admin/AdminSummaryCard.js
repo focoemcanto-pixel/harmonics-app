@@ -40,7 +40,7 @@ export default function AdminSummaryCard({
     <div
       className={`relative overflow-hidden border shadow-[0_10px_28px_rgba(17,24,39,0.05)] ${toneClasses} ${sizeClasses.wrapper}`}
     >
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.55),transparent_36%)] pointer-events-none" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.55),transparent_36%)]" />
 
       <div className="relative z-10">
         <div

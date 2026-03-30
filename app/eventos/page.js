@@ -138,6 +138,40 @@ function getInitialForm() {
     status: 'Rascunho',
   };
 }
+function FeedbackBanner({ feedback, onClose }) {
+  if (!feedback) return null;
+
+  const tones = {
+    success: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+    error: 'border-red-200 bg-red-50 text-red-800',
+    info: 'border-sky-200 bg-sky-50 text-sky-800',
+  };
+
+  return (
+    <div
+      className={`rounded-[22px] border px-4 py-4 shadow-[0_8px_20px_rgba(17,24,39,0.04)] ${tones[feedback.type] || tones.info}`}
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className="text-[12px] font-black uppercase tracking-[0.08em] opacity-80">
+            {feedback.title || 'Atualização'}
+          </div>
+          <div className="mt-2 text-[14px] font-semibold leading-6">
+            {feedback.message}
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-[14px] bg-white/80 px-3 py-2 text-[12px] font-black text-[#0f172a]"
+        >
+          Fechar
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export default function EventosPage() {
   const [eventos, setEventos] = useState([]);
@@ -154,6 +188,7 @@ export default function EventosPage() {
   const [ultimoPagamentoAtualizadoId, setUltimoPagamentoAtualizadoId] = useState(null);
   const [contratoAbertoId, setContratoAbertoId] = useState(null);
   const [gerandoContratoId, setGerandoContratoId] = useState(null);
+  const [feedback, setFeedback] = useState(null);
 
   const [viewMode, setViewMode] = useState('Mês atual');
   const [monthFilter, setMonthFilter] = useState('all');
@@ -361,33 +396,82 @@ export default function EventosPage() {
   }
 
   async function abrirContratoRapido(evento) {
-    try {
-      const contractInfo = contractsByEventId.get(String(evento.id));
+  try {
+    const contractInfo = contractsByEventId.get(String(evento.id));
 
-      if (contractInfo?.link) {
-        window.open(contractInfo.link, '_blank', 'noopener,noreferrer');
-        return;
-      }
-
-      setGerandoContratoId(evento.id);
-
-      const precontract = await generatePrecontractFromEvent(evento);
-
-      if (!precontract?.public_token) {
-        throw new Error('Token não gerado');
-      }
-
-      await carregarPrecontracts();
-      await carregarContracts();
-
-      window.open(`/contrato/${precontract.public_token}`, '_blank', 'noopener,noreferrer');
-    } catch (error) {
-      console.error('Erro ao gerar contrato:', error);
-      alert('Erro ao gerar contrato do evento.');
-    } finally {
-      setGerandoContratoId(null);
+    if (contractInfo?.link) {
+      window.open(contractInfo.link, '_blank', 'noopener,noreferrer');
+      setFeedback({
+        type: 'info',
+        title: 'Contrato disponível',
+        message: `O contrato de ${evento.client_name || 'evento'} foi aberto em uma nova aba.`,
+      });
+      return;
     }
+
+    setGerandoContratoId(evento.id);
+
+    const precontract = await generatePrecontractFromEvent(evento);
+
+    if (!precontract?.public_token) {
+      throw new Error('Token não gerado');
+    }
+
+    await carregarPrecontracts();
+    await carregarContracts();
+
+    window.open(`/contrato/${precontract.public_token}`, '_blank', 'noopener,noreferrer');
+
+    setFeedback({
+      type: 'success',
+      title: 'Contrato gerado',
+      message: `O evento ${evento.client_name || ''} entrou no fluxo contratual e o link foi aberto em uma nova aba.`,
+    });
+  } catch (error) {
+    console.error('Erro ao gerar contrato:', error);
+    setFeedback({
+      type: 'error',
+      title: 'Erro ao gerar contrato',
+      message: 'Não foi possível criar o fluxo contratual deste evento agora.',
+    });
+  } finally {
+    setGerandoContratoId(null);
   }
+}
+  async function copiarLinkContrato(evento) {
+  try {
+    const contractInfo = contractsByEventId.get(String(evento.id));
+
+    if (!contractInfo?.link) {
+      setFeedback({
+        type: 'info',
+        title: 'Sem link disponível',
+        message: 'Este evento ainda não possui link de contrato para copiar.',
+      });
+      return;
+    }
+
+    const fullLink =
+      typeof window === 'undefined'
+        ? contractInfo.link
+        : `${window.location.origin}${contractInfo.link}`;
+
+    await navigator.clipboard.writeText(fullLink);
+
+    setFeedback({
+      type: 'success',
+      title: 'Link copiado',
+      message: `O link do contrato de ${evento.client_name || 'evento'} foi copiado com sucesso.`,
+    });
+  } catch (error) {
+    console.error('Erro ao copiar link do contrato:', error);
+    setFeedback({
+      type: 'error',
+      title: 'Erro ao copiar link',
+      message: 'Não foi possível copiar o link do contrato agora.',
+    });
+  }
+}
 
   function iniciarEdicao(evento) {
     setEditandoId(evento.id);
@@ -1002,6 +1086,12 @@ gerandoContrato={gerandoContratoId === ev.id}
       activeItem="eventos"
     >
       <div className="space-y-5">
+        {feedback ? (
+  <FeedbackBanner
+    feedback={feedback}
+    onClose={() => setFeedback(null)}
+  />
+) : null}
         <AdminPageHero
           badge="Harmonics Admin"
           title="Eventos"

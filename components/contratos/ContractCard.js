@@ -4,14 +4,41 @@ import Link from 'next/link';
 import AdminPill from '../admin/AdminPill';
 import { formatDateBR } from '../../lib/contratos/contratos-format';
 
+function buildContractTone(statusTone) {
+  if (statusTone === 'emerald') {
+    return 'border-emerald-200 bg-emerald-50';
+  }
+  if (statusTone === 'violet') {
+    return 'border-violet-200 bg-violet-50';
+  }
+  if (statusTone === 'blue') {
+    return 'border-sky-200 bg-sky-50';
+  }
+  if (statusTone === 'amber') {
+    return 'border-amber-200 bg-amber-50';
+  }
+  return 'border-slate-200 bg-slate-50';
+}
+
+function truncateToken(token) {
+  if (!token) return '-';
+  if (token.length <= 18) return token;
+  return `${token.slice(0, 8)}...${token.slice(-6)}`;
+}
+
 export default function ContractCard({ item, onCopyLink }) {
+  const cardTone = buildContractTone(item.statusTone);
+
   return (
-    <div className="rounded-[24px] border border-[#dbe3ef] bg-white p-5 shadow-[0_8px_22px_rgba(17,24,39,0.04)]">
+    <div
+      className={`rounded-[26px] border p-5 shadow-[0_8px_22px_rgba(17,24,39,0.04)] ${cardTone}`}
+    >
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0">
-          <div className="text-[20px] font-black text-[#0f172a]">
+          <div className="text-[22px] font-black tracking-[-0.03em] text-[#0f172a]">
             {item.clienteNome}
           </div>
+
           <div className="mt-1 text-[14px] font-semibold text-[#64748b]">
             {item.eventoTitulo}
           </div>
@@ -21,7 +48,9 @@ export default function ContractCard({ item, onCopyLink }) {
           <AdminPill tone={item.statusTone}>{item.statusLabel}</AdminPill>
 
           {item.assinadoEm ? (
-            <AdminPill tone="emerald">Assinado em {formatDateBR(item.assinadoEm)}</AdminPill>
+            <AdminPill tone="emerald">
+              Assinado em {formatDateBR(item.assinadoEm)}
+            </AdminPill>
           ) : null}
 
           {!item.assinadoEm && item.visualizado ? (
@@ -34,50 +63,81 @@ export default function ContractCard({ item, onCopyLink }) {
         </div>
       </div>
 
-      <div className="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-[1.45fr_1fr]">
-        <div className="space-y-2">
-          <p className="text-[14px] text-slate-700">
-            <strong>Evento:</strong> {item.eventoTipo || 'Evento'} &nbsp;•&nbsp;
-            <strong>Data:</strong> {formatDateBR(item.dataEvento)} &nbsp;•&nbsp;
-            <strong>Local:</strong> {item.localEvento || '-'}
-          </p>
+      <div className="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-[1.35fr_1fr]">
+        <div className="rounded-[22px] border border-white/70 bg-white/80 p-4 backdrop-blur">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div>
+              <div className="text-[11px] font-black uppercase tracking-[0.08em] text-[#64748b]">
+                Evento
+              </div>
+              <div className="mt-1 text-[14px] font-semibold text-[#0f172a]">
+                {item.eventoTipo || 'Evento'}
+              </div>
+            </div>
 
-          <p className="text-[14px] text-slate-700">
-            <strong>WhatsApp:</strong> {item.whatsapp || '-'}
-          </p>
+            <div>
+              <div className="text-[11px] font-black uppercase tracking-[0.08em] text-[#64748b]">
+                Data
+              </div>
+              <div className="mt-1 text-[14px] font-semibold text-[#0f172a]">
+                {formatDateBR(item.dataEvento)}
+              </div>
+            </div>
 
-          <p className="text-[14px] text-slate-500">
-            <strong>Token:</strong> {item.token}
-          </p>
+            <div>
+              <div className="text-[11px] font-black uppercase tracking-[0.08em] text-[#64748b]">
+                Local
+              </div>
+              <div className="mt-1 text-[14px] font-semibold text-[#0f172a]">
+                {item.localEvento || '-'}
+              </div>
+            </div>
 
-          {item.observacoes ? (
-            <p className="text-[14px] text-slate-500">{item.observacoes}</p>
-          ) : null}
+            <div>
+              <div className="text-[11px] font-black uppercase tracking-[0.08em] text-[#64748b]">
+                WhatsApp
+              </div>
+              <div className="mt-1 text-[14px] font-semibold text-[#0f172a]">
+                {item.whatsapp || '-'}
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
-          <p className="text-sm text-slate-500">
-            <strong>Link do contrato:</strong>
-          </p>
-
-          <div className="mt-2 break-all text-[13px] font-semibold text-[#475569]">
-            {item.linkContrato}
+        <div className="rounded-[22px] border border-white/70 bg-white/80 p-4 backdrop-blur">
+          <div>
+            <div className="text-[11px] font-black uppercase tracking-[0.08em] text-[#64748b]">
+              Token
+            </div>
+            <div className="mt-1 text-[14px] font-semibold text-[#0f172a]">
+              {truncateToken(item.token)}
+            </div>
           </div>
 
-          <p className="mt-4 text-sm text-slate-500">
-            <strong>Enviado em:</strong> {formatDateBR(item.enviadoEm)}
-          </p>
+          <div className="mt-4">
+            <div className="text-[11px] font-black uppercase tracking-[0.08em] text-[#64748b]">
+              Enviado em
+            </div>
+            <div className="mt-1 text-[14px] font-semibold text-[#0f172a]">
+              {formatDateBR(item.enviadoEm)}
+            </div>
+          </div>
 
-          <p className="mt-1 text-sm text-slate-500">
-            <strong>Assinado em:</strong> {formatDateBR(item.assinadoEm)}
-          </p>
+          <div className="mt-4">
+            <div className="text-[11px] font-black uppercase tracking-[0.08em] text-[#64748b]">
+              Assinado em
+            </div>
+            <div className="mt-1 text-[14px] font-semibold text-[#0f172a]">
+              {formatDateBR(item.assinadoEm)}
+            </div>
+          </div>
         </div>
       </div>
 
       <div className="mt-5 flex flex-wrap gap-3">
         <Link
           href={item.linkContrato}
-          className="rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3 text-[14px] font-black text-[#0f172a]"
+          className="rounded-[16px] bg-[#0f172a] px-4 py-3 text-[14px] font-black text-white shadow-[0_10px_24px_rgba(15,23,42,0.18)]"
         >
           Abrir contrato
         </Link>

@@ -59,6 +59,7 @@ export default function DashboardFinanceBreakdown({ events = [], summary }) {
       value: recebido,
       tone: 'bg-emerald-500',
       text: 'text-emerald-700',
+      border: 'border-emerald-100',
     },
     {
       key: 'emAberto',
@@ -66,6 +67,7 @@ export default function DashboardFinanceBreakdown({ events = [], summary }) {
       value: emAberto,
       tone: 'bg-amber-500',
       text: 'text-amber-800',
+      border: 'border-amber-100',
     },
     {
       key: 'custos',
@@ -73,6 +75,7 @@ export default function DashboardFinanceBreakdown({ events = [], summary }) {
       value: custos,
       tone: 'bg-slate-500',
       text: 'text-slate-700',
+      border: 'border-slate-200',
     },
     {
       key: 'lucro',
@@ -80,27 +83,28 @@ export default function DashboardFinanceBreakdown({ events = [], summary }) {
       value: lucro,
       tone: 'bg-violet-500',
       text: 'text-violet-700',
+      border: 'border-violet-100',
     },
   ];
 
   const maxValue = Math.max(1, ...rows.map((item) => item.value));
 
   return (
-    <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-6 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
+    <section className="rounded-[30px] border border-[#dbe3ef] bg-[linear-gradient(180deg,#ffffff_0%,#fcfdff_100%)] p-6 shadow-[0_16px_40px_rgba(17,24,39,0.06)]">
       <AdminSectionTitle
         title="Composição financeira"
-        subtitle="Resumo visual do mês atual, destacando entrada, saldo, custos e lucro."
+        subtitle="Resumo do mês atual com foco em entrada, pendência, custo e resultado final."
       />
 
-      <div className="mt-4 rounded-[22px] border border-[#eef2f7] bg-[#fcfdff] p-4">
-        <div className="rounded-[20px] bg-[#f8fafc] px-4 py-4">
+      <div className="mt-4 rounded-[24px] border border-[#eef2f7] bg-[linear-gradient(180deg,#fcfdff_0%,#f8fafc_100%)] p-4">
+        <div className="rounded-[20px] border border-[#eef2f7] bg-white/90 px-4 py-4 shadow-[0_8px_20px_rgba(17,24,39,0.03)]">
           <div className="text-[11px] font-black uppercase tracking-[0.08em] text-[#64748b]">
             Base do mês
           </div>
-          <div className="mt-2 text-[24px] font-black text-[#0f172a]">
+          <div className="mt-2 text-[26px] font-black tracking-[-0.04em] text-[#0f172a]">
             {formatMoney(bruto)}
           </div>
-          <div className="mt-2 text-[13px] font-semibold text-[#64748b]">
+          <div className="mt-2 text-[13px] font-semibold leading-5 text-[#64748b]">
             Valor bruto total considerado no período atual.
           </div>
         </div>
@@ -111,13 +115,16 @@ export default function DashboardFinanceBreakdown({ events = [], summary }) {
             const percentage = percentOf(item.value, bruto);
 
             return (
-              <div key={item.key} className="space-y-2">
+              <div
+                key={item.key}
+                className={`rounded-[20px] border bg-white/90 px-4 py-4 shadow-[0_8px_20px_rgba(17,24,39,0.03)] ${item.border}`}
+              >
                 <div className="flex items-center justify-between gap-4">
                   <div className="min-w-0">
-                    <div className="text-[13px] font-black uppercase tracking-[0.06em] text-[#475569]">
+                    <div className="text-[12px] font-black uppercase tracking-[0.08em] text-[#64748b]">
                       {item.label}
                     </div>
-                    <div className={`mt-1 text-[18px] font-black ${item.text}`}>
+                    <div className={`mt-2 text-[20px] font-black tracking-[-0.03em] ${item.text}`}>
                       {formatMoney(item.value)}
                     </div>
                   </div>
@@ -127,7 +134,7 @@ export default function DashboardFinanceBreakdown({ events = [], summary }) {
                   </div>
                 </div>
 
-                <div className="h-3 w-full overflow-hidden rounded-full bg-[#eef2f7]">
+                <div className="mt-4 h-3 w-full overflow-hidden rounded-full bg-[#eef2f7]">
                   <div
                     className={`h-full rounded-full ${item.tone}`}
                     style={{ width: `${width}%` }}
@@ -139,27 +146,27 @@ export default function DashboardFinanceBreakdown({ events = [], summary }) {
         </div>
 
         <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="rounded-[18px] bg-[#f8fafc] px-4 py-4">
+          <div className="rounded-[20px] border border-[#eef2f7] bg-white/90 px-4 py-4 shadow-[0_8px_20px_rgba(17,24,39,0.03)]">
             <div className="text-[11px] font-black uppercase tracking-[0.08em] text-[#64748b]">
               Resultado do mês
             </div>
-            <div className="mt-2 text-[20px] font-black text-[#0f172a]">
+            <div className="mt-2 text-[20px] font-black tracking-[-0.03em] text-[#0f172a]">
               {lucro >= 0 ? 'Operação positiva' : 'Operação negativa'}
             </div>
-            <div className="mt-2 text-[13px] font-semibold text-[#64748b]">
-              Leitura rápida da margem atual do período.
+            <div className="mt-2 text-[13px] font-semibold leading-5 text-[#64748b]">
+              Leitura rápida do resultado líquido atual da operação.
             </div>
           </div>
 
-          <div className="rounded-[18px] bg-[#f8fafc] px-4 py-4">
+          <div className="rounded-[20px] border border-[#eef2f7] bg-white/90 px-4 py-4 shadow-[0_8px_20px_rgba(17,24,39,0.03)]">
             <div className="text-[11px] font-black uppercase tracking-[0.08em] text-[#64748b]">
               Pressão financeira
             </div>
-            <div className="mt-2 text-[20px] font-black text-[#0f172a]">
+            <div className="mt-2 text-[20px] font-black tracking-[-0.03em] text-[#0f172a]">
               {emAberto > 0 ? 'Há valores pendentes' : 'Sem pendências abertas'}
             </div>
-            <div className="mt-2 text-[13px] font-semibold text-[#64748b]">
-              Mostra se o mês ainda exige atenção no caixa.
+            <div className="mt-2 text-[13px] font-semibold leading-5 text-[#64748b]">
+              Mostra se o caixa do mês ainda exige acompanhamento.
             </div>
           </div>
         </div>

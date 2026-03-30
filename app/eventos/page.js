@@ -1026,37 +1026,38 @@ export default function EventosPage() {
               const contractInfo = contractsByEventId.get(String(ev.id));
 
               return (
-                <AdminEventCard
-                  key={ev.id}
-                  id={ev.id}
-                  cliente={ev.client_name}
-                  tipo={ev.event_type || 'Evento'}
-                  data={formatDateBR(ev.event_date)}
-                  hora={ev.event_time || '-'}
-                  local={ev.location_name || '-'}
-                  formacao={ev.formation || '-'}
-                  receptivo={ev.reception_hours ? `${ev.reception_hours}h` : 'Não'}
-                  temSom={!!ev.has_sound}
-                  whatsappNome={ev.whatsapp_name || '-'}
-                  whatsappNumero={formatPhoneDisplay(ev.whatsapp_phone)}
-                  observacoes={ev.observations}
-                  valorAcertado={formatMoney(ev.agreed_amount)}
-                  valorPago={formatMoney(ev.paid_amount)}
-                  valorAberto={formatMoney(ev.open_amount)}
-                  lucroFinal={formatMoney(ev.profit_amount)}
-                  paymentStatus={ev.payment_status || 'Pendente'}
-                  operationalStatus={ev.status || 'Rascunho'}
-                  timelineText={timeline.text}
-                  timelineTone={timeline.tone}
-                  contractLabel={contractInfo?.label || 'Sem contrato'}
-contractTone={contractInfo?.tone || 'default'}
-contractLink={contractInfo?.link || ''}
-onEdit={() => iniciarEdicao(ev)}
-onDelete={() => excluirEvento(ev.id)}
-onOpenEscala={() => abrirEscala(ev)}
-onOpenContract={() => abrirContratoRapido(ev)}
-gerandoContrato={gerandoContratoId === ev.id}
-                />
+               <AdminEventCard
+  key={ev.id}
+  id={ev.id}
+  cliente={ev.client_name}
+  tipo={ev.event_type || 'Evento'}
+  data={formatDateBR(ev.event_date)}
+  hora={ev.event_time || '-'}
+  local={ev.location_name || '-'}
+  formacao={ev.formation || '-'}
+  receptivo={ev.reception_hours ? `${ev.reception_hours}h` : 'Não'}
+  temSom={!!ev.has_sound}
+  whatsappNome={ev.whatsapp_name || '-'}
+  whatsappNumero={formatPhoneDisplay(ev.whatsapp_phone)}
+  observacoes={ev.observations}
+  valorAcertado={formatMoney(ev.agreed_amount)}
+  valorPago={formatMoney(ev.paid_amount)}
+  valorAberto={formatMoney(ev.open_amount)}
+  lucroFinal={formatMoney(ev.profit_amount)}
+  paymentStatus={ev.payment_status || 'Pendente'}
+  operationalStatus={ev.status || 'Rascunho'}
+  timelineText={timeline.text}
+  timelineTone={timeline.tone}
+  contractLabel={contractInfo?.label || 'Sem contrato'}
+  contractTone={contractInfo?.tone || 'default'}
+  contractLink={contractInfo?.link || ''}
+  onEdit={() => iniciarEdicao(ev)}
+  onDelete={() => excluirEvento(ev.id)}
+  onOpenEscala={() => abrirEscala(ev)}
+  onOpenContract={() => abrirContratoRapido(ev)}
+  onCopyContractLink={() => copiarLinkContrato(ev)}
+  gerandoContrato={gerandoContratoId === ev.id}
+/>
               );
             })
           )}

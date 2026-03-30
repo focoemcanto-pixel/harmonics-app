@@ -1,5 +1,21 @@
-import { redirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
+import { createClient } from '@supabase/supabase-js';
 import ClienteHome from '../../../components/cliente/ClienteHome';
+
+function getAdminSupabase() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRole = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!url || !serviceRole) {
+    throw new Error(
+      'Variáveis NEXT_PUBLIC_SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY são obrigatórias.'
+    );
+  }
+
+  return createClient(url, serviceRole, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}
 
 function parseLocalDate(value) {
   if (!value) return null;
@@ -28,88 +44,296 @@ function startOfDay(date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
-export default async function ClienteTokenPage({ params }) {
-  const { token } = await params;
+function addHoursToTime(timeValue, deltaHours = 0) {
+  if (!timeValue) return '--:--';
 
-  const data = {
-    token,
-    clienteNome: 'Ana Souza',
-    eventoTitulo: 'Casamento Ana & Lucas',
-    dataEvento: '2026-09-19',
-    horarioEvento: '16:00',
-    localEvento: 'Igreja São José',
-    formacao: 'Quarteto',
-    instrumentos: 'Violino, Viola, Violoncelo e Piano',
-    statusContrato: 'Contrato assinado',
-    statusEvento: 'Confirmado',
-    observacoes:
-      'Alinhar com a assessoria a ordem correta do cortejo e o roteiro enviado à equipe.',
-    horarioChegada: '14:00',
-    suporteWhatsapp: '5571999999999',
+  const [h, m] = String(timeValue)
+    .split(':')
+    .map((v) => Number(v || 0));
 
-    reviewSubmitted: false,
+  const totalMinutes = h * 60 + m + deltaHours * 60;
 
-    repertorio: {
-      status: 'RASCUNHO',
-      etapasPreenchidas: 5,
-      totalEtapas: 7,
-      liberadoParaEdicao: false,
-      enviadoEm: null,
-      linkPreenchimento: `/cliente/${token}/repertorio`,
-      linkVisualizacao: `/cliente/${token}/repertorio/resumo`,
-      podeSolicitarCorrecao: true,
-      temAntessala: true,
-      temReceptivo: false,
-      pdfUrl: '#',
-    },
+  let normalized = totalMinutes % (24 * 60);
+  if (normalized < 0) normalized += 24 * 60;
 
-    financeiro: {
-      resumo: {
-        valorTotal: 'R$ 4.000,00',
-        valorPago: 'R$ 2.000,00',
-        saldo: 'R$ 2.000,00',
-        status: 'Em aberto',
-      },
-      vencimentos: [
-        {
-          title: 'Primeiro pagamento',
-          dueDate: '05/09/2026',
-          amount: 'R$ 2.000,00',
-          status: 'PAGO',
-          description: '50% do valor total até 14 dias antes do evento.',
-        },
-        {
-          title: 'Pagamento final',
-          dueDate: '17/09/2026',
-          amount: 'R$ 2.000,00',
-          status: 'PENDENTE',
-          description: 'Saldo final até 48h antes do evento.',
-        },
-      ],
-      historico: [
-        {
-          label: 'Sinal recebido',
-          date: '01/09/2026',
-          amount: 'R$ 2.000,00',
-          status: 'PAGO',
-          note: 'Pagamento confirmado com sucesso.',
-          fileName: 'comprovante-pix-setembro.pdf',
-        },
-      ],
-    },
+  const hh = String(Math.floor(normalized / 60)).padStart(2, '0');
+  const mm = String(normalized % 60).padStart(2, '0');
+
+  return `${hh}:${mm}`;
+}
+
+function mapStatusToUi(status, isLocked) {
+  const normalized = String(status || '').toUpperCase();
+
+  if (normalized === 'ENVIADO' || normalized === 'FINALIZADO' || isLocked) {
+    return 'ENVIADO';
+  }
+
+  if (normalized === 'LIBERADO') {
+    return 'LIBERADO';
+  }
+
+  if (normalized === 'RASCUNHO') {
+    return 'RASCUNHO';
+  }
+
+  return 'NAO_INICIADO';
+}
+
+function computeEtapasPreenchidas(config, items) {
+  let total = 0;
+
+  const hasAnteRoom =
+    config?.has_ante_room &&
+    (config?.ante_room_style || config?.ante_room_notes);
+
+  if (hasAnteRoom) total += 1;
+
+  const cortejoCount = items.filter((item) => item.section === 'cortejo').length;
+  if (cortejoCount > 0) total += 1;
+
+  const cerimoniaCount = items.filter((item) => item.section === 'cerimonia').length;
+  if (cerimoniaCount > 0) total += 1;
+
+  if (config?.exit_song || config?.exit_reference || config?.exit_notes) {
+    total += 1;
+  }
+
+  const hasReception =
+    config?.has_reception &&
+    (config?.reception_duration ||
+      config?.reception_genres ||
+      config?.reception_artists ||
+      config?.reception_notes);
+
+  if (hasReception) total += 1;
+
+  return total;
+}
+
+function mapItemsToInitialState(items) {
+  const cortejo = items
+    .filter((item) => item.section === 'cortejo')
+    .sort((a, b) => (a.item_order || 0) - (b.item_order || 0))
+    .map((item) => ({
+      label: item.label || item.who_enters || '',
+      musica: item.song_name || '',
+      referencia: item.reference_link || '',
+      observacao: item.notes || '',
+    }));
+
+  const cerimonia = items
+    .filter((item) => item.section === 'cerimonia')
+    .sort((a, b) => (a.item_order || 0) - (b.item_order || 0))
+    .map((item) => ({
+      label: item.label || item.moment || '',
+      musica: item.song_name || '',
+      referencia: item.reference_link || '',
+      observacao: item.notes || '',
+    }));
+
+  return {
+    cortejo:
+      cortejo.length > 0
+        ? cortejo
+        : [
+            { label: 'Padrinhos', musica: '', referencia: '', observacao: '' },
+            { label: 'Noiva', musica: '', referencia: '', observacao: '' },
+          ],
+    cerimonia:
+      cerimonia.length > 0
+        ? cerimonia
+        : [{ label: 'Alianças', musica: '', referencia: '', observacao: '' }],
   };
+}
 
+function buildFinancialSummary(event) {
+  const total = Number(event?.total_price || event?.amount || 0);
+  const paid = Number(event?.amount_paid || event?.paid_amount || 0);
+  const saldo = Math.max(total - paid, 0);
+
+  const toBRL = (value) =>
+    new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+    }).format(Number(value || 0));
+
+  return {
+    valorTotal: total > 0 ? toBRL(total) : 'A definir',
+    valorPago: paid > 0 ? toBRL(paid) : 'A definir',
+    saldo: total > 0 ? toBRL(saldo) : 'A definir',
+    status:
+      saldo <= 0 && total > 0
+        ? 'Quitado'
+        : paid > 0
+        ? 'Em aberto'
+        : 'Consulte a equipe',
+  };
+}
+
+export default async function ClienteTokenPage({ params }) {
+  const { token } = params;
+  const supabase = getAdminSupabase();
+
+  const { data: tokenRow, error: tokenError } = await supabase
+    .from('repertoire_tokens')
+    .select('id, token, event_id, status, expires_at')
+    .eq('token', token)
+    .maybeSingle();
+
+  if (tokenError) throw tokenError;
+  if (!tokenRow) notFound();
+
+  if (String(tokenRow.status || '').toLowerCase() !== 'open') {
+    notFound();
+  }
+
+  if (tokenRow.expires_at) {
+    const expiresAt = new Date(tokenRow.expires_at);
+    if (!Number.isNaN(expiresAt.getTime()) && expiresAt.getTime() < Date.now()) {
+      notFound();
+    }
+  }
+
+  const [
+    eventResp,
+    configResp,
+    itemsResp,
+    precontractsResp,
+    contractsResp,
+  ] = await Promise.all([
+    supabase
+      .from('events')
+      .select('*')
+      .eq('id', tokenRow.event_id)
+      .maybeSingle(),
+
+    supabase
+      .from('repertoire_config')
+      .select('*')
+      .eq('event_id', tokenRow.event_id)
+      .maybeSingle(),
+
+    supabase
+      .from('repertoire_items')
+      .select('*')
+      .eq('event_id', tokenRow.event_id)
+      .order('item_order', { ascending: true }),
+
+    supabase
+      .from('precontracts')
+      .select('id, public_token, event_id')
+      .eq('event_id', tokenRow.event_id)
+      .maybeSingle(),
+
+    supabase
+      .from('contracts')
+      .select('id, event_id, precontract_id, pdf_url, doc_url, signed_at')
+      .eq('event_id', tokenRow.event_id)
+      .maybeSingle(),
+  ]);
+
+  if (eventResp.error) throw eventResp.error;
+  if (configResp.error) throw configResp.error;
+  if (itemsResp.error) throw itemsResp.error;
+  if (precontractsResp.error) throw precontractsResp.error;
+  if (contractsResp.error) throw contractsResp.error;
+
+  const event = eventResp.data;
+  if (!event) notFound();
+
+  const config = configResp.data || null;
+  const items = Array.isArray(itemsResp.data) ? itemsResp.data : [];
+  const contract = contractsResp.data || null;
+
+  const eventDate = parseLocalDate(event.event_date);
   const now = startOfDay(new Date());
-  const eventDate = parseLocalDate(data.dataEvento);
   const reviewStartsAt = eventDate ? startOfDay(addDays(eventDate, 1)) : null;
 
   const shouldRedirectToReview =
-    !!reviewStartsAt &&
-    (now.getTime() > reviewStartsAt.getTime() || data.reviewSubmitted === true);
+    !!reviewStartsAt && now.getTime() > reviewStartsAt.getTime();
 
   if (shouldRedirectToReview) {
     redirect(`/cliente/${token}/review`);
   }
+
+  const initialLists = mapItemsToInitialState(items);
+
+  const data = {
+    token,
+    clienteNome: event.client_name || 'Cliente',
+    eventoTitulo: event.client_name
+      ? `Evento • ${event.client_name}`
+      : 'Evento',
+    dataEvento: event.event_date || '',
+    horarioEvento: event.event_time || '',
+    localEvento: event.location_name || '',
+    formacao: event.formation || '',
+    instrumentos: event.instruments || '',
+    statusContrato: contract?.signed_at ? 'Contrato assinado' : 'Contrato pendente',
+    statusEvento: event.status || 'Confirmado',
+    observacoes:
+      event.observations ||
+      'Alinhar com a assessoria a ordem correta do cortejo e o roteiro enviado à equipe.',
+    horarioChegada: addHoursToTime(event.event_time, -2),
+    suporteWhatsapp: process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP || '',
+    reviewSubmitted: false,
+
+    repertorio: {
+      status: mapStatusToUi(config?.status, config?.is_locked),
+      etapasPreenchidas: computeEtapasPreenchidas(config, items),
+      totalEtapas: 7,
+      liberadoParaEdicao: !config?.is_locked,
+      enviadoEm: config?.submitted_at || null,
+      linkPreenchimento: `/cliente/${token}/repertorio`,
+      linkVisualizacao: `/cliente/${token}/repertorio`,
+      podeSolicitarCorrecao: true,
+      temAntessala: Boolean(
+        config?.has_ante_room ??
+          event?.has_ante_room ??
+          event?.has_antessala ??
+          false
+      ),
+      temReceptivo: Boolean(
+        config?.has_reception ??
+          event?.has_reception ??
+          event?.has_receptivo ??
+          false
+      ),
+      pdfUrl: contract?.pdf_url || '#',
+
+      initialState: {
+        querAntessala: config?.has_ante_room ?? null,
+        antessala: {
+          estilo: config?.ante_room_style || '',
+          generos: '',
+          artistas: '',
+          observacao: config?.ante_room_notes || '',
+        },
+        cortejo: initialLists.cortejo,
+        cerimonia: initialLists.cerimonia,
+        saida: {
+          musica: config?.exit_song || '',
+          referencia: config?.exit_reference || '',
+          observacao: config?.exit_notes || '',
+        },
+        receptivo: {
+          duracao: config?.reception_duration || '1h',
+          generos: config?.reception_genres || '',
+          artistas: config?.reception_artists || '',
+          observacao: config?.reception_notes || '',
+        },
+        desiredSongs: config?.desired_songs || '',
+        generalNotes: config?.general_notes || '',
+      },
+    },
+
+    financeiro: {
+      resumo: buildFinancialSummary(event),
+      vencimentos: [],
+      historico: [],
+    },
+  };
 
   return <ClienteHome data={data} />;
 }

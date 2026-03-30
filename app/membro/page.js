@@ -356,12 +356,13 @@ export default function MembroPage() {
   };
 
   const repertorios = useMemo(() => {
-    return confirmados.filter(
-      (row) =>
-        row?.contractInfo?.pdfUrl ||
-        (Array.isArray(row?.youtubeUrls) && row.youtubeUrls.length > 0)
-    );
-  }, [confirmados]);
+  return confirmados.filter(
+    (row) =>
+      row?.contractInfo?.pdfUrl ||
+      (Array.isArray(row?.youtubeUrls) && row.youtubeUrls.length > 0) ||
+      (Array.isArray(row?.repertorioItems) && row.repertorioItems.length > 0)
+  );
+}, [confirmados]);
 
   async function handleGoogleLogin() {
     try {

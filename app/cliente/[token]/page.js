@@ -172,7 +172,7 @@ function buildFinancialSummary(event) {
 }
 
 export default async function ClienteTokenPage({ params }) {
-  const { token } = params;
+  const { token } = await params;
   const supabase = getAdminSupabase();
 
   const { data: precontract, error: precontractError } = await supabase

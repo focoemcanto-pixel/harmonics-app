@@ -167,7 +167,7 @@ export default function DashboardUpcomingEvents({
                 key={event.id}
                 className="relative overflow-hidden rounded-[24px] border border-[#e6ebf2] bg-[linear-gradient(180deg,#ffffff_0%,#fcfdff_100%)] px-5 py-5 shadow-[0_10px_24px_rgba(17,24,39,0.04)]"
               >
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(124,58,237,0.06),transparent_28%)] pointer-events-none" />
+                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(124,58,237,0.06),transparent_28%)]" />
 
                 <div className="relative z-10 flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
                   <div className="min-w-0 flex-1">

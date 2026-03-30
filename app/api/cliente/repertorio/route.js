@@ -90,30 +90,30 @@ export async function POST(request) {
     const nowIso = new Date().toISOString();
 
     const { data: tokenRows, error: tokenError } = await supabase
-  .from('repertoire_tokens')
-  .select('id, event_id, token, status, expires_at, created_at')
-  .eq('token', token)
-  .order('created_at', { ascending: false })
-  .limit(1);
+      .from('repertoire_tokens')
+      .select('id, event_id, token, status, expires_at, created_at')
+      .eq('token', token)
+      .order('created_at', { ascending: false })
+      .limit(1);
 
-if (tokenError) {
-  throw tokenError;
-}
+    if (tokenError) {
+      throw tokenError;
+    }
 
-if (!tokenRows || tokenRows.length === 0) {
-  return NextResponse.json(
-    { ok: false, error: 'Token de repertório inválido.' },
-    { status: 404 }
-  );
-}
+    if (!tokenRows || tokenRows.length === 0) {
+      return NextResponse.json(
+        { ok: false, error: 'Token de repertório inválido.' },
+        { status: 404 }
+      );
+    }
 
-const tokenRow = tokenRows[0];
+    const tokenRow = tokenRows[0];
 
-console.log('[API REPERTORIO] token recebido:', token);
-console.log('[API REPERTORIO] token encontrado:', tokenRow?.token);
-console.log('[API REPERTORIO] event_id:', tokenRow?.event_id);
+    console.log('[API REPERTORIO] token recebido:', token);
+    console.log('[API REPERTORIO] token encontrado:', tokenRow?.token);
+    console.log('[API REPERTORIO] event_id:', tokenRow?.event_id);
 
-if (String(tokenRow.status || '').toLowerCase() !== 'open') {
+    if (String(tokenRow.status || '').toLowerCase() !== 'open') {
       return NextResponse.json(
         { ok: false, error: 'Este link de repertório não está disponível.' },
         { status: 403 }

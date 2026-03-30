@@ -765,49 +765,7 @@ const [receptivo, setReceptivo] = useState(
   ];
 
   const progresso = Math.round((step / visibleSteps.length) * 100);
-
-  function updateListItem(list, setter, index, value) {
-    setter(list.map((item, i) => (i === index ? value : item)));
-  }
-
-  function moveItem(list, setter, index, dir) {
-    const nextIndex = index + dir;
-    if (nextIndex < 0 || nextIndex >= list.length) return;
-    const clone = [...list];
-    const temp = clone[index];
-    clone[index] = clone[nextIndex];
-    clone[nextIndex] = temp;
-    setter(clone);
-  }
-
-  function removeItem(list, setter, index) {
-    setter(list.filter((_, i) => i !== index));
-  }
-
-  function addCortejo(label = '') {
-    setCortejo([
-      ...cortejo,
-      { label, musica: '', referencia: '', observacao: '' },
-    ]);
-  }
-
-  function addCerimonia(label = '') {
-    setCerimonia([
-      ...cerimonia,
-      { label, musica: '', referencia: '', observacao: '' },
-    ]);
-  }
-
-  function renderResumoCortejo() {
-    if (!cortejo.length) {
-      return (
-        <EmptyStateCard
-  title="Nenhuma entrada adicionada"
-  text="Use os atalhos ou crie entradas personalizadas para montar a ordem do cortejo."
-/>
-      );
-    }
-    function buildItemsPayload() {
+  function buildItemsPayload() {
   const items = [];
 
   if (querAntessala === true) {
@@ -964,6 +922,48 @@ async function saveRepertorio(mode = 'draft') {
     setSavingMode('');
   }
 }
+
+  function updateListItem(list, setter, index, value) {
+    setter(list.map((item, i) => (i === index ? value : item)));
+  }
+
+  function moveItem(list, setter, index, dir) {
+    const nextIndex = index + dir;
+    if (nextIndex < 0 || nextIndex >= list.length) return;
+    const clone = [...list];
+    const temp = clone[index];
+    clone[index] = clone[nextIndex];
+    clone[nextIndex] = temp;
+    setter(clone);
+  }
+
+  function removeItem(list, setter, index) {
+    setter(list.filter((_, i) => i !== index));
+  }
+
+  function addCortejo(label = '') {
+    setCortejo([
+      ...cortejo,
+      { label, musica: '', referencia: '', observacao: '' },
+    ]);
+  }
+
+  function addCerimonia(label = '') {
+    setCerimonia([
+      ...cerimonia,
+      { label, musica: '', referencia: '', observacao: '' },
+    ]);
+  }
+
+  function renderResumoCortejo() {
+    if (!cortejo.length) {
+      return (
+        <EmptyStateCard
+  title="Nenhuma entrada adicionada"
+  text="Use os atalhos ou crie entradas personalizadas para montar a ordem do cortejo."
+/>
+      );
+    }
 
     return (
       <div className="space-y-3">

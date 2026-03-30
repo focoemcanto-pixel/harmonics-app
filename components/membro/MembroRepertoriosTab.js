@@ -1,215 +1,202 @@
 'use client';
 
+import { useMemo, useState } from 'react';
+import { formatDateBR, formatTimeShort } from '../../lib/membro/membro-invites';
+
+function getMonthLabel(date) {
+  const label = new Intl.DateTimeFormat('pt-BR', {
+    month: 'long',
+    year: 'numeric',
+  }).format(date);
+
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+function isSameMonth(dateValue, baseDate) {
+  if (!dateValue) return false;
+  const date = new Date(`${dateValue}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return false;
+
+  return (
+    date.getFullYear() === baseDate.getFullYear() &&
+    date.getMonth() === baseDate.getMonth()
+  );
+}
+
+function sortByEventDateAsc(items = []) {
+  return [...items].sort((a, b) => {
+    const aTime = new Date(
+      `${a?.eventDate || ''}T${a?.eventTime || '00:00:00'}`
+    ).getTime();
+    const bTime = new Date(
+      `${b?.eventDate || ''}T${b?.eventTime || '00:00:00'}`
+    ).getTime();
+
+    return aTime - bTime;
+  });
+}
+
+function MonthNavigator({ label, onPrev, onNext }) {
+  return (
+    <div className="grid grid-cols-[58px_1fr_58px] items-center gap-3">
+      <button
+        type="button"
+        onClick={onPrev}
+        className="flex h-[58px] w-[58px] items-center justify-center rounded-[18px] border border-white/10 bg-white/5 text-[24px] font-black text-white shadow-[0_10px_24px_rgba(0,0,0,0.16)] active:scale-[0.98]"
+      >
+        ‹
+      </button>
+
+      <div className="rounded-[24px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.04),rgba(217,70,239,0.10))] px-4 py-4 text-center shadow-[0_10px_26px_rgba(0,0,0,0.18)]">
+        <div className="text-[11px] font-black uppercase tracking-[0.14em] text-white/45">
+          Repertórios do mês
+        </div>
+        <div className="mt-1 text-[24px] font-black tracking-[-0.04em] text-white sm:text-[28px]">
+          {label}
+        </div>
+      </div>
+
+      <button
+        type="button"
+        onClick={onNext}
+        className="flex h-[58px] w-[58px] items-center justify-center rounded-[18px] border border-white/10 bg-white/5 text-[24px] font-black text-white shadow-[0_10px_24px_rgba(0,0,0,0.16)] active:scale-[0.98]"
+      >
+        ›
+      </button>
+    </div>
+  );
+}
+
+function MiniStatCard({ value, label, tone = 'default' }) {
+  const tones = {
+    default: 'border-white/10 bg-white/5 text-white',
+    emerald: 'border-emerald-400/15 bg-emerald-500/10 text-emerald-200',
+    amber: 'border-amber-400/15 bg-amber-500/10 text-amber-200',
+  };
+
+  return (
+    <div
+      className={`rounded-[18px] border px-4 py-3 shadow-[0_10px_24px_rgba(0,0,0,0.18)] ${tones[tone] || tones.default}`}
+    >
+      <div className="text-[11px] font-black uppercase tracking-[0.1em] text-white/55">
+        {label}
+      </div>
+      <div className="mt-1 text-[28px] font-black tracking-[-0.04em]">
+        {value}
+      </div>
+    </div>
+  );
+}
+
 function EmptyState() {
   return (
-    <div className="rounded-[28px] border border-dashed border-white/10 bg-white/5 px-5 py-9 text-center text-white shadow-[0_16px_34px_rgba(15,23,42,0.14)]">
-      <div className="text-[18px] font-black">Nenhum repertório disponível</div>
+    <div className="rounded-[26px] border border-dashed border-white/10 bg-white/5 px-5 py-8 text-center text-white">
+      <div className="text-[18px] font-black">Nenhum repertório neste mês</div>
       <p className="mt-2 text-[15px] leading-7 text-white/60">
-        Os repertórios aparecem aqui quando houver material enviado pelo cliente
-        ou links de estudo disponíveis para este evento.
+        Use as setas para navegar entre os meses e encontrar outros eventos.
       </p>
     </div>
   );
 }
 
-function getStudyStatus(item) {
-  const tracksCount = Array.isArray(item?.youtubeUrls) ? item.youtubeUrls.length : 0;
+function getStatus(item) {
+  const hasRepertorio =
+    Array.isArray(item?.repertorioItems) && item.repertorioItems.length > 0;
+  const hasLinks =
+    Array.isArray(item?.youtubeUrls) && item.youtubeUrls.length > 0;
   const hasPdf = !!item?.contractInfo?.pdfUrl;
-  const repertorioCount = Array.isArray(item?.repertorioItems) ? item.repertorioItems.length : 0;
 
-  if (repertorioCount > 0 && tracksCount > 0) {
+  if (hasRepertorio || hasLinks || hasPdf) {
     return {
-      label: 'Pronto para estudo',
-      className: 'border-emerald-400/20 bg-emerald-500/12 text-emerald-200',
-    };
-  }
-
-  if (repertorioCount > 0 || tracksCount > 0 || hasPdf) {
-    return {
-      label: 'Material parcial',
-      className: 'border-amber-400/20 bg-amber-500/12 text-amber-200',
+      label: 'Disponível',
+      className: 'bg-emerald-500/12 text-emerald-300 border-emerald-400/20',
     };
   }
 
   return {
-    label: 'Aguardando envio',
-    className: 'border-white/10 bg-white/10 text-white/65',
+    label: 'Não enviado',
+    className: 'bg-white/10 text-white/65 border-white/10',
   };
 }
 
-function buildStudySummary(item) {
-  const repertorioCount = Array.isArray(item?.repertorioItems) ? item.repertorioItems.length : 0;
-  const tracksCount = Array.isArray(item?.youtubeUrls) ? item.youtubeUrls.length : 0;
-  const hasPdf = !!item?.contractInfo?.pdfUrl;
-
-  if (repertorioCount > 0) {
-    return `${repertorioCount} item(ns) no roteiro`;
-  }
-
-  if (tracksCount > 0 && hasPdf) {
-    return `${tracksCount} faixa(s) + PDF`;
-  }
-
-  if (tracksCount > 0) {
-    return `${tracksCount} faixa(s) para estudar`;
-  }
-
-  if (hasPdf) {
-    return 'PDF disponível para consulta';
-  }
-
-  return 'Ainda sem material enviado';
-}
-
-function MiniInfo({ label, value }) {
-  return (
-    <div className="rounded-[18px] border border-white/10 bg-white/5 px-4 py-3">
-      <div className="text-[10px] font-black uppercase tracking-[0.1em] text-white/45">
-        {label}
-      </div>
-      <div className="mt-1 text-[14px] font-semibold text-white/88">
-        {value || '-'}
-      </div>
-    </div>
-  );
-}
-
-function ResourcePill({ children, tone = 'default' }) {
-  const tones = {
-    default: 'border-white/10 bg-white/8 text-white/72',
-    violet: 'border-violet-300/15 bg-violet-400/10 text-violet-100',
-    sky: 'border-sky-300/15 bg-sky-400/10 text-sky-100',
-    emerald: 'border-emerald-300/15 bg-emerald-400/10 text-emerald-100',
-  };
-
-  return (
-    <span
-      className={`inline-flex rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] ${tones[tone] || tones.default}`}
-    >
-      {children}
-    </span>
-  );
-}
-
-function ActionButton({ label, onClick, disabled = false, tone = 'default' }) {
-  const tones = {
-    primary:
-      'bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white shadow-[0_14px_28px_rgba(139,92,246,0.24)]',
-    default:
-      'border border-white/10 bg-white/10 text-white',
-  };
+function RepertoireCard({ item, onOpenRepertoire }) {
+  const status = getStatus(item);
 
   return (
     <button
       type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={`rounded-[18px] px-4 py-4 text-[15px] font-black transition disabled:cursor-not-allowed disabled:opacity-50 ${
-        tone === 'primary' ? tones.primary : tones.default
-      }`}
+      onClick={() => onOpenRepertoire(item)}
+      className="block w-full text-left"
     >
-      {label}
-    </button>
-  );
-}
+      <article className="rounded-[16px] border border-white/10 bg-[#1e1535] px-4 py-4 text-white shadow-[0_8px_20px_rgba(0,0,0,0.20)] transition active:scale-[0.995]">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-[13px] font-black text-fuchsia-200">
+              {formatDateBR(item?.eventDate)} • {formatTimeShort(item?.eventTime)}
+            </div>
 
-function RepertoireCard({ item, onOpenRepertoire, onOpenPdf }) {
-  const tracksCount = Array.isArray(item?.youtubeUrls) ? item.youtubeUrls.length : 0;
-  const hasPdf = !!item?.contractInfo?.pdfUrl;
-  const repertorioCount = Array.isArray(item?.repertorioItems) ? item.repertorioItems.length : 0;
-  const status = getStudyStatus(item);
-  const summary = buildStudySummary(item);
-
-  return (
-    <article className="overflow-hidden rounded-[28px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.04),rgba(168,85,247,0.08))] p-5 text-white shadow-[0_16px_36px_rgba(15,23,42,0.18)]">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="text-[12px] font-black uppercase tracking-[0.12em] text-fuchsia-200/75">
-            Repertório do evento
+            <div className="mt-2 truncate text-[18px] font-black tracking-[-0.03em] text-white">
+              {item?.clientName || 'Evento'}
+            </div>
           </div>
 
-          <h3 className="mt-2 line-clamp-1 text-[24px] font-black tracking-[-0.04em]">
-            {item.clientName || 'Evento'}
-          </h3>
-
-          <div className="mt-2 text-[14px] font-semibold text-white/62">
-            {summary}
-          </div>
+          <span
+            className={`inline-flex shrink-0 rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] ${status.className}`}
+          >
+            {status.label}
+          </span>
         </div>
-
-        <span
-          className={`shrink-0 rounded-full border px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.08em] ${status.className}`}
-        >
-          {status.label}
-        </span>
-      </div>
-
-      <div className="mt-4 flex flex-wrap gap-2">
-        {repertorioCount > 0 ? (
-          <ResourcePill tone="emerald">
-            {repertorioCount} item(ns)
-          </ResourcePill>
-        ) : null}
-
-        {tracksCount > 0 ? (
-          <ResourcePill tone="violet">
-            {tracksCount} faixa(s)
-          </ResourcePill>
-        ) : null}
-
-        {hasPdf ? (
-          <ResourcePill tone="sky">
-            PDF disponível
-          </ResourcePill>
-        ) : null}
-
-        {!repertorioCount && !tracksCount && !hasPdf ? (
-          <ResourcePill>
-            Sem material ainda
-          </ResourcePill>
-        ) : null}
-      </div>
-
-      <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
-        <MiniInfo label="Formação" value={item.formation || '-'} />
-        <MiniInfo label="Instrumentos" value={item.instruments || '-'} />
-      </div>
-
-      <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">
-        <ActionButton
-          label="Visualizar repertório"
-          onClick={() => onOpenRepertoire(item)}
-          tone="primary"
-        />
-
-        <ActionButton
-          label="Ir para o player"
-          onClick={() => onOpenRepertoire(item, { autoplay: true })}
-          disabled={tracksCount === 0}
-        />
-
-        <ActionButton
-          label="Baixar PDF"
-          onClick={() => onOpenPdf(item)}
-          disabled={!hasPdf}
-        />
-      </div>
-    </article>
+      </article>
+    </button>
   );
 }
 
 export default function MembroRepertoriosTab({
   repertorios = [],
   onOpenRepertoire,
-  onOpenPdf,
 }) {
-  const totalComPlayer = repertorios.filter(
-    (item) => Array.isArray(item?.youtubeUrls) && item.youtubeUrls.length > 0
-  ).length;
+  const initialMonthRef = useMemo(() => {
+    const ordered = sortByEventDateAsc(repertorios);
+    const firstItem = ordered[0];
 
-  const totalComPdf = repertorios.filter(
-    (item) => !!item?.contractInfo?.pdfUrl
-  ).length;
+    const base = firstItem?.eventDate
+      ? new Date(`${firstItem.eventDate}T12:00:00`)
+      : new Date();
+
+    return new Date(base.getFullYear(), base.getMonth(), 1);
+  }, [repertorios]);
+
+  const [currentMonth, setCurrentMonth] = useState(initialMonthRef);
+
+  const monthItems = useMemo(() => {
+    return sortByEventDateAsc(repertorios).filter((item) =>
+      isSameMonth(item?.eventDate, currentMonth)
+    );
+  }, [repertorios, currentMonth]);
+
+  const disponiveis = monthItems.filter((item) => {
+    const hasRepertorio =
+      Array.isArray(item?.repertorioItems) && item.repertorioItems.length > 0;
+    const hasLinks =
+      Array.isArray(item?.youtubeUrls) && item.youtubeUrls.length > 0;
+    const hasPdf = !!item?.contractInfo?.pdfUrl;
+
+    return hasRepertorio || hasLinks || hasPdf;
+  });
+
+  const pendentes = monthItems.filter((item) => !disponiveis.includes(item));
+
+  const monthLabel = useMemo(() => {
+    return getMonthLabel(currentMonth);
+  }, [currentMonth]);
+
+  function goPrevMonth() {
+    setCurrentMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+  }
+
+  function goNextMonth() {
+    setCurrentMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+  }
 
   return (
     <section className="space-y-4">
@@ -221,52 +208,29 @@ export default function MembroRepertoriosTab({
         <h2 className="mt-2 text-[28px] font-black tracking-[-0.04em] text-white">
           Repertórios
         </h2>
-
-        <p className="mt-2 max-w-2xl text-[14px] leading-7 text-white/62">
-          Use esta área para revisar o material enviado pelos clientes, ouvir as
-          faixas em sequência e acessar rapidamente o repertório de cada evento.
-        </p>
-
-        <div className="mt-4 grid grid-cols-3 gap-3">
-          <div className="rounded-[18px] border border-white/10 bg-white/5 px-4 py-3">
-            <div className="text-[10px] font-black uppercase tracking-[0.1em] text-white/45">
-              Eventos
-            </div>
-            <div className="mt-1 text-[26px] font-black tracking-[-0.04em]">
-              {repertorios.length}
-            </div>
-          </div>
-
-          <div className="rounded-[18px] border border-violet-300/10 bg-violet-400/10 px-4 py-3 text-violet-100">
-            <div className="text-[10px] font-black uppercase tracking-[0.1em] text-violet-100/70">
-              Com player
-            </div>
-            <div className="mt-1 text-[26px] font-black tracking-[-0.04em]">
-              {totalComPlayer}
-            </div>
-          </div>
-
-          <div className="rounded-[18px] border border-sky-300/10 bg-sky-400/10 px-4 py-3 text-sky-100">
-            <div className="text-[10px] font-black uppercase tracking-[0.1em] text-sky-100/70">
-              Com PDF
-            </div>
-            <div className="mt-1 text-[26px] font-black tracking-[-0.04em]">
-              {totalComPdf}
-            </div>
-          </div>
-        </div>
       </div>
 
-      {repertorios.length === 0 ? (
+      <MonthNavigator
+        label={monthLabel}
+        onPrev={goPrevMonth}
+        onNext={goNextMonth}
+      />
+
+      <div className="grid grid-cols-3 gap-3">
+        <MiniStatCard value={monthItems.length} label="eventos" />
+        <MiniStatCard value={disponiveis.length} label="disponíveis" tone="emerald" />
+        <MiniStatCard value={pendentes.length} label="pendentes" tone="amber" />
+      </div>
+
+      {monthItems.length === 0 ? (
         <EmptyState />
       ) : (
-        <div className="space-y-4">
-          {repertorios.map((item) => (
+        <div className="space-y-3">
+          {monthItems.map((item) => (
             <RepertoireCard
               key={item.id}
               item={item}
               onOpenRepertoire={onOpenRepertoire}
-              onOpenPdf={onOpenPdf}
             />
           ))}
         </div>

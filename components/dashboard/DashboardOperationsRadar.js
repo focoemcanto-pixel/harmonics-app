@@ -60,7 +60,7 @@ export default function DashboardOperationsRadar({ summary }) {
               key={item.key}
               className={`relative overflow-hidden rounded-[24px] border px-5 py-5 shadow-[0_10px_24px_rgba(17,24,39,0.04)] ${item.tone}`}
             >
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.45),transparent_34%)] pointer-events-none" />
+              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.45),transparent_34%)]" />
 
               <div className="relative z-10 flex h-full flex-col justify-between gap-5">
                 <div className="flex items-start justify-between gap-4">

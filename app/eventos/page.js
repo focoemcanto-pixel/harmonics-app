@@ -964,17 +964,14 @@ export default function EventosPage() {
                   operationalStatus={ev.status || 'Rascunho'}
                   timelineText={timeline.text}
                   timelineTone={timeline.tone}
-                  contractLabel={
-                    gerandoContratoId === ev.id
-                      ? 'Gerando contrato...'
-                      : contractInfo?.label || 'Sem contrato'
-                  }
-                  contractTone={contractInfo?.tone || 'default'}
-                  contractLink={contractInfo?.link || ''}
-                  onEdit={() => iniciarEdicao(ev)}
-                  onDelete={() => excluirEvento(ev.id)}
-                  onOpenEscala={() => abrirEscala(ev)}
-                  onOpenContract={() => abrirContratoRapido(ev)}
+                  contractLabel={contractInfo?.label || 'Sem contrato'}
+contractTone={contractInfo?.tone || 'default'}
+contractLink={contractInfo?.link || ''}
+onEdit={() => iniciarEdicao(ev)}
+onDelete={() => excluirEvento(ev.id)}
+onOpenEscala={() => abrirEscala(ev)}
+onOpenContract={() => abrirContratoRapido(ev)}
+gerandoContrato={gerandoContratoId === ev.id}
                 />
               );
             })

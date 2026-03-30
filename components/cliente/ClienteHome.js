@@ -1488,24 +1488,26 @@ async function saveRepertorio(mode = 'draft') {
       )}
 
       {!travado && (
-        <div className="flex gap-3">
-          <button
-            type="button"
-            onClick={() => setStep((prev) => Math.max(1, prev - 1))}
-            className="flex-1 rounded-[18px] border border-[#eadfd6] bg-white px-4 py-4 text-[15px] font-black text-[#241a14]"
-          >
-            ← Voltar
-          </button>
+  <div className="flex gap-3">
+    <button
+      type="button"
+      onClick={() => setStep((prev) => Math.max(1, prev - 1))}
+      className="flex-1 rounded-[18px] border border-[#eadfd6] bg-white px-4 py-4 text-[15px] font-black text-[#241a14]"
+    >
+      ← Voltar
+    </button>
 
-          <button
-            type="button"
-            onClick={() => setStep((prev) => Math.min(7, prev + 1))}
-            className="flex-1 rounded-[18px] bg-[linear-gradient(135deg,#6d28d9_0%,#8b5cf6_100%)] px-4 py-4 text-[15px] font-black text-white"
-          >
-            Próximo →
-          </button>
-        </div>
-      )}
+    {step < 7 ? (
+      <button
+        type="button"
+        onClick={() => setStep((prev) => Math.min(7, prev + 1))}
+        className="flex-1 rounded-[18px] bg-[linear-gradient(135deg,#6d28d9_0%,#8b5cf6_100%)] px-4 py-4 text-[15px] font-black text-white"
+      >
+        Próximo →
+      </button>
+    ) : null}
+  </div>
+)}
     </div>
   );
 }

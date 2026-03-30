@@ -491,13 +491,24 @@ setRepertoireItems([]);
     }
   }
 
-  function buildPlaylistFromRow(item) {
-    if (!Array.isArray(item?.youtubeUrls)) return [];
-    return item.youtubeUrls.map((url, index) => ({
-      title: `${item?.clientName || 'Evento'} • Faixa ${index + 1}`,
-      url,
+ function buildPlaylistFromRow(item) {
+  if (!Array.isArray(item?.repertorioItems)) return [];
+
+  return item.repertorioItems
+    .filter((row) => row?.reference_link)
+    .sort((a, b) => (a.item_order || 0) - (b.item_order || 0))
+    .map((row, index) => ({
+      title: row.song_name || `Faixa ${index + 1}`,
+      subtitle:
+        row.moment ||
+        row.who_enters ||
+        row.section ||
+        '',
+      notes: row.notes || '',
+      url: row.reference_link,
+      order: row.item_order || index + 1,
     }));
-  }
+}
 
   function openRepertoire(item, options = {}) {
     if (!item) return;

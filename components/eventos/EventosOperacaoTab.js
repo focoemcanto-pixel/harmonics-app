@@ -46,6 +46,10 @@ export default function EventosOperacaoTab({
   formatMoney,
   formatDateBR,
   formatPhoneDisplay,
+
+  onOpenContract,
+  onCopyContractLink,
+  gerandoContratoId,
 }) {
   const primaryAction = getOperacaoPrimaryAction(resumoOperacao);
 
@@ -228,6 +232,7 @@ export default function EventosOperacaoTab({
             const contractInfo = contractsByEventId.get(String(ev.id));
             const pagamentoRecemAtualizado =
               ultimoPagamentoAtualizadoId === ev.id;
+            const gerandoContrato = gerandoContratoId === ev.id;
 
             return (
               <div
@@ -255,24 +260,27 @@ export default function EventosOperacaoTab({
                         Editar
                       </button>
 
-                     <button
-  type="button"
-  onClick={() => {
-  setPagamentoAbertoId(null);
-  setContratoAbertoId((prev) => (prev === ev.id ? null : ev.id));
-}}
-  className={`rounded-full border px-3 py-2 text-[12px] font-black ${
-    contractStatus.action === 'create'
-      ? 'border-slate-200 bg-slate-100 text-[#0f172a]'
-      : contractStatus.action === 'edit'
-      ? 'border-violet-200 bg-violet-50 text-violet-700'
-      : 'border-emerald-200 bg-emerald-50 text-emerald-700'
-  }`}
->
-  {contractStatus.action === 'create' && 'Gerar contrato'}
-  {contractStatus.action === 'edit' && 'Finalizar contrato'}
-  {contractStatus.action === 'view' && 'Ver contrato'}
-</button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPagamentoAbertoId(null);
+                          setContratoAbertoId((prev) => (prev === ev.id ? null : ev.id));
+                        }}
+                        className={`rounded-full border px-3 py-2 text-[12px] font-black ${
+                          gerandoContrato
+                            ? 'border-slate-200 bg-slate-100 text-[#94a3b8]'
+                            : contractStatus.action === 'create'
+                            ? 'border-slate-200 bg-slate-100 text-[#0f172a]'
+                            : contractStatus.action === 'edit'
+                            ? 'border-violet-200 bg-violet-50 text-violet-700'
+                            : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                        }`}
+                      >
+                        {gerandoContrato && 'Gerando contrato...'}
+                        {!gerandoContrato && contractStatus.action === 'create' && 'Gerar contrato'}
+                        {!gerandoContrato && contractStatus.action === 'edit' && 'Finalizar contrato'}
+                        {!gerandoContrato && contractStatus.action === 'view' && 'Ver contrato'}
+                      </button>
 
                       {actions.canConfirm && (
                         <button
@@ -288,10 +296,10 @@ export default function EventosOperacaoTab({
                         <button
                           type="button"
                           onClick={() => {
-  setValorPagamento('');
-  setContratoAbertoId(null);
-  setPagamentoAbertoId((prev) => (prev === ev.id ? null : ev.id));
-}}
+                            setValorPagamento('');
+                            setContratoAbertoId(null);
+                            setPagamentoAbertoId((prev) => (prev === ev.id ? null : ev.id));
+                          }}
                           className="rounded-full border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] font-black text-amber-700 hover:bg-amber-100"
                         >
                           Pagamento
@@ -347,7 +355,7 @@ export default function EventosOperacaoTab({
                           </Pill>
 
                           <Pill tone={contractStatus.tone || 'default'}>
-                            {`Contrato: ${contractStatus.label}`}
+                            {`Contrato: ${gerandoContrato ? 'Gerando contrato' : contractStatus.label}`}
                           </Pill>
                         </div>
                       </div>
@@ -372,24 +380,18 @@ export default function EventosOperacaoTab({
                       </div>
                     </div>
                   </div>
+
                   {contratoAbertoId === ev.id && (
-  <OperacaoContractInline
-    ev={ev}
-    contractStatus={contractStatus}
-    contractInfo={contractInfo}
-    onOpenLink={() => {
-      if (contractInfo?.link) {
-        window.open(contractInfo.link, '_blank');
-      }
-    }}
-    onCreateOrEdit={() => {
-      iniciarEdicao(ev);
-      setDesktopTab('evento');
-      setMobileTab('evento');
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }}
-  />
-)}
+                    <OperacaoContractInline
+                      ev={ev}
+                      contractStatus={contractStatus}
+                      contractInfo={contractInfo}
+                      gerandoContrato={gerandoContrato}
+                      onOpenLink={() => onOpenContract?.(ev)}
+                      onCreateOrEdit={() => onOpenContract?.(ev)}
+                      onCopyLink={() => onCopyContractLink?.(ev)}
+                    />
+                  )}
 
                   {pagamentoAbertoId === ev.id && (
                     <div className="mt-4 rounded-[18px] border border-amber-200 bg-amber-50 p-4">

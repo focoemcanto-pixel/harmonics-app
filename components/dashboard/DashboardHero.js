@@ -17,6 +17,7 @@ export default function DashboardHero() {
   return (
     <section className="relative overflow-hidden rounded-[32px] border border-[#dbe3ef] bg-[linear-gradient(135deg,#ffffff_0%,#f8faff_45%,#f4f1ff_100%)] p-6 shadow-[0_18px_50px_rgba(17,24,39,0.07)] md:p-7">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(124,58,237,0.16),transparent_26%),radial-gradient(circle_at_bottom_left,rgba(59,130,246,0.08),transparent_24%)]" />
+
       <div className="relative z-10">
         <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-3xl">

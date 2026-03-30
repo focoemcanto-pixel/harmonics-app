@@ -16,6 +16,8 @@ export default function DashboardPrimaryKpis({ summary }) {
         label="Bruto do mês"
         value={formatMoney(summary.bruto)}
         helper="Total negociado"
+          size="highlight"
+          
       />
 
       <AdminSummaryCard
@@ -23,6 +25,7 @@ export default function DashboardPrimaryKpis({ summary }) {
         value={formatMoney(summary.liquido)}
         helper="Lucro previsto"
         tone="accent"
+          size="highlight"
       />
 
       <AdminSummaryCard
@@ -30,6 +33,7 @@ export default function DashboardPrimaryKpis({ summary }) {
         value={formatMoney(summary.recebido)}
         helper="Valores confirmados"
         tone="success"
+          size="highlight"
       />
 
       <AdminSummaryCard
@@ -37,6 +41,7 @@ export default function DashboardPrimaryKpis({ summary }) {
         value={formatMoney(summary.emAberto)}
         helper="Pendências"
         tone="warning"
+          size="highlight"
       />
     </div>
   );

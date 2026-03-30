@@ -688,9 +688,18 @@ export default function MembroPage() {
             />
           ) : null}
 
-          {!loadingData && activeTab === 'perfil' ? (
-            <MembroPerfilTab member={member} onLogout={handleLogout} />
-          ) : null}
+         {!loadingData && activeTab === 'perfil' ? (
+  <MembroPerfilTab
+    member={member}
+    onLogout={handleLogout}
+    stats={{
+      realizados: confirmados.filter((item) => item?.isDone).length,
+      pendentes: pendentes.length,
+      confirmados: confirmados.length,
+      repertorios: resumo?.repertorios || 0,
+    }}
+  />
+) : null}
         </div>
       </div>
 

@@ -137,16 +137,9 @@ export default function MembroPlayerModal({
     }
   }, [isPlaying, open, currentVideoId]);
 
-  useEffect(() => {
-    return () => {
-      try {
-        playerRef.current?.destroy?.();
-      } catch {}
-      playerRef.current = null;
-    };
-  }, []);
-
-  if (!open) return null;
+ if (!open) {
+  return null; // só UI
+}
 
   return (
     <div className="fixed inset-0 z-[150] bg-black/70 backdrop-blur-[4px]">

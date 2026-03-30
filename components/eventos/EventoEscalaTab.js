@@ -795,11 +795,12 @@ export default function EventoEscalaTab({ eventId }) {
 
       if (novosParaCriar.length > 0) {
         const invitesPayload = novosParaCriar.map((item) => ({
-          event_id: eventId,
-          contact_id: item.musician_id,
-          suggested_role_name: item.role || item.contact_tag_text || null,
-          status: 'pending',
-        }));
+  event_id: eventId,
+  contact_id: item.musician_id,
+  suggested_role_name: item.role || item.contact_tag_text || null,
+  status: 'pending',
+  invite_token: crypto.randomUUID(),
+}));
 
         const { error: insertInviteError } = await supabase
           .from('invites')

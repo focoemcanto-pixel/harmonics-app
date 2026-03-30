@@ -680,13 +680,12 @@ export default function MembroPage() {
   />
 ) : null}
 
-          {!loadingData && activeTab === 'repertorios' ? (
-            <MembroRepertoriosTab
-              repertorios={repertorios}
-              onOpenRepertoire={openRepertoire}
-              onOpenPdf={openPdf}
-            />
-          ) : null}
+         {!loadingData && activeTab === 'repertorios' ? (
+  <MembroRepertoriosTab
+    repertorios={repertorios}
+    onOpenRepertoire={handleOpenRepertoireSummary}
+  />
+) : null}
 
          {!loadingData && activeTab === 'perfil' ? (
   <MembroPerfilTab

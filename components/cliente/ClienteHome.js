@@ -3056,13 +3056,17 @@ function EmptyStateCard({ title, text }) {
   );
 }
 
-export default function ClienteHome({ data }) {
-  const [activeTab, setActiveTab] = useState('inicio');
-    const [selectedSongs, setSelectedSongs] = useState([]);
+export default function ClienteHome({ data, initialTab = 'inicio' }) {
+  const [activeTab, setActiveTab] = useState(initialTab);
+  const [selectedSongs, setSelectedSongs] = useState([]);
   const [favoriteSongIds, setFavoriteSongIds] = useState([]);
   const [paymentHistory, setPaymentHistory] = useState(
     data?.financeiro?.historico || []
   );
+
+  useEffect(() => {
+    setActiveTab(initialTab || 'inicio');
+  }, [initialTab]);
   
     if (!data) {
     return <ClienteLoadingScreen />;

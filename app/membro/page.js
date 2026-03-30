@@ -495,18 +495,19 @@ setRepertoireItems([]);
   if (!Array.isArray(item?.repertorioItems)) return [];
 
   return item.repertorioItems
-    .filter((row) => row?.reference_link)
-    .sort((a, b) => (a.item_order || 0) - (b.item_order || 0))
+    .filter((row) => !!row?.referencia)
+    .sort((a, b) => Number(a?.ordem || 0) - Number(b?.ordem || 0))
     .map((row, index) => ({
-      title: row.song_name || `Faixa ${index + 1}`,
+      title: row?.musica || `Faixa ${index + 1}`,
       subtitle:
-        row.moment ||
-        row.who_enters ||
-        row.section ||
+        row?.quemEntra ||
+        row?.momento ||
+        row?.label ||
+        row?.section ||
         '',
-      notes: row.notes || '',
-      url: row.reference_link,
-      order: row.item_order || index + 1,
+      notes: row?.observacao || '',
+      url: row?.referencia,
+      order: row?.ordem || index + 1,
     }));
 }
 

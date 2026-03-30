@@ -2,30 +2,40 @@
 
 import AdminSummaryCard from '../admin/AdminSummaryCard';
 
-export default function DashboardPrimaryKpis() {
+function formatMoney(v) {
+  return v.toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  });
+}
+
+export default function DashboardPrimaryKpis({ summary }) {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
       <AdminSummaryCard
         label="Bruto do mês"
-        value="R$ 0,00"
-        helper="Total negociado no período"
+        value={formatMoney(summary.bruto)}
+        helper="Total negociado"
       />
+
       <AdminSummaryCard
         label="Líquido estimado"
-        value="R$ 0,00"
+        value={formatMoney(summary.liquido)}
         helper="Lucro previsto"
         tone="accent"
       />
+
       <AdminSummaryCard
         label="Recebido"
-        value="R$ 0,00"
-        helper="Valores já confirmados"
+        value={formatMoney(summary.recebido)}
+        helper="Valores confirmados"
         tone="success"
       />
+
       <AdminSummaryCard
         label="Em aberto"
-        value="R$ 0,00"
-        helper="Valores pendentes"
+        value={formatMoney(summary.emAberto)}
+        helper="Pendências"
         tone="warning"
       />
     </div>

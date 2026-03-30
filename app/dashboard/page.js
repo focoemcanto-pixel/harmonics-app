@@ -17,6 +17,8 @@ export default function DashboardPage() {
   const [events, setEvents] = useState([]);
   const [contracts, setContracts] = useState([]);
   const [precontracts, setPrecontracts] = useState([]);
+  const [eventMusicians, setEventMusicians] = useState([]);
+  const [repertoireConfigs, setRepertoireConfigs] = useState([]);
   const [summary, setSummary] = useState(null);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
@@ -27,30 +29,52 @@ export default function DashboardPage() {
         setCarregando(true);
         setErro('');
 
-        const [eventsRes, contractsRes, precontractsRes] = await Promise.all([
+        const [
+          eventsRes,
+          contractsRes,
+          precontractsRes,
+          eventMusiciansRes,
+          repertoireConfigsRes,
+        ] = await Promise.all([
           supabase.from('events').select('*'),
           supabase.from('contracts').select('*'),
           supabase.from('precontracts').select('*'),
+          supabase.from('event_musicians').select('*'),
+          supabase.from('repertoire_config').select('*'),
         ]);
 
         if (eventsRes.error) throw eventsRes.error;
         if (contractsRes.error) throw contractsRes.error;
         if (precontractsRes.error) throw precontractsRes.error;
+        if (eventMusiciansRes.error) throw eventMusiciansRes.error;
+        if (repertoireConfigsRes.error) throw repertoireConfigsRes.error;
 
         const eventsData = Array.isArray(eventsRes.data) ? eventsRes.data : [];
-        const contractsData = Array.isArray(contractsRes.data) ? contractsRes.data : [];
+        const contractsData = Array.isArray(contractsRes.data)
+          ? contractsRes.data
+          : [];
         const precontractsData = Array.isArray(precontractsRes.data)
           ? precontractsRes.data
+          : [];
+        const eventMusiciansData = Array.isArray(eventMusiciansRes.data)
+          ? eventMusiciansRes.data
+          : [];
+        const repertoireConfigsData = Array.isArray(repertoireConfigsRes.data)
+          ? repertoireConfigsRes.data
           : [];
 
         setEvents(eventsData);
         setContracts(contractsData);
         setPrecontracts(precontractsData);
+        setEventMusicians(eventMusiciansData);
+        setRepertoireConfigs(repertoireConfigsData);
 
         const summaryData = buildDashboardSummary(
           eventsData,
           contractsData,
-          precontractsData
+          precontractsData,
+          eventMusiciansData,
+          repertoireConfigsData
         );
 
         setSummary(summaryData);
@@ -60,8 +84,10 @@ export default function DashboardPage() {
         setEvents([]);
         setContracts([]);
         setPrecontracts([]);
+        setEventMusicians([]);
+        setRepertoireConfigs([]);
         setSummary(
-          buildDashboardSummary([], [], [])
+          buildDashboardSummary([], [], [], [], [])
         );
       } finally {
         setCarregando(false);
@@ -108,17 +134,11 @@ export default function DashboardPage() {
             </div>
 
             <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_1.2fr]">
-              <DashboardOperationsRadar
-                events={events}
-                contracts={contracts}
-                precontracts={precontracts}
-                summary={summary}
-              />
+              <DashboardOperationsRadar summary={summary} />
               <DashboardUpcomingEvents
                 events={events}
                 contracts={contracts}
                 precontracts={precontracts}
-                summary={summary}
               />
             </div>
 

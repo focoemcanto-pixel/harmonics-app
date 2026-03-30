@@ -1386,18 +1386,22 @@ async function saveRepertorio(mode = 'draft') {
 
           <div className="space-y-3">
             <button
-              type="button"
-              className="w-full rounded-[20px] border border-[#f1ddb1] bg-[#fff7e8] px-4 py-4 text-[15px] font-black text-[#9b6a17]"
-            >
-              💾 Salvar rascunho
-            </button>
+  type="button"
+  onClick={() => saveRepertorio('draft')}
+  disabled={savingMode !== ''}
+  className="w-full rounded-[20px] border border-[#f1ddb1] bg-[#fff7e8] px-4 py-4 text-[15px] font-black text-[#9b6a17] disabled:cursor-not-allowed disabled:opacity-60"
+>
+  {savingMode === 'draft' ? 'Salvando rascunho...' : '💾 Salvar rascunho'}
+</button>
 
             <button
-              type="button"
-              className="w-full rounded-[20px] bg-[linear-gradient(135deg,#16a34a_0%,#22c55e_100%)] px-4 py-4 text-[15px] font-black text-white shadow-[0_12px_28px_rgba(34,197,94,0.24)]"
-            >
-              ✨ Finalizar repertório
-            </button>
+  type="button"
+  onClick={() => saveRepertorio('final')}
+  disabled={savingMode !== ''}
+  className="w-full rounded-[20px] bg-[linear-gradient(135deg,#16a34a_0%,#22c55e_100%)] px-4 py-4 text-[15px] font-black text-white shadow-[0_12px_28px_rgba(34,197,94,0.24)] disabled:cursor-not-allowed disabled:opacity-60"
+>
+  {savingMode === 'final' ? 'Finalizando repertório...' : '✨ Finalizar repertório'}
+</button>
           </div>
         </div>
       )}
@@ -3297,9 +3301,12 @@ export default function ClienteHome({ data, initialTab = 'inicio' }) {
 
   {activeTab === 'repertorio' && (
     <RepertorioTab
-      data={data}
-      selectedSongs={selectedSongs}
-    />
+  data={data}
+  selectedSongs={selectedSongs}
+  onSaved={({ mode }) => {
+    if (mode === 'final') return;
+  }}
+/>
   )}
 
   {activeTab === 'sugestoes' && (

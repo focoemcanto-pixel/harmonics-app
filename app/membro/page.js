@@ -640,14 +640,6 @@ setRepertoireItems([]);
   setIsPlaying(true);
 }
 
-function handlePrevTrack() {
-  setPlayerIndex((prev) => {
-    if (playerPlaylist.length === 0) return 0;
-    return (prev - 1 + playerPlaylist.length) % playerPlaylist.length;
-  });
-  setIsPlaying(true);
-}
-
   if (!sessionChecked) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#050814] text-white">
@@ -804,7 +796,6 @@ function handlePrevTrack() {
   onPrev={handlePrevTrack}
   onNext={handleNextTrack}
   onTogglePlay={handleTogglePlaying}
-  onPlayerStateChange={(playing) => setIsPlaying(playing)}
 />
 
       <MiniPlayerBar
@@ -822,6 +813,7 @@ function handlePrevTrack() {
   onNext={handleNextTrack}
   onPrev={handlePrevTrack}
   onTogglePlay={handleTogglePlaying}
+  onPlayerStateChange={(playing) => setIsPlaying(playing)}
 />
     </div>
   );

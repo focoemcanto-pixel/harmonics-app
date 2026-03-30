@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../lib/supabase';
+import { generatePrecontractFromEvent } from '../../lib/contracts/generate-precontract-from-event';
 import AdminShell from '../../components/admin/AdminShell';
 import AdminPageHero from '../../components/admin/AdminPageHero';
 import AdminSummaryCard from '../../components/admin/AdminSummaryCard';
@@ -52,7 +53,6 @@ import {
   getPriorityBannerClasses,
 } from '../../lib/eventos/eventos-ui';
 
-
 const EVENT_TYPES = [
   'Casamento',
   'Aniversário',
@@ -79,6 +79,7 @@ const DESKTOP_TABS = [
   { key: 'evento', label: 'Novo / Editar' },
   { key: 'precos', label: 'Preços' },
 ];
+
 function getContractStatus(ev, contractsByEventId) {
   const contract = contractsByEventId.get(String(ev.id));
 
@@ -145,13 +146,14 @@ export default function EventosPage() {
   const [carregando, setCarregando] = useState(true);
   const [contatos, setContatos] = useState([]);
   const [precontracts, setPrecontracts] = useState([]);
-  const [contracts, setContracts] = useState([]); 
+  const [contracts, setContracts] = useState([]);
   const [operacaoFiltro, setOperacaoFiltro] = useState('todos');
-const [pagamentoAbertoId, setPagamentoAbertoId] = useState(null);
-const [valorPagamento, setValorPagamento] = useState('');
-const [salvandoPagamentoId, setSalvandoPagamentoId] = useState(null);
-const [ultimoPagamentoAtualizadoId, setUltimoPagamentoAtualizadoId] = useState(null);
+  const [pagamentoAbertoId, setPagamentoAbertoId] = useState(null);
+  const [valorPagamento, setValorPagamento] = useState('');
+  const [salvandoPagamentoId, setSalvandoPagamentoId] = useState(null);
+  const [ultimoPagamentoAtualizadoId, setUltimoPagamentoAtualizadoId] = useState(null);
   const [contratoAbertoId, setContratoAbertoId] = useState(null);
+  const [gerandoContratoId, setGerandoContratoId] = useState(null);
 
   const [viewMode, setViewMode] = useState('Mês atual');
   const [monthFilter, setMonthFilter] = useState('all');
@@ -162,7 +164,7 @@ const [ultimoPagamentoAtualizadoId, setUltimoPagamentoAtualizadoId] = useState(n
   const [pricingId, setPricingId] = useState(null);
   const [pricing, setPricing] = useState(getDefaultPricing());
 
-    const [form, setForm] = useState(getInitialForm());
+  const [form, setForm] = useState(getInitialForm());
   const [mobileTab, setMobileTab] = useState('resumo');
   const [desktopTab, setDesktopTab] = useState('visao');
   const [escalaAberta, setEscalaAberta] = useState(false);
@@ -179,66 +181,67 @@ const [ultimoPagamentoAtualizadoId, setUltimoPagamentoAtualizadoId] = useState(n
       alert('Erro ao carregar eventos. Tente novamente mais tarde.');
     }
   }
+
   async function salvarPagamento(ev, tipo = 'total') {
-  const valor = Number(valorPagamento || 0);
+    const valor = Number(valorPagamento || 0);
 
-  if (!valor && tipo === 'parcial') {
-    alert('Informe um valor');
-    return;
-  }
+    if (!valor && tipo === 'parcial') {
+      alert('Informe um valor');
+      return;
+    }
 
-  setSalvandoPagamentoId(ev.id);
+    setSalvandoPagamentoId(ev.id);
 
-  let novoPago =
-    tipo === 'total'
-      ? Number(ev.agreed_amount || 0)
-      : Number(ev.paid_amount || 0) + valor;
+    let novoPago =
+      tipo === 'total'
+        ? Number(ev.agreed_amount || 0)
+        : Number(ev.paid_amount || 0) + valor;
 
-  let status = 'Pago';
+    let status = 'Pago';
 
-  if (novoPago < Number(ev.agreed_amount || 0)) {
-    status = 'Parcial';
-  }
+    if (novoPago < Number(ev.agreed_amount || 0)) {
+      status = 'Parcial';
+    }
 
-  const { error } = await supabase
-    .from('events')
-    .update({
-      paid_amount: novoPago,
-      payment_status: status,
-      open_amount: Math.max(0, Number(ev.agreed_amount || 0) - novoPago),
-    })
-    .eq('id', ev.id);
+    const { error } = await supabase
+      .from('events')
+      .update({
+        paid_amount: novoPago,
+        payment_status: status,
+        open_amount: Math.max(0, Number(ev.agreed_amount || 0) - novoPago),
+      })
+      .eq('id', ev.id);
 
-  if (error) {
-    setSalvandoPagamentoId(null);
-    alert('Erro ao salvar pagamento');
-    return;
-  }
+    if (error) {
+      setSalvandoPagamentoId(null);
+      alert('Erro ao salvar pagamento');
+      return;
+    }
 
-  setEventos((prev) =>
-    prev.map((item) =>
-      item.id === ev.id
-        ? {
-            ...item,
-            paid_amount: novoPago,
-            payment_status: status,
-            open_amount: Math.max(0, Number(item.agreed_amount || 0) - novoPago),
-          }
-        : item
-    )
-  );
-
-  setPagamentoAbertoId(null);
-  setValorPagamento('');
-  setSalvandoPagamentoId(null);
-  setUltimoPagamentoAtualizadoId(ev.id);
-
-  setTimeout(() => {
-    setUltimoPagamentoAtualizadoId((current) =>
-      current === ev.id ? null : current
+    setEventos((prev) =>
+      prev.map((item) =>
+        item.id === ev.id
+          ? {
+              ...item,
+              paid_amount: novoPago,
+              payment_status: status,
+              open_amount: Math.max(0, Number(item.agreed_amount || 0) - novoPago),
+            }
+          : item
+      )
     );
-  }, 2200);
-}
+
+    setPagamentoAbertoId(null);
+    setValorPagamento('');
+    setSalvandoPagamentoId(null);
+    setUltimoPagamentoAtualizadoId(ev.id);
+
+    setTimeout(() => {
+      setUltimoPagamentoAtualizadoId((current) =>
+        current === ev.id ? null : current
+      );
+    }, 2200);
+  }
 
   async function carregarPricing() {
     try {
@@ -267,11 +270,10 @@ const [ultimoPagamentoAtualizadoId, setUltimoPagamentoAtualizadoId] = useState(n
       .from('contacts')
       .select('id, name, email, phone');
 
-    console.log('CONTATOS:', data);
-
     if (!error) setContatos(data || []);
   }
-    useEffect(() => {
+
+  useEffect(() => {
     return () => {
       document.body.style.overflow = '';
     };
@@ -282,12 +284,13 @@ const [ultimoPagamentoAtualizadoId, setUltimoPagamentoAtualizadoId] = useState(n
       setCarregando(true);
 
       await Promise.all([
-  carregarEventos(),
-  carregarPricing(),
-  carregarContatos(),
-  carregarPrecontracts(),
-  carregarContracts(),
-]);
+        carregarEventos(),
+        carregarPricing(),
+        carregarContatos(),
+        carregarPrecontracts(),
+        carregarContracts(),
+      ]);
+
       setCarregando(false);
     }
 
@@ -306,31 +309,32 @@ const [ultimoPagamentoAtualizadoId, setUltimoPagamentoAtualizadoId] = useState(n
       [field]: value,
     }));
   }
+
   async function carregarPrecontracts() {
-  try {
-    const { data, error } = await supabase
-      .from('precontracts')
-      .select('*');
+    try {
+      const { data, error } = await supabase
+        .from('precontracts')
+        .select('*');
 
-    if (error) throw error;
-    setPrecontracts(data || []);
-  } catch (error) {
-    console.error('Erro ao carregar precontracts:', error);
+      if (error) throw error;
+      setPrecontracts(data || []);
+    } catch (error) {
+      console.error('Erro ao carregar precontracts:', error);
+    }
   }
-}
 
-async function carregarContracts() {
-  try {
-    const { data, error } = await supabase
-      .from('contracts')
-      .select('*');
+  async function carregarContracts() {
+    try {
+      const { data, error } = await supabase
+        .from('contracts')
+        .select('*');
 
-    if (error) throw error;
-    setContracts(data || []);
-  } catch (error) {
-    console.error('Erro ao carregar contracts:', error);
+      if (error) throw error;
+      setContracts(data || []);
+    } catch (error) {
+      console.error('Erro ao carregar contracts:', error);
+    }
   }
-}
 
   function aplicarAutomaticosDaFormacao(
     nextFormation = form.formation,
@@ -355,18 +359,35 @@ async function carregarContracts() {
       sound_price: String(soundPrice || ''),
     }));
   }
-  function abrirContratoRapido(evento) {
-  const contractInfo = contractsByEventId.get(String(evento.id));
 
-  if (contractInfo?.link) {
-    window.open(contractInfo.link, '_blank');
-    return;
+  async function abrirContratoRapido(evento) {
+    try {
+      const contractInfo = contractsByEventId.get(String(evento.id));
+
+      if (contractInfo?.link) {
+        window.open(contractInfo.link, '_blank', 'noopener,noreferrer');
+        return;
+      }
+
+      setGerandoContratoId(evento.id);
+
+      const precontract = await generatePrecontractFromEvent(evento);
+
+      if (!precontract?.public_token) {
+        throw new Error('Token não gerado');
+      }
+
+      await carregarPrecontracts();
+      await carregarContracts();
+
+      window.open(`/contrato/${precontract.public_token}`, '_blank', 'noopener,noreferrer');
+    } catch (error) {
+      console.error('Erro ao gerar contrato:', error);
+      alert('Erro ao gerar contrato do evento.');
+    } finally {
+      setGerandoContratoId(null);
+    }
   }
-
-  iniciarEdicao(evento);
-  setDesktopTab('evento');
-  setMobileTab('evento');
-}
 
   function iniciarEdicao(evento) {
     setEditandoId(evento.id);
@@ -387,7 +408,6 @@ async function carregarContracts() {
       whatsapp_phone: evento.whatsapp_phone || '',
       has_sound: !!evento.has_sound,
       reception_hours: String(evento.reception_hours ?? 0),
-      
 
       formation_price: String(evento.formation_price ?? ''),
       sound_price: String(evento.sound_price ?? ''),
@@ -401,19 +421,19 @@ async function carregarContracts() {
       extra_transport_cost: String(evento.extra_transport_cost ?? ''),
 
       status: evento.status || 'Rascunho',
-      
     });
 
     setDesktopTab('evento');
-setMobileTab('evento');
-window.scrollTo({ top: 0, behavior: 'smooth' });
+    setMobileTab('evento');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   function cancelarEdicao() {
     setEditandoId(null);
     setForm(getInitialForm());
   }
-    function abrirEscala(evento) {
+
+  function abrirEscala(evento) {
     setEventoEscala(evento);
     setEscalaAberta(true);
     document.body.style.overflow = 'hidden';
@@ -426,48 +446,47 @@ window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   const financial = useMemo(() => {
-  const formationPrice = toNumber(form.formation_price);
-  const soundPrice = form.has_sound ? toNumber(form.sound_price) : 0;
-  const receptionPrice = toNumber(form.reception_price);
-  const transportPrice = toNumber(form.transport_price);
+    const formationPrice = toNumber(form.formation_price);
+    const soundPrice = form.has_sound ? toNumber(form.sound_price) : 0;
+    const receptionPrice = toNumber(form.reception_price);
+    const transportPrice = toNumber(form.transport_price);
 
-  const agreedAmount =
-    formationPrice + soundPrice + receptionPrice + transportPrice;
-  const paidAmount = toNumber(form.paid_amount);
-  const openAmount = Math.max(0, agreedAmount - paidAmount);
+    const agreedAmount =
+      formationPrice + soundPrice + receptionPrice + transportPrice;
+    const paidAmount = toNumber(form.paid_amount);
+    const openAmount = Math.max(0, agreedAmount - paidAmount);
 
-  const musicianCost = toNumber(form.musician_cost);
-  const soundCost = toNumber(form.sound_cost);
-  const extraTransportCost = toNumber(form.extra_transport_cost);
-  const totalCosts = musicianCost + soundCost + extraTransportCost;
+    const musicianCost = toNumber(form.musician_cost);
+    const soundCost = toNumber(form.sound_cost);
+    const extraTransportCost = toNumber(form.extra_transport_cost);
+    const totalCosts = musicianCost + soundCost + extraTransportCost;
 
-  const profitAmount = agreedAmount - totalCosts;
-  const paymentStatus = getPaymentStatus(agreedAmount, paidAmount);
+    const profitAmount = agreedAmount - totalCosts;
+    const paymentStatus = getPaymentStatus(agreedAmount, paidAmount);
 
-  return {
-    formationPrice,
-    soundPrice,
-    receptionPrice,
-    transportPrice,
-    agreedAmount,
-    paidAmount,
-    openAmount,
-    musicianCost,
-    soundCost,
-    extraTransportCost,
-    totalCosts,
-    profitAmount,
-    paymentStatus,
+    return {
+      formationPrice,
+      soundPrice,
+      receptionPrice,
+      transportPrice,
+      agreedAmount,
+      paidAmount,
+      openAmount,
+      musicianCost,
+      soundCost,
+      extraTransportCost,
+      totalCosts,
+      profitAmount,
+      paymentStatus,
 
-    formationPriceFormatted: formatMoney(formationPrice),
-    soundPriceFormatted: formatMoney(soundPrice),
-    receptionPriceFormatted: formatMoney(receptionPrice),
-    agreedAmountFormatted: formatMoney(agreedAmount),
-    openAmountFormatted: formatMoney(openAmount),
-    profitAmountFormatted: formatMoney(profitAmount),
-  };
-}, [form, pricing]);
-  
+      formationPriceFormatted: formatMoney(formationPrice),
+      soundPriceFormatted: formatMoney(soundPrice),
+      receptionPriceFormatted: formatMoney(receptionPrice),
+      agreedAmountFormatted: formatMoney(agreedAmount),
+      openAmountFormatted: formatMoney(openAmount),
+      profitAmountFormatted: formatMoney(profitAmount),
+    };
+  }, [form, pricing]);
 
   async function salvarPricing() {
     if (!pricingId) {
@@ -581,12 +600,13 @@ window.scrollTo({ top: 0, behavior: 'smooth' });
       setSalvando(false);
     }
   }
+
   function registrarPagamentoRapido(evento) {
-  iniciarEdicao(evento);
-  setDesktopTab('evento');
-  setMobileTab('evento');
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-}
+    iniciarEdicao(evento);
+    setDesktopTab('evento');
+    setMobileTab('evento');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
 
   async function excluirEvento(id) {
     if (!confirm('Tem certeza que deseja excluir este evento?')) return;
@@ -606,23 +626,24 @@ window.scrollTo({ top: 0, behavior: 'smooth' });
       alert('Erro ao excluir evento. Tente novamente.');
     }
   }
+
   async function confirmarRapido(evento) {
-  const { error } = await supabase
-    .from('events')
-    .update({ status: 'Confirmado' })
-    .eq('id', evento.id);
+    const { error } = await supabase
+      .from('events')
+      .update({ status: 'Confirmado' })
+      .eq('id', evento.id);
 
-  if (error) {
-    alert('Não foi possível confirmar o evento.');
-    return;
+    if (error) {
+      alert('Não foi possível confirmar o evento.');
+      return;
+    }
+
+    setEventos((prev) =>
+      prev.map((item) =>
+        item.id === evento.id ? { ...item, status: 'Confirmado' } : item
+      )
+    );
   }
-
-  setEventos((prev) =>
-    prev.map((item) =>
-      item.id === evento.id ? { ...item, status: 'Confirmado' } : item
-    )
-  );
-}
 
   const availableMonthOptions = useMemo(() => {
     const unique = Array.from(
@@ -695,53 +716,55 @@ window.scrollTo({ top: 0, behavior: 'smooth' });
 
     return lista;
   }, [eventos, viewMode, monthFilter, sortMode, busca]);
+
   const contractsByEventId = useMemo(() => {
-  const map = new Map();
+    const map = new Map();
 
-  const contractsByPreId = new Map(
-    contracts.map((item) => [String(item.precontract_id), item])
-  );
+    const contractsByPreId = new Map(
+      contracts.map((item) => [String(item.precontract_id), item])
+    );
 
-  for (const pre of precontracts) {
-    const contract = contractsByPreId.get(String(pre.id));
+    for (const pre of precontracts) {
+      const contract = contractsByPreId.get(String(pre.id));
 
-    const eventId = contract?.event_id || pre?.event_id;
-    if (!eventId) continue;
+      const eventId = contract?.event_id || pre?.event_id;
+      if (!eventId) continue;
 
-    const rawStatus = contract?.status || pre?.status || '';
-    const s = String(rawStatus).toLowerCase();
+      const rawStatus = contract?.status || pre?.status || '';
+      const s = String(rawStatus).toLowerCase();
 
-    let label = 'Sem contrato';
-    let tone = 'default';
+      let label = 'Sem contrato';
+      let tone = 'default';
 
-    if (s === 'signed') {
-      label = 'Contrato assinado';
-      tone = 'emerald';
-    } else if (s === 'client_filling') {
-      label = 'Preenchendo contrato';
-      tone = 'violet';
-    } else if (s === 'link_generated') {
-      label = 'Link do contrato gerado';
-      tone = 'blue';
+      if (s === 'signed') {
+        label = 'Contrato assinado';
+        tone = 'emerald';
+      } else if (s === 'client_filling') {
+        label = 'Preenchendo contrato';
+        tone = 'violet';
+      } else if (s === 'link_generated') {
+        label = 'Link do contrato gerado';
+        tone = 'blue';
+      }
+
+      map.set(String(eventId), {
+        precontractId: pre.id,
+        contractId: contract?.id || null,
+        token: pre.public_token || contract?.public_token || '',
+        link: pre.public_token ? `/contrato/${pre.public_token}` : '',
+        status: rawStatus,
+        label,
+        tone,
+        signedAt: contract?.signed_at || '',
+        pdfUrl: contract?.pdf_url || '',
+        docUrl: contract?.doc_url || '',
+      });
     }
 
-    map.set(String(eventId), {
-      precontractId: pre.id,
-      contractId: contract?.id || null,
-      token: pre.public_token || contract?.public_token || '',
-      link: pre.public_token ? `/contrato/${pre.public_token}` : '',
-      status: rawStatus,
-      label,
-      tone,
-      signedAt: contract?.signed_at || '',
-      pdfUrl: contract?.pdf_url || '',
-      docUrl: contract?.doc_url || '',
-    });
-  }
+    return map;
+  }, [precontracts, contracts]);
 
-  return map;
-}, [precontracts, contracts]);
-    const eventosOperacionais = useMemo(() => {
+  const eventosOperacionais = useMemo(() => {
     return eventosFiltrados.filter((ev) => {
       const contratoPendente = isContratoPendente(ev, contractsByEventId);
       const pagamentoPendente = isFinanceiroPendente(ev);
@@ -775,81 +798,81 @@ window.scrollTo({ top: 0, behavior: 'smooth' });
         return eventosOperacionais;
     }
   }, [operacaoFiltro, eventosOperacionais, contractsByEventId]);
+
   const resumoOperacao = useMemo(() => {
-  const financeiros = eventosOperacionais.filter((ev) =>
-    isFinanceiroPendente(ev)
-  ).length;
+    const financeiros = eventosOperacionais.filter((ev) =>
+      isFinanceiroPendente(ev)
+    ).length;
 
-  const contratos = eventosOperacionais.filter((ev) =>
-    isContratoPendente(ev, contractsByEventId)
-  ).length;
+    const contratos = eventosOperacionais.filter((ev) =>
+      isContratoPendente(ev, contractsByEventId)
+    ).length;
 
-  const proximos = eventosOperacionais.filter((ev) =>
-    isUpcomingEvent(ev.event_date, 7)
-  ).length;
+    const proximos = eventosOperacionais.filter((ev) =>
+      isUpcomingEvent(ev.event_date, 7)
+    ).length;
 
-  const rascunhos = eventosOperacionais.filter((ev) =>
-    isRascunho(ev)
-  ).length;
+    const rascunhos = eventosOperacionais.filter((ev) =>
+      isRascunho(ev)
+    ).length;
 
-  let prioridadeLabel = 'Operação sob controle';
-  let prioridadeTone = 'emerald';
+    let prioridadeLabel = 'Operação sob controle';
+    let prioridadeTone = 'emerald';
 
-  if (financeiros > 0) {
-    prioridadeLabel = `${financeiros} evento(s) com financeiro pendente`;
-    prioridadeTone = 'amber';
-  } else if (contratos > 0) {
-    prioridadeLabel = `${contratos} evento(s) com contrato pendente`;
-    prioridadeTone = 'violet';
-  } else if (rascunhos > 0) {
-    prioridadeLabel = `${rascunhos} evento(s) em rascunho`;
-    prioridadeTone = 'slate';
-  } else if (proximos > 0) {
-    prioridadeLabel = `${proximos} evento(s) nos próximos 7 dias`;
-    prioridadeTone = 'blue';
-  }
+    if (financeiros > 0) {
+      prioridadeLabel = `${financeiros} evento(s) com financeiro pendente`;
+      prioridadeTone = 'amber';
+    } else if (contratos > 0) {
+      prioridadeLabel = `${contratos} evento(s) com contrato pendente`;
+      prioridadeTone = 'violet';
+    } else if (rascunhos > 0) {
+      prioridadeLabel = `${rascunhos} evento(s) em rascunho`;
+      prioridadeTone = 'slate';
+    } else if (proximos > 0) {
+      prioridadeLabel = `${proximos} evento(s) nos próximos 7 dias`;
+      prioridadeTone = 'blue';
+    }
 
-  return {
-    financeiros,
-    contratos,
-    proximos,
-    rascunhos,
-    prioridadeLabel,
-    prioridadeTone,
-  };
-}, [eventosOperacionais, contractsByEventId]);
-  
+    return {
+      financeiros,
+      contratos,
+      proximos,
+      rascunhos,
+      prioridadeLabel,
+      prioridadeTone,
+    };
+  }, [eventosOperacionais, contractsByEventId]);
 
   const resumo = useMemo(() => {
-  const visiveis = eventosFiltrados;
-  const total = visiveis.length;
+    const visiveis = eventosFiltrados;
+    const total = visiveis.length;
 
-  const totalAberto = visiveis.reduce(
-    (acc, ev) => acc + toNumber(ev.open_amount),
-    0
-  );
+    const totalAberto = visiveis.reduce(
+      (acc, ev) => acc + toNumber(ev.open_amount),
+      0
+    );
 
-  const totalAcertado = visiveis.reduce(
-    (acc, ev) => acc + toNumber(ev.agreed_amount),
-    0
-  );
+    const totalAcertado = visiveis.reduce(
+      (acc, ev) => acc + toNumber(ev.agreed_amount),
+      0
+    );
 
-  const totalLucro = visiveis.reduce(
-    (acc, ev) => acc + toNumber(ev.profit_amount),
-    0
-  );
+    const totalLucro = visiveis.reduce(
+      (acc, ev) => acc + toNumber(ev.profit_amount),
+      0
+    );
 
-  return {
-    total,
-    totalAberto,
-    totalAcertado,
-    totalLucro,
-    totalAbertoFormatado: formatMoney(totalAberto),
-    totalAcertadoFormatado: formatMoney(totalAcertado),
-    totalLucroFormatado: formatMoney(totalLucro),
-  };
-}, [eventosFiltrados, formatMoney]);
-  
+    return {
+      total,
+      totalAberto,
+      totalAcertado,
+      totalLucro,
+      totalAbertoFormatado: formatMoney(totalAberto),
+      totalAcertadoFormatado: formatMoney(totalAcertado),
+      totalLucroFormatado: formatMoney(totalLucro),
+    };
+  }, [eventosFiltrados]);
+
   const mobileTabs = [
     { key: 'resumo', label: 'Resumo' },
     { key: 'evento', label: editandoId ? 'Editar' : 'Novo evento' },
@@ -866,6 +889,7 @@ window.scrollTo({ top: 0, behavior: 'smooth' });
       Novo
     </button>
   );
+
   function renderLista() {
     return (
       <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_26px_rgba(17,24,39,0.04)] md:p-6">
@@ -914,49 +938,53 @@ window.scrollTo({ top: 0, behavior: 'smooth' });
             </div>
           ) : (
             eventosFiltrados.map((ev) => {
-  const timeline = getTimelineLabel(ev.event_date);
-  const contractInfo = contractsByEventId.get(String(ev.id));
+              const timeline = getTimelineLabel(ev.event_date);
+              const contractInfo = contractsByEventId.get(String(ev.id));
 
-  return (
-       <AdminEventCard
-      key={ev.id}
-      id={ev.id}
-      cliente={ev.client_name}
-      tipo={ev.event_type || 'Evento'}
-      data={formatDateBR(ev.event_date)}
-      hora={ev.event_time || '-'}
-      local={ev.location_name || '-'}
-      formacao={ev.formation || '-'}
-      receptivo={ev.reception_hours ? `${ev.reception_hours}h` : 'Não'}
-      temSom={!!ev.has_sound}
-      whatsappNome={ev.whatsapp_name || '-'}
-      whatsappNumero={formatPhoneDisplay(ev.whatsapp_phone)}
-      observacoes={ev.observations}
-      valorAcertado={formatMoney(ev.agreed_amount)}
-      valorPago={formatMoney(ev.paid_amount)}
-      valorAberto={formatMoney(ev.open_amount)}
-      lucroFinal={formatMoney(ev.profit_amount)}
-      paymentStatus={ev.payment_status || 'Pendente'}
-      operationalStatus={ev.status || 'Rascunho'}
-      timelineText={timeline.text}
-      timelineTone={timeline.tone}
-      contractLabel={contractInfo?.label || 'Sem contrato'}
-      contractTone={contractInfo?.tone || 'default'}
-      contractLink={contractInfo?.link || ''}
-      onEdit={() => iniciarEdicao(ev)}
-      onDelete={() => excluirEvento(ev.id)}
-      onOpenEscala={() => abrirEscala(ev)}
-    />
-  );
-})
+              return (
+                <AdminEventCard
+                  key={ev.id}
+                  id={ev.id}
+                  cliente={ev.client_name}
+                  tipo={ev.event_type || 'Evento'}
+                  data={formatDateBR(ev.event_date)}
+                  hora={ev.event_time || '-'}
+                  local={ev.location_name || '-'}
+                  formacao={ev.formation || '-'}
+                  receptivo={ev.reception_hours ? `${ev.reception_hours}h` : 'Não'}
+                  temSom={!!ev.has_sound}
+                  whatsappNome={ev.whatsapp_name || '-'}
+                  whatsappNumero={formatPhoneDisplay(ev.whatsapp_phone)}
+                  observacoes={ev.observations}
+                  valorAcertado={formatMoney(ev.agreed_amount)}
+                  valorPago={formatMoney(ev.paid_amount)}
+                  valorAberto={formatMoney(ev.open_amount)}
+                  lucroFinal={formatMoney(ev.profit_amount)}
+                  paymentStatus={ev.payment_status || 'Pendente'}
+                  operationalStatus={ev.status || 'Rascunho'}
+                  timelineText={timeline.text}
+                  timelineTone={timeline.tone}
+                  contractLabel={
+                    gerandoContratoId === ev.id
+                      ? 'Gerando contrato...'
+                      : contractInfo?.label || 'Sem contrato'
+                  }
+                  contractTone={contractInfo?.tone || 'default'}
+                  contractLink={contractInfo?.link || ''}
+                  onEdit={() => iniciarEdicao(ev)}
+                  onDelete={() => excluirEvento(ev.id)}
+                  onOpenEscala={() => abrirEscala(ev)}
+                  onOpenContract={() => abrirContratoRapido(ev)}
+                />
+              );
+            })
           )}
         </div>
       </section>
     );
   }
-  
 
-   if (carregando) {
+  if (carregando) {
     return (
       <AdminShell
         pageTitle="Eventos"
@@ -1039,93 +1067,89 @@ window.scrollTo({ top: 0, behavior: 'smooth' });
 
         <div className="hidden md:block space-y-5">
           {desktopTab === 'visao' && (
-  <>
-   <EventosResumoTab
-  resumo={resumo}
-  resumoOperacao={resumoOperacao}
-  eventosFiltrados={eventosFiltrados}
-  setDesktopTab={setDesktopTab}
-  setMobileTab={setMobileTab}
-  setOperacaoFiltro={setOperacaoFiltro}
-  iniciarEdicao={iniciarEdicao}
-  formatDateBR={formatDateBR}
-  getTimelineLabel={getTimelineLabel}
-/>
-    {renderLista()}
-  </>
-)}
+            <>
+              <EventosResumoTab
+                resumo={resumo}
+                resumoOperacao={resumoOperacao}
+                eventosFiltrados={eventosFiltrados}
+                setDesktopTab={setDesktopTab}
+                setMobileTab={setMobileTab}
+                setOperacaoFiltro={setOperacaoFiltro}
+                iniciarEdicao={iniciarEdicao}
+                formatDateBR={formatDateBR}
+                getTimelineLabel={getTimelineLabel}
+              />
+              {renderLista()}
+            </>
+          )}
 
-         {desktopTab === 'operacao' && (
-  <EventosOperacaoTab
-    eventosOperacionais={eventosOperacionais}
-    eventosOperacionaisFiltrados={eventosOperacionaisFiltrados}
-    resumoOperacao={resumoOperacao}
-    operacaoFiltro={operacaoFiltro}
-    setOperacaoFiltro={setOperacaoFiltro}
-    contractsByEventId={contractsByEventId}
-    contratoAbertoId={contratoAbertoId}
-setContratoAbertoId={setContratoAbertoId}
+          {desktopTab === 'operacao' && (
+            <EventosOperacaoTab
+              eventosOperacionais={eventosOperacionais}
+              eventosOperacionaisFiltrados={eventosOperacionaisFiltrados}
+              resumoOperacao={resumoOperacao}
+              operacaoFiltro={operacaoFiltro}
+              setOperacaoFiltro={setOperacaoFiltro}
+              contractsByEventId={contractsByEventId}
+              contratoAbertoId={contratoAbertoId}
+              setContratoAbertoId={setContratoAbertoId}
+              iniciarEdicao={iniciarEdicao}
+              confirmarRapido={confirmarRapido}
+              salvarPagamento={salvarPagamento}
+              pagamentoAbertoId={pagamentoAbertoId}
+              setPagamentoAbertoId={setPagamentoAbertoId}
+              valorPagamento={valorPagamento}
+              setValorPagamento={setValorPagamento}
+              salvandoPagamentoId={salvandoPagamentoId}
+              ultimoPagamentoAtualizadoId={ultimoPagamentoAtualizadoId}
+              setDesktopTab={setDesktopTab}
+              setMobileTab={setMobileTab}
+              getContractStatus={getContractStatus}
+              getOperacaoAlert={getOperacaoAlert}
+              getQuickActions={getQuickActions}
+              getOperacaoPrimaryAction={getOperacaoPrimaryAction}
+              isContratoPendente={isContratoPendente}
+              isFinanceiroPendente={isFinanceiroPendente}
+              isUpcomingEvent={isUpcomingEvent}
+              isRascunho={isRascunho}
+              getTimelineLabel={getTimelineLabel}
+              getOperationalTone={getOperationalTone}
+              getPaymentTone={getPaymentTone}
+              getPriorityBannerClasses={getPriorityBannerClasses}
+              formatMoney={formatMoney}
+              formatDateBR={formatDateBR}
+              formatPhoneDisplay={formatPhoneDisplay}
+              onOpenContract={abrirContratoRapido}
+              gerandoContratoId={gerandoContratoId}
+            />
+          )}
 
-    iniciarEdicao={iniciarEdicao}
-    confirmarRapido={confirmarRapido}
-    salvarPagamento={salvarPagamento}
-
-    pagamentoAbertoId={pagamentoAbertoId}
-    setPagamentoAbertoId={setPagamentoAbertoId}
-    valorPagamento={valorPagamento}
-    setValorPagamento={setValorPagamento}
-    salvandoPagamentoId={salvandoPagamentoId}
-    ultimoPagamentoAtualizadoId={ultimoPagamentoAtualizadoId}
-
-    setDesktopTab={setDesktopTab}
-    setMobileTab={setMobileTab}
-
-    getContractStatus={getContractStatus}
-    getOperacaoAlert={getOperacaoAlert}
-    getQuickActions={getQuickActions}
-    getOperacaoPrimaryAction={getOperacaoPrimaryAction}
-
-    isContratoPendente={isContratoPendente}
-    isFinanceiroPendente={isFinanceiroPendente}
-    isUpcomingEvent={isUpcomingEvent}
-    isRascunho={isRascunho}
-
-    getTimelineLabel={getTimelineLabel}
-    getOperationalTone={getOperationalTone}
-    getPaymentTone={getPaymentTone}
-    getPriorityBannerClasses={getPriorityBannerClasses}
-
-    formatMoney={formatMoney}
-    formatDateBR={formatDateBR}
-    formatPhoneDisplay={formatPhoneDisplay}
-  />
-)}
-         {desktopTab === 'evento' && (
-  <EventosFormularioTab
-    editandoId={editandoId}
-    contatos={contatos}
-    form={form}
-    handleFormChange={handleFormChange}
-    aplicarAutomaticosDaFormacao={aplicarAutomaticosDaFormacao}
-    financial={financial}
-    salvarEvento={salvarEvento}
-    cancelarEdicao={cancelarEdicao}
-    salvando={salvando}
-    EVENT_TYPES={EVENT_TYPES}
-    FORMATIONS={FORMATIONS}
-    formatPhoneDisplay={formatPhoneDisplay}
-    getPaymentTone={getPaymentTone}
-  />
-)}
+          {desktopTab === 'evento' && (
+            <EventosFormularioTab
+              editandoId={editandoId}
+              contatos={contatos}
+              form={form}
+              handleFormChange={handleFormChange}
+              aplicarAutomaticosDaFormacao={aplicarAutomaticosDaFormacao}
+              financial={financial}
+              salvarEvento={salvarEvento}
+              cancelarEdicao={cancelarEdicao}
+              salvando={salvando}
+              EVENT_TYPES={EVENT_TYPES}
+              FORMATIONS={FORMATIONS}
+              formatPhoneDisplay={formatPhoneDisplay}
+              getPaymentTone={getPaymentTone}
+            />
+          )}
 
           {desktopTab === 'precos' && (
-  <EventosPricingTab
-    pricing={pricing}
-    setPricing={setPricing}
-    salvarPricing={salvarPricing}
-    salvando={salvando}
-  />
-)}
+            <EventosPricingTab
+              pricing={pricing}
+              setPricing={setPricing}
+              salvarPricing={salvarPricing}
+              salvando={salvando}
+            />
+          )}
         </div>
 
         <div className="md:hidden">
@@ -1138,50 +1162,54 @@ setContratoAbertoId={setContratoAbertoId}
 
         <div className="space-y-5 md:hidden">
           {mobileTab === 'resumo' && (
-  <EventosResumoTab
-    resumo={resumo}
-    resumoOperacao={resumoOperacao}
-    eventosFiltrados={eventosFiltrados}
-    setDesktopTab={setDesktopTab}
-    setMobileTab={setMobileTab}
-    setOperacaoFiltro={setOperacaoFiltro}
-    iniciarEdicao={iniciarEdicao}
-    formatDateBR={formatDateBR}
-    getTimelineLabel={getTimelineLabel}
-  />
-)}
+            <EventosResumoTab
+              resumo={resumo}
+              resumoOperacao={resumoOperacao}
+              eventosFiltrados={eventosFiltrados}
+              setDesktopTab={setDesktopTab}
+              setMobileTab={setMobileTab}
+              setOperacaoFiltro={setOperacaoFiltro}
+              iniciarEdicao={iniciarEdicao}
+              formatDateBR={formatDateBR}
+              getTimelineLabel={getTimelineLabel}
+            />
+          )}
+
           {mobileTab === 'evento' && (
-  <EventosFormularioTab
-    editandoId={editandoId}
-    contatos={contatos}
-    form={form}
-    handleFormChange={handleFormChange}
-    aplicarAutomaticosDaFormacao={aplicarAutomaticosDaFormacao}
-    financial={financial}
-    salvarEvento={salvarEvento}
-    cancelarEdicao={cancelarEdicao}
-    salvando={salvando}
-    EVENT_TYPES={EVENT_TYPES}
-    FORMATIONS={FORMATIONS}
-    formatPhoneDisplay={formatPhoneDisplay}
-    getPaymentTone={getPaymentTone}
-  />
-)}
+            <EventosFormularioTab
+              editandoId={editandoId}
+              contatos={contatos}
+              form={form}
+              handleFormChange={handleFormChange}
+              aplicarAutomaticosDaFormacao={aplicarAutomaticosDaFormacao}
+              financial={financial}
+              salvarEvento={salvarEvento}
+              cancelarEdicao={cancelarEdicao}
+              salvando={salvando}
+              EVENT_TYPES={EVENT_TYPES}
+              FORMATIONS={FORMATIONS}
+              formatPhoneDisplay={formatPhoneDisplay}
+              getPaymentTone={getPaymentTone}
+            />
+          )}
+
           {mobileTab === 'lista' && renderLista()}
+
           {mobileTab === 'precos' && (
-  <EventosPricingTab
-    pricing={pricing}
-    setPricing={setPricing}
-    salvarPricing={salvarPricing}
-    salvando={salvando}
-  />
-)}
+            <EventosPricingTab
+              pricing={pricing}
+              setPricing={setPricing}
+              salvarPricing={salvarPricing}
+              salvando={salvando}
+            />
+          )}
         </div>
       </div>
-            {escalaAberta && eventoEscala ? (
+
+      {escalaAberta && eventoEscala ? (
         <div className="fixed inset-0 z-[120] bg-black/40 backdrop-blur-[2px]">
           <div className="flex min-h-screen items-stretch justify-center md:p-6">
-            <div className="flex min-h-screen w-full flex-col bg-white md:min-h-0 md:max-h-[92vh] md:max-w-4xl md:rounded-[28px] md:border md:border-[#dbe3ef] md:shadow-[0_25px_60px_rgba(15,23,42,0.18)] overflow-hidden">
+            <div className="flex min-h-screen w-full flex-col overflow-hidden bg-white md:min-h-0 md:max-h-[92vh] md:max-w-4xl md:rounded-[28px] md:border md:border-[#dbe3ef] md:shadow-[0_25px_60px_rgba(15,23,42,0.18)]">
               <div className="sticky top-0 z-10 border-b border-[#e6ebf2] bg-white px-5 py-4 md:px-6 md:py-5">
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">

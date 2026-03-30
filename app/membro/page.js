@@ -88,6 +88,8 @@ export default function MembroPage() {
 
   const [repertorioResumoOpen, setRepertorioResumoOpen] = useState(false);
   const [repertorioResumoItem, setRepertorioResumoItem] = useState(null);
+  const [repertoireConfigs, setRepertoireConfigs] = useState([]);
+const [repertoireItems, setRepertoireItems] = useState([]);
 
   const [debugAuth, setDebugAuth] = useState({
     sessionEmail: '',
@@ -223,47 +225,68 @@ export default function MembroPage() {
       setLoadingData(true);
       setError('');
 
-      const [invitesResp, precontractsResp, contractsResp] = await Promise.all([
-        supabase
-          .from('invites')
-          .select(`
-            id,
-            event_id,
-            contact_id,
-            suggested_role_name,
-            message,
-            status,
-            sent_at,
-            responded_at,
-            created_at,
-            events (*)
-          `)
-          .eq('contact_id', currentMember.id)
-          .neq('status', 'removed')
-          .order('created_at', { ascending: false }),
+      const [
+  invitesResp,
+  precontractsResp,
+  contractsResp,
+  repertoireConfigsResp,
+  repertoireItemsResp,
+] = await Promise.all([
+  supabase
+    .from('invites')
+    .select(`
+      id,
+      event_id,
+      contact_id,
+      suggested_role_name,
+      message,
+      status,
+      sent_at,
+      responded_at,
+      created_at,
+      events (*)
+    `)
+    .eq('contact_id', currentMember.id)
+    .neq('status', 'removed')
+    .order('created_at', { ascending: false }),
 
-        supabase
-          .from('precontracts')
-          .select('id, event_id, public_token'),
+  supabase
+    .from('precontracts')
+    .select('id, event_id, public_token'),
 
-        supabase
-          .from('contracts')
-          .select('id, precontract_id, event_id, pdf_url, doc_url, signed_at'),
-      ]);
+  supabase
+    .from('contracts')
+    .select('id, precontract_id, event_id, pdf_url, doc_url, signed_at'),
+
+  supabase
+    .from('repertoire_config')
+    .select('*'),
+
+  supabase
+    .from('repertoire_items')
+    .select('*')
+    .order('item_order', { ascending: true }),
+]);
 
       if (invitesResp.error) throw invitesResp.error;
-      if (precontractsResp.error) throw precontractsResp.error;
-      if (contractsResp.error) throw contractsResp.error;
+if (precontractsResp.error) throw precontractsResp.error;
+if (contractsResp.error) throw contractsResp.error;
+if (repertoireConfigsResp.error) throw repertoireConfigsResp.error;
+if (repertoireItemsResp.error) throw repertoireItemsResp.error;
 
       setInvites(Array.isArray(invitesResp.data) ? invitesResp.data : []);
-      setPrecontracts(Array.isArray(precontractsResp.data) ? precontractsResp.data : []);
-      setContracts(Array.isArray(contractsResp.data) ? contractsResp.data : []);
+setPrecontracts(Array.isArray(precontractsResp.data) ? precontractsResp.data : []);
+setContracts(Array.isArray(contractsResp.data) ? contractsResp.data : []);
+setRepertoireConfigs(Array.isArray(repertoireConfigsResp.data) ? repertoireConfigsResp.data : []);
+setRepertoireItems(Array.isArray(repertoireItemsResp.data) ? repertoireItemsResp.data : []);
     } catch (e) {
       console.error('Erro ao carregar painel do membro:', e);
       setError(e?.message || 'Não foi possível carregar seu painel.');
       setInvites([]);
       setPrecontracts([]);
       setContracts([]);
+      setRepertoireConfigs([]);
+setRepertoireItems([]);
     } finally {
       setLoadingData(false);
     }
@@ -337,12 +360,14 @@ export default function MembroPage() {
   }, [member?.id]);
 
   const dashboard = useMemo(() => {
-    return buildMemberDashboardData({
-      invites,
-      contracts,
-      precontracts,
-    });
-  }, [invites, contracts, precontracts]);
+  return buildMemberDashboardData({
+    invites,
+    contracts,
+    precontracts,
+    repertoireConfigs,
+    repertoireItems,
+  });
+}, [invites, contracts, precontracts, repertoireConfigs, repertoireItems]);
 
   const confirmados = Array.isArray(dashboard?.confirmados) ? dashboard.confirmados : [];
   const pendentes = Array.isArray(dashboard?.pendentes) ? dashboard.pendentes : [];
@@ -413,6 +438,8 @@ export default function MembroPage() {
       setRepertorioResumoOpen(false);
       setRepertorioResumoItem(null);
       setActiveTab('home');
+      setRepertoireConfigs([]);
+setRepertoireItems([]);
     }
   }
 

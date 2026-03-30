@@ -1,10 +1,29 @@
 'use client';
 
 const tones = {
-  default: 'bg-white border-[#dbe3ef] text-[#0f172a]',
-  success: 'bg-emerald-50 border-emerald-200 text-emerald-700',
-  warning: 'bg-amber-50 border-amber-200 text-amber-800',
-  accent: 'bg-violet-50 border-violet-200 text-violet-700',
+  default:
+    'border-[#dbe3ef] bg-white text-[#0f172a]',
+  success:
+    'border-emerald-200 bg-[linear-gradient(180deg,#f3fcf7_0%,#ecfdf3_100%)] text-emerald-700',
+  warning:
+    'border-amber-200 bg-[linear-gradient(180deg,#fffaf0_0%,#fffbeb_100%)] text-amber-800',
+  accent:
+    'border-violet-200 bg-[linear-gradient(180deg,#faf7ff_0%,#f5f3ff_100%)] text-violet-700',
+};
+
+const sizes = {
+  default: {
+    wrapper: 'rounded-[24px] p-5',
+    label: 'text-[11px]',
+    value: 'text-[28px]',
+    helper: 'text-[13px]',
+  },
+  highlight: {
+    wrapper: 'rounded-[28px] p-6',
+    label: 'text-[11px]',
+    value: 'text-[34px]',
+    helper: 'text-[13px]',
+  },
 };
 
 export default function AdminSummaryCard({
@@ -12,20 +31,34 @@ export default function AdminSummaryCard({
   value,
   helper,
   tone = 'default',
+  size = 'default',
 }) {
+  const toneClasses = tones[tone] || tones.default;
+  const sizeClasses = sizes[size] || sizes.default;
+
   return (
     <div
-      className={`rounded-[24px] border p-5 shadow-[0_8px_24px_rgba(17,24,39,0.04)] ${tones[tone] || tones.default}`}
+      className={`relative overflow-hidden border shadow-[0_10px_28px_rgba(17,24,39,0.05)] ${toneClasses} ${sizeClasses.wrapper}`}
     >
-      <div className="text-[11px] font-extrabold uppercase tracking-[0.08em] opacity-80">
-        {label}
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.55),transparent_36%)] pointer-events-none" />
+
+      <div className="relative z-10">
+        <div
+          className={`${sizeClasses.label} font-black uppercase tracking-[0.1em] opacity-75`}
+        >
+          {label}
+        </div>
+
+        <div className={`mt-4 font-black leading-none tracking-[-0.04em] ${sizeClasses.value}`}>
+          {value}
+        </div>
+
+        {helper ? (
+          <div className={`mt-4 font-semibold leading-5 opacity-80 ${sizeClasses.helper}`}>
+            {helper}
+          </div>
+        ) : null}
       </div>
-
-      <div className="mt-3 text-[28px] font-black leading-none">{value}</div>
-
-      {helper ? (
-        <div className="mt-3 text-[13px] font-semibold opacity-80">{helper}</div>
-      ) : null}
     </div>
   );
 }

@@ -13,6 +13,33 @@ import DashboardQuickActions from '../../components/dashboard/DashboardQuickActi
 import { supabase } from '../../lib/supabase';
 import { buildDashboardSummary } from '../../lib/dashboard/dashboard-summary';
 
+function DashboardLoading() {
+  return (
+    <div className="space-y-5">
+      <div className="h-[220px] animate-pulse rounded-[32px] border border-[#dbe3ef] bg-white" />
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <div
+            key={index}
+            className="h-[148px] animate-pulse rounded-[28px] border border-[#dbe3ef] bg-white"
+          />
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.5fr_1fr]">
+        <div className="h-[420px] animate-pulse rounded-[30px] border border-[#dbe3ef] bg-white" />
+        <div className="h-[420px] animate-pulse rounded-[30px] border border-[#dbe3ef] bg-white" />
+      </div>
+
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_1.2fr]">
+        <div className="h-[360px] animate-pulse rounded-[28px] border border-[#dbe3ef] bg-white" />
+        <div className="h-[420px] animate-pulse rounded-[28px] border border-[#dbe3ef] bg-white" />
+      </div>
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const [events, setEvents] = useState([]);
   const [contracts, setContracts] = useState([]);
@@ -50,18 +77,10 @@ export default function DashboardPage() {
         if (repertoireConfigsRes.error) throw repertoireConfigsRes.error;
 
         const eventsData = Array.isArray(eventsRes.data) ? eventsRes.data : [];
-        const contractsData = Array.isArray(contractsRes.data)
-          ? contractsRes.data
-          : [];
-        const precontractsData = Array.isArray(precontractsRes.data)
-          ? precontractsRes.data
-          : [];
-        const eventMusiciansData = Array.isArray(eventMusiciansRes.data)
-          ? eventMusiciansRes.data
-          : [];
-        const repertoireConfigsData = Array.isArray(repertoireConfigsRes.data)
-          ? repertoireConfigsRes.data
-          : [];
+        const contractsData = Array.isArray(contractsRes.data) ? contractsRes.data : [];
+        const precontractsData = Array.isArray(precontractsRes.data) ? precontractsRes.data : [];
+        const eventMusiciansData = Array.isArray(eventMusiciansRes.data) ? eventMusiciansRes.data : [];
+        const repertoireConfigsData = Array.isArray(repertoireConfigsRes.data) ? repertoireConfigsRes.data : [];
 
         setEvents(eventsData);
         setContracts(contractsData);
@@ -69,15 +88,15 @@ export default function DashboardPage() {
         setEventMusicians(eventMusiciansData);
         setRepertoireConfigs(repertoireConfigsData);
 
-        const summaryData = buildDashboardSummary(
-          eventsData,
-          contractsData,
-          precontractsData,
-          eventMusiciansData,
-          repertoireConfigsData
+        setSummary(
+          buildDashboardSummary(
+            eventsData,
+            contractsData,
+            precontractsData,
+            eventMusiciansData,
+            repertoireConfigsData
+          )
         );
-
-        setSummary(summaryData);
       } catch (error) {
         console.error('Erro ao carregar dashboard:', error);
         setErro(error?.message || 'Não foi possível carregar o dashboard.');
@@ -86,9 +105,7 @@ export default function DashboardPage() {
         setPrecontracts([]);
         setEventMusicians([]);
         setRepertoireConfigs([]);
-        setSummary(
-          buildDashboardSummary([], [], [], [], [])
-        );
+        setSummary(buildDashboardSummary([], [], [], [], []));
       } finally {
         setCarregando(false);
       }
@@ -99,55 +116,39 @@ export default function DashboardPage() {
 
   return (
     <AdminShell pageTitle="Dashboard" activeItem="dashboard">
-      <div className="space-y-5">
-        <DashboardHero />
+      {carregando ? (
+        <DashboardLoading />
+      ) : (
+        <div className="space-y-5">
+          <DashboardHero />
 
-        {erro ? (
-          <div className="rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-[14px] font-semibold text-red-700">
-            {erro}
+          {erro ? (
+            <div className="rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-[14px] font-semibold text-red-700">
+              {erro}
+            </div>
+          ) : null}
+
+          <DashboardPrimaryKpis summary={summary} />
+
+          <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.5fr_1fr]">
+            <DashboardRevenueChart events={events} />
+            <DashboardFinanceBreakdown events={events} summary={summary} />
           </div>
-        ) : null}
 
-        {carregando || !summary ? (
-          <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-6 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
-            <p className="text-[14px] font-semibold text-[#64748b]">
-              Carregando indicadores do dashboard...
-            </p>
-          </section>
-        ) : (
-          <>
-            <DashboardPrimaryKpis summary={summary} />
+          <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_1.2fr]">
+            <DashboardOperationsRadar summary={summary} />
+            <DashboardUpcomingEvents
+              events={events}
+              contracts={contracts}
+              precontracts={precontracts}
+            />
+          </div>
 
-            <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.5fr_1fr]">
-              <DashboardRevenueChart
-                events={events}
-                contracts={contracts}
-                precontracts={precontracts}
-                summary={summary}
-              />
-              <DashboardFinanceBreakdown
-                events={events}
-                contracts={contracts}
-                precontracts={precontracts}
-                summary={summary}
-              />
-            </div>
+          <DashboardSecondaryKpis summary={summary} />
 
-            <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_1.2fr]">
-              <DashboardOperationsRadar summary={summary} />
-              <DashboardUpcomingEvents
-                events={events}
-                contracts={contracts}
-                precontracts={precontracts}
-              />
-            </div>
-
-            <DashboardSecondaryKpis summary={summary} />
-
-            <DashboardQuickActions />
-          </>
-        )}
-      </div>
+          <DashboardQuickActions />
+        </div>
+      )}
     </AdminShell>
   );
 }

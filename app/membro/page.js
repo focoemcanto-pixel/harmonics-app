@@ -77,7 +77,7 @@ export default function MembroPage() {
   const [activeTab, setActiveTab] = useState('home');
   const [loadingKey, setLoadingKey] = useState('');
 
- const [playerOpen, setPlayerOpen] = useState(false);
+ const [playerExpanded, setPlayerExpanded] = useState(false);
 const [playerPlaylist, setPlayerPlaylist] = useState([]);
 const [playerIndex, setPlayerIndex] = useState(0);
 const [playerEventTitle, setPlayerEventTitle] = useState('');
@@ -433,9 +433,10 @@ setRepertoireItems([]);
       setPrecontracts([]);
       setContracts([]);
       setPlayerPlaylist([]);
-      setPlayerIndex(0);
-      setPlayerEventTitle('');
-      setPlayerOpen(false);
+setPlayerIndex(0);
+setPlayerEventTitle('');
+setPlayerExpanded(false);
+setIsPlaying(false);
       setScaleModalOpen(false);
       setScaleModalEvent(null);
       setScaleModalMusicians([]);
@@ -526,7 +527,7 @@ setRepertoireItems([]);
   setIsPlaying(true);
 
   if (options.autoplay !== false) {
-    setPlayerOpen(true);
+    setPlayerExpanded(true);
   }
 }
   function openPdf(item) {
@@ -782,29 +783,17 @@ setRepertoireItems([]);
         }}
       />
 
-     <MembroPlayerModal
-  open={playerOpen}
+      <MiniPlayerBar
+  expanded={playerExpanded}
+  currentTrack={currentTrack}
   eventTitle={playerEventTitle}
   playlist={playerPlaylist}
   currentIndex={playerIndex}
   isPlaying={isPlaying}
-  onClose={() => setPlayerOpen(false)}
-  onSelectTrack={(index) => {
-    setPlayerIndex(index);
-    setIsPlaying(true);
-  }}
-  onPrev={handlePrevTrack}
-  onNext={handleNextTrack}
-  onTogglePlay={handleTogglePlaying}
-/>
-
-      <MiniPlayerBar
-  currentTrack={currentTrack}
-  eventTitle={playerEventTitle}
-  isPlaying={isPlaying}
-  onOpen={() => setPlayerOpen(true)}
+  onExpand={() => setPlayerExpanded(true)}
+  onCollapse={() => setPlayerExpanded(false)}
   onClose={() => {
-    setPlayerOpen(false);
+    setPlayerExpanded(false);
     setPlayerPlaylist([]);
     setPlayerIndex(0);
     setPlayerEventTitle('');
@@ -813,6 +802,10 @@ setRepertoireItems([]);
   onNext={handleNextTrack}
   onPrev={handlePrevTrack}
   onTogglePlay={handleTogglePlaying}
+  onSelectTrack={(index) => {
+    setPlayerIndex(index);
+    setIsPlaying(true);
+  }}
   onPlayerStateChange={(playing) => setIsPlaying(playing)}
 />
     </div>

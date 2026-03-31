@@ -64,6 +64,9 @@ function formatPhoneDisplay(value) {
   if (cleaned.length === 11) {
     return `(${cleaned.slice(0, 2)}) ${cleaned.slice(2, 7)}-${cleaned.slice(7)}`;
   }
+  if (cleaned.length === 10) {
+    return `(${cleaned.slice(0, 2)}) ${cleaned.slice(2, 6)}-${cleaned.slice(6)}`;
+  }
   return value || '-';
 }
 
@@ -306,11 +309,6 @@ export default function PreContratosPage() {
   }, [form.event_date, form.event_time, eventos]);
 
   async function salvarPreContrato() {
-    if (!form.client_name.trim()) {
-      alert('Informe o nome do cliente.');
-      return;
-    }
-
     if (!form.event_date) {
       alert('Informe a data do evento.');
       return;
@@ -322,7 +320,7 @@ export default function PreContratosPage() {
       const payload = {
         client_name: form.client_name.trim() || null,
         client_email: form.client_email.trim() || null,
-        client_phone: cleanPhone(form.client_phone),
+        client_phone: cleanPhone(form.client_phone) || null,
 
         event_type: form.event_type || null,
         event_date: form.event_date || null,
@@ -476,19 +474,20 @@ export default function PreContratosPage() {
               <Card title="Cliente">
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <Input
-                    label="Nome do cliente"
+                    label="Nome de referência (opcional)"
                     value={form.client_name}
                     onChange={(e) => handleFormChange('client_name', e.target.value)}
+                    placeholder="Pode deixar em branco e deixar o cliente preencher depois"
                   />
 
                   <Input
-                    label="WhatsApp"
+                    label="WhatsApp de referência"
                     value={form.client_phone}
                     onChange={(e) => handleFormChange('client_phone', e.target.value)}
                   />
 
                   <Input
-                    label="Email"
+                    label="Email de referência"
                     value={form.client_email}
                     onChange={(e) => handleFormChange('client_email', e.target.value)}
                     className="md:col-span-2"
@@ -779,7 +778,7 @@ export default function PreContratosPage() {
               {listaFiltrada.map((item) => (
                 <Card
                   key={item.id}
-                  title={item.client_name || 'Sem cliente'}
+                  title={item.client_name || 'Cliente a confirmar'}
                   subtitle={`${formatDateBR(item.event_date)} • ${item.location_name || 'Local não informado'}`}
                   actions={
                     <Badge tone={getStatusTone(item.status)}>

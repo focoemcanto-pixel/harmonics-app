@@ -76,7 +76,7 @@ export default function MembroPage() {
   const [activeTab, setActiveTab] = useState('home');
   const [loadingKey, setLoadingKey] = useState('');
 
- const [playerExpanded, setPlayerExpanded] = useState(false);
+const [playerExpanded, setPlayerExpanded] = useState(false);
 const [playerPlaylist, setPlayerPlaylist] = useState([]);
 const [playerIndex, setPlayerIndex] = useState(0);
 const [playerEventTitle, setPlayerEventTitle] = useState('');
@@ -526,8 +526,8 @@ setRepertoireItems([]);
   setIsPlaying(true);
 
   if (options.autoplay !== false) {
-    setPlayerExpanded(true);
-  }
+  setPlayerExpanded(true);
+}
 }
   function openPdf(item) {
     if (item?.contractInfo?.pdfUrl && typeof window !== 'undefined') {

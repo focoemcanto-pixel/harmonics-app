@@ -1,235 +1,419 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { supabase } from '../../lib/supabase';
-import AdminShell from '../../components/admin/AdminShell';
-import AdminPageHero from '../../components/admin/AdminPageHero';
-import AdminSegmentTabs from '../../components/admin/AdminSegmentTabs';
+import { useEffect, useRef, useMemo } from 'react';
+import { extractYoutubeId } from '../../lib/membro/membro-invites';
 
-// Helpers
-import { mapStatus } from '../../lib/contratos/contratos-ui';
-import { filterBySearch, filterByStatus } from '../../lib/contratos/contratos-filters';
-import { getContratosSummary } from '../../lib/contratos/contratos-summary';
+function ensureYouTubeAPI() {
+  return new Promise((resolve) => {
+    if (typeof window === 'undefined') return resolve(null);
 
-// Components
-import ContratosResumoTab from '../../components/contratos/ContratosResumoTab';
-import ContratosListaTab from '../../components/contratos/ContratosListaTab';
-import ContratosFiltrosTab from '../../components/contratos/ContratosFiltrosTab';
+    if (window.YT && window.YT.Player) {
+      resolve(window.YT);
+      return;
+    }
 
-export default function ContratosPage() {
-  const [mobileTab, setMobileTab] = useState('resumo');
-  const [busca, setBusca] = useState('');
-  const [statusFiltro, setStatusFiltro] = useState('todos');
-  const [carregando, setCarregando] = useState(true);
-  const [erro, setErro] = useState('');
-  const [contratos, setContratos] = useState([]);
+    const existing = document.querySelector('script[data-youtube-iframe-api="true"]');
+    if (!existing) {
+      const tag = document.createElement('script');
+      tag.src = 'https://www.youtube.com/iframe_api';
+      tag.async = true;
+      tag.setAttribute('data-youtube-iframe-api', 'true');
+      document.body.appendChild(tag);
+    }
 
-  const mobileTabs = [
-    { key: 'resumo', label: 'Resumo' },
-    { key: 'lista', label: 'Lista' },
-    { key: 'filtros', label: 'Filtros' },
-  ];
+    const previous = window.onYouTubeIframeAPIReady;
 
-  const mobileActions = (
-    <button
-      type="button"
-      className="rounded-[16px] bg-[#0f172a] px-4 py-3 text-[13px] font-black text-white"
-    >
-      Novo
-    </button>
-  );
+    window.onYouTubeIframeAPIReady = () => {
+      if (typeof previous === 'function') previous();
+      resolve(window.YT || null);
+    };
+
+    const checkReady = setInterval(() => {
+      if (window.YT && window.YT.Player) {
+        clearInterval(checkReady);
+        resolve(window.YT);
+      }
+    }, 150);
+
+    setTimeout(() => {
+      clearInterval(checkReady);
+      resolve(window.YT || null);
+    }, 10000);
+  });
+}
+
+export default function MiniPlayerBar({
+  expanded = false,
+  currentTrack,
+  eventTitle,
+  playlist = [],
+  currentIndex = 0,
+  isPlaying,
+  onExpand,
+  onCollapse,
+  onClose,
+  onNext,
+  onPrev,
+  onTogglePlay,
+  onSelectTrack,
+  onPlayerStateChange,
+}) {
+  const playerRef = useRef(null);
+  const playerHostRef = useRef(null);
+  const currentVideoIdRef = useRef('');
+
+  const videoId = extractYoutubeId(currentTrack?.url || '');
+  const thumbnailUrl = useMemo(() => {
+    if (!videoId) return '';
+    return `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+  }, [videoId]);
 
   useEffect(() => {
-    async function carregar() {
-      try {
-        setCarregando(true);
-        setErro('');
+    if (!videoId) return;
 
-        const [{ data: precontracts, error: preErr }, { data: contracts, error: conErr }] =
-          await Promise.all([
-            supabase
-              .from('precontracts')
-              .select('*')
-              .order('created_at', { ascending: false }),
-            supabase
-              .from('contracts')
-              .select('*')
-              .order('created_at', { ascending: false }),
-          ]);
+    let cancelled = false;
 
-        if (preErr) throw preErr;
-        if (conErr) throw conErr;
+    async function init() {
+      const YT = await ensureYouTubeAPI();
+      if (!YT || cancelled || !playerHostRef.current) return;
 
-        const contractsByPreId = new Map(
-          (contracts || []).map((item) => [String(item.precontract_id), item])
-        );
+      if (!playerRef.current) {
+        playerRef.current = new YT.Player(playerHostRef.current, {
+          videoId,
+          playerVars: {
+            autoplay: 1,
+            controls: 0,
+            rel: 0,
+            modestbranding: 1,
+          },
+          events: {
+            onReady: (event) => {
+              currentVideoIdRef.current = videoId;
+              event.target.playVideo();
+              onPlayerStateChange?.(true);
+            },
+            onStateChange: (event) => {
+              const state = event?.data;
 
-        const merged = (precontracts || []).map((pre) => {
-          const contract = contractsByPreId.get(String(pre.id));
-          const resolvedStatus = mapStatus(
-            contract?.status || pre?.status,
-            !!contract
-          );
+              if (state === window.YT.PlayerState.PLAYING) {
+                onPlayerStateChange?.(true);
+              }
 
-          const visualizado =
-            String(pre?.status || '').toLowerCase() !== 'link_generated' ||
-            !!contract;
-
-          return {
-            id: pre.id,
-            token: pre.public_token,
-            precontractId: pre.id,
-            contractId: contract?.id || null,
-            eventoId: contract?.event_id || pre?.event_id || null,
-            clienteNome: pre.client_name || 'Sem cliente',
-            eventoTitulo:
-              pre.event_type && pre.client_name
-                ? `${pre.event_type} • ${pre.client_name}`
-                : pre.event_type || 'Contrato',
-            eventoTipo: pre.event_type || '',
-            dataEvento: pre.event_date || '',
-            localEvento: pre.location_name || '',
-            whatsapp: pre.client_phone || '',
-            statusRaw: contract?.status || pre?.status || '',
-            statusKey: resolvedStatus.key,
-            statusLabel: resolvedStatus.label,
-            statusTone: resolvedStatus.tone,
-            visualizado,
-            enviadoEm: pre.created_at || '',
-            assinadoEm: contract?.signed_at || '',
-            observacoes: pre.notes || '',
-            linkContrato: `/contrato/${pre.public_token}`,
-            pdfUrl: contract?.pdf_url || '',
-            docUrl: contract?.doc_url || '',
-          };
+              if (
+                state === window.YT.PlayerState.PAUSED ||
+                state === window.YT.PlayerState.ENDED
+              ) {
+                onPlayerStateChange?.(false);
+              }
+            },
+          },
         });
+        return;
+      }
 
-        setContratos(merged);
-      } catch (e) {
-        console.error('Erro ao carregar contratos:', e);
-        setErro('Não foi possível carregar os contratos.');
-      } finally {
-        setCarregando(false);
+      if (currentVideoIdRef.current !== videoId) {
+        currentVideoIdRef.current = videoId;
+        playerRef.current.loadVideoById(videoId);
+        onPlayerStateChange?.(true);
+        return;
+      }
+
+      if (isPlaying) {
+        playerRef.current.playVideo?.();
+      } else {
+        playerRef.current.pauseVideo?.();
       }
     }
 
-    carregar();
-  }, []);
+    init();
 
-  const contratosFiltrados = useMemo(() => {
-    let resultado = contratos;
-    resultado = filterBySearch(resultado, busca);
-    resultado = filterByStatus(resultado, statusFiltro);
-    return resultado;
-  }, [contratos, busca, statusFiltro]);
+    return () => {
+      cancelled = true;
+    };
+  }, [videoId, isPlaying, onPlayerStateChange]);
 
-  const resumo = useMemo(() => getContratosSummary(contratos), [contratos]);
-
-  async function onCopyLink(link) {
-    try {
-      const full = `${window.location.origin}${link}`;
-      await navigator.clipboard.writeText(full);
-      alert('Link copiado com sucesso.');
-    } catch (error) {
-      console.error(error);
-      alert('Não foi possível copiar o link.');
-    }
-  }
-
-  if (carregando) {
-    return (
-      <AdminShell
-        pageTitle="Contratos"
-        mobileActions={mobileActions}
-        activeItem="contratos"
-      >
-        <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-6 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
-          <p className="text-center text-[#64748b]">Carregando contratos...</p>
-        </section>
-      </AdminShell>
-    );
-  }
+  if (!currentTrack) return null;
 
   return (
-    <AdminShell
-      pageTitle="Contratos"
-      mobileActions={mobileActions}
-      activeItem="contratos"
-    >
-      <div className="space-y-5">
-        <AdminPageHero
-          badge="Harmonics Admin"
-          title="Contratos"
-          subtitle="Gerencie links, visualização, assinatura e andamento contratual."
-          actions={
-            <div className="flex flex-wrap gap-3">
+    <>
+      <div className="hidden">
+        <div ref={playerHostRef} />
+      </div>
+
+      {expanded ? (
+        <div className="fixed inset-0 z-[150] bg-black/70 backdrop-blur-[4px]">
+          <div className="flex min-h-screen items-end justify-center md:items-center md:p-6">
+            <div className="flex h-[92vh] w-full flex-col overflow-hidden rounded-t-[30px] border border-white/10 bg-[#0b1020] text-white shadow-[0_24px_80px_rgba(0,0,0,0.45)] md:h-auto md:max-h-[92vh] md:max-w-5xl md:rounded-[30px]">
+              <div className="border-b border-white/10 px-5 py-4 md:px-6">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="text-[12px] font-black uppercase tracking-[0.12em] text-fuchsia-200/70">
+                      Playlist do repertório
+                    </div>
+                    <h3 className="mt-2 text-[28px] font-black tracking-[-0.04em] text-white">
+                      {eventTitle || 'Repertório'}
+                    </h3>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={onCollapse}
+                    className="rounded-[16px] border border-white/10 bg-white/10 px-4 py-3 text-[14px] font-black text-white"
+                  >
+                    Fechar
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid flex-1 grid-cols-1 overflow-hidden md:grid-cols-[1.1fr_0.9fr]">
+                <div className="border-b border-white/10 p-5 md:border-b-0 md:border-r md:p-6">
+                  <div className="overflow-hidden rounded-[26px] border border-white/10 bg-black/20">
+                    {thumbnailUrl ? (
+                      <div className="relative aspect-video w-full overflow-hidden">
+                        <img
+                          src={thumbnailUrl}
+                          alt={currentTrack?.title || 'Thumbnail'}
+                          className="h-full w-full object-cover"
+                        />
+                        <div className="absolute inset-0 bg-black/45" />
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <button
+                            type="button"
+                            onClick={onTogglePlay}
+                            className="flex h-20 w-20 items-center justify-center rounded-full bg-white/15 text-[28px] font-black text-white backdrop-blur"
+                          >
+                            {isPlaying ? '❚❚' : '▶'}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex aspect-video items-center justify-center px-5 text-center text-[15px] font-semibold text-white/60">
+                        Nenhuma faixa disponível para tocar neste repertório.
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-5 rounded-[26px] border border-white/10 bg-[linear-gradient(180deg,rgba(124,58,237,0.16),rgba(255,255,255,0.03))] p-5">
+                    <div className="text-[12px] font-black uppercase tracking-[0.08em] text-white/50">
+                      Tocando agora
+                    </div>
+
+                    <div className="mt-3 text-[28px] font-black tracking-[-0.04em] text-white">
+                      {currentTrack?.title || 'Nenhuma faixa'}
+                    </div>
+
+                    {currentTrack?.subtitle ? (
+                      <div className="mt-2 text-[13px] font-semibold uppercase tracking-[0.08em] text-fuchsia-200/70">
+                        {currentTrack.subtitle}
+                      </div>
+                    ) : null}
+
+                    {currentTrack?.notes ? (
+                      <div className="mt-4 rounded-[18px] border border-white/10 bg-black/10 px-4 py-4 text-[13px] leading-6 text-white/70">
+                        <span className="font-black text-white/85">Observação:</span>{' '}
+                        {currentTrack.notes}
+                      </div>
+                    ) : null}
+
+                    <div className="mt-5 grid grid-cols-4 gap-3">
+                      <button
+                        type="button"
+                        onClick={onPrev}
+                        className="rounded-[18px] border border-white/10 bg-white/10 px-4 py-4 text-[14px] font-black text-white"
+                      >
+                        Anterior
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={onTogglePlay}
+                        className="rounded-[18px] border border-white/10 bg-white/10 px-4 py-4 text-[14px] font-black text-white"
+                      >
+                        {isPlaying ? 'Pause' : 'Play'}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          currentTrack?.url &&
+                          window.open(currentTrack.url, '_blank', 'noopener,noreferrer')
+                        }
+                        disabled={!currentTrack?.url}
+                        className="rounded-[18px] bg-gradient-to-r from-violet-500 to-fuchsia-500 px-4 py-4 text-[14px] font-black text-white disabled:opacity-50"
+                      >
+                        YouTube
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={onNext}
+                        className="rounded-[18px] border border-white/10 bg-white/10 px-4 py-4 text-[14px] font-black text-white"
+                      >
+                        Próxima
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="min-h-0 overflow-y-auto p-5 md:p-6">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-[13px] font-black uppercase tracking-[0.08em] text-white/50">
+                      Faixas do repertório
+                    </div>
+                    <div className="text-[12px] font-semibold text-white/40">
+                      {playlist.length} faixa(s)
+                    </div>
+                  </div>
+
+                  <div className="mt-4 space-y-3">
+                    {playlist.length === 0 ? (
+                      <div className="rounded-[22px] border border-dashed border-white/10 bg-white/5 px-4 py-5 text-[14px] font-semibold text-white/60">
+                        Nenhuma faixa encontrada.
+                      </div>
+                    ) : (
+                      playlist.map((track, index) => {
+                        const active = index === currentIndex;
+
+                        return (
+                          <button
+                            key={`${track.url}-${index}`}
+                            type="button"
+                            onClick={() => onSelectTrack(index)}
+                            className={`block w-full rounded-[22px] border px-4 py-4 text-left transition ${
+                              active
+                                ? 'border-fuchsia-300/20 bg-fuchsia-400/10 shadow-[0_12px_28px_rgba(217,70,239,0.12)]'
+                                : 'border-white/10 bg-white/5 hover:bg-white/10'
+                            }`}
+                          >
+                            <div className="flex items-start gap-3">
+                              <div
+                                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[13px] font-black ${
+                                  active
+                                    ? 'bg-fuchsia-500 text-white'
+                                    : 'bg-white/10 text-white/80'
+                                }`}
+                              >
+                                {String(index + 1).padStart(2, '0')}
+                              </div>
+
+                              <div className="min-w-0 flex-1">
+                                <div className="truncate text-[15px] font-black text-white">
+                                  {track.title}
+                                </div>
+
+                                {track.subtitle ? (
+                                  <div className="mt-1 truncate text-[12px] font-semibold uppercase tracking-[0.08em] text-white/60">
+                                    {track.subtitle}
+                                  </div>
+                                ) : null}
+
+                                {track.notes ? (
+                                  <div className="mt-2 text-[12px] leading-5 text-white/50">
+                                    {track.notes}
+                                  </div>
+                                ) : null}
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="fixed inset-x-0 bottom-[84px] z-[140] px-3 pb-2 md:bottom-4 md:px-6">
+        <div className="mx-auto max-w-4xl overflow-hidden rounded-[26px] border border-white/10 bg-[linear-gradient(135deg,rgba(10,14,30,0.96),rgba(29,20,58,0.96))] text-white shadow-[0_18px_60px_rgba(0,0,0,0.45)] backdrop-blur-xl">
+          <div className="h-[3px] w-full bg-white/5">
+            <div className="h-full w-1/3 bg-[linear-gradient(90deg,#7c3aed,#d946ef)]" />
+          </div>
+
+          <div className="flex items-center gap-3 px-4 py-3">
+            <button
+              type="button"
+              onClick={onExpand}
+              className="relative h-14 w-14 shrink-0 overflow-hidden rounded-[16px] border border-white/10 bg-black/20"
+              aria-label="Abrir player"
+            >
+              {thumbnailUrl ? (
+                <>
+                  <img
+                    src={thumbnailUrl}
+                    alt={currentTrack?.title || 'Thumbnail'}
+                    className="h-full w-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-black/30" />
+                  <div className="absolute inset-0 flex items-center justify-center text-white text-[18px] font-black">
+                    {isPlaying ? '♫' : '▶'}
+                  </div>
+                </>
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-[18px] text-white">
+                  {isPlaying ? '♫' : '▶'}
+                </div>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={onExpand}
+              className="min-w-0 flex-1 text-left"
+            >
+              <div className="truncate text-[15px] font-black text-white">
+                {currentTrack?.title || 'Faixa atual'}
+              </div>
+
+              <div className="mt-0.5 truncate text-[12px] font-semibold uppercase tracking-[0.06em] text-fuchsia-200/70">
+                {currentTrack?.subtitle || eventTitle || 'Repertório'}
+              </div>
+
+              {currentTrack?.notes ? (
+                <div className="mt-1 truncate text-[12px] text-white/45">
+                  {currentTrack.notes}
+                </div>
+              ) : null}
+            </button>
+
+            <div className="flex shrink-0 items-center gap-2">
               <button
                 type="button"
-                className="rounded-[18px] border border-[#dbe3ef] bg-white px-5 py-4 text-[14px] font-black text-[#0f172a]"
+                onClick={onPrev}
+                className="rounded-[14px] border border-white/10 bg-white/10 px-3 py-3 text-[12px] font-black"
               >
-                Exportar
+                ←
               </button>
 
               <button
                 type="button"
-                className="rounded-[18px] bg-violet-600 px-5 py-4 text-[14px] font-black text-white shadow-[0_12px_28px_rgba(124,58,237,0.18)]"
+                onClick={onTogglePlay}
+                className="rounded-[14px] border border-white/10 bg-white/10 px-4 py-3 text-[12px] font-black"
               >
-                Novo contrato
+                {isPlaying ? 'Pause' : 'Play'}
+              </button>
+
+              <button
+                type="button"
+                onClick={onNext}
+                className="rounded-[14px] border border-white/10 bg-white/10 px-3 py-3 text-[12px] font-black"
+              >
+                →
+              </button>
+
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-[14px] border border-white/10 bg-white/10 px-4 py-3 text-[12px] font-black"
+              >
+                Fechar
               </button>
             </div>
-          }
-        />
-
-        {/* Desktop - always shows all sections */}
-        <div className="hidden space-y-5 md:block">
-          <ContratosResumoTab resumo={resumo} setMobileTab={setMobileTab} />
-          <ContratosListaTab
-            contratosFiltrados={contratosFiltrados}
-            busca={busca}
-            setBusca={setBusca}
-            statusFiltro={statusFiltro}
-            setStatusFiltro={setStatusFiltro}
-            carregando={carregando}
-            erro={erro}
-            onCopyLink={onCopyLink}
-          />
-        </div>
-
-        {/* Mobile tabs */}
-        <div className="md:hidden">
-          <AdminSegmentTabs
-            items={mobileTabs}
-            active={mobileTab}
-            onChange={setMobileTab}
-          />
-        </div>
-
-        <div className="space-y-5 md:hidden">
-          {mobileTab === 'resumo' && (
-            <ContratosResumoTab resumo={resumo} setMobileTab={setMobileTab} />
-          )}
-          {mobileTab === 'lista' && (
-            <ContratosListaTab
-              contratosFiltrados={contratosFiltrados}
-              busca={busca}
-              setBusca={setBusca}
-              statusFiltro={statusFiltro}
-              setStatusFiltro={setStatusFiltro}
-              carregando={carregando}
-              erro={erro}
-              onCopyLink={onCopyLink}
-            />
-          )}
-          {mobileTab === 'filtros' && (
-            <ContratosFiltrosTab
-              busca={busca}
-              setBusca={setBusca}
-              statusFiltro={statusFiltro}
-              setStatusFiltro={setStatusFiltro}
-            />
-          )}
+          </div>
         </div>
       </div>
-    </AdminShell>
+    </>
   );
 }

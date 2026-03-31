@@ -16,45 +16,65 @@ import { buildMemberDashboardData } from '../../lib/membro/membro-invites';
 function LoginScreen({ onGoogleLogin, loggingIn, error }) {
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#050814] px-5 py-8 text-white">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(139,92,246,0.35),_transparent_38%),radial-gradient(circle_at_bottom,_rgba(59,130,246,0.14),_transparent_30%)]" />
-      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,11,24,0.15)_0%,rgba(5,8,20,0.92)_65%)]" />
 
-      <div className="relative z-10 w-full max-w-md rounded-[34px] border border-white/10 bg-[linear-gradient(180deg,rgba(29,20,58,0.96),rgba(10,14,30,0.98))] p-6 shadow-[0_30px_90px_rgba(0,0,0,0.55)] md:p-7">
-        <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full border border-violet-300/15 bg-black text-center shadow-[0_0_50px_rgba(139,92,246,0.25)]">
-          <span className="font-serif text-[28px] italic tracking-[-0.02em] text-white">
+      {/* BACKGROUND PREMIUM */}
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(139,92,246,0.45),_transparent_40%),radial-gradient(circle_at_bottom,_rgba(59,130,246,0.18),_transparent_35%)]" />
+      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,11,24,0.2)_0%,rgba(5,8,20,0.95)_70%)]" />
+
+      {/* CARD */}
+      <div className="relative z-10 w-full max-w-md rounded-[36px] border border-white/10 bg-[linear-gradient(180deg,rgba(29,20,58,0.98),rgba(10,14,30,0.98))] p-7 shadow-[0_40px_120px_rgba(0,0,0,0.65)]">
+
+        {/* LOGO */}
+        <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full border border-violet-300/20 bg-black shadow-[0_0_60px_rgba(139,92,246,0.35)]">
+          <span className="font-serif text-[30px] italic tracking-[-0.02em] text-white">
             H
           </span>
         </div>
 
-        <div className="mt-6 text-center">
-          <div className="inline-flex rounded-full border border-violet-300/15 bg-violet-400/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em] text-violet-200">
+        {/* HEADER */}
+        <div className="mt-7 text-center">
+          <div className="inline-flex rounded-full border border-violet-300/15 bg-violet-400/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-violet-200">
             Harmonics Member
           </div>
 
-          <h1 className="mt-4 text-[34px] font-black tracking-[-0.05em]">
-            Harmonics
+          <h1 className="mt-4 text-[36px] font-black tracking-[-0.05em]">
+            Acesse seu painel
           </h1>
 
-          <p className="mt-2 text-[15px] leading-7 text-white/65">
-            Entre com Google para acessar suas solicitações, sua agenda e seus repertórios.
+          <p className="mt-3 text-[15px] leading-7 text-white/60">
+            Suas escalas, repertórios e solicitações em um só lugar.
           </p>
         </div>
 
+        {/* CTA GOOGLE */}
         <button
           type="button"
           onClick={onGoogleLogin}
           disabled={loggingIn}
-          className="mt-8 flex w-full items-center justify-center gap-3 rounded-[20px] bg-white px-5 py-4 text-[16px] font-black text-[#111827] shadow-[0_18px_35px_rgba(255,255,255,0.14)] disabled:opacity-60"
+          className="mt-8 flex w-full items-center justify-center gap-3 rounded-[22px] bg-white px-5 py-4 text-[16px] font-black text-[#111827] shadow-[0_18px_40px_rgba(255,255,255,0.18)] transition hover:scale-[1.01] active:scale-[0.99] disabled:opacity-60"
         >
           <span className="text-[20px]">G</span>
           {loggingIn ? 'Entrando...' : 'Continuar com Google'}
         </button>
 
-        {error ? (
-          <div className="mt-4 rounded-[18px] border border-red-300/15 bg-red-400/10 px-4 py-3 text-[14px] font-semibold text-red-100">
+        {/* LOADING STATE */}
+        {loggingIn && (
+          <div className="mt-5 text-center text-[13px] text-white/50 animate-pulse">
+            Validando acesso...
+          </div>
+        )}
+
+        {/* ERROR */}
+        {error && (
+          <div className="mt-5 rounded-[18px] border border-red-300/15 bg-red-400/10 px-4 py-3 text-[14px] font-semibold text-red-100">
             {error}
           </div>
-        ) : null}
+        )}
+
+        {/* FOOTER */}
+        <div className="mt-8 text-center text-[12px] text-white/40">
+          Acesso liberado apenas para membros autorizados.
+        </div>
       </div>
     </div>
   );

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '../../../../lib/supabase-admin';
+import { getSupabaseAdmin } from '../../../../lib/supabase-admin';
 import { sendWhatsAppMessage } from '../../../../lib/whatsapp/send-whatsapp-message';
 import { buildInviteMessage } from '../../../../lib/whatsapp/build-invite-message';
 
@@ -8,6 +8,7 @@ function cleanPhone(value) {
 }
 
 export async function POST(request) {
+  const supabaseAdmin = getSupabaseAdmin();
   try {
     const body = await request.json();
     const inviteId = body?.inviteId;

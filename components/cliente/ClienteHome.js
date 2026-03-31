@@ -2087,6 +2087,11 @@ function SugestoesTab({
   const [quickFilter, setQuickFilter] = useState('Todos');
   const [genreFilter, setGenreFilter] = useState('Todos');
   const [momentFilter, setMomentFilter] = useState('Todos');
+  const hasActiveFilters =
+  search.trim() !== '' ||
+  quickFilter !== 'Todos' ||
+  genreFilter !== 'Todos' ||
+  momentFilter !== 'Todos';
 
 
   const [songs, setSongs] = useState([
@@ -2537,11 +2542,6 @@ function getPriorityScore(song) {
   const filteredSongs = hydratedSongs
   .filter((song) => {
     const q = search.trim().toLowerCase();
-    const hasActiveFilters =
-  search.trim() !== '' ||
-  quickFilter !== 'Todos' ||
-  genreFilter !== 'Todos' ||
-  momentFilter !== 'Todos';
     
 
     const matchesSearch =

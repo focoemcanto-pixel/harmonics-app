@@ -987,4 +987,4 @@ export default function EscalasPage() {
       </div>
     </AdminShell>
   );
-} . se acha que o conjunto está bom, eu posso lhe pedir em seguida o documento final completo em pdf de onde paramos, objetivos do app e etc? pra irmos pro utro chat
+} 

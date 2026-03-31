@@ -40,7 +40,6 @@ function splitCsvLike(value) {
 function getContactTagText(contact) {
   const candidates = [
     contact?.tag,
-    contact?.role,
     contact?.instrument,
     contact?.instruments,
     contact?.category,
@@ -427,18 +426,19 @@ export default function EscalasPage() {
           .select('id, client_name, event_date, event_time, location_name, formation, instruments, status, created_at')
           .order('event_date', { ascending: true }),
         supabase
-          .from('event_musicians')
-          .select(`
-            id,
-            event_id,
-            musician_id,
-            role,
-            status,
-            notes,
-            confirmed_at,
-            created_at,
-            musician:contacts(id, name, phone, email, tag, role, instrument, instruments, category)
-          `)
+  .from('event_musicians')
+  .select(`
+    id,
+    event_id,
+    musician_id,
+    role,
+    status,
+    notes,
+    confirmed_at,
+    created_at,
+    musician:contacts(id, name, phone, email, tag, instrument, instruments, category)
+  `)
+  .order('created_at', { ascending: true }),
           .order('created_at', { ascending: true }),
         supabase
           .from('invites')

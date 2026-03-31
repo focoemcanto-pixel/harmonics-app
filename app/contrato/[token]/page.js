@@ -1332,236 +1332,236 @@ export default function ContratoPublicoPage() {
               </Card>
 
               <Card>
-                <SectionTitle subtitle="Preencha os dados do contratante exatamente como deseja que constem no contrato.">
-                  Dados do contratante
-                </SectionTitle>
+  <SectionTitle subtitle="Preencha os dados do contratante exatamente como deseja que constem no contrato.">
+    Dados do contratante
+  </SectionTitle>
 
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <div>
-                    <Input
-                      label="Nome completo"
-                      value={form.full_name}
-                      onChange={(e) => handleChange('full_name', e.target.value)}
-                      className={getInputTone(fieldErrors.full_name)}
-                    />
-                    <FieldFeedback error={fieldErrors.full_name} />
-                  </div>
+  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+    <div>
+      <Input
+        label="Nome completo"
+        value={form.full_name}
+        onChange={(e) => handleChange('full_name', e.target.value)}
+        className={getInputTone(fieldErrors.full_name)}
+      />
+      <FieldFeedback error={fieldErrors.full_name} />
+    </div>
 
-                  <div>
-                    <Input
-                      label="Estado civil"
-                      value={form.marital_status}
-                      onChange={(e) => handleChange('marital_status', e.target.value)}
-                      className={getInputTone(fieldErrors.marital_status)}
-                    />
-                    <FieldFeedback error={fieldErrors.marital_status} />
-                  </div>
+    <div>
+      <Input
+        label="Estado civil"
+        value={form.marital_status}
+        onChange={(e) => handleChange('marital_status', e.target.value)}
+        className={getInputTone(fieldErrors.marital_status)}
+      />
+      <FieldFeedback error={fieldErrors.marital_status} />
+    </div>
 
-                  <div>
-                    <Input
-                      label="Profissão"
-                      value={form.profession}
-                      onChange={(e) => handleChange('profession', e.target.value)}
-                      className={getInputTone(fieldErrors.profession)}
-                    />
-                    <FieldFeedback error={fieldErrors.profession} />
-                  </div>
+    <div>
+      <Input
+        label="Profissão"
+        value={form.profession}
+        onChange={(e) => handleChange('profession', e.target.value)}
+        className={getInputTone(fieldErrors.profession)}
+      />
+      <FieldFeedback error={fieldErrors.profession} />
+    </div>
 
-                  <div>
-                    <Input
-                      label="CPF"
-                      value={form.cpf}
-                      onChange={(e) => handleChange('cpf', e.target.value)}
-                      placeholder="000.000.000-00"
-                      inputMode="numeric"
-                      className={getInputTone(fieldErrors.cpf)}
-                    />
-                    <FieldFeedback error={fieldErrors.cpf} />
-                  </div>
+    <div>
+      <Input
+        label="CPF"
+        value={form.cpf}
+        onChange={(e) => handleChange('cpf', e.target.value)}
+        placeholder="000.000.000-00"
+        inputMode="numeric"
+        className={getInputTone(fieldErrors.cpf)}
+      />
+      <FieldFeedback error={fieldErrors.cpf} />
+    </div>
 
-                  <div>
-                    <Input
-                      label="RG"
-                      value={form.rg}
-                      onChange={(e) => handleChange('rg', e.target.value)}
-                      className={getInputTone(fieldErrors.rg)}
-                    />
-                    <FieldFeedback error={fieldErrors.rg} />
-                  </div>
+    <div>
+      <Input
+        label="RG"
+        value={form.rg}
+        onChange={(e) => handleChange('rg', e.target.value)}
+        className={getInputTone(fieldErrors.rg)}
+      />
+      <FieldFeedback error={fieldErrors.rg} />
+    </div>
 
-                  <div>
-                    <Input
-                      label="WhatsApp"
-                      value={form.whatsapp}
-                      onChange={(e) => handleChange('whatsapp', e.target.value)}
-                      placeholder="(71) 99999-9999"
-                      inputMode="numeric"
-                      className={getInputTone(fieldErrors.whatsapp)}
-                    />
-                    <FieldFeedback error={fieldErrors.whatsapp} />
-                  </div>
-                </div>
-              </Card>
+    <div>
+      <Input
+        label="WhatsApp"
+        value={form.whatsapp}
+        onChange={(e) => handleChange('whatsapp', e.target.value)}
+        placeholder="(71) 99999-9999"
+        inputMode="numeric"
+        className={getInputTone(fieldErrors.whatsapp)}
+      />
+      <FieldFeedback error={fieldErrors.whatsapp} />
+    </div>
+  </div>
+</Card>
 
-              <Card>
-                <SectionTitle subtitle="Comece digitando e selecione um endereço válido do Google.">
-                  Endereço do contratante
-                </SectionTitle>
+<Card>
+  <SectionTitle subtitle="Comece digitando e selecione um endereço válido do Google.">
+    Endereço do contratante
+  </SectionTitle>
 
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <div>
-                    <Input
-                      ref={addressStreetRef}
-                      label="Endereço completo"
-                      value={form.address_street}
-                      onChange={(e) => handleChange('address_street', e.target.value)}
-                      placeholder="Digite e selecione nas sugestões"
-                      autoComplete="street-address"
-                      className={getInputTone(
-                        fieldErrors.address_street,
-                        addressValidation.clientAddressConfirmed
-                      )}
-                    />
-                    <FieldFeedback
-                      error={fieldErrors.address_street}
-                      success={
-                        addressValidation.clientAddressConfirmed
-                          ? 'Endereço confirmado'
-                          : ''
-                      }
-                    />
-                  </div>
+  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+    <div>
+      <Input
+        ref={addressStreetRef}
+        label="Endereço completo"
+        value={form.address_street}
+        onChange={(e) => handleChange('address_street', e.target.value)}
+        placeholder="Digite e selecione nas sugestões"
+        autoComplete="street-address"
+        className={getInputTone(
+          fieldErrors.address_street,
+          addressValidation.clientAddressConfirmed
+        )}
+      />
+      <FieldFeedback
+        error={fieldErrors.address_street}
+        success={
+          addressValidation.clientAddressConfirmed
+            ? 'Endereço confirmado'
+            : ''
+        }
+      />
+    </div>
 
-                  <div>
-                    <Input
-                      label="Número"
-                      value={form.address_number}
-                      onChange={(e) => handleChange('address_number', e.target.value)}
-                    />
-                  </div>
+    <div>
+      <Input
+        label="Número"
+        value={form.address_number}
+        onChange={(e) => handleChange('address_number', e.target.value)}
+      />
+    </div>
 
-                  <div>
-                    <Input
-                      label="Complemento"
-                      value={form.address_complement}
-                      onChange={(e) => handleChange('address_complement', e.target.value)}
-                    />
-                  </div>
+    <div>
+      <Input
+        label="Complemento"
+        value={form.address_complement}
+        onChange={(e) => handleChange('address_complement', e.target.value)}
+      />
+    </div>
 
-                  <div>
-                    <Input
-                      label="Bairro"
-                      value={form.address_neighborhood}
-                      onChange={(e) => handleChange('address_neighborhood', e.target.value)}
-                      className={getInputTone(fieldErrors.address_neighborhood)}
-                    />
-                    <FieldFeedback error={fieldErrors.address_neighborhood} />
-                  </div>
+    <div>
+      <Input
+        label="Bairro"
+        value={form.address_neighborhood}
+        onChange={(e) => handleChange('address_neighborhood', e.target.value)}
+        className={getInputTone(fieldErrors.address_neighborhood)}
+      />
+      <FieldFeedback error={fieldErrors.address_neighborhood} />
+    </div>
 
-                  <div>
-                    <Input
-                      label="CEP"
-                      value={form.address_cep}
-                      onChange={(e) => handleChange('address_cep', e.target.value)}
-                      placeholder="00000-000"
-                      inputMode="numeric"
-                      autoComplete="postal-code"
-                      className={getInputTone(fieldErrors.address_cep)}
-                    />
-                    <FieldFeedback error={fieldErrors.address_cep} />
-                  </div>
+    <div>
+      <Input
+        label="CEP"
+        value={form.address_cep}
+        onChange={(e) => handleChange('address_cep', e.target.value)}
+        placeholder="00000-000"
+        inputMode="numeric"
+        autoComplete="postal-code"
+        className={getInputTone(fieldErrors.address_cep)}
+      />
+      <FieldFeedback error={fieldErrors.address_cep} />
+    </div>
 
-                  <div>
-                    <Input
-                      label="Cidade"
-                      value={form.address_city}
-                      onChange={(e) => handleChange('address_city', e.target.value)}
-                      className={getInputTone(fieldErrors.address_city)}
-                    />
-                    <FieldFeedback error={fieldErrors.address_city} />
-                  </div>
+    <div>
+      <Input
+        label="Cidade"
+        value={form.address_city}
+        onChange={(e) => handleChange('address_city', e.target.value)}
+        className={getInputTone(fieldErrors.address_city)}
+      />
+      <FieldFeedback error={fieldErrors.address_city} />
+    </div>
 
-                  <div>
-                    <Input
-                      label="Estado"
-                      value={form.address_state}
-                      onChange={(e) => handleChange('address_state', e.target.value)}
-                      placeholder="UF"
-                      className={getInputTone(fieldErrors.address_state)}
-                    />
-                    <FieldFeedback error={fieldErrors.address_state} />
-                  </div>
-                </div>
-              </Card>
+    <div>
+      <Input
+        label="Estado"
+        value={form.address_state}
+        onChange={(e) => handleChange('address_state', e.target.value)}
+        placeholder="UF"
+        className={getInputTone(fieldErrors.address_state)}
+      />
+      <FieldFeedback error={fieldErrors.address_state} />
+    </div>
+  </div>
+</Card>
 
-              <Card>
-                <SectionTitle subtitle="Confirme com atenção os dados do evento.">
-                  Dados do evento
-                </SectionTitle>
+<Card>
+  <SectionTitle subtitle="Confirme com atenção os dados do evento.">
+    Dados do evento
+  </SectionTitle>
 
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <div>
-                    <Input
-                      label="Data do evento"
-                      value={form.event_date}
-                      onChange={(e) => handleChange('event_date', e.target.value)}
-                      placeholder="dd/mm/aaaa"
-                      inputMode="numeric"
-                      className={getInputTone(fieldErrors.event_date)}
-                    />
-                    <FieldFeedback error={fieldErrors.event_date} />
-                  </div>
+  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+    <div>
+      <Input
+        label="Data do evento"
+        value={form.event_date}
+        onChange={(e) => handleChange('event_date', e.target.value)}
+        placeholder="dd/mm/aaaa"
+        inputMode="numeric"
+        className={getInputTone(fieldErrors.event_date)}
+      />
+      <FieldFeedback error={fieldErrors.event_date} />
+    </div>
 
-                  <div>
-                    <Input
-                      label="Horário do evento"
-                      value={form.event_time}
-                      onChange={(e) => handleChange('event_time', e.target.value)}
-                      placeholder="hh:mm"
-                      inputMode="numeric"
-                      className={getInputTone(fieldErrors.event_time)}
-                    />
-                    <FieldFeedback error={fieldErrors.event_time} />
-                  </div>
+    <div>
+      <Input
+        label="Horário do evento"
+        value={form.event_time}
+        onChange={(e) => handleChange('event_time', e.target.value)}
+        placeholder="hh:mm"
+        inputMode="numeric"
+        className={getInputTone(fieldErrors.event_time)}
+      />
+      <FieldFeedback error={fieldErrors.event_time} />
+    </div>
 
-                  <div>
-                    <Input
-                      label="Nome do local"
-                      value={form.event_location_name}
-                      onChange={(e) =>
-                        handleChange('event_location_name', e.target.value)
-                      }
-                      className={getInputTone(fieldErrors.event_location_name)}
-                    />
-                    <FieldFeedback error={fieldErrors.event_location_name} />
-                  </div>
+    <div>
+      <Input
+        label="Nome do local"
+        value={form.event_location_name}
+        onChange={(e) =>
+          handleChange('event_location_name', e.target.value)
+        }
+        className={getInputTone(fieldErrors.event_location_name)}
+      />
+      <FieldFeedback error={fieldErrors.event_location_name} />
+    </div>
 
-                  <div>
-                    <Input
-                      ref={eventAddressRef}
-                      label="Endereço do evento"
-                      value={form.event_location_address}
-                      onChange={(e) =>
-                        handleChange('event_location_address', e.target.value)
-                      }
-                      placeholder="Digite e selecione nas sugestões"
-                      autoComplete="street-address"
-                      className={getInputTone(
-                        fieldErrors.event_location_address,
-                        addressValidation.eventAddressConfirmed
-                      )}
-                    />
-                    <FieldFeedback
-                      error={fieldErrors.event_location_address}
-                      success={
-                        addressValidation.eventAddressConfirmed
-                          ? 'Endereço confirmado'
-                          : ''
-                      }
-                    />
-                  </div>
-                </div>
-              </Card>
+    <div>
+      <Input
+        ref={eventAddressRef}
+        label="Endereço do evento"
+        value={form.event_location_address}
+        onChange={(e) =>
+          handleChange('event_location_address', e.target.value)
+        }
+        placeholder="Digite e selecione nas sugestões"
+        autoComplete="street-address"
+        className={getInputTone(
+          fieldErrors.event_location_address,
+          addressValidation.eventAddressConfirmed
+        )}
+      />
+      <FieldFeedback
+        error={fieldErrors.event_location_address}
+        success={
+          addressValidation.eventAddressConfirmed
+            ? 'Endereço confirmado'
+            : ''
+        }
+      />
+    </div>
+  </div>
+</Card>
 
               <Card>
                 <SectionTitle subtitle="Caso precise corrigir alguma informação antes da assinatura, descreva abaixo.">

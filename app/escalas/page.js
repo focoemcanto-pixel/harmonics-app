@@ -44,6 +44,8 @@ function getContactTagText(contact) {
   ];
 
   const found = candidates.find(Boolean);
+
+  if (Array.isArray(found)) return found.join(', ');
   return String(found || '').trim();
 }
 
@@ -416,37 +418,40 @@ export default function EscalasPage() {
       setCarregando(true);
       setErro('');
 
-      const [eventosResp, escalasResp, invitesResp] = await Promise.all([
-        supabase
-          .from('events')
-          .select('id, client_name, event_date, event_time, location_name, formation, instruments, status, created_at')
-          .order('event_date', { ascending: true }),
-        supabase
-  .from('event_musicians')
-  .select(`
-    id,
-    event_id,
-    musician_id,
-    role,
-    status,
-    notes,
-    confirmed_at,
-    created_at,
-    musician:contacts(id, name, phone, email, tag, category)
-  .order('created_at', { ascending: true }),
-        supabase
-          .from('invites')
-          .select(`
-            id,
-            event_id,
-            contact_id,
-            suggested_role_name,
-            status,
-            event:events(id, client_name, event_date, event_time, location_name),
-            contact:contacts(id, name, phone, email)
-          `)
-          .order('id', { ascending: false }),
-      ]);
+     const [eventosResp, escalasResp, invitesResp] = await Promise.all([
+  supabase
+    .from('events')
+    .select('id, client_name, event_date, event_time, location_name, formation, instruments, status, created_at')
+    .order('event_date', { ascending: true }),
+
+  supabase
+    .from('event_musicians')
+    .select(`
+      id,
+      event_id,
+      musician_id,
+      role,
+      status,
+      notes,
+      confirmed_at,
+      created_at,
+      musician:contacts(id, name, phone, email, tag, category)
+    `)
+    .order('created_at', { ascending: true }),
+
+  supabase
+    .from('invites')
+    .select(`
+      id,
+      event_id,
+      contact_id,
+      suggested_role_name,
+      status,
+      event:events(id, client_name, event_date, event_time, location_name),
+      contact:contacts(id, name, phone, email)
+    `)
+    .order('id', { ascending: false }),
+]);
 
       if (eventosResp.error) throw eventosResp.error;
       if (escalasResp.error) throw escalasResp.error;

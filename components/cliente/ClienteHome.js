@@ -2575,18 +2575,16 @@ const ceremonySongs = hydratedSongs.filter((song) => song.moment === 'Cerimônia
 const gospelSongs = hydratedSongs.filter((song) =>
   ['Gospel', 'Gospel Instrumental'].includes(song.genre)
 );
-
+  
 const gospelEntranceSongs = hydratedSongs.filter(
   (song) =>
     ['Gospel', 'Gospel Instrumental'].includes(song.genre) &&
     song.moment === 'Entrada'
 );
-
-
-const gospelEntranceSongs = hydratedSongs.filter(
+  const gospelCeremonySongs = songs.filter(
   (song) =>
     ['Gospel', 'Gospel Instrumental'].includes(song.genre) &&
-    song.moment === 'Entrada'
+    song.moment === 'Cerimônia'
 );
 
    function handleAddConfirm(payload) {

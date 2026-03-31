@@ -85,17 +85,22 @@ export default function ContratosPage() {
             String(pre?.status || '').toLowerCase() !== 'link_generated' ||
             !!contract;
 
+          const clienteNome = pre.client_name || 'Cliente a confirmar';
+
+          const eventoTitulo = pre.event_type
+            ? pre.client_name
+              ? `${pre.event_type} • ${pre.client_name}`
+              : `${pre.event_type} • Cliente a confirmar`
+            : 'Contrato';
+
           return {
             id: pre.id,
             token: pre.public_token,
             precontractId: pre.id,
             contractId: contract?.id || null,
             eventoId: contract?.event_id || pre?.event_id || null,
-            clienteNome: pre.client_name || 'Sem cliente',
-            eventoTitulo:
-              pre.event_type && pre.client_name
-                ? `${pre.event_type} • ${pre.client_name}`
-                : pre.event_type || 'Contrato',
+            clienteNome,
+            eventoTitulo,
             eventoTipo: pre.event_type || '',
             dataEvento: pre.event_date || '',
             localEvento: pre.location_name || '',

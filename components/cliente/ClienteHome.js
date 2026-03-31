@@ -3245,11 +3245,11 @@ export default function ClienteHome({ data, initialTab = 'inicio' }) {
     data?.financeiro?.historico || []
   );
 
-  useEffect(() => {
+    useEffect(() => {
     setActiveTab(initialTab || 'inicio');
   }, [initialTab]);
-  
-    if (!data) {
+
+  if (!data) {
     return <ClienteLoadingScreen />;
   }
 
@@ -3293,43 +3293,41 @@ export default function ClienteHome({ data, initialTab = 'inicio' }) {
         </section>
 
         <div className="mt-4">
-            
-  {activeTab === 'inicio' && (
-    
-    <InicioTab
-      data={data}
-      setActiveTab={setActiveTab}
-      selectedSongs={selectedSongs}
-    />
-  )}
+          {activeTab === 'inicio' && (
+            <InicioTab
+              data={data}
+              setActiveTab={setActiveTab}
+              selectedSongs={selectedSongs}
+            />
+          )}
 
-  {activeTab === 'repertorio' && (
-    <RepertorioTab
-  data={data}
-  selectedSongs={selectedSongs}
-  onSaved={({ mode }) => {
-    if (mode === 'final') return;
-  }}
-/>
-  )}
+          {activeTab === 'repertorio' && (
+            <RepertorioTab
+              data={data}
+              selectedSongs={selectedSongs}
+              onSaved={({ mode }) => {
+                if (mode === 'final') return;
+              }}
+            />
+          )}
 
-  {activeTab === 'sugestoes' && (
-    <SugestoesTab
-      selectedSongs={selectedSongs}
-      setSelectedSongs={setSelectedSongs}
-      favoriteSongIds={favoriteSongIds}
-      setFavoriteSongIds={setFavoriteSongIds}
-    />
-  )}
+          {activeTab === 'sugestoes' && (
+            <SugestoesTab
+              selectedSongs={selectedSongs}
+              setSelectedSongs={setSelectedSongs}
+              favoriteSongIds={favoriteSongIds}
+              setFavoriteSongIds={setFavoriteSongIds}
+            />
+          )}
 
-  {activeTab === 'financeiro' && (
-    <FinanceiroTab
-      data={data}
-      paymentHistory={paymentHistory}
-      setPaymentHistory={setPaymentHistory}
-    />
-  )}
-</div>
+          {activeTab === 'financeiro' && (
+            <FinanceiroTab
+              data={data}
+              paymentHistory={paymentHistory}
+              setPaymentHistory={setPaymentHistory}
+            />
+          )}
+        </div>
       </div>
 
       <FooterNav activeTab={activeTab} setActiveTab={setActiveTab} />

@@ -40,14 +40,10 @@ function splitCsvLike(value) {
 function getContactTagText(contact) {
   const candidates = [
     contact?.tag,
-    contact?.instrument,
-    contact?.instruments,
     contact?.category,
   ];
 
   const found = candidates.find(Boolean);
-
-  if (Array.isArray(found)) return found.join(', ');
   return String(found || '').trim();
 }
 
@@ -436,8 +432,7 @@ export default function EscalasPage() {
     notes,
     confirmed_at,
     created_at,
-    musician:contacts(id, name, phone, email, tag, instrument, instruments, category)
-  `)
+    musician:contacts(id, name, phone, email, tag, category)
   .order('created_at', { ascending: true }),
         supabase
           .from('invites')

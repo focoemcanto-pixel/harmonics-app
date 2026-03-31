@@ -439,7 +439,6 @@ export default function EscalasPage() {
     musician:contacts(id, name, phone, email, tag, instrument, instruments, category)
   `)
   .order('created_at', { ascending: true }),
-          .order('created_at', { ascending: true }),
         supabase
           .from('invites')
           .select(`

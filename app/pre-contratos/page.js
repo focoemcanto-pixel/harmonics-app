@@ -170,6 +170,207 @@ function buildContractLink(token) {
   return `${window.location.origin}/contrato/${token}`;
 }
 
+function buildClientPanelLink(token) {
+  if (typeof window === 'undefined') return `/cliente/${token}`;
+  return `${window.location.origin}/cliente/${token}`;
+}
+
+function buildWhatsAppMessage({ clientName, contractLink, clientPanelLink }) {
+  const saudacao = clientName?.trim()
+    ? `Olá, ${clientName.trim()}!`
+    : 'Olá!';
+
+  return `${saudacao}
+
+Segue o link do seu contrato:
+${contractLink}
+
+Peço que você preencha os dados com atenção, leia tudo no preview antes de assinar e finalize a assinatura com calma.
+
+Depois de assinar, você poderá:
+• baixar o PDF do contrato assinado
+• acessar o painel do cliente
+• acompanhar sua experiência completa conosco
+
+Painel do cliente:
+${clientPanelLink}
+
+Qualquer dúvida, me chama por aqui.`;
+}
+
+function buildWhatsAppUrl(phone, message) {
+  const text = encodeURIComponent(message || '');
+  const digits = cleanPhone(phone);
+
+  if (digits) {
+    return `https://api.whatsapp.com/send?phone=${digits}&text=${text}`;
+  }
+
+  return `https://api.whatsapp.com/send?text=${text}`;
+}
+
+function ShareLinkModal({
+  open,
+  onClose,
+  data,
+}) {
+  if (!open || !data) return null;
+
+  function handleBackdropClick(e) {
+    if (e.target === e.currentTarget) onClose?.();
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[180] bg-black/70 backdrop-blur-[4px]"
+      onClick={handleBackdropClick}
+    >
+      <div className="flex h-[100dvh] items-end justify-center overflow-hidden px-0 md:items-center md:px-6">
+        <div
+          className="flex h-[86dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-[28px] border border-white/10 bg-white text-slate-900 shadow-[0_24px_80px_rgba(0,0,0,0.45)] md:h-auto md:max-h-[88vh] md:rounded-[28px]"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="shrink-0 border-b border-slate-200 px-5 py-4">
+            <div className="mx-auto mb-3 h-1.5 w-14 rounded-full bg-slate-200 md:hidden" />
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <div className="text-[12px] font-black uppercase tracking-[0.12em] text-violet-600/80">
+                  Link pronto para envio
+                </div>
+                <div className="mt-1 text-[22px] font-black tracking-[-0.03em]">
+                  Pré-contrato salvo com sucesso
+                </div>
+                <div className="mt-1 text-sm text-slate-500">
+                  Agora você já pode enviar tudo ao cliente sem sair desse fluxo.
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-[14px] border border-slate-200 bg-white px-4 py-2 text-[13px] font-extrabold text-slate-700"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
+            <div className="space-y-5">
+              <div className="rounded-[24px] border border-violet-200 bg-violet-50 p-4">
+                <div className="text-[11px] font-black uppercase tracking-[0.1em] text-violet-700/70">
+                  Resumo do envio
+                </div>
+
+                <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <div className="rounded-[18px] border border-violet-200 bg-white px-4 py-3">
+                    <div className="text-[11px] font-black uppercase tracking-[0.1em] text-slate-400">
+                      Cliente
+                    </div>
+                    <div className="mt-1 text-[15px] font-bold text-slate-900">
+                      {data.clientName || 'Cliente a confirmar'}
+                    </div>
+                  </div>
+
+                  <div className="rounded-[18px] border border-violet-200 bg-white px-4 py-3">
+                    <div className="text-[11px] font-black uppercase tracking-[0.1em] text-slate-400">
+                      WhatsApp
+                    </div>
+                    <div className="mt-1 text-[15px] font-bold text-slate-900">
+                      {formatPhoneDisplay(data.clientPhone)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
+                <div className="text-[11px] font-black uppercase tracking-[0.1em] text-slate-500">
+                  Link do contrato
+                </div>
+                <div className="mt-2 break-all rounded-[18px] border border-slate-200 bg-white px-4 py-3 text-[14px] font-semibold text-slate-800">
+                  {data.contractLink}
+                </div>
+              </div>
+
+              <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
+                <div className="text-[11px] font-black uppercase tracking-[0.1em] text-slate-500">
+                  Painel do cliente
+                </div>
+                <div className="mt-2 break-all rounded-[18px] border border-slate-200 bg-white px-4 py-3 text-[14px] font-semibold text-slate-800">
+                  {data.clientPanelLink}
+                </div>
+              </div>
+
+              <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
+                <div className="text-[11px] font-black uppercase tracking-[0.1em] text-slate-500">
+                  Mensagem pronta
+                </div>
+                <div className="mt-2 whitespace-pre-wrap rounded-[18px] border border-slate-200 bg-white px-4 py-4 text-[14px] leading-6 text-slate-700">
+                  {data.message}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="shrink-0 border-t border-slate-200 px-5 py-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <a
+                href={data.whatsAppUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex"
+              >
+                <Button className="w-full">Abrir WhatsApp</Button>
+              </a>
+
+              <Button
+                variant="secondary"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(data.message);
+                    alert('Mensagem copiada com sucesso.');
+                  } catch (error) {
+                    console.error(error);
+                    alert('Não foi possível copiar a mensagem.');
+                  }
+                }}
+              >
+                Copiar mensagem
+              </Button>
+
+              <Button
+                variant="soft"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(data.contractLink);
+                    alert('Link copiado com sucesso.');
+                  } catch (error) {
+                    console.error(error);
+                    alert('Não foi possível copiar o link.');
+                  }
+                }}
+              >
+                Copiar link
+              </Button>
+
+              <a
+                href={data.clientPanelLink}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex"
+              >
+                <Button variant="soft" className="w-full">
+                  Abrir painel do cliente
+                </Button>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function PreContratosPage() {
   const [items, setItems] = useState([]);
   const [eventos, setEventos] = useState([]);
@@ -180,6 +381,9 @@ export default function PreContratosPage() {
   const [busca, setBusca] = useState('');
   const [copiadoId, setCopiadoId] = useState(null);
   const [gerandoLinkId, setGerandoLinkId] = useState(null);
+
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [shareData, setShareData] = useState(null);
 
   const [form, setForm] = useState(getInitialForm());
 
@@ -308,6 +512,29 @@ export default function PreContratosPage() {
     });
   }, [form.event_date, form.event_time, eventos]);
 
+  function openShareModalFromItem(item) {
+    const token = item.public_token;
+    if (!token) return;
+
+    const contractLink = item.generated_link || buildContractLink(token);
+    const clientPanelLink = buildClientPanelLink(token);
+    const message = buildWhatsAppMessage({
+      clientName: item.client_name,
+      contractLink,
+      clientPanelLink,
+    });
+
+    setShareData({
+      clientName: item.client_name || '',
+      clientPhone: item.client_phone || '',
+      contractLink,
+      clientPanelLink,
+      message,
+      whatsAppUrl: buildWhatsAppUrl(item.client_phone, message),
+    });
+    setShareModalOpen(true);
+  }
+
   async function salvarPreContrato() {
     if (!form.event_date) {
       alert('Informe a data do evento.');
@@ -316,6 +543,19 @@ export default function PreContratosPage() {
 
     try {
       setSalvando(true);
+
+      const token = editandoId ? null : generateToken();
+      const finalToken = token || undefined;
+
+      const statusBase = form.status || 'draft';
+      const statusToSave =
+        statusBase === 'signed' || statusBase === 'cancelled'
+          ? statusBase
+          : 'link_generated';
+
+      const generatedLink = editandoId
+        ? null
+        : buildContractLink(finalToken);
 
       const payload = {
         client_name: form.client_name.trim() || null,
@@ -344,26 +584,60 @@ export default function PreContratosPage() {
         agreed_amount: financeiro.agreed,
 
         notes: form.notes.trim() || null,
-        status: form.status || 'draft',
+        status: statusToSave,
       };
 
+      let savedItem = null;
+
       if (editandoId) {
-        const { error } = await supabase
+        const { data: existing, error: existingError } = await supabase
           .from('precontracts')
-          .update(payload)
-          .eq('id', editandoId);
+          .select('id, public_token, generated_link')
+          .eq('id', editandoId)
+          .single();
+
+        if (existingError) throw existingError;
+
+        const tokenFinal = existing?.public_token || generateToken();
+        const linkFinal = existing?.generated_link || buildContractLink(tokenFinal);
+
+        const { data, error } = await supabase
+          .from('precontracts')
+          .update({
+            ...payload,
+            public_token: tokenFinal,
+            generated_link: linkFinal,
+          })
+          .eq('id', editandoId)
+          .select('*')
+          .single();
 
         if (error) throw error;
+        savedItem = data;
       } else {
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('precontracts')
-          .insert([payload]);
+          .insert([
+            {
+              ...payload,
+              public_token: finalToken,
+              generated_link: generatedLink,
+            },
+          ])
+          .select('*')
+          .single();
 
         if (error) throw error;
+        savedItem = data;
+      }
+
+      await carregarPreContratos();
+
+      if (savedItem?.public_token) {
+        openShareModalFromItem(savedItem);
       }
 
       resetForm();
-      await carregarPreContratos();
     } catch (error) {
       console.error('Erro ao salvar pré-contrato:', error);
       alert(`Erro ao salvar pré-contrato: ${error?.message || 'erro desconhecido'}`);
@@ -412,19 +686,25 @@ export default function PreContratosPage() {
       const token = item.public_token || generateToken();
       const link = buildContractLink(token);
 
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('precontracts')
         .update({
           public_token: token,
           generated_link: link,
           status: item.status === 'signed' ? 'signed' : 'link_generated',
         })
-        .eq('id', item.id);
+        .eq('id', item.id)
+        .select('*')
+        .single();
 
       if (error) throw error;
 
       await carregarPreContratos();
       await copiarLink(link, item.id);
+
+      if (data) {
+        openShareModalFromItem(data);
+      }
     } catch (error) {
       console.error('Erro ao gerar link do contrato:', error);
       alert(`Erro ao gerar link: ${error?.message || 'erro desconhecido'}`);
@@ -744,8 +1024,8 @@ export default function PreContratosPage() {
                     {salvando
                       ? 'Salvando...'
                       : editandoId
-                      ? 'Atualizar pré-contrato'
-                      : 'Salvar pré-contrato'}
+                      ? 'Atualizar e abrir envio'
+                      : 'Salvar e abrir envio'}
                   </Button>
 
                   {editandoId && (
@@ -755,7 +1035,7 @@ export default function PreContratosPage() {
                   )}
 
                   <Button variant="secondary" disabled>
-                    Gere o link a partir do card salvo abaixo
+                    O link será aberto automaticamente após salvar
                   </Button>
                 </div>
               </Card>
@@ -847,7 +1127,7 @@ export default function PreContratosPage() {
                       onClick={() => gerarLinkContrato(item)}
                       disabled={gerandoLinkId === item.id}
                     >
-                      {gerandoLinkId === item.id ? 'Gerando...' : 'Gerar link'}
+                      {gerandoLinkId === item.id ? 'Gerando...' : 'Abrir envio'}
                     </Button>
 
                     {item.generated_link && (
@@ -872,6 +1152,15 @@ export default function PreContratosPage() {
           )}
         </Card>
       </div>
+
+      <ShareLinkModal
+        open={shareModalOpen}
+        onClose={() => {
+          setShareModalOpen(false);
+          setShareData(null);
+        }}
+        data={shareData}
+      />
     </AppShell>
   );
 }

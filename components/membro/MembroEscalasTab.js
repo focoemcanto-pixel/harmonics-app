@@ -38,10 +38,23 @@ function getDaysDiff(dateValue) {
   return Math.round(diffMs / 86400000);
 }
 
+function isEventPast(item) {
+  if (!item?.eventDate) return false;
+
+  const now = new Date();
+
+  const eventDateTime = new Date(
+    `${item.eventDate}T${item.eventTime || '23:59:59'}`
+  );
+
+  return eventDateTime.getTime() < now.getTime();
+}
+
 function getCountdown(item) {
   const days = getDaysDiff(item?.eventDate);
+  const done = item?.isDone || isEventPast(item);
 
-  if (item?.isDone) {
+  if (done) {
     return {
       label: 'Concluído',
       className: 'bg-emerald-500/12 text-emerald-300 border-emerald-400/20',
@@ -64,7 +77,7 @@ function getCountdown(item) {
 
   if (typeof days === 'number' && days < 0) {
     return {
-      label: 'Já passou',
+      label: 'Concluído',
       className: 'bg-emerald-500/12 text-emerald-300 border-emerald-400/20',
     };
   }
@@ -88,7 +101,6 @@ function getCountdown(item) {
     className: 'bg-white/10 text-white/70 border-white/10',
   };
 }
-
 function getFormationTone(value) {
   const s = String(value || '').toLowerCase();
 
@@ -312,7 +324,7 @@ function EventCard({
 
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-[13px] font-black text-violet-300">
+          <div className="text-[15px] font-black text-white tracking-[-0.02em]">
             📅 {formatDateBR(item?.eventDate)} • {getWeekdayLabel(item?.eventDate)} •{' '}
             {formatTimeShort(item?.eventTime)}
           </div>
@@ -378,12 +390,6 @@ function EventCard({
           🗺 Maps
         </EventActionButton>
 
-        <EventActionButton
-          onClick={() => onMarkDone(item)}
-          tone={item?.isDone ? 'success' : 'default'}
-        >
-          {item?.isDone ? '✅ Concluído' : '☐ Marcar'}
-        </EventActionButton>
       </div>
     </article>
   );

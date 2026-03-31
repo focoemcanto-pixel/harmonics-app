@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { supabase } from '../../lib/supabase';
 import AdminShell from '../../components/admin/AdminShell';
 import AdminPageHero from '../../components/admin/AdminPageHero';
@@ -16,28 +17,37 @@ import ContratosResumoTab from '../../components/contratos/ContratosResumoTab';
 import ContratosListaTab from '../../components/contratos/ContratosListaTab';
 import ContratosFiltrosTab from '../../components/contratos/ContratosFiltrosTab';
 
+function formatDateBR(value) {
+  if (!value) return '';
+  const date = new Date(`${value}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString('pt-BR');
+}
+
+function escapeCsv(value) {
+  const text = String(value ?? '');
+  if (/[",;\n]/.test(text)) {
+    return `"${text.replace(/"/g, '""')}"`;
+  }
+  return text;
+}
+
 export default function ContratosPage() {
+  const router = useRouter();
+
   const [mobileTab, setMobileTab] = useState('resumo');
   const [busca, setBusca] = useState('');
   const [statusFiltro, setStatusFiltro] = useState('todos');
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
   const [contratos, setContratos] = useState([]);
+  const [exportando, setExportando] = useState(false);
 
   const mobileTabs = [
     { key: 'resumo', label: 'Resumo' },
     { key: 'lista', label: 'Lista' },
     { key: 'filtros', label: 'Filtros' },
   ];
-
-  const mobileActions = (
-    <button
-      type="button"
-      className="rounded-[16px] bg-[#0f172a] px-4 py-3 text-[13px] font-black text-white"
-    >
-      Novo
-    </button>
-  );
 
   useEffect(() => {
     async function carregar() {
@@ -98,7 +108,7 @@ export default function ContratosPage() {
             enviadoEm: pre.created_at || '',
             assinadoEm: contract?.signed_at || '',
             observacoes: pre.notes || '',
-            linkContrato: `/contrato/${pre.public_token}`,
+            linkContrato: pre.public_token ? `/contrato/${pre.public_token}` : '',
             pdfUrl: contract?.pdf_url || '',
             docUrl: contract?.doc_url || '',
           };
@@ -125,6 +135,10 @@ export default function ContratosPage() {
 
   const resumo = useMemo(() => getContratosSummary(contratos), [contratos]);
 
+  function handleNovoContrato() {
+    router.push('/pre-contratos');
+  }
+
   async function onCopyLink(link) {
     try {
       const full = `${window.location.origin}${link}`;
@@ -135,6 +149,81 @@ export default function ContratosPage() {
       alert('Não foi possível copiar o link.');
     }
   }
+
+  function handleExportar() {
+    try {
+      setExportando(true);
+
+      const linhas = [
+        [
+          'Cliente',
+          'Título',
+          'Tipo',
+          'Data do evento',
+          'Local',
+          'WhatsApp',
+          'Status',
+          'Visualizado',
+          'Enviado em',
+          'Assinado em',
+          'Link público',
+          'PDF',
+          'DOC',
+          'Observações',
+        ],
+        ...contratosFiltrados.map((item) => [
+          item.clienteNome,
+          item.eventoTitulo,
+          item.eventoTipo,
+          formatDateBR(item.dataEvento),
+          item.localEvento,
+          item.whatsapp,
+          item.statusLabel,
+          item.visualizado ? 'Sim' : 'Não',
+          item.enviadoEm ? new Date(item.enviadoEm).toLocaleString('pt-BR') : '',
+          item.assinadoEm ? new Date(item.assinadoEm).toLocaleString('pt-BR') : '',
+          item.linkContrato ? `${window.location.origin}${item.linkContrato}` : '',
+          item.pdfUrl || '',
+          item.docUrl || '',
+          item.observacoes || '',
+        ]),
+      ];
+
+      const csvContent = linhas
+        .map((linha) => linha.map(escapeCsv).join(';'))
+        .join('\n');
+
+      const blob = new Blob([`\uFEFF${csvContent}`], {
+        type: 'text/csv;charset=utf-8;',
+      });
+
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      const dataAtual = new Date().toISOString().slice(0, 10);
+
+      anchor.href = url;
+      anchor.download = `contratos-harmonics-${dataAtual}.csv`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Erro ao exportar contratos:', error);
+      alert('Não foi possível exportar os contratos.');
+    } finally {
+      setExportando(false);
+    }
+  }
+
+  const mobileActions = (
+    <button
+      type="button"
+      onClick={handleNovoContrato}
+      className="rounded-[16px] bg-[#0f172a] px-4 py-3 text-[13px] font-black text-white transition hover:opacity-95 active:scale-[0.99]"
+    >
+      Novo
+    </button>
+  );
 
   if (carregando) {
     return (
@@ -165,14 +254,17 @@ export default function ContratosPage() {
             <div className="flex flex-wrap gap-3">
               <button
                 type="button"
-                className="rounded-[18px] border border-[#dbe3ef] bg-white px-5 py-4 text-[14px] font-black text-[#0f172a]"
+                onClick={handleExportar}
+                disabled={exportando || !contratosFiltrados.length}
+                className="rounded-[18px] border border-[#dbe3ef] bg-white px-5 py-4 text-[14px] font-black text-[#0f172a] transition hover:border-[#cbd5e1] hover:bg-[#f8fafc] disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Exportar
+                {exportando ? 'Exportando...' : 'Exportar'}
               </button>
 
               <button
                 type="button"
-                className="rounded-[18px] bg-violet-600 px-5 py-4 text-[14px] font-black text-white shadow-[0_12px_28px_rgba(124,58,237,0.18)]"
+                onClick={handleNovoContrato}
+                className="rounded-[18px] bg-violet-600 px-5 py-4 text-[14px] font-black text-white shadow-[0_12px_28px_rgba(124,58,237,0.18)] transition hover:bg-violet-700 active:scale-[0.99]"
               >
                 Novo contrato
               </button>
@@ -180,7 +272,6 @@ export default function ContratosPage() {
           }
         />
 
-        {/* Desktop - always shows all sections */}
         <div className="hidden space-y-5 md:block">
           <ContratosResumoTab resumo={resumo} setMobileTab={setMobileTab} />
           <ContratosListaTab
@@ -195,7 +286,6 @@ export default function ContratosPage() {
           />
         </div>
 
-        {/* Mobile tabs */}
         <div className="md:hidden">
           <AdminSegmentTabs
             items={mobileTabs}
@@ -208,6 +298,7 @@ export default function ContratosPage() {
           {mobileTab === 'resumo' && (
             <ContratosResumoTab resumo={resumo} setMobileTab={setMobileTab} />
           )}
+
           {mobileTab === 'lista' && (
             <ContratosListaTab
               contratosFiltrados={contratosFiltrados}
@@ -220,6 +311,7 @@ export default function ContratosPage() {
               onCopyLink={onCopyLink}
             />
           )}
+
           {mobileTab === 'filtros' && (
             <ContratosFiltrosTab
               busca={busca}

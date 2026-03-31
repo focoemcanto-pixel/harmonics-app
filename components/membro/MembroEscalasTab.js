@@ -42,17 +42,21 @@ function isEventPast(item) {
   if (!item?.eventDate) return false;
 
   const now = new Date();
-
   const eventDateTime = new Date(
     `${item.eventDate}T${item.eventTime || '23:59:59'}`
   );
 
+  if (Number.isNaN(eventDateTime.getTime())) return false;
   return eventDateTime.getTime() < now.getTime();
+}
+
+function isEventDone(item) {
+  return !!item?.isDone || isEventPast(item);
 }
 
 function getCountdown(item) {
   const days = getDaysDiff(item?.eventDate);
-  const done = item?.isDone || isEventPast(item);
+  const done = isEventDone(item);
 
   if (done) {
     return {
@@ -101,6 +105,7 @@ function getCountdown(item) {
     className: 'bg-white/10 text-white/70 border-white/10',
   };
 }
+
 function getFormationTone(value) {
   const s = String(value || '').toLowerCase();
 
@@ -119,6 +124,7 @@ function MonthChip({ value, label, tone = 'default' }) {
     default: 'text-white',
     emerald: 'text-emerald-300',
     amber: 'text-amber-300',
+    rose: 'text-rose-300',
   };
 
   return (
@@ -275,12 +281,7 @@ function MonthPicker({
   );
 }
 
-function EventActionButton({ children, onClick, tone = 'default' }) {
-  const tones = {
-    default: 'border-[#352a55] bg-[#241b3d] text-[#f1eeff]',
-    success: 'border-emerald-400/25 bg-emerald-500/10 text-emerald-200',
-  };
-
+function EventActionButton({ children, onClick }) {
   return (
     <button
       type="button"
@@ -288,10 +289,22 @@ function EventActionButton({ children, onClick, tone = 'default' }) {
         e.stopPropagation();
         onClick?.();
       }}
-      className={`flex min-h-[44px] flex-1 items-center justify-center gap-1 rounded-[12px] border px-3 py-2 text-[12px] font-extrabold transition active:scale-[0.98] ${tones[tone] || tones.default}`}
+      className="flex min-h-[44px] flex-1 items-center justify-center gap-1 rounded-[12px] border border-[#352a55] bg-[#241b3d] px-3 py-2 text-[12px] font-extrabold text-[#f1eeff] transition active:scale-[0.98]"
     >
       {children}
     </button>
+  );
+}
+
+function SectionDivider({ label }) {
+  return (
+    <div className="flex items-center gap-3 px-1 pt-2">
+      <div className="h-px flex-1 bg-white/10" />
+      <div className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-white/40">
+        {label}
+      </div>
+      <div className="h-px flex-1 bg-white/10" />
+    </div>
   );
 }
 
@@ -300,31 +313,31 @@ function EventCard({
   onOpenScale,
   onOpenRepertoire,
   onOpenMaps,
-  onMarkDone,
   onOpenDetails,
 }) {
   const countdown = getCountdown(item);
+  const done = isEventDone(item);
   const arrivalTime = addHoursToTime(item?.eventTime, -2);
   const formationTone = getFormationTone(item?.formation);
 
   return (
     <article
       onClick={() => onOpenDetails?.(item)}
-      className={`relative overflow-hidden rounded-[16px] border p-[18px] text-[#f1eeff] shadow-[0_4px_20px_rgba(0,0,0,.3)] transition active:scale-[0.995] ${
-        item?.isDone
+      className={`relative overflow-hidden rounded-[18px] border p-[18px] text-[#f1eeff] shadow-[0_4px_20px_rgba(0,0,0,.3)] transition active:scale-[0.995] xl:rounded-[22px] xl:p-[20px] ${
+        done
           ? 'border-emerald-400/25 bg-[linear-gradient(135deg,rgba(34,197,94,.06),#1e1535)]'
           : 'border-[#352a55] bg-[#1e1535]'
       }`}
     >
       <div
         className={`absolute left-0 top-0 h-full w-[4px] ${
-          item?.isDone ? 'bg-emerald-500' : 'bg-violet-500'
+          done ? 'bg-emerald-500' : 'bg-violet-500'
         }`}
       />
 
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-[15px] font-black text-white tracking-[-0.02em]">
+          <div className="text-[15px] font-black tracking-[-0.02em] text-white xl:text-[16px]">
             📅 {formatDateBR(item?.eventDate)} • {getWeekdayLabel(item?.eventDate)} •{' '}
             {formatTimeShort(item?.eventTime)}
           </div>
@@ -337,35 +350,35 @@ function EventCard({
         </div>
       </div>
 
-      <div className="mt-3 text-[17px] font-black tracking-[-0.02em]">
-        {item?.isDone ? '✅ ' : ''}
+      <div className="mt-3 text-[17px] font-black tracking-[-0.02em] xl:text-[19px]">
+        {done ? '✅ ' : ''}
         {item?.clientName || 'Evento'}
       </div>
 
-      <div className="mt-1 flex items-start gap-2 text-[13px] font-semibold text-[#a89ec8]">
+      <div className="mt-2 flex items-start gap-2 text-[13px] font-semibold text-[#a89ec8] xl:text-[14px]">
         <span className="shrink-0">📍</span>
         <span className="line-clamp-1">{item?.locationName || '-'}</span>
       </div>
 
-      <div className="mt-1 flex items-start gap-2 text-[13px] font-semibold text-[#a89ec8]">
+      <div className="mt-1 flex items-start gap-2 text-[13px] font-semibold text-[#a89ec8] xl:text-[14px]">
         <span className="shrink-0">🎵</span>
         <span className="line-clamp-1">{item?.instruments || item?.formation || '-'}</span>
       </div>
 
-      <div className="mt-1 flex items-start gap-2 text-[13px] font-semibold text-[#a89ec8]">
+      <div className="mt-1 flex items-start gap-2 text-[13px] font-semibold text-[#a89ec8] xl:text-[14px]">
         <span className="shrink-0">🕑</span>
         <span>Chegada às {arrivalTime}</span>
       </div>
 
       {item?.receptionHours ? (
-        <div className="mt-1 flex items-start gap-2 text-[13px] font-semibold text-[#a89ec8]">
+        <div className="mt-1 flex items-start gap-2 text-[13px] font-semibold text-[#a89ec8] xl:text-[14px]">
           <span className="shrink-0">🕓</span>
           <span>Receptivo: {item.receptionHours}h</span>
         </div>
       ) : null}
 
       {item?.hasSound ? (
-        <div className="mt-1 flex items-start gap-2 text-[13px] font-semibold text-[#a89ec8]">
+        <div className="mt-1 flex items-start gap-2 text-[13px] font-semibold text-[#a89ec8] xl:text-[14px]">
           <span className="shrink-0">🔊</span>
           <span>Com sonorização</span>
         </div>
@@ -389,7 +402,6 @@ function EventCard({
         <EventActionButton onClick={() => onOpenMaps(item)}>
           🗺 Maps
         </EventActionButton>
-
       </div>
     </article>
   );
@@ -432,7 +444,6 @@ export default function MembroEscalasTab({
   onOpenRepertoire,
   onOpenMaps,
   onOpenScale,
-  onMarkDone,
 }) {
   const baseMonth = useMemo(() => {
     const nearest = sortByEventDateAsc(confirmados).find((item) => {
@@ -456,13 +467,26 @@ export default function MembroEscalasTab({
     );
   }, [confirmados, currentMonth]);
 
-  const pendentesDoMes = useMemo(
-    () => monthItems.filter((item) => !item?.isDone),
+  const hojeDoMes = useMemo(
+    () =>
+      monthItems.filter((item) => {
+        const days = getDaysDiff(item?.eventDate);
+        return days === 0 && !isEventDone(item);
+      }),
+    [monthItems]
+  );
+
+  const proximosDoMes = useMemo(
+    () =>
+      monthItems.filter((item) => {
+        const days = getDaysDiff(item?.eventDate);
+        return typeof days === 'number' && days > 0 && !isEventDone(item);
+      }),
     [monthItems]
   );
 
   const concluidosDoMes = useMemo(
-    () => monthItems.filter((item) => item?.isDone),
+    () => monthItems.filter((item) => isEventDone(item)),
     [monthItems]
   );
 
@@ -494,17 +518,17 @@ export default function MembroEscalasTab({
   }
 
   return (
-    <section className="space-y-4">
-      <div className="rounded-[28px] border border-white/10 bg-[linear-gradient(135deg,#0f0a1e_0%,#1a1040_50%,#2d1b69_100%)] px-5 py-4 shadow-[0_18px_40px_rgba(0,0,0,0.20)]">
+    <section className="space-y-4 xl:space-y-5">
+      <div className="rounded-[28px] border border-white/10 bg-[linear-gradient(135deg,#0f0a1e_0%,#1a1040_50%,#2d1b69_100%)] px-5 py-4 shadow-[0_18px_40px_rgba(0,0,0,0.20)] xl:px-6 xl:py-5">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-black">
-              <span className="font-serif text-[13px] italic text-white">H</span>
+            <div className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-black xl:h-10 xl:w-10">
+              <span className="font-serif text-[13px] italic text-white xl:text-[14px]">H</span>
             </div>
 
             <div className="min-w-0">
-              <div className="text-[18px] font-black text-white">Harmonics</div>
-              <div className="text-[11px] font-semibold text-[#a89ec8]">
+              <div className="text-[18px] font-black text-white xl:text-[20px]">Harmonics</div>
+              <div className="text-[11px] font-semibold text-[#a89ec8] xl:text-[12px]">
                 {member?.name || 'Membro'} • Member
               </div>
             </div>
@@ -516,11 +540,11 @@ export default function MembroEscalasTab({
         </div>
       </div>
 
-      <div className="grid grid-cols-[56px_1fr_56px] items-center gap-4 px-1">
+      <div className="grid grid-cols-[56px_1fr_56px] items-center gap-4 px-1 xl:grid-cols-[64px_1fr_64px]">
         <button
           type="button"
           onClick={goPrevMonth}
-          className="flex h-14 w-14 items-center justify-center rounded-[12px] border border-[#352a55] bg-[#1e1535] text-[20px] font-extrabold text-white active:scale-[0.95]"
+          className="flex h-14 w-14 items-center justify-center rounded-[12px] border border-[#352a55] bg-[#1e1535] text-[20px] font-extrabold text-white active:scale-[0.95] xl:h-16 xl:w-16 xl:text-[22px]"
         >
           ◀
         </button>
@@ -528,7 +552,7 @@ export default function MembroEscalasTab({
         <button
           type="button"
           onClick={() => setPickerOpen(true)}
-          className="w-full rounded-[12px] border border-[#352a55] bg-[#1e1535] px-4 py-4 text-center text-[20px] font-black text-white shadow-[0_4px_20px_rgba(0,0,0,.24)]"
+          className="w-full rounded-[12px] border border-[#352a55] bg-[#1e1535] px-4 py-4 text-center text-[20px] font-black text-white shadow-[0_4px_20px_rgba(0,0,0,.24)] xl:py-5 xl:text-[24px]"
         >
           {monthLabel}
         </button>
@@ -536,7 +560,7 @@ export default function MembroEscalasTab({
         <button
           type="button"
           onClick={goNextMonth}
-          className="flex h-14 w-14 items-center justify-center rounded-[12px] border border-[#352a55] bg-[#1e1535] text-[20px] font-extrabold text-white active:scale-[0.95]"
+          className="flex h-14 w-14 items-center justify-center rounded-[12px] border border-[#352a55] bg-[#1e1535] text-[20px] font-extrabold text-white active:scale-[0.95] xl:h-16 xl:w-16 xl:text-[22px]"
         >
           ▶
         </button>
@@ -544,8 +568,9 @@ export default function MembroEscalasTab({
 
       <div className="flex gap-2 overflow-x-auto px-1 pb-1">
         <MonthChip value={monthItems.length} label="eventos" />
+        <MonthChip value={hojeDoMes.length} label="hoje" tone="rose" />
+        <MonthChip value={proximosDoMes.length} label="próximos" tone="amber" />
         <MonthChip value={concluidosDoMes.length} label="concluídos" tone="emerald" />
-        <MonthChip value={pendentesDoMes.length} label="pendentes" tone="amber" />
       </div>
 
       {monthItems.length === 0 ? (
@@ -554,28 +579,31 @@ export default function MembroEscalasTab({
         </div>
       ) : (
         <div className="space-y-3">
-          {pendentesDoMes.map((item) => (
+          {hojeDoMes.length > 0 ? <SectionDivider label="⚡ Hoje" /> : null}
+          {hojeDoMes.map((item) => (
             <EventCard
               key={item.id}
               item={item}
               onOpenScale={onOpenScale}
               onOpenRepertoire={onOpenRepertoire}
               onOpenMaps={onOpenMaps}
-              onMarkDone={onMarkDone}
               onOpenDetails={handleOpenDetails}
             />
           ))}
 
-          {pendentesDoMes.length > 0 && concluidosDoMes.length > 0 ? (
-            <div className="flex items-center gap-3 px-1 pt-2">
-              <div className="h-px flex-1 bg-white/10" />
-              <div className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-white/40">
-                ✅ Concluídos
-              </div>
-              <div className="h-px flex-1 bg-white/10" />
-            </div>
-          ) : null}
+          {proximosDoMes.length > 0 ? <SectionDivider label="🗓 Próximos" /> : null}
+          {proximosDoMes.map((item) => (
+            <EventCard
+              key={item.id}
+              item={item}
+              onOpenScale={onOpenScale}
+              onOpenRepertoire={onOpenRepertoire}
+              onOpenMaps={onOpenMaps}
+              onOpenDetails={handleOpenDetails}
+            />
+          ))}
 
+          {concluidosDoMes.length > 0 ? <SectionDivider label="✅ Concluídos" /> : null}
           {concluidosDoMes.map((item) => (
             <EventCard
               key={item.id}
@@ -583,7 +611,6 @@ export default function MembroEscalasTab({
               onOpenScale={onOpenScale}
               onOpenRepertoire={onOpenRepertoire}
               onOpenMaps={onOpenMaps}
-              onMarkDone={onMarkDone}
               onOpenDetails={handleOpenDetails}
             />
           ))}

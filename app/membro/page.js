@@ -8,7 +8,6 @@ import MembroEscalasTab from '../../components/membro/MembroEscalasTab';
 import MembroRepertoriosTab from '../../components/membro/MembroRepertoriosTab';
 import MembroPerfilTab from '../../components/membro/MembroPerfilTab';
 import MembroBottomNav from '../../components/membro/MembroBottomNav';
-import MembroPlayerModal from '../../components/membro/MembroPlayerModal';
 import MiniPlayerBar from '../../components/membro/MiniPlayerBar';
 import MembroEscalaModal from '../../components/membro/MembroEscalaModal';
 import MembroRepertorioResumoModal from '../../components/membro/MembroRepertorioResumoModal';

@@ -2537,6 +2537,12 @@ function getPriorityScore(song) {
   const filteredSongs = hydratedSongs
   .filter((song) => {
     const q = search.trim().toLowerCase();
+    const hasActiveFilters =
+  search.trim() !== '' ||
+  quickFilter !== 'Todos' ||
+  genreFilter !== 'Todos' ||
+  momentFilter !== 'Todos';
+    
 
     const matchesSearch =
       !q ||
@@ -2570,16 +2576,17 @@ const gospelSongs = hydratedSongs.filter((song) =>
   ['Gospel', 'Gospel Instrumental'].includes(song.genre)
 );
 
-const gospelEntranceSongs = songs.filter(
+const gospelEntranceSongs = hydratedSongs.filter(
   (song) =>
     ['Gospel', 'Gospel Instrumental'].includes(song.genre) &&
     song.moment === 'Entrada'
 );
 
-const gospelCeremonySongs = songs.filter(
+
+const gospelEntranceSongs = hydratedSongs.filter(
   (song) =>
     ['Gospel', 'Gospel Instrumental'].includes(song.genre) &&
-    song.moment === 'Cerimônia'
+    song.moment === 'Entrada'
 );
 
    function handleAddConfirm(payload) {
@@ -2636,24 +2643,190 @@ const gospelCeremonySongs = songs.filter(
           onChange={setMomentFilter}
         />
       </SectionCard>
-      {favoriteSongs.length > 0 && (
-  <SectionCard>
-    <div className="mb-4 flex items-center justify-between gap-3">
-      <div>
-        <div className="text-[18px] font-black text-[#241a14]">Suas favoritas</div>
-        <div className="mt-1 text-[13px] leading-5 text-[#7a6a5e]">
-          As músicas que você marcou e pode revisar rapidamente.
+     {!hasActiveFilters && (
+  <>
+    {favoriteSongs.length > 0 && (
+      <SectionCard>
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <div className="text-[18px] font-black text-[#241a14]">Suas favoritas</div>
+            <div className="mt-1 text-[13px] leading-5 text-[#7a6a5e]">
+              As músicas que você marcou e pode revisar rapidamente.
+            </div>
+          </div>
+
+          <div className="rounded-full bg-violet-50 px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-violet-700">
+            {favoriteSongs.length} favorita(s)
+          </div>
+        </div>
+
+        <div className="flex gap-3 overflow-x-auto pb-1">
+          {favoriteSongs.map((song) => (
+            <CollectionCard
+              key={song.id}
+              item={song}
+              onPlay={() => {
+                setCurrentSong(song);
+                setExpandedSong(song);
+              }}
+              onFav={() => toggleFavorite(song.id)}
+              onAdd={() => setSheetSong(song)}
+            />
+          ))}
+        </div>
+      </SectionCard>
+    )}
+
+    <SectionCard>
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div>
+          <div className="text-[18px] font-black text-[#241a14]">Mais escolhidas</div>
+          <div className="mt-1 text-[13px] leading-5 text-[#7a6a5e]">
+            Ranking dinâmico com destaque para as músicas mais fortes da curadoria.
+          </div>
+        </div>
+
+        <div className="rounded-full bg-[#faf7f3] px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-[#7a6a5e]">
+          Top {Math.min(mostChosenSongs.length, 10)}
         </div>
       </div>
 
-      <div className="rounded-full bg-violet-50 px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-violet-700">
-        {favoriteSongs.length} favorita(s)
+      <div className="flex gap-3 overflow-x-auto pb-1">
+        {mostChosenSongs.slice(0, 10).map((song) => (
+          <CollectionCard
+            key={song.id}
+            item={song}
+            onPlay={() => {
+              setCurrentSong(song);
+              setExpandedSong(song);
+            }}
+            onFav={() => toggleFavorite(song.id)}
+            onAdd={() => setSheetSong(song)}
+          />
+        ))}
       </div>
-    </div>
+    </SectionCard>
 
-    <div className="flex gap-3 overflow-x-auto pb-1">
-      {favoriteSongs.map((song) => (
-        <CollectionCard
+    <SectionCard>
+      <div className="mb-4 text-[18px] font-black text-[#241a14]">Para entrada da noiva</div>
+
+      <div className="flex gap-3 overflow-x-auto pb-1">
+        {brideEntranceSongs.map((song) => (
+          <CollectionCard
+            key={song.id}
+            item={song}
+            onPlay={() => {
+              setCurrentSong(song);
+              setExpandedSong(song);
+            }}
+            onFav={() => toggleFavorite(song.id)}
+            onAdd={() => setSheetSong(song)}
+          />
+        ))}
+      </div>
+    </SectionCard>
+
+    <SectionCard>
+      <div className="mb-4 text-[18px] font-black text-[#241a14]">Gospel para casamento</div>
+      <div className="mb-4 text-[13px] leading-5 text-[#7a6a5e]">
+        Seleção pensada para cerimônias cristãs e momentos de adoração no casamento.
+      </div>
+
+      <div className="flex gap-3 overflow-x-auto pb-1">
+        {gospelSongs.map((song) => (
+          <CollectionCard
+            key={song.id}
+            item={song}
+            onPlay={() => {
+              setCurrentSong(song);
+              setExpandedSong(song);
+            }}
+            onFav={() => toggleFavorite(song.id)}
+            onAdd={() => setSheetSong(song)}
+          />
+        ))}
+      </div>
+    </SectionCard>
+
+    <SectionCard>
+      <div className="mb-4 text-[18px] font-black text-[#241a14]">Gospel para entrada</div>
+      <div className="mb-4 text-[13px] leading-5 text-[#7a6a5e]">
+        Músicas e instrumentais com atmosfera forte para entrada da noiva e momentos marcantes.
+      </div>
+
+      <div className="flex gap-3 overflow-x-auto pb-1">
+        {gospelEntranceSongs.map((song) => (
+          <CollectionCard
+            key={song.id}
+            item={song}
+            onPlay={() => {
+              setCurrentSong(song);
+              setExpandedSong(song);
+            }}
+            onFav={() => toggleFavorite(song.id)}
+            onAdd={() => setSheetSong(song)}
+          />
+        ))}
+      </div>
+    </SectionCard>
+
+    <SectionCard>
+      <div className="mb-4 text-[18px] font-black text-[#241a14]">Gospel para cerimônia</div>
+      <div className="mb-4 text-[13px] leading-5 text-[#7a6a5e]">
+        Sugestões cristãs para momentos centrais da cerimônia, oração, aliança e gratidão.
+      </div>
+
+      <div className="flex gap-3 overflow-x-auto pb-1">
+        {gospelCeremonySongs.map((song) => (
+          <CollectionCard
+            key={song.id}
+            item={song}
+            onPlay={() => {
+              setCurrentSong(song);
+              setExpandedSong(song);
+            }}
+            onFav={() => toggleFavorite(song.id)}
+            onAdd={() => setSheetSong(song)}
+          />
+        ))}
+      </div>
+    </SectionCard>
+
+    <SectionCard>
+      <div className="mb-4 text-[18px] font-black text-[#241a14]">Cerimônia</div>
+
+      <div className="flex gap-3 overflow-x-auto pb-1">
+        {ceremonySongs.map((song) => (
+          <CollectionCard
+            key={song.id}
+            item={song}
+            onPlay={() => {
+              setCurrentSong(song);
+              setExpandedSong(song);
+            }}
+            onFav={() => toggleFavorite(song.id)}
+            onAdd={() => setSheetSong(song)}
+          />
+        ))}
+      </div>
+    </SectionCard>
+  </>
+)}
+
+<SectionCard>
+  <div className="mb-4 flex items-center justify-between gap-3">
+    <div className="text-[18px] font-black text-[#241a14]">
+      {hasActiveFilters ? 'Resultados da busca' : 'Todas as músicas'}
+    </div>
+    <div className="text-[12px] font-black text-[#9b8576]">
+      {filteredSongs.length} resultado(s)
+    </div>
+  </div>
+
+  <div className="space-y-3">
+    {filteredSongs.length ? (
+      filteredSongs.map((song) => (
+        <SongListCard
           key={song.id}
           item={song}
           onPlay={() => {
@@ -2663,174 +2836,15 @@ const gospelCeremonySongs = songs.filter(
           onFav={() => toggleFavorite(song.id)}
           onAdd={() => setSheetSong(song)}
         />
-      ))}
-    </div>
-  </SectionCard>
-)}
-
-     <SectionCard>
-  <div className="mb-4 flex items-center justify-between gap-3">
-    <div>
-      <div className="text-[18px] font-black text-[#241a14]">Mais escolhidas</div>
-      <div className="mt-1 text-[13px] leading-5 text-[#7a6a5e]">
-        Ranking dinâmico com destaque para as músicas mais fortes da curadoria.
-      </div>
-    </div>
-
-    <div className="rounded-full bg-[#faf7f3] px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-[#7a6a5e]">
-      Top {Math.min(mostChosenSongs.length, 10)}
-    </div>
-  </div>
-
-  <div className="flex gap-3 overflow-x-auto pb-1">
-    {mostChosenSongs.slice(0, 10).map((song) => (
-      <CollectionCard
-        key={song.id}
-        item={song}
-        onPlay={() => {
-          setCurrentSong(song);
-          setExpandedSong(song);
-        }}
-        onFav={() => toggleFavorite(song.id)}
-        onAdd={() => setSheetSong(song)}
+      ))
+    ) : (
+      <EmptyStateCard
+        title="Nenhuma música encontrada"
+        text="Tente ajustar os filtros ou buscar por outro nome, artista, gênero ou momento."
       />
-    ))}
+    )}
   </div>
 </SectionCard>
-
-      <SectionCard>
-        <div className="mb-4 text-[18px] font-black text-[#241a14]">Para entrada da noiva</div>
-
-        <div className="flex gap-3 overflow-x-auto pb-1">
-          {brideEntranceSongs.map((song) => (
-            <CollectionCard
-              key={song.id}
-              item={song}
-              onPlay={() => {
-                setCurrentSong(song);
-                setExpandedSong(song);
-              }}
-              onFav={() => toggleFavorite(song.id)}
-              onAdd={() => setSheetSong(song)}
-            />
-          ))}
-        </div>
-      </SectionCard>
-      <SectionCard>
-  <div className="mb-4 text-[18px] font-black text-[#241a14]">Gospel para casamento</div>
-  <div className="mb-4 text-[13px] leading-5 text-[#7a6a5e]">
-    Seleção pensada para cerimônias cristãs e momentos de adoração no casamento.
-  </div>
-
-  <div className="flex gap-3 overflow-x-auto pb-1">
-    {gospelSongs.map((song) => (
-      <CollectionCard
-        key={song.id}
-        item={song}
-        onPlay={() => {
-          setCurrentSong(song);
-          setExpandedSong(song);
-        }}
-        onFav={() => toggleFavorite(song.id)}
-        onAdd={() => setSheetSong(song)}
-      />
-    ))}
-  </div>
-</SectionCard>
-
-<SectionCard>
-  <div className="mb-4 text-[18px] font-black text-[#241a14]">Gospel para entrada</div>
-  <div className="mb-4 text-[13px] leading-5 text-[#7a6a5e]">
-    Músicas e instrumentais com atmosfera forte para entrada da noiva e momentos marcantes.
-  </div>
-
-  <div className="flex gap-3 overflow-x-auto pb-1">
-    {gospelEntranceSongs.map((song) => (
-      <CollectionCard
-        key={song.id}
-        item={song}
-        onPlay={() => {
-          setCurrentSong(song);
-          setExpandedSong(song);
-        }}
-        onFav={() => toggleFavorite(song.id)}
-        onAdd={() => setSheetSong(song)}
-      />
-    ))}
-  </div>
-</SectionCard>
-
-<SectionCard>
-  <div className="mb-4 text-[18px] font-black text-[#241a14]">Gospel para cerimônia</div>
-  <div className="mb-4 text-[13px] leading-5 text-[#7a6a5e]">
-    Sugestões cristãs para momentos centrais da cerimônia, oração, aliança e gratidão.
-  </div>
-
-  <div className="flex gap-3 overflow-x-auto pb-1">
-    {gospelCeremonySongs.map((song) => (
-      <CollectionCard
-        key={song.id}
-        item={song}
-        onPlay={() => {
-          setCurrentSong(song);
-          setExpandedSong(song);
-        }}
-        onFav={() => toggleFavorite(song.id)}
-        onAdd={() => setSheetSong(song)}
-      />
-    ))}
-  </div>
-</SectionCard>
-
-      <SectionCard>
-        <div className="mb-4 text-[18px] font-black text-[#241a14]">Cerimônia</div>
-
-        <div className="flex gap-3 overflow-x-auto pb-1">
-          {ceremonySongs.map((song) => (
-            <CollectionCard
-              key={song.id}
-              item={song}
-              onPlay={() => {
-                setCurrentSong(song);
-                setExpandedSong(song);
-              }}
-              onFav={() => toggleFavorite(song.id)}
-              onAdd={() => setSheetSong(song)}
-            />
-          ))}
-        </div>
-      </SectionCard>
-
-      <SectionCard>
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <div className="text-[18px] font-black text-[#241a14]">Todas as músicas</div>
-          <div className="text-[12px] font-black text-[#9b8576]">
-            {filteredSongs.length} resultado(s)
-          </div>
-        </div>
-
-        <div className="space-y-3">
-          {filteredSongs.length ? (
-            filteredSongs.map((song) => (
-              <SongListCard
-                key={song.id}
-                item={song}
-                onPlay={() => {
-                  setCurrentSong(song);
-                  setExpandedSong(song);
-                }}
-                onFav={() => toggleFavorite(song.id)}
-                onAdd={() => setSheetSong(song)}
-              />
-            ))
-          ) : (
-            <EmptyStateCard
-  title="Nenhuma música encontrada"
-  text="Tente ajustar os filtros ou buscar por outro nome, artista, gênero ou momento."
-/>
-          )}
-        </div>
-      </SectionCard>
 
       <MiniMusicPlayer
         current={currentSong}

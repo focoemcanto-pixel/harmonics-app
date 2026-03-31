@@ -953,13 +953,12 @@ export default function MembroPage() {
 
               {!loadingData && activeTab === 'escalas' ? (
                 <MembroEscalasTab
-                  member={member}
-                  confirmados={confirmados}
-                  onOpenRepertoire={handleOpenRepertoireSummary}
-                  onOpenMaps={openMaps}
-                  onOpenScale={handleOpenScale}
-                  onMarkDone={handleMarkDone}
-                />
+  member={member}
+  confirmados={confirmados}
+  onOpenRepertoire={handleOpenRepertoireSummary}
+  onOpenMaps={openMaps}
+  onOpenScale={handleOpenScale}
+/>
               ) : null}
 
               {!loadingData && activeTab === 'repertorios' ? (

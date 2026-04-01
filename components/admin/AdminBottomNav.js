@@ -21,19 +21,15 @@ export default function AdminBottomNav({
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-[80] border-t border-[#e5e7eb] bg-[rgba(244,246,250,0.94)] px-3 pb-[calc(env(safe-area-inset-bottom)+12px)] pt-3 shadow-[0_-10px_30px_rgba(17,24,39,0.06)] backdrop-blur-xl">
-      <div className="mx-auto grid max-w-[520px] grid-cols-5 gap-2">
+    <nav className="fixed bottom-0 left-0 right-0 z-[9999] pointer-events-none border-t border-[#e5e7eb] bg-[rgba(244,246,250,0.94)] px-3 pb-[calc(env(safe-area-inset-bottom)+12px)] pt-3 shadow-[0_-10px_30px_rgba(17,24,39,0.06)] backdrop-blur-xl">
+      <div className="mx-auto grid max-w-[520px] grid-cols-5 gap-2 pointer-events-auto">
         {items.map((item) => {
           if (item.key === 'mais') {
             return (
               <button
                 key={item.key}
                 type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onOpenMore?.();
-                }}
+                onClick={() => onOpenMore?.()}
                 className={`touch-manipulation pointer-events-auto flex min-h-[56px] flex-col items-center justify-center rounded-2xl px-2 py-2 text-center transition ${itemClass(
                   activeItem === item.key
                 )}`}
@@ -48,7 +44,7 @@ export default function AdminBottomNav({
             <Link
               key={item.key}
               href={item.href}
-              className={`touch-manipulation flex min-h-[56px] flex-col items-center justify-center rounded-2xl px-2 py-2 text-center transition ${itemClass(
+              className={`touch-manipulation pointer-events-auto flex min-h-[56px] flex-col items-center justify-center rounded-2xl px-2 py-2 text-center transition ${itemClass(
                 activeItem === item.key
               )}`}
             >

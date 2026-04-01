@@ -29,11 +29,12 @@ export default function AdminBottomNav({
               <button
                 key={item.key}
                 type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onOpenMore?.();
-                }}
+               onClick={(e) => {
+  console.log('[Mais] clique detectado');
+  e.preventDefault();
+  e.stopPropagation();
+  onOpenMore?.();
+}}
                 className={`touch-manipulation pointer-events-auto flex min-h-[56px] flex-col items-center justify-center rounded-2xl px-2 py-2 text-center transition ${itemClass(
                   activeItem === item.key
                 )}`}

@@ -101,6 +101,10 @@ export default function AdminShell({
     router.push(href);
   }
 
+  function handleOpenMore() {
+    setMoreOpen(true);
+  }
+
   return (
     <div className="min-h-screen bg-[#f4f6fa] text-[#111827]">
       <div className="hidden md:flex">
@@ -123,7 +127,7 @@ export default function AdminShell({
 
         <AdminBottomNav
           activeItem={mobileActiveItem}
-          onOpenMore={() => setMoreOpen(true)}
+          onOpenMore={handleOpenMore}
         />
 
         <MobileMoreSheet

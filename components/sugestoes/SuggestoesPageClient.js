@@ -1128,6 +1128,10 @@ export default function SuggestoesPageClient() {
     setLoading(false);
   }
 }
+  useEffect(() => {
+  loadAll();
+}, []);
+  
   function openCreate() {
     setEditingSong(null);
     setEditorOpen(true);

@@ -96,7 +96,7 @@ export default function AdminShell({
     return 'mais';
   }, [activeItem]);
 
-  function handleNavigate(href) {
+  function handleMoreNavigate(href) {
     setMoreOpen(false);
     router.push(href);
   }
@@ -123,14 +123,13 @@ export default function AdminShell({
 
         <AdminBottomNav
           activeItem={mobileActiveItem}
-          onNavigate={handleNavigate}
           onOpenMore={() => setMoreOpen(true)}
         />
 
         <MobileMoreSheet
           open={moreOpen}
           onClose={() => setMoreOpen(false)}
-          onNavigate={handleNavigate}
+          onNavigate={handleMoreNavigate}
         />
       </div>
     </div>

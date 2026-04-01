@@ -1152,6 +1152,19 @@ export default function ContratoPublicoPage() {
         .eq('id', precontract.id);
 
       if (precontractUpdateError) throw precontractUpdateError;
+      try {
+  await fetch('/api/whatsapp/send-contract-signed', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      precontractId: precontract.id,
+    }),
+  });
+} catch (whatsError) {
+  console.error('Erro ao disparar WhatsApp pós-assinatura:', whatsError);
+}
 
       setEnviado(true);
     } catch (error) {

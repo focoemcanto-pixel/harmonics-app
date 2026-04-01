@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '../../../../lib/supabase-admin';
 import { sendWhatsAppMessage } from '../../../../lib/whatsapp/send-whatsapp-message';
 import { buildInviteMessage } from '../../../../lib/whatsapp/build-invite-message';
+import { logAutomationDispatch } from '../../../../lib/automation/log-dispatch';
+import { getDefaultWorkspace } from '../../../../lib/automation/get-workspace';
 
 function cleanPhone(value) {
   return String(value || '').replace(/\D/g, '');
@@ -9,6 +11,7 @@ function cleanPhone(value) {
 
 export async function POST(request) {
   const supabaseAdmin = getSupabaseAdmin();
+  const workspaceId = await getDefaultWorkspace();
   try {
     const body = await request.json();
     const inviteId = body?.inviteId;
@@ -105,6 +108,30 @@ export async function POST(request) {
       throw updateError;
     }
 
+    await logAutomationDispatch({
+      workspaceId,
+      ruleId: null,
+      templateId: null,
+      channelId: null,
+      entityId: invite.id,
+      entityType: 'invite',
+      recipientType: 'member',
+      recipient: phone,
+      renderedMessage: message,
+      metadata: {
+        eventId: invite.event_id,
+        contactId: invite.contact_id,
+        contactName: invite.contact?.name,
+        eventName: invite.event?.client_name,
+        eventDate: invite.event?.event_date,
+        role: invite.suggested_role_name,
+      },
+      providerResponse: null,
+      status: 'sent',
+      errorMessage: null,
+      source: 'legacy_send_invite',
+    });
+
     return NextResponse.json({
       ok: true,
       inviteId: invite.id,
@@ -112,6 +139,23 @@ export async function POST(request) {
     });
   } catch (error) {
     console.error('Erro ao enviar convite via WhatsApp:', error);
+
+    await logAutomationDispatch({
+      workspaceId,
+      ruleId: null,
+      templateId: null,
+      channelId: null,
+      entityId: inviteId,
+      entityType: 'invite',
+      recipientType: 'member',
+      recipient: null,
+      renderedMessage: null,
+      metadata: { error: error?.message },
+      providerResponse: null,
+      status: 'failed',
+      errorMessage: error?.message || 'Erro interno',
+      source: 'legacy_send_invite',
+    });
 
     return NextResponse.json(
       { error: error?.message || 'Erro interno ao enviar convite' },

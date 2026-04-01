@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '../../../../lib/supabase-admin';
 import { sendWhatsAppMessage } from '../../../../lib/whatsapp/send-whatsapp-message';
 import { buildContractSignedMessage } from '../../../../lib/whatsapp/build-contract-signed-message';
+import { logAutomationDispatch } from '../../../../lib/automation/log-dispatch';
+import { getDefaultWorkspace } from '../../../../lib/automation/get-workspace';
 
 function cleanPhone(value) {
   return String(value || '').replace(/\D/g, '');
@@ -9,6 +11,7 @@ function cleanPhone(value) {
 
 export async function POST(request) {
   const supabaseAdmin = getSupabaseAdmin();
+  const workspaceId = await getDefaultWorkspace();
 
   try {
     const body = await request.json();
@@ -121,6 +124,27 @@ export async function POST(request) {
       throw updateError;
     }
 
+    await logAutomationDispatch({
+      workspaceId,
+      ruleId: null,
+      templateId: null,
+      channelId: null,
+      entityId: contract.id,
+      entityType: 'contract',
+      recipientType: 'client',
+      recipient: phone,
+      renderedMessage: message,
+      metadata: {
+        precontractId: precontractId,
+        clientName: precontract.client_name,
+        publicToken: precontract.public_token,
+      },
+      providerResponse: null,
+      status: 'sent',
+      errorMessage: null,
+      source: 'legacy_contract_signed',
+    });
+
     return NextResponse.json({
       ok: true,
       contractId: contract.id,
@@ -129,6 +153,23 @@ export async function POST(request) {
     });
   } catch (error) {
     console.error('Erro ao enviar WhatsApp pós-assinatura:', error);
+
+    await logAutomationDispatch({
+      workspaceId,
+      ruleId: null,
+      templateId: null,
+      channelId: null,
+      entityId: precontractId,
+      entityType: 'contract',
+      recipientType: 'client',
+      recipient: null,
+      renderedMessage: null,
+      metadata: { error: error?.message },
+      providerResponse: null,
+      status: 'failed',
+      errorMessage: error?.message || 'Erro interno',
+      source: 'legacy_contract_signed',
+    });
 
     return NextResponse.json(
       { error: error?.message || 'Erro interno ao enviar mensagem pós-assinatura' },

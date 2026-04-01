@@ -18,6 +18,7 @@ export default function AdminSidebar({ activeItem = 'eventos' }) {
     { key: 'contratos', label: 'Contratos', href: '/contratos' },
     { key: 'repertorios', label: 'Repertórios', href: '/repertorios' },
     { key: 'sugestoes', label: 'Sugestões', href: '/sugestoes' },
+    { key: 'avaliacoes', label: 'Avaliações', href: '/avaliacoes' },
     { key: 'pagamentos', label: 'Pagamentos', href: '/pagamentos' },
   ];
 

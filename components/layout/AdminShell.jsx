@@ -7,6 +7,7 @@ import AdminMobileTopbar from '../admin/AdminMobileTopbar';
 import AdminBottomNav from '../admin/AdminBottomNav';
 
 const MORE_ITEMS = [
+  { label: 'Automação', href: '/automacoes', icon: '⚙️', helper: 'Central de automação' },
   { label: 'Financeiro', href: '/pagamentos', icon: '💸', helper: 'Pagamentos e caixa' },
   { label: 'Escalas', href: '/escalas', icon: '🎼', helper: 'Operação musical' },
   { label: 'Convites', href: '/convites', icon: '📨', helper: 'Chamadas e respostas' },

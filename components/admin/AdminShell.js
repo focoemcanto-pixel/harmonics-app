@@ -16,6 +16,7 @@ function MoreDrawer({ open, onClose }) {
     { key: 'escalas', icon: '🎼', label: 'Escalas', href: '/escalas' },
     { key: 'repertorios', icon: '🎵', label: 'Repertórios', href: '/repertorios' },
     { key: 'sugestoes', icon: '✨', label: 'Sugestões', href: '/sugestoes' },
+    { key: 'avaliacoes', icon: '💜', label: 'Avaliações', href: '/avaliacoes' },
     { key: 'pagamentos', icon: '💳', label: 'Pagamentos', href: '/pagamentos' },
   ];
 

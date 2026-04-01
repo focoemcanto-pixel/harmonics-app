@@ -1063,23 +1063,71 @@ export default function SuggestoesPageClient() {
     );
   }
 
-  async function loadAll() {
-    try {
-      setLoading(true);
-      setError('');
-      await loadSongs();
-    } catch (err) {
-      console.error(err);
-      setError(err?.message || 'Erro ao carregar módulo de sugestões');
-    } finally {
-      setLoading(false);
+ async function loadAll() {
+  try {
+    setLoading(true);
+    setError('');
+
+    const [songsResponse, genresResponse, momentsResponse] = await Promise.all([
+      fetch('/api/suggestions/songs', { cache: 'no-store' }),
+      fetch('/api/suggestions/genres', { cache: 'no-store' }),
+      fetch('/api/suggestions/moments', { cache: 'no-store' }),
+    ]);
+
+    const [songsData, genresData, momentsData] = await Promise.all([
+      songsResponse.json().catch(() => ({})),
+      genresResponse.json().catch(() => ({})),
+      momentsResponse.json().catch(() => ({})),
+    ]);
+
+    if (!songsResponse.ok) {
+      throw new Error(songsData?.error || 'Erro ao carregar músicas');
     }
+
+    if (!genresResponse.ok) {
+      throw new Error(genresData?.error || 'Erro ao carregar gêneros');
+    }
+
+    if (!momentsResponse.ok) {
+      throw new Error(momentsData?.error || 'Erro ao carregar momentos');
+    }
+
+    const songsList = Array.isArray(songsData?.songs) ? songsData.songs : [];
+    const genresList = Array.isArray(genresData?.genres) ? genresData.genres : [];
+    const momentsList = Array.isArray(momentsData?.moments) ? momentsData.moments : [];
+
+    setSongs(songsList);
+    setGenres(genresList);
+    setMoments(momentsList);
+
+    const tagsMap = new Map();
+    const collectionsMap = new Map();
+
+    songsList.forEach((song) => {
+      (song?.song_tags || []).forEach((item) => {
+        if (item?.tag?.id) tagsMap.set(item.tag.id, item.tag);
+      });
+
+      (song?.collection_links || []).forEach((item) => {
+        if (item?.collection?.id) {
+          collectionsMap.set(item.collection.id, item.collection);
+        }
+      });
+    });
+
+    setTags(Array.from(tagsMap.values()).sort((a, b) => a.name.localeCompare(b.name)));
+    setCollections(
+      Array.from(collectionsMap.values()).sort(
+        (a, b) => Number(a?.sort_order || 0) - Number(b?.sort_order || 0)
+      )
+    );
+  } catch (err) {
+    console.error(err);
+    setError(err?.message || 'Erro ao carregar módulo de sugestões');
+  } finally {
+    setLoading(false);
   }
-
-  useEffect(() => {
-    loadAll();
-  }, []);
-
+}
   function openCreate() {
     setEditingSong(null);
     setEditorOpen(true);

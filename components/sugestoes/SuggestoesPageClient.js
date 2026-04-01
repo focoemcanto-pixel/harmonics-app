@@ -973,6 +973,364 @@ function SuggestoesBibliotecaTab({
     </div>
   );
 }
+function TaxonomyCard({ item, typeLabel, usageCount = 0, onEdit, onToggleActive }) {
+  return (
+    <div className="rounded-[24px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_26px_rgba(15,23,42,0.05)]">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-[20px] font-black tracking-[-0.03em] text-[#0f172a]">
+            {item?.name || 'Sem nome'}
+          </div>
+          <div className="mt-1 text-[13px] font-semibold text-[#64748b]">
+            slug: {item?.slug || '—'}
+          </div>
+        </div>
+
+        <Pill tone={item?.is_active ? 'emerald' : 'red'}>
+          {item?.is_active ? 'Ativo' : 'Oculto'}
+        </Pill>
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        <Pill tone="sky">{typeLabel}</Pill>
+        <Pill>Ordem {item?.sort_order ?? 0}</Pill>
+        <Pill>{usageCount} uso(s)</Pill>
+      </div>
+
+      <div className="mt-5 grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          onClick={() => onEdit(item)}
+          className="rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3 text-[13px] font-black text-[#0f172a]"
+        >
+          Editar
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onToggleActive(item)}
+          className="rounded-[16px] border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] font-black text-amber-700"
+        >
+          {item?.is_active ? 'Ocultar' : 'Ativar'}
+        </button>
+      </div>
+
+      <div className="mt-4 text-[12px] font-semibold text-[#94a3b8]">
+        Atualizado em {formatDateBR(item?.updated_at)}
+      </div>
+    </div>
+  );
+}
+
+function TaxonomyEditorModal({
+  open,
+  onClose,
+  onSubmit,
+  loading,
+  item,
+  title,
+  eyebrow,
+}) {
+  const [form, setForm] = useState({
+    name: '',
+    slug: '',
+    is_active: true,
+    sort_order: 0,
+  });
+
+  useEffect(() => {
+    if (!open) return;
+
+    setForm({
+      name: item?.name || '',
+      slug: item?.slug || '',
+      is_active: typeof item?.is_active === 'boolean' ? item.is_active : true,
+      sort_order: Number(item?.sort_order || 0),
+    });
+  }, [open, item]);
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-[rgba(15,23,42,0.45)] p-4 md:items-center">
+      <div className="w-full max-w-2xl overflow-hidden rounded-[30px] border border-[#dbe3ef] bg-[#f8fafc] shadow-[0_30px_90px_rgba(15,23,42,0.26)]">
+        <div className="border-b border-[#e5edf6] bg-white px-6 py-5">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <div className="text-[12px] font-black uppercase tracking-[0.1em] text-violet-600">
+                {eyebrow}
+              </div>
+              <div className="mt-1 text-[24px] font-black tracking-[-0.03em] text-[#0f172a]">
+                {item?.id ? `Editar ${title.toLowerCase()}` : `Novo ${title.toLowerCase()}`}
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3 text-[13px] font-black text-[#0f172a]"
+            >
+              Fechar
+            </button>
+          </div>
+        </div>
+
+        <div className="space-y-5 p-6">
+          <FormField label="Nome">
+            <Input
+              value={form.name}
+              onChange={(e) =>
+                setForm((prev) => ({
+                  ...prev,
+                  name: e.target.value,
+                  slug: prev.slug ? prev.slug : slugify(e.target.value),
+                }))
+              }
+              placeholder={`Ex: ${title === 'Gênero' ? 'Gospel' : 'Cerimônia'}`}
+            />
+          </FormField>
+
+          <FormField label="Slug" helper="Pode editar manualmente se quiser.">
+            <Input
+              value={form.slug}
+              onChange={(e) =>
+                setForm((prev) => ({ ...prev, slug: slugify(e.target.value) }))
+              }
+              placeholder="slug"
+            />
+          </FormField>
+
+          <FormField label="Ordem">
+            <Input
+              type="number"
+              value={String(form.sort_order)}
+              onChange={(e) =>
+                setForm((prev) => ({
+                  ...prev,
+                  sort_order: Number(e.target.value || 0),
+                }))
+              }
+              placeholder="0"
+            />
+          </FormField>
+
+          <Checkbox
+            checked={form.is_active}
+            onChange={(e) =>
+              setForm((prev) => ({ ...prev, is_active: e.target.checked }))
+            }
+            label={`${title} ativo`}
+          />
+
+          <div className="grid gap-3 md:grid-cols-2">
+            <button
+              type="button"
+              onClick={() => onSubmit(form)}
+              disabled={loading}
+              className="rounded-[18px] bg-violet-600 px-5 py-4 text-[15px] font-black text-white shadow-[0_12px_28px_rgba(124,58,237,0.18)] disabled:opacity-60"
+            >
+              {loading ? 'Salvando...' : item?.id ? 'Salvar alterações' : `Criar ${title.toLowerCase()}`}
+            </button>
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-[18px] border border-[#dbe3ef] bg-white px-5 py-4 text-[15px] font-black text-[#0f172a]"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SuggestoesGenerosTab({
+  genres,
+  songs,
+  loading,
+  onCreate,
+  onEdit,
+  onToggleActive,
+}) {
+  const [search, setSearch] = useState('');
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+
+    return genres.filter((genre) => {
+      if (!q) return true;
+      return (
+        String(genre?.name || '').toLowerCase().includes(q) ||
+        String(genre?.slug || '').toLowerCase().includes(q)
+      );
+    });
+  }, [genres, search]);
+
+  function getUsageCount(genreId) {
+    return songs.filter((song) => song?.genre?.id === genreId).length;
+  }
+
+  return (
+    <div className="space-y-5">
+      <SectionCard
+        eyebrow="Taxonomia"
+        title="Gêneros"
+        subtitle="Gerencie os gêneros usados nos filtros e no catálogo da curadoria."
+        right={
+          <button
+            type="button"
+            onClick={onCreate}
+            className="rounded-[18px] bg-violet-600 px-5 py-4 text-[14px] font-black text-white shadow-[0_12px_28px_rgba(124,58,237,0.18)]"
+          >
+            Novo gênero
+          </button>
+        }
+      >
+        <div className="grid gap-3 md:grid-cols-[1fr_auto]">
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar gênero..."
+            className="w-full rounded-[18px] border border-[#dbe3ef] bg-white px-4 py-3 text-[15px] font-semibold text-[#0f172a] outline-none transition focus:border-violet-300 focus:ring-4 focus:ring-violet-100"
+          />
+
+          <div className="rounded-[18px] border border-[#dbe3ef] bg-[#f8fafc] px-4 py-3 text-[14px] font-black text-[#475569]">
+            {filtered.length} encontrado(s)
+          </div>
+        </div>
+      </SectionCard>
+
+      {loading ? (
+        <SectionCard title="Carregando" subtitle="Buscando gêneros do banco.">
+          <div className="grid gap-4 xl:grid-cols-2">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <div
+                key={index}
+                className="h-[220px] animate-pulse rounded-[28px] bg-[#eef2f7]"
+              />
+            ))}
+          </div>
+        </SectionCard>
+      ) : filtered.length === 0 ? (
+        <EmptyState
+          title="Nenhum gênero encontrado"
+          text="Cadastre os gêneros usados na curadoria do painel do cliente."
+          actionLabel="Novo gênero"
+          onAction={onCreate}
+        />
+      ) : (
+        <div className="grid gap-4 xl:grid-cols-2">
+          {filtered.map((genre) => (
+            <TaxonomyCard
+              key={genre.id}
+              item={genre}
+              typeLabel="Gênero"
+              usageCount={getUsageCount(genre.id)}
+              onEdit={onEdit}
+              onToggleActive={onToggleActive}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SuggestoesMomentosTab({
+  moments,
+  songs,
+  loading,
+  onCreate,
+  onEdit,
+  onToggleActive,
+}) {
+  const [search, setSearch] = useState('');
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+
+    return moments.filter((moment) => {
+      if (!q) return true;
+      return (
+        String(moment?.name || '').toLowerCase().includes(q) ||
+        String(moment?.slug || '').toLowerCase().includes(q)
+      );
+    });
+  }, [moments, search]);
+
+  function getUsageCount(momentId) {
+    return songs.filter((song) => song?.moment?.id === momentId).length;
+  }
+
+  return (
+    <div className="space-y-5">
+      <SectionCard
+        eyebrow="Taxonomia"
+        title="Momentos"
+        subtitle="Controle os momentos do evento usados na organização e filtragem da curadoria."
+        right={
+          <button
+            type="button"
+            onClick={onCreate}
+            className="rounded-[18px] bg-violet-600 px-5 py-4 text-[14px] font-black text-white shadow-[0_12px_28px_rgba(124,58,237,0.18)]"
+          >
+            Novo momento
+          </button>
+        }
+      >
+        <div className="grid gap-3 md:grid-cols-[1fr_auto]">
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar momento..."
+            className="w-full rounded-[18px] border border-[#dbe3ef] bg-white px-4 py-3 text-[15px] font-semibold text-[#0f172a] outline-none transition focus:border-violet-300 focus:ring-4 focus:ring-violet-100"
+          />
+
+          <div className="rounded-[18px] border border-[#dbe3ef] bg-[#f8fafc] px-4 py-3 text-[14px] font-black text-[#475569]">
+            {filtered.length} encontrado(s)
+          </div>
+        </div>
+      </SectionCard>
+
+      {loading ? (
+        <SectionCard title="Carregando" subtitle="Buscando momentos do banco.">
+          <div className="grid gap-4 xl:grid-cols-2">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <div
+                key={index}
+                className="h-[220px] animate-pulse rounded-[28px] bg-[#eef2f7]"
+              />
+            ))}
+          </div>
+        </SectionCard>
+      ) : filtered.length === 0 ? (
+        <EmptyState
+          title="Nenhum momento encontrado"
+          text="Cadastre os momentos usados no painel do cliente."
+          actionLabel="Novo momento"
+          onAction={onCreate}
+        />
+      ) : (
+        <div className="grid gap-4 xl:grid-cols-2">
+          {filtered.map((moment) => (
+            <TaxonomyCard
+              key={moment.id}
+              item={moment}
+              typeLabel="Momento"
+              usageCount={getUsageCount(moment.id)}
+              onEdit={onEdit}
+              onToggleActive={onToggleActive}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function PlaceholderTab({ title, text }) {
   return (
@@ -986,6 +1344,12 @@ function PlaceholderTab({ title, text }) {
 }
 
 export default function SuggestoesPageClient() {
+  const [genreEditorOpen, setGenreEditorOpen] = useState(false);
+const [momentEditorOpen, setMomentEditorOpen] = useState(false);
+const [editingGenre, setEditingGenre] = useState(null);
+const [editingMoment, setEditingMoment] = useState(null);
+const [savingGenre, setSavingGenre] = useState(false);
+const [savingMoment, setSavingMoment] = useState(false);
   const [activeTab, setActiveTab] = useState('resumo');
   const [songs, setSongs] = useState([]);
   const [genres, setGenres] = useState([]);
@@ -1344,19 +1708,52 @@ export default function SuggestoesPageClient() {
         />
       )}
 
-      {activeTab === 'generos' && (
-        <PlaceholderTab
-          title="Gêneros"
-          text="Aqui vamos gerenciar os gêneros do catálogo, com ordem, status e volume de uso."
-        />
-      )}
+     {activeTab === 'generos' && (
+  <SuggestoesGenerosTab
+    genres={genres}
+    songs={songs}
+    loading={loading}
+    onCreate={openCreateGenre}
+    onEdit={openEditGenre}
+    onToggleActive={handleToggleGenreActive}
+  />
+)}
 
-      {activeTab === 'momentos' && (
-        <PlaceholderTab
-          title="Momentos"
-          text="Aqui vamos controlar os momentos exibidos nos filtros e no painel do cliente."
-        />
-      )}
+{activeTab === 'momentos' && (
+  <SuggestoesMomentosTab
+    moments={moments}
+    songs={songs}
+    loading={loading}
+    onCreate={openCreateMoment}
+    onEdit={openEditMoment}
+    onToggleActive={handleToggleMomentActive}
+  />
+)}
+<TaxonomyEditorModal
+  open={genreEditorOpen}
+  onClose={() => {
+    setGenreEditorOpen(false);
+    setEditingGenre(null);
+  }}
+  onSubmit={handleSaveGenre}
+  loading={savingGenre}
+  item={editingGenre}
+  title="Gênero"
+  eyebrow="Taxonomia editorial"
+/>
+
+<TaxonomyEditorModal
+  open={momentEditorOpen}
+  onClose={() => {
+    setMomentEditorOpen(false);
+    setEditingMoment(null);
+  }}
+  onSubmit={handleSaveMoment}
+  loading={savingMoment}
+  item={editingMoment}
+  title="Momento"
+  eyebrow="Taxonomia editorial"
+/>
 
       {activeTab === 'tags' && (
         <PlaceholderTab
@@ -1395,4 +1792,121 @@ export default function SuggestoesPageClient() {
       />
     </div>
   );
+}
+async function handleSaveGenre(form) {
+  try {
+    setSavingGenre(true);
+    setError('');
+
+    const method = editingGenre?.id ? 'PATCH' : 'POST';
+    const url = editingGenre?.id
+      ? `/api/suggestions/genres/${editingGenre.id}`
+      : '/api/suggestions/genres';
+
+    const response = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: String(form.name || '').trim(),
+        slug: String(form.slug || '').trim(),
+        is_active: Boolean(form.is_active),
+        sort_order: Number(form.sort_order || 0),
+      }),
+    });
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(data?.error || 'Erro ao salvar gênero');
+    }
+
+    setGenreEditorOpen(false);
+    setEditingGenre(null);
+    await loadAll();
+    setActiveTab('generos');
+  } catch (err) {
+    console.error(err);
+    setError(err?.message || 'Erro ao salvar gênero');
+  } finally {
+    setSavingGenre(false);
+  }
+}
+
+async function handleToggleGenreActive(item) {
+  await handleSaveGenre({
+    name: item.name,
+    slug: item.slug,
+    is_active: !item.is_active,
+    sort_order: item.sort_order || 0,
+  });
+  setEditingGenre({ ...item, is_active: !item.is_active, id: item.id });
+}
+
+async function handleSaveMoment(form) {
+  try {
+    setSavingMoment(true);
+    setError('');
+
+    const method = editingMoment?.id ? 'PATCH' : 'POST';
+    const url = editingMoment?.id
+      ? `/api/suggestions/moments/${editingMoment.id}`
+      : '/api/suggestions/moments';
+
+    const response = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: String(form.name || '').trim(),
+        slug: String(form.slug || '').trim(),
+        is_active: Boolean(form.is_active),
+        sort_order: Number(form.sort_order || 0),
+      }),
+    });
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(data?.error || 'Erro ao salvar momento');
+    }
+
+    setMomentEditorOpen(false);
+    setEditingMoment(null);
+    await loadAll();
+    setActiveTab('momentos');
+  } catch (err) {
+    console.error(err);
+    setError(err?.message || 'Erro ao salvar momento');
+  } finally {
+    setSavingMoment(false);
+  }
+}
+
+async function handleToggleMomentActive(item) {
+  await handleSaveMoment({
+    name: item.name,
+    slug: item.slug,
+    is_active: !item.is_active,
+    sort_order: item.sort_order || 0,
+  });
+  setEditingMoment({ ...item, is_active: !item.is_active, id: item.id });
+}
+
+function openCreateGenre() {
+  setEditingGenre(null);
+  setGenreEditorOpen(true);
+}
+
+function openEditGenre(item) {
+  setEditingGenre(item);
+  setGenreEditorOpen(true);
+}
+
+function openCreateMoment() {
+  setEditingMoment(null);
+  setMomentEditorOpen(true);
+}
+
+function openEditMoment(item) {
+  setEditingMoment(item);
+  setMomentEditorOpen(true);
 }

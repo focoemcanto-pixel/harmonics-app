@@ -7,13 +7,15 @@ import AdminMobileTopbar from '../admin/AdminMobileTopbar';
 import AdminBottomNav from '../admin/AdminBottomNav';
 
 const MORE_ITEMS = [
-  { label: 'Automação', href: '/automacoes', icon: '⚙️', helper: 'Central de automação' },
-  { label: 'Financeiro', href: '/pagamentos', icon: '💸', helper: 'Pagamentos e caixa' },
+  { label: 'Financeiro', href: '/financeiro', icon: '💸', helper: 'Pagamentos e caixa' },
   { label: 'Escalas', href: '/escalas', icon: '🎼', helper: 'Operação musical' },
-  { label: 'Convites', href: '/convites', icon: '📨', helper: 'Chamadas e respostas' },
+  { label: 'Convites', href: '/convites', icon: '✉️', helper: 'Chamadas e respostas' },
   { label: 'Contratos', href: '/contratos', icon: '📝', helper: 'Fluxo contratual' },
   { label: 'Pré-contratos', href: '/pre-contratos', icon: '🔗', helper: 'Comercial inicial' },
   { label: 'Repertórios', href: '/repertorios', icon: '🎧', helper: 'Organização musical' },
+  { label: 'Sugestões', href: '/sugestoes', icon: '✨', helper: 'Ideias e votações' },
+  { label: 'Pagamentos', href: '/pagamentos', icon: '💳', helper: 'Controle financeiro' },
+  { label: 'Automação', href: '/automacoes', icon: '⚙️', helper: 'Central de automação' },
 ];
 
 function MobileMoreSheet({ open, onClose, onNavigate }) {

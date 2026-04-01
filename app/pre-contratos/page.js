@@ -192,9 +192,6 @@ Depois de assinar, você poderá:
 • acessar o painel do cliente
 • acompanhar sua experiência completa conosco
 
-Painel do cliente:
-${clientPanelLink}
-
 Qualquer dúvida, me chama por aqui.`;
 }
 

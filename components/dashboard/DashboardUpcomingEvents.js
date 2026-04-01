@@ -123,6 +123,22 @@ function buildContractsByEventId(precontracts = [], contracts = []) {
   return map;
 }
 
+function EventMetaPill({ children, tone = 'default' }) {
+  const tones = {
+    default: 'bg-[#f8fafc] text-[#475569]',
+    violet: 'bg-violet-50 text-violet-700',
+    emerald: 'bg-emerald-50 text-emerald-700',
+  };
+
+  return (
+    <span
+      className={`rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] ${tones[tone] || tones.default}`}
+    >
+      {children}
+    </span>
+  );
+}
+
 export default function DashboardUpcomingEvents({
   events = [],
   contracts = [],
@@ -145,99 +161,187 @@ export default function DashboardUpcomingEvents({
     .slice(0, 6);
 
   return (
-    <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-6 shadow-[0_12px_32px_rgba(17,24,39,0.05)]">
-      <AdminSectionTitle
-        title="Próximos eventos"
-        subtitle="Leitura rápida da agenda imediata, com visão contratual e financeira do que vem pela frente."
-      />
+    <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-5 shadow-[0_12px_32px_rgba(17,24,39,0.05)] md:p-6">
+      <div className="flex items-start justify-between gap-4">
+        <AdminSectionTitle
+          title="Próximos eventos"
+          subtitle="Agenda imediata com leitura contratual e financeira."
+        />
 
-      <div className="mt-4 space-y-4">
-        {upcomingEvents.length === 0 ? (
-          <div className="rounded-[22px] border border-[#e6ebf2] bg-[#f8fafc] px-5 py-6 text-[14px] font-semibold text-[#64748b]">
-            Nenhum próximo evento encontrado no momento.
-          </div>
-        ) : (
-          upcomingEvents.map((event) => {
-            const contractInfo = contractsByEventId.get(String(event.id));
-            const contractStatus = normalizeContractStatus(contractInfo?.status);
-            const paymentStatus = normalizePaymentStatus(event);
+        <Link
+          href="/eventos"
+          className="hidden rounded-[16px] border border-[#dbe3ef] bg-[#f8fafc] px-4 py-3 text-[12px] font-black text-[#0f172a] transition hover:bg-[#eef2ff] md:inline-flex"
+        >
+          Ver agenda completa
+        </Link>
+      </div>
 
-            return (
-              <div
-                key={event.id}
-                className="relative overflow-hidden rounded-[24px] border border-[#e6ebf2] bg-[linear-gradient(180deg,#ffffff_0%,#fcfdff_100%)] px-5 py-5 shadow-[0_10px_24px_rgba(17,24,39,0.04)]"
-              >
-                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(124,58,237,0.06),transparent_28%)]" />
+      {upcomingEvents.length === 0 ? (
+        <div className="mt-4 rounded-[22px] border border-[#e6ebf2] bg-[#f8fafc] px-5 py-6 text-[14px] font-semibold text-[#64748b]">
+          Nenhum próximo evento encontrado no momento.
+        </div>
+      ) : (
+        <>
+          <div className="mt-4 flex gap-4 overflow-x-auto pb-2 md:hidden">
+            {upcomingEvents.map((event) => {
+              const contractInfo = contractsByEventId.get(String(event.id));
+              const contractStatus = normalizeContractStatus(contractInfo?.status);
+              const paymentStatus = normalizePaymentStatus(event);
 
-                <div className="relative z-10 flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="rounded-full bg-violet-50 px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-violet-700">
-                        {formatDateBR(event.event_date)}
-                      </span>
+              return (
+                <div
+                  key={event.id}
+                  className="w-[88%] shrink-0 rounded-[24px] border border-[#e6ebf2] bg-[linear-gradient(180deg,#ffffff_0%,#fcfdff_100%)] px-4 py-4 shadow-[0_10px_24px_rgba(17,24,39,0.04)]"
+                >
+                  <div className="flex flex-wrap gap-2">
+                    <EventMetaPill tone="violet">
+                      {formatDateBR(event.event_date)}
+                    </EventMetaPill>
 
-                      <span className="rounded-full bg-[#f8fafc] px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-[#475569]">
-                        {String(event.event_time || '-').slice(0, 5)}
-                      </span>
+                    <EventMetaPill>
+                      {String(event.event_time || '-').slice(0, 5)}
+                    </EventMetaPill>
+                  </div>
 
-                      {event.event_type ? (
-                        <span className="rounded-full bg-[#f8fafc] px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-[#475569]">
-                          {event.event_type}
-                        </span>
-                      ) : null}
+                  <h3 className="mt-4 text-[20px] font-black tracking-[-0.04em] text-[#0f172a]">
+                    {event.client_name || 'Evento sem cliente'}
+                  </h3>
+
+                  <div className="mt-2 text-[14px] font-semibold leading-6 text-[#64748b]">
+                    {event.location_name || 'Local não informado'}
+                  </div>
+
+                  <div className="mt-1 text-[13px] font-semibold leading-6 text-[#64748b]">
+                    {event.formation || 'Sem formação definida'}
+                    {event.instruments ? ` — ${event.instruments}` : ''}
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <span
+                      className={`rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] ${contractStatus.tone}`}
+                    >
+                      {contractStatus.label}
+                    </span>
+
+                    <span
+                      className={`rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] ${paymentStatus.tone}`}
+                    >
+                      {paymentStatus.label}
+                    </span>
+                  </div>
+
+                  <div className="mt-5 rounded-[18px] border border-[#eef2f7] bg-[#f8fafc] px-4 py-4">
+                    <div className="text-[11px] font-black uppercase tracking-[0.08em] text-[#64748b]">
+                      Valor do evento
                     </div>
-
-                    <h3 className="mt-4 text-[22px] font-black tracking-[-0.04em] text-[#0f172a]">
-                      {event.client_name || 'Evento sem cliente'}
-                    </h3>
-
-                    <div className="mt-2 text-[14px] font-semibold leading-6 text-[#64748b]">
-                      {event.location_name || 'Local não informado'}
-                    </div>
-
-                    <div className="mt-1 text-[14px] font-semibold leading-6 text-[#64748b]">
-                      {event.formation || 'Sem formação definida'}
-                      {event.instruments ? ` — ${event.instruments}` : ''}
-                    </div>
-
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      <span
-                        className={`rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] ${contractStatus.tone}`}
-                      >
-                        {contractStatus.label}
-                      </span>
-
-                      <span
-                        className={`rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] ${paymentStatus.tone}`}
-                      >
-                        {paymentStatus.label}
-                      </span>
+                    <div className="mt-2 text-[22px] font-black tracking-[-0.03em] text-[#0f172a]">
+                      {formatMoney(event.agreed_amount)}
                     </div>
                   </div>
 
-                  <div className="flex shrink-0 flex-col gap-3 xl:min-w-[220px]">
-                    <div className="rounded-[20px] border border-[#eef2f7] bg-[#f8fafc] px-4 py-4">
-                      <div className="text-[11px] font-black uppercase tracking-[0.08em] text-[#64748b]">
-                        Valor do evento
+                  <Link
+                    href="/eventos"
+                    className="mt-4 inline-flex w-full items-center justify-center rounded-[18px] bg-violet-600 px-4 py-3 text-[13px] font-black text-white shadow-[0_14px_28px_rgba(124,58,237,0.22)] transition hover:bg-violet-700"
+                  >
+                    Ver evento
+                  </Link>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="mt-4 hidden space-y-4 md:block">
+            {upcomingEvents.map((event) => {
+              const contractInfo = contractsByEventId.get(String(event.id));
+              const contractStatus = normalizeContractStatus(contractInfo?.status);
+              const paymentStatus = normalizePaymentStatus(event);
+
+              return (
+                <div
+                  key={event.id}
+                  className="relative overflow-hidden rounded-[24px] border border-[#e6ebf2] bg-[linear-gradient(180deg,#ffffff_0%,#fcfdff_100%)] px-5 py-5 shadow-[0_10px_24px_rgba(17,24,39,0.04)]"
+                >
+                  <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(124,58,237,0.06),transparent_28%)]" />
+
+                  <div className="relative z-10 flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-full bg-violet-50 px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-violet-700">
+                          {formatDateBR(event.event_date)}
+                        </span>
+
+                        <span className="rounded-full bg-[#f8fafc] px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-[#475569]">
+                          {String(event.event_time || '-').slice(0, 5)}
+                        </span>
+
+                        {event.event_type ? (
+                          <span className="rounded-full bg-[#f8fafc] px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-[#475569]">
+                            {event.event_type}
+                          </span>
+                        ) : null}
                       </div>
-                      <div className="mt-2 text-[22px] font-black tracking-[-0.03em] text-[#0f172a]">
-                        {formatMoney(event.agreed_amount)}
+
+                      <h3 className="mt-4 text-[22px] font-black tracking-[-0.04em] text-[#0f172a]">
+                        {event.client_name || 'Evento sem cliente'}
+                      </h3>
+
+                      <div className="mt-2 text-[14px] font-semibold leading-6 text-[#64748b]">
+                        {event.location_name || 'Local não informado'}
+                      </div>
+
+                      <div className="mt-1 text-[14px] font-semibold leading-6 text-[#64748b]">
+                        {event.formation || 'Sem formação definida'}
+                        {event.instruments ? ` — ${event.instruments}` : ''}
+                      </div>
+
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <span
+                          className={`rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] ${contractStatus.tone}`}
+                        >
+                          {contractStatus.label}
+                        </span>
+
+                        <span
+                          className={`rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] ${paymentStatus.tone}`}
+                        >
+                          {paymentStatus.label}
+                        </span>
                       </div>
                     </div>
 
-                    <Link
-                      href="/eventos"
-                      className="inline-flex items-center justify-center rounded-[18px] bg-violet-600 px-4 py-3 text-[13px] font-black text-white shadow-[0_14px_28px_rgba(124,58,237,0.22)] transition hover:bg-violet-700"
-                    >
-                      Ver evento
-                    </Link>
+                    <div className="flex shrink-0 flex-col gap-3 xl:min-w-[220px]">
+                      <div className="rounded-[20px] border border-[#eef2f7] bg-[#f8fafc] px-4 py-4">
+                        <div className="text-[11px] font-black uppercase tracking-[0.08em] text-[#64748b]">
+                          Valor do evento
+                        </div>
+                        <div className="mt-2 text-[22px] font-black tracking-[-0.03em] text-[#0f172a]">
+                          {formatMoney(event.agreed_amount)}
+                        </div>
+                      </div>
+
+                      <Link
+                        href="/eventos"
+                        className="inline-flex items-center justify-center rounded-[18px] bg-violet-600 px-4 py-3 text-[13px] font-black text-white shadow-[0_14px_28px_rgba(124,58,237,0.22)] transition hover:bg-violet-700"
+                      >
+                        Ver evento
+                      </Link>
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })
-        )}
-      </div>
+              );
+            })}
+          </div>
+
+          <div className="mt-4 md:hidden">
+            <Link
+              href="/eventos"
+              className="inline-flex w-full items-center justify-center rounded-[18px] border border-[#dbe3ef] bg-white px-4 py-3 text-[13px] font-black text-[#0f172a] transition hover:bg-[#eef2ff]"
+            >
+              Ver agenda completa
+            </Link>
+          </div>
+        </>
+      )}
     </section>
   );
 }

@@ -50,7 +50,7 @@ function MobileSectionTabs({ active, onChange }) {
 
   return (
     <div className="overflow-x-auto pb-1 xl:hidden">
-      <div className="flex gap-2">
+      <div className="flex min-w-max gap-2 rounded-[20px] border border-[#e5e7eb] bg-white p-1 shadow-[0_8px_24px_rgba(17,24,39,0.04)]">
         {items.map((item) => {
           const isActive = active === item.key;
 
@@ -59,10 +59,10 @@ function MobileSectionTabs({ active, onChange }) {
               key={item.key}
               type="button"
               onClick={() => onChange(item.key)}
-              className={`whitespace-nowrap rounded-full px-4 py-2 text-[13px] font-black transition ${
+              className={`whitespace-nowrap rounded-[16px] px-4 py-3 text-[13px] font-black transition ${
                 isActive
                   ? 'bg-violet-600 text-white shadow-[0_10px_24px_rgba(124,58,237,0.18)]'
-                  : 'border border-[#dbe3ef] bg-white text-[#475569]'
+                  : 'text-[#475569]'
               }`}
             >
               {item.label}

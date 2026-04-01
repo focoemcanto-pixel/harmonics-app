@@ -101,9 +101,10 @@ export default function AdminShell({
     router.push(href);
   }
 
-  function handleOpenMore() {
-    setMoreOpen(true);
-  }
+ function handleOpenMore() {
+  console.log('[AdminShell] handleOpenMore chamado');
+  setMoreOpen(true);
+}
 
   return (
     <div className="min-h-screen bg-[#f4f6fa] text-[#111827]">

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '../../../../lib/supabase-admin';
-import { sendWhatsAppMessage } from '../../../../lib/whatsapp/send-whatsapp-message';
-import { buildContractSignedMessage } from '../../../../lib/whatsapp/build-contract-signed-message';
+import { getSupabaseAdmin } from '../../../lib/supabase-admin';
+import { sendWhatsAppMessage } from '../../../lib/whatsapp/send-whatsapp-message';
+import { buildContractSignedMessage } from '../../../lib/whatsapp/build-contract-signed-message';
 
 function cleanPhone(value) {
   return String(value || '').replace(/\D/g, '');

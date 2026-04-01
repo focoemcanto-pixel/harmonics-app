@@ -132,91 +132,7 @@ export default function EventosResumoTab({
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.1fr_1.3fr]">
-        <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_26px_rgba(17,24,39,0.04)] md:p-6">
-          <div className="mb-4">
-            <div className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#64748b]">
-              Ações rápidas
-            </div>
-            <div className="mt-1 text-[20px] font-black text-[#0f172a]">
-              Atalhos da operação
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <button
-              type="button"
-              onClick={() => {
-                setDesktopTab('evento');
-                setMobileTab('evento');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              className="rounded-[20px] border border-[#dbe3ef] bg-[#f8fafc] px-4 py-4 text-left"
-            >
-              <div className="text-[14px] font-black text-[#0f172a]">
-                Novo evento
-              </div>
-              <div className="mt-1 text-[13px] font-medium text-[#64748b]">
-                Criar um evento rapidamente.
-              </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setOperacaoFiltro('financeiro');
-                setDesktopTab('operacao');
-                setMobileTab('lista');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              className="rounded-[20px] border border-amber-200 bg-amber-50 px-4 py-4 text-left"
-            >
-              <div className="text-[14px] font-black text-amber-800">
-                Resolver pagamentos
-              </div>
-              <div className="mt-1 text-[13px] font-medium text-amber-700">
-                {resumoOperacao.financeiros} pendência(s) financeira(s).
-              </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setOperacaoFiltro('contrato');
-                setDesktopTab('operacao');
-                setMobileTab('lista');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              className="rounded-[20px] border border-violet-200 bg-violet-50 px-4 py-4 text-left"
-            >
-              <div className="text-[14px] font-black text-violet-700">
-                Revisar contratos
-              </div>
-              <div className="mt-1 text-[13px] font-medium text-violet-700">
-                {resumoOperacao.contratos} contrato(s) pendente(s).
-              </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setDesktopTab('precos');
-                setMobileTab('precos');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              className="rounded-[20px] border border-[#dbe3ef] bg-[#f8fafc] px-4 py-4 text-left"
-            >
-              <div className="text-[14px] font-black text-[#0f172a]">
-                Ajustar preços
-              </div>
-              <div className="mt-1 text-[13px] font-medium text-[#64748b]">
-                Revisar regras automáticas.
-              </div>
-            </button>
-          </div>
-        </section>
-
-        <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_26px_rgba(17,24,39,0.04)] md:p-6">
+      <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_26px_rgba(17,24,39,0.04)] md:p-6">
           <div className="mb-4 flex items-end justify-between gap-3">
             <div>
               <div className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#64748b]">
@@ -296,8 +212,7 @@ export default function EventosResumoTab({
               })
             )}
           </div>
-        </section>
-      </div>
+      </section>
 
       <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_26px_rgba(17,24,39,0.04)] md:p-6">
         <div className="mb-4">

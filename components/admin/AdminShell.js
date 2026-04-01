@@ -12,12 +12,15 @@ function classNames(...classes) {
 
 function MoreDrawer({ open, onClose }) {
   const items = [
-    { key: 'convites', icon: '✉️', label: 'Convites', href: '/convites' },
+    { key: 'financeiro', icon: '💸', label: 'Financeiro', href: '/financeiro' },
     { key: 'escalas', icon: '🎼', label: 'Escalas', href: '/escalas' },
-    { key: 'repertorios', icon: '🎵', label: 'Repertórios', href: '/repertorios' },
+    { key: 'convites', icon: '✉️', label: 'Convites', href: '/convites' },
+    { key: 'contratos', icon: '📝', label: 'Contratos', href: '/contratos' },
+    { key: 'precontratos', icon: '🔗', label: 'Pré-contratos', href: '/pre-contratos' },
+    { key: 'repertorios', icon: '🎧', label: 'Repertórios', href: '/repertorios' },
     { key: 'sugestoes', icon: '✨', label: 'Sugestões', href: '/sugestoes' },
-    { key: 'avaliacoes', icon: '💜', label: 'Avaliações', href: '/avaliacoes' },
     { key: 'pagamentos', icon: '💳', label: 'Pagamentos', href: '/pagamentos' },
+    { key: 'automacoes', icon: '⚙️', label: 'Automação', href: '/automacoes' },
   ];
 
   if (!open) return null;

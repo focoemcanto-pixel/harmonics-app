@@ -91,58 +91,8 @@ export default function ContatosResumoTab({
         />
       </div>
 
-      {/* Quick actions + tags */}
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_26px_rgba(17,24,39,0.04)] md:p-6">
-          <div className="mb-4">
-            <div className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#64748b]">
-              Ações rápidas
-            </div>
-            <div className="mt-1 text-[20px] font-black text-[#0f172a]">
-              Atalhos do módulo
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <button
-              type="button"
-              onClick={() => {
-                setDesktopTab('formulario');
-                setMobileTab('formulario');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              className="rounded-[20px] border border-[#dbe3ef] bg-[#f8fafc] px-4 py-4 text-left"
-            >
-              <div className="text-[14px] font-black text-[#0f172a]">
-                Novo contato
-              </div>
-              <div className="mt-1 text-[13px] font-medium text-[#64748b]">
-                Adicionar cliente ou músico.
-              </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setTagFiltro('todas');
-                setDesktopTab('visao');
-                setMobileTab('lista');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              className="rounded-[20px] border border-[#dbe3ef] bg-[#f8fafc] px-4 py-4 text-left"
-            >
-              <div className="text-[14px] font-black text-[#0f172a]">
-                Ver todos
-              </div>
-              <div className="mt-1 text-[13px] font-medium text-[#64748b]">
-                Lista completa de contatos.
-              </div>
-            </button>
-          </div>
-        </section>
-
-        {/* Tags */}
-        <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_26px_rgba(17,24,39,0.04)] md:p-6">
+      {/* Tags */}
+      <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_26px_rgba(17,24,39,0.04)] md:p-6">
           <div className="mb-4">
             <div className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#64748b]">
               Tags
@@ -175,8 +125,7 @@ export default function ContatosResumoTab({
               ))}
             </div>
           )}
-        </section>
-      </div>
+      </section>
     </div>
   );
 }

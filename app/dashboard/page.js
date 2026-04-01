@@ -9,7 +9,6 @@ import DashboardRevenueChart from '../../components/dashboard/DashboardRevenueCh
 import DashboardFinanceBreakdown from '../../components/dashboard/DashboardFinanceBreakdown';
 import DashboardOperationsRadar from '../../components/dashboard/DashboardOperationsRadar';
 import DashboardUpcomingEvents from '../../components/dashboard/DashboardUpcomingEvents';
-import DashboardQuickActions from '../../components/dashboard/DashboardQuickActions';
 import { supabase } from '../../lib/supabase';
 import { buildDashboardSummary } from '../../lib/dashboard/dashboard-summary';
 
@@ -218,9 +217,6 @@ export default function DashboardPage() {
           <MobileSlide wide>
             <DashboardOperationsRadar summary={summary} />
           </MobileSlide>
-          <MobileSlide wide>
-            <DashboardQuickActions />
-          </MobileSlide>
         </MobileCarousel>
       </div>
     );
@@ -292,8 +288,6 @@ export default function DashboardPage() {
               </div>
 
               <DashboardSecondaryKpis summary={summary} />
-
-              <DashboardQuickActions />
             </div>
           </div>
         </div>

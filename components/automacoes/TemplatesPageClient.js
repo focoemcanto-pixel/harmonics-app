@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import AdminSummaryCard from '@/components/admin/AdminSummaryCard';
 
 const VARIAVEIS = [
@@ -85,6 +85,8 @@ export default function TemplatesPageClient() {
   const [modalAberto, setModalAberto] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [form, setForm] = useState(FORM_INICIAL);
+  const [varCopiada, setVarCopiada] = useState(null);
+  const copiarTimeoutRef = useRef(null);
 
   const carregarTemplates = useCallback(async () => {
     try {
@@ -190,6 +192,16 @@ export default function TemplatesPageClient() {
       console.error('Erro ao atualizar status:', error);
       alert(error.message);
     }
+  }
+
+  function copiarVariavel(variavel) {
+    navigator.clipboard.writeText(variavel).then(() => {
+      if (copiarTimeoutRef.current) clearTimeout(copiarTimeoutRef.current);
+      setVarCopiada(variavel);
+      copiarTimeoutRef.current = setTimeout(() => setVarCopiada(null), 1500);
+    }).catch(() => {
+      // Fallback silencioso — clipboard pode estar indisponível em contexto inseguro
+    });
   }
 
   const total = templates.length;
@@ -449,6 +461,9 @@ export default function TemplatesPageClient() {
                     placeholder="Digite a mensagem usando variáveis como {cliente_nome}, {evento_nome}, etc."
                     className="mt-1.5 w-full rounded-xl border border-[#e2e8f0] px-4 py-2.5 font-mono text-[13px] leading-relaxed text-[#0f172a] placeholder-[#94a3b8] focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-100"
                   />
+                  <div className="mt-1 text-right text-[11px] text-[#94a3b8]">
+                    {form.body.length} caracteres
+                  </div>
                 </div>
 
                 {/* Variáveis disponíveis */}
@@ -456,10 +471,38 @@ export default function TemplatesPageClient() {
                   <label className="block text-[13px] font-bold text-[#0f172a]">
                     Variáveis disponíveis
                   </label>
-                  <div className="mt-1.5 rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-4">
-                    <div className="space-y-1 text-[12px] font-mono text-[#64748b]">
+                  <p className="mt-0.5 text-[11px] text-[#94a3b8]">Clique para copiar</p>
+                  <div className="mt-1.5 rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-3">
+                    <div className="flex flex-wrap gap-1.5">
                       {VARIAVEIS.map((v) => (
-                        <div key={v}>• {v}</div>
+                        <button
+                          key={v}
+                          type="button"
+                          title="Clique para copiar"
+                          onClick={() => copiarVariavel(v)}
+                          className={`inline-flex items-center gap-1 rounded-md px-2 py-1 font-mono text-[11px] font-semibold transition-all ${
+                            varCopiada === v
+                              ? 'bg-emerald-100 text-emerald-700'
+                              : 'bg-white text-[#475569] hover:bg-violet-50 hover:text-violet-700 border border-[#e2e8f0] hover:border-violet-200'
+                          }`}
+                        >
+                          {varCopiada === v ? (
+                            <>
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-3 w-3 shrink-0">
+                                <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
+                              </svg>
+                              {v}
+                            </>
+                          ) : (
+                            <>
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-3 w-3 shrink-0 opacity-40">
+                                <path d="M7 3.5A1.5 1.5 0 018.5 2h3.879a1.5 1.5 0 011.06.44l3.122 3.12A1.5 1.5 0 0117 6.622V12.5a1.5 1.5 0 01-1.5 1.5h-1v-3.379a3 3 0 00-.879-2.121L10.5 5.379A3 3 0 008.379 4.5H7v-1z" />
+                                <path d="M4.5 6A1.5 1.5 0 003 7.5v9A1.5 1.5 0 004.5 18h7a1.5 1.5 0 001.5-1.5v-5.879a1.5 1.5 0 00-.44-1.06L9.44 6.439A1.5 1.5 0 008.378 6H4.5z" />
+                              </svg>
+                              {v}
+                            </>
+                          )}
+                        </button>
                       ))}
                     </div>
                   </div>

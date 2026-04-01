@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '../../../../lib/supabase-admin';
 import { sendWhatsAppMessage } from '../../../../lib/whatsapp/send-whatsapp-message';
 import { buildInviteMessage } from '../../../../lib/whatsapp/build-invite-message';
+import { logAutomationDispatch } from '../../../../lib/automation/log-dispatch';
+import { getDefaultWorkspace } from '../../../../lib/automation/get-workspace';
 
 function cleanPhone(value) {
   return String(value || '').replace(/\D/g, '');
@@ -9,9 +11,10 @@ function cleanPhone(value) {
 
 export async function POST(request) {
   const supabaseAdmin = getSupabaseAdmin();
+  let inviteId;
   try {
     const body = await request.json();
-    const inviteId = body?.inviteId;
+    inviteId = body?.inviteId;
 
     if (!inviteId) {
       return NextResponse.json(
@@ -105,6 +108,31 @@ export async function POST(request) {
       throw updateError;
     }
 
+    const workspaceId = await getDefaultWorkspace();
+    await logAutomationDispatch({
+      workspaceId,
+      ruleId: null, // Manual/legacy - sem automation rule
+      templateId: null, // Template hardcoded - será migrado na Fase 3
+      channelId: null, // Canal via env vars - será migrado na Fase 4
+      entityId: invite.id,
+      entityType: 'invite',
+      recipientType: 'member',
+      recipient: phone,
+      renderedMessage: message,
+      metadata: {
+        eventId: invite.event_id,
+        contactId: invite.contact_id,
+        contactName: invite.contact?.name,
+        eventName: invite.event?.client_name,
+        eventDate: invite.event?.event_date,
+        role: invite.suggested_role_name,
+      },
+      providerResponse: null, // API response já foi consumida
+      status: 'sent',
+      errorMessage: null,
+      source: 'legacy_send_invite',
+    });
+
     return NextResponse.json({
       ok: true,
       inviteId: invite.id,
@@ -112,6 +140,24 @@ export async function POST(request) {
     });
   } catch (error) {
     console.error('Erro ao enviar convite via WhatsApp:', error);
+
+    const workspaceId = await getDefaultWorkspace();
+    await logAutomationDispatch({
+      workspaceId,
+      ruleId: null,
+      templateId: null,
+      channelId: null,
+      entityId: inviteId,
+      entityType: 'invite',
+      recipientType: 'member',
+      recipient: null,
+      renderedMessage: null,
+      metadata: { error: error?.message },
+      providerResponse: null,
+      status: 'failed',
+      errorMessage: error?.message || 'Erro interno',
+      source: 'legacy_send_invite',
+    });
 
     return NextResponse.json(
       { error: error?.message || 'Erro interno ao enviar convite' },

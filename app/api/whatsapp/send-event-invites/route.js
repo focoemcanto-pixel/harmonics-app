@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '../../../../lib/supabase-admin';
 
+// LOGGING: Esta rota não registra logs individuais em automation_logs
+// porque delega para /api/whatsapp/send-invite, que já registra cada envio.
+// Ver: Fase 2 - Logging Unificado da Central de Automação
+
 export async function POST(request) {
   const supabaseAdmin = getSupabaseAdmin();
 

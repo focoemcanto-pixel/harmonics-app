@@ -2,9 +2,9 @@
 
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import AdminSidebar from './AdminSidebar';
-import AdminMobileTopbar from './AdminMobileTopbar';
-import AdminBottomNav from './AdminBottomNav';
+import AdminSidebar from '../admin/AdminSidebar';
+import AdminMobileTopbar from '../admin/AdminMobileTopbar';
+import AdminBottomNav from '../admin/AdminBottomNav';
 
 const MORE_ITEMS = [
   { label: 'Financeiro', href: '/pagamentos', icon: '💸', helper: 'Pagamentos e caixa' },

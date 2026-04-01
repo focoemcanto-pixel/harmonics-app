@@ -105,6 +105,7 @@ export default function AdminShell({
   console.log('[AdminShell] handleOpenMore chamado');
   setMoreOpen(true);
 }
+  console.log('[AdminShell] render', { activeItem, mobileActiveItem, moreOpen });
 
   return (
     <div className="min-h-screen bg-[#f4f6fa] text-[#111827]">

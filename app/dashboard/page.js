@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import AdminShell from '../../components/admin/AdminShell';
+import { useEffect, useMemo, useState } from 'react';
+import AdminShell from '../../components/layout/AdminShell';
 import DashboardHero from '../../components/dashboard/DashboardHero';
 import DashboardPrimaryKpis from '../../components/dashboard/DashboardPrimaryKpis';
 import DashboardSecondaryKpis from '../../components/dashboard/DashboardSecondaryKpis';
@@ -40,6 +40,62 @@ function DashboardLoading() {
   );
 }
 
+function MobileSectionTabs({ active, onChange }) {
+  const items = [
+    { key: 'overview', label: 'Visão geral' },
+    { key: 'finance', label: 'Financeiro' },
+    { key: 'ops', label: 'Operação' },
+    { key: 'agenda', label: 'Agenda' },
+  ];
+
+  return (
+    <div className="overflow-x-auto pb-1 xl:hidden">
+      <div className="flex gap-2">
+        {items.map((item) => {
+          const isActive = active === item.key;
+
+          return (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => onChange(item.key)}
+              className={`whitespace-nowrap rounded-full px-4 py-2 text-[13px] font-black transition ${
+                isActive
+                  ? 'bg-violet-600 text-white shadow-[0_10px_24px_rgba(124,58,237,0.18)]'
+                  : 'border border-[#dbe3ef] bg-white text-[#475569]'
+              }`}
+            >
+              {item.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function MobileCarousel({ children }) {
+  return (
+    <div className="-mx-4 overflow-x-auto px-4 xl:hidden">
+      <div className="flex snap-x snap-mandatory gap-4 pb-2">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function MobileSlide({ children, wide = false }) {
+  return (
+    <div
+      className={`snap-start shrink-0 ${
+        wide ? 'w-[92%]' : 'w-[88%]'
+      }`}
+    >
+      {children}
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const [events, setEvents] = useState([]);
   const [contracts, setContracts] = useState([]);
@@ -49,6 +105,7 @@ export default function DashboardPage() {
   const [summary, setSummary] = useState(null);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
+  const [mobileSection, setMobileSection] = useState('overview');
 
   useEffect(() => {
     async function carregarDashboard() {
@@ -114,8 +171,86 @@ export default function DashboardPage() {
     carregarDashboard();
   }, []);
 
+  const mobileOverview = useMemo(() => {
+    return (
+      <div className="space-y-4 xl:hidden">
+        <MobileCarousel>
+          <MobileSlide wide>
+            <DashboardPrimaryKpis summary={summary} />
+          </MobileSlide>
+          <MobileSlide wide>
+            <DashboardSecondaryKpis summary={summary} />
+          </MobileSlide>
+        </MobileCarousel>
+
+        <MobileCarousel>
+          <MobileSlide wide>
+            <DashboardUpcomingEvents
+              events={events}
+              contracts={contracts}
+              precontracts={precontracts}
+            />
+          </MobileSlide>
+        </MobileCarousel>
+      </div>
+    );
+  }, [summary, events, contracts, precontracts]);
+
+  const mobileFinance = useMemo(() => {
+    return (
+      <div className="space-y-4 xl:hidden">
+        <MobileCarousel>
+          <MobileSlide wide>
+            <DashboardRevenueChart events={events} />
+          </MobileSlide>
+          <MobileSlide wide>
+            <DashboardFinanceBreakdown events={events} summary={summary} />
+          </MobileSlide>
+        </MobileCarousel>
+      </div>
+    );
+  }, [events, summary]);
+
+  const mobileOps = useMemo(() => {
+    return (
+      <div className="space-y-4 xl:hidden">
+        <MobileCarousel>
+          <MobileSlide wide>
+            <DashboardOperationsRadar summary={summary} />
+          </MobileSlide>
+          <MobileSlide wide>
+            <DashboardQuickActions />
+          </MobileSlide>
+        </MobileCarousel>
+      </div>
+    );
+  }, [summary]);
+
+  const mobileAgenda = useMemo(() => {
+    return (
+      <div className="space-y-4 xl:hidden">
+        <MobileCarousel>
+          <MobileSlide wide>
+            <DashboardUpcomingEvents
+              events={events}
+              contracts={contracts}
+              precontracts={precontracts}
+            />
+          </MobileSlide>
+          <MobileSlide wide>
+            <DashboardSecondaryKpis summary={summary} />
+          </MobileSlide>
+        </MobileCarousel>
+      </div>
+    );
+  }, [events, contracts, precontracts, summary]);
+
   return (
-    <AdminShell pageTitle="Dashboard" activeItem="dashboard">
+    <AdminShell
+      pageTitle="Dashboard"
+      activeItem="dashboard"
+      mobileSubtitle="Visão executiva compacta"
+    >
       {carregando ? (
         <DashboardLoading />
       ) : (
@@ -128,25 +263,39 @@ export default function DashboardPage() {
             </div>
           ) : null}
 
-          <DashboardPrimaryKpis summary={summary} />
+          <MobileSectionTabs
+            active={mobileSection}
+            onChange={setMobileSection}
+          />
 
-          <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.5fr_1fr]">
-            <DashboardRevenueChart events={events} />
-            <DashboardFinanceBreakdown events={events} summary={summary} />
+          {mobileSection === 'overview' ? mobileOverview : null}
+          {mobileSection === 'finance' ? mobileFinance : null}
+          {mobileSection === 'ops' ? mobileOps : null}
+          {mobileSection === 'agenda' ? mobileAgenda : null}
+
+          <div className="hidden xl:block">
+            <div className="space-y-5">
+              <DashboardPrimaryKpis summary={summary} />
+
+              <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.5fr_1fr]">
+                <DashboardRevenueChart events={events} />
+                <DashboardFinanceBreakdown events={events} summary={summary} />
+              </div>
+
+              <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_1.2fr]">
+                <DashboardOperationsRadar summary={summary} />
+                <DashboardUpcomingEvents
+                  events={events}
+                  contracts={contracts}
+                  precontracts={precontracts}
+                />
+              </div>
+
+              <DashboardSecondaryKpis summary={summary} />
+
+              <DashboardQuickActions />
+            </div>
           </div>
-
-          <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_1.2fr]">
-            <DashboardOperationsRadar summary={summary} />
-            <DashboardUpcomingEvents
-              events={events}
-              contracts={contracts}
-              precontracts={precontracts}
-            />
-          </div>
-
-          <DashboardSecondaryKpis summary={summary} />
-
-          <DashboardQuickActions />
         </div>
       )}
     </AdminShell>

@@ -42,6 +42,13 @@ function DashboardLoading() {
         </div>
       </div>
 
+      {/* Insights Inteligentes Skeleton */}
+      <div className="space-y-3 animate-pulse">
+        {[1, 2].map((i) => (
+          <div key={i} className="h-20 bg-slate-200 rounded-xl" />
+        ))}
+      </div>
+
       {/* Atividade Recente Skeleton */}
       <div className="rounded-[28px] border border-[#dbe3ef] bg-white p-4 md:p-6">
         <div className="flex items-center justify-between mb-3 md:mb-4 animate-pulse">
@@ -108,6 +115,137 @@ function ActivityItem({ activity }) {
       <span className="text-xs text-slate-500 flex-shrink-0">
         {timeAgo(activity.timestamp)}
       </span>
+    </div>
+  );
+}
+
+function AlertCircleIcon({ className, ...props }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} {...props}>
+      <circle cx="12" cy="12" r="10" />
+      <line x1="12" y1="8" x2="12" y2="12" />
+      <line x1="12" y1="16" x2="12.01" y2="16" />
+    </svg>
+  );
+}
+
+function AlertTriangleIcon({ className, ...props }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} {...props}>
+      <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+      <line x1="12" y1="9" x2="12" y2="13" />
+      <line x1="12" y1="17" x2="12.01" y2="17" />
+    </svg>
+  );
+}
+
+function InfoIcon({ className, ...props }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} {...props}>
+      <circle cx="12" cy="12" r="10" />
+      <line x1="12" y1="16" x2="12" y2="12" />
+      <line x1="12" y1="8" x2="12.01" y2="8" />
+    </svg>
+  );
+}
+
+// Gerar insights a partir dos dados
+function generateInsights(data) {
+  if (!data) return [];
+
+  const insights = [];
+  const { contratosPendentes, escalasAbertas, falhasHoje } = data;
+
+  // 1. PRIORIDADE ALTA: Falhas
+  if (falhasHoje > 0) {
+    insights.push({
+      id: 'falhas',
+      type: 'error',
+      icon: AlertCircleIcon,
+      iconColor: 'text-red-600',
+      bgColor: 'bg-red-50',
+      borderColor: 'border-red-200',
+      title: `${falhasHoje} ${falhasHoje === 1 ? 'falha' : 'falhas'} hoje`,
+      description: 'Verifique os logs de automação',
+      action: {
+        label: 'Ver logs',
+        href: '/automacoes/logs',
+      },
+    });
+  }
+
+  // 2. PRIORIDADE MÉDIA: Contratos
+  if (contratosPendentes > 0) {
+    insights.push({
+      id: 'contratos',
+      type: 'warning',
+      icon: AlertTriangleIcon,
+      iconColor: 'text-amber-600',
+      bgColor: 'bg-amber-50',
+      borderColor: 'border-amber-200',
+      title: `${contratosPendentes} ${contratosPendentes === 1 ? 'contrato' : 'contratos'} ${contratosPendentes === 1 ? 'pendente' : 'pendentes'}`,
+      description: 'Resolva antes dos eventos',
+      action: {
+        label: 'Ver contratos',
+        href: '/contratos',
+      },
+    });
+  }
+
+  // 3. PRIORIDADE BAIXA: Escalas
+  if (escalasAbertas > 0) {
+    insights.push({
+      id: 'escalas',
+      type: 'info',
+      icon: InfoIcon,
+      iconColor: 'text-blue-600',
+      bgColor: 'bg-blue-50',
+      borderColor: 'border-blue-200',
+      title: `${escalasAbertas} ${escalasAbertas === 1 ? 'escala' : 'escalas'} não ${escalasAbertas === 1 ? 'confirmada' : 'confirmadas'}`,
+      description: 'Confirme para enviar lembretes',
+      action: {
+        label: 'Ver escalas',
+        href: '/escalas',
+      },
+    });
+  }
+
+  // Retornar apenas os 2 primeiros (prioridade)
+  return insights.slice(0, 2);
+}
+
+// Componente de Insight Card
+function InsightCard({ insight }) {
+  const Icon = insight.icon;
+
+  return (
+    <div className={`
+      rounded-xl border-2 p-4
+      ${insight.bgColor} ${insight.borderColor}
+      transition-all duration-200
+      hover:shadow-md
+    `}>
+      <div className="flex items-start gap-3">
+        <div className="flex-shrink-0">
+          <Icon className={`w-5 h-5 ${insight.iconColor}`} aria-hidden="true" />
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <h3 className="text-sm font-bold text-slate-900">
+            {insight.title}
+          </h3>
+          <p className="text-xs text-slate-600 mt-1">
+            {insight.description}
+          </p>
+        </div>
+
+        <Link
+          href={insight.action.href}
+          className="flex-shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-white/60 transition-colors"
+        >
+          {insight.action.label}
+        </Link>
+      </div>
     </div>
   );
 }
@@ -310,6 +448,16 @@ export default function DashboardPage() {
   const [erro, setErro] = useState('');
   const [mobileSection, setMobileSection] = useState('overview');
   const [activities, setActivities] = useState([]);
+
+  // Gerar insights com useMemo (performance)
+  const insights = useMemo(() => {
+    const falhasHoje = activities.filter((a) => a.iconColor === 'text-red-600').length;
+    return generateInsights({
+      contratosPendentes: summary?.contratosPendentes ?? 0,
+      escalasAbertas: summary?.escalasPendentes ?? 0,
+      falhasHoje,
+    });
+  }, [summary, activities]);
 
   const todayISO = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
@@ -770,6 +918,15 @@ export default function DashboardPage() {
               ))}
             </div>
           </div>
+
+          {/* Insights Inteligentes */}
+          {insights.length > 0 && (
+            <div className="space-y-3">
+              {insights.slice(0, 2).map((insight) => (
+                <InsightCard key={insight.id} insight={insight} />
+              ))}
+            </div>
+          )}
 
           {/* Atividade Recente */}
           <div className="rounded-[28px] border border-[#dbe3ef] bg-white p-4 md:p-6 shadow-sm">

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import AdminShell from '../../components/admin/AdminShell';
+import ProtectedRoute from '@/components/ProtectedRoute';
 import AdminPageHero from '../../components/admin/AdminPageHero';
 import AdminSectionTitle from '../../components/admin/AdminSectionTitle';
 import AdminSummaryCard from '../../components/admin/AdminSummaryCard';
@@ -125,6 +126,14 @@ function formatPaymentMethod(method) {
 }
 
 export default function PagamentosPage() {
+  return (
+    <ProtectedRoute requiredRole="admin">
+      <PagamentosPageContent />
+    </ProtectedRoute>
+  );
+}
+
+function PagamentosPageContent() {
   const [events, setEvents] = useState([]);
   const [payments, setPayments] = useState([]);
   const [carregando, setCarregando] = useState(true);

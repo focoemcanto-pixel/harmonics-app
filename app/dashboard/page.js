@@ -35,6 +35,26 @@ function DashboardLoading() {
         </div>
       </div>
 
+      {/* Atividade Recente Skeleton */}
+      <div className="rounded-[28px] border border-[#dbe3ef] bg-white p-6">
+        <div className="flex items-center justify-between mb-4 animate-pulse">
+          <div className="h-6 w-40 bg-slate-200 rounded" />
+          <div className="h-8 w-20 bg-slate-200 rounded" />
+        </div>
+        <div className="space-y-4">
+          {[1, 2, 3, 4, 5, 6].map(i => (
+            <div key={i} className="flex items-start gap-3 animate-pulse">
+              <div className="w-10 h-10 bg-slate-200 rounded-lg flex-shrink-0" />
+              <div className="flex-1 space-y-2">
+                <div className="h-4 w-32 bg-slate-200 rounded" />
+                <div className="h-3 w-48 bg-slate-200 rounded" />
+              </div>
+              <div className="h-3 w-16 bg-slate-200 rounded" />
+            </div>
+          ))}
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.5fr_1fr]">
         <div className="h-[420px] animate-pulse rounded-[30px] border border-[#dbe3ef] bg-white" />
         <div className="h-[420px] animate-pulse rounded-[30px] border border-[#dbe3ef] bg-white" />
@@ -45,6 +65,71 @@ function DashboardLoading() {
         <div className="h-[420px] animate-pulse rounded-[28px] border border-[#dbe3ef] bg-white" />
       </div>
     </div>
+  );
+}
+
+function timeAgo(date) {
+  if (!date) return '--';
+
+  const diff = (Date.now() - new Date(date)) / 1000;
+
+  if (diff < 60) return 'agora';
+  if (diff < 3600) return `há ${Math.floor(diff / 60)} min`;
+  if (diff < 86400) return `há ${Math.floor(diff / 3600)}h`;
+  if (diff < 604800) return `há ${Math.floor(diff / 86400)}d`;
+
+  return new Date(date).toLocaleDateString('pt-BR', {
+    day: 'numeric',
+    month: 'short',
+  });
+}
+
+function ActivityItem({ activity }) {
+  return (
+    <div className="flex items-start gap-3 hover:bg-slate-50 p-2 rounded-lg transition-colors">
+      <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${activity.bgColor}`}>
+        <activity.icon className={`w-5 h-5 ${activity.iconColor}`} aria-hidden="true" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-slate-900">
+          {activity.title}
+        </p>
+        <p className="text-xs text-slate-600 mt-0.5 line-clamp-2">
+          {activity.description || 'Sem detalhes'}
+        </p>
+      </div>
+      <span className="text-xs text-slate-500 flex-shrink-0">
+        {timeAgo(activity.timestamp)}
+      </span>
+    </div>
+  );
+}
+
+function CheckCircleIcon({ className, ...props }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} {...props}>
+      <path d="M22 11.08V12a10 10 0 11-5.93-9.14" />
+      <polyline points="22 4 12 14.01 9 11.01" />
+    </svg>
+  );
+}
+
+function XCircleIcon({ className, ...props }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} {...props}>
+      <circle cx="12" cy="12" r="10" />
+      <line x1="15" y1="9" x2="9" y2="15" />
+      <line x1="9" y1="9" x2="15" y2="15" />
+    </svg>
+  );
+}
+
+function ClockIcon({ className, ...props }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} {...props}>
+      <circle cx="12" cy="12" r="10" />
+      <polyline points="12 6 12 12 16 14" />
+    </svg>
   );
 }
 
@@ -217,6 +302,7 @@ export default function DashboardPage() {
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
   const [mobileSection, setMobileSection] = useState('overview');
+  const [activities, setActivities] = useState([]);
 
   const todayISO = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
@@ -298,7 +384,62 @@ export default function DashboardPage() {
     }
 
     carregarDashboard();
+    fetchRecentActivity();
   }, []);
+
+  async function fetchRecentActivity() {
+    try {
+      let res = await fetch('/api/automation/logs?limit=6&sort=desc');
+
+      if (res.status === 404) {
+        console.warn('Rota /api/automation/logs não existe, tentando alternativa');
+        res = await fetch('/api/logs/automation?limit=6');
+      }
+
+      if (!res.ok) {
+        console.warn('Erro ao buscar logs, usando dados vazios');
+        setActivities([]);
+        return;
+      }
+
+      const logs = await res.json();
+
+      if (!Array.isArray(logs)) {
+        console.warn('API não retornou array:', logs);
+        setActivities([]);
+        return;
+      }
+
+      const mapped = logs.map((log, idx) => ({
+        id: log.id || `log-${log.created_at}-${idx}`,
+        icon: log.status === 'sent' ? CheckCircleIcon :
+              log.status === 'failed' ? XCircleIcon :
+              ClockIcon,
+        iconColor: log.status === 'sent' ? 'text-emerald-600' :
+                   log.status === 'failed' ? 'text-red-600' :
+                   'text-amber-600',
+        bgColor: log.status === 'sent' ? 'bg-emerald-100' :
+                 log.status === 'failed' ? 'bg-red-100' :
+                 'bg-amber-100',
+        title: log.status === 'sent' ? 'Automação enviada' :
+               log.status === 'failed' ? 'Falha na automação' :
+               'Automação pendente',
+        description: log.status === 'sent'
+          ? `Mensagem enviada para ${log.recipient_number}`
+          : (log.error_message || 'Erro desconhecido'),
+        timestamp: log.created_at,
+      }));
+
+      const sorted = mapped
+        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+        .slice(0, 6);
+
+      setActivities(sorted);
+    } catch (error) {
+      console.error('Erro ao buscar atividades:', error);
+      setActivities([]);
+    }
+  }
 
   const mobileOverview = useMemo(() => {
     return (
@@ -594,6 +735,33 @@ export default function DashboardPage() {
               {quickActions.map((action) => (
                 <QuickActionCard key={action.href} action={action} />
               ))}
+            </div>
+          </div>
+
+          {/* Atividade Recente */}
+          <div className="rounded-[28px] border border-[#dbe3ef] bg-white p-6 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-slate-950">
+                Atividade Recente
+              </h2>
+              <Link
+                href="/automacoes/logs"
+                className="rounded-lg px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors"
+              >
+                Ver tudo
+              </Link>
+            </div>
+
+            <div className="space-y-4">
+              {activities.length === 0 ? (
+                <p className="text-sm text-slate-500 text-center py-8">
+                  Nenhuma atividade recente
+                </p>
+              ) : (
+                activities.map(activity => (
+                  <ActivityItem key={activity.id} activity={activity} />
+                ))
+              )}
             </div>
           </div>
 

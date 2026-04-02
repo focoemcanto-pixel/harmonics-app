@@ -2,6 +2,54 @@
 
 import { useState, useEffect, useCallback } from 'react';
 
+// ── Health helpers ────────────────────────────────────────────────────────────
+
+function getHealthStatus(alerts, failedToday) {
+  const hasCritical = alerts.some((a) => a.severity === 'critical');
+  const hasWarnings = alerts.some((a) => a.severity === 'warning');
+
+  if (hasCritical || failedToday > 5) {
+    return {
+      status: 'critical',
+      label: 'Crítico',
+      color: 'red',
+      message: hasCritical
+        ? 'Existem alertas críticos que precisam de atenção'
+        : `${failedToday} falhas registradas hoje`,
+    };
+  }
+
+  if (hasWarnings || failedToday > 0) {
+    return {
+      status: 'warning',
+      label: 'Atenção',
+      color: 'amber',
+      message: hasWarnings
+        ? 'Alguns alertas de atenção foram identificados'
+        : `${failedToday} falha(s) registrada(s) hoje`,
+    };
+  }
+
+  return {
+    status: 'healthy',
+    label: 'Saudável',
+    color: 'emerald',
+    message: 'Todas as automações estão funcionando corretamente',
+  };
+}
+
+function getContextualCTA(healthStatus) {
+  switch (healthStatus) {
+    case 'critical':
+      return { href: '/automacoes/logs?status=failed', label: 'Ver falhas', variant: 'danger' };
+    case 'warning':
+      return { href: '/automacoes/regras', label: 'Ver regras', variant: 'soft' };
+    case 'healthy':
+    default:
+      return { href: '/automacoes/templates', label: 'Criar template', variant: 'success' };
+  }
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatarData(isoString) {
@@ -100,6 +148,103 @@ function SkeletonCard() {
   );
 }
 
+function CheckCircleIcon() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="w-6 h-6 text-emerald-600"
+      aria-hidden="true"
+    >
+      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+      <polyline points="22 4 12 14.01 9 11.01" />
+    </svg>
+  );
+}
+
+function HealthIndicator({ health }) {
+  const borderColors = {
+    healthy: 'border-l-emerald-500',
+    warning: 'border-l-amber-500',
+    critical: 'border-l-red-500',
+  };
+  const bgColors = {
+    healthy: 'bg-emerald-50',
+    warning: 'bg-amber-50',
+    critical: 'bg-red-50',
+  };
+  const badgeClasses = {
+    healthy: 'bg-emerald-100 text-emerald-700',
+    warning: 'bg-amber-100 text-amber-700',
+    critical: 'bg-red-100 text-red-700',
+  };
+  const ctaClasses = {
+    healthy: 'bg-emerald-600 text-white hover:bg-emerald-700',
+    warning: 'bg-slate-100 text-slate-800 hover:bg-slate-200',
+    critical: 'bg-red-500 text-white hover:bg-red-600',
+  };
+
+  const cta = getContextualCTA(health.status);
+
+  return (
+    <div
+      className={`rounded-[24px] border border-l-4 border-[#dbe3ef] shadow-[0_4px_14px_rgba(17,24,39,0.04)] ${borderColors[health.status]}`}
+    >
+      <div className={`rounded-[24px] p-5 ${bgColors[health.status]}`}>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <span
+              className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${badgeClasses[health.status]}`}
+            >
+              {health.label}
+            </span>
+            <span className="text-[14px] text-slate-700">{health.message}</span>
+          </div>
+          <a
+            href={cta.href}
+            className={`shrink-0 self-start sm:self-auto inline-flex items-center justify-center rounded-2xl px-4 py-2 text-sm font-semibold transition ${ctaClasses[health.status]}`}
+          >
+            {cta.label}
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EmptyStateAlertas() {
+  return (
+    <div className="bg-emerald-50 border border-emerald-200 rounded-[14px] p-6 text-center">
+      <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-emerald-100 mb-3">
+        <CheckCircleIcon />
+      </div>
+      <h3 className="text-[16px] font-bold text-emerald-900 mb-1">Tudo certo por aqui!</h3>
+      <p className="text-[13px] text-emerald-700">
+        Nenhum alerta crítico ou de atenção foi identificado
+      </p>
+    </div>
+  );
+}
+
+function EmptyStateFalhas() {
+  return (
+    <div className="bg-emerald-50 border border-emerald-200 rounded-[14px] p-6 text-center">
+      <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-emerald-100 mb-3">
+        <CheckCircleIcon />
+      </div>
+      <h3 className="text-[16px] font-bold text-emerald-900 mb-1">Nenhuma falha recente</h3>
+      <p className="text-[13px] text-emerald-700">
+        Todos os envios estão sendo processados com sucesso
+      </p>
+    </div>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function AutomacoesPageClient() {
@@ -127,6 +272,10 @@ export default function AutomacoesPageClient() {
   const summary  = data?.summary  ?? {};
   const alerts   = data?.alerts   ?? [];
   const failures = data?.recent_failures ?? [];
+
+  const health = !loading && data
+    ? getHealthStatus(alerts, summary.failed_today ?? 0)
+    : null;
 
   return (
     <div className="space-y-8">
@@ -165,6 +314,13 @@ export default function AutomacoesPageClient() {
             Tentar novamente
           </button>
         </div>
+      )}
+
+      {/* ── Health indicator ──────────────────────────────────── */}
+      {!loading && !error && health && (
+        <section>
+          <HealthIndicator health={health} />
+        </section>
       )}
 
       {/* ── Summary cards ─────────────────────────────────────── */}
@@ -209,12 +365,7 @@ export default function AutomacoesPageClient() {
               ))}
             </div>
           ) : alerts.length === 0 ? (
-            <div className="flex items-center gap-3 rounded-[14px] border border-emerald-200 bg-emerald-50 px-4 py-3">
-              <span className="text-xl">✅</span>
-              <span className="text-[14px] font-semibold text-emerald-700">
-                Nenhum alerta crítico encontrado. Tudo parece saudável!
-              </span>
-            </div>
+            <EmptyStateAlertas />
           ) : (
             <div className="space-y-2">
               {alerts.map((alert, i) => (
@@ -246,12 +397,7 @@ export default function AutomacoesPageClient() {
               ))}
             </div>
           ) : failures.length === 0 ? (
-            <div className="flex items-center gap-3 rounded-[14px] border border-emerald-200 bg-emerald-50 px-4 py-3">
-              <span className="text-xl">✅</span>
-              <span className="text-[14px] font-semibold text-emerald-700">
-                Nenhuma falha recente registrada.
-              </span>
-            </div>
+            <EmptyStateFalhas />
           ) : (
             <div className="space-y-2">
               <div className="hidden sm:grid grid-cols-[1fr_1.5fr_1fr_1.5fr] gap-1 px-4 pb-1">

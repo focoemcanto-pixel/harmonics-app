@@ -147,6 +147,27 @@ export async function GET() {
       }
     }
 
+    // ── Last cron run ─────────────────────────────────────────
+    const { data: lastRunRow } = await supabase
+      .from('automation_meta')
+      .select('value')
+      .eq('key', 'last_cron_run')
+      .maybeSingle();
+
+    const lastCronRun = lastRunRow?.value || null;
+
+    // Alert se cron está parado (> 1 hora)
+    if (lastCronRun) {
+      const diffSeconds = (Date.now() - new Date(lastCronRun).getTime()) / 1000;
+      if (diffSeconds > 3600) {
+        alerts.push({
+          type: 'cron_stale',
+          severity: 'warning',
+          message: 'Cron não executou há mais de 1 hora. Verifique se está rodando.',
+        });
+      }
+    }
+
     return NextResponse.json({
       ok: true,
       summary: {
@@ -163,6 +184,7 @@ export async function GET() {
       },
       alerts,
       recent_failures: failures || [],
+      last_cron_run: lastCronRun,
     });
   } catch (error) {
     console.error('[GET /api/automation/dashboard] Erro:', error);

@@ -28,21 +28,26 @@ function DashboardLoading() {
 
       <div className="space-y-4 animate-pulse">
         <div className="h-6 w-32 bg-slate-200 rounded" />
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+        <div className="hidden md:grid md:grid-cols-3 lg:grid-cols-4 gap-3">
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="h-16 bg-slate-200 rounded-xl" />
+          ))}
+        </div>
+        <div className="md:hidden flex gap-3 overflow-x-auto pl-4 pr-2">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="flex-shrink-0 w-[180px] h-16 bg-slate-200 rounded-xl" />
           ))}
         </div>
       </div>
 
       {/* Atividade Recente Skeleton */}
-      <div className="rounded-[28px] border border-[#dbe3ef] bg-white p-6">
-        <div className="flex items-center justify-between mb-4 animate-pulse">
+      <div className="rounded-[28px] border border-[#dbe3ef] bg-white p-4 md:p-6">
+        <div className="flex items-center justify-between mb-3 md:mb-4 animate-pulse">
           <div className="h-6 w-40 bg-slate-200 rounded" />
           <div className="h-8 w-20 bg-slate-200 rounded" />
         </div>
-        <div className="space-y-4">
-          {[1, 2, 3, 4, 5, 6].map(i => (
+        <div className="space-y-3">
+          {[1, 2].map(i => (
             <div key={i} className="flex items-start gap-3 animate-pulse">
               <div className="w-10 h-10 bg-slate-200 rounded-lg flex-shrink-0" />
               <div className="flex-1 space-y-2">
@@ -521,7 +526,7 @@ export default function DashboardPage() {
       {carregando ? (
         <DashboardLoading />
       ) : (
-        <div className="space-y-5">
+        <div className="space-y-4 md:space-y-6">
           {/* Hero Section */}
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-8">
             <div>
@@ -557,14 +562,14 @@ export default function DashboardPage() {
           {/* Primeira Dobra */}
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 mb-6">
             {/* Card Principal — Saúde da Operação (ocupa 2 colunas no desktop) */}
-            <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-violet-600 to-violet-800 p-6 text-white lg:col-span-2">
+            <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-violet-600 to-violet-800 p-4 md:p-6 text-white lg:col-span-2">
               {/* Header com Score */}
-              <div className="mb-6 flex items-center justify-between">
+              <div className="mb-4 md:mb-6 flex items-center justify-between">
                 <div>
                   <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-violet-200">
                     Saúde da Operação
                   </p>
-                  <div className="text-5xl font-black">
+                  <div className="text-4xl md:text-5xl font-black">
                     {summary ? Math.min(100, Math.round(
                       ((summary.eventosMes > 0 ? 1 : 0) * 40) +
                       (summary.contratosPendentes === 0 ? 30 : Math.max(0, 30 - summary.contratosPendentes * 5)) +
@@ -572,7 +577,7 @@ export default function DashboardPage() {
                     )) : 95}%
                   </div>
                 </div>
-                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-sm">
+                <div className="flex h-14 w-14 md:h-16 md:w-16 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-sm">
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-9 w-9">
                     <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
                   </svg>
@@ -580,17 +585,17 @@ export default function DashboardPage() {
               </div>
 
               {/* 3 Indicadores */}
-              <div className="mb-6 grid grid-cols-3 gap-4">
+              <div className="mb-4 md:mb-6 grid grid-cols-3 gap-3 md:gap-4">
                 <div>
-                  <div className="text-3xl font-bold">{summary?.eventosMes ?? 12}</div>
+                  <div className="text-2xl md:text-3xl font-bold">{summary?.eventosMes ?? 12}</div>
                   <div className="mt-1 text-xs text-violet-200">Eventos ativos</div>
                 </div>
                 <div>
-                  <div className="text-3xl font-bold">{summary?.contratosPendentes ?? 5}</div>
+                  <div className="text-2xl md:text-3xl font-bold">{summary?.contratosPendentes ?? 5}</div>
                   <div className="mt-1 text-xs text-violet-200">Contratos pendentes</div>
                 </div>
                 <div>
-                  <div className="text-3xl font-bold">{summary?.escalasPendentes ?? 3}</div>
+                  <div className="text-2xl md:text-3xl font-bold">{summary?.escalasPendentes ?? 3}</div>
                   <div className="mt-1 text-xs text-violet-200">Escalas abertas</div>
                 </div>
               </div>
@@ -728,19 +733,39 @@ export default function DashboardPage() {
 
           {/* Ações Rápidas */}
           <div>
-            <h2 className="text-lg font-bold text-slate-950 mb-4">
+            <h2 className="text-lg font-bold text-slate-950 mb-3 md:mb-4">
               Ações Rápidas
             </h2>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+
+            {/* Desktop: grid normal */}
+            <div className="hidden md:grid md:grid-cols-3 lg:grid-cols-4 gap-3">
               {quickActions.map((action) => (
                 <QuickActionCard key={action.href} action={action} />
+              ))}
+            </div>
+
+            {/* Mobile: scroll horizontal */}
+            <div className="md:hidden flex overflow-x-auto gap-3 pb-3 pl-4 pr-2 snap-x snap-mandatory scrollbar-hide" tabIndex={0}>
+              {quickActions.map((action) => (
+                <Link
+                  key={action.href}
+                  href={action.href}
+                  className={`flex-shrink-0 w-[180px] snap-start p-4 rounded-xl border-2 transition-all duration-200 hover:shadow-md cursor-pointer flex items-center gap-3 ${quickActionColorClasses[action.color]}`}
+                >
+                  <div className="flex-shrink-0">
+                    {action.icon}
+                  </div>
+                  <span className="font-semibold text-xs">
+                    {action.label}
+                  </span>
+                </Link>
               ))}
             </div>
           </div>
 
           {/* Atividade Recente */}
-          <div className="rounded-[28px] border border-[#dbe3ef] bg-white p-6 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
+          <div className="rounded-[28px] border border-[#dbe3ef] bg-white p-4 md:p-6 shadow-sm">
+            <div className="flex items-center justify-between mb-3 md:mb-4">
               <h2 className="text-lg font-bold text-slate-950">
                 Atividade Recente
               </h2>
@@ -752,13 +777,13 @@ export default function DashboardPage() {
               </Link>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-3">
               {activities.length === 0 ? (
-                <p className="text-sm text-slate-500 text-center py-8">
+                <p className="text-sm text-slate-500 text-center py-6">
                   Nenhuma atividade recente
                 </p>
               ) : (
-                activities.map(activity => (
+                activities.slice(0, 2).map(activity => (
                   <ActivityItem key={activity.id} activity={activity} />
                 ))
               )}

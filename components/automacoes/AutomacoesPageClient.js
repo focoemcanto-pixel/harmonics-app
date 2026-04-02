@@ -47,6 +47,11 @@ export default function AutomacoesPageClient() {
           href="/automacoes/canais"
         />
         <Card
+          title="Regras"
+          desc="Defina quando e para quem cada automação é executada"
+          href="/automacoes/regras"
+        />
+        <Card
           title="Logs"
           desc="Histórico completo dos disparos"
           href="/automacoes/logs"

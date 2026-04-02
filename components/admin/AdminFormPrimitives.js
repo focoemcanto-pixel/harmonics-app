@@ -1,5 +1,7 @@
 'use client';
 
+import { forwardRef } from 'react';
+
 export function Field({ label, children, helper }) {
   return (
     <div className="space-y-2">
@@ -10,9 +12,13 @@ export function Field({ label, children, helper }) {
   );
 }
 
-export function Input({ value, onChange, placeholder = '', type = 'text', disabled = false }) {
+export const Input = forwardRef(function Input(
+  { value, onChange, placeholder = '', type = 'text', disabled = false, helpText },
+  ref,
+) {
   return (
     <input
+      ref={ref}
       type={type}
       value={value}
       onChange={onChange}
@@ -21,7 +27,7 @@ export function Input({ value, onChange, placeholder = '', type = 'text', disabl
       className="w-full rounded-[18px] border border-[#dbe3ef] bg-white px-4 py-4 text-[15px] font-semibold text-[#0f172a] outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100 disabled:bg-slate-50 disabled:text-slate-400"
     />
   );
-}
+});
 
 export function Select({ value, onChange, children, disabled = false }) {
   return (

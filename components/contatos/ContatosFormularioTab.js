@@ -10,6 +10,7 @@ export default function ContatosFormularioTab({
   cancelarEdicao,
   salvando,
   uniqueTags = [],
+  firstInputRef,
 }) {
   return (
     <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_26px_rgba(17,24,39,0.04)] md:p-6">
@@ -35,6 +36,7 @@ export default function ContatosFormularioTab({
       <div className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-2">
         <Field label="Nome do membro">
           <Input
+            ref={firstInputRef}
             value={form.name}
             onChange={(e) => handleFormChange('name', e.target.value)}
             placeholder="Ex.: Marcos Cruz"

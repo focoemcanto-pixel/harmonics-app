@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import AdminSummaryCard from '@/components/admin/AdminSummaryCard';
+import AutomationBackLink from '@/components/automacoes/AutomationBackLink';
 
 const FORM_INICIAL = {
   name: '',
@@ -217,6 +218,11 @@ export default function CanaisPageClient() {
 
   return (
     <div className="space-y-6">
+      {/* Back Link */}
+      <div>
+        <AutomationBackLink />
+      </div>
+
       {/* Hero Section */}
       <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-6 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">

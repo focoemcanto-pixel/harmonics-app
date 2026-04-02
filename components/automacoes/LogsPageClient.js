@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import AdminSummaryCard from '@/components/admin/AdminSummaryCard';
 import AutomationBackLink from '@/components/automacoes/AutomationBackLink';
 
@@ -365,15 +366,24 @@ function LogCard({ log, onVerDetalhes, onRetrySuccess }) {
 
 // ---------- Componente principal ----------
 export default function LogsPageClient() {
+  const searchParams = useSearchParams();
+
   const [logs, setLogs] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState(null);
   const [logSelecionado, setLogSelecionado] = useState(null);
 
-  // Filtros
-  const [filtroStatus, setFiltroStatus] = useState('');
-  const [filtroRecipient, setFiltroRecipient] = useState('');
-  const [filtroSource, setFiltroSource] = useState('');
+  // Filtros — inicializar a partir de query params da URL (ex: ?status=failed)
+  const [filtroStatus, setFiltroStatus] = useState(() => searchParams.get('status') || '');
+  const [filtroRecipient, setFiltroRecipient] = useState(() => searchParams.get('recipient') || '');
+  const [filtroSource, setFiltroSource] = useState(() => searchParams.get('source') || '');
+
+  // Sincronizar filtros quando os query params mudarem (ex: navegação via browser)
+  useEffect(() => {
+    setFiltroStatus(searchParams.get('status') || '');
+    setFiltroRecipient(searchParams.get('recipient') || '');
+    setFiltroSource(searchParams.get('source') || '');
+  }, [searchParams]);
 
   const carregarLogs = useCallback(async () => {
     try {

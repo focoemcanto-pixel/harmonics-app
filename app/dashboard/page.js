@@ -26,6 +26,15 @@ function DashboardLoading() {
         ))}
       </div>
 
+      <div className="space-y-4 animate-pulse">
+        <div className="h-6 w-32 bg-slate-200 rounded" />
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="h-16 bg-slate-200 rounded-xl" />
+          ))}
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.5fr_1fr]">
         <div className="h-[420px] animate-pulse rounded-[30px] border border-[#dbe3ef] bg-white" />
         <div className="h-[420px] animate-pulse rounded-[30px] border border-[#dbe3ef] bg-white" />
@@ -92,6 +101,109 @@ function MobileSlide({ children, wide = false }) {
     >
       {children}
     </div>
+  );
+}
+
+const quickActions = [
+  {
+    label: 'Novo Evento',
+    href: '/eventos/novo',
+    color: 'violet',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6" aria-hidden="true">
+        <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+        <line x1="16" y1="2" x2="16" y2="6" />
+        <line x1="8" y1="2" x2="8" y2="6" />
+        <line x1="3" y1="10" x2="21" y2="10" />
+        <line x1="12" y1="15" x2="12" y2="19" />
+        <line x1="10" y1="17" x2="14" y2="17" />
+      </svg>
+    ),
+  },
+  {
+    label: 'Novo Contrato',
+    href: '/contratos/novo',
+    color: 'blue',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6" aria-hidden="true">
+        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+        <polyline points="14 2 14 8 20 8" />
+        <line x1="16" y1="13" x2="8" y2="13" />
+        <line x1="16" y1="17" x2="8" y2="17" />
+        <polyline points="10 9 9 9 8 9" />
+      </svg>
+    ),
+  },
+  {
+    label: 'Nova Escala',
+    href: '/escalas',
+    color: 'emerald',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6" aria-hidden="true">
+        <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" />
+        <rect x="9" y="3" width="6" height="4" rx="1" ry="1" />
+        <line x1="9" y1="12" x2="15" y2="12" />
+        <line x1="9" y1="16" x2="13" y2="16" />
+      </svg>
+    ),
+  },
+  {
+    label: 'Enviar Convites',
+    href: '/convites',
+    color: 'amber',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6" aria-hidden="true">
+        <line x1="22" y1="2" x2="11" y2="13" />
+        <polygon points="22 2 15 22 11 13 2 9 22 2" />
+      </svg>
+    ),
+  },
+  {
+    label: 'Ver Automações',
+    href: '/automacoes',
+    color: 'purple',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6" aria-hidden="true">
+        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+      </svg>
+    ),
+  },
+  {
+    label: 'Pagamentos',
+    href: '/pagamentos',
+    color: 'green',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6" aria-hidden="true">
+        <line x1="12" y1="1" x2="12" y2="23" />
+        <path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" />
+      </svg>
+    ),
+  },
+];
+
+const quickActionColorClasses = {
+  violet: 'bg-violet-50 text-violet-600 hover:bg-violet-100 border-violet-200',
+  blue: 'bg-blue-50 text-blue-600 hover:bg-blue-100 border-blue-200',
+  emerald: 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border-emerald-200',
+  amber: 'bg-amber-50 text-amber-600 hover:bg-amber-100 border-amber-200',
+  purple: 'bg-purple-50 text-purple-600 hover:bg-purple-100 border-purple-200',
+  green: 'bg-green-50 text-green-600 hover:bg-green-100 border-green-200',
+};
+
+function QuickActionCard({ action }) {
+  return (
+    <Link
+      href={action.href}
+      aria-label={action.label}
+      className={`flex items-center gap-3 rounded-xl border-2 p-4 transition-all duration-200 hover:shadow-md hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-violet-500 cursor-pointer ${quickActionColorClasses[action.color]}`}
+    >
+      <div className="flex-shrink-0">
+        {action.icon}
+      </div>
+      <span className="font-semibold text-sm">
+        {action.label}
+      </span>
+    </Link>
   );
 }
 
@@ -470,6 +582,18 @@ export default function DashboardPage() {
               <div className="text-2xl font-black text-slate-900">{summary?.eventosMes ?? 12}</div>
               <div className="mt-1 text-xs font-medium text-slate-500">Eventos no mês</div>
               <div className="mt-2 text-[11px] font-semibold text-emerald-600">↑ Taxa {completionRate}%</div>
+            </div>
+          </div>
+
+          {/* Ações Rápidas */}
+          <div>
+            <h2 className="text-lg font-bold text-slate-950 mb-4">
+              Ações Rápidas
+            </h2>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              {quickActions.map((action) => (
+                <QuickActionCard key={action.href} action={action} />
+              ))}
             </div>
           </div>
 

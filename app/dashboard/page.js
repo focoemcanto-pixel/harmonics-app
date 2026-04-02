@@ -12,6 +12,8 @@ import DashboardUpcomingEvents from '../../components/dashboard/DashboardUpcomin
 import { supabase } from '../../lib/supabase';
 import { buildDashboardSummary } from '../../lib/dashboard/dashboard-summary';
 
+const MAX_DISPLAYED_ACTIVITIES = 2;
+
 function DashboardLoading() {
   return (
     <div className="space-y-5">
@@ -26,23 +28,28 @@ function DashboardLoading() {
         ))}
       </div>
 
-      <div className="space-y-4 animate-pulse">
+      <div className="space-y-3 animate-pulse">
         <div className="h-6 w-32 bg-slate-200 rounded" />
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+        <div className="hidden md:grid md:grid-cols-3 lg:grid-cols-4 gap-3">
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="h-16 bg-slate-200 rounded-xl" />
+          ))}
+        </div>
+        <div className="md:hidden flex gap-3 overflow-x-auto pl-4 pr-2">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="flex-shrink-0 w-[180px] h-16 bg-slate-200 rounded-xl" />
           ))}
         </div>
       </div>
 
       {/* Atividade Recente Skeleton */}
-      <div className="rounded-[28px] border border-[#dbe3ef] bg-white p-6">
-        <div className="flex items-center justify-between mb-4 animate-pulse">
+      <div className="rounded-[28px] border border-[#dbe3ef] bg-white p-4 md:p-6">
+        <div className="flex items-center justify-between mb-3 md:mb-4 animate-pulse">
           <div className="h-6 w-40 bg-slate-200 rounded" />
           <div className="h-8 w-20 bg-slate-200 rounded" />
         </div>
-        <div className="space-y-4">
-          {[1, 2, 3, 4, 5, 6].map(i => (
+        <div className="space-y-3">
+          {Array.from({ length: MAX_DISPLAYED_ACTIVITIES }).map((_, i) => (
             <div key={i} className="flex items-start gap-3 animate-pulse">
               <div className="w-10 h-10 bg-slate-200 rounded-lg flex-shrink-0" />
               <div className="flex-1 space-y-2">
@@ -275,12 +282,12 @@ const quickActionColorClasses = {
   green: 'bg-green-50 text-green-600 hover:bg-green-100 border-green-200',
 };
 
-function QuickActionCard({ action }) {
+function QuickActionCard({ action, className = '' }) {
   return (
     <Link
       href={action.href}
       aria-label={action.label}
-      className={`flex items-center gap-3 rounded-xl border-2 p-4 transition-all duration-200 hover:shadow-md hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-violet-500 cursor-pointer ${quickActionColorClasses[action.color]}`}
+      className={`flex items-center gap-3 rounded-xl border-2 p-4 transition-all duration-200 hover:shadow-md cursor-pointer ${quickActionColorClasses[action.color]} ${className}`}
     >
       <div className="flex-shrink-0">
         {action.icon}
@@ -521,7 +528,7 @@ export default function DashboardPage() {
       {carregando ? (
         <DashboardLoading />
       ) : (
-        <div className="space-y-5">
+        <div className="space-y-4 md:space-y-6">
           {/* Hero Section */}
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-8">
             <div>
@@ -728,19 +735,30 @@ export default function DashboardPage() {
 
           {/* Ações Rápidas */}
           <div>
-            <h2 className="text-lg font-bold text-slate-950 mb-4">
+            <h2 className="text-lg font-bold text-slate-950 mb-3 md:mb-4">
               Ações Rápidas
             </h2>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            {/* Desktop: grid normal */}
+            <div className="hidden md:grid md:grid-cols-3 lg:grid-cols-4 gap-3">
               {quickActions.map((action) => (
                 <QuickActionCard key={action.href} action={action} />
+              ))}
+            </div>
+            {/* Mobile: scroll horizontal */}
+            <div className="md:hidden flex overflow-x-auto gap-3 pb-3 pl-4 pr-2 snap-x snap-mandatory scrollbar-hide">
+              {quickActions.map((action) => (
+                <QuickActionCard
+                  key={action.href}
+                  action={action}
+                  className="flex-shrink-0 w-[180px] snap-start"
+                />
               ))}
             </div>
           </div>
 
           {/* Atividade Recente */}
-          <div className="rounded-[28px] border border-[#dbe3ef] bg-white p-6 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
+          <div className="rounded-[28px] border border-[#dbe3ef] bg-white p-4 md:p-6 shadow-sm">
+            <div className="flex items-center justify-between mb-3 md:mb-4">
               <h2 className="text-lg font-bold text-slate-950">
                 Atividade Recente
               </h2>
@@ -752,13 +770,13 @@ export default function DashboardPage() {
               </Link>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-3">
               {activities.length === 0 ? (
-                <p className="text-sm text-slate-500 text-center py-8">
+                <p className="text-sm text-slate-500 text-center py-6">
                   Nenhuma atividade recente
                 </p>
               ) : (
-                activities.map(activity => (
+                activities.slice(0, MAX_DISPLAYED_ACTIVITIES).map(activity => (
                   <ActivityItem key={activity.id} activity={activity} />
                 ))
               )}

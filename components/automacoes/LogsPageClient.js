@@ -80,11 +80,13 @@ function Toast({ message, type, onClose }) {
   const colors =
     type === 'success'
       ? 'bg-emerald-600 text-white'
+      : type === 'warning'
+      ? 'bg-amber-500 text-white'
       : 'bg-red-600 text-white';
 
   return (
     <div className={`fixed bottom-6 right-6 z-[200] flex items-center gap-2 rounded-2xl px-5 py-3 shadow-xl text-[14px] font-semibold ${colors}`}>
-      {type === 'success' ? '✅' : '❌'} {message}
+      {type === 'success' ? '✅' : type === 'warning' ? '⚠️' : '❌'} {message}
     </div>
   );
 }
@@ -266,7 +268,7 @@ function LogDetailModal({ log, onClose, onRetrySuccess }) {
 }
 
 // ---------- Card de log na lista ----------
-function LogCard({ log, onVerDetalhes, onRetrySuccess }) {
+function LogCard({ log, onVerDetalhes, onRetrySuccess, isSelected, onToggle }) {
   const [retrying, setRetrying] = useState(false);
   const [toast, setToast] = useState(null);
 
@@ -298,6 +300,18 @@ function LogCard({ log, onVerDetalhes, onRetrySuccess }) {
   return (
     <div className="rounded-[28px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        {/* Checkbox de seleção */}
+        <div className="flex shrink-0 items-start pt-0.5">
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={() => onToggle(log.id)}
+            onClick={(e) => e.stopPropagation()}
+            className="h-4 w-4 rounded border-slate-300 accent-violet-600"
+            aria-label="Selecionar log"
+          />
+        </div>
+
         <div className="min-w-0 flex-1">
           {/* Status + source */}
           <div className="flex flex-wrap items-center gap-2">
@@ -372,6 +386,9 @@ export default function LogsPageClient() {
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState(null);
   const [logSelecionado, setLogSelecionado] = useState(null);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [bulkToast, setBulkToast] = useState(null);
 
   // Filtros — inicializar a partir de query params da URL (ex: ?status=failed)
   const [filtroStatus, setFiltroStatus] = useState(() => searchParams.get('status') || '');
@@ -419,6 +436,67 @@ export default function LogsPageClient() {
     setFiltroStatus('');
     setFiltroRecipient('');
     setFiltroSource('');
+  }
+
+  function handleToggle(logId) {
+    setSelectedIds((prev) =>
+      prev.includes(logId) ? prev.filter((id) => id !== logId) : [...prev, logId]
+    );
+  }
+
+  function handleSelectAll() {
+    if (logs.length === 0) return;
+    if (selectedIds.length === logs.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(logs.map((log) => log.id));
+    }
+  }
+
+  async function handleBulkRetry() {
+    if (isProcessing) return;
+
+    try {
+      setIsProcessing(true);
+
+      let successCount = 0;
+      let errorCount = 0;
+
+      for (const id of selectedIds) {
+        const res = await fetch('/api/automation/retry', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ logId: id }),
+        });
+
+        if (!res.ok) {
+          console.error(`Erro no retry do log ${id}: HTTP ${res.status}`);
+          errorCount++;
+        } else {
+          successCount++;
+        }
+      }
+
+      if (errorCount > 0) {
+        setBulkToast({
+          message: `${successCount} reenvio(s) executado(s), ${errorCount} falhou(falharam)`,
+          type: 'warning',
+        });
+      } else {
+        setBulkToast({
+          message: `${successCount} reenvio(s) executado(s) com sucesso`,
+          type: 'success',
+        });
+      }
+
+      setSelectedIds([]);
+      carregarLogs();
+    } catch (error) {
+      console.error('Erro ao processar reenvios em lote:', error);
+      setBulkToast({ message: 'Erro ao processar reenvios em lote', type: 'error' });
+    } finally {
+      setIsProcessing(false);
+    }
   }
 
   const temFiltros = filtroStatus || filtroRecipient || filtroSource;
@@ -567,6 +645,58 @@ export default function LogsPageClient() {
         </section>
       )}
 
+      {/* Bulk action bar — aparece quando há seleção */}
+      {selectedIds.length > 0 && (
+        <section className="rounded-[20px] border border-violet-200 bg-violet-50 p-4 shadow-[0_4px_12px_rgba(109,40,217,0.08)]">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <span className="text-[14px] font-bold text-violet-900">
+                {selectedIds.length} selecionado{selectedIds.length > 1 ? 's' : ''}
+              </span>
+              <button
+                onClick={() => setSelectedIds([])}
+                className="rounded-full border border-violet-300 px-3 py-1 text-[12px] font-bold text-violet-700 transition hover:bg-violet-100"
+              >
+                Limpar seleção
+              </button>
+            </div>
+
+            <button
+              onClick={handleBulkRetry}
+              disabled={isProcessing}
+              className="inline-flex items-center gap-2 rounded-full bg-violet-600 px-5 py-2 text-[13px] font-bold text-white shadow-sm transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isProcessing ? (
+                <>
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  Processando...
+                </>
+              ) : (
+                <>
+                  🔄 Tentar novamente selecionados
+                </>
+              )}
+            </button>
+          </div>
+        </section>
+      )}
+
+      {/* Checkbox "Selecionar todos" */}
+      {!carregando && !erro && logs.length > 0 && (
+        <div className="flex items-center gap-2 px-1">
+          <input
+            type="checkbox"
+            checked={selectedIds.length === logs.length && logs.length > 0}
+            onChange={handleSelectAll}
+            className="h-4 w-4 rounded border-slate-300 accent-violet-600"
+            aria-label="Selecionar todos os logs"
+          />
+          <span className="text-[13px] text-[#64748b]">
+            Selecionar todos ({logs.length})
+          </span>
+        </div>
+      )}
+
       {/* Logs List */}
       {!carregando && !erro && logs.length > 0 && (
         <section className="space-y-4">
@@ -576,6 +706,8 @@ export default function LogsPageClient() {
               log={log}
               onVerDetalhes={setLogSelecionado}
               onRetrySuccess={carregarLogs}
+              isSelected={selectedIds.includes(log.id)}
+              onToggle={handleToggle}
             />
           ))}
         </section>
@@ -590,6 +722,15 @@ export default function LogsPageClient() {
             setLogSelecionado(null);
             carregarLogs();
           }}
+        />
+      )}
+
+      {/* Toast de operação em lote */}
+      {bulkToast && (
+        <Toast
+          message={bulkToast.message}
+          type={bulkToast.type}
+          onClose={() => setBulkToast(null)}
         />
       )}
     </div>

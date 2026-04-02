@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import AdminShell from '../../components/admin/AdminShell';
 import AdminPageHero from '../../components/admin/AdminPageHero';
@@ -51,6 +51,29 @@ export default function ContatosPage() {
   const [desktopTab, setDesktopTab] = useState('lista');
   const [mobileTab, setMobileTab] = useState('lista');
 
+  const desktopFormRef = useRef(null);
+  const mobileFormRef = useRef(null);
+  const desktopFirstInputRef = useRef(null);
+  const mobileFirstInputRef = useRef(null);
+
+  useEffect(() => {
+    if (desktopTab === 'novo' && desktopFormRef.current) {
+      desktopFormRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      requestAnimationFrame(() => {
+        desktopFirstInputRef.current?.focus();
+      });
+    }
+  }, [desktopTab]);
+
+  useEffect(() => {
+    if (mobileTab === 'novo' && mobileFormRef.current) {
+      mobileFormRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      requestAnimationFrame(() => {
+        mobileFirstInputRef.current?.focus();
+      });
+    }
+  }, [mobileTab]);
+
   async function carregarContatos() {
     try {
       setCarregando(true);
@@ -93,7 +116,6 @@ export default function ContatosPage() {
 
     setDesktopTab('novo');
     setMobileTab('novo');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   function cancelarEdicao() {
@@ -232,7 +254,6 @@ export default function ContatosPage() {
                 setForm(getInitialForm());
                 setDesktopTab('novo');
                 setMobileTab('novo');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
               className="rounded-[18px] bg-violet-600 px-5 py-4 text-[14px] font-black text-white shadow-[0_12px_28px_rgba(124,58,237,0.18)]"
             >
@@ -311,15 +332,18 @@ export default function ContatosPage() {
           )}
 
           {desktopTab === 'novo' && (
-            <ContatosFormularioTab
-              editandoId={editandoId}
-              form={form}
-              handleFormChange={handleFormChange}
-              salvarContato={salvarContato}
-              cancelarEdicao={cancelarEdicao}
-              salvando={salvando}
-              uniqueTags={uniqueTags}
-            />
+            <div ref={desktopFormRef}>
+              <ContatosFormularioTab
+                editandoId={editandoId}
+                form={form}
+                handleFormChange={handleFormChange}
+                salvarContato={salvarContato}
+                cancelarEdicao={cancelarEdicao}
+                salvando={salvando}
+                uniqueTags={uniqueTags}
+                firstInputRef={desktopFirstInputRef}
+              />
+            </div>
           )}
         </div>
 
@@ -346,15 +370,18 @@ export default function ContatosPage() {
           )}
 
           {mobileTab === 'novo' && (
-            <ContatosFormularioTab
-              editandoId={editandoId}
-              form={form}
-              handleFormChange={handleFormChange}
-              salvarContato={salvarContato}
-              cancelarEdicao={cancelarEdicao}
-              salvando={salvando}
-              uniqueTags={uniqueTags}
-            />
+            <div ref={mobileFormRef}>
+              <ContatosFormularioTab
+                editandoId={editandoId}
+                form={form}
+                handleFormChange={handleFormChange}
+                salvarContato={salvarContato}
+                cancelarEdicao={cancelarEdicao}
+                salvando={salvando}
+                uniqueTags={uniqueTags}
+                firstInputRef={mobileFirstInputRef}
+              />
+            </div>
           )}
         </div>
       </div>

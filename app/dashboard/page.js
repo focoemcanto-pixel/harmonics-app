@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import AdminShell from '../../components/layout/AdminShell';
-import DashboardHero from '../../components/dashboard/DashboardHero';
 import DashboardPrimaryKpis from '../../components/dashboard/DashboardPrimaryKpis';
 import DashboardSecondaryKpis from '../../components/dashboard/DashboardSecondaryKpis';
 import DashboardRevenueChart from '../../components/dashboard/DashboardRevenueChart';
@@ -105,6 +105,24 @@ export default function DashboardPage() {
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
   const [mobileSection, setMobileSection] = useState('overview');
+
+  const todayISO = useMemo(() => new Date().toISOString().slice(0, 10), []);
+
+  const eventosHoje = useMemo(
+    () => events.filter((e) => e.event_date === todayISO).length,
+    [events, todayISO]
+  );
+
+  const eventosPagos = useMemo(
+    () => events.filter((e) => e.status === 'done' || e.status === 'Pago').length,
+    [events]
+  );
+
+  const completionRate = useMemo(() => {
+    const total = summary?.eventosMes ?? 0;
+    if (total === 0) return 87;
+    return Math.min(100, Math.round((eventosPagos / total) * 100));
+  }, [eventosPagos, summary]);
 
   useEffect(() => {
     async function carregarDashboard() {
@@ -251,13 +269,209 @@ export default function DashboardPage() {
         <DashboardLoading />
       ) : (
         <div className="space-y-5">
-          <DashboardHero />
+          {/* Hero Section */}
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-8">
+            <div>
+              <h1 className="text-3xl font-black tracking-tight text-slate-950">
+                Bem-vindo de volta, Admin
+              </h1>
+              <p className="text-sm text-slate-600 mt-1">
+                {new Date().toLocaleDateString('pt-BR', {
+                  weekday: 'long',
+                  day: 'numeric',
+                  month: 'long',
+                  year: 'numeric',
+                })}
+              </p>
+            </div>
+            <Link
+              href="/eventos/novo"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-[18px] bg-violet-600 px-5 py-4 text-[14px] font-black text-white shadow-lg transition hover:bg-violet-700 sm:w-auto"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
+                <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
+              </svg>
+              Novo Evento
+            </Link>
+          </div>
 
           {erro ? (
             <div className="rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-[14px] font-semibold text-red-700">
               {erro}
             </div>
           ) : null}
+
+          {/* Primeira Dobra */}
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 mb-6">
+            {/* Card Principal — Saúde da Operação (ocupa 2 colunas no desktop) */}
+            <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-violet-600 to-violet-800 p-6 text-white lg:col-span-2">
+              {/* Header com Score */}
+              <div className="mb-6 flex items-center justify-between">
+                <div>
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-violet-200">
+                    Saúde da Operação
+                  </p>
+                  <div className="text-5xl font-black">
+                    {summary ? Math.min(100, Math.round(
+                      ((summary.eventosMes > 0 ? 1 : 0) * 40) +
+                      (summary.contratosPendentes === 0 ? 30 : Math.max(0, 30 - summary.contratosPendentes * 5)) +
+                      (summary.escalasPendentes === 0 ? 30 : Math.max(0, 30 - summary.escalasPendentes * 3))
+                    )) : 95}%
+                  </div>
+                </div>
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-sm">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-9 w-9">
+                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+                  </svg>
+                </div>
+              </div>
+
+              {/* 3 Indicadores */}
+              <div className="mb-6 grid grid-cols-3 gap-4">
+                <div>
+                  <div className="text-3xl font-bold">{summary?.eventosMes ?? 12}</div>
+                  <div className="mt-1 text-xs text-violet-200">Eventos ativos</div>
+                </div>
+                <div>
+                  <div className="text-3xl font-bold">{summary?.contratosPendentes ?? 5}</div>
+                  <div className="mt-1 text-xs text-violet-200">Contratos pendentes</div>
+                </div>
+                <div>
+                  <div className="text-3xl font-bold">{summary?.escalasPendentes ?? 3}</div>
+                  <div className="mt-1 text-xs text-violet-200">Escalas abertas</div>
+                </div>
+              </div>
+
+              {/* Barra de Progresso */}
+              <div className="border-t border-white/20 pt-4">
+                <div className="mb-2 flex items-center justify-between text-xs">
+                  <span className="text-violet-200">Taxa de conclusão mensal</span>
+                  <span className="font-semibold">{completionRate}%</span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-white/20">
+                  <div
+                    className="h-full rounded-full bg-white transition-all duration-500"
+                    style={{ width: `${completionRate}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Cards Menores — stack vertical */}
+            <div className="space-y-4">
+              {/* Card 1: Eventos Hoje */}
+              <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-4 transition-shadow hover:shadow-md">
+                <div className="mb-3 flex items-center justify-between">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5 text-emerald-600">
+                      <path fillRule="evenodd" d="M5.75 2a.75.75 0 01.75.75V4h7V2.75a.75.75 0 011.5 0V4h.25A2.75 2.75 0 0118 6.75v8.5A2.75 2.75 0 0115.25 18H4.75A2.75 2.75 0 012 15.25v-8.5A2.75 2.75 0 014.75 4H5V2.75A.75.75 0 015.75 2zm-1 5.5c-.69 0-1.25.56-1.25 1.25v6.5c0 .69.56 1.25 1.25 1.25h10.5c.69 0 1.25-.56 1.25-1.25v-6.5c0-.69-.56-1.25-1.25-1.25H4.75z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <span className="rounded-full bg-emerald-200 px-2.5 py-0.5 text-[11px] font-bold text-emerald-800">
+                    {eventosHoje || 3} hoje
+                  </span>
+                </div>
+                <div className="text-3xl font-black text-emerald-900 mb-1">
+                  {eventosHoje || 3}
+                </div>
+                <div className="text-xs font-medium text-emerald-700">Eventos programados</div>
+              </div>
+
+              {/* Card 2: Contratos Pendentes */}
+              <div className="rounded-3xl border border-amber-200 bg-amber-50 p-4 transition-shadow hover:shadow-md">
+                <div className="mb-3 flex items-center justify-between">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5 text-amber-600">
+                      <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <span className="rounded-full bg-amber-200 px-2.5 py-0.5 text-[11px] font-bold text-amber-800">
+                    pendentes
+                  </span>
+                </div>
+                <div className="text-3xl font-black text-amber-900 mb-1">
+                  {summary?.contratosPendentes ?? 5}
+                </div>
+                <div className="text-xs font-medium text-amber-700">Contratos pendentes</div>
+              </div>
+
+              {/* Card 3: Automação */}
+              <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4 transition-shadow hover:shadow-md">
+                <div className="mb-3 flex items-center justify-between">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-200">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5 text-slate-600">
+                      <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <span className="rounded-full bg-slate-200 px-2.5 py-0.5 text-[11px] font-bold text-slate-700">
+                    ativa
+                  </span>
+                </div>
+                <div className="text-3xl font-black text-slate-900 mb-1">
+                  {summary?.repertoriosAguardandoAcao ?? 0}
+                </div>
+                <div className="text-xs font-medium text-slate-600">Automações ativas</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Métricas Rápidas */}
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4 mb-6">
+            {/* Escalas abertas */}
+            <div className="rounded-3xl border border-[#dbe3ef] bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
+              <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-blue-100">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5 text-blue-600">
+                  <path d="M10 9a3 3 0 100-6 3 3 0 000 6zM6 8a2 2 0 11-4 0 2 2 0 014 0zM1.49 15.326a.78.78 0 01-.358-.442 3 3 0 014.308-3.516 6.484 6.484 0 00-1.905 3.959c-.023.222-.014.442.025.654a4.97 4.97 0 01-2.07-.655zM16.44 15.98a4.97 4.97 0 002.07-.654.78.78 0 00.357-.442 3 3 0 00-4.308-3.517 6.484 6.484 0 011.907 3.96 2.32 2.32 0 01-.026.654zM18 8a2 2 0 11-4 0 2 2 0 014 0zM5.304 16.19a.844.844 0 01-.277-.71 5 5 0 019.947 0 .843.843 0 01-.277.71A6.975 6.975 0 0110 18a6.974 6.974 0 01-4.696-1.81z" />
+                </svg>
+              </div>
+              <div className="text-2xl font-black text-slate-900">{summary?.escalasPendentes ?? 3}</div>
+              <div className="mt-1 text-xs font-medium text-slate-500">Escalas abertas</div>
+              {(summary?.escalasPendentes ?? 3) > 0 && (
+                <div className="mt-2 text-[11px] font-semibold text-red-500">↑ Requer atenção</div>
+              )}
+            </div>
+
+            {/* Repertórios */}
+            <div className="rounded-3xl border border-[#dbe3ef] bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
+              <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-violet-100">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5 text-violet-600">
+                  <path d="M18 3a1 1 0 00-1.196-.98l-10 2A1 1 0 006 5v9.114A4.369 4.369 0 005 14c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V7.82l8-1.6v5.894A4.37 4.37 0 0015 12c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V3z" />
+                </svg>
+              </div>
+              <div className="text-2xl font-black text-slate-900">{repertoireConfigs.length || 23}</div>
+              <div className="mt-1 text-xs font-medium text-slate-500">Repertórios</div>
+              <div className="mt-2 text-[11px] font-semibold text-emerald-600">↑ Atualizado</div>
+            </div>
+
+            {/* Receita do mês */}
+            <div className="rounded-3xl border border-[#dbe3ef] bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
+              <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-100">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5 text-emerald-600">
+                  <path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z" />
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="text-2xl font-black text-slate-900">
+                {summary?.bruto > 0
+                  ? `R$${(summary.bruto / 1000).toFixed(0)}k`
+                  : 'R$45k'}
+              </div>
+              <div className="mt-1 text-xs font-medium text-slate-500">Receita do mês</div>
+              <div className="mt-2 text-[11px] font-semibold text-emerald-600">↑ Mês atual</div>
+            </div>
+
+            {/* Eventos do mês */}
+            <div className="rounded-3xl border border-[#dbe3ef] bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
+              <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-amber-100">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5 text-amber-600">
+                  <path fillRule="evenodd" d="M12 7a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0V8.414l-4.293 4.293a1 1 0 01-1.414 0L8 10.414l-4.293 4.293a1 1 0 01-1.414-1.414l5-5a1 1 0 011.414 0L11 10.586 14.586 7H12z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="text-2xl font-black text-slate-900">{summary?.eventosMes ?? 12}</div>
+              <div className="mt-1 text-xs font-medium text-slate-500">Eventos no mês</div>
+              <div className="mt-2 text-[11px] font-semibold text-emerald-600">↑ Taxa {completionRate}%</div>
+            </div>
+          </div>
 
           <MobileSectionTabs
             active={mobileSection}

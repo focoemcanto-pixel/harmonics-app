@@ -747,11 +747,26 @@ export default function DashboardPage() {
             {/* Mobile: scroll horizontal */}
             <div className="md:hidden flex overflow-x-auto gap-3 pb-3 pl-4 pr-2 snap-x snap-mandatory scrollbar-hide">
               {quickActions.map((action) => (
-                <QuickActionCard
+                <Link
                   key={action.href}
-                  action={action}
-                  className="flex-shrink-0 w-[180px] snap-start"
-                />
+                  href={action.href}
+                  className={`
+                    flex-shrink-0 w-[180px] snap-start
+                    p-4 rounded-xl border-2
+                    transition-all duration-200
+                    hover:shadow-md
+                    cursor-pointer
+                    flex items-center gap-3
+                    ${quickActionColorClasses[action.color]}
+                  `}
+                >
+                  <div className="flex-shrink-0">
+                    {action.icon}
+                  </div>
+                  <span className="font-semibold text-xs">
+                    {action.label}
+                  </span>
+                </Link>
               ))}
             </div>
           </div>

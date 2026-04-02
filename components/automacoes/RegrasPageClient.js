@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import AdminSummaryCard from '@/components/admin/AdminSummaryCard';
+import AutomationBackLink from '@/components/automacoes/AutomationBackLink';
 
 const EVENT_TYPES = [
   { value: 'invite_member', label: 'Convite ao membro' },
@@ -264,6 +265,11 @@ export default function RegrasPageClient() {
 
   return (
     <div className="space-y-6">
+      {/* Back Link */}
+      <div>
+        <AutomationBackLink />
+      </div>
+
       {/* Hero */}
       <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-6 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
         <div className="text-[12px] font-black uppercase tracking-[0.14em] text-violet-600">

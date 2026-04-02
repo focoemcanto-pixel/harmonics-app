@@ -1,14 +1,22 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '../../../../lib/supabase-admin';
-import { sendWhatsAppMessage } from '../../../../lib/whatsapp/send-whatsapp-message';
-import { buildContractSignedMessage } from '../../../../lib/whatsapp/build-contract-signed-message';
-import { logAutomationDispatch } from '../../../../lib/automation/log-dispatch';
-import { getDefaultWorkspace } from '../../../../lib/automation/get-workspace';
+import { executeAutomationEvent } from '../../../../lib/automation/execute-automation-event';
 
 function cleanPhone(value) {
   return String(value || '').replace(/\D/g, '');
 }
 
+/**
+ * Rota legada de envio de mensagem pós-assinatura de contrato por WhatsApp.
+ *
+ * Migrada para usar o motor novo via executeAutomationEvent (Opção A — wrapper).
+ * A única fonte real de envio e logging é o motor de automação.
+ * Esta rota mantém suas responsabilidades únicas:
+ *   - validação do pré-contrato e contrato
+ *   - verificação de status de assinatura
+ *   - proteção de duplicidade via flag whatsapp_signed_sent (legado)
+ *   - atualização do flag após envio bem-sucedido
+ */
 export async function POST(request) {
   const supabaseAdmin = getSupabaseAdmin();
   let precontractId;
@@ -71,6 +79,7 @@ export async function POST(request) {
       );
     }
 
+    // Proteção de duplicidade legada — flag no banco do contrato
     if (contract.whatsapp_signed_sent) {
       return NextResponse.json({
         ok: true,
@@ -87,11 +96,6 @@ export async function POST(request) {
       );
     }
 
-    const baseUrl = process.env.APP_BASE_URL;
-    if (!baseUrl) {
-      throw new Error('APP_BASE_URL não configurada');
-    }
-
     if (!precontract.public_token) {
       return NextResponse.json(
         { error: 'Pré-contrato sem public_token' },
@@ -99,18 +103,33 @@ export async function POST(request) {
       );
     }
 
-    const clientPanelUrl = `${baseUrl}/cliente/${precontract.public_token}`;
-
-    const message = buildContractSignedMessage({
-      clientName: precontract.client_name,
-      clientPanelUrl,
+    // Delegar envio ao motor novo — única fonte real de execução e logging
+    // Usa precontractId como entityId (resolve-recipient tenta buscar como precontract primeiro)
+    const result = await executeAutomationEvent({
+      eventType: 'contract_signed_client',
+      entityId: precontractId,
     });
 
-    await sendWhatsAppMessage({
-      to: phone,
-      message,
-    });
+    // If the engine didn't find active rules, return a warning (sending was skipped — not an error)
+    if (result.sent === 0 && result.skipped === 0 && result.failed === 0) {
+      return NextResponse.json({
+        ok: true,
+        contractId: contract.id,
+        precontractId: precontract.id,
+        warning: result.message || 'Nenhuma regra ativa encontrada para contract_signed_client',
+      });
+    }
 
+    // Se houve falhas, retornar erro
+    if (result.failed > 0 && result.sent === 0) {
+      const firstError = result.executions.find((e) => e.status === 'failed')?.error;
+      return NextResponse.json(
+        { error: firstError || 'Erro ao enviar mensagem pelo motor de automação' },
+        { status: 500 }
+      );
+    }
+
+    // Atualizar flag de duplicidade legada no contrato
     const { error: updateError } = await supabaseAdmin
       .from('contracts')
       .update({
@@ -120,57 +139,20 @@ export async function POST(request) {
       .eq('id', contract.id);
 
     if (updateError) {
-      throw updateError;
+      console.error('[send-contract-signed] Erro ao atualizar flag de rastreamento:', updateError);
     }
-
-    const workspaceId = await getDefaultWorkspace();
-    await logAutomationDispatch({
-      workspaceId,
-      ruleId: null, // Manual/legacy - sem automation rule
-      templateId: null, // Template hardcoded - será migrado na Fase 3
-      channelId: null, // Canal via env vars - será migrado na Fase 4
-      entityId: contract.id,
-      entityType: 'contract',
-      recipientType: 'client',
-      recipient: phone,
-      renderedMessage: message,
-      metadata: {
-        precontractId: precontractId,
-        clientName: precontract.client_name,
-        publicToken: precontract.public_token,
-      },
-      providerResponse: null,
-      status: 'sent',
-      errorMessage: null,
-      source: 'legacy_contract_signed',
-    });
 
     return NextResponse.json({
       ok: true,
       contractId: contract.id,
       precontractId: precontract.id,
       phone,
+      executions: result.executions,
+      sent: result.sent,
+      skipped: result.skipped,
     });
   } catch (error) {
-    console.error('Erro ao enviar WhatsApp pós-assinatura:', error);
-
-    const workspaceId = await getDefaultWorkspace();
-    await logAutomationDispatch({
-      workspaceId,
-      ruleId: null,
-      templateId: null,
-      channelId: null,
-      entityId: precontractId,
-      entityType: 'contract',
-      recipientType: 'client',
-      recipient: null,
-      renderedMessage: null,
-      metadata: { error: error?.message },
-      providerResponse: null,
-      status: 'failed',
-      errorMessage: error?.message || 'Erro interno',
-      source: 'legacy_contract_signed',
-    });
+    console.error('[send-contract-signed] Erro ao enviar WhatsApp pós-assinatura:', error);
 
     return NextResponse.json(
       { error: error?.message || 'Erro interno ao enviar mensagem pós-assinatura' },

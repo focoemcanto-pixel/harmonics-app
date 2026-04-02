@@ -1,14 +1,21 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '../../../../lib/supabase-admin';
-import { sendWhatsAppMessage } from '../../../../lib/whatsapp/send-whatsapp-message';
-import { buildInviteMessage } from '../../../../lib/whatsapp/build-invite-message';
-import { logAutomationDispatch } from '../../../../lib/automation/log-dispatch';
-import { getDefaultWorkspace } from '../../../../lib/automation/get-workspace';
+import { executeAutomationEvent } from '../../../../lib/automation/execute-automation-event';
 
 function cleanPhone(value) {
   return String(value || '').replace(/\D/g, '');
 }
 
+/**
+ * Rota legada de envio de convite por WhatsApp.
+ *
+ * Migrada para usar o motor novo via executeAutomationEvent (Opção A — wrapper).
+ * A única fonte real de envio e logging é o motor de automação.
+ * Esta rota mantém suas responsabilidades únicas:
+ *   - validação do invite (status, telefone)
+ *   - geração do token de convite se ausente
+ *   - atualização dos campos de rastreamento (whatsapp_sent_at, whatsapp_send_count)
+ */
 export async function POST(request) {
   const supabaseAdmin = getSupabaseAdmin();
   let inviteId;
@@ -32,10 +39,8 @@ export async function POST(request) {
         suggested_role_name,
         status,
         invite_token,
-        whatsapp_sent_at,
         whatsapp_send_count,
-        contact:contacts(id, name, phone, email),
-        event:events(id, client_name, event_date, event_time, location_name)
+        contact:contacts(id, name, phone)
       `)
       .eq('id', inviteId)
       .single();
@@ -62,13 +67,13 @@ export async function POST(request) {
       );
     }
 
-    let inviteToken = invite.invite_token;
-    if (!inviteToken) {
-      inviteToken = crypto.randomUUID();
-
+    // Garantir token de convite antes de chamar o motor (build-automation-context também faz isso,
+    // mas fazemos aqui para garantir disponibilidade imediata no banco)
+    if (!invite.invite_token) {
+      const newToken = crypto.randomUUID();
       const { error: tokenError } = await supabaseAdmin
         .from('invites')
-        .update({ invite_token: inviteToken })
+        .update({ invite_token: newToken })
         .eq('id', invite.id);
 
       if (tokenError) {
@@ -76,25 +81,32 @@ export async function POST(request) {
       }
     }
 
-    const baseUrl = process.env.APP_BASE_URL;
-    if (!baseUrl) {
-      throw new Error('APP_BASE_URL não configurada');
+    // Delegar envio ao motor novo — única fonte real de execução e logging
+    const result = await executeAutomationEvent({
+      eventType: 'invite_member',
+      entityId: invite.id,
+    });
+
+    // If the engine didn't find active rules, return a warning (sending was skipped — not an error)
+    if (result.sent === 0 && result.skipped === 0 && result.failed === 0) {
+      return NextResponse.json({
+        ok: true,
+        inviteId: invite.id,
+        phone,
+        warning: result.message || 'Nenhuma regra ativa encontrada para invite_member',
+      });
     }
 
-    const inviteLink = `${baseUrl}/membro/${inviteToken}`;
+    // Se houve falhas, retornar erro
+    if (result.failed > 0 && result.sent === 0) {
+      const firstError = result.executions.find((e) => e.status === 'failed')?.error;
+      return NextResponse.json(
+        { error: firstError || 'Erro ao enviar convite pelo motor de automação' },
+        { status: 500 }
+      );
+    }
 
-    const message = buildInviteMessage({
-      contactName: invite.contact?.name,
-      event: invite.event,
-      inviteLink,
-      role: invite.suggested_role_name,
-    });
-
-    await sendWhatsAppMessage({
-      to: phone,
-      message,
-    });
-
+    // Atualizar campos de rastreamento do invite
     const { error: updateError } = await supabaseAdmin
       .from('invites')
       .update({
@@ -105,59 +117,19 @@ export async function POST(request) {
       .eq('id', invite.id);
 
     if (updateError) {
-      throw updateError;
+      console.error('[send-invite] Erro ao atualizar campos de rastreamento:', updateError);
     }
-
-    const workspaceId = await getDefaultWorkspace();
-    await logAutomationDispatch({
-      workspaceId,
-      ruleId: null, // Manual/legacy - sem automation rule
-      templateId: null, // Template hardcoded - será migrado na Fase 3
-      channelId: null, // Canal via env vars - será migrado na Fase 4
-      entityId: invite.id,
-      entityType: 'invite',
-      recipientType: 'member',
-      recipient: phone,
-      renderedMessage: message,
-      metadata: {
-        eventId: invite.event_id,
-        contactId: invite.contact_id,
-        contactName: invite.contact?.name,
-        eventName: invite.event?.client_name,
-        eventDate: invite.event?.event_date,
-        role: invite.suggested_role_name,
-      },
-      providerResponse: null, // API response já foi consumida
-      status: 'sent',
-      errorMessage: null,
-      source: 'legacy_send_invite',
-    });
 
     return NextResponse.json({
       ok: true,
       inviteId: invite.id,
       phone,
+      executions: result.executions,
+      sent: result.sent,
+      skipped: result.skipped,
     });
   } catch (error) {
-    console.error('Erro ao enviar convite via WhatsApp:', error);
-
-    const workspaceId = await getDefaultWorkspace();
-    await logAutomationDispatch({
-      workspaceId,
-      ruleId: null,
-      templateId: null,
-      channelId: null,
-      entityId: inviteId,
-      entityType: 'invite',
-      recipientType: 'member',
-      recipient: null,
-      renderedMessage: null,
-      metadata: { error: error?.message },
-      providerResponse: null,
-      status: 'failed',
-      errorMessage: error?.message || 'Erro interno',
-      source: 'legacy_send_invite',
-    });
+    console.error('[send-invite] Erro ao enviar convite via WhatsApp:', error);
 
     return NextResponse.json(
       { error: error?.message || 'Erro interno ao enviar convite' },

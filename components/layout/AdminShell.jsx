@@ -7,7 +7,6 @@ import AdminMobileTopbar from '../admin/AdminMobileTopbar';
 import AdminBottomNav from '../admin/AdminBottomNav';
 
 const MORE_ITEMS = [
-  { label: 'Financeiro', href: '/financeiro', icon: '💸', helper: 'Pagamentos e caixa' },
   { label: 'Escalas', href: '/escalas', icon: '🎼', helper: 'Operação musical' },
   { label: 'Convites', href: '/convites', icon: '✉️', helper: 'Chamadas e respostas' },
   { label: 'Contratos', href: '/contratos', icon: '📝', helper: 'Fluxo contratual' },
@@ -59,13 +58,13 @@ function MobileMoreSheet({ open, onClose, onNavigate }) {
             </button>
           </div>
 
-          <div className="mt-5 grid grid-cols-2 gap-3">
+          <div className="mt-5 flex gap-3 overflow-x-auto pb-3 snap-x snap-mandatory scrollbar-hide">
             {MORE_ITEMS.map((item) => (
               <button
                 key={item.href}
                 type="button"
                 onClick={() => onNavigate?.(item.href)}
-                className="rounded-[22px] border border-[#e5e7eb] bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] px-4 py-4 text-left shadow-[0_10px_24px_rgba(17,24,39,0.04)]"
+                className="flex-shrink-0 w-[160px] snap-start rounded-[22px] border border-[#e5e7eb] bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] px-4 py-4 text-left shadow-[0_10px_24px_rgba(17,24,39,0.04)]"
               >
                 <div className="text-[20px]">{item.icon}</div>
                 <div className="mt-3 text-[14px] font-black tracking-[-0.02em] text-[#111827]">

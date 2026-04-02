@@ -267,6 +267,50 @@ function LogDetailModal({ log, onClose, onRetrySuccess }) {
   );
 }
 
+// ---------- Classificação de severidade de falhas ----------
+function getFailureSeverity(log) {
+  const msg = (log.error_message || '').toLowerCase();
+
+  if (msg.includes('channel') || msg.includes('whatsapp')) {
+    return 'high';
+  }
+
+  if (msg.includes('template')) {
+    return 'medium';
+  }
+
+  if (msg.includes('duplicate')) {
+    return 'low';
+  }
+
+  return 'medium';
+}
+
+function SeverityDot({ severity }) {
+  if (severity === 'high') {
+    return (
+      <span
+        className="inline-block h-2.5 w-2.5 shrink-0 rounded-full bg-red-500"
+        title="Alta severidade"
+      />
+    );
+  }
+  if (severity === 'medium') {
+    return (
+      <span
+        className="inline-block h-2.5 w-2.5 shrink-0 rounded-full bg-amber-400"
+        title="Média severidade"
+      />
+    );
+  }
+  return (
+    <span
+      className="inline-block h-2.5 w-2.5 shrink-0 rounded-full bg-slate-400"
+      title="Baixa severidade"
+    />
+  );
+}
+
 // ---------- Card de log na lista ----------
 function LogCard({ log, onVerDetalhes, onRetrySuccess, isSelected, onToggle }) {
   const [retrying, setRetrying] = useState(false);
@@ -297,6 +341,8 @@ function LogCard({ log, onVerDetalhes, onRetrySuccess, isSelected, onToggle }) {
       ? log.rendered_message.substring(0, MESSAGE_PREVIEW_LENGTH) + '...'
       : log.rendered_message || '';
 
+  const severity = log.status === 'failed' ? getFailureSeverity(log) : null;
+
   return (
     <div className="rounded-[28px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -315,6 +361,7 @@ function LogCard({ log, onVerDetalhes, onRetrySuccess, isSelected, onToggle }) {
         <div className="min-w-0 flex-1">
           {/* Status + source */}
           <div className="flex flex-wrap items-center gap-2">
+            {severity && <SeverityDot severity={severity} />}
             <StatusBadge status={log.status} />
             {log.source && (
               <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-bold text-slate-600">
@@ -700,16 +747,26 @@ export default function LogsPageClient() {
       {/* Logs List */}
       {!carregando && !erro && logs.length > 0 && (
         <section className="space-y-4">
-          {logs.map((log) => (
-            <LogCard
-              key={log.id}
-              log={log}
-              onVerDetalhes={setLogSelecionado}
-              onRetrySuccess={carregarLogs}
-              isSelected={selectedIds.includes(log.id)}
-              onToggle={handleToggle}
-            />
-          ))}
+          {(() => {
+            const severityOrder = { high: 3, medium: 2, low: 1 };
+            const logsWithSeverity = logs.map((log) => ({
+              log,
+              severityRank: log.status === 'failed'
+                ? (severityOrder[getFailureSeverity(log)] ?? 0)
+                : 0,
+            }));
+            logsWithSeverity.sort((a, b) => b.severityRank - a.severityRank);
+            return logsWithSeverity.map(({ log }) => (
+              <LogCard
+                key={log.id}
+                log={log}
+                onVerDetalhes={setLogSelecionado}
+                onRetrySuccess={carregarLogs}
+                isSelected={selectedIds.includes(log.id)}
+                onToggle={handleToggle}
+              />
+            ));
+          })()}
         </section>
       )}
 

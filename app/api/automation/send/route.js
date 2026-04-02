@@ -1,7 +1,14 @@
 import { NextResponse } from 'next/server';
 import { executeAutomationEvent } from '@/lib/automation/execute-automation-event';
 
-const SUPPORTED_EVENT_TYPES = ['invite_member', 'contract_signed_client'];
+const SUPPORTED_EVENT_TYPES = [
+  'invite_member',
+  'contract_signed_client',
+  'repertoire_pending_15_days_client',
+  'payment_pending_2_days_client',
+  'post_event_review_request_client',
+  'schedule_pending_15_days_admin',
+];
 
 export async function POST(request) {
   try {

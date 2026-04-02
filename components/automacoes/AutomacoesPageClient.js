@@ -113,15 +113,81 @@ function AlertItem({ alert }) {
   );
 }
 
-function FailureRow({ log }) {
+function RefreshIcon() {
   return (
-    <div className="grid grid-cols-1 gap-1 rounded-[14px] border border-[#fecaca] bg-red-50 px-4 py-3 sm:grid-cols-[1fr_1.5fr_1fr_1.5fr]">
-      <div className="text-[12px] text-[#94a3b8]">{formatarData(log.created_at)}</div>
-      <div className="truncate text-[13px] font-semibold text-[#0f172a]">
-        {log.rule_name || log.source || '—'}
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="w-4 h-4"
+      aria-hidden="true"
+    >
+      <polyline points="23 4 23 10 17 10" />
+      <polyline points="1 20 1 14 7 14" />
+      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+    </svg>
+  );
+}
+
+function Toast({ message, type, onClose }) {
+  useEffect(() => {
+    const t = setTimeout(onClose, 3500);
+    return () => clearTimeout(t);
+  }, [onClose]);
+
+  const colors =
+    type === 'success'
+      ? 'bg-emerald-600 text-white'
+      : 'bg-red-600 text-white';
+
+  return (
+    <div className={`fixed bottom-6 right-6 z-[200] flex items-center gap-2 rounded-2xl px-5 py-3 shadow-xl text-[14px] font-semibold ${colors}`}>
+      {type === 'success' ? '✅' : '❌'} {message}
+    </div>
+  );
+}
+
+function FailureItem({ log, onRetry, loadingId }) {
+  const isLoading = loadingId === log.id;
+  return (
+    <div className="flex flex-col gap-3 rounded-[14px] border border-[#fecaca] bg-red-50 px-4 py-3 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex-1">
+        <div className="flex flex-wrap items-center gap-2 mb-1">
+          <span className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-red-700">
+            Falha
+          </span>
+          <span className="text-[13px] font-semibold text-[#0f172a]">
+            {formatarTelefone(log.recipient_number)}
+          </span>
+        </div>
+        <div className="text-[12px] text-[#64748b]">
+          {log.rule_name || log.source || '—'} • {formatarData(log.created_at)}
+        </div>
+        {log.error_message && (
+          <div className="mt-1 text-[12px] text-red-700">{log.error_message}</div>
+        )}
       </div>
-      <div className="text-[13px] text-[#475569]">{formatarTelefone(log.recipient_number)}</div>
-      <div className="truncate text-[12px] text-red-700">{log.error_message || '—'}</div>
+      <button
+        onClick={() => onRetry(log.id)}
+        disabled={isLoading}
+        className="shrink-0 self-start inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 px-3 py-1.5 text-[12px] font-bold text-amber-700 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {isLoading ? (
+          <>
+            <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-amber-400 border-t-transparent" />
+            Processando...
+          </>
+        ) : (
+          <>
+            <RefreshIcon />
+            Tentar novamente
+          </>
+        )}
+      </button>
     </div>
   );
 }
@@ -248,9 +314,11 @@ function EmptyStateFalhas() {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function AutomacoesPageClient() {
-  const [data, setData]       = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError]     = useState(null);
+  const [data, setData]           = useState(null);
+  const [loading, setLoading]     = useState(true);
+  const [error, setError]         = useState(null);
+  const [loadingId, setLoadingId] = useState(null);
+  const [toast, setToast]         = useState(null);
 
   const fetchDashboard = useCallback(async () => {
     setLoading(true);
@@ -268,6 +336,26 @@ export default function AutomacoesPageClient() {
   }, []);
 
   useEffect(() => { fetchDashboard(); }, [fetchDashboard]);
+
+  async function handleRetry(logId) {
+    if (loadingId) return;
+    try {
+      setLoadingId(logId);
+      const res = await fetch('/api/automation/retry', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ logId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Erro ao tentar novamente');
+      setToast({ message: 'Reenvio realizado com sucesso', type: 'success' });
+      fetchDashboard();
+    } catch (err) {
+      setToast({ message: err.message, type: 'error' });
+    } finally {
+      setLoadingId(null);
+    }
+  }
 
   const summary  = data?.summary  ?? {};
   const alerts   = data?.alerts   ?? [];
@@ -400,13 +488,13 @@ export default function AutomacoesPageClient() {
             <EmptyStateFalhas />
           ) : (
             <div className="space-y-2">
-              <div className="hidden sm:grid grid-cols-[1fr_1.5fr_1fr_1.5fr] gap-1 px-4 pb-1">
-                {['Data/hora', 'Regra / origem', 'Destinatário', 'Erro'].map((h) => (
-                  <div key={h} className="text-[11px] font-bold uppercase tracking-wide text-[#94a3b8]">{h}</div>
-                ))}
-              </div>
               {failures.map((log) => (
-                <FailureRow key={log.id} log={log} />
+                <FailureItem
+                  key={log.id}
+                  log={log}
+                  onRetry={handleRetry}
+                  loadingId={loadingId}
+                />
               ))}
             </div>
           )}
@@ -441,6 +529,14 @@ export default function AutomacoesPageClient() {
           />
         </div>
       </section>
+
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
     </div>
   );
 }

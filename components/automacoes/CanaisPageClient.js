@@ -62,6 +62,10 @@ export default function CanaisPageClient() {
   const [modalAberto, setModalAberto] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [form, setForm] = useState(FORM_INICIAL);
+  const [canalParaTestar, setCanalParaTestar] = useState(null);
+  const [telefoneTest, setTelefoneTest] = useState('');
+  const [enviandoTeste, setEnviandoTeste] = useState(false);
+  const [toastTest, setToastTest] = useState(null);
 
   const carregarCanais = useCallback(async () => {
     try {
@@ -359,6 +363,16 @@ export default function CanaisPageClient() {
 
                 {/* Actions */}
                 <div className="flex shrink-0 flex-wrap items-center gap-2">
+                  <button
+                    onClick={() => {
+                      setCanalParaTestar(canal);
+                      setTelefoneTest('');
+                      setToastTest(null);
+                    }}
+                    className="rounded-full border border-sky-200 bg-sky-50 px-4 py-1.5 text-[13px] font-bold text-sky-700 transition hover:bg-sky-100"
+                  >
+                    Testar
+                  </button>
                   {!canal.is_default && (
                     <button
                       onClick={() => definirPadrao(canal.id)}
@@ -566,6 +580,104 @@ export default function CanaisPageClient() {
                 className="rounded-full bg-violet-600 px-5 py-2.5 text-[14px] font-bold text-white shadow-sm transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {salvando ? 'Salvando...' : 'Salvar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de teste de canal */}
+      {canalParaTestar && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            onClick={() => setCanalParaTestar(null)}
+          />
+          <div className="relative z-10 w-full max-w-md overflow-y-auto rounded-t-[28px] bg-white p-6 shadow-2xl sm:rounded-[28px] sm:m-4">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-[20px] font-black tracking-[-0.02em] text-[#0f172a]">
+                  Testar canal
+                </h2>
+                <p className="mt-0.5 text-[13px] text-[#64748b]">
+                  <span className="font-bold">{canalParaTestar.name}</span> — envio de teste real
+                </p>
+              </div>
+              <button
+                onClick={() => setCanalParaTestar(null)}
+                className="rounded-full p-1.5 text-[#94a3b8] hover:bg-[#f1f5f9] hover:text-[#475569]"
+                aria-label="Fechar"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
+                  <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="mt-5 space-y-4">
+              <div>
+                <label className="block text-[13px] font-bold text-[#0f172a]">
+                  Número destino <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="tel"
+                  value={telefoneTest}
+                  onChange={(e) => setTelefoneTest(e.target.value)}
+                  placeholder="Ex: 5511999999999"
+                  className="mt-1.5 w-full rounded-xl border border-[#e2e8f0] px-4 py-2.5 text-[14px] text-[#0f172a] placeholder-[#94a3b8] focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-100"
+                />
+                <p className="mt-1 text-[12px] text-[#94a3b8]">
+                  Formato internacional: código do país + DDD + número
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-[12px] text-sky-700">
+                <span className="font-bold">⚡ Atenção:</span> isso irá enviar uma mensagem real via o canal selecionado.
+              </div>
+
+              {toastTest && (
+                <div
+                  className={`rounded-xl px-4 py-3 text-[13px] font-semibold ${
+                    toastTest.type === 'success'
+                      ? 'border border-emerald-200 bg-emerald-50 text-emerald-700'
+                      : 'border border-red-200 bg-red-50 text-red-700'
+                  }`}
+                >
+                  {toastTest.type === 'success' ? '✅' : '❌'} {toastTest.message}
+                </div>
+              )}
+            </div>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                onClick={() => setCanalParaTestar(null)}
+                className="rounded-full border border-[#e2e8f0] px-5 py-2.5 text-[14px] font-bold text-[#475569] transition hover:bg-[#f8fafc]"
+              >
+                Cancelar
+              </button>
+              <button
+                disabled={enviandoTeste || !telefoneTest.trim()}
+                onClick={async () => {
+                  setEnviandoTeste(true);
+                  setToastTest(null);
+                  try {
+                    const res = await fetch('/api/automation/test-channel', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ channelId: canalParaTestar.id, phone: telefoneTest.trim() }),
+                    });
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.error || 'Erro ao enviar teste');
+                    setToastTest({ message: 'Mensagem de teste enviada com sucesso!', type: 'success' });
+                  } catch (err) {
+                    setToastTest({ message: err.message, type: 'error' });
+                  } finally {
+                    setEnviandoTeste(false);
+                  }
+                }}
+                className="rounded-full bg-sky-600 px-5 py-2.5 text-[14px] font-bold text-white shadow-sm transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {enviandoTeste ? 'Enviando...' : 'Enviar teste'}
               </button>
             </div>
           </div>

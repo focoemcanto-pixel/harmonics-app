@@ -33,6 +33,35 @@ const FORM_INICIAL = {
   is_active: true,
 };
 
+const MOCK_VARS = {
+  '{cliente_nome}': 'Ana',
+  '{evento_nome}': 'Casamento Ana & Lucas',
+  '{evento_data}': '20/09/2026',
+  '{evento_horario}': '19h',
+  '{evento_local}': 'Espaço Villa Verde',
+  '{dias_para_evento}': '15',
+  '{nome_empresa}': 'Harmonics',
+  '{link_painel_cliente}': 'https://harmonics.app/painel/demo',
+  '{link_contrato}': 'https://harmonics.app/contrato/demo',
+  '{link_repertorio}': 'https://harmonics.app/repertorio/demo',
+  '{saldo_pendente}': 'R$ 1.500,00',
+  '{data_vencimento}': '15/09/2026',
+  '{link_pagamento}': 'https://harmonics.app/pagamento/demo',
+  '{confirmados}': '8',
+  '{pendentes}': '2',
+  '{link_escala}': 'https://harmonics.app/escala/demo',
+  '{link_review}': 'https://harmonics.app/review/demo',
+};
+
+function renderTemplatePreview(body, vars) {
+  if (!body) return '';
+  let result = body;
+  for (const [key, value] of Object.entries(vars)) {
+    result = result.split(key).join(value);
+  }
+  return result;
+}
+
 function formatarData(isoString) {
   if (!isoString) return '-';
   const date = new Date(isoString);
@@ -88,6 +117,9 @@ export default function TemplatesPageClient() {
   const [form, setForm] = useState(FORM_INICIAL);
   const [varCopiada, setVarCopiada] = useState(null);
   const copiarTimeoutRef = useRef(null);
+  const [templateParaTestar, setTemplateParaTestar] = useState(null);
+  const [previewVars, setPreviewVars] = useState(MOCK_VARS);
+  const [previewRendered, setPreviewRendered] = useState('');
 
   const carregarTemplates = useCallback(async () => {
     try {
@@ -346,6 +378,16 @@ export default function TemplatesPageClient() {
                   {/* Actions */}
                   <div className="flex shrink-0 items-center gap-2">
                     <button
+                      onClick={() => {
+                        setTemplateParaTestar(template);
+                        setPreviewVars(MOCK_VARS);
+                        setPreviewRendered(renderTemplatePreview(template.body, MOCK_VARS));
+                      }}
+                      className="rounded-full border border-violet-200 bg-violet-50 px-4 py-1.5 text-[13px] font-bold text-violet-700 transition hover:bg-violet-100"
+                    >
+                      Testar
+                    </button>
+                    <button
                       onClick={() => abrirModalEditar(template)}
                       className="rounded-full border border-[#e2e8f0] px-4 py-1.5 text-[13px] font-bold text-[#475569] transition hover:bg-[#f8fafc]"
                     >
@@ -550,6 +592,100 @@ export default function TemplatesPageClient() {
                 className="rounded-full bg-violet-600 px-5 py-2.5 text-[14px] font-bold text-white shadow-sm transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {salvando ? 'Salvando...' : 'Salvar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de preview / teste de template */}
+      {templateParaTestar && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            onClick={() => setTemplateParaTestar(null)}
+          />
+          <div className="relative z-10 w-full max-w-3xl overflow-y-auto rounded-t-[28px] bg-white p-6 shadow-2xl sm:rounded-[28px] sm:m-4 max-h-[92vh]">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-[20px] font-black tracking-[-0.02em] text-[#0f172a]">
+                  Testar template
+                </h2>
+                <p className="mt-0.5 text-[13px] text-[#64748b]">
+                  <span className="font-bold">{templateParaTestar.name}</span> — preencha as variáveis e veja o preview
+                </p>
+              </div>
+              <button
+                onClick={() => setTemplateParaTestar(null)}
+                className="rounded-full p-1.5 text-[#94a3b8] hover:bg-[#f1f5f9] hover:text-[#475569]"
+                aria-label="Fechar"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
+                  <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-2">
+              {/* Painel de variáveis */}
+              <div>
+                <label className="mb-2 block text-[13px] font-bold text-[#0f172a]">
+                  Variáveis mock (editáveis)
+                </label>
+                <div className="space-y-2 overflow-y-auto max-h-72 pr-1">
+                  {Object.entries(previewVars).map(([key, value]) => (
+                    <div key={key} className="flex items-center gap-2">
+                      <span className="w-40 shrink-0 rounded bg-[#f1f5f9] px-2 py-1 font-mono text-[11px] font-bold text-[#475569]">
+                        {key}
+                      </span>
+                      <input
+                        type="text"
+                        value={value}
+                        onChange={(e) => {
+                          const newVars = { ...previewVars, [key]: e.target.value };
+                          setPreviewVars(newVars);
+                          setPreviewRendered(renderTemplatePreview(templateParaTestar.body, newVars));
+                        }}
+                        className="flex-1 rounded-lg border border-[#e2e8f0] px-2.5 py-1.5 text-[12px] text-[#0f172a] focus:border-violet-400 focus:outline-none focus:ring-1 focus:ring-violet-100"
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  onClick={() => setPreviewRendered(renderTemplatePreview(templateParaTestar.body, previewVars))}
+                  className="mt-4 w-full rounded-xl bg-violet-600 py-2.5 text-[14px] font-bold text-white shadow-sm transition hover:bg-violet-700"
+                >
+                  Renderizar preview
+                </button>
+              </div>
+
+              {/* Preview final */}
+              <div>
+                <label className="mb-2 block text-[13px] font-bold text-[#0f172a]">
+                  Preview final da mensagem
+                </label>
+                <div className="min-h-[180px] rounded-xl border border-[#e2e8f0] bg-[#f8fafc] px-4 py-3 text-[13px] leading-relaxed text-[#475569] whitespace-pre-wrap">
+                  {previewRendered || (
+                    <span className="text-[#94a3b8] italic">
+                      Clique em &quot;Renderizar preview&quot; para ver o resultado
+                    </span>
+                  )}
+                </div>
+                {previewRendered && (
+                  <p className="mt-1.5 text-right text-[11px] text-[#94a3b8]">
+                    {previewRendered.length} caracteres
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end">
+              <button
+                onClick={() => setTemplateParaTestar(null)}
+                className="rounded-full border border-[#e2e8f0] px-5 py-2.5 text-[14px] font-bold text-[#475569] transition hover:bg-[#f8fafc]"
+              >
+                Fechar
               </button>
             </div>
           </div>

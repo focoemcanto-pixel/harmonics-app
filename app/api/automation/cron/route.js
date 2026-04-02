@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { getDefaultWorkspace } from '@/lib/automation/get-workspace';
 import { getActiveRules } from '@/lib/automation/get-active-rules';
 import { getScheduledCandidates } from '@/lib/automation/get-scheduled-candidates';
@@ -37,6 +38,8 @@ const SCHEDULED_EVENT_TYPES = [
  *   crons = ["0 13 * * *"]  # diariamente às 10h horário de Brasília (UTC-3)
  */
 export async function GET(request) {
+  const supabase = getSupabaseAdmin();
+
   // Verificar secret se configurado
   const cronSecret = process.env.CRON_SECRET;
   if (cronSecret) {
@@ -139,6 +142,15 @@ export async function GET(request) {
       totalFailed,
       rules: rulesSummary,
     };
+
+    // Registrar última execução do cron
+    const now = new Date().toISOString();
+    await supabase
+      .from('automation_meta')
+      .upsert(
+        { key: 'last_cron_run', value: now, updated_at: now },
+        { onConflict: 'key' }
+      );
 
     console.log('[CRON] Concluído:', JSON.stringify({ ...summary, rules: undefined }));
     return NextResponse.json(summary);

@@ -52,6 +52,14 @@ function getContextualCTA(healthStatus) {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
+function formatLastRun(date, diffSeconds) {
+  if (!date || diffSeconds === null) return 'Nunca executado';
+  if (diffSeconds < 60) return 'agora há pouco';
+  if (diffSeconds < 3600) return `${Math.floor(diffSeconds / 60)} min atrás`;
+  if (diffSeconds < 86400) return `${Math.floor(diffSeconds / 3600)}h atrás`;
+  return new Date(date).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+}
+
 function formatarData(isoString) {
   if (!isoString) return '-';
   return new Date(isoString).toLocaleString('pt-BR', {
@@ -192,6 +200,34 @@ function FailureItem({ log, onRetry, loadingId }) {
   );
 }
 
+function CronStatusIndicator({ lastCronRun, diffSeconds }) {
+  if (!lastCronRun || diffSeconds === null) {
+    return (
+      <div className="flex items-center gap-2 text-[13px] text-[#64748b]" aria-label="Cron: nunca executado">
+        <div className="h-2 w-2 rounded-full bg-slate-400" aria-hidden="true" />
+        <span>Cron: Nunca executado</span>
+      </div>
+    );
+  }
+
+  const isStale = diffSeconds > 3600;
+
+  return (
+    <div
+      className={`flex flex-wrap items-center gap-2 text-[13px] ${isStale ? 'text-amber-700' : 'text-emerald-700'}`}
+      aria-label={isStale ? 'Cron com atraso: última execução há mais de 1 hora' : 'Cron ativo'}
+    >
+      <div className={`h-2 w-2 rounded-full animate-pulse ${isStale ? 'bg-amber-500' : 'bg-emerald-500'}`} aria-hidden="true" />
+      <span>{isStale ? '⚠️ ' : ''}Última execução: {formatLastRun(lastCronRun, diffSeconds)}</span>
+      {isStale && (
+        <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-bold text-amber-700">
+          Cron pode não estar rodando
+        </span>
+      )}
+    </div>
+  );
+}
+
 function QuickActionCard({ title, desc, href }) {
   return (
     <a
@@ -327,6 +363,10 @@ export default function AutomacoesPageClient() {
       const res = await fetch('/api/automation/dashboard');
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Erro ao carregar dashboard');
+      // Compute cron diff at fetch time so it is not computed during render
+      if (json.last_cron_run) {
+        json.last_cron_diff = (Date.now() - new Date(json.last_cron_run).getTime()) / 1000;
+      }
       setData(json);
     } catch (err) {
       setError(err.message);
@@ -360,6 +400,8 @@ export default function AutomacoesPageClient() {
   const summary  = data?.summary  ?? {};
   const alerts   = data?.alerts   ?? [];
   const failures = data?.recent_failures ?? [];
+  const lastCronRun  = data?.last_cron_run  ?? null;
+  const lastCronDiff = data?.last_cron_diff ?? null;
 
   const health = !loading && data
     ? getHealthStatus(alerts, summary.failed_today ?? 0)
@@ -381,13 +423,16 @@ export default function AutomacoesPageClient() {
               Acompanhe a saúde das automações, identifique falhas e gerencie rapidamente templates, canais, regras e logs.
             </p>
           </div>
-          <button
-            onClick={fetchDashboard}
-            disabled={loading}
-            className="shrink-0 self-start rounded-[14px] border border-[#dbe3ef] bg-white px-4 py-2 text-[13px] font-semibold text-[#475569] shadow-sm transition hover:bg-[#f8fafc] disabled:opacity-50"
-          >
-            {loading ? 'Atualizando…' : '↻ Atualizar'}
-          </button>
+          <div className="flex shrink-0 flex-col items-end gap-3">
+            <button
+              onClick={fetchDashboard}
+              disabled={loading}
+              className="rounded-[14px] border border-[#dbe3ef] bg-white px-4 py-2 text-[13px] font-semibold text-[#475569] shadow-sm transition hover:bg-[#f8fafc] disabled:opacity-50"
+            >
+              {loading ? 'Atualizando…' : '↻ Atualizar'}
+            </button>
+            {!loading && <CronStatusIndicator lastCronRun={lastCronRun} diffSeconds={lastCronDiff} />}
+          </div>
         </div>
       </section>
 

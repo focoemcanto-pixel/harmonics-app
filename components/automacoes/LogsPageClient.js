@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import AdminSummaryCard from '@/components/admin/AdminSummaryCard';
 import AutomationBackLink from '@/components/automacoes/AutomationBackLink';
 
 const MESSAGE_PREVIEW_LENGTH = 120;
+const SEVERITY_ORDER = { high: 3, medium: 2, low: 1 };
 
 function formatarData(isoString) {
   if (!isoString) return '-';
@@ -267,10 +268,72 @@ function LogDetailModal({ log, onClose, onRetrySuccess }) {
   );
 }
 
+// ---------- Classificação de severidade de falha ----------
+function getFailureSeverity(log) {
+  if (log.status !== 'failed') return null;
+
+  const msg = (log.error_message || '').toLowerCase();
+
+  if (
+    msg.includes('channel') ||
+    msg.includes('whatsapp') ||
+    msg.includes('api') ||
+    msg.includes('connection') ||
+    msg.includes('network') ||
+    msg.includes('provider')
+  ) {
+    return 'high';
+  }
+
+  if (
+    msg.includes('template') ||
+    msg.includes('invalid') ||
+    msg.includes('timeout') ||
+    msg.includes('parse') ||
+    msg.includes('format')
+  ) {
+    return 'medium';
+  }
+
+  if (
+    msg.includes('duplicate') ||
+    msg.includes('skip') ||
+    msg.includes('already')
+  ) {
+    return 'low';
+  }
+
+  return 'medium';
+}
+
+function SeverityBadge({ severity }) {
+  if (!severity) return null;
+  if (severity === 'high') {
+    return (
+      <span className="rounded-full bg-red-100 px-2.5 py-0.5 text-[11px] font-bold text-red-700">
+        🔴 Crítico
+      </span>
+    );
+  }
+  if (severity === 'medium') {
+    return (
+      <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-bold text-amber-700">
+        🟡 Médio
+      </span>
+    );
+  }
+  return (
+    <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-bold text-slate-600">
+      ⚪ Baixo
+    </span>
+  );
+}
+
 // ---------- Card de log na lista ----------
 function LogCard({ log, onVerDetalhes, onRetrySuccess, isSelected, onToggle }) {
   const [retrying, setRetrying] = useState(false);
   const [toast, setToast] = useState(null);
+  const severity = log.status === 'failed' ? getFailureSeverity(log) : null;
 
   async function handleRetry(e) {
     e.stopPropagation();
@@ -313,9 +376,10 @@ function LogCard({ log, onVerDetalhes, onRetrySuccess, isSelected, onToggle }) {
         </div>
 
         <div className="min-w-0 flex-1">
-          {/* Status + source */}
+          {/* Status + severity + source */}
           <div className="flex flex-wrap items-center gap-2">
             <StatusBadge status={log.status} />
+            {severity && <SeverityBadge severity={severity} />}
             {log.source && (
               <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-bold text-slate-600">
                 {log.source}
@@ -340,7 +404,13 @@ function LogCard({ log, onVerDetalhes, onRetrySuccess, isSelected, onToggle }) {
 
           {/* Erro */}
           {log.error_message && (
-            <div className="mt-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-[12px] text-red-700">
+            <div className={`mt-2 rounded-xl border px-3 py-2 text-[12px] ${
+              severity === 'high'
+                ? 'border-red-300 bg-red-50 text-red-700'
+                : severity === 'medium'
+                ? 'border-amber-200 bg-amber-50 text-amber-700'
+                : 'border-slate-200 bg-slate-50 text-slate-600'
+            }`}>
               <span className="font-bold">Erro:</span> {log.error_message}
             </div>
           )}
@@ -389,6 +459,7 @@ export default function LogsPageClient() {
   const [selectedIds, setSelectedIds] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [bulkToast, setBulkToast] = useState(null);
+  const [sortByPriority, setSortByPriority] = useState(false);
 
   // Filtros — inicializar a partir de query params da URL (ex: ?status=failed)
   const [filtroStatus, setFiltroStatus] = useState(() => searchParams.get('status') || '');
@@ -512,6 +583,18 @@ export default function LogsPageClient() {
   );
   const { total, enviados, falhas } = stats;
 
+  const displayLogs = useMemo(() => {
+    if (!sortByPriority) return logs;
+    return [...logs].sort((a, b) => {
+      const severityA = a.status === 'failed' ? getFailureSeverity(a) : null;
+      const severityB = b.status === 'failed' ? getFailureSeverity(b) : null;
+      if (severityA && !severityB) return -1;
+      if (!severityA && severityB) return 1;
+      if (!severityA && !severityB) return 0;
+      return (SEVERITY_ORDER[severityB] || 0) - (SEVERITY_ORDER[severityA] || 0);
+    });
+  }, [logs, sortByPriority]);
+
   return (
     <div className="space-y-6">
       {/* Back Link */}
@@ -583,6 +666,17 @@ export default function LogsPageClient() {
               <option value="legacy_contract_signed">legacy_contract_signed</option>
             </select>
           </div>
+
+          {/* Priorizar falhas críticas */}
+          <label className="flex cursor-pointer items-center gap-2 self-end pb-2 text-[13px]">
+            <input
+              type="checkbox"
+              checked={sortByPriority}
+              onChange={(e) => setSortByPriority(e.target.checked)}
+              className="h-4 w-4 rounded border-slate-300 accent-violet-600"
+            />
+            <span className="font-semibold text-[#475569]">Priorizar falhas críticas</span>
+          </label>
 
           {/* Limpar filtros */}
           {temFiltros && (
@@ -698,9 +792,9 @@ export default function LogsPageClient() {
       )}
 
       {/* Logs List */}
-      {!carregando && !erro && logs.length > 0 && (
+      {!carregando && !erro && displayLogs.length > 0 && (
         <section className="space-y-4">
-          {logs.map((log) => (
+          {displayLogs.map((log) => (
             <LogCard
               key={log.id}
               log={log}

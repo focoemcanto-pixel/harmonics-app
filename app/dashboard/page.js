@@ -364,8 +364,8 @@ const quickActions = [
     ),
   },
   {
-    label: 'Novo Contrato',
-    href: '/contratos/novo',
+    label: 'Novo Pré-contrato',
+    href: '/pre-contratos',
     color: 'blue',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6" aria-hidden="true">
@@ -378,7 +378,7 @@ const quickActions = [
     ),
   },
   {
-    label: 'Nova Escala',
+    label: 'Escalas',
     href: '/escalas',
     color: 'emerald',
     icon: (

@@ -1,4 +1,4 @@
-import { createServerClient } from '@supabase/auth-helpers-nextjs';
+import { createServerClient } from '@supabase/ssr';
 import { NextResponse } from 'next/server';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -14,9 +14,6 @@ export async function middleware(req) {
     SUPABASE_URL,
     SUPABASE_ANON_KEY,
     {
-      auth: {
-        persistSession: false,
-      },
       cookies: {
         get(name) {
           return req.cookies.get(name)?.value;
@@ -48,6 +45,7 @@ export async function middleware(req) {
     '/automacoes',
     '/pagamentos',
     '/admin',
+    '/membro',
   ];
 
   const isProtectedPath = protectedPaths.some(path =>
@@ -72,5 +70,6 @@ export const config = {
     '/automacoes/:path*',
     '/pagamentos/:path*',
     '/admin/:path*',
+    '/membro/:path*',
   ],
 };

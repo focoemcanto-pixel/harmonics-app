@@ -278,6 +278,23 @@ export default function MembroPage() {
         return;
       }
 
+      // Check if user is admin — admins access the member panel directly
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('id, name, email, role')
+        .eq('id', session.user.id)
+        .maybeSingle();
+
+      if (profileData?.role === 'admin') {
+        setMember({
+          id: profileData.id,
+          name: profileData.name || profileData.email,
+          email: profileData.email || sessionEmail,
+          isAdmin: true,
+        });
+        return;
+      }
+
       const { data, error: memberError } = await supabase
         .from('contacts')
         .select('id, name, email, phone, tag, is_active')
@@ -320,16 +337,9 @@ export default function MembroPage() {
       setLoadingData(true);
       setError('');
 
-      const [
-        invitesResp,
-        precontractsResp,
-        contractsResp,
-        repertoireConfigsResp,
-        repertoireItemsResp,
-      ] = await Promise.all([
-        supabase
-          .from('invites')
-          .select(`
+      const invitesQuery = supabase
+        .from('invites')
+        .select(`
             id,
             event_id,
             contact_id,
@@ -341,9 +351,19 @@ export default function MembroPage() {
             created_at,
             events (*)
           `)
-          .eq('contact_id', currentMember.id)
-          .neq('status', 'removed')
-          .order('created_at', { ascending: false }),
+        .neq('status', 'removed')
+        .order('created_at', { ascending: false });
+
+      const [
+        invitesResp,
+        precontractsResp,
+        contractsResp,
+        repertoireConfigsResp,
+        repertoireItemsResp,
+      ] = await Promise.all([
+        currentMember.isAdmin
+          ? invitesQuery
+          : invitesQuery.eq('contact_id', currentMember.id),
 
         supabase
           .from('precontracts')

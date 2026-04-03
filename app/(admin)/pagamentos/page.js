@@ -2,17 +2,17 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import AdminShell from '../../components/admin/AdminShell';
+import AdminShell from '@/components/admin/AdminShell';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import AdminPageHero from '../../components/admin/AdminPageHero';
-import AdminSectionTitle from '../../components/admin/AdminSectionTitle';
-import AdminSummaryCard from '../../components/admin/AdminSummaryCard';
-import { supabase } from '../../lib/supabase';
+import AdminPageHero from '@/components/admin/AdminPageHero';
+import AdminSectionTitle from '@/components/admin/AdminSectionTitle';
+import AdminSummaryCard from '@/components/admin/AdminSummaryCard';
+import { supabase } from '@/lib/supabase';
 import {
   toNumber,
   formatMoney,
   formatDateBR,
-} from '../../lib/eventos/eventos-format';
+} from '@/lib/eventos/eventos-format';
 
 function normalizePaymentStatus(status, paidAmount, openAmount, agreedAmount) {
   const raw = String(status || '').trim().toLowerCase();

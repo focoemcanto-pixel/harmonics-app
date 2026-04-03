@@ -1,23 +1,23 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { supabase } from '../../lib/supabase';
-import AdminShell from '../../components/admin/AdminShell';
-import AdminPageHero from '../../components/admin/AdminPageHero';
-import AdminSummaryCard from '../../components/admin/AdminSummaryCard';
-import AdminSegmentTabs from '../../components/admin/AdminSegmentTabs';
+import { supabase } from '@/lib/supabase';
+import AdminShell from '@/components/admin/AdminShell';
+import AdminPageHero from '@/components/admin/AdminPageHero';
+import AdminSummaryCard from '@/components/admin/AdminSummaryCard';
+import AdminSegmentTabs from '@/components/admin/AdminSegmentTabs';
 
-import { cleanPhone } from '../../lib/contatos/contatos-format';
+import { cleanPhone } from '@/lib/contatos/contatos-format';
 import {
   filterBySearchTerm,
   filterByTag,
   filterByActive,
   sortContatos,
   getUniqueTags,
-} from '../../lib/contatos/contatos-filters';
+} from '@/lib/contatos/contatos-filters';
 
-import ContatosFormularioTab from '../../components/contatos/ContatosFormularioTab';
-import ContatosListaTab from '../../components/contatos/ContatosListaTab';
+import ContatosFormularioTab from '@/components/contatos/ContatosFormularioTab';
+import ContatosListaTab from '@/components/contatos/ContatosListaTab';
 
 function getInitialForm() {
   return {

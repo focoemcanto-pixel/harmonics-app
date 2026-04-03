@@ -2,15 +2,15 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import AdminShell from '../../components/layout/AdminShell';
-import DashboardPrimaryKpis from '../../components/dashboard/DashboardPrimaryKpis';
-import DashboardSecondaryKpis from '../../components/dashboard/DashboardSecondaryKpis';
-import DashboardRevenueChart from '../../components/dashboard/DashboardRevenueChart';
-import DashboardFinanceBreakdown from '../../components/dashboard/DashboardFinanceBreakdown';
-import DashboardOperationsRadar from '../../components/dashboard/DashboardOperationsRadar';
-import DashboardUpcomingEvents from '../../components/dashboard/DashboardUpcomingEvents';
-import { supabase } from '../../lib/supabase';
-import { buildDashboardSummary } from '../../lib/dashboard/dashboard-summary';
+import AdminShell from '@/components/layout/AdminShell';
+import DashboardPrimaryKpis from '@/components/dashboard/DashboardPrimaryKpis';
+import DashboardSecondaryKpis from '@/components/dashboard/DashboardSecondaryKpis';
+import DashboardRevenueChart from '@/components/dashboard/DashboardRevenueChart';
+import DashboardFinanceBreakdown from '@/components/dashboard/DashboardFinanceBreakdown';
+import DashboardOperationsRadar from '@/components/dashboard/DashboardOperationsRadar';
+import DashboardUpcomingEvents from '@/components/dashboard/DashboardUpcomingEvents';
+import { supabase } from '@/lib/supabase';
+import { buildDashboardSummary } from '@/lib/dashboard/dashboard-summary';
 
 const MAX_DISPLAYED_ACTIVITIES = 2;
 

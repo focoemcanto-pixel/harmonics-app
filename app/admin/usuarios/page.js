@@ -53,6 +53,7 @@ function GestaoUsuariosContent() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [editingId, setEditingId] = useState(null);
+  const [editingRole, setEditingRole] = useState('member');
 
   const [novoUsuario, setNovoUsuario] = useState({
     email: '',
@@ -96,44 +97,19 @@ function GestaoUsuariosContent() {
     setSuccess('');
 
     try {
-      // Criar usuário via Admin API (requer service role key)
-      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-        email: novoUsuario.email,
-        email_confirm: true,
-        user_metadata: {
-          name: novoUsuario.name,
-          role: novoUsuario.role,
-        },
-      });
-
-      if (authError) throw authError;
-
-      const userId = authData?.user?.id;
-      if (!userId) throw new Error('ID de usuário não retornado.');
-
-      // Criar perfil
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .insert({
-          id: userId,
+      const response = await fetch('/api/admin/usuarios', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           email: novoUsuario.email,
           name: novoUsuario.name,
           role: novoUsuario.role,
-        });
+          permissions: novoUsuario.role === 'admin' ? permissoes : null,
+        }),
+      });
 
-      if (profileError) throw profileError;
-
-      // Salvar permissões se admin com permissões granulares
-      if (novoUsuario.role === 'admin' && !permissoes.acesso_total) {
-        const { error: permError } = await supabase
-          .from('user_permissions')
-          .insert({
-            user_id: userId,
-            permissions: permissoes,
-          });
-
-        if (permError) console.error('Erro ao salvar permissões:', permError);
-      }
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Erro ao cadastrar usuário');
 
       setSuccess('Usuário cadastrado com sucesso! Um e-mail de confirmação foi enviado.');
       setNovoUsuario({ email: '', name: '', role: 'member' });
@@ -233,7 +209,12 @@ function GestaoUsuariosContent() {
               </label>
               <select
                 value={novoUsuario.role}
-                onChange={(e) => setNovoUsuario({ ...novoUsuario, role: e.target.value })}
+                onChange={(e) => {
+                  setNovoUsuario({ ...novoUsuario, role: e.target.value });
+                  if (e.target.value === 'member') {
+                    setPermissoes({ acesso_total: true });
+                  }
+                }}
                 className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-200"
               >
                 <option value="member">👤 Membro</option>
@@ -250,7 +231,7 @@ function GestaoUsuariosContent() {
                     type="checkbox"
                     checked={!!permissoes.acesso_total}
                     onChange={(e) =>
-                      setPermissoes({ acesso_total: e.target.checked })
+                      setPermissoes({ ...permissoes, acesso_total: e.target.checked })
                     }
                     className="h-4 w-4 rounded accent-violet-600"
                   />
@@ -265,7 +246,7 @@ function GestaoUsuariosContent() {
                       <label key={area.key} className="flex items-center gap-2 cursor-pointer">
                         <input
                           type="checkbox"
-                          checked={permissoes[area.key] !== false}
+                          checked={!!permissoes[area.key]}
                           onChange={(e) =>
                             setPermissoes({ ...permissoes, [area.key]: e.target.checked })
                           }
@@ -332,11 +313,13 @@ function GestaoUsuariosContent() {
                   <div className="flex items-center gap-2 ml-3">
                     {editingId === user.id ? (
                       <select
-                        defaultValue={user.role}
-                        onChange={(e) => atualizarRole(user.id, e.target.value)}
+                        value={editingRole}
+                        onChange={(e) => setEditingRole(e.target.value)}
+                        onBlur={() => {
+                          atualizarRole(user.id, editingRole);
+                        }}
                         className="rounded-lg border border-violet-300 px-2 py-1 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-violet-200"
                         autoFocus
-                        onBlur={() => setEditingId(null)}
                       >
                         <option value="member">👤 Membro</option>
                         <option value="admin">🔑 Admin</option>
@@ -354,7 +337,10 @@ function GestaoUsuariosContent() {
                         </span>
                         <button
                           type="button"
-                          onClick={() => setEditingId(user.id)}
+                          onClick={() => {
+                            setEditingId(user.id);
+                            setEditingRole(user.role);
+                          }}
                           className="rounded-lg border border-slate-200 bg-white p-2 text-slate-500 transition hover:border-violet-300 hover:text-violet-600"
                           aria-label="Editar usuário"
                         >

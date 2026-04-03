@@ -100,12 +100,16 @@ export function AuthProvider({ children }) {
   async function signOut() {
     try {
       if (typeof window !== 'undefined' && profile?.email) {
-        const existing = JSON.parse(localStorage.getItem('accessHistory') || '[]');
-        const updated = [
-          { email: profile.email, name: profile.name || profile.email, lastAccess: new Date().toISOString() },
-          ...existing.filter((h) => h.email !== profile.email),
-        ].slice(0, 5);
-        localStorage.setItem('accessHistory', JSON.stringify(updated));
+        try {
+          const existing = JSON.parse(localStorage.getItem('accessHistory') || '[]');
+          const updated = [
+            { email: profile.email, name: profile.name || profile.email, lastAccess: new Date().toISOString() },
+            ...existing.filter((h) => h.email !== profile.email),
+          ].slice(0, 5);
+          localStorage.setItem('accessHistory', JSON.stringify(updated));
+        } catch {
+          // Ignore storage errors
+        }
       }
       await supabase.auth.signOut();
     } catch (error) {

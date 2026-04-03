@@ -3,12 +3,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { supabase } from '../../../lib/supabase';
-import AppShell from '../../../components/layout/AppShell';
-import Card from '../../../components/ui/Card';
-import Button from '../../../components/ui/Button';
-import Badge from '../../../components/ui/Badge';
-import EventoEscalaTab from '../../../components/eventos/EventoEscalaTab';
+import { supabase } from '@/lib/supabase';
+import AppShell from '@/components/layout/AppShell';
+import Card from '@/components/ui/Card';
+import Button from '@/components/ui/Button';
+import Badge from '@/components/ui/Badge';
+import EventoEscalaTab from '@/components/eventos/EventoEscalaTab';
 
 function toNumber(value) {
   if (value === null || value === undefined || value === '') return 0;

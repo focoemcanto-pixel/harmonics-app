@@ -2,21 +2,21 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { supabase } from '../../lib/supabase';
-import { generatePrecontractFromEvent } from '../../lib/contracts/generate-precontract-from-event';
-import AdminShell from '../../components/admin/AdminShell';
-import AdminPageHero from '../../components/admin/AdminPageHero';
-import AdminSummaryCard from '../../components/admin/AdminSummaryCard';
-import AdminSectionTitle from '../../components/admin/AdminSectionTitle';
-import AdminSegmentTabs from '../../components/admin/AdminSegmentTabs';
-import AdminEventCard from '../../components/admin/AdminEventCard';
-import { Field, Input, Select } from '../../components/admin/AdminFormPrimitives';
-import Pill from '../../components/admin/AdminPill';
-import EventosOperacaoTab from '../../components/eventos/EventosOperacaoTab';
-import EventosResumoTab from '../../components/eventos/EventosResumoTab';
-import EventosPricingTab from '../../components/eventos/EventosPricingTab';
-import EventosFormularioTab from '../../components/eventos/EventosFormularioTab';
-import EventoEscalaTab from '../../components/eventos/EventoEscalaTab';
+import { supabase } from '@/lib/supabase';
+import { generatePrecontractFromEvent } from '@/lib/contracts/generate-precontract-from-event';
+import AdminShell from '@/components/admin/AdminShell';
+import AdminPageHero from '@/components/admin/AdminPageHero';
+import AdminSummaryCard from '@/components/admin/AdminSummaryCard';
+import AdminSectionTitle from '@/components/admin/AdminSectionTitle';
+import AdminSegmentTabs from '@/components/admin/AdminSegmentTabs';
+import AdminEventCard from '@/components/admin/AdminEventCard';
+import { Field, Input, Select } from '@/components/admin/AdminFormPrimitives';
+import Pill from '@/components/admin/AdminPill';
+import EventosOperacaoTab from '@/components/eventos/EventosOperacaoTab';
+import EventosResumoTab from '@/components/eventos/EventosResumoTab';
+import EventosPricingTab from '@/components/eventos/EventosPricingTab';
+import EventosFormularioTab from '@/components/eventos/EventosFormularioTab';
+import EventoEscalaTab from '@/components/eventos/EventoEscalaTab';
 import {
   isContratoPendente,
   isFinanceiroPendente,
@@ -24,7 +24,7 @@ import {
   getOperacaoAlert,
   getQuickActions,
   getOperacaoPrimaryAction,
-} from '../../lib/eventos/eventos-operacao';
+} from '@/lib/eventos/eventos-operacao';
 import {
   toNumber,
   formatMoney,
@@ -33,7 +33,7 @@ import {
   formatDateBR,
   getMonthKey,
   formatMonthYearLabel,
-} from '../../lib/eventos/eventos-format';
+} from '@/lib/eventos/eventos-format';
 
 import {
   normalizeFormation,
@@ -42,7 +42,7 @@ import {
   getAutomaticReceptionPrice,
   getPaymentStatus,
   getPaymentTone,
-} from '../../lib/eventos/eventos-finance';
+} from '@/lib/eventos/eventos-finance';
 import {
   isPastEvent,
   isTodayEvent,
@@ -51,7 +51,7 @@ import {
   getOperationalTone,
   getToneClasses,
   getPriorityBannerClasses,
-} from '../../lib/eventos/eventos-ui';
+} from '@/lib/eventos/eventos-ui';
 
 const EVENT_TYPES = [
   'Casamento',

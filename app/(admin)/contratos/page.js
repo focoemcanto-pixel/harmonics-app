@@ -2,20 +2,20 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '../../lib/supabase';
-import AdminShell from '../../components/admin/AdminShell';
-import AdminPageHero from '../../components/admin/AdminPageHero';
-import AdminSegmentTabs from '../../components/admin/AdminSegmentTabs';
+import { supabase } from '@/lib/supabase';
+import AdminShell from '@/components/admin/AdminShell';
+import AdminPageHero from '@/components/admin/AdminPageHero';
+import AdminSegmentTabs from '@/components/admin/AdminSegmentTabs';
 
 // Helpers
-import { mapStatus } from '../../lib/contratos/contratos-ui';
-import { filterBySearch, filterByStatus } from '../../lib/contratos/contratos-filters';
-import { getContratosSummary } from '../../lib/contratos/contratos-summary';
+import { mapStatus } from '@/lib/contratos/contratos-ui';
+import { filterBySearch, filterByStatus } from '@/lib/contratos/contratos-filters';
+import { getContratosSummary } from '@/lib/contratos/contratos-summary';
 
 // Components
-import ContratosResumoTab from '../../components/contratos/ContratosResumoTab';
-import ContratosListaTab from '../../components/contratos/ContratosListaTab';
-import ContratosFiltrosTab from '../../components/contratos/ContratosFiltrosTab';
+import ContratosResumoTab from '@/components/contratos/ContratosResumoTab';
+import ContratosListaTab from '@/components/contratos/ContratosListaTab';
+import ContratosFiltrosTab from '@/components/contratos/ContratosFiltrosTab';
 
 function formatDateBR(value) {
   if (!value) return '';

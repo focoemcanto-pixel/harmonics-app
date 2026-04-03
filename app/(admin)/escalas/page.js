@@ -2,10 +2,10 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { supabase } from '../../lib/supabase';
-import AdminShell from '../../components/admin/AdminShell';
-import AdminPageHero from '../../components/admin/AdminPageHero';
-import AdminSegmentTabs from '../../components/admin/AdminSegmentTabs';
+import { supabase } from '@/lib/supabase';
+import AdminShell from '@/components/admin/AdminShell';
+import AdminPageHero from '@/components/admin/AdminPageHero';
+import AdminSegmentTabs from '@/components/admin/AdminSegmentTabs';
 
 function formatDateBR(value) {
   if (!value) return '-';

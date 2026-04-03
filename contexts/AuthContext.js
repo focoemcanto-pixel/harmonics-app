@@ -4,8 +4,11 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { createBrowserClient } from '@supabase/auth-helpers-nextjs';
 import { useRouter } from 'next/navigation';
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://xsmdnbovjovfvdgnncje.supabase.co';
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_BaK7e95s9d4oE3fb2-h5Rg_fVu_7N49';
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+if (!SUPABASE_URL) throw new Error('Missing required environment variable: NEXT_PUBLIC_SUPABASE_URL');
+if (!SUPABASE_ANON_KEY) throw new Error('Missing required environment variable: NEXT_PUBLIC_SUPABASE_ANON_KEY');
 
 const AuthContext = createContext({});
 

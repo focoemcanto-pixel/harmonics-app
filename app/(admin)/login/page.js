@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
@@ -11,7 +12,8 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [accessHistory, setAccessHistory] = useState([]);
-  const { signIn } = useAuth();
+  const { signIn, user, profile } = useAuth();
+  const router = useRouter();
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -20,6 +22,13 @@ export default function LoginPage() {
     }
   }, []);
 
+  // Redirecionamento controlado pela página
+  useEffect(() => {
+    if (user && profile?.role === 'admin') {
+      router.push('/dashboard');
+    }
+  }, [user, profile, router]);
+
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
@@ -27,7 +36,7 @@ export default function LoginPage() {
 
     try {
       await signIn(email, password);
-      // Redirecionamento é feito no signIn
+      // Redirecionamento acontece no useEffect acima
     } catch (err) {
       setError(err.message || 'Erro ao fazer login');
     } finally {

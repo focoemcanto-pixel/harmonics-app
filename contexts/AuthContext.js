@@ -1,8 +1,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { createBrowserClient } from '@supabase/auth-helpers-nextjs';
-import { useRouter } from 'next/navigation';
+import { createBrowserClient } from '@supabase/ssr';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -16,9 +15,7 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
-  // createBrowserClient has internal caching, but useMemo ensures stability across renders
   const supabase = useMemo(() => createBrowserClient(SUPABASE_URL, SUPABASE_ANON_KEY), []);
-  const router = useRouter();
 
   useEffect(() => {
     checkUser();
@@ -90,11 +87,6 @@ export function AuthProvider({ children }) {
     setUser(data.user);
     setProfile(userProfile);
 
-    // Usar userProfile carregado (evita race condition)
-    if (userProfile?.role === 'admin') {
-      router.push('/dashboard');
-    }
-
     return data;
   }
 
@@ -118,7 +110,6 @@ export function AuthProvider({ children }) {
     } finally {
       setUser(null);
       setProfile(null);
-      router.push('/login');
     }
   }
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
@@ -10,7 +10,15 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [accessHistory, setAccessHistory] = useState([]);
   const { signIn } = useAuth();
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const history = JSON.parse(localStorage.getItem('accessHistory') || '[]');
+      setAccessHistory(history);
+    }
+  }, []);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -27,6 +35,21 @@ export default function LoginPage() {
     }
   }
 
+  function handleQuickLogin(histEmail) {
+    setEmail(histEmail);
+    setPassword('');
+  }
+
+  function getInitials(name) {
+    if (!name) return '?';
+    return name
+      .split(' ')
+      .map((n) => n[0])
+      .slice(0, 2)
+      .join('')
+      .toUpperCase();
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-violet-50 via-white to-purple-50 flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
@@ -39,6 +62,33 @@ export default function LoginPage() {
               Entre com suas credenciais
             </p>
           </div>
+
+          {accessHistory.length > 0 && (
+            <div className="mb-6">
+              <p className="text-xs font-black uppercase tracking-[0.08em] text-slate-500 mb-3">
+                Acessos recentes
+              </p>
+              <div className="space-y-2">
+                {accessHistory.map((access) => (
+                  <button
+                    key={access.email}
+                    type="button"
+                    onClick={() => handleQuickLogin(access.email)}
+                    className="w-full flex items-center gap-3 p-3 rounded-xl border border-slate-200 hover:border-violet-300 hover:bg-violet-50 transition text-left"
+                  >
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-violet-100 text-[13px] font-black text-violet-700">
+                      {getInitials(access.name)}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-slate-900 truncate">{access.name}</p>
+                      <p className="text-xs text-slate-500 truncate">{access.email}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+              <div className="mt-4 h-px bg-slate-100" />
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-6">
             {error && (

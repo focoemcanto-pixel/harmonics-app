@@ -98,10 +98,23 @@ export function AuthProvider({ children }) {
   }
 
   async function signOut() {
-    await supabase.auth.signOut();
-    setUser(null);
-    setProfile(null);
-    router.push('/login');
+    try {
+      if (typeof window !== 'undefined' && profile?.email) {
+        const existing = JSON.parse(localStorage.getItem('accessHistory') || '[]');
+        const updated = [
+          { email: profile.email, name: profile.name || profile.email, lastAccess: new Date().toISOString() },
+          ...existing.filter((h) => h.email !== profile.email),
+        ].slice(0, 5);
+        localStorage.setItem('accessHistory', JSON.stringify(updated));
+      }
+      await supabase.auth.signOut();
+    } catch (error) {
+      console.error('Erro ao fazer logout:', error);
+    } finally {
+      setUser(null);
+      setProfile(null);
+      router.push('/login');
+    }
   }
 
   const value = {

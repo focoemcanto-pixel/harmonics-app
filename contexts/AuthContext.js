@@ -93,8 +93,6 @@ export function AuthProvider({ children }) {
     // Usar userProfile carregado (evita race condition)
     if (userProfile?.role === 'admin') {
       router.push('/dashboard');
-    } else {
-      router.push('/painel');
     }
 
     return data;

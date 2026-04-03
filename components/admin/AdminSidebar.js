@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useAuth } from '@/contexts/AuthContext';
 
 function navClass(active) {
   return active
@@ -9,6 +10,7 @@ function navClass(active) {
 }
 
 export default function AdminSidebar({ activeItem = 'eventos' }) {
+  const { signOut, profile } = useAuth();
   const items = [
     { key: 'dashboard', label: 'Dashboard', href: '/dashboard' },
     { key: 'eventos', label: 'Eventos', href: '/eventos' },
@@ -49,7 +51,29 @@ export default function AdminSidebar({ activeItem = 'eventos' }) {
         ))}
       </nav>
 
-      <div className="mt-auto px-2 pt-6">
+      <div className="mt-auto space-y-3 px-2 pt-6">
+        {profile && (
+          <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+            <div className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#a5b4fc]">
+              Usuário atual
+            </div>
+            <div className="mt-1 truncate text-[13px] font-bold text-white" title={profile.name || profile.email}>
+              {profile.name || profile.email}
+            </div>
+            <div className="mt-1 text-[11px] font-semibold text-violet-300">
+              {profile.role === 'admin' ? '🔑 Admin' : '👤 Membro'}
+            </div>
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={signOut}
+          className="w-full rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-[14px] font-bold text-red-300 transition hover:bg-red-500/20"
+        >
+          Sair da conta
+        </button>
+
         <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4">
           <div className="text-[12px] font-extrabold uppercase tracking-[0.08em] text-[#a5b4fc]">
             Harmonics SaaS

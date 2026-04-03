@@ -42,6 +42,7 @@ export async function middleware(req) {
     '/automacoes',
     '/pagamentos',
     '/admin',
+    '/membro',
   ];
 
   const isProtectedPath = protectedPaths.some(path =>
@@ -66,5 +67,7 @@ export const config = {
     '/automacoes/:path*',
     '/pagamentos/:path*',
     '/admin/:path*',
+    '/membro/:path*',
+    '/membro',
   ],
 };

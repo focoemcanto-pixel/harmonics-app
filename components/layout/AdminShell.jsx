@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import AdminSidebar from '../admin/AdminSidebar';
 import AdminMobileTopbar from '../admin/AdminMobileTopbar';
 import AdminBottomNav from '../admin/AdminBottomNav';
+import { useAuth } from '@/contexts/AuthContext';
 
 const MORE_ITEMS = [
   { label: 'Financeiro', href: '/financeiro', icon: '💸', helper: 'Pagamentos e caixa' },
@@ -16,13 +17,31 @@ const MORE_ITEMS = [
   { label: 'Sugestões', href: '/sugestoes', icon: '✨', helper: 'Ideias e votações' },
   { label: 'Pagamentos', href: '/pagamentos', icon: '💳', helper: 'Controle financeiro' },
   { label: 'Automação', href: '/automacoes', icon: '⚙️', helper: 'Central de automação' },
+  { label: 'Usuários', href: '/admin/usuarios', icon: '👥', helper: 'Gestão de usuários' },
 ];
 
+function getInitials(name) {
+  if (!name) return '?';
+  return name
+    .split(' ')
+    .map((n) => n[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
+}
+
 function MobileMoreSheet({ open, onClose, onNavigate }) {
+  const { signOut, profile } = useAuth();
+
   if (!open) return null;
 
   function handleBackdropClick(e) {
     if (e.target === e.currentTarget) onClose?.();
+  }
+
+  async function handleLogout() {
+    onClose();
+    await signOut();
   }
 
   return (
@@ -77,6 +96,37 @@ function MobileMoreSheet({ open, onClose, onNavigate }) {
               </button>
             ))}
           </div>
+
+          {profile && (
+            <div className="mt-4 rounded-[22px] border border-[#e5e7eb] bg-[#f8fafc] px-4 py-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-violet-100 text-[13px] font-black text-violet-700">
+                  {getInitials(profile.name || profile.email)}
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate text-[14px] font-black text-[#111827]">
+                    {profile.name || profile.email}
+                  </p>
+                  <p className="text-[12px] text-violet-600">
+                    {profile.role === 'admin' ? '🔑 Administrador' : '👤 Membro'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="mt-3 flex w-full items-center justify-between rounded-[22px] bg-gradient-to-r from-red-500 to-red-600 px-5 py-4 text-[15px] font-black text-white shadow-lg transition active:scale-[0.99]"
+          >
+            <span>Sair da conta</span>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
+          </button>
         </div>
       </div>
     </div>
@@ -104,11 +154,9 @@ export default function AdminShell({
     router.push(href);
   }
 
- function handleOpenMore() {
-  console.log('[AdminShell] handleOpenMore chamado');
-  setMoreOpen(true);
-}
-  console.log('[AdminShell] render', { activeItem, mobileActiveItem, moreOpen });
+  function handleOpenMore() {
+    setMoreOpen(true);
+  }
 
   return (
     <div className="min-h-screen bg-[#f4f6fa] text-[#111827]">

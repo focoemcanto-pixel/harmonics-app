@@ -68,6 +68,5 @@ export const config = {
     '/pagamentos/:path*',
     '/admin/:path*',
     '/membro/:path*',
-    '/membro',
   ],
 };

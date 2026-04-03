@@ -1,13 +1,20 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse } from 'next/server';
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-if (!SUPABASE_URL) throw new Error('Missing required environment variable: NEXT_PUBLIC_SUPABASE_URL');
-if (!SUPABASE_ANON_KEY) throw new Error('Missing required environment variable: NEXT_PUBLIC_SUPABASE_ANON_KEY');
-
 export async function middleware(req) {
+  // 🔥 BLINDAGEM DO FLUXO MEMBRO
+  if (req.nextUrl.pathname.startsWith('/membro')) {
+    return NextResponse.next();
+  }
+
+  const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    console.error('Missing Supabase environment variables');
+    return NextResponse.next();
+  }
+
   let res = NextResponse.next();
 
   const supabase = createServerClient(
@@ -45,7 +52,6 @@ export async function middleware(req) {
     '/automacoes',
     '/pagamentos',
     '/admin',
-    '/membro',
   ];
 
   const isProtectedPath = protectedPaths.some(path =>
@@ -70,6 +76,5 @@ export const config = {
     '/automacoes/:path*',
     '/pagamentos/:path*',
     '/admin/:path*',
-    '/membro/:path*',
   ],
 };

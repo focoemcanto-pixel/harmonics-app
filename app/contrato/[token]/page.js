@@ -600,39 +600,40 @@ const mapsLoaded = useGoogleMapsReady();
         }
       );
 
-      clientAutocompleteRef.current.addListener('place_changed', () => {
-  console.log('place_changed contratante disparou');
+            clientAutocompleteRef.current.addListener('place_changed', () => {
+        console.log('place_changed contratante disparou');
 
-  const place = clientAutocompleteRef.current.getPlace();
-  const data = extractAddressDataFromPlace(place);
+        const place = clientAutocompleteRef.current.getPlace();
+        const data = extractAddressDataFromPlace(place);
 
-  setForm((prev) => ({
-    ...prev,
-    address_street: data.street || '',
-    address_number: data.number ?? '',
-    address_neighborhood: data.neighborhood || '',
-    address_cep: data.cep || '',
-    address_city: data.city || '',
-    address_state: data.state || '',
-  }));
+        setForm((prev) => ({
+          ...prev,
+          address_street: data.street || '',
+          address_number: data.number ?? '',
+          address_neighborhood: data.neighborhood || '',
+          address_cep: data.cep || '',
+          address_city: data.city || '',
+          address_state: data.state || '',
+        }));
 
-  setAddressValidation((prev) => ({
-    ...prev,
-    clientAddressConfirmed: !!data.street,
-  }));
+        setAddressValidation((prev) => ({
+          ...prev,
+          clientAddressConfirmed: !!data.street,
+        }));
 
-  setClientAddressStatus('selected');
+        setClientAddressStatus('selected');
 
-  setFieldErrors((prev) => ({
-    ...prev,
-    address_street: '',
-    address_number: '',
-    address_neighborhood: '',
-    address_cep: '',
-    address_city: '',
-    address_state: '',
-  }));
-});
+        setFieldErrors((prev) => ({
+          ...prev,
+          address_street: '',
+          address_number: '',
+          address_neighborhood: '',
+          address_cep: '',
+          address_city: '',
+          address_state: '',
+        }));
+      });
+    }
 
     if (!eventAutocompleteRef.current) {
       console.log('🚀 inicializando autocomplete do evento');

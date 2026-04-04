@@ -281,7 +281,7 @@ export default function MembroPage() {
     // ✅ VERIFICAR SE É ADMIN PRIMEIRO
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('role, id')
+      .select('role, id, name')
       .eq('id', session.user.id)
       .maybeSingle();
 
@@ -289,7 +289,7 @@ export default function MembroPage() {
     if (!profileError && profile?.role === 'admin') {
       setMember({
         id: profile.id,
-        name: session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'Admin',
+        name: profile.name || session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'Admin',
         email: sessionEmail,
         phone: '',
         tag: 'admin',

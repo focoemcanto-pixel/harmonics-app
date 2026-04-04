@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import AdminShell from '@/components/admin/AdminShell';
 import AdminPageHero from '@/components/admin/AdminPageHero';
@@ -40,6 +40,15 @@ export default function ContatosPage() {
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
   const [editandoId, setEditandoId] = useState(null);
+  const [errorMessage, setErrorMessage] = useState('');
+const loadingRef = useRef(false);
+  const isMountedRef = useRef(true);
+
+useEffect(() => {
+  return () => {
+    isMountedRef.current = false;
+  };
+}, []);
 
   const [form, setForm] = useState(getInitialForm());
 
@@ -74,29 +83,43 @@ export default function ContatosPage() {
     }
   }, [mobileTab]);
 
-  async function carregarContatos() {
-    try {
-      setCarregando(true);
-
-      const { data, error } = await supabase
-        .from('contacts')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      setContatos(data || []);
-    } catch (error) {
-      console.error('Erro ao carregar membros:', error);
-      alert(`Erro ao carregar membros: ${error?.message}`);
-    } finally {
-      setCarregando(false);
-    }
+  const carregarContatos = useCallback(async () => {
+  if (loadingRef.current) {
+    console.log('[Contatos] Load já em andamento, ignorando chamada duplicada');
+    return;
   }
 
+  try {
+    loadingRef.current = true;
+    setCarregando(true);
+    setErrorMessage('');
+
+    const { data, error } = await supabase
+      .from('contacts')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    if (isMountedRef.current) {
+      setContatos(data || []);
+    }
+  } catch (error) {
+    console.error('Erro ao carregar membros:', error);
+
+    if (isMountedRef.current) {
+      setErrorMessage(error?.message || 'Erro ao carregar membros');
+    }
+  } finally {
+    if (isMountedRef.current) {
+      setCarregando(false);
+    }
+    loadingRef.current = false;
+  }
+}, []);
   useEffect(() => {
-    carregarContatos();
-  }, []);
+  carregarContatos();
+}, [carregarContatos]);
 
   function handleFormChange(field, value) {
     setForm((prev) => ({ ...prev, [field]: value }));

@@ -41,14 +41,6 @@ export default function ContatosPage() {
   const [salvando, setSalvando] = useState(false);
   const [editandoId, setEditandoId] = useState(null);
   const [errorMessage, setErrorMessage] = useState('');
-const loadingRef = useRef(false);
-  const isMountedRef = useRef(true);
-
-useEffect(() => {
-  return () => {
-    isMountedRef.current = false;
-  };
-}, []);
 
   const [form, setForm] = useState(getInitialForm());
 
@@ -64,6 +56,15 @@ useEffect(() => {
   const mobileFormRef = useRef(null);
   const desktopFirstInputRef = useRef(null);
   const mobileFirstInputRef = useRef(null);
+
+  const loadingRef = useRef(false);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (desktopTab === 'novo' && desktopFormRef.current) {
@@ -84,48 +85,52 @@ useEffect(() => {
   }, [mobileTab]);
 
   const carregarContatos = useCallback(async () => {
-  if (loadingRef.current) {
-    console.log('[Contatos] Load já em andamento, ignorando chamada duplicada');
-    return;
-  }
-
-  try {
-    loadingRef.current = true;
-    setCarregando(true);
-    setErrorMessage('');
-
-    const { data, error } = await supabase
-      .from('contacts')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (error) throw error;
-
-    if (isMountedRef.current) {
-      setContatos(data || []);
+    if (loadingRef.current) {
+      console.log('[Contatos] Load já em andamento, ignorando chamada duplicada');
+      return;
     }
-  } catch (error) {
-    console.error('Erro ao carregar membros:', error);
 
-    if (isMountedRef.current) {
-      setErrorMessage(error?.message || 'Erro ao carregar membros');
+    try {
+      loadingRef.current = true;
+      if (isMountedRef.current) {
+        setCarregando(true);
+        setErrorMessage('');
+      }
+
+      const { data, error } = await supabase
+        .from('contacts')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      if (isMountedRef.current) {
+        setContatos(data || []);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar membros:', error);
+
+      if (isMountedRef.current) {
+        setErrorMessage(error?.message || 'Erro ao carregar membros');
+      }
+    } finally {
+      if (isMountedRef.current) {
+        setCarregando(false);
+      }
+      loadingRef.current = false;
     }
-  } finally {
-    if (isMountedRef.current) {
-      setCarregando(false);
-    }
-    loadingRef.current = false;
-  }
-}, []);
+  }, []);
+
   useEffect(() => {
-  carregarContatos();
-}, [carregarContatos]);
+    carregarContatos();
+  }, [carregarContatos]);
 
   function handleFormChange(field, value) {
     setForm((prev) => ({ ...prev, [field]: value }));
   }
 
   function iniciarEdicao(contato) {
+    setErrorMessage('');
     setEditandoId(contato.id);
 
     setForm({
@@ -142,18 +147,22 @@ useEffect(() => {
   }
 
   function cancelarEdicao() {
+    setErrorMessage('');
     setEditandoId(null);
     setForm(getInitialForm());
   }
 
   async function salvarContato() {
+    if (salvando) return;
+
     if (!form.name.trim()) {
-      alert('Informe o nome do membro.');
+      setErrorMessage('Informe o nome do membro.');
       return;
     }
 
     try {
       setSalvando(true);
+      setErrorMessage('');
 
       const payload = {
         name: form.name.trim(),
@@ -185,16 +194,20 @@ useEffect(() => {
       setMobileTab('lista');
     } catch (error) {
       console.error('Erro ao salvar membro:', error);
-      alert(`Erro ao salvar membro: ${error?.message}`);
+      setErrorMessage(error?.message || 'Erro ao salvar membro');
     } finally {
       setSalvando(false);
     }
   }
 
   async function excluirContato(id) {
+    if (salvando) return;
     if (!confirm('Tem certeza que deseja excluir este membro?')) return;
 
     try {
+      setSalvando(true);
+      setErrorMessage('');
+
       const { error } = await supabase
         .from('contacts')
         .delete()
@@ -207,7 +220,9 @@ useEffect(() => {
       await carregarContatos();
     } catch (error) {
       console.error('Erro ao excluir membro:', error);
-      alert(`Erro ao excluir membro: ${error?.message}`);
+      setErrorMessage(error?.message || 'Erro ao excluir membro');
+    } finally {
+      setSalvando(false);
     }
   }
 
@@ -242,6 +257,7 @@ useEffect(() => {
     <button
       type="button"
       onClick={() => {
+        setErrorMessage('');
         setEditandoId(null);
         setForm(getInitialForm());
         setMobileTab('novo');
@@ -265,6 +281,12 @@ useEffect(() => {
   return (
     <AdminShell pageTitle="Membros" activeItem="contatos" mobileActions={mobileActions}>
       <div className="space-y-5">
+        {errorMessage && (
+          <div className="rounded-[18px] border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+            {errorMessage}
+          </div>
+        )}
+
         <AdminPageHero
           badge="Harmonics Admin"
           title="Membros da equipe"
@@ -273,6 +295,7 @@ useEffect(() => {
             <button
               type="button"
               onClick={() => {
+                setErrorMessage('');
                 setEditandoId(null);
                 setForm(getInitialForm());
                 setDesktopTab('novo');

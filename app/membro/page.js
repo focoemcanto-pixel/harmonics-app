@@ -256,79 +256,62 @@ export default function MembroPage() {
   const [repertoireConfigs, setRepertoireConfigs] = useState([]);
   const [repertoireItems, setRepertoireItems] = useState([]);
 
-  async function resolveMemberFromSession() {
-    try {
-      setError('');
+ async function resolveMemberFromSession() {
+  try {
+    setError('');
 
-      const {
-        data: { session },
-        error: sessionError,
-      } = await supabase.auth.getSession();
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession();
 
-      if (sessionError) {
-        throw sessionError;
-      }
+    if (sessionError) {
+      throw sessionError;
+    }
 
-      const sessionEmail = String(session?.user?.email || '')
-        .trim()
-        .toLowerCase();
+    const sessionEmail = String(session?.user?.email || '')
+      .trim()
+      .toLowerCase();
 
-      if (!sessionEmail) {
-        setMember(null);
-        return;
-      }
+    if (!sessionEmail) {
+      setMember(null);
+      return;
+    }
 
-      // Check if user is admin — admins access the member panel directly
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('id, name, email, role')
-        .eq('id', session.user.id)
-        .maybeSingle();
+    const { data, error: memberError } = await supabase
+      .from('contacts')
+      .select('id, name, email, phone, tag, is_active')
+      .eq('email', sessionEmail)
+      .maybeSingle();
 
-      if (profileData?.role === 'admin') {
-        setMember({
-          id: profileData.id,
-          name: profileData.name || profileData.email,
-          email: profileData.email || sessionEmail,
-          isAdmin: true,
-        });
-        return;
-      }
-
-      const { data, error: memberError } = await supabase
-        .from('contacts')
-        .select('id, name, email, phone, tag, is_active')
-        .eq('email', sessionEmail)
-        .maybeSingle();
-
-      if (memberError) {
-        setMember(null);
-        setError('Não foi possível validar seu acesso.');
-        return;
-      }
-
-      if (!data) {
-        setMember(null);
-        setError('Este e-mail não está autorizado no painel do membro.');
-        return;
-      }
-
-      if (data.is_active === false) {
-        setMember(null);
-        setError('Seu acesso está inativo no momento.');
-        return;
-      }
-
-      setMember(data);
-    } catch (e) {
-      console.error('Erro ao resolver membro:', e);
+    if (memberError) {
       setMember(null);
       setError('Não foi possível validar seu acesso.');
-    } finally {
-      setSessionChecked(true);
-      setLoggingIn(false);
+      return;
     }
+
+    if (!data) {
+      setMember(null);
+      setError('Este e-mail não está autorizado no painel do membro.');
+      return;
+    }
+
+    if (data.is_active === false) {
+      setMember(null);
+      setError('Seu acesso está inativo no momento.');
+      return;
+    }
+
+    setMember(data);
+  } catch (e) {
+    console.error('Erro ao resolver membro:', e);
+    setMember(null);
+    setError('Não foi possível validar seu acesso.');
+  } finally {
+    setSessionChecked(true);
+    setLoggingIn(false);
   }
+}
 
   async function loadDashboardData(currentMember) {
     if (!currentMember?.id) return;
@@ -337,33 +320,30 @@ export default function MembroPage() {
       setLoadingData(true);
       setError('');
 
-      const invitesQuery = supabase
-        .from('invites')
-        .select(`
-            id,
-            event_id,
-            contact_id,
-            suggested_role_name,
-            message,
-            status,
-            sent_at,
-            responded_at,
-            created_at,
-            events (*)
-          `)
-        .neq('status', 'removed')
-        .order('created_at', { ascending: false });
-
-      const [
-        invitesResp,
-        precontractsResp,
-        contractsResp,
-        repertoireConfigsResp,
-        repertoireItemsResp,
-      ] = await Promise.all([
-        currentMember.isAdmin
-          ? invitesQuery
-          : invitesQuery.eq('contact_id', currentMember.id),
+     const [
+  invitesResp,
+  precontractsResp,
+  contractsResp,
+  repertoireConfigsResp,
+  repertoireItemsResp,
+] = await Promise.all([
+  supabase
+    .from('invites')
+    .select(`
+      id,
+      event_id,
+      contact_id,
+      suggested_role_name,
+      message,
+      status,
+      sent_at,
+      responded_at,
+      created_at,
+      events (*)
+    `)
+    .eq('contact_id', currentMember.id)
+    .neq('status', 'removed')
+    .order('created_at', { ascending: false }),
 
         supabase
           .from('precontracts')

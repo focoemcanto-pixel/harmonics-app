@@ -16,9 +16,8 @@ export default function PainelMembrosPage() {
   const [loadingData, setLoadingData] = useState(true);
 
   // Verificar se é admin (SEM AuthContext)
-  useEffect(() => {
-    checkAdmin();
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { checkAdmin(); }, []);
 
   async function checkAdmin() {
     try {

@@ -254,9 +254,11 @@ export default function MemberAdminView({ invites, escalas, repertorios, onRefre
                       </p>
                     )}
 
-                    <p className="mt-2 text-[12px] text-slate-400">
-                      Criado em: {new Date(repertorio.created_at).toLocaleDateString('pt-BR')}
-                    </p>
+                    {repertorio.created_at && (
+                      <p className="mt-2 text-[12px] text-slate-400">
+                        Criado em: {new Date(repertorio.created_at).toLocaleDateString('pt-BR')}
+                      </p>
+                    )}
                   </div>
                 ))}
               </div>

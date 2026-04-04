@@ -519,8 +519,8 @@ export default function DashboardPage() {
       if (eventsRes.error) console.warn('[dashboard] events falhou:', eventsRes.error);
       if (contractsRes.error) console.warn('[dashboard] contracts falhou:', contractsRes.error);
       if (precontractsRes.error) console.warn('[dashboard] precontracts falhou:', precontractsRes.error);
-      if (eventMusiciansRes.error) console.warn('[dashboard] event_musicians falhou:', eventMusiciansRes.error);
-      if (repertoireConfigsRes.error) console.warn('[dashboard] repertoire_config falhou:', repertoireConfigsRes.error);
+if (eventMusiciansRes.error) console.warn('[dashboard] event_musicians falhou:', eventMusiciansRes.error);
+if (repertoireConfigsRes.error) console.warn('[dashboard] repertoire_config falhou:', repertoireConfigsRes.error);
 
       const eventsData = Array.isArray(eventsRes.data) ? eventsRes.data : [];
       const contractsData = Array.isArray(contractsRes.data) ? contractsRes.data : [];

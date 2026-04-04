@@ -608,31 +608,31 @@ const mapsLoaded = useGoogleMapsReady();
 
   setForm((prev) => ({
     ...prev,
-    address_street: data.street || prev.address_street,
-    address_number: data.number || prev.address_number,
-    address_neighborhood: data.neighborhood || prev.address_neighborhood,
-    address_cep: data.cep || prev.address_cep,
-    address_city: data.city || prev.address_city,
-    address_state: data.state || prev.address_state,
+    address_street: data.street || '',
+    address_number: data.number ?? '',
+    address_neighborhood: data.neighborhood || '',
+    address_cep: data.cep || '',
+    address_city: data.city || '',
+    address_state: data.state || '',
+  }));
+
+  setAddressValidation((prev) => ({
+    ...prev,
+    clientAddressConfirmed: !!data.street,
+  }));
+
+  setClientAddressStatus('selected');
+
+  setFieldErrors((prev) => ({
+    ...prev,
+    address_street: '',
+    address_number: '',
+    address_neighborhood: '',
+    address_cep: '',
+    address_city: '',
+    address_state: '',
   }));
 });
-        setAddressValidation((prev) => ({
-          ...prev,
-          clientAddressConfirmed: !!data.formattedAddress,
-        }));
-
-        setClientAddressStatus('selected');
-
-        setFieldErrors((prev) => ({
-          ...prev,
-          address_street: '',
-          address_neighborhood: '',
-          address_cep: '',
-          address_city: '',
-          address_state: '',
-        }));
-      });
-    }
 
     if (!eventAutocompleteRef.current) {
       console.log('🚀 inicializando autocomplete do evento');

@@ -166,6 +166,9 @@ function getAddressComponentShort(components, type) {
 function extractAddressDataFromPlace(place) {
   const components = place?.address_components || [];
 
+  const street = getAddressComponent(components, 'route');
+  const number = getAddressComponent(components, 'street_number');
+
   const neighborhood =
     getAddressComponent(components, 'sublocality_level_1') ||
     getAddressComponent(components, 'sublocality') ||
@@ -184,13 +187,14 @@ function extractAddressDataFromPlace(place) {
 
   return {
     formattedAddress: place?.formatted_address || '',
+    street: street || '',
+    number: number || '',
     neighborhood: neighborhood || '',
     city: city || '',
     state: state || '',
     cep: cep || '',
   };
 }
-
 function getInitialForm() {
   return {
     full_name: '',
@@ -597,20 +601,21 @@ const mapsLoaded = useGoogleMapsReady();
       );
 
       clientAutocompleteRef.current.addListener('place_changed', () => {
-        console.log('place_changed contratante disparou');
+  console.log('place_changed contratante disparou');
 
-        const place = clientAutocompleteRef.current.getPlace();
-        const data = extractAddressDataFromPlace(place);
+  const place = clientAutocompleteRef.current.getPlace();
+  const data = extractAddressDataFromPlace(place);
 
-        setForm((prev) => ({
-          ...prev,
-          address_street: data.formattedAddress || prev.address_street,
-          address_neighborhood: data.neighborhood || prev.address_neighborhood,
-          address_cep: data.cep || prev.address_cep,
-          address_city: data.city || prev.address_city,
-          address_state: data.state || prev.address_state,
-        }));
-
+  setForm((prev) => ({
+    ...prev,
+    address_street: data.street || prev.address_street,
+    address_number: data.number || prev.address_number,
+    address_neighborhood: data.neighborhood || prev.address_neighborhood,
+    address_cep: data.cep || prev.address_cep,
+    address_city: data.city || prev.address_city,
+    address_state: data.state || prev.address_state,
+  }));
+});
         setAddressValidation((prev) => ({
           ...prev,
           clientAddressConfirmed: !!data.formattedAddress,

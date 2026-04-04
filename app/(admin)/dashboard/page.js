@@ -491,71 +491,78 @@ export default function DashboardPage() {
     return Math.min(100, Math.round((eventosPagos / total) * 100));
   }, [eventosPagos, summary]);
 
-  useEffect(() => {
-    async function carregarDashboard() {
-      try {
-        setCarregando(true);
-        setErro('');
+ useEffect(() => {
+  async function carregarDashboard() {
+    try {
+      setCarregando(true);
+      setErro('');
 
-        const [
-          eventsRes,
-          contractsRes,
-          precontractsRes,
-          eventMusiciansRes,
-          repertoireConfigsRes,
-        ] = await Promise.all([
-          supabase.from('events').select('*'),
-          supabase.from('contracts').select('*'),
-          supabase.from('precontracts').select('*'),
-          supabase.from('event_musicians').select('*'),
-          supabase.from('repertoire_config').select('*'),
-        ]);
+      const results = await Promise.allSettled([
+        supabase.from('events').select('*').limit(50),
+        supabase.from('contracts').select('*').limit(50),
+        supabase.from('precontracts').select('*').limit(50),
+        supabase.from('event_musicians').select('*').limit(50),
+        supabase.from('repertoire_config').select('*'),
+      ]);
 
-        if (eventsRes.error) throw eventsRes.error;
-        if (contractsRes.error) throw contractsRes.error;
-        if (precontractsRes.error) throw precontractsRes.error;
-        if (eventMusiciansRes.error) throw eventMusiciansRes.error;
-        if (repertoireConfigsRes.error) throw repertoireConfigsRes.error;
+      const eventsRes =
+        results[0].status === 'fulfilled' ? results[0].value : { data: [], error: null };
+      const contractsRes =
+        results[1].status === 'fulfilled' ? results[1].value : { data: [], error: null };
+      const precontractsRes =
+        results[2].status === 'fulfilled' ? results[2].value : { data: [], error: null };
+      const eventMusiciansRes =
+        results[3].status === 'fulfilled' ? results[3].value : { data: [], error: null };
+      const repertoireConfigsRes =
+        results[4].status === 'fulfilled' ? results[4].value : { data: [], error: null };
 
-        const eventsData = Array.isArray(eventsRes.data) ? eventsRes.data : [];
-        const contractsData = Array.isArray(contractsRes.data) ? contractsRes.data : [];
-        const precontractsData = Array.isArray(precontractsRes.data) ? precontractsRes.data : [];
-        const eventMusiciansData = Array.isArray(eventMusiciansRes.data) ? eventMusiciansRes.data : [];
-        const repertoireConfigsData = Array.isArray(repertoireConfigsRes.data) ? repertoireConfigsRes.data : [];
+      if (eventsRes.error) console.warn('[dashboard] events falhou:', eventsRes.error);
+      if (contractsRes.error) console.warn('[dashboard] contracts falhou:', contractsRes.error);
+      if (precontractsRes.error) console.warn('[dashboard] precontracts falhou:', precontractsRes.error);
+      if (eventMusiciansRes.error) console.warn('[dashboard] event_musicians falhou:', eventMusiciansRes.error);
+      if (repertoireConfigsRes.error) console.warn('[dashboard] repertoire_config falhou:', repertoireConfigsRes.error);
 
-        setEvents(eventsData);
-        setContracts(contractsData);
-        setPrecontracts(precontractsData);
-        setEventMusicians(eventMusiciansData);
-        setRepertoireConfigs(repertoireConfigsData);
+      const eventsData = Array.isArray(eventsRes.data) ? eventsRes.data : [];
+      const contractsData = Array.isArray(contractsRes.data) ? contractsRes.data : [];
+      const precontractsData = Array.isArray(precontractsRes.data) ? precontractsRes.data : [];
+      const eventMusiciansData = Array.isArray(eventMusiciansRes.data) ? eventMusiciansRes.data : [];
+      const repertoireConfigsData = Array.isArray(repertoireConfigsRes.data) ? repertoireConfigsRes.data : [];
 
-        setSummary(
-          buildDashboardSummary(
-            eventsData,
-            contractsData,
-            precontractsData,
-            eventMusiciansData,
-            repertoireConfigsData
-          )
-        );
-      } catch (error) {
-        console.error('Erro ao carregar dashboard:', error);
-        setErro(error?.message || 'Não foi possível carregar o dashboard.');
-        setEvents([]);
-        setContracts([]);
-        setPrecontracts([]);
-        setEventMusicians([]);
-        setRepertoireConfigs([]);
-        setSummary(buildDashboardSummary([], [], [], [], []));
-      } finally {
-        setCarregando(false);
-      }
+      setEvents(eventsData);
+      setContracts(contractsData);
+      setPrecontracts(precontractsData);
+      setEventMusicians(eventMusiciansData);
+      setRepertoireConfigs(repertoireConfigsData);
+
+      setSummary(
+        buildDashboardSummary(
+          eventsData,
+          contractsData,
+          precontractsData,
+          eventMusiciansData,
+          repertoireConfigsData
+        )
+      );
+    } catch (error) {
+      console.error('Erro ao carregar dashboard:', error);
+      setErro(error?.message || 'Não foi possível carregar o dashboard.');
+      setEvents([]);
+      setContracts([]);
+      setPrecontracts([]);
+      setEventMusicians([]);
+      setRepertoireConfigs([]);
+      setSummary(buildDashboardSummary([], [], [], [], []));
+    } finally {
+      setCarregando(false);
     }
+  }
 
-    carregarDashboard();
+  carregarDashboard();
+
+  setTimeout(() => {
     fetchRecentActivity();
-  }, []);
-
+  }, 0);
+}, []);
   async function fetchRecentActivity() {
   try {
     let res = await fetch('/api/automation/logs?limit=6&sort=desc');
@@ -573,9 +580,6 @@ export default function DashboardPage() {
 
     const payload = await res.json();
 
-    // Suporta os dois formatos:
-    // 1) array direto
-    // 2) objeto { ok: true, logs: [...] }
     const logs = Array.isArray(payload)
       ? payload
       : Array.isArray(payload?.logs)

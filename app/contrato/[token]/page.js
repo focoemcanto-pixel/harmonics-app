@@ -443,9 +443,11 @@ export default function ContratoPublicoPage() {
   });
 
   const addressStreetRef = useRef(null);
-  const eventAddressRef = useRef(null);
+const eventAddressRef = useRef(null);
+const clientAutocompleteRef = useRef(null);
+const eventAutocompleteRef = useRef(null);
 
- const mapsLoaded = useGoogleMapsReady();
+const mapsLoaded = useGoogleMapsReady();
 
   const [fieldErrors, setFieldErrors] = useState({});
   const [addressValidation, setAddressValidation] = useState({
@@ -555,129 +557,137 @@ export default function ContratoPublicoPage() {
  useEffect(() => {
   if (!mapsLoaded) return;
   if (typeof window === 'undefined') return;
+  if (carregando) return;
 
-  let clientAutocomplete = null;
-  let eventAutocomplete = null;
+  let attempts = 0;
+  let intervalId = null;
 
-  const timer = setTimeout(() => {
-    if (!window.google?.maps?.places) {
-      console.warn('[Google Maps] API Places não disponível. Autocomplete desabilitado.');
-      setClientAddressStatus('fallback');
-      setEventAddressStatus('fallback');
+  function initAutocomplete() {
+    attempts += 1;
+
+    const places = window.google?.maps?.places;
+    const clientInput = addressStreetRef.current;
+    const eventInput = eventAddressRef.current;
+
+    console.log('[Google Maps] tentativa:', attempts);
+    console.log('[Google Maps] places:', !!places);
+    console.log('[Google Maps] clientInput:', clientInput);
+    console.log('[Google Maps] eventInput:', eventInput);
+
+    if (!places || !clientInput || !eventInput) {
+      if (attempts >= 20) {
+        console.warn('[Google Maps] Não foi possível inicializar autocomplete após várias tentativas.');
+        setClientAddressStatus('fallback');
+        setEventAddressStatus('fallback');
+        if (intervalId) clearInterval(intervalId);
+      }
       return;
     }
 
-    console.log('[Google Maps] mapsLoaded:', mapsLoaded);
-    console.log('[Google Maps] addressStreetRef.current:', addressStreetRef.current);
-    console.log('[Google Maps] eventAddressRef.current:', eventAddressRef.current);
+    if (!clientAutocompleteRef.current) {
+      console.log('🚀 inicializando autocomplete do contratante');
 
-    if (!addressStreetRef.current) {
-      console.warn('[Google Maps] ref do endereço do contratante ainda não está pronto');
+      clientAutocompleteRef.current = new window.google.maps.places.Autocomplete(
+        clientInput,
+        {
+          componentRestrictions: { country: 'br' },
+          fields: ['formatted_address', 'address_components'],
+          types: ['address'],
+        }
+      );
+
+      clientAutocompleteRef.current.addListener('place_changed', () => {
+        const place = clientAutocompleteRef.current.getPlace();
+        const data = extractAddressDataFromPlace(place);
+
+        setForm((prev) => ({
+          ...prev,
+          address_street: data.formattedAddress || prev.address_street,
+          address_neighborhood: data.neighborhood || prev.address_neighborhood,
+          address_cep: data.cep || prev.address_cep,
+          address_city: data.city || prev.address_city,
+          address_state: data.state || prev.address_state,
+        }));
+
+        setAddressValidation((prev) => ({
+          ...prev,
+          clientAddressConfirmed: !!data.formattedAddress,
+        }));
+
+        setClientAddressStatus('selected');
+
+        setFieldErrors((prev) => ({
+          ...prev,
+          address_street: '',
+          address_neighborhood: '',
+          address_cep: '',
+          address_city: '',
+          address_state: '',
+        }));
+      });
     }
 
-    if (!eventAddressRef.current) {
-      console.warn('[Google Maps] ref do endereço do evento ainda não está pronto');
+    if (!eventAutocompleteRef.current) {
+      console.log('🚀 inicializando autocomplete do evento');
+
+      eventAutocompleteRef.current = new window.google.maps.places.Autocomplete(
+        eventInput,
+        {
+          componentRestrictions: { country: 'br' },
+          fields: ['formatted_address'],
+          types: ['address'],
+        }
+      );
+
+      eventAutocompleteRef.current.addListener('place_changed', () => {
+        const place = eventAutocompleteRef.current.getPlace();
+        const formattedAddress = place?.formatted_address || '';
+
+        setForm((prev) => ({
+          ...prev,
+          event_location_address:
+            formattedAddress || prev.event_location_address,
+        }));
+
+        setAddressValidation((prev) => ({
+          ...prev,
+          eventAddressConfirmed: !!formattedAddress,
+        }));
+
+        setEventAddressStatus('selected');
+
+        setFieldErrors((prev) => ({
+          ...prev,
+          event_location_address: '',
+        }));
+      });
     }
 
-    try {
-      if (addressStreetRef.current) {
-        console.log('🚀 inicializando autocomplete do contratante');
-
-        clientAutocomplete = new window.google.maps.places.Autocomplete(
-          addressStreetRef.current,
-          {
-            componentRestrictions: { country: 'br' },
-            fields: ['formatted_address', 'address_components'],
-            types: ['address'],
-          }
-        );
-
-        clientAutocomplete.addListener('place_changed', () => {
-          const place = clientAutocomplete.getPlace();
-          const data = extractAddressDataFromPlace(place);
-
-          setForm((prev) => ({
-            ...prev,
-            address_street: data.formattedAddress || prev.address_street,
-            address_neighborhood: data.neighborhood || prev.address_neighborhood,
-            address_cep: data.cep || prev.address_cep,
-            address_city: data.city || prev.address_city,
-            address_state: data.state || prev.address_state,
-          }));
-
-          setAddressValidation((prev) => ({
-            ...prev,
-            clientAddressConfirmed: !!data.formattedAddress,
-          }));
-
-          setClientAddressStatus('selected');
-
-          setFieldErrors((prev) => ({
-            ...prev,
-            address_street: '',
-            address_neighborhood: '',
-            address_cep: '',
-            address_city: '',
-            address_state: '',
-          }));
-        });
-      }
-
-      if (eventAddressRef.current) {
-        console.log('🚀 inicializando autocomplete do evento');
-
-        eventAutocomplete = new window.google.maps.places.Autocomplete(
-          eventAddressRef.current,
-          {
-            componentRestrictions: { country: 'br' },
-            fields: ['formatted_address'],
-            types: ['address'],
-          }
-        );
-
-        eventAutocomplete.addListener('place_changed', () => {
-          const place = eventAutocomplete.getPlace();
-          const formattedAddress = place?.formatted_address || '';
-
-          setForm((prev) => ({
-            ...prev,
-            event_location_address:
-              formattedAddress || prev.event_location_address,
-          }));
-
-          setAddressValidation((prev) => ({
-            ...prev,
-            eventAddressConfirmed: !!formattedAddress,
-          }));
-
-          setEventAddressStatus('selected');
-
-          setFieldErrors((prev) => ({
-            ...prev,
-            event_location_address: '',
-          }));
-        });
-      }
-    } catch (error) {
-      console.error('[Google Maps] Erro ao inicializar autocomplete:', error);
-      setClientAddressStatus('fallback');
-      setEventAddressStatus('fallback');
+    if (clientAutocompleteRef.current && eventAutocompleteRef.current) {
+      console.log('✅ autocomplete inicializado com sucesso');
+      clearInterval(intervalId);
     }
-  }, 400);
+  }
+
+  intervalId = setInterval(initAutocomplete, 300);
+  initAutocomplete();
 
   return () => {
-    clearTimeout(timer);
+    if (intervalId) clearInterval(intervalId);
 
     try {
-      if (clientAutocomplete && window.google?.maps?.event) {
-        window.google.maps.event.clearInstanceListeners(clientAutocomplete);
+      if (clientAutocompleteRef.current && window.google?.maps?.event) {
+        window.google.maps.event.clearInstanceListeners(clientAutocompleteRef.current);
       }
-      if (eventAutocomplete && window.google?.maps?.event) {
-        window.google.maps.event.clearInstanceListeners(eventAutocomplete);
+      if (eventAutocompleteRef.current && window.google?.maps?.event) {
+        window.google.maps.event.clearInstanceListeners(eventAutocompleteRef.current);
       }
     } catch {
       // ignore cleanup errors
     }
+
+    clientAutocompleteRef.current = null;
+    eventAutocompleteRef.current = null;
   };
 }, [mapsLoaded, carregando]);
   

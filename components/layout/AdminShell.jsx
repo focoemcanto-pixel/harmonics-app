@@ -51,7 +51,7 @@ function MobileMoreSheet({ open, onClose, onNavigate }) {
     >
       <div className="flex h-[100dvh] items-end justify-center">
         <div
-          className="w-full rounded-t-[30px] border border-white/10 bg-white px-4 pb-[calc(env(safe-area-inset-bottom)+18px)] pt-4 shadow-[0_-20px_60px_rgba(15,23,42,0.18)]"
+          className="w-full max-h-[85dvh] overflow-y-auto overscroll-contain rounded-t-[30px] border border-white/10 bg-white px-4 pb-[calc(env(safe-area-inset-bottom)+18px)] pt-4 shadow-[0_-20px_60px_rgba(15,23,42,0.18)]"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="mx-auto mb-3 h-1.5 w-14 rounded-full bg-slate-200" />
@@ -192,3 +192,5 @@ export default function AdminShell({
     </div>
   );
 }
+
+export { MobileMoreSheet };

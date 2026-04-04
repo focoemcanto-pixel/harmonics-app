@@ -586,8 +586,12 @@ export default function ContratoPublicoPage() {
   useEffect(() => {
     if (!mapsLoaded) return;
     if (typeof window === 'undefined') return;
-    if (!window.google?.maps?.places) {
-      console.warn('[Google Maps] API não disponível. Campos funcionarão sem autocomplete.');
+
+    // ✅ CRÍTICO: Verificação explícita em 3 níveis
+    if (!window.google || !window.google.maps || !window.google.maps.places) {
+      console.warn('[Google Maps] API Places não disponível. Autocomplete desabilitado.');
+      setClientAddressStatus('fallback');
+      setEventAddressStatus('fallback');
       return;
     }
 
@@ -676,10 +680,10 @@ export default function ContratoPublicoPage() {
     return () => {
       try {
         if (clientAutocomplete) {
-          window.google?.maps?.event?.clearInstanceListeners(clientAutocomplete);
+          window.google.maps.event.clearInstanceListeners(clientAutocomplete);
         }
         if (eventAutocomplete) {
-          window.google?.maps?.event?.clearInstanceListeners(eventAutocomplete);
+          window.google.maps.event.clearInstanceListeners(eventAutocomplete);
         }
       } catch {
         // ignore cleanup errors

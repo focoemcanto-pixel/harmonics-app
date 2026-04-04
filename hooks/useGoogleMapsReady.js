@@ -4,23 +4,51 @@ export function useGoogleMapsReady() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    function handler() {
-      setReady(!!window.google?.maps?.places);
+    if (typeof window === "undefined") return;
+
+    let intervalId = null;
+
+    function checkReady() {
+      const isReady = !!window.google?.maps?.places;
+
+      if (isReady) {
+        setReady(true);
+        if (intervalId) {
+          clearInterval(intervalId);
+        }
+      }
     }
 
-    // já carregou?
-    if (window.google?.maps?.places) {
-      setReady(true);
-      return;
+    function handleLoaded() {
+      checkReady();
     }
 
-    // espera evento do script
-    window.addEventListener("google-maps-loaded", handler);
-    window.addEventListener("google-maps-error", handler);
+    function handleError() {
+      setReady(false);
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    }
+
+    // checagem imediata
+    checkReady();
+
+    // se ainda não estiver pronto, começa a verificar por alguns segundos
+    if (!window.google?.maps?.places) {
+      intervalId = setInterval(checkReady, 300);
+    }
+
+    // continua ouvindo eventos também
+    window.addEventListener("google-maps-loaded", handleLoaded);
+    window.addEventListener("google-maps-error", handleError);
 
     return () => {
-      window.removeEventListener("google-maps-loaded", handler);
-      window.removeEventListener("google-maps-error", handler);
+      window.removeEventListener("google-maps-loaded", handleLoaded);
+      window.removeEventListener("google-maps-error", handleError);
+
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
     };
   }, []);
 

@@ -54,6 +54,9 @@ function GestaoUsuariosContent() {
   const [success, setSuccess] = useState('');
   const [editingId, setEditingId] = useState(null);
   const [editingRole, setEditingRole] = useState('member');
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
+  const [editForm, setEditForm] = useState({ name: '' });
 
   const [novoUsuario, setNovoUsuario] = useState({
     email: '',
@@ -138,6 +141,51 @@ function GestaoUsuariosContent() {
     } catch (e) {
       setError('Erro ao atualizar usuário: ' + (e.message || 'Erro desconhecido'));
     }
+  }
+
+  async function salvarEdicao() {
+    if (!editingUser?.id || !editForm.name.trim()) {
+      setError('Nome é obrigatório.');
+      return;
+    }
+
+    setSaving(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      const { error: err } = await supabase
+        .from('profiles')
+        .update({ name: editForm.name.trim() })
+        .eq('id', editingUser.id);
+
+      if (err) throw err;
+
+      setUsuarios((prev) =>
+        prev.map((u) =>
+          u.id === editingUser.id ? { ...u, name: editForm.name.trim() } : u
+        )
+      );
+
+      setSuccess('Usuário atualizado com sucesso!');
+      closeEditModal();
+    } catch (e) {
+      setError('Erro ao atualizar usuário: ' + (e.message || 'Erro desconhecido'));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function openEditModal(user) {
+    setEditingUser(user);
+    setEditForm({ name: user.name || '' });
+    setEditModalOpen(true);
+  }
+
+  function closeEditModal() {
+    setEditModalOpen(false);
+    setEditingUser(null);
+    setEditForm({ name: '' });
   }
 
   return (
@@ -311,43 +359,23 @@ function GestaoUsuariosContent() {
                   </div>
 
                   <div className="flex items-center gap-2 ml-3">
-                    {editingId === user.id ? (
-                      <select
-                        value={editingRole}
-                        onChange={(e) => setEditingRole(e.target.value)}
-                        onBlur={() => {
-                          atualizarRole(user.id, editingRole);
-                        }}
-                        className="rounded-lg border border-violet-300 px-2 py-1 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-violet-200"
-                        autoFocus
-                      >
-                        <option value="member">👤 Membro</option>
-                        <option value="admin">🔑 Admin</option>
-                      </select>
-                    ) : (
-                      <>
-                        <span
-                          className={`rounded-full px-2 py-1 text-[11px] font-black ${
-                            user.role === 'admin'
-                              ? 'bg-violet-100 text-violet-700'
-                              : 'bg-slate-200 text-slate-600'
-                          }`}
-                        >
-                          {user.role === 'admin' ? '🔑 Admin' : '👤 Membro'}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditingId(user.id);
-                            setEditingRole(user.role);
-                          }}
-                          className="rounded-lg border border-slate-200 bg-white p-2 text-slate-500 transition hover:border-violet-300 hover:text-violet-600"
-                          aria-label="Editar usuário"
-                        >
-                          <PencilIcon className="h-4 w-4" />
-                        </button>
-                      </>
-                    )}
+                    <span
+                      className={`rounded-full px-2 py-1 text-[11px] font-black ${
+                        user.role === 'admin'
+                          ? 'bg-violet-100 text-violet-700'
+                          : 'bg-slate-200 text-slate-600'
+                      }`}
+                    >
+                      {user.role === 'admin' ? '🔑 Admin' : '👤 Membro'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => openEditModal(user)}
+                      className="rounded-lg border border-slate-200 bg-white p-2 text-slate-500 transition hover:border-violet-300 hover:text-violet-600"
+                      aria-label="Editar usuário"
+                    >
+                      <PencilIcon className="h-4 w-4" />
+                    </button>
                   </div>
                 </div>
               ))}
@@ -355,6 +383,64 @@ function GestaoUsuariosContent() {
           )}
         </div>
       </div>
+
+      {editModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+          onClick={(e) => { if (e.target === e.currentTarget) closeEditModal(); }}
+          onKeyDown={(e) => { if (e.key === 'Escape') closeEditModal(); }}
+          role="presentation"
+        >
+          <div
+            className="w-full max-w-md rounded-[28px] border border-slate-200 bg-white p-6 shadow-2xl"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="edit-user-modal-title"
+          >
+            <h3 id="edit-user-modal-title" className="text-xl font-black text-slate-900 mb-4">
+              Editar Usuário
+            </h3>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">
+                  Nome completo <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={editForm.name}
+                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                  className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-200"
+                  placeholder="João da Silva"
+                />
+              </div>
+
+              <div className="rounded-[16px] border border-slate-200 bg-slate-50 px-4 py-3">
+                <p className="text-xs font-semibold text-slate-500">Email (não editável)</p>
+                <p className="text-sm font-bold text-slate-700 mt-1">{editingUser?.email}</p>
+              </div>
+            </div>
+
+            <div className="mt-6 flex gap-3">
+              <button
+                type="button"
+                onClick={closeEditModal}
+                className="flex-1 rounded-[16px] border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={salvarEdicao}
+                disabled={saving}
+                className="flex-1 rounded-[16px] bg-violet-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-violet-700 disabled:opacity-60"
+              >
+                {saving ? 'Salvando...' : 'Salvar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AdminShell>
   );
 }

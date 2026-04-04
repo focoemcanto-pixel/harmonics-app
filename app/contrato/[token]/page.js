@@ -451,6 +451,8 @@ export default function ContratoPublicoPage() {
     clientAddressConfirmed: false,
     eventAddressConfirmed: false,
   });
+  const [clientAddressStatus, setClientAddressStatus] = useState('idle'); // 'idle' | 'typing' | 'selected' | 'fallback'
+  const [eventAddressStatus, setEventAddressStatus] = useState('idle');   // 'idle' | 'typing' | 'selected' | 'fallback'
 
   function abrirPreviewContrato() {
     if (!token) {
@@ -471,14 +473,29 @@ export default function ContratoPublicoPage() {
       return;
     }
 
+    if (window.__GOOGLE_MAPS_ERROR__) {
+      console.warn('[Google Maps] Falha ao carregar API. Formulário funcionará em modo manual.');
+      setClientAddressStatus('fallback');
+      setEventAddressStatus('fallback');
+      return;
+    }
+
     function onMapsLoaded() {
       setMapsLoaded(true);
     }
 
+    function onMapsError() {
+      console.warn('[Google Maps] Falha ao carregar API. Formulário funcionará em modo manual.');
+      setClientAddressStatus('fallback');
+      setEventAddressStatus('fallback');
+    }
+
     window.addEventListener('google-maps-loaded', onMapsLoaded);
+    window.addEventListener('google-maps-error', onMapsError);
 
     return () => {
       window.removeEventListener('google-maps-loaded', onMapsLoaded);
+      window.removeEventListener('google-maps-error', onMapsError);
     };
   }, []);
 
@@ -568,8 +585,12 @@ export default function ContratoPublicoPage() {
   useEffect(() => {
     if (!mapsLoaded) return;
     if (typeof window === 'undefined') return;
-    if (!window.google?.maps?.places) {
-      console.warn('[Google Maps] API não disponível. Campos funcionarão sem autocomplete.');
+
+    // ✅ CRÍTICO: Verificação explícita em 3 níveis
+    if (!window.google || !window.google.maps || !window.google.maps.places) {
+      console.warn('[Google Maps] API Places não disponível. Autocomplete desabilitado.');
+      setClientAddressStatus('fallback');
+      setEventAddressStatus('fallback');
       return;
     }
 
@@ -604,6 +625,8 @@ export default function ContratoPublicoPage() {
             ...prev,
             clientAddressConfirmed: !!data.formattedAddress,
           }));
+
+          setClientAddressStatus('selected');
 
           setFieldErrors((prev) => ({
             ...prev,
@@ -641,6 +664,8 @@ export default function ContratoPublicoPage() {
             eventAddressConfirmed: !!formattedAddress,
           }));
 
+          setEventAddressStatus('selected');
+
           setFieldErrors((prev) => ({
             ...prev,
             event_location_address: '',
@@ -654,10 +679,10 @@ export default function ContratoPublicoPage() {
     return () => {
       try {
         if (clientAutocomplete) {
-          window.google?.maps?.event?.clearInstanceListeners(clientAutocomplete);
+          window.google.maps.event.clearInstanceListeners(clientAutocomplete);
         }
         if (eventAutocomplete) {
-          window.google?.maps?.event?.clearInstanceListeners(eventAutocomplete);
+          window.google.maps.event.clearInstanceListeners(eventAutocomplete);
         }
       } catch {
         // ignore cleanup errors
@@ -703,6 +728,10 @@ export default function ContratoPublicoPage() {
         ...prev,
         clientAddressConfirmed: false,
       }));
+
+      setClientAddressStatus(
+        nextValue.trim() === '' ? 'idle' : 'typing'
+      );
     }
 
     if (field === 'event_location_address') {
@@ -710,6 +739,10 @@ export default function ContratoPublicoPage() {
         ...prev,
         eventAddressConfirmed: false,
       }));
+
+      setEventAddressStatus(
+        nextValue.trim() === '' ? 'idle' : 'typing'
+      );
     }
   }
 
@@ -1415,7 +1448,7 @@ export default function ContratoPublicoPage() {
   </SectionTitle>
 
   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-    <div>
+    <div className="relative">
       <Input
         ref={addressStreetRef}
         label="Endereço completo"
@@ -1423,19 +1456,57 @@ export default function ContratoPublicoPage() {
         onChange={(e) => handleChange('address_street', e.target.value)}
         placeholder="Digite e selecione nas sugestões"
         autoComplete="street-address"
-        className={getInputTone(
-          fieldErrors.address_street,
-          addressValidation.clientAddressConfirmed
-        )}
+        className={[
+          getInputTone(fieldErrors.address_street),
+          clientAddressStatus === 'typing' && !fieldErrors.address_street && 'ring-2 ring-violet-100 border-violet-400',
+          clientAddressStatus === 'selected' && !fieldErrors.address_street && 'border-emerald-400 bg-emerald-50/30',
+        ]
+          .filter(Boolean)
+          .join(' ')}
       />
-      <FieldFeedback
-        error={fieldErrors.address_street}
-        success={
-          addressValidation.clientAddressConfirmed
-            ? 'Endereço confirmado'
-            : ''
-        }
-      />
+
+      {clientAddressStatus === 'typing' && !fieldErrors.address_street && (
+        <div className="absolute right-3 top-9 text-violet-500">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+        </div>
+      )}
+
+      {clientAddressStatus === 'selected' && !fieldErrors.address_street && (
+        <div className="absolute right-3 top-9 text-emerald-600">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+      )}
+
+      <FieldFeedback error={fieldErrors.address_street} />
+
+      {clientAddressStatus === 'typing' && !fieldErrors.address_street && (
+        <p className="mt-2 flex items-center gap-1.5 text-xs font-medium text-violet-600">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          Selecione uma sugestão do Google
+        </p>
+      )}
+
+      {clientAddressStatus === 'selected' && !fieldErrors.address_street && (
+        <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+          Endereço confirmado
+        </div>
+      )}
+
+      {clientAddressStatus === 'fallback' && (
+        <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          <p className="font-semibold">⚠️ Busca automática indisponível</p>
+          <p className="mt-1 text-amber-700">Você pode preencher manualmente.</p>
+        </div>
+      )}
     </div>
 
     <div>
@@ -1542,7 +1613,7 @@ export default function ContratoPublicoPage() {
       <FieldFeedback error={fieldErrors.event_location_name} />
     </div>
 
-    <div>
+    <div className="relative">
       <Input
         ref={eventAddressRef}
         label="Endereço do evento"
@@ -1552,19 +1623,57 @@ export default function ContratoPublicoPage() {
         }
         placeholder="Digite e selecione nas sugestões"
         autoComplete="street-address"
-        className={getInputTone(
-          fieldErrors.event_location_address,
-          addressValidation.eventAddressConfirmed
-        )}
+        className={[
+          getInputTone(fieldErrors.event_location_address),
+          eventAddressStatus === 'typing' && !fieldErrors.event_location_address && 'ring-2 ring-violet-100 border-violet-400',
+          eventAddressStatus === 'selected' && !fieldErrors.event_location_address && 'border-emerald-400 bg-emerald-50/30',
+        ]
+          .filter(Boolean)
+          .join(' ')}
       />
-      <FieldFeedback
-        error={fieldErrors.event_location_address}
-        success={
-          addressValidation.eventAddressConfirmed
-            ? 'Endereço confirmado'
-            : ''
-        }
-      />
+
+      {eventAddressStatus === 'typing' && !fieldErrors.event_location_address && (
+        <div className="absolute right-3 top-9 text-violet-500">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+        </div>
+      )}
+
+      {eventAddressStatus === 'selected' && !fieldErrors.event_location_address && (
+        <div className="absolute right-3 top-9 text-emerald-600">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+      )}
+
+      <FieldFeedback error={fieldErrors.event_location_address} />
+
+      {eventAddressStatus === 'typing' && !fieldErrors.event_location_address && (
+        <p className="mt-2 flex items-center gap-1.5 text-xs font-medium text-violet-600">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          Digite e selecione uma opção abaixo
+        </p>
+      )}
+
+      {eventAddressStatus === 'selected' && !fieldErrors.event_location_address && (
+        <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+          Endereço validado com sucesso
+        </div>
+      )}
+
+      {eventAddressStatus === 'fallback' && (
+        <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          <p className="font-semibold">⚠️ Busca automática indisponível</p>
+          <p className="mt-1 text-amber-700">Você pode digitar manualmente.</p>
+        </div>
+      )}
     </div>
   </div>
 </Card>

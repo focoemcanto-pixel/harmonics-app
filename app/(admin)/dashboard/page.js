@@ -557,58 +557,79 @@ export default function DashboardPage() {
   }, []);
 
   async function fetchRecentActivity() {
-    try {
-      let res = await fetch('/api/automation/logs?limit=6&sort=desc');
+  try {
+    let res = await fetch('/api/automation/logs?limit=6&sort=desc');
 
-      if (res.status === 404) {
-        console.warn('Rota /api/automation/logs não existe, tentando alternativa');
-        res = await fetch('/api/logs/automation?limit=6');
-      }
-
-      if (!res.ok) {
-        console.warn('Erro ao buscar logs, usando dados vazios');
-        setActivities([]);
-        return;
-      }
-
-      const logs = await res.json();
-
-      if (!Array.isArray(logs)) {
-        console.warn('API não retornou array:', logs);
-        setActivities([]);
-        return;
-      }
-
-      const mapped = logs.map((log, idx) => ({
-        id: log.id || `log-${log.created_at}-${idx}`,
-        icon: log.status === 'sent' ? CheckCircleIcon :
-              log.status === 'failed' ? XCircleIcon :
-              ClockIcon,
-        iconColor: log.status === 'sent' ? 'text-emerald-600' :
-                   log.status === 'failed' ? 'text-red-600' :
-                   'text-amber-600',
-        bgColor: log.status === 'sent' ? 'bg-emerald-100' :
-                 log.status === 'failed' ? 'bg-red-100' :
-                 'bg-amber-100',
-        title: log.status === 'sent' ? 'Automação enviada' :
-               log.status === 'failed' ? 'Falha na automação' :
-               'Automação pendente',
-        description: log.status === 'sent'
-          ? `Mensagem enviada para ${log.recipient_number}`
-          : (log.error_message || 'Erro desconhecido'),
-        timestamp: log.created_at,
-      }));
-
-      const sorted = mapped
-        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-        .slice(0, 6);
-
-      setActivities(sorted);
-    } catch (error) {
-      console.error('Erro ao buscar atividades:', error);
-      setActivities([]);
+    if (res.status === 404) {
+      console.warn('Rota /api/automation/logs não existe, tentando alternativa');
+      res = await fetch('/api/logs/automation?limit=6');
     }
+
+    if (!res.ok) {
+      console.warn('Não foi possível carregar logs agora, exibindo vazio');
+      setActivities([]);
+      return;
+    }
+
+    const payload = await res.json();
+
+    // Suporta os dois formatos:
+    // 1) array direto
+    // 2) objeto { ok: true, logs: [...] }
+    const logs = Array.isArray(payload)
+      ? payload
+      : Array.isArray(payload?.logs)
+      ? payload.logs
+      : [];
+
+    if (logs.length === 0) {
+      setActivities([]);
+      return;
+    }
+
+    const mapped = logs.map((log, idx) => ({
+      id: log.id || `log-${log.created_at || idx}-${idx}`,
+      icon:
+        log.status === 'sent'
+          ? CheckCircleIcon
+          : log.status === 'failed'
+          ? XCircleIcon
+          : ClockIcon,
+      iconColor:
+        log.status === 'sent'
+          ? 'text-emerald-600'
+          : log.status === 'failed'
+          ? 'text-red-600'
+          : 'text-amber-600',
+      bgColor:
+        log.status === 'sent'
+          ? 'bg-emerald-100'
+          : log.status === 'failed'
+          ? 'bg-red-100'
+          : 'bg-amber-100',
+      title:
+        log.status === 'sent'
+          ? 'Automação enviada'
+          : log.status === 'failed'
+          ? 'Falha na automação'
+          : 'Automação pendente',
+      description:
+        log.status === 'sent'
+          ? `Mensagem enviada para ${log.recipient_number || 'destinatário'}`
+          : log.error_message || 'Erro desconhecido',
+      timestamp: log.created_at,
+    }));
+
+    const sorted = mapped
+      .sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0))
+      .slice(0, 6);
+
+    setActivities(sorted);
+  } catch (error) {
+    console.error('Erro ao buscar atividades:', error);
+    setActivities([]);
   }
+}
 
   const mobileOverview = useMemo(() => {
     return (

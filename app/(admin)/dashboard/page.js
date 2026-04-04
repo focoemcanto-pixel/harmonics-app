@@ -337,7 +337,7 @@ function MobileSlide({ children, wide = false }) {
 const quickActions = [
   {
     label: 'Novo Evento',
-    href: '/eventos/novo',
+    href: '/eventos',
     color: 'violet',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6" aria-hidden="true">
@@ -707,7 +707,7 @@ export default function DashboardPage() {
               </p>
             </div>
             <Link
-              href="/eventos/novo"
+              href="/eventos"
               className="inline-flex w-full items-center justify-center gap-2 rounded-[18px] bg-violet-600 px-5 py-4 text-[14px] font-black text-white shadow-lg transition hover:bg-violet-700 sm:w-auto"
             >
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">

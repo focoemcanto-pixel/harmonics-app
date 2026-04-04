@@ -31,6 +31,10 @@ export default function LoginPage() {
 
   async function handleSubmit(e) {
     e.preventDefault();
+
+    // Prevenir double submit
+    if (loading) return;
+
     setError('');
     setLoading(true);
 
@@ -45,6 +49,9 @@ export default function LoginPage() {
   }
 
   function handleQuickLogin(histEmail) {
+    // Prevenir quick login se já está processando
+    if (loading) return;
+
     setEmail(histEmail);
     setPassword('');
   }
@@ -83,7 +90,8 @@ export default function LoginPage() {
                     key={access.email}
                     type="button"
                     onClick={() => handleQuickLogin(access.email)}
-                    className="w-full flex items-center gap-3 p-3 rounded-xl border border-slate-200 hover:border-violet-300 hover:bg-violet-50 transition text-left"
+                    disabled={loading}
+                    className="w-full flex items-center gap-3 p-3 rounded-xl border border-slate-200 hover:border-violet-300 hover:bg-violet-50 transition text-left disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-violet-100 text-[13px] font-black text-violet-700">
                       {getInitials(access.name)}
@@ -115,7 +123,8 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                disabled={loading}
+                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
                 placeholder="seu@email.com"
               />
             </div>
@@ -129,7 +138,8 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                disabled={loading}
+                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
                 placeholder="••••••••"
               />
             </div>

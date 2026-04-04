@@ -555,9 +555,9 @@ const mapsLoaded = useGoogleMapsReady();
     carregar();
   }, [token]);
  useEffect(() => {
+  console.log('🔥 EFFECT AUTOCOMPLETE RODANDO');
   if (!mapsLoaded) return;
   if (typeof window === 'undefined') return;
-  if (carregando) return;
 
   let attempts = 0;
   let intervalId = null;
@@ -597,6 +597,8 @@ const mapsLoaded = useGoogleMapsReady();
       );
 
       clientAutocompleteRef.current.addListener('place_changed', () => {
+        console.log('place_changed contratante disparou');
+
         const place = clientAutocompleteRef.current.getPlace();
         const data = extractAddressDataFromPlace(place);
 
@@ -640,6 +642,8 @@ const mapsLoaded = useGoogleMapsReady();
       );
 
       eventAutocompleteRef.current.addListener('place_changed', () => {
+        console.log('place_changed evento disparou');
+
         const place = eventAutocompleteRef.current.getPlace();
         const formattedAddress = place?.formatted_address || '';
 
@@ -689,7 +693,7 @@ const mapsLoaded = useGoogleMapsReady();
     clientAutocompleteRef.current = null;
     eventAutocompleteRef.current = null;
   };
-}, [mapsLoaded, carregando]);
+}, [mapsLoaded]);
   
   function handleChange(field, value) {
     let nextValue = value;

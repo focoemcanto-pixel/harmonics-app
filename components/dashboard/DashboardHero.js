@@ -64,10 +64,10 @@ export default function DashboardHero() {
             </Link>
 
             <Link
-              href="/eventos/novo"
+              href="/pre-contratos"
               className="inline-flex items-center justify-center rounded-[18px] bg-violet-600 px-5 py-4 text-[14px] font-black text-white shadow-[0_14px_32px_rgba(124,58,237,0.24)] transition hover:bg-violet-700"
             >
-              Novo evento
+              Pré-contrato
             </Link>
           </div>
         </div>

@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import Script from "next/script";
 import "./globals.css";
 import { ToastProvider } from "@/components/ui/ToastProvider";
+import GoogleMapsScriptClient from "@/components/GoogleMapsScriptClient";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -33,25 +33,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <ToastProvider>{children}</ToastProvider>
-        {GOOGLE_MAPS_KEY && (
-          <Script
-            id="google-maps-places"
-            src={`https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_KEY}&libraries=places&loading=async`}
-            strategy="afterInteractive"
-            onLoad={() => {
-              if (typeof window !== "undefined") {
-                (window as any).__GOOGLE_MAPS_LOADED__ = true;
-                window.dispatchEvent(new Event("google-maps-loaded"));
-              }
-            }}
-            onError={() => {
-              if (typeof window !== "undefined") {
-                (window as any).__GOOGLE_MAPS_ERROR__ = true;
-                window.dispatchEvent(new Event("google-maps-error"));
-              }
-            }}
-          />
-        )}
+        <GoogleMapsScriptClient apiKey={GOOGLE_MAPS_KEY} />
       </body>
     </html>
   );

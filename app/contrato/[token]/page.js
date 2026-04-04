@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import Script from 'next/script';
 import { useParams } from 'next/navigation';
 import { supabase } from '../../../lib/supabase';
 import Card from '../../../components/ui/Card';
@@ -445,8 +444,7 @@ export default function ContratoPublicoPage() {
   const addressStreetRef = useRef(null);
   const eventAddressRef = useRef(null);
 
-  const [mapsApiKey, setMapsApiKey] = useState('');
-  const [mapsReady, setMapsReady] = useState(false);
+  const [mapsLoaded, setMapsLoaded] = useState(false);
 
   const [fieldErrors, setFieldErrors] = useState({});
   const [addressValidation, setAddressValidation] = useState({
@@ -466,28 +464,21 @@ export default function ContratoPublicoPage() {
   }
 
   useEffect(() => {
-    let mounted = true;
+    if (typeof window === 'undefined') return;
 
-    async function loadMapsKey() {
-      try {
-        const response = await fetch('/api/google/maps-key', {
-          cache: 'no-store',
-        });
-
-        const json = await response.json();
-
-        if (!mounted) return;
-
-        setMapsApiKey(String(json?.apiKey || ''));
-      } catch (error) {
-        console.error('Erro ao carregar chave do Google Maps:', error);
-      }
+    if (window.__GOOGLE_MAPS_LOADED__) {
+      setMapsLoaded(true);
+      return;
     }
 
-    loadMapsKey();
+    function onMapsLoaded() {
+      setMapsLoaded(true);
+    }
+
+    window.addEventListener('google-maps-loaded', onMapsLoaded);
 
     return () => {
-      mounted = false;
+      window.removeEventListener('google-maps-loaded', onMapsLoaded);
     };
   }, []);
 
@@ -574,94 +565,105 @@ export default function ContratoPublicoPage() {
 
     carregar();
   }, [token]);
-    useEffect(() => {
-    if (!mapsReady) return;
+  useEffect(() => {
+    if (!mapsLoaded) return;
     if (typeof window === 'undefined') return;
-    if (!window.google?.maps?.places) return;
+    if (!window.google?.maps?.places) {
+      console.warn('[Google Maps] API não disponível. Campos funcionarão sem autocomplete.');
+      return;
+    }
 
     let clientAutocomplete = null;
     let eventAutocomplete = null;
 
-    if (addressStreetRef.current) {
-      clientAutocomplete = new window.google.maps.places.Autocomplete(
-        addressStreetRef.current,
-        {
-          componentRestrictions: { country: 'br' },
-          fields: ['formatted_address', 'address_components'],
-          types: ['address'],
-        }
-      );
+    try {
+      if (addressStreetRef.current) {
+        clientAutocomplete = new window.google.maps.places.Autocomplete(
+          addressStreetRef.current,
+          {
+            componentRestrictions: { country: 'br' },
+            fields: ['formatted_address', 'address_components'],
+            types: ['address'],
+          }
+        );
 
-      clientAutocomplete.addListener('place_changed', () => {
-        const place = clientAutocomplete.getPlace();
-        const data = extractAddressDataFromPlace(place);
+        clientAutocomplete.addListener('place_changed', () => {
+          const place = clientAutocomplete.getPlace();
+          const data = extractAddressDataFromPlace(place);
 
-        setForm((prev) => ({
-          ...prev,
-          address_street: data.formattedAddress || prev.address_street,
-          address_neighborhood: data.neighborhood || prev.address_neighborhood,
-          address_cep: data.cep || prev.address_cep,
-          address_city: data.city || prev.address_city,
-          address_state: data.state || prev.address_state,
-        }));
+          setForm((prev) => ({
+            ...prev,
+            address_street: data.formattedAddress || prev.address_street,
+            address_neighborhood: data.neighborhood || prev.address_neighborhood,
+            address_cep: data.cep || prev.address_cep,
+            address_city: data.city || prev.address_city,
+            address_state: data.state || prev.address_state,
+          }));
 
-        setAddressValidation((prev) => ({
-          ...prev,
-          clientAddressConfirmed: !!data.formattedAddress,
-        }));
+          setAddressValidation((prev) => ({
+            ...prev,
+            clientAddressConfirmed: !!data.formattedAddress,
+          }));
 
-        setFieldErrors((prev) => ({
-          ...prev,
-          address_street: '',
-          address_neighborhood: '',
-          address_cep: '',
-          address_city: '',
-          address_state: '',
-        }));
-      });
-    }
+          setFieldErrors((prev) => ({
+            ...prev,
+            address_street: '',
+            address_neighborhood: '',
+            address_cep: '',
+            address_city: '',
+            address_state: '',
+          }));
+        });
+      }
 
-    if (eventAddressRef.current) {
-      eventAutocomplete = new window.google.maps.places.Autocomplete(
-        eventAddressRef.current,
-        {
-          componentRestrictions: { country: 'br' },
-          fields: ['formatted_address'],
-          types: ['address'],
-        }
-      );
+      if (eventAddressRef.current) {
+        eventAutocomplete = new window.google.maps.places.Autocomplete(
+          eventAddressRef.current,
+          {
+            componentRestrictions: { country: 'br' },
+            fields: ['formatted_address'],
+            types: ['address'],
+          }
+        );
 
-      eventAutocomplete.addListener('place_changed', () => {
-        const place = eventAutocomplete.getPlace();
-        const formattedAddress = place?.formatted_address || '';
+        eventAutocomplete.addListener('place_changed', () => {
+          const place = eventAutocomplete.getPlace();
+          const formattedAddress = place?.formatted_address || '';
 
-        setForm((prev) => ({
-          ...prev,
-          event_location_address:
-            formattedAddress || prev.event_location_address,
-        }));
+          setForm((prev) => ({
+            ...prev,
+            event_location_address:
+              formattedAddress || prev.event_location_address,
+          }));
 
-        setAddressValidation((prev) => ({
-          ...prev,
-          eventAddressConfirmed: !!formattedAddress,
-        }));
+          setAddressValidation((prev) => ({
+            ...prev,
+            eventAddressConfirmed: !!formattedAddress,
+          }));
 
-        setFieldErrors((prev) => ({
-          ...prev,
-          event_location_address: '',
-        }));
-      });
+          setFieldErrors((prev) => ({
+            ...prev,
+            event_location_address: '',
+          }));
+        });
+      }
+    } catch (error) {
+      console.error('[Google Maps] Erro ao inicializar autocomplete:', error);
     }
 
     return () => {
-      if (clientAutocomplete) {
-        window.google.maps.event.clearInstanceListeners(clientAutocomplete);
-      }
-      if (eventAutocomplete) {
-        window.google.maps.event.clearInstanceListeners(eventAutocomplete);
+      try {
+        if (clientAutocomplete) {
+          window.google?.maps?.event?.clearInstanceListeners(clientAutocomplete);
+        }
+        if (eventAutocomplete) {
+          window.google?.maps?.event?.clearInstanceListeners(eventAutocomplete);
+        }
+      } catch {
+        // ignore cleanup errors
       }
     };
-  }, [mapsReady]);
+  }, [mapsLoaded]);
 
   function handleChange(field, value) {
     let nextValue = value;
@@ -798,12 +800,12 @@ export default function ContratoPublicoPage() {
       errors.event_location_address = 'Informe o endereço do evento.';
     }
 
-    if (!addressValidation.clientAddressConfirmed) {
+    if (mapsLoaded && !addressValidation.clientAddressConfirmed) {
       errors.address_street =
         errors.address_street || 'Selecione um endereço válido nas sugestões do Google.';
     }
 
-    if (!addressValidation.eventAddressConfirmed) {
+    if (mapsLoaded && !addressValidation.eventAddressConfirmed) {
       errors.event_location_address =
         errors.event_location_address ||
         'Selecione um endereço válido do evento nas sugestões do Google.';
@@ -1272,15 +1274,6 @@ export default function ContratoPublicoPage() {
 
   return (
     <>
-      {mapsApiKey ? (
-        <Script
-          id="google-maps-places"
-          src={`https://maps.googleapis.com/maps/api/js?key=${mapsApiKey}&libraries=places`}
-          strategy="afterInteractive"
-          onLoad={() => setMapsReady(true)}
-        />
-      ) : null}
-
       <main className="min-h-screen bg-slate-100 px-3 py-4 md:px-6 md:py-8">
         <div className="mx-auto max-w-5xl space-y-6">
           <Card>

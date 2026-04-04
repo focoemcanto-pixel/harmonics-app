@@ -1,13 +1,7 @@
 'use client';
 
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { createBrowserClient } from '@supabase/ssr';
-
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-if (!SUPABASE_URL) throw new Error('Missing required environment variable: NEXT_PUBLIC_SUPABASE_URL');
-if (!SUPABASE_ANON_KEY) throw new Error('Missing required environment variable: NEXT_PUBLIC_SUPABASE_ANON_KEY');
+import { createContext, useContext, useEffect, useState } from 'react';
+import { supabase } from '@/lib/supabase';
 
 const AuthContext = createContext({});
 
@@ -15,7 +9,6 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
-  const supabase = useMemo(() => createBrowserClient(SUPABASE_URL, SUPABASE_ANON_KEY), []);
 
   useEffect(() => {
     checkUser();

@@ -33,3 +33,9 @@ body {
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
+
+.pac-container {
+  z-index: 99999 !important;
+  position: absolute !important;
+  margin-top: 2px !important;
+}

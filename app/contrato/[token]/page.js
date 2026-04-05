@@ -1116,19 +1116,32 @@ await upsertContract('client_filling');
         .eq('id', precontract.id);
 
       if (preError) throw preError;
-            const generateRes = await fetch('/api/contracts/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          precontractId: precontract.id,
-        }),
-      });
+           const generateRes = await fetch('/api/contracts/generate', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    precontractId: precontract.id,
+  }),
+});
 
-      const generateJson = await generateRes.json();
+const contentType = generateRes.headers.get('content-type') || '';
 
-      if (!generateJson?.ok) {
-        throw new Error(generateJson?.message || 'Erro ao gerar contrato final.');
-      }
+let generateJson = null;
+let rawResponse = '';
+
+if (contentType.includes('application/json')) {
+  generateJson = await generateRes.json();
+} else {
+  rawResponse = await generateRes.text();
+  console.error('Resposta não-JSON em /api/contracts/generate:', rawResponse);
+  throw new Error(
+    `A geração do contrato retornou uma resposta inválida. Status ${generateRes.status}.`
+  );
+}
+
+if (!generateRes.ok || !generateJson?.ok) {
+  throw new Error(generateJson?.message || 'Erro ao gerar contrato final.');
+}
 
       const { data: contractAtualizado, error: contractReloadError } = await supabase
         .from('contracts')

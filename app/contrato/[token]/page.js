@@ -608,7 +608,7 @@ const mapsLoaded = useGoogleMapsReady();
 
         setForm((prev) => ({
           ...prev,
-          address_street: data.street || '',
+          address_street: data.street || data.formattedAddress || '',
           address_number: data.number ?? '',
           address_neighborhood: data.neighborhood || '',
           address_cep: data.cep || '',
@@ -618,7 +618,7 @@ const mapsLoaded = useGoogleMapsReady();
 
         setAddressValidation((prev) => ({
           ...prev,
-          clientAddressConfirmed: !!data.street,
+          clientAddressConfirmed: !!(data.street || data.formattedAddress)
         }));
 
         setClientAddressStatus('selected');

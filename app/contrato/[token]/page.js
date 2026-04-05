@@ -778,10 +778,12 @@ const mapsLoaded = useGoogleMapsReady();
     };
   }, [precontract]);
 
-  const contratoFinalizado =
-    contract?.status === 'signed' ||
-    precontract?.status === 'signed';
+ const pdfDisponivel =
+  !!resultadoFinal.pdfUrl || !!contract?.pdf_url;
 
+const contratoFinalizado =
+  (contract?.status === 'signed' || precontract?.status === 'signed') &&
+  pdfDisponivel;
   function validateFormFields() {
     const errors = {};
 
@@ -1067,9 +1069,10 @@ const mapsLoaded = useGoogleMapsReady();
     }
 
     try {
-      setSalvando(true);
+     setSalvando(true);
 
-      await upsertContract('signed');
+// salva em estado intermediário enquanto gera o contrato final
+await upsertContract('client_filling');
 
       const contactId = await upsertContactFromSignature({
         supabase,
@@ -1287,28 +1290,35 @@ const mapsLoaded = useGoogleMapsReady();
               </p>
 
               <div className="flex flex-col justify-center gap-3 pt-2 sm:flex-row">
-                {pdfUrl ? (
-                  <a
-                    href={pdfUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex"
-                  >
-                    <Button>Abrir PDF do contrato</Button>
-                  </a>
-                ) : (
-                  <Button disabled>PDF ainda indisponível</Button>
-                )}
+  {pdfUrl ? (
+    <>
+      <a
+        href={pdfUrl}
+        target="_blank"
+        rel="noreferrer"
+        className="inline-flex"
+      >
+        <Button>Abrir PDF do contrato</Button>
+      </a>
 
-                <a
-                  href={painelUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex"
-                >
-                  <Button variant="secondary">Abrir painel do cliente</Button>
-                </a>
-              </div>
+      <a
+        href={painelUrl}
+        target="_blank"
+        rel="noreferrer"
+        className="inline-flex"
+      >
+        <Button variant="secondary">Abrir painel do cliente</Button>
+      </a>
+    </>
+  ) : (
+    <>
+      <Button disabled>PDF ainda indisponível</Button>
+      <Button variant="secondary" disabled>
+        Painel liberado após PDF
+      </Button>
+    </>
+  )}
+</div>
             </div>
           </Card>
         </div>

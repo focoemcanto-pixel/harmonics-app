@@ -186,12 +186,11 @@ export async function POST(request) {
       });
     }
 
-    if (!context.contract?.id) {
-      throw new Error(
-        'Contract não encontrado. Gere/assine o contrato antes de tentar criar o documento final.'
-      );
-    }
-
+    if (!context.contract?.id && !context.precontract?.id) {
+  throw new Error(
+    'Nenhum contexto válido encontrado para gerar o contrato.'
+  );
+}
     const contractName = getContractName(context);
 
     const generated = await generateGoogleContract({
@@ -210,19 +209,21 @@ export async function POST(request) {
       // qualquer outro => [CLIENTE_NOME]
       placeholderStyle: 'double_curly',
     });
+    
+  if (context.contract?.id) {
+  const { error: updateError } = await supabase
+    .from('contracts')
+    .update({
+      doc_template_id: templateId,
+      doc_url: generated.docUrl,
+      pdf_url: generated.pdfUrl,
+    })
+    .eq('id', context.contract.id);
 
-    const { error: updateError } = await supabase
-      .from('contracts')
-      .update({
-        doc_template_id: templateId,
-        doc_url: generated.docUrl,
-        pdf_url: generated.pdfUrl,
-      })
-      .eq('id', context.contract.id);
-
-    if (updateError) {
-      throw new Error(`Erro ao salvar links do contrato: ${updateError.message}`);
-    }
+  if (updateError) {
+    throw new Error(`Erro ao salvar links do contrato: ${updateError.message}`);
+  }
+}
 
     return NextResponse.json({
       ok: true,

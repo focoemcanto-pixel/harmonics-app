@@ -169,6 +169,7 @@ export async function GET() {
 export async function POST(request) {
   try {
     const envCheck = validateEnv();
+
     if (!envCheck.valid) {
       return NextResponse.json(
         {
@@ -218,9 +219,7 @@ export async function POST(request) {
     }
 
     if (!context.contract?.id && !context.precontract?.id) {
-      throw new Error(
-        'Nenhum contexto válido encontrado para gerar o contrato.'
-      );
+      throw new Error('Nenhum contexto válido encontrado para gerar o contrato.');
     }
 
     const contractName = getContractName(context);
@@ -250,11 +249,10 @@ export async function POST(request) {
         placeholderStyle: 'double_curly',
       });
     } catch (error) {
-     console.error('Erro dentro de generateGoogleContract:', error);
-
-throw new Error(
-  'Falha ao gerar contrato no Google Docs/Drive. Verifique as credenciais OAuth, template e permissões da pasta no Google Drive.'
-);
+      console.error('Erro dentro de generateGoogleContract:', error);
+      throw new Error(
+        'Falha ao gerar contrato no Google Docs/Drive. Verifique credenciais OAuth, template e permissões da pasta no Google Drive.'
+      );
     }
 
     if (context.contract?.id) {
@@ -289,17 +287,18 @@ throw new Error(
       templateData,
     });
   } catch (error) {
-  console.error('Erro em /api/contracts/generate:', error);
+    console.error('Erro em /api/contracts/generate:', error);
 
-  return NextResponse.json(
-    {
-      ok: false,
-      message:
-        error instanceof Error
-          ? error.message
-          : 'Erro interno ao gerar contrato.',
-      errorType: error?.name || 'UnknownError',
-    },
-    { status: 500 }
-  );
+    return NextResponse.json(
+      {
+        ok: false,
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Erro interno ao gerar contrato.',
+        errorType: error?.name || 'UnknownError',
+      },
+      { status: 500 }
+    );
+  }
 }

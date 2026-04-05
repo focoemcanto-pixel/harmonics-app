@@ -33,6 +33,26 @@ function validateEnv() {
   };
 }
 
+function getReadableErrorMessage(error) {
+  if (!error) return 'Erro interno ao gerar contrato.';
+
+  if (typeof error === 'string') return error;
+
+  if (error instanceof Error) {
+    return error.message || 'Erro interno ao gerar contrato.';
+  }
+
+  if (typeof error === 'object') {
+    try {
+      return JSON.stringify(error);
+    } catch {
+      return 'Erro interno ao gerar contrato.';
+    }
+  }
+
+  return String(error);
+}
+
 async function getContractContext({ contractId, precontractId, supabase }) {
   let contract = null;
 
@@ -159,7 +179,13 @@ export async function POST(request) {
       );
     }
 
-    const { supabaseUrl, supabaseServiceRoleKey, templateId, rootFolderId } = envCheck;
+    const {
+      supabaseUrl,
+      supabaseServiceRoleKey,
+      templateId,
+      rootFolderId,
+    } = envCheck;
+
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
     const body = await request.json();
@@ -168,7 +194,12 @@ export async function POST(request) {
     const precontractId = body?.precontractId || null;
     const previewOnly = !!body?.previewOnly;
 
-    const context = await getContractContext({ contractId, precontractId, supabase });
+    const context = await getContractContext({
+      contractId,
+      precontractId,
+      supabase,
+    });
+
     const templateData = buildContractTemplateData(context);
 
     if (previewOnly) {
@@ -187,43 +218,58 @@ export async function POST(request) {
     }
 
     if (!context.contract?.id && !context.precontract?.id) {
-  throw new Error(
-    'Nenhum contexto válido encontrado para gerar o contrato.'
-  );
-}
-    const contractName = getContractName(context);
+      throw new Error(
+        'Nenhum contexto válido encontrado para gerar o contrato.'
+      );
+    }
 
-    const generated = await generateGoogleContract({
+    const contractName = getContractName(context);
+    const eventDate =
+      context.event?.event_date ||
+      context.precontract?.event_date ||
+      new Date().toISOString().slice(0, 10);
+
+    console.log('[/api/contracts/generate] iniciando generateGoogleContract', {
+      contractId: context.contract?.id || null,
+      precontractId: context.precontract?.id || null,
       templateId,
       rootFolderId,
-      templateData,
       contractName,
-      eventDate:
-        context.event?.event_date ||
-        context.precontract?.event_date ||
-        new Date().toISOString().slice(0, 10),
-
-      // Ajuste se seu template usar outro formato:
-      // 'double_curly' => {{CLIENTE_NOME}}
-      // 'double_angle' => <<CLIENTE_NOME>>
-      // qualquer outro => [CLIENTE_NOME]
-      placeholderStyle: 'double_curly',
+      eventDate,
     });
-    
-  if (context.contract?.id) {
-  const { error: updateError } = await supabase
-    .from('contracts')
-    .update({
-      doc_template_id: templateId,
-      doc_url: generated.docUrl,
-      pdf_url: generated.pdfUrl,
-    })
-    .eq('id', context.contract.id);
 
-  if (updateError) {
-    throw new Error(`Erro ao salvar links do contrato: ${updateError.message}`);
-  }
-}
+    let generated;
+
+    try {
+      generated = await generateGoogleContract({
+        templateId,
+        rootFolderId,
+        templateData,
+        contractName,
+        eventDate,
+        placeholderStyle: 'double_curly',
+      });
+    } catch (error) {
+      console.error('Erro dentro de generateGoogleContract:', error);
+      throw new Error(
+        `Falha ao gerar contrato no Google Docs/Drive: ${getReadableErrorMessage(error)}`
+      );
+    }
+
+    if (context.contract?.id) {
+      const { error: updateError } = await supabase
+        .from('contracts')
+        .update({
+          doc_template_id: templateId,
+          doc_url: generated.docUrl,
+          pdf_url: generated.pdfUrl,
+        })
+        .eq('id', context.contract.id);
+
+      if (updateError) {
+        throw new Error(`Erro ao salvar links do contrato: ${updateError.message}`);
+      }
+    }
 
     return NextResponse.json({
       ok: true,
@@ -247,7 +293,8 @@ export async function POST(request) {
     return NextResponse.json(
       {
         ok: false,
-        message: error?.message || 'Erro interno ao gerar contrato.',
+        message: getReadableErrorMessage(error),
+        errorType: error?.name || 'UnknownError',
       },
       { status: 500 }
     );

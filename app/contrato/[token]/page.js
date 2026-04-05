@@ -1155,6 +1155,9 @@ await upsertContract('client_filling');
         docUrl: docUrlFinal,
         clientPanelUrl: `${window.location.origin}/cliente/${token}`,
       });
+      if (!pdfUrlFinal) {
+  throw new Error('Contrato gerado sem PDF final. A assinatura não será concluída até o PDF existir.');
+}
 
       const notesAtualizadas = [
         precontract.notes || '',
@@ -1183,6 +1186,19 @@ await upsertContract('client_filling');
       ]
         .filter(Boolean)
         .join('\n');
+      
+      const { error: contractSignedError } = await supabase
+  .from('contracts')
+  .update({
+    status: 'signed',
+    signed_at: new Date().toISOString(),
+    signature_name: form.signer_name.trim() || null,
+    contact_id: contactId,
+    event_id: eventId,
+  })
+  .eq('precontract_id', precontract.id);
+
+if (contractSignedError) throw contractSignedError;
 
       const { error: precontractUpdateError } = await supabase
         .from('precontracts')

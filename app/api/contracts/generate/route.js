@@ -250,9 +250,10 @@ export async function POST(request) {
       });
     } catch (error) {
       console.error('Erro dentro de generateGoogleContract:', error);
-      console.error('Erro REAL do GoogleContractGenerator:', error);
 
-throw error;
+throw new Error(
+  error?.message || 'Falha ao gerar contrato no Google Docs/Drive.'
+);
     }
 
     if (context.contract?.id) {

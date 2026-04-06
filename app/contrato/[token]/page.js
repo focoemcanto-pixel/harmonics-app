@@ -10,7 +10,7 @@ import Badge from '../../../components/ui/Badge';
 import { useGoogleMapsReady } from '../../../hooks/useGoogleMapsReady';
 
 const CONTRACT_TEMPLATE_DOC_ID = '1dUmmVKIR6S31A_-mTyeN0X5H7XdfHk-DExtC8oT0D7A';
-const CONTRACTS_DRIVE_FOLDER_ID = '1W_pv5Do3uj3riMK41OcWnGBqHTx1fv45';
+const CONTRACTS_DRIVE_FOLDER_ID = '16kW_562F3P9cjpK-cU2USepljqQUZQ5z';
 
 function formatMoney(value) {
   return new Intl.NumberFormat('pt-BR', {

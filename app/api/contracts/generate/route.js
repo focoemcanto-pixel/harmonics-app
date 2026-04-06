@@ -250,9 +250,9 @@ export async function POST(request) {
       });
     } catch (error) {
       console.error('Erro dentro de generateGoogleContract:', error);
-      throw new Error(
-        'Falha ao gerar contrato no Google Docs/Drive. Verifique credenciais OAuth, template e permissões da pasta no Google Drive.'
-      );
+      console.error('Erro REAL do GoogleContractGenerator:', error);
+
+throw error;
     }
 
     if (context.contract?.id) {
@@ -290,15 +290,12 @@ export async function POST(request) {
     console.error('Erro em /api/contracts/generate:', error);
 
     return NextResponse.json(
-      {
-        ok: false,
-        message:
-          error instanceof Error
-            ? error.message
-            : 'Erro interno ao gerar contrato.',
-        errorType: error?.name || 'UnknownError',
-      },
-      { status: 500 }
-    );
+  {
+    ok: false,
+    message: error.message,
+    errorType: error?.name || 'UnknownError',
+  },
+  { status: 500 }
+);
   }
 }

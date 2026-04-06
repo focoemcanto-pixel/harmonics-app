@@ -285,15 +285,16 @@ export async function POST(request) {
       templateData,
     });
   } catch (error) {
-    console.error('Erro em /api/contracts/generate:', error);
+  console.error('ERRO REAL:', error);
+  console.error('STACK:', error?.stack);
 
-   return NextResponse.json(
-  {
-    ok: false,
-    message: error?.message || 'Erro interno ao gerar contrato.',
-    errorType: error?.name || 'UnknownError',
-  },
-  { status: 500 }
-);
-  }
+  return NextResponse.json(
+    {
+      ok: false,
+      message: error?.message || 'Erro interno',
+      stack: error?.stack,
+    },
+    { status: 500 }
+  );
+}
 }

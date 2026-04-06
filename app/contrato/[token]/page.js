@@ -1116,7 +1116,7 @@ await upsertContract('client_filling');
         .eq('id', precontract.id);
 
       if (preError) throw preError;
-           const generateRes = await fetch('/api/contracts/generate', {
+           const generateRes = await fetch(`${process.env.NEXT_PUBLIC_CONTRACT_SERVICE_URL}/generate-contract`, {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({

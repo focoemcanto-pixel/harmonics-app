@@ -9,17 +9,6 @@ import Input from '../../../components/ui/Input';
 import Badge from '../../../components/ui/Badge';
 import { useGoogleMapsReady } from '../../../hooks/useGoogleMapsReady';
 
-// Substituindo as variáveis fixas por uma chamada à API para pegar as variáveis do backend
-fetch('/api/config')
-  .then(response => response.json())
-  .then(data => {
-    const { templateId, rootFolderId } = data;
-
-    // Agora use templateId e rootFolderId recebidos do backend para continuar com o processo
-    generateContract(templateId, rootFolderId);
-  })
-  .catch(error => console.error('Erro ao obter configurações do backend:', error));
-
 function formatMoney(value) {
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',
@@ -1124,13 +1113,13 @@ await upsertContract('client_filling');
         .eq('id', precontract.id);
 
       if (preError) throw preError;
-           const generateRes = await fetch(`${process.env.NEXT_PUBLIC_CONTRACT_SERVICE_URL}/generate-contract`, {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    precontractId: precontract.id,
-  }),
-});
+      const generateRes = await fetch('/api/contracts/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          precontractId: precontract.id,
+        }),
+      });
 
 const contentType = generateRes.headers.get('content-type') || '';
 

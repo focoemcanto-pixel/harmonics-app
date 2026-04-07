@@ -913,8 +913,6 @@ const contratoFinalizado =
       raw_payload: {
         precontract_snapshot: precontract,
         client_form: clientForm,
-        contract_template_doc_id: CONTRACT_TEMPLATE_DOC_ID,
-        contracts_drive_folder_id: CONTRACTS_DRIVE_FOLDER_ID,
       },
     };
 

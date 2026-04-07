@@ -9,8 +9,16 @@ import Input from '../../../components/ui/Input';
 import Badge from '../../../components/ui/Badge';
 import { useGoogleMapsReady } from '../../../hooks/useGoogleMapsReady';
 
-const CONTRACT_TEMPLATE_DOC_ID = '1dUmmVKIR6S31A_-mTyeN0X5H7XdfHk-DExtC8oT0D7A';
-const CONTRACTS_DRIVE_FOLDER_ID = '16kW_562F3P9cjpK-cU2USepljqQUZQ5z';
+// Substituindo as variáveis fixas por uma chamada à API para pegar as variáveis do backend
+fetch('/api/config')
+  .then(response => response.json())
+  .then(data => {
+    const { templateId, rootFolderId } = data;
+
+    // Agora use templateId e rootFolderId recebidos do backend para continuar com o processo
+    generateContract(templateId, rootFolderId);
+  })
+  .catch(error => console.error('Erro ao obter configurações do backend:', error));
 
 function formatMoney(value) {
   return new Intl.NumberFormat('pt-BR', {

@@ -240,18 +240,18 @@ export async function POST(request) {
     let generated;
 
     try {
-  generated = await generateGoogleContract({
-    templateId,
-    rootFolderId,
-    templateData,
-    contractName,
-    eventDate,
-    placeholderStyle: 'double_curly',
-  });
-} catch (error) {
-  console.error('Erro dentro de generateGoogleContract:', error);
-  throw new Error(error?.message || 'Falha ao gerar contrato no Google Docs/Drive.');
-}
+      generated = await generateGoogleContract({
+        templateId,
+        rootFolderId,
+        templateData,
+        contractName,
+        eventDate,
+        placeholderStyle: 'double_curly',
+      });
+    } catch (error) {
+      console.error('Erro dentro de generateGoogleContract:', error);
+      throw new Error(error?.message || 'Falha ao gerar contrato no Google Docs/Drive.');
+    }
 
     if (context.contract?.id) {
       const { error: updateError } = await supabase
@@ -285,16 +285,16 @@ export async function POST(request) {
       templateData,
     });
   } catch (error) {
-  console.error('ERRO REAL:', error);
-  console.error('STACK:', error?.stack);
+    console.error('ERRO REAL:', error);
+    console.error('STACK:', error?.stack);
 
-  return NextResponse.json(
-    {
-      ok: false,
-      message: error?.message || 'Erro interno',
-      stack: error?.stack,
-    },
-    { status: 500 }
-  );
-}
+    return NextResponse.json(
+      {
+        ok: false,
+        message: error?.message || 'Erro interno',
+        stack: error?.stack,
+      },
+      { status: 500 }
+    );
+  }
 }

@@ -5,6 +5,7 @@ import { generateGoogleContract } from '../../../../lib/contracts/googleContract
 
 export const dynamic = 'force-dynamic';
 
+// Função de validação das variáveis de ambiente
 function validateEnv() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -33,6 +34,7 @@ function validateEnv() {
   };
 }
 
+// Função para gerar mensagens de erro mais legíveis
 function getReadableErrorMessage(error) {
   if (!error) return 'Erro interno ao gerar contrato.';
 
@@ -53,6 +55,7 @@ function getReadableErrorMessage(error) {
   return String(error);
 }
 
+// Função para obter o contexto do contrato
 async function getContractContext({ contractId, precontractId, supabase }) {
   let contract = null;
 
@@ -144,6 +147,7 @@ async function getContractContext({ contractId, precontractId, supabase }) {
   };
 }
 
+// Função para gerar o nome do contrato
 function getContractName(context) {
   const clientName =
     context.contact?.name ||
@@ -159,6 +163,7 @@ function getContractName(context) {
   return `Contrato - ${clientName} - ${eventDate}`;
 }
 
+// Endpoint GET para confirmar a necessidade do POST
 export async function GET() {
   return NextResponse.json({
     ok: true,
@@ -166,8 +171,10 @@ export async function GET() {
   });
 }
 
+// Função POST para gerar o contrato
 export async function POST(request) {
   try {
+    // Valida as variáveis de ambiente
     const envCheck = validateEnv();
 
     if (!envCheck.valid) {
@@ -203,6 +210,7 @@ export async function POST(request) {
 
     const templateData = buildContractTemplateData(context);
 
+    // Retorna dados do template se for apenas preview
     if (previewOnly) {
       return NextResponse.json({
         ok: true,
@@ -218,6 +226,7 @@ export async function POST(request) {
       });
     }
 
+    // Se não encontrar contexto válido, retorna erro
     if (!context.contract?.id && !context.precontract?.id) {
       throw new Error('Nenhum contexto válido encontrado para gerar o contrato.');
     }
@@ -240,6 +249,7 @@ export async function POST(request) {
     let generated;
 
     try {
+      // Chama a função para gerar o contrato
       generated = await generateGoogleContract({
         templateId,
         rootFolderId,
@@ -250,9 +260,11 @@ export async function POST(request) {
       });
     } catch (error) {
       console.error('Erro dentro de generateGoogleContract:', error);
-      throw new Error(error?.message || 'Falha ao gerar contrato no Google Docs/Drive.');
+      console.error('Erro REAL do GoogleContractGenerator:', error);
+      throw error;
     }
 
+    // Atualiza o contrato com as URLs geradas
     if (context.contract?.id) {
       const { error: updateError } = await supabase
         .from('contracts')
@@ -285,14 +297,13 @@ export async function POST(request) {
       templateData,
     });
   } catch (error) {
-    console.error('ERRO REAL:', error);
-    console.error('STACK:', error?.stack);
+    console.error('Erro em /api/contracts/generate:', error);
 
     return NextResponse.json(
       {
         ok: false,
-        message: error?.message || 'Erro interno',
-        stack: error?.stack,
+        message: error.message,
+        errorType: error?.name || 'UnknownError',
       },
       { status: 500 }
     );

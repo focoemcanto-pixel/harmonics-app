@@ -163,7 +163,6 @@ function getContractName(context) {
   return `Contrato - ${clientName} - ${eventDate}`;
 }
 
-// Endpoint GET para confirmar a necessidade do POST
 export async function GET() {
   return NextResponse.json({
     ok: true,
@@ -171,12 +170,11 @@ export async function GET() {
   });
 }
 
-// Função POST para gerar o contrato
 export async function POST(request) {
   try {
-    // Valida as variáveis de ambiente
     const envCheck = validateEnv();
 
+    // Verificação das variáveis de ambiente
     if (!envCheck.valid) {
       return NextResponse.json(
         {
@@ -194,6 +192,11 @@ export async function POST(request) {
       rootFolderId,
     } = envCheck;
 
+    // Log para garantir que as variáveis de ambiente estão corretas
+    console.log('templateId:', templateId);
+    console.log('rootFolderId:', rootFolderId);
+
+    // Conectar ao banco de dados Supabase
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
     const body = await request.json();
@@ -202,6 +205,7 @@ export async function POST(request) {
     const precontractId = body?.precontractId || null;
     const previewOnly = !!body?.previewOnly;
 
+    // Obter o contexto do contrato
     const context = await getContractContext({
       contractId,
       precontractId,
@@ -210,7 +214,7 @@ export async function POST(request) {
 
     const templateData = buildContractTemplateData(context);
 
-    // Retorna dados do template se for apenas preview
+    // Se for apenas preview, retorna os dados do template sem gerar o contrato
     if (previewOnly) {
       return NextResponse.json({
         ok: true,
@@ -226,11 +230,12 @@ export async function POST(request) {
       });
     }
 
-    // Se não encontrar contexto válido, retorna erro
+    // Verificar se existe um contrato ou pré-contrato válido
     if (!context.contract?.id && !context.precontract?.id) {
       throw new Error('Nenhum contexto válido encontrado para gerar o contrato.');
     }
 
+    // Gerar nome do contrato e data do evento
     const contractName = getContractName(context);
     const eventDate =
       context.event?.event_date ||
@@ -249,7 +254,7 @@ export async function POST(request) {
     let generated;
 
     try {
-      // Chama a função para gerar o contrato
+      // Chamada para gerar o contrato
       generated = await generateGoogleContract({
         templateId,
         rootFolderId,
@@ -261,7 +266,13 @@ export async function POST(request) {
     } catch (error) {
       console.error('Erro dentro de generateGoogleContract:', error);
       console.error('Erro REAL do GoogleContractGenerator:', error);
-      throw error;
+
+      // Retorna a resposta de erro com a mensagem detalhada
+      return NextResponse.json({
+        ok: false,
+        message: getReadableErrorMessage(error),
+        errorType: error?.name || 'UnknownError',
+      }, { status: 500 });
     }
 
     // Atualiza o contrato com as URLs geradas

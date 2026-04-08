@@ -2,9 +2,7 @@ import crypto from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { google } from 'googleapis';
 import {
-  deactivateGoogleCredentials,
-  loadGoogleCredentialsFromSupabase,
-  validateGoogleCredentials,
+  deactivateGoogleCredentialsByUserId,
 } from '@/lib/contracts/googleCredentials';
 
 function buildOAuthClient() {
@@ -19,24 +17,19 @@ function buildOAuthClient() {
   return new google.auth.OAuth2(clientId, clientSecret, redirectUri);
 }
 
-export async function POST() {
+export async function POST(request) {
   try {
-    const envValidation = validateGoogleCredentials(process.env.GOOGLE_OAUTH_REFRESH_TOKEN);
-    const { validation: supabaseValidation } = await loadGoogleCredentialsFromSupabase();
+    const body = await request.json().catch(() => ({}));
+    const userId = String(body?.userId || body?.user_id || '').trim();
 
-    const chosenValidation = envValidation.valid ? envValidation : supabaseValidation;
-
-    if (chosenValidation.valid) {
+    if (!userId) {
       return NextResponse.json(
-        {
-          ok: false,
-          message: 'Credenciais atuais estão válidas. Reautenticação forçada não é necessária.',
-        },
-        { status: 409 }
+        { ok: false, message: 'userId (ou user_id) é obrigatório.' },
+        { status: 400 }
       );
     }
 
-    const revokeResult = await deactivateGoogleCredentials(`forced_reauth:${chosenValidation.reason}`);
+    const revokeResult = await deactivateGoogleCredentialsByUserId(userId, 'forced_reauth');
     const oauth2Client = buildOAuthClient();
     const state = crypto.randomBytes(24).toString('hex');
 
@@ -48,16 +41,12 @@ export async function POST() {
         'https://www.googleapis.com/auth/drive',
         'https://www.googleapis.com/auth/documents',
       ],
-      state,
+      state: `${state}:${userId}`,
     });
 
     return NextResponse.json({
       ok: true,
-      message: 'Credenciais inválidas detectadas. Reautenticação necessária.',
-      validation: {
-        reason: chosenValidation.reason,
-        message: chosenValidation.message,
-      },
+      message: 'Credencial atual invalidada. Reautenticação forçada criada com sucesso.',
       revokeResult,
       reauthUrl,
       state,

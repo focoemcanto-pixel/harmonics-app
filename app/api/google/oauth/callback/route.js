@@ -31,10 +31,20 @@ export async function GET(request) {
 
     const { searchParams } = new URL(request.url);
     const code = searchParams.get('code');
+    const state = String(searchParams.get('state') || '').trim();
+    const userIdFromState = state.includes(':') ? state.split(':').at(-1) : '';
+    const userId = String(searchParams.get('user_id') || userIdFromState || '').trim();
 
     if (!code) {
       return NextResponse.json(
         { ok: false, message: 'Code não recebido do Google.' },
+        { status: 400 }
+      );
+    }
+
+    if (!userId) {
+      return NextResponse.json(
+        { ok: false, message: 'user_id não recebido no callback OAuth.' },
         { status: 400 }
       );
     }
@@ -96,16 +106,18 @@ export async function GET(request) {
     const tokenValidation = validateGoogleOAuthTokensForStorage(tokens);
 
     if (!tokenValidation.valid) {
-      return NextResponse.json(
-        {
-          ok: false,
-          message: `Tokens OAuth inválidos (${tokenValidation.reason}): ${tokenValidation.message}`,
-        },
-        { status: 400 }
-      );
+      if (tokenValidation.reason !== 'missing_refresh_token') {
+        return NextResponse.json(
+          {
+            ok: false,
+            message: `Tokens OAuth inválidos (${tokenValidation.reason}): ${tokenValidation.message}`,
+          },
+          { status: 400 }
+        );
+      }
     }
 
-    const persistence = await persistGoogleCredentialsToSupabase(tokenValidation.credentials);
+    const persistence = await persistGoogleCredentialsToSupabase(tokens, { userId });
 
     if (!persistence.persisted) {
       return NextResponse.json(

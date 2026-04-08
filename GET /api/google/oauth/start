@@ -26,7 +26,7 @@ async function saveTokensInDatabase(tokens, userId) {
       .from('google_oauth_credentials')
       .upsert([
         {
-          user_id: userId,
+          user_id: userId,  // Garantindo que estamos salvando os tokens para o usuário correto
           refresh_token: tokens.refresh_token,
           access_token: tokens.access_token,
           credentials: JSON.stringify(tokens), // Garantindo que as credenciais estejam corretamente serializadas
@@ -44,11 +44,14 @@ async function saveTokensInDatabase(tokens, userId) {
 
 // Handler para a autenticação
 export async function handler(req, res) {
-  const { userId, code } = req.query; // Código de autorização do Google e userId
+  const { code, state } = req.query;  // Pega o código e o state da query string
 
   if (!code) {
     return res.status(400).send('Código de autorização ausente');
   }
+
+  // Extrair user_id do state
+  const userId = state.split('-')[0];  // O user_id está antes do primeiro '-'
 
   try {
     // Troca o código pelo access_token e refresh_token
@@ -56,7 +59,7 @@ export async function handler(req, res) {
     oauth2Client.setCredentials(tokens);  // Configura as credenciais do Google
 
     // Persistir tokens no banco de dados
-    await saveTokensInDatabase(tokens, userId);
+    await saveTokensInDatabase(tokens, userId); // Passa user_id para salvar os tokens corretamente
 
     // Redirecionar após sucesso
     res.redirect('/success');
@@ -84,8 +87,28 @@ export async function forceReauth(req, res) {
       'https://www.googleapis.com/auth/drive',
       'https://www.googleapis.com/auth/documents'
     ],
-    state: Math.random().toString(36).slice(2), // Gerar estado aleatório para proteção contra CSRF
+    state: `${userId}-${Math.random().toString(36).slice(2)}`, // Concatenando o user_id no estado
   });
 
   return res.json({ reauthUrl: authUrl });
+}
+
+// Função para iniciar o OAuth2 com Google (geração de URL de consentimento)
+export async function startOAuth(req, res) {
+  const { userId } = req.query; // Pega o user_id da query para ser usado no estado
+
+  // Gerar a URL de autenticação com access_type=offline e prompt=consent
+  const authUrl = oauth2Client.generateAuthUrl({
+    access_type: 'offline',     // Garante que o Google retorne o refresh_token
+    prompt: 'consent',          // Solicita ao Google mostrar a tela de consentimento
+    include_granted_scopes: true,
+    scope: [
+      'https://www.googleapis.com/auth/drive',
+      'https://www.googleapis.com/auth/documents'
+    ],
+    state: `${userId}-${Math.random().toString(36).slice(2)}`,  // Concatenando o user_id com o estado aleatório
+  });
+
+  // Redirecionar o usuário para a URL de consentimento do Google
+  res.redirect(authUrl);
 }

@@ -121,33 +121,16 @@ function serializeForLog(obj) {
 
     const clone = JSON.parse(JSON.stringify(obj));
 
-    if (clone.access_token) clone.access_token = maskToken(clone.access_token);
-    if (clone.refresh_token) clone.refresh_token = maskToken(clone.refresh_token);
-    if (clone.id_token) clone.id_token = maskToken(clone.id_token);
+    const maskInObject = (target) => {
+      if (!target || typeof target !== 'object') return;
+      if (target.access_token) target.access_token = maskToken(target.access_token);
+      if (target.refresh_token) target.refresh_token = maskToken(target.refresh_token);
+      if (target.id_token) target.id_token = maskToken(target.id_token);
+    };
 
-    if (clone.tokens && typeof clone.tokens === 'object') {
-      if (clone.tokens.access_token) {
-        clone.tokens.access_token = maskToken(clone.tokens.access_token);
-      }
-      if (clone.tokens.refresh_token) {
-        clone.tokens.refresh_token = maskToken(clone.tokens.refresh_token);
-      }
-      if (clone.tokens.id_token) {
-        clone.tokens.id_token = maskToken(clone.tokens.id_token);
-      }
-    }
-
-    if (clone.res?.data && typeof clone.res.data === 'object') {
-      if (clone.res.data.access_token) {
-        clone.res.data.access_token = maskToken(clone.res.data.access_token);
-      }
-      if (clone.res.data.refresh_token) {
-        clone.res.data.refresh_token = maskToken(clone.res.data.refresh_token);
-      }
-      if (clone.res.data.id_token) {
-        clone.res.data.id_token = maskToken(clone.res.data.id_token);
-      }
-    }
+    maskInObject(clone);
+    maskInObject(clone.tokens);
+    maskInObject(clone.res?.data);
 
     return clone;
   } catch {
@@ -155,38 +138,62 @@ function serializeForLog(obj) {
   }
 }
 
+function looksLikeTokenPayload(value) {
+  return !!(
+    value &&
+    typeof value === 'object' &&
+    !Array.isArray(value) &&
+    (
+      value.access_token ||
+      value.refresh_token ||
+      value.id_token ||
+      value.token_type ||
+      value.expiry_date ||
+      value.scope
+    )
+  );
+}
+
+/**
+ * Faz unwrap recursivo da resposta do Google até achar o payload real dos tokens.
+ */
 function extractOAuthTokensFromResponse(tokenResponse) {
-  if (!tokenResponse) return null;
+  let current = tokenResponse;
+  const visited = new Set();
 
-  // Formato mais comum: { tokens: {...}, res: {...} }
-  if (
-    tokenResponse.tokens &&
-    typeof tokenResponse.tokens === 'object' &&
-    !Array.isArray(tokenResponse.tokens)
-  ) {
-    return tokenResponse.tokens;
-  }
+  for (let i = 0; i < 10; i += 1) {
+    if (!current || typeof current !== 'object') return null;
+    if (visited.has(current)) break;
+    visited.add(current);
 
-  // Algumas respostas podem vir como array [tokens, response]
-  if (Array.isArray(tokenResponse) && tokenResponse.length > 0) {
-    const first = tokenResponse[0];
-    if (first && typeof first === 'object' && !Array.isArray(first)) {
-      return first;
+    if (looksLikeTokenPayload(current)) {
+      return current;
     }
-  }
 
-  // Alguns cenários podem expor os tokens em res.data
-  if (
-    tokenResponse.res?.data &&
-    typeof tokenResponse.res.data === 'object' &&
-    !Array.isArray(tokenResponse.res.data)
-  ) {
-    return tokenResponse.res.data;
-  }
+    if (
+      current.tokens &&
+      typeof current.tokens === 'object' &&
+      !Array.isArray(current.tokens)
+    ) {
+      current = current.tokens;
+      continue;
+    }
 
-  // Fallback: o próprio objeto já é o payload
-  if (typeof tokenResponse === 'object' && !Array.isArray(tokenResponse)) {
-    return tokenResponse;
+    if (
+      current.res?.data &&
+      typeof current.res.data === 'object' &&
+      !Array.isArray(current.res.data)
+    ) {
+      current = current.res.data;
+      continue;
+    }
+
+    if (Array.isArray(current) && current.length > 0) {
+      current = current[0];
+      continue;
+    }
+
+    break;
   }
 
   return null;
@@ -293,8 +300,6 @@ export async function GET(request) {
       );
     }
 
-    console.error('[CALLBACK] state validado com sucesso');
-
     const userId = String(parsedState.userId || '').trim();
     console.error('[CALLBACK] userId extraído do state:', userId);
 
@@ -315,14 +320,7 @@ export async function GET(request) {
       tokenResponse = await oauth2Client.getToken(code);
       console.error('[CALLBACK] getToken() executado com sucesso');
       console.error('[CALLBACK] tokenResponse type:', typeof tokenResponse);
-      console.error(
-        '[CALLBACK] tokenResponse has .tokens:',
-        !!tokenResponse?.tokens
-      );
-      console.error(
-        '[CALLBACK] tokenResponse keys:',
-        safeKeys(tokenResponse)
-      );
+      console.error('[CALLBACK] tokenResponse keys:', safeKeys(tokenResponse));
       console.error(
         '[CALLBACK] tokenResponse.tokens keys:',
         safeKeys(tokenResponse?.tokens)
@@ -356,10 +354,7 @@ export async function GET(request) {
 
     const rawTokens = extractOAuthTokensFromResponse(tokenResponse);
 
-    console.error(
-      '[CALLBACK] rawTokens keys:',
-      safeKeys(rawTokens)
-    );
+    console.error('[CALLBACK] rawTokens keys:', safeKeys(rawTokens));
     console.error(
       '[CALLBACK] rawTokens masked:',
       serializeForLog(rawTokens)

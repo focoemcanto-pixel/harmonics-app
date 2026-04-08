@@ -117,22 +117,18 @@ function maskToken(value) {
 
 function serializeForLog(obj) {
   try {
-    if (!obj || typeof obj !== 'object') return obj;
-
-    const clone = JSON.parse(JSON.stringify(obj));
-
-    const maskInObject = (target) => {
-      if (!target || typeof target !== 'object') return;
-      if (target.access_token) target.access_token = maskToken(target.access_token);
-      if (target.refresh_token) target.refresh_token = maskToken(target.refresh_token);
-      if (target.id_token) target.id_token = maskToken(target.id_token);
-    };
-
-    maskInObject(clone);
-    maskInObject(clone.tokens);
-    maskInObject(clone.res?.data);
-
-    return clone;
+    return JSON.parse(
+      JSON.stringify(obj, (key, value) => {
+        if (
+          key === 'access_token' ||
+          key === 'refresh_token' ||
+          key === 'id_token'
+        ) {
+          return maskToken(value);
+        }
+        return value;
+      })
+    );
   } catch {
     return '[unserializable]';
   }
@@ -144,59 +140,43 @@ function looksLikeTokenPayload(value) {
     typeof value === 'object' &&
     !Array.isArray(value) &&
     (
-      value.access_token ||
-      value.refresh_token ||
-      value.id_token ||
-      value.token_type ||
-      value.expiry_date ||
-      value.scope
+      typeof value.access_token === 'string' ||
+      typeof value.refresh_token === 'string' ||
+      typeof value.id_token === 'string' ||
+      typeof value.token_type === 'string' ||
+      typeof value.scope === 'string' ||
+      value.expiry_date != null
     )
   );
 }
 
-/**
- * Faz unwrap recursivo da resposta do Google até achar o payload real dos tokens.
- */
-function extractOAuthTokensFromResponse(tokenResponse) {
-  let current = tokenResponse;
-  const visited = new Set();
+function deepFindTokenPayload(value, visited = new Set(), depth = 0) {
+  if (!value || typeof value !== 'object' || depth > 10) return null;
+  if (visited.has(value)) return null;
+  visited.add(value);
 
-  for (let i = 0; i < 10; i += 1) {
-    if (!current || typeof current !== 'object') return null;
-    if (visited.has(current)) break;
-    visited.add(current);
+  if (looksLikeTokenPayload(value)) {
+    return value;
+  }
 
-    if (looksLikeTokenPayload(current)) {
-      return current;
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = deepFindTokenPayload(item, visited, depth + 1);
+      if (found) return found;
     }
+    return null;
+  }
 
-    if (
-      current.tokens &&
-      typeof current.tokens === 'object' &&
-      !Array.isArray(current.tokens)
-    ) {
-      current = current.tokens;
-      continue;
-    }
-
-    if (
-      current.res?.data &&
-      typeof current.res.data === 'object' &&
-      !Array.isArray(current.res.data)
-    ) {
-      current = current.res.data;
-      continue;
-    }
-
-    if (Array.isArray(current) && current.length > 0) {
-      current = current[0];
-      continue;
-    }
-
-    break;
+  for (const key of Object.keys(value)) {
+    const found = deepFindTokenPayload(value[key], visited, depth + 1);
+    if (found) return found;
   }
 
   return null;
+}
+
+function extractOAuthTokensFromResponse(tokenResponse) {
+  return deepFindTokenPayload(tokenResponse);
 }
 
 async function normalizeTokensWithPreviousRefreshToken(tokens, userId) {
@@ -326,6 +306,10 @@ export async function GET(request) {
         safeKeys(tokenResponse?.tokens)
       );
       console.error(
+        '[CALLBACK] tokenResponse.res keys:',
+        safeKeys(tokenResponse?.res)
+      );
+      console.error(
         '[CALLBACK] tokenResponse.res.data keys:',
         safeKeys(tokenResponse?.res?.data)
       );
@@ -370,7 +354,8 @@ export async function GET(request) {
             hasTokensProperty: !!tokenResponse?.tokens,
             hasResData: !!tokenResponse?.res?.data,
             tokenResponseKeys: safeKeys(tokenResponse),
-            tokenKeys: [],
+            tokenTokensKeys: safeKeys(tokenResponse?.tokens),
+            tokenResDataKeys: safeKeys(tokenResponse?.res?.data),
           },
         },
         { status: 400 }
@@ -401,7 +386,8 @@ export async function GET(request) {
             hasTokensProperty: !!tokenResponse?.tokens,
             hasResData: !!tokenResponse?.res?.data,
             tokenResponseKeys: safeKeys(tokenResponse),
-            tokenKeys: safeKeys(rawTokens),
+            tokenTokensKeys: safeKeys(tokenResponse?.tokens),
+            tokenResDataKeys: safeKeys(tokenResponse?.res?.data),
           },
         },
         { status: 400 }

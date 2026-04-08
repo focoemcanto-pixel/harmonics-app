@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  buildGoogleClientCredentials,
+  getRevocableGoogleTokens,
   normalizeGoogleCredentials,
   validateGoogleCredentials,
   validateGoogleOAuthTokensForStorage,
@@ -53,4 +55,40 @@ test('validateGoogleOAuthTokensForStorage aprova payload com refresh_token váli
 
   assert.equal(validation.valid, true);
   assert.equal(validation.credentials.refresh_token, '1//token-refresh-longo');
+});
+
+test('buildGoogleClientCredentials normaliza payload para setCredentials()', () => {
+  const validation = buildGoogleClientCredentials({
+    refresh_token: '1//token-refresh-longo',
+    access_token: 'ya29.access',
+    token_type: 'Bearer',
+    expiry_date: '1712499999999',
+  });
+
+  assert.equal(validation.valid, true);
+  assert.deepEqual(validation.credentials, {
+    refresh_token: '1//token-refresh-longo',
+    access_token: 'ya29.access',
+    token_type: 'Bearer',
+    expiry_date: 1712499999999,
+  });
+});
+
+test('buildGoogleClientCredentials reprova refresh_token ausente', () => {
+  const validation = buildGoogleClientCredentials({ access_token: 'ya29.access' });
+  assert.equal(validation.valid, false);
+  assert.equal(validation.reason, 'missing_refresh_token');
+});
+
+test('getRevocableGoogleTokens retorna tokens únicos para revogação', () => {
+  const tokens = getRevocableGoogleTokens({
+    refresh_token: '1//token-refresh',
+    access_token: 'ya29.access',
+    tokens: {
+      refresh_token: '1//token-refresh',
+      id_token: 'ey.id.token',
+    },
+  });
+
+  assert.deepEqual(tokens, ['1//token-refresh', 'ya29.access', 'ey.id.token']);
 });

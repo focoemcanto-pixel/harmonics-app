@@ -1,11 +1,11 @@
-import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server.js';
 import { google } from 'googleapis';
 import {
   loadExistingGoogleRefreshTokenByUserId,
   markGoogleCredentialAsRevokedByUserId,
   persistGoogleCredentialsToSupabase,
   validateGoogleOAuthTokensForStorage,
-} from '@/lib/contracts/googleCredentials';
+} from '../../../../../lib/contracts/googleCredentials.js';
 import crypto from 'node:crypto';
 
 const STATE_TTL_MS = 10 * 60 * 1000;

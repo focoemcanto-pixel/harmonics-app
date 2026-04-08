@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server.js';
 import { google } from 'googleapis';
 
 function extractUserIdFromAuthenticatedSession(request) {

@@ -45,6 +45,12 @@ test('validateGoogleOAuthTokensForStorage reprova payload não-objeto', () => {
   assert.equal(validation.reason, 'tokens_not_object');
 });
 
+test('validateGoogleOAuthTokensForStorage reprova array', () => {
+  const validation = validateGoogleOAuthTokensForStorage(['1//token-invalido']);
+  assert.equal(validation.valid, false);
+  assert.equal(validation.reason, 'tokens_not_object');
+});
+
 test('validateGoogleOAuthTokensForStorage aprova payload com refresh_token válido', () => {
   const validation = validateGoogleOAuthTokensForStorage({
     refresh_token: '1//token-refresh-longo',

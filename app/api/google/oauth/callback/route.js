@@ -5,6 +5,24 @@ import {
   validateGoogleOAuthTokensForStorage,
 } from '@/lib/contracts/googleCredentials';
 
+function extractOAuthTokensFromResponse(tokenResponse) {
+  if (!tokenResponse) return null;
+
+  if (
+    tokenResponse.tokens &&
+    typeof tokenResponse.tokens === 'object' &&
+    !Array.isArray(tokenResponse.tokens)
+  ) {
+    return tokenResponse.tokens;
+  }
+
+  if (typeof tokenResponse === 'object' && !Array.isArray(tokenResponse)) {
+    return tokenResponse;
+  }
+
+  return null;
+}
+
 export async function GET(request) {
   try {
     const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
@@ -27,8 +45,23 @@ export async function GET(request) {
       redirectUri
     );
 
-    const { tokens } = await oauth2Client.getToken(code);
-    console.log('Tokens recebidos:', tokens);
+    const tokenResponse = await oauth2Client.getToken(code);
+    const tokens = extractOAuthTokensFromResponse(tokenResponse);
+    const refreshToken = String(tokens?.refresh_token || '').trim();
+
+    console.info('[google-oauth][callback] retorno bruto getToken(code):', {
+      responseType: typeof tokenResponse,
+      responseKeys:
+        tokenResponse && typeof tokenResponse === 'object' ? Object.keys(tokenResponse) : [],
+      hasTokensProperty: Boolean(tokenResponse?.tokens),
+      tokensType: typeof tokenResponse?.tokens,
+      tokensIsArray: Array.isArray(tokenResponse?.tokens),
+      extractedTokensType: typeof tokens,
+      extractedTokenKeys: tokens && typeof tokens === 'object' ? Object.keys(tokens) : [],
+      hasAccessToken: Boolean(tokens?.access_token),
+      hasRefreshToken: Boolean(refreshToken),
+      codeLength: String(code || '').length,
+    });
 
     if (!tokens || typeof tokens !== 'object' || Array.isArray(tokens)) {
       return NextResponse.json(
@@ -36,6 +69,11 @@ export async function GET(request) {
           ok: false,
           message: 'Payload de tokens inválido recebido do Google OAuth.',
           diagnostics: {
+            tokenResponseType: typeof tokenResponse,
+            tokenResponseKeys:
+              tokenResponse && typeof tokenResponse === 'object'
+                ? Object.keys(tokenResponse)
+                : [],
             tokensType: typeof tokens,
             isArray: Array.isArray(tokens),
           },
@@ -47,10 +85,12 @@ export async function GET(request) {
     oauth2Client.setCredentials(tokens);
     console.log('Credenciais OAuth configuradas no oauth2Client.');
 
-    if (tokens.refresh_token) {
+    if (refreshToken) {
       console.log('Refresh Token recebido no callback OAuth.');
     } else {
-      console.error('Não foi possível obter o refresh_token no callback OAuth.');
+      console.warn(
+        '[google-oauth][callback] refresh_token ausente no retorno. Para receber novamente, refaça o consentimento com prompt=consent e revogue o acesso anterior.'
+      );
     }
 
     const tokenValidation = validateGoogleOAuthTokensForStorage(tokens);

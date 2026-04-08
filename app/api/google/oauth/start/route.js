@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server.js';
 import crypto from 'node:crypto';
+import { google } from 'googleapis';
 import { createClient } from '@/lib/supabase/server';
-
-const STATE_TTL_MS = 10 * 60 * 1000;
 
 function getStateSecret() {
   return String(process.env.GOOGLE_OAUTH_STATE_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
@@ -47,8 +46,6 @@ function generateSignedState(userId) {
 
 function getOAuth2Client() {
   try {
-    const { google } = require('googleapis');
-    
     const clientId = String(process.env.GOOGLE_OAUTH_CLIENT_ID || '').trim();
     const clientSecret = String(process.env.GOOGLE_OAUTH_CLIENT_SECRET || '').trim();
     const redirectUri = String(process.env.GOOGLE_OAUTH_REDIRECT_URI || '').trim();
@@ -68,33 +65,41 @@ export async function POST(request) {
   try {
     console.error('[START-OAUTH] Iniciando POST');
 
-    // ✅ CORRIGIDO: Usar Supabase Auth para obter usuário autenticado
-    const supabase = createClient();
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
+    const { searchParams } = new URL(request.url);
+    const queryUserId =
+      String(searchParams.get('userId') || '').trim() ||
+      String(searchParams.get('user_id') || '').trim();
 
-    console.error('[START-OAUTH] Auth check:', {
-      hasUser: !!user,
-      userId: user?.id,
-      authError: authError?.message,
-    });
+    let userId = queryUserId;
+    let source = 'query';
 
-    if (!user || !user.id) {
-      console.error('[START-OAUTH] Usuário não autenticado');
+    if (queryUserId) {
+      console.error('[START-OAUTH] userId via query', queryUserId);
+    } else {
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      userId = String(user?.id || '').trim();
+      source = 'session';
+
+      if (userId) {
+        console.error('[START-OAUTH] userId via session', userId);
+      }
+    }
+
+    console.error(`[START-OAUTH] source=${source}`);
+
+    if (!userId) {
       return NextResponse.json(
         {
           ok: false,
-          message: 'Usuário não autenticado',
-          error: authError?.message || 'Auth session missing!',
+          message: 'user_id ausente e nenhuma sessão autenticada encontrada',
         },
-        { status: 401 }
+        { status: 400 }
       );
     }
-
-    const userId = user.id;
-    console.error('[START-OAUTH] Usuário autenticado:', userId);
 
     // Gerar state com segurança
     const state = generateSignedState(userId);
@@ -104,6 +109,7 @@ export async function POST(request) {
     const authUrl = oauth2Client.generateAuthUrl({
       access_type: 'offline',
       prompt: 'consent',
+      include_granted_scopes: true,
       scope: [
         'https://www.googleapis.com/auth/drive',
         'https://www.googleapis.com/auth/documents',

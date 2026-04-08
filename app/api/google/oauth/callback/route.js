@@ -102,9 +102,63 @@ function getOAuth2Client() {
   return new google.auth.OAuth2(clientId, clientSecret, redirectUri);
 }
 
+function safeKeys(value) {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? Object.keys(value)
+    : [];
+}
+
+function maskToken(value) {
+  const raw = String(value || '');
+  if (!raw) return null;
+  if (raw.length <= 12) return `${raw.slice(0, 4)}...`;
+  return `${raw.slice(0, 6)}...${raw.slice(-4)}`;
+}
+
+function serializeForLog(obj) {
+  try {
+    if (!obj || typeof obj !== 'object') return obj;
+
+    const clone = JSON.parse(JSON.stringify(obj));
+
+    if (clone.access_token) clone.access_token = maskToken(clone.access_token);
+    if (clone.refresh_token) clone.refresh_token = maskToken(clone.refresh_token);
+    if (clone.id_token) clone.id_token = maskToken(clone.id_token);
+
+    if (clone.tokens && typeof clone.tokens === 'object') {
+      if (clone.tokens.access_token) {
+        clone.tokens.access_token = maskToken(clone.tokens.access_token);
+      }
+      if (clone.tokens.refresh_token) {
+        clone.tokens.refresh_token = maskToken(clone.tokens.refresh_token);
+      }
+      if (clone.tokens.id_token) {
+        clone.tokens.id_token = maskToken(clone.tokens.id_token);
+      }
+    }
+
+    if (clone.res?.data && typeof clone.res.data === 'object') {
+      if (clone.res.data.access_token) {
+        clone.res.data.access_token = maskToken(clone.res.data.access_token);
+      }
+      if (clone.res.data.refresh_token) {
+        clone.res.data.refresh_token = maskToken(clone.res.data.refresh_token);
+      }
+      if (clone.res.data.id_token) {
+        clone.res.data.id_token = maskToken(clone.res.data.id_token);
+      }
+    }
+
+    return clone;
+  } catch {
+    return '[unserializable]';
+  }
+}
+
 function extractOAuthTokensFromResponse(tokenResponse) {
   if (!tokenResponse) return null;
 
+  // Formato mais comum: { tokens: {...}, res: {...} }
   if (
     tokenResponse.tokens &&
     typeof tokenResponse.tokens === 'object' &&
@@ -113,6 +167,24 @@ function extractOAuthTokensFromResponse(tokenResponse) {
     return tokenResponse.tokens;
   }
 
+  // Algumas respostas podem vir como array [tokens, response]
+  if (Array.isArray(tokenResponse) && tokenResponse.length > 0) {
+    const first = tokenResponse[0];
+    if (first && typeof first === 'object' && !Array.isArray(first)) {
+      return first;
+    }
+  }
+
+  // Alguns cenários podem expor os tokens em res.data
+  if (
+    tokenResponse.res?.data &&
+    typeof tokenResponse.res.data === 'object' &&
+    !Array.isArray(tokenResponse.res.data)
+  ) {
+    return tokenResponse.res.data;
+  }
+
+  // Fallback: o próprio objeto já é o payload
   if (typeof tokenResponse === 'object' && !Array.isArray(tokenResponse)) {
     return tokenResponse;
   }
@@ -124,7 +196,9 @@ async function normalizeTokensWithPreviousRefreshToken(tokens, userId) {
   const refreshToken = String(tokens?.refresh_token || '').trim();
   if (refreshToken) return tokens;
 
-  console.error('[CALLBACK] refresh_token não veio do Google, buscando antigo...');
+  console.error(
+    '[CALLBACK] refresh_token não veio do Google, buscando antigo...'
+  );
 
   const previousRefreshToken =
     await loadExistingGoogleRefreshTokenByUserId(userId);
@@ -181,7 +255,10 @@ export async function GET(request) {
 
     console.error('[CALLBACK] Iniciando callback OAuth');
     console.error('[CALLBACK] code recebido:', !!code);
-    console.error('[CALLBACK] state recebido:', state ? `${state.slice(0, 30)}...` : '');
+    console.error(
+      '[CALLBACK] state recebido:',
+      state ? `${state.slice(0, 40)}...` : ''
+    );
 
     if (googleError) {
       console.error('[CALLBACK] Google retornou erro:', googleError);
@@ -237,34 +314,107 @@ export async function GET(request) {
     try {
       tokenResponse = await oauth2Client.getToken(code);
       console.error('[CALLBACK] getToken() executado com sucesso');
+      console.error('[CALLBACK] tokenResponse type:', typeof tokenResponse);
+      console.error(
+        '[CALLBACK] tokenResponse has .tokens:',
+        !!tokenResponse?.tokens
+      );
+      console.error(
+        '[CALLBACK] tokenResponse keys:',
+        safeKeys(tokenResponse)
+      );
+      console.error(
+        '[CALLBACK] tokenResponse.tokens keys:',
+        safeKeys(tokenResponse?.tokens)
+      );
+      console.error(
+        '[CALLBACK] tokenResponse.res.data keys:',
+        safeKeys(tokenResponse?.res?.data)
+      );
+      console.error(
+        '[CALLBACK] tokenResponse masked:',
+        serializeForLog(tokenResponse)
+      );
     } catch (error) {
       console.error('[CALLBACK] getToken() falhou:', error.message);
+      console.error(
+        '[CALLBACK] getToken() response data:',
+        serializeForLog(error?.response?.data)
+      );
+
       return NextResponse.json(
         {
           ok: false,
           message: `Falha ao obter tokens do Google: ${error.message}`,
+          debug: {
+            responseData: serializeForLog(error?.response?.data),
+          },
         },
         { status: 400 }
       );
     }
 
-    const tokens = extractOAuthTokensFromResponse(tokenResponse);
+    const rawTokens = extractOAuthTokensFromResponse(tokenResponse);
 
-    console.error('[CALLBACK] hasAccessToken:', !!tokens?.access_token);
-    console.error('[CALLBACK] hasRefreshToken:', !!tokens?.refresh_token);
+    console.error(
+      '[CALLBACK] rawTokens keys:',
+      safeKeys(rawTokens)
+    );
+    console.error(
+      '[CALLBACK] rawTokens masked:',
+      serializeForLog(rawTokens)
+    );
 
-    if (!tokens || typeof tokens !== 'object' || Array.isArray(tokens)) {
+    if (!rawTokens || typeof rawTokens !== 'object' || Array.isArray(rawTokens)) {
       return NextResponse.json(
         {
           ok: false,
           message: 'Payload de tokens inválido recebido do Google OAuth.',
+          debug: {
+            hasTokenResponse: !!tokenResponse,
+            hasTokensProperty: !!tokenResponse?.tokens,
+            hasResData: !!tokenResponse?.res?.data,
+            tokenResponseKeys: safeKeys(tokenResponse),
+            tokenKeys: [],
+          },
+        },
+        { status: 400 }
+      );
+    }
+
+    const normalizedTokensBase = {
+      access_token: String(rawTokens?.access_token || '').trim() || null,
+      refresh_token: String(rawTokens?.refresh_token || '').trim() || null,
+      scope: String(rawTokens?.scope || '').trim() || null,
+      token_type: String(rawTokens?.token_type || 'Bearer').trim(),
+      expiry_date: rawTokens?.expiry_date ?? null,
+      id_token: String(rawTokens?.id_token || '').trim() || null,
+    };
+
+    console.error(
+      '[CALLBACK] normalizedTokensBase:',
+      serializeForLog(normalizedTokensBase)
+    );
+
+    if (!normalizedTokensBase.access_token) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: 'access_token ausente na resposta do Google OAuth',
+          debug: {
+            hasTokenResponse: !!tokenResponse,
+            hasTokensProperty: !!tokenResponse?.tokens,
+            hasResData: !!tokenResponse?.res?.data,
+            tokenResponseKeys: safeKeys(tokenResponse),
+            tokenKeys: safeKeys(rawTokens),
+          },
         },
         { status: 400 }
       );
     }
 
     const normalizedTokens = await normalizeTokensWithPreviousRefreshToken(
-      tokens,
+      normalizedTokensBase,
       userId
     );
 
@@ -272,6 +422,10 @@ export async function GET(request) {
       hasAccessToken: !!normalizedTokens?.access_token,
       hasRefreshToken: !!normalizedTokens?.refresh_token,
     });
+    console.error(
+      '[CALLBACK] normalizedTokens masked:',
+      serializeForLog(normalizedTokens)
+    );
 
     const tokenValidation =
       validateGoogleOAuthTokensForStorage(normalizedTokens);

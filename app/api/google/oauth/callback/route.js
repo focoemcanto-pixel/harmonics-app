@@ -1,9 +1,53 @@
 import { NextResponse } from 'next/server';
 import { google } from 'googleapis';
 import {
+  loadExistingGoogleRefreshTokenByUserId,
+  markGoogleCredentialAsRevokedByUserId,
   persistGoogleCredentialsToSupabase,
   validateGoogleOAuthTokensForStorage,
 } from '@/lib/contracts/googleCredentials';
+import crypto from 'node:crypto';
+
+const STATE_TTL_MS = 10 * 60 * 1000;
+
+function getStateSecret() {
+  return String(process.env.GOOGLE_OAUTH_STATE_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
+}
+
+function verifySignedState(state) {
+  const normalizedState = String(state || '').trim();
+  if (!normalizedState) return { valid: false, reason: 'state_missing' };
+
+  const [nonce = '', encodedUserId = '', issuedAt = '', signature = ''] = normalizedState.split('.');
+  if (!nonce || !encodedUserId || !issuedAt || !signature) {
+    return { valid: false, reason: 'state_format_invalid' };
+  }
+
+  const stateSecret = getStateSecret();
+  if (!stateSecret) return { valid: false, reason: 'state_secret_missing' };
+
+  const payload = `${nonce}.${encodedUserId}.${issuedAt}`;
+  const expectedSignature = crypto.createHmac('sha256', stateSecret).update(payload).digest('base64url');
+  const providedBuffer = Buffer.from(signature);
+  const expectedBuffer = Buffer.from(expectedSignature);
+  if (providedBuffer.length !== expectedBuffer.length) {
+    return { valid: false, reason: 'state_signature_invalid' };
+  }
+  const signaturesMatch = crypto.timingSafeEqual(providedBuffer, expectedBuffer);
+
+  if (!signaturesMatch) return { valid: false, reason: 'state_signature_invalid' };
+
+  const issuedAtNumber = Number(issuedAt);
+  if (!Number.isFinite(issuedAtNumber)) return { valid: false, reason: 'state_issued_at_invalid' };
+  if (Date.now() - issuedAtNumber > STATE_TTL_MS) return { valid: false, reason: 'state_expired' };
+
+  try {
+    const userId = Buffer.from(encodedUserId, 'base64url').toString('utf8').trim();
+    return { valid: Boolean(userId), reason: userId ? 'ok' : 'state_user_id_missing', userId };
+  } catch {
+    return { valid: false, reason: 'state_decode_failed' };
+  }
+}
 
 function extractOAuthTokensFromResponse(tokenResponse) {
   if (!tokenResponse) return null;
@@ -23,20 +67,47 @@ function extractOAuthTokensFromResponse(tokenResponse) {
   return null;
 }
 
-function extractUserIdFromState(state) {
-  const normalizedState = String(state || '').trim();
-  if (!normalizedState) return '';
+async function normalizeTokensWithPreviousRefreshToken(tokens, userId) {
+  const refreshToken = String(tokens?.refresh_token || '').trim();
+  if (refreshToken) return tokens;
 
-  const separatorIndex = normalizedState.indexOf(':');
-  if (separatorIndex < 0) return '';
+  const previousRefreshToken = await loadExistingGoogleRefreshTokenByUserId(userId);
+  if (!previousRefreshToken) return tokens;
 
-  const encodedUserId = normalizedState.slice(separatorIndex + 1).trim();
-  if (!encodedUserId) return '';
+  return {
+    ...tokens,
+    refresh_token: previousRefreshToken,
+  };
+}
+
+export async function revokeToken(refreshToken, userId) {
+  const clientId = String(process.env.GOOGLE_OAUTH_CLIENT_ID || '').trim();
+  const clientSecret = String(process.env.GOOGLE_OAUTH_CLIENT_SECRET || '').trim();
+  const redirectUri = String(process.env.GOOGLE_OAUTH_REDIRECT_URI || '').trim();
+  const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
 
   try {
-    return Buffer.from(encodedUserId, 'base64url').toString('utf8').trim();
-  } catch {
-    return '';
+    if (refreshToken) {
+      await oauth2Client.revokeToken(refreshToken);
+      console.info('[google-oauth][revoke] token revogado no Google com sucesso.', {
+        userId,
+      });
+    }
+
+    const dbResult = await markGoogleCredentialAsRevokedByUserId(userId);
+    if (!dbResult.updated) {
+      console.error('[google-oauth][revoke] falha ao marcar credencial como revogada no banco.', {
+        userId,
+        dbResult,
+      });
+    }
+    return dbResult;
+  } catch (error) {
+    console.error('[google-oauth][revoke] erro ao revogar token no Google.', {
+      userId,
+      error: error?.message || error,
+    });
+    throw error;
   }
 }
 
@@ -49,8 +120,15 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const code = searchParams.get('code');
     const state = String(searchParams.get('state') || '').trim();
-    const userIdFromState = extractUserIdFromState(state);
-    const userId = String(userIdFromState || searchParams.get('user_id') || '').trim();
+    const parsedState = verifySignedState(state);
+    const userId = String(parsedState.userId || '').trim();
+
+    console.info('[google-oauth][callback] callback recebido.', {
+      hasCode: Boolean(code),
+      hasState: Boolean(state),
+      stateValidation: parsedState.reason,
+      userIdPresent: Boolean(userId),
+    });
 
     if (!code) {
       return NextResponse.json(
@@ -59,9 +137,9 @@ export async function GET(request) {
       );
     }
 
-    if (!userId) {
+    if (!parsedState.valid || !userId) {
       return NextResponse.json(
-        { ok: false, message: 'user_id não recebido no callback OAuth.' },
+        { ok: false, message: `state inválido no callback OAuth (${parsedState.reason}).` },
         { status: 400 }
       );
     }
@@ -74,7 +152,6 @@ export async function GET(request) {
 
     const tokenResponse = await oauth2Client.getToken(code);
     const tokens = extractOAuthTokensFromResponse(tokenResponse);
-    const refreshToken = String(tokens?.refresh_token || '').trim();
 
     console.info('[google-oauth][callback] retorno bruto getToken(code):', {
       responseType: typeof tokenResponse,
@@ -86,7 +163,7 @@ export async function GET(request) {
       extractedTokensType: typeof tokens,
       extractedTokenKeys: tokens && typeof tokens === 'object' ? Object.keys(tokens) : [],
       hasAccessToken: Boolean(tokens?.access_token),
-      hasRefreshToken: Boolean(refreshToken),
+      hasRefreshToken: Boolean(tokens?.refresh_token),
       codeLength: String(code || '').length,
     });
 
@@ -109,34 +186,45 @@ export async function GET(request) {
       );
     }
 
-    oauth2Client.setCredentials(tokens);
+    const normalizedTokens = await normalizeTokensWithPreviousRefreshToken(tokens, userId);
+    oauth2Client.setCredentials(normalizedTokens);
     console.log('Credenciais OAuth configuradas no oauth2Client.');
 
-    if (refreshToken) {
-      console.log('Refresh Token recebido no callback OAuth.');
+    if (normalizedTokens?.refresh_token) {
+      console.log('Refresh Token disponível no callback OAuth.');
     } else {
       console.warn(
-        '[google-oauth][callback] refresh_token ausente no retorno. Para receber novamente, refaça o consentimento com prompt=consent e revogue o acesso anterior.'
+        '[google-oauth][callback] refresh_token ausente no retorno e sem token anterior para fallback.'
       );
     }
 
-    const tokenValidation = validateGoogleOAuthTokensForStorage(tokens);
+    const tokenValidation = validateGoogleOAuthTokensForStorage(normalizedTokens);
 
     if (!tokenValidation.valid) {
-      if (tokenValidation.reason !== 'missing_refresh_token') {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: `Tokens OAuth inválidos (${tokenValidation.reason}): ${tokenValidation.message}`,
+        },
+        { status: 400 }
+      );
+    }
+
+    const persistence = await persistGoogleCredentialsToSupabase(normalizedTokens, { userId });
+
+    if (!persistence.persisted) {
+      if (persistence.reason === 'unique_constraint_violation') {
         return NextResponse.json(
           {
             ok: false,
-            message: `Tokens OAuth inválidos (${tokenValidation.reason}): ${tokenValidation.message}`,
+            message:
+              'Conflito de credenciais por usuário (constraint única). Tente novamente com nova autorização.',
+            persistence,
           },
-          { status: 400 }
+          { status: 409 }
         );
       }
-    }
 
-    const persistence = await persistGoogleCredentialsToSupabase(tokens, { userId });
-
-    if (!persistence.persisted) {
       return NextResponse.json(
         {
           ok: false,
@@ -154,6 +242,7 @@ export async function GET(request) {
       persistence,
     });
   } catch (error) {
+    console.error('[google-oauth][callback] erro interno ao concluir OAuth:', error);
     return NextResponse.json(
       {
         ok: false,

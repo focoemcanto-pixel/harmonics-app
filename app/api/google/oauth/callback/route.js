@@ -114,16 +114,43 @@ export async function revokeToken(refreshToken, userId) {
 
 export async function GET(request) {
   try {
-    const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
-    const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
-    const redirectUri = process.env.GOOGLE_OAUTH_REDIRECT_URI;
+    const clientId = String(process.env.GOOGLE_OAUTH_CLIENT_ID || '').trim();
+    const clientSecret = String(process.env.GOOGLE_OAUTH_CLIENT_SECRET || '').trim();
+    const redirectUri = String(process.env.GOOGLE_OAUTH_REDIRECT_URI || '').trim();
 
     const { searchParams } = new URL(request.url);
     const code = searchParams.get('code');
     const state = String(searchParams.get('state') || '').trim();
-    const parsedState = verifySignedState(state);
-    const userIdFromState = String(parsedState.userId || '').trim();
+    
+    console.error('[CALLBACK] Iniciando callback OAuth');
+    console.error('[CALLBACK] Parâmetros:', {
+      hasCode: !!code,
+      hasState: !!state,
+    });
 
+    // Validar code
+    if (!code) {
+      console.error('[CALLBACK] Code não recebido do Google');
+      return NextResponse.json(
+        { ok: false, message: 'Code não recebido do Google.' },
+        { status: 400 }
+      );
+    }
+
+    // Validar state
+    const parsedState = verifySignedState(state);
+    if (!parsedState.valid) {
+      console.error('[CALLBACK] State inválido:', parsedState.reason);
+      return NextResponse.json(
+        { ok: false, message: `State inválido (${parsedState.reason})` },
+        { status: 400 }
+      );
+    }
+
+    const userIdFromState = String(parsedState.userId || '').trim();
+    console.error('[CALLBACK] State válido para userId:', userIdFromState);
+
+    // Validar autenticação Supabase
     const supabase = createClient();
     const {
       data: { user },
@@ -131,22 +158,8 @@ export async function GET(request) {
     } = await supabase.auth.getUser();
     const authenticatedUserId = String(user?.id || '').trim();
 
-    console.info('[google-oauth][callback] callback recebido.', {
-      hasCode: Boolean(code),
-      hasState: Boolean(state),
-      stateValidation: parsedState.reason,
-      userIdFromStatePresent: Boolean(userIdFromState),
-      authenticatedUserPresent: Boolean(authenticatedUserId),
-    });
-
-    if (!code) {
-      return NextResponse.json(
-        { ok: false, message: 'Code não recebido do Google.' },
-        { status: 400 }
-      );
-    }
-
     if (!authenticatedUserId || authError) {
+      console.error('[CALLBACK] Usuário não autenticado:', authError?.message);
       return NextResponse.json(
         {
           ok: false,
@@ -157,86 +170,94 @@ export async function GET(request) {
       );
     }
 
-    if (!parsedState.valid || !userIdFromState) {
-      return NextResponse.json(
-        { ok: false, message: `state inválido no callback OAuth (${parsedState.reason}).` },
-        { status: 400 }
-      );
-    }
-
+    // Validar que o usuário do state corresponde ao usuário autenticado
     if (userIdFromState !== authenticatedUserId) {
+      console.error('[CALLBACK] Mismatch de userId:', {
+        fromState: userIdFromState,
+        authenticated: authenticatedUserId,
+      });
       return NextResponse.json(
         {
           ok: false,
           message: 'Usuário autenticado não corresponde ao usuário do state OAuth.',
-          diagnostics: {
-            userIdFromState,
-            authenticatedUserId,
-          },
         },
         { status: 403 }
       );
     }
 
     const userId = authenticatedUserId;
+    console.error('[CALLBACK] userId validado:', userId);
 
-    const oauth2Client = new google.auth.OAuth2(
-      clientId,
-      clientSecret,
-      redirectUri
-    );
-
-    const tokenResponse = await oauth2Client.getToken(code);
-    const tokens = extractOAuthTokensFromResponse(tokenResponse);
-
-    console.info('[google-oauth][callback] retorno bruto getToken(code):', {
-      responseType: typeof tokenResponse,
-      responseKeys:
-        tokenResponse && typeof tokenResponse === 'object' ? Object.keys(tokenResponse) : [],
-      hasTokensProperty: Boolean(tokenResponse?.tokens),
-      tokensType: typeof tokenResponse?.tokens,
-      tokensIsArray: Array.isArray(tokenResponse?.tokens),
-      extractedTokensType: typeof tokens,
-      extractedTokenKeys: tokens && typeof tokens === 'object' ? Object.keys(tokens) : [],
-      hasAccessToken: Boolean(tokens?.access_token),
-      hasRefreshToken: Boolean(tokens?.refresh_token),
-      codeLength: String(code || '').length,
-    });
-
-    if (!tokens || typeof tokens !== 'object' || Array.isArray(tokens)) {
+    // Obter tokens do Google
+    console.error('[CALLBACK] Chamando oauth2Client.getToken(code)...');
+    const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
+    
+    let tokenResponse;
+    try {
+      tokenResponse = await oauth2Client.getToken(code);
+      console.error('[CALLBACK] getToken() sucesso');
+    } catch (error) {
+      console.error('[CALLBACK] getToken() falhou:', error.message);
       return NextResponse.json(
         {
           ok: false,
-          message: 'Payload de tokens inválido recebido do Google OAuth.',
-          diagnostics: {
-            tokenResponseType: typeof tokenResponse,
-            tokenResponseKeys:
-              tokenResponse && typeof tokenResponse === 'object'
-                ? Object.keys(tokenResponse)
-                : [],
-            tokensType: typeof tokens,
-            isArray: Array.isArray(tokens),
-          },
+          message: 'Falha ao obter tokens do Google: ' + error.message,
         },
         { status: 400 }
       );
     }
 
-    const normalizedTokens = await normalizeTokensWithPreviousRefreshToken(tokens, userId);
-    oauth2Client.setCredentials(normalizedTokens);
-    console.log('Credenciais OAuth configuradas no oauth2Client.');
+    // Extrair tokens
+    const tokens = extractOAuthTokensFromResponse(tokenResponse);
 
-    if (normalizedTokens?.refresh_token) {
-      console.log('Refresh Token disponível no callback OAuth.');
-    } else {
-      console.warn(
-        '[google-oauth][callback] refresh_token ausente no retorno e sem token anterior para fallback.'
+    console.error('[CALLBACK] Tokens extraído:', {
+      type: typeof tokens,
+      keys: tokens && typeof tokens === 'object' ? Object.keys(tokens) : [],
+      hasAccessToken: !!tokens?.access_token,
+      hasRefreshToken: !!tokens?.refresh_token,
+    });
+
+    if (!tokens || typeof tokens !== 'object' || Array.isArray(tokens)) {
+      console.error('[CALLBACK] Tokens inválido');
+      return NextResponse.json(
+        {
+          ok: false,
+          message: 'Payload de tokens inválido recebido do Google OAuth.',
+        },
+        { status: 400 }
       );
     }
 
+    // Normalizar tokens (usar antigo se Google não retornar novo refresh_token)
+    console.error('[CALLBACK] Normalizando tokens...');
+    const normalizedTokens = await normalizeTokensWithPreviousRefreshToken(tokens, userId);
+
+    console.error('[CALLBACK] Tokens normalizado:', {
+      hasAccessToken: !!normalizedTokens?.access_token,
+      hasRefreshToken: !!normalizedTokens?.refresh_token,
+    });
+
+    // Configurar credentials no OAuth2Client
+    try {
+      oauth2Client.setCredentials(normalizedTokens);
+      console.error('[CALLBACK] setCredentials() sucesso');
+    } catch (error) {
+      console.error('[CALLBACK] setCredentials() falhou:', error.message);
+      return NextResponse.json(
+        {
+          ok: false,
+          message: 'Falha ao configurar credenciais: ' + error.message,
+        },
+        { status: 500 }
+      );
+    }
+
+    // Validar tokens
+    console.error('[CALLBACK] Validando tokens para storage...');
     const tokenValidation = validateGoogleOAuthTokensForStorage(normalizedTokens);
 
     if (!tokenValidation.valid) {
+      console.error('[CALLBACK] Validação falhou:', tokenValidation.reason);
       return NextResponse.json(
         {
           ok: false,
@@ -246,31 +267,20 @@ export async function GET(request) {
       );
     }
 
-    const credentials = tokenValidation.credentials;
+    console.error('[CALLBACK] Tokens validado com sucesso');
 
-    console.error('[CALLBACK-DEBUG] Tokens received:', {
-      tokensType: typeof tokens,
-      tokensKeys: Object.keys(tokens || {}),
-      hasRefreshToken: !!tokens?.refresh_token,
-      hasAccessToken: !!tokens?.access_token
-    });
-
-    console.error('[CALLBACK-DEBUG] About to call saveTokensInDatabase with:', {
-      userId,
-      credentialsType: typeof credentials,
-      credentialsKeys: Object.keys(credentials || {})
-    });
-
+    // Persistir no banco
+    console.error('[CALLBACK] Persistindo credenciais no Supabase...');
     const persistence = await persistGoogleCredentialsToSupabase(normalizedTokens, { userId });
 
     if (!persistence.persisted) {
+      console.error('[CALLBACK] Persistência falhou:', persistence.reason);
+      
       if (persistence.reason === 'unique_constraint_violation') {
         return NextResponse.json(
           {
             ok: false,
-            message:
-              'Conflito de credenciais por usuário (constraint única). Tente novamente com nova autorização.',
-            persistence,
+            message: 'Credenciais já existem para este usuário.',
           },
           { status: 409 }
         );
@@ -280,20 +290,26 @@ export async function GET(request) {
         {
           ok: false,
           message: `Falha ao persistir credenciais: ${persistence.reason}`,
-          persistence,
         },
         { status: 500 }
       );
     }
 
+    console.error('[CALLBACK] SUCCESS - Credenciais persistidas');
+
+    // ✅ SUCESSO - Retornar JSON com redirect URL
     return NextResponse.json({
       ok: true,
-      message: 'Tokens obtidos com sucesso.',
-      tokens: tokenValidation.credentials,
-      persistence,
+      message: 'Tokens obtidos com sucesso. Redirecionando...',
+      redirectUrl: '/contrato', // Mudar para onde você quer redirecionar
     });
+
   } catch (error) {
-    console.error('[google-oauth][callback] erro interno ao concluir OAuth:', error);
+    console.error('[CALLBACK] ERRO CRÍTICO:', {
+      message: error?.message,
+      stack: error?.stack,
+    });
+
     return NextResponse.json(
       {
         ok: false,

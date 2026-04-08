@@ -246,6 +246,21 @@ export async function GET(request) {
       );
     }
 
+    const credentials = tokenValidation.credentials;
+
+    console.error('[CALLBACK-DEBUG] Tokens received:', {
+      tokensType: typeof tokens,
+      tokensKeys: Object.keys(tokens || {}),
+      hasRefreshToken: !!tokens?.refresh_token,
+      hasAccessToken: !!tokens?.access_token
+    });
+
+    console.error('[CALLBACK-DEBUG] About to call saveTokensInDatabase with:', {
+      userId,
+      credentialsType: typeof credentials,
+      credentialsKeys: Object.keys(credentials || {})
+    });
+
     const persistence = await persistGoogleCredentialsToSupabase(normalizedTokens, { userId });
 
     if (!persistence.persisted) {

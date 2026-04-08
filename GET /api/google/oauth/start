@@ -3,109 +3,84 @@ import crypto from 'crypto';
 import { createClient } from '@supabase/supabase-js';
 
 // ============================================================================
-// CONFIGURAÇÃO
+// CONFIG
 // ============================================================================
 
-const HMAC_SECRET = process.env.OAUTH_STATE_SECRET || 'default-secret-key';
+const HMAC_SECRET = String(process.env.OAUTH_STATE_SECRET || 'default-secret-key');
 const STATE_EXPIRY_MS = 10 * 60 * 1000; // 10 minutos
 const GOOGLE_CREDENTIALS_TABLE = 'google_oauth_credentials';
 
-// Cliente Supabase
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
+  String(process.env.NEXT_PUBLIC_SUPABASE_URL || '').trim(),
+  String(process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
 );
 
 // ============================================================================
-// OAUTH2 CLIENT
+// HELPERS
 // ============================================================================
 
-/**
- * Cria nova instância do OAuth2Client
- */
 function getOAuth2Client() {
-  try {
-    const clientId = String(process.env.GOOGLE_OAUTH_CLIENT_ID || '').trim();
-    const clientSecret = String(process.env.GOOGLE_OAUTH_CLIENT_SECRET || '').trim();
-    const redirectUri = String(process.env.GOOGLE_OAUTH_REDIRECT_URI || '').trim();
+  const clientId = String(process.env.GOOGLE_OAUTH_CLIENT_ID || '').trim();
+  const clientSecret = String(process.env.GOOGLE_OAUTH_CLIENT_SECRET || '').trim();
+  const redirectUri = String(process.env.GOOGLE_OAUTH_REDIRECT_URI || '').trim();
 
-    if (!clientId || !clientSecret || !redirectUri) {
-      throw new Error('Variáveis de ambiente Google OAuth não configuradas');
-    }
-
-    const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
-    console.error('[OAUTH2-CLIENT] Inicializado com sucesso');
-    return oauth2Client;
-  } catch (error) {
-    console.error('[OAUTH2-CLIENT] FAILED:', error.message);
-    throw error;
+  if (!clientId || !clientSecret || !redirectUri) {
+    throw new Error('Variáveis de ambiente Google OAuth não configuradas');
   }
+
+  return new google.auth.OAuth2(clientId, clientSecret, redirectUri);
 }
 
-// ============================================================================
-// STATE COM SEGURANÇA HMAC
-// ============================================================================
+function getUserIdFromRequest(req) {
+  return (
+    req?.query?.userId ||
+    req?.query?.user_id ||
+    req?.body?.userId ||
+    req?.body?.user_id ||
+    req?.headers?.['x-user-id'] ||
+    null
+  );
+}
 
-/**
- * Gera state com segurança criptográfica (HMAC-SHA256)
- * Formato: userId|timestamp|nonce|hmac
- */
 function generateSecureState(userId) {
-  try {
-    console.error('[STATE-GENERATE] userId:', userId);
-
-    if (!userId || typeof userId !== 'string') {
-      throw new Error('userId deve ser string válida');
-    }
-
-    const timestamp = Date.now().toString();
-    const nonce = crypto.randomBytes(16).toString('hex');
-    const payload = `${userId}|${timestamp}|${nonce}`;
-
-    const hmac = crypto
-      .createHmac('sha256', HMAC_SECRET)
-      .update(payload)
-      .digest('hex');
-
-    const state = `${payload}|${hmac}`;
-
-    console.error('[STATE-GENERATE] SUCCESS:', {
-      userId,
-      state: state.substring(0, 30) + '...',
-    });
-
-    return state;
-  } catch (error) {
-    console.error('[STATE-GENERATE] FAILED:', error.message);
-    throw error;
+  if (!userId || typeof userId !== 'string') {
+    throw new Error('userId deve ser string válida');
   }
+
+  const timestamp = Date.now().toString();
+  const nonce = crypto.randomBytes(16).toString('hex');
+  const payload = `${userId}|${timestamp}|${nonce}`;
+
+  const hmac = crypto
+    .createHmac('sha256', HMAC_SECRET)
+    .update(payload)
+    .digest('hex');
+
+  return `${payload}|${hmac}`;
 }
 
-/**
- * Valida state com HMAC e timestamp
- */
 function validateSecureState(state) {
   try {
-    console.error('[STATE-VALIDATE] Iniciando validação');
-
     if (!state || typeof state !== 'string') {
       throw new Error('State ausente ou inválido');
     }
 
     const parts = state.split('|');
     if (parts.length !== 4) {
-      throw new Error(`Formato inválido: esperado 4 partes, recebido ${parts.length}`);
+      throw new Error(`Formato inválido de state: ${parts.length} partes`);
     }
 
     const [userId, timestamp, nonce, receivedHmac] = parts;
 
-    // Validar timestamp
-    const stateAge = Date.now() - parseInt(timestamp);
-    if (stateAge > STATE_EXPIRY_MS) {
-      throw new Error(`State expirado: ${Math.round(stateAge / 1000)}s atrás`);
+    if (!userId) {
+      throw new Error('user_id ausente no state');
     }
 
-    // Validar HMAC
+    const stateAge = Date.now() - Number(timestamp);
+    if (!Number.isFinite(stateAge) || stateAge > STATE_EXPIRY_MS) {
+      throw new Error('State expirado');
+    }
+
     const payload = `${userId}|${timestamp}|${nonce}`;
     const expectedHmac = crypto
       .createHmac('sha256', HMAC_SECRET)
@@ -113,18 +88,11 @@ function validateSecureState(state) {
       .digest('hex');
 
     if (receivedHmac !== expectedHmac) {
-      throw new Error('State HMAC inválido - possível ataque CSRF');
+      throw new Error('State inválido (HMAC mismatch)');
     }
 
-    console.error('[STATE-VALIDATE] SUCCESS userId:', userId);
-
-    return {
-      userId,
-      timestamp: parseInt(timestamp),
-      valid: true,
-    };
+    return { valid: true, userId };
   } catch (error) {
-    console.error('[STATE-VALIDATE] FAILED:', error.message);
     return {
       valid: false,
       error: error.message,
@@ -132,233 +100,160 @@ function validateSecureState(state) {
   }
 }
 
-// ============================================================================
-// VALIDAÇÃO DE TOKENS
-// ============================================================================
-
-/**
- * Valida tokens antes de persistir
- */
 function validateTokens(tokens) {
-  if (!tokens || typeof tokens !== 'object') {
-    throw new Error('Tokens deve ser um objeto');
+  if (!tokens || typeof tokens !== 'object' || Array.isArray(tokens)) {
+    throw new Error('Tokens OAuth inválidos: payload não é um objeto.');
   }
 
   if (!tokens.access_token || typeof tokens.access_token !== 'string') {
-    throw new Error('access_token inválido ou ausente');
+    throw new Error('access_token ausente ou inválido');
   }
-
-  if (tokens.access_token.length < 10) {
-    throw new Error(`access_token muito curto (${tokens.access_token.length} chars)`);
-  }
-
-  if (tokens.refresh_token && typeof tokens.refresh_token !== 'string') {
-    throw new Error(`refresh_token deve ser string, recebido ${typeof tokens.refresh_token}`);
-  }
-
-  console.error('[VALIDATE-TOKENS] SUCCESS:', {
-    hasAccessToken: !!tokens.access_token,
-    hasRefreshToken: !!tokens.refresh_token,
-  });
 
   return true;
 }
 
-// ============================================================================
-// PERSISTÊNCIA NO BANCO
-// ============================================================================
+async function getExistingCredentials(userId) {
+  if (!userId) return null;
 
-/**
- * Busca refresh_token antigo quando Google não retorna novo
- */
-async function getOldRefreshToken(userId) {
-  try {
-    if (!userId) return null;
+  const { data, error } = await supabase
+    .from(GOOGLE_CREDENTIALS_TABLE)
+    .select('credentials')
+    .eq('user_id', userId)
+    .maybeSingle();
 
-    const { data, error } = await supabase
-      .from(GOOGLE_CREDENTIALS_TABLE)
-      .select('credentials')
-      .eq('user_id', userId)
-      .maybeSingle();
-
-    if (error || !data) {
-      console.error('[OLD-REFRESH] Nenhuma credencial anterior encontrada');
-      return null;
-    }
-
-    const oldToken = data.credentials?.refresh_token;
-    if (!oldToken) {
-      console.error('[OLD-REFRESH] Credencial anterior não tem refresh_token');
-      return null;
-    }
-
-    console.error('[OLD-REFRESH] Recuperado com sucesso');
-    return oldToken;
-  } catch (error) {
-    console.error('[OLD-REFRESH] Erro:', error.message);
+  if (error) {
+    console.error('[GET-EXISTING-CREDS] erro:', error.message);
     return null;
   }
+
+  return data?.credentials || null;
 }
 
-/**
- * Salva tokens no banco com validação e fallback
- */
 async function saveTokensInDatabase(tokens, userId) {
   try {
-    console.error('[SAVE-TOKENS] Iniciando para userId:', userId);
-
     if (!userId || typeof userId !== 'string') {
-      throw new Error('userId inválido');
+      throw new Error('Parâmetro user_id é obrigatório.');
     }
 
-    // Validar tokens recebidos
     validateTokens(tokens);
 
-    // Se não tem refresh_token, busca o antigo
-    let refreshToken = tokens.refresh_token;
-    if (!refreshToken) {
-      console.error('[SAVE-TOKENS] refresh_token não veio, buscando antigo...');
-      refreshToken = await getOldRefreshToken(userId);
-    }
+    const existingCredentials = await getExistingCredentials(userId);
+    const oldRefreshToken = existingCredentials?.refresh_token || null;
 
-    if (!refreshToken) {
-      throw new Error(
-        'Nenhum refresh_token disponível. Usuário deve fazer re-autenticação.'
-      );
-    }
-
-    // Preparar credenciais para armazenar (apenas em credentials JSONB)
     const credentialsToStore = {
-      refresh_token: refreshToken,
+      refresh_token: tokens.refresh_token || oldRefreshToken || null,
       access_token: tokens.access_token,
       token_type: tokens.token_type || 'Bearer',
       expiry_date: tokens.expiry_date || null,
       scope: tokens.scope || null,
     };
 
-    console.error('[SAVE-TOKENS] Persistindo:', {
-      hasRefreshToken: !!credentialsToStore.refresh_token,
-      hasAccessToken: !!credentialsToStore.access_token,
-    });
+    if (!credentialsToStore.refresh_token) {
+      throw new Error(
+        'Nenhum refresh_token disponível. Faça a autenticação novamente com prompt=consent.'
+      );
+    }
 
-    // Upsert no Supabase
+    const payload = {
+      user_id: userId,
+      credentials: credentialsToStore, // JSONB -> objeto, não string
+      status: 'valid',
+      is_active: true,
+      updated_at: new Date().toISOString(),
+    };
+
     const { data, error } = await supabase
       .from(GOOGLE_CREDENTIALS_TABLE)
-      .upsert(
-        {
-          user_id: userId,
-          credentials: credentialsToStore, // JSONB - armazenar como objeto
-          status: 'valid',
-          is_active: true,
-          updated_at: new Date().toISOString(),
-        },
-        {
-          onConflict: 'user_id', // String, não array!
-        }
-      )
+      .upsert(payload, {
+        onConflict: 'user_id',
+      })
       .select();
 
     if (error) {
-      // Tratamento de constraint única
-      if (error.code === '23505' || error.message.includes('unique')) {
-        console.error('[SAVE-TOKENS] Erro constraint única (23505)');
-        return {
-          ok: false,
-          statusCode: 409,
-          message: 'Credenciais já existem para este usuário',
-          code: '23505',
-        };
-      }
-
-      console.error('[SAVE-TOKENS] Erro:', error.message);
-      throw error;
+      console.error('[SAVE-TOKENS] supabase error:', error);
+      return {
+        ok: false,
+        statusCode: 500,
+        message: 'Falha ao persistir credenciais: supabase_error',
+        persistence: {
+          persisted: false,
+          reason: 'supabase_error',
+          error,
+        },
+      };
     }
 
-    console.error('[SAVE-TOKENS] SUCCESS');
-    return { ok: true, data };
+    return {
+      ok: true,
+      data,
+      persistence: {
+        persisted: true,
+      },
+    };
   } catch (error) {
-    console.error('[SAVE-TOKENS] FAILED:', error.message);
+    console.error('[SAVE-TOKENS] failed:', error.message);
     return {
       ok: false,
-      statusCode: 500,
+      statusCode: 400,
       message: error.message,
     };
   }
 }
 
-// ============================================================================
-// REVOGAÇÃO
-// ============================================================================
-
-/**
- * Revoga token no Google e marca como revogado no banco
- */
-async function revokeToken(refreshToken, userId) {
+async function revokeToken(refreshToken, userId = null) {
   try {
-    console.error('[REVOKE] Iniciando para userId:', userId);
-
     if (!refreshToken || typeof refreshToken !== 'string') {
       throw new Error('refresh_token inválido');
     }
 
-    // Revogar no Google
     const oauth2Client = getOAuth2Client();
     await oauth2Client.revokeToken(refreshToken);
-    console.error('[REVOKE] Token revogado no Google');
 
-    // Marcar como revogado no banco
     if (userId) {
       await supabase
         .from(GOOGLE_CREDENTIALS_TABLE)
         .update({
           status: 'revoked',
           is_active: false,
-          credentials: {},
           updated_at: new Date().toISOString(),
         })
         .eq('user_id', userId);
-      console.error('[REVOKE] Marcado como revogado no banco');
     }
 
     return { ok: true };
   } catch (error) {
-    console.error('[REVOKE] FAILED:', error.message);
+    console.error('[REVOKE] failed:', error.message);
     return { ok: false, message: error.message };
   }
 }
 
 // ============================================================================
-// HANDLERS DE ENDPOINT
+// ENDPOINTS
 // ============================================================================
 
 /**
- * GET /api/google/oauth/start
- * Inicia fluxo OAuth - retorna authUrl
+ * GET /api/google/oauth/start?userId=UUID
+ * Para teste manual, passe userId na query.
+ * Em produção, você pode trocar isso por leitura real da sessão.
  */
 export async function startOAuth(req, res) {
   try {
-    console.error('[START-OAUTH] Iniciando');
-
-    // ⚠️ IMPORTANTE: Em Next.js App Router, isso seria recebido diferente
-    // Se usar Pages Router, userId vem de session ou query
-    const userId = req.query?.userId || req.user?.id;
+    const userId = getUserIdFromRequest(req);
 
     if (!userId) {
-      console.error('[START-OAUTH] userId ausente');
-      return res.status(401).json({
+      return res.status(400).json({
         ok: false,
-        message: 'Usuário não autenticado',
+        message: 'user_id ausente e nenhuma sessão autenticada encontrada',
       });
     }
 
-    // Gerar state com segurança
-    const state = generateSecureState(userId);
-
-    // Gerar URL de autenticação
+    const state = generateSecureState(String(userId));
     const oauth2Client = getOAuth2Client();
+
     const authUrl = oauth2Client.generateAuthUrl({
-      access_type: 'offline', // Garante refresh_token
-      prompt: 'consent', // Força consentimento, sempre retorna refresh_token
+      access_type: 'offline',
+      prompt: 'consent',
+      include_granted_scopes: true,
       scope: [
         'https://www.googleapis.com/auth/drive',
         'https://www.googleapis.com/auth/documents',
@@ -366,53 +261,48 @@ export async function startOAuth(req, res) {
       state,
     });
 
-    console.error('[START-OAUTH] SUCCESS');
-
-    return res.status(200).json({
-      ok: true,
-      authUrl,
-    });
+    // abre direto no Google
+    return res.redirect(authUrl);
   } catch (error) {
-    console.error('[START-OAUTH] FAILED:', error.message);
+    console.error('[START-OAUTH] failed:', error.message);
     return res.status(500).json({
       ok: false,
-      message: 'Erro ao iniciar autenticação: ' + error.message,
+      message: 'Erro ao iniciar autenticação',
+      error: error.message,
     });
   }
 }
 
 /**
  * GET /api/google/oauth/callback
- * Callback do Google - recebe code e state
  */
 export async function handler(req, res) {
   try {
-    console.error('[CALLBACK] Recebendo callback do Google');
-
     const { code, state, error: googleError } = req.query;
 
-    // Tratamento de erro do Google
     if (googleError) {
-      console.error('[CALLBACK] Google retornou erro:', googleError);
       return res.status(400).json({
         ok: false,
         message: `Google retornou erro: ${googleError}`,
       });
     }
 
-    // Validar parâmetros obrigatórios
-    if (!code || !state) {
-      console.error('[CALLBACK] Código ou state ausente');
+    if (!code) {
       return res.status(400).json({
         ok: false,
-        message: 'Código ou state ausente',
+        message: 'Código de autorização ausente',
       });
     }
 
-    // Validar state com HMAC
+    if (!state) {
+      return res.status(400).json({
+        ok: false,
+        message: 'State ausente no callback',
+      });
+    }
+
     const stateValidation = validateSecureState(state);
     if (!stateValidation.valid) {
-      console.error('[CALLBACK] State inválido:', stateValidation.error);
       return res.status(400).json({
         ok: false,
         message: `State inválido: ${stateValidation.error}`,
@@ -420,60 +310,69 @@ export async function handler(req, res) {
     }
 
     const userId = stateValidation.userId;
-    console.error('[CALLBACK] State válido para userId:', userId);
-
-    // Obter tokens do Google
-    const oauth2Client = getOAuth2Client();
-    const { tokens } = await oauth2Client.getToken(code);
-
-    console.error('[CALLBACK] Tokens recebidos do Google:', {
-      hasRefreshToken: !!tokens.refresh_token,
-      hasAccessToken: !!tokens.access_token,
-    });
-
-    // Salvar no banco com fallback para refresh_token antigo
-    const saveResult = await saveTokensInDatabase(tokens, userId);
-
-    if (!saveResult.ok) {
-      console.error('[CALLBACK] Falha ao salvar tokens:', saveResult.message);
-      return res.status(saveResult.statusCode || 500).json({
+    if (!userId) {
+      return res.status(400).json({
         ok: false,
-        message: saveResult.message,
+        message: 'user_id ausente no state do callback',
       });
     }
 
-    console.error('[CALLBACK] SUCCESS');
+    const oauth2Client = getOAuth2Client();
+    const tokenResponse = await oauth2Client.getToken(code);
 
-    // Redirecionar para sucesso
-    return res.redirect('/success');
+    const tokens = tokenResponse?.tokens ?? tokenResponse;
+
+    console.error('[CALLBACK] tokens recebidos:', {
+      hasRefreshToken: !!tokens?.refresh_token,
+      hasAccessToken: !!tokens?.access_token,
+    });
+
+    validateTokens(tokens);
+
+    oauth2Client.setCredentials({
+      refresh_token: tokens.refresh_token || undefined,
+      access_token: tokens.access_token,
+      token_type: tokens.token_type,
+      expiry_date: tokens.expiry_date,
+    });
+
+    const saveResult = await saveTokensInDatabase(tokens, userId);
+
+    if (!saveResult.ok) {
+      return res.status(saveResult.statusCode || 500).json(saveResult);
+    }
+
+    // você pode trocar isso por redirect para uma página do admin
+    return res.status(200).json({
+      ok: true,
+      message: 'Credenciais Google salvas com sucesso',
+      userId,
+      hasRefreshToken: !!(tokens.refresh_token || null),
+    });
   } catch (error) {
-    console.error('[CALLBACK] FAILED:', error.message);
+    console.error('[CALLBACK] failed:', error.message);
     return res.status(500).json({
       ok: false,
-      message: 'Erro ao autenticar: ' + error.message,
+      message: 'Erro ao autenticar',
+      error: error.message,
     });
   }
 }
 
 /**
- * POST /api/google/oauth/force-reauth
- * Força reautenticação - invalida credencial atual
+ * POST /api/google/oauth/force-reauth?userId=UUID
  */
 export async function forceReauth(req, res) {
   try {
-    console.error('[FORCE-REAUTH] Iniciando');
-
-    const userId = req.query?.userId || req.user?.id;
+    const userId = getUserIdFromRequest(req);
 
     if (!userId) {
-      console.error('[FORCE-REAUTH] userId ausente');
-      return res.status(401).json({
+      return res.status(400).json({
         ok: false,
-        message: 'Usuário não autenticado',
+        message: 'Parâmetro user_id é obrigatório.',
       });
     }
 
-    // Marcar credencial antiga como expirada
     await supabase
       .from(GOOGLE_CREDENTIALS_TABLE)
       .update({
@@ -483,16 +382,13 @@ export async function forceReauth(req, res) {
       })
       .eq('user_id', userId);
 
-    console.error('[FORCE-REAUTH] Credencial marcada como expirada');
-
-    // Gerar novo state
-    const state = generateSecureState(userId);
-
-    // Gerar nova URL com prompt=consent
+    const state = generateSecureState(String(userId));
     const oauth2Client = getOAuth2Client();
+
     const authUrl = oauth2Client.generateAuthUrl({
       access_type: 'offline',
-      prompt: 'consent', // FORÇA Google a retornar novo refresh_token
+      prompt: 'consent',
+      include_granted_scopes: true,
       scope: [
         'https://www.googleapis.com/auth/drive',
         'https://www.googleapis.com/auth/documents',
@@ -500,23 +396,17 @@ export async function forceReauth(req, res) {
       state,
     });
 
-    console.error('[FORCE-REAUTH] SUCCESS');
-
     return res.status(200).json({
       ok: true,
       authUrl,
     });
   } catch (error) {
-    console.error('[FORCE-REAUTH] FAILED:', error.message);
+    console.error('[FORCE-REAUTH] failed:', error.message);
     return res.status(500).json({
       ok: false,
       message: error.message,
     });
   }
 }
-
-// ============================================================================
-// EXPORT
-// ============================================================================
 
 export { revokeToken, getOAuth2Client };

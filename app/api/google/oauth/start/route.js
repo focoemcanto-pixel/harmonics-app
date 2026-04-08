@@ -22,18 +22,20 @@ export async function GET(request) {
     redirectUri
   );
 
+  const nonce = crypto.randomBytes(16).toString('hex');
+  const encodedUserId = Buffer.from(userId, 'utf8').toString('base64url');
+  const state = `${nonce}:${encodedUserId}`;
+
   const url = oauth2Client.generateAuthUrl({
     access_type: 'offline',
     prompt: 'consent',
     include_granted_scopes: true,
-    state: crypto.randomBytes(16).toString('hex'),
+    state,
     scope: [
       'https://www.googleapis.com/auth/drive',
       'https://www.googleapis.com/auth/documents',
     ],
   });
 
-  const urlWithUserId = new URL(url);
-  urlWithUserId.searchParams.set('state', `${urlWithUserId.searchParams.get('state')}:${userId}`);
-  return NextResponse.redirect(urlWithUserId.toString());
+  return NextResponse.redirect(url);
 }

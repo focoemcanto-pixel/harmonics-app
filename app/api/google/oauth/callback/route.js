@@ -28,6 +28,31 @@ export async function GET(request) {
     );
 
     const { tokens } = await oauth2Client.getToken(code);
+    console.log('Tokens recebidos:', tokens);
+
+    if (!tokens || typeof tokens !== 'object' || Array.isArray(tokens)) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: 'Payload de tokens inválido recebido do Google OAuth.',
+          diagnostics: {
+            tokensType: typeof tokens,
+            isArray: Array.isArray(tokens),
+          },
+        },
+        { status: 400 }
+      );
+    }
+
+    oauth2Client.setCredentials(tokens);
+    console.log('Credenciais OAuth configuradas no oauth2Client.');
+
+    if (tokens.refresh_token) {
+      console.log('Refresh Token recebido no callback OAuth.');
+    } else {
+      console.error('Não foi possível obter o refresh_token no callback OAuth.');
+    }
+
     const tokenValidation = validateGoogleOAuthTokensForStorage(tokens);
 
     if (!tokenValidation.valid) {

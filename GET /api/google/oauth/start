@@ -1,25 +1,49 @@
 import { google } from 'googleapis';
 
-// Substitua pelos seus dados de credenciais
+// Configuração do cliente OAuth2
 const oauth2Client = new google.auth.OAuth2(
-  process.env.GOOGLE_OAUTH_CLIENT_ID, // Seu Client ID
-  process.env.GOOGLE_OAUTH_CLIENT_SECRET, // Seu Client Secret
-  process.env.GOOGLE_OAUTH_REDIRECT_URI // Sua URL de redirecionamento
+  process.env.GOOGLE_OAUTH_CLIENT_ID, 
+  process.env.GOOGLE_OAUTH_CLIENT_SECRET, 
+  process.env.GOOGLE_OAUTH_REDIRECT_URI
 );
 
-export async function handler(req, res) {
-  // Gerar a URL de autenticação com `access_type=offline` e `prompt=consent`
-  const authUrl = oauth2Client.generateAuthUrl({
-    access_type: 'offline',     // Garante que o Google retorne o refresh_token
-    prompt: 'consent',          // Solicita ao Google mostrar a tela de consentimento
-    include_granted_scopes: true,
-    scope: [
-      'https://www.googleapis.com/auth/drive',
-      'https://www.googleapis.com/auth/documents'
-    ],
-    state: Math.random().toString(36).slice(2)  // Gerar estado aleatório para proteção contra CSRF
-  });
+// Função para revogar o token
+async function revokeToken(refreshToken) {
+  try {
+    // Revoga o token de atualização
+    await oauth2Client.revokeToken(refreshToken);
+    console.log('Token revogado com sucesso!');
+  } catch (error) {
+    console.error('Erro ao revogar o token:', error);
+  }
+}
 
-  // Redirecionar o usuário para a URL de consentimento do Google
-  res.redirect(authUrl);
+// Handler para a autenticação
+export async function handler(req, res) {
+  // Verifica se há erro na autenticação
+  if (req.query.error) {
+    await revokeToken(req.query.error);  // Revoga o token se erro ocorrer
+    return res.status(400).send('Erro na autenticação!');
+  }
+
+  const { code } = req.query;  // Código de autorização do Google
+
+  if (!code) {
+    return res.status(400).send('Código de autorização ausente');
+  }
+
+  try {
+    // Troca o código pelo access_token e refresh_token
+    const { tokens } = await oauth2Client.getToken(code);
+    oauth2Client.setCredentials(tokens);  // Configura as credenciais do Google
+
+    // Persistir tokens no banco de dados (ajuste para seu fluxo de persistência)
+    await saveTokensInDatabase(tokens);
+
+    // Redirecionar após sucesso
+    res.redirect('/success');
+  } catch (error) {
+    console.error('Erro ao trocar o código por tokens:', error);
+    res.status(500).send('Erro ao autenticar');
+  }
 }

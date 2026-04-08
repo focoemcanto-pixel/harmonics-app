@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
+import crypto from 'node:crypto';
 import { google } from 'googleapis';
 import {
+  deactivateGoogleCredentials,
+  getRevocableGoogleTokens,
   persistGoogleCredentialsToSupabase,
   validateGoogleOAuthTokensForStorage,
 } from '@/lib/contracts/googleCredentials';
@@ -31,10 +34,37 @@ export async function GET(request) {
     const tokenValidation = validateGoogleOAuthTokensForStorage(tokens);
 
     if (!tokenValidation.valid) {
+      const revocableTokens = getRevocableGoogleTokens(tokens);
+      for (const token of revocableTokens) {
+        try {
+          await oauth2Client.revokeToken(token);
+        } catch (revokeError) {
+          console.warn('[googleOAuthCallback] falha ao revogar token inválido:', {
+            tokenSuffix: token.slice(-6),
+            message: revokeError?.message,
+          });
+        }
+      }
+
+      await deactivateGoogleCredentials(`callback_invalid_tokens:${tokenValidation.reason}`);
+      const state = crypto.randomBytes(24).toString('hex');
+      const reauthUrl = oauth2Client.generateAuthUrl({
+        access_type: 'offline',
+        prompt: 'consent',
+        include_granted_scopes: true,
+        scope: [
+          'https://www.googleapis.com/auth/drive',
+          'https://www.googleapis.com/auth/documents',
+        ],
+        state,
+      });
+
       return NextResponse.json(
         {
           ok: false,
           message: `Tokens OAuth inválidos (${tokenValidation.reason}): ${tokenValidation.message}`,
+          reauthUrl,
+          state,
         },
         { status: 400 }
       );

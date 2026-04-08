@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { google } from 'googleapis';
 import {
   deactivateGoogleCredentials,
+  getRevocableGoogleTokens,
   loadGoogleCredentialsFromSupabase,
   validateGoogleCredentials,
 } from '@/lib/contracts/googleCredentials';
@@ -19,10 +20,35 @@ function buildOAuthClient() {
   return new google.auth.OAuth2(clientId, clientSecret, redirectUri);
 }
 
+async function revokeGooglePermissions(oauth2Client, rawCredentials) {
+  const tokens = getRevocableGoogleTokens(rawCredentials);
+  const revokedTokens = [];
+  const revokeErrors = [];
+
+  for (const token of tokens) {
+    try {
+      await oauth2Client.revokeToken(token);
+      revokedTokens.push(token);
+    } catch (error) {
+      revokeErrors.push({
+        tokenSuffix: token.slice(-6),
+        message: error?.message || 'Falha ao revogar token no Google.',
+      });
+    }
+  }
+
+  return {
+    attempted: tokens.length,
+    revoked: revokedTokens.length,
+    revokeErrors,
+  };
+}
+
 export async function POST() {
   try {
     const envValidation = validateGoogleCredentials(process.env.GOOGLE_OAUTH_REFRESH_TOKEN);
-    const { validation: supabaseValidation } = await loadGoogleCredentialsFromSupabase();
+    const { rawCredentials: supabaseRawCredentials, validation: supabaseValidation } =
+      await loadGoogleCredentialsFromSupabase();
 
     const chosenValidation = envValidation.valid ? envValidation : supabaseValidation;
 
@@ -36,8 +62,12 @@ export async function POST() {
       );
     }
 
-    const revokeResult = await deactivateGoogleCredentials(`forced_reauth:${chosenValidation.reason}`);
     const oauth2Client = buildOAuthClient();
+    const rawCredentialsToRevoke = envValidation.valid
+      ? process.env.GOOGLE_OAUTH_REFRESH_TOKEN
+      : supabaseRawCredentials;
+    const googleRevokeResult = await revokeGooglePermissions(oauth2Client, rawCredentialsToRevoke);
+    const revokeResult = await deactivateGoogleCredentials(`forced_reauth:${chosenValidation.reason}`);
     const state = crypto.randomBytes(24).toString('hex');
 
     const reauthUrl = oauth2Client.generateAuthUrl({
@@ -58,6 +88,7 @@ export async function POST() {
         reason: chosenValidation.reason,
         message: chosenValidation.message,
       },
+      googleRevokeResult,
       revokeResult,
       reauthUrl,
       state,

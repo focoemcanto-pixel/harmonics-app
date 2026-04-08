@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import crypto from 'node:crypto';
 import { google } from 'googleapis';
 
 export async function GET() {
@@ -11,10 +12,13 @@ export async function GET() {
     clientSecret,
     redirectUri
   );
+  const state = crypto.randomBytes(24).toString('hex');
 
   const url = oauth2Client.generateAuthUrl({
     access_type: 'offline',
     prompt: 'consent',
+    include_granted_scopes: true,
+    state,
     scope: [
       'https://www.googleapis.com/auth/drive',
       'https://www.googleapis.com/auth/documents',

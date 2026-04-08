@@ -1,16 +1,7 @@
 import crypto from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { google } from 'googleapis';
-
-function extractUserIdFromAuthenticatedSession(request) {
-  const requestUserId = String(request?.user?.id || '').trim();
-  if (requestUserId) return requestUserId;
-
-  const sessionUserId = String(request?.session?.user?.id || request?.session?.userId || '').trim();
-  if (sessionUserId) return sessionUserId;
-
-  return '';
-}
+import { createClient } from '@/lib/supabase/server';
 
 function buildSignedState(userId) {
   const stateSecret = String(
@@ -28,40 +19,67 @@ function buildSignedState(userId) {
   return `${payload}.${signature}`;
 }
 
-export async function GET(request) {
-  const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
-  const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
-  const redirectUri = process.env.GOOGLE_OAUTH_REDIRECT_URI;
-  const userId = extractUserIdFromAuthenticatedSession(request);
+function buildOAuthClient() {
+  const clientId = String(process.env.GOOGLE_OAUTH_CLIENT_ID || '').trim();
+  const clientSecret = String(process.env.GOOGLE_OAUTH_CLIENT_SECRET || '').trim();
+  const redirectUri = String(process.env.GOOGLE_OAUTH_REDIRECT_URI || '').trim();
 
-  if (!userId) {
+  if (!clientId || !clientSecret || !redirectUri) {
+    throw new Error('Configuração OAuth incompleta (client_id, client_secret ou redirect_uri).');
+  }
+
+  return new google.auth.OAuth2(clientId, clientSecret, redirectUri);
+}
+
+export async function POST() {
+  try {
+    const supabase = createClient();
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
+
+    if (error || !user?.id) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: 'Usuário não autenticado',
+          error: error?.message,
+        },
+        { status: 401 }
+      );
+    }
+
+    const userId = user.id;
+    const oauth2Client = buildOAuthClient();
+    const state = buildSignedState(userId);
+
+    const reauthUrl = oauth2Client.generateAuthUrl({
+      access_type: 'offline',
+      prompt: 'consent',
+      include_granted_scopes: true,
+      state,
+      scope: [
+        'https://www.googleapis.com/auth/drive',
+        'https://www.googleapis.com/auth/documents',
+      ],
+    });
+
+    return NextResponse.json({
+      ok: true,
+      reauthUrl,
+    });
+  } catch (error) {
     return NextResponse.json(
       {
         ok: false,
-        message: 'Usuário não autenticado. Não foi possível resolver userId via req.user/req.session.',
+        message: error?.message || 'Erro ao iniciar OAuth Google.',
       },
-      { status: 401 }
+      { status: 500 }
     );
   }
+}
 
-  const oauth2Client = new google.auth.OAuth2(
-    clientId,
-    clientSecret,
-    redirectUri
-  );
-
-  const state = buildSignedState(userId);
-
-  const url = oauth2Client.generateAuthUrl({
-    access_type: 'offline',
-    prompt: 'consent',
-    include_granted_scopes: true,
-    state,
-    scope: [
-      'https://www.googleapis.com/auth/drive',
-      'https://www.googleapis.com/auth/documents',
-    ],
-  });
-
-  return NextResponse.redirect(url);
+export async function GET(req) {
+  return POST(req);
 }

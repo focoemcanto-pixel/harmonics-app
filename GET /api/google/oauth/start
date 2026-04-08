@@ -28,7 +28,7 @@ async function saveTokensInDatabase(tokens) {
         {
           refresh_token: tokens.refresh_token,
           access_token: tokens.access_token,
-          credentials: tokens, // Armazenando as credenciais como JSON
+          credentials: JSON.stringify(tokens), // Garantindo que as credenciais estejam corretamente serializadas
         },
       ], { onConflict: ['refresh_token'] }); // Usando a chave única refresh_token para resolver conflitos
 

@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { google } from 'googleapis';
 import {
-  normalizeGoogleCredentials,
   persistGoogleCredentialsToSupabase,
+  validateGoogleOAuthTokensForStorage,
 } from '@/lib/contracts/googleCredentials';
 
 export async function GET(request) {
@@ -28,25 +28,35 @@ export async function GET(request) {
     );
 
     const { tokens } = await oauth2Client.getToken(code);
-    const normalizedTokens = normalizeGoogleCredentials(tokens);
+    const tokenValidation = validateGoogleOAuthTokensForStorage(tokens);
 
-    if (!normalizedTokens.refresh_token) {
+    if (!tokenValidation.valid) {
       return NextResponse.json(
         {
           ok: false,
-          message:
-            'Google não retornou refresh_token. Reautorize com access_type=offline e prompt=consent.',
+          message: `Tokens OAuth inválidos (${tokenValidation.reason}): ${tokenValidation.message}`,
         },
         { status: 400 }
       );
     }
 
-    const persistence = await persistGoogleCredentialsToSupabase(normalizedTokens);
+    const persistence = await persistGoogleCredentialsToSupabase(tokenValidation.credentials);
+
+    if (!persistence.persisted) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: `Falha ao persistir credenciais: ${persistence.reason}`,
+          persistence,
+        },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({
       ok: true,
       message: 'Tokens obtidos com sucesso.',
-      tokens: normalizedTokens,
+      tokens: tokenValidation.credentials,
       persistence,
     });
   } catch (error) {

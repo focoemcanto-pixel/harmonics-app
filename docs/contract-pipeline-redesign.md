@@ -132,6 +132,7 @@ Formato esperado para `GOOGLE_OAUTH_REFRESH_TOKEN`:
 
 - Aceito: token puro (`1//...`), JSON stringificado (`{"refresh_token":"1//..."}`) ou objeto com `tokens.refresh_token`.
 - Recomendado para armazenamento em Supabase: coluna `jsonb` com objeto (`{"refresh_token":"1//..."}`), nunca string serializada dupla.
+- Tabela sugerida: `google_oauth_credentials(provider text primary key, credentials jsonb, is_active boolean, updated_at timestamptz)` com migração para converter strings JSON legadas via parse seguro.
 
 Opcionais recomendadas:
 

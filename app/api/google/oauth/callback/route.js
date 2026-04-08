@@ -1,5 +1,9 @@
 import { NextResponse } from 'next/server';
 import { google } from 'googleapis';
+import {
+  normalizeGoogleCredentials,
+  persistGoogleCredentialsToSupabase,
+} from '@/lib/contracts/googleCredentials';
 
 export async function GET(request) {
   try {
@@ -24,12 +28,26 @@ export async function GET(request) {
     );
 
     const { tokens } = await oauth2Client.getToken(code);
-    const normalizedTokens = normalizeGoogleTokens(tokens);
+    const normalizedTokens = normalizeGoogleCredentials(tokens);
+
+    if (!normalizedTokens.refresh_token) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message:
+            'Google não retornou refresh_token. Reautorize com access_type=offline e prompt=consent.',
+        },
+        { status: 400 }
+      );
+    }
+
+    const persistence = await persistGoogleCredentialsToSupabase(normalizedTokens);
 
     return NextResponse.json({
       ok: true,
       message: 'Tokens obtidos com sucesso.',
       tokens: normalizedTokens,
+      persistence,
     });
   } catch (error) {
     return NextResponse.json(
@@ -40,14 +58,4 @@ export async function GET(request) {
       { status: 500 }
     );
   }
-}
-
-function normalizeGoogleTokens(tokens) {
-  const safeTokens = tokens && typeof tokens === 'object' ? tokens : {};
-  const refreshToken = String(safeTokens.refresh_token || '').trim();
-
-  return {
-    ...safeTokens,
-    refresh_token: refreshToken,
-  };
 }

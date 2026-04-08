@@ -24,11 +24,12 @@ export async function GET(request) {
     );
 
     const { tokens } = await oauth2Client.getToken(code);
+    const normalizedTokens = normalizeGoogleTokens(tokens);
 
     return NextResponse.json({
       ok: true,
       message: 'Tokens obtidos com sucesso.',
-      tokens,
+      tokens: normalizedTokens,
     });
   } catch (error) {
     return NextResponse.json(
@@ -39,4 +40,14 @@ export async function GET(request) {
       { status: 500 }
     );
   }
+}
+
+function normalizeGoogleTokens(tokens) {
+  const safeTokens = tokens && typeof tokens === 'object' ? tokens : {};
+  const refreshToken = String(safeTokens.refresh_token || '').trim();
+
+  return {
+    ...safeTokens,
+    refresh_token: refreshToken,
+  };
 }

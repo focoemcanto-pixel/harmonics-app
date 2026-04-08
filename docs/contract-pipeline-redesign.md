@@ -128,6 +128,11 @@ Obrigatórias:
 - `GOOGLE_OAUTH_REDIRECT_URI`
 - `GOOGLE_OAUTH_REFRESH_TOKEN`
 
+Formato esperado para `GOOGLE_OAUTH_REFRESH_TOKEN`:
+
+- Aceito: token puro (`1//...`), JSON stringificado (`{"refresh_token":"1//..."}`) ou objeto com `tokens.refresh_token`.
+- Recomendado para armazenamento em Supabase: coluna `jsonb` com objeto (`{"refresh_token":"1//..."}`), nunca string serializada dupla.
+
 Opcionais recomendadas:
 
 - `CONTRACTS_DRIVE_SUBFOLDER_MODE=year_month` (`year_month` | `flat` | `year_month_client`)

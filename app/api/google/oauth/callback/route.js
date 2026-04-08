@@ -7,6 +7,7 @@ import {
   validateGoogleOAuthTokensForStorage,
 } from '@/lib/contracts/googleCredentials';
 import crypto from 'node:crypto';
+import { createClient } from '@/lib/supabase/server';
 
 const STATE_TTL_MS = 10 * 60 * 1000;
 
@@ -121,13 +122,21 @@ export async function GET(request) {
     const code = searchParams.get('code');
     const state = String(searchParams.get('state') || '').trim();
     const parsedState = verifySignedState(state);
-    const userId = String(parsedState.userId || '').trim();
+    const userIdFromState = String(parsedState.userId || '').trim();
+
+    const supabase = createClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+    const authenticatedUserId = String(user?.id || '').trim();
 
     console.info('[google-oauth][callback] callback recebido.', {
       hasCode: Boolean(code),
       hasState: Boolean(state),
       stateValidation: parsedState.reason,
-      userIdPresent: Boolean(userId),
+      userIdFromStatePresent: Boolean(userIdFromState),
+      authenticatedUserPresent: Boolean(authenticatedUserId),
     });
 
     if (!code) {
@@ -137,12 +146,39 @@ export async function GET(request) {
       );
     }
 
-    if (!parsedState.valid || !userId) {
+    if (!authenticatedUserId || authError) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: 'Usuário não autenticado no callback OAuth.',
+          error: authError?.message,
+        },
+        { status: 401 }
+      );
+    }
+
+    if (!parsedState.valid || !userIdFromState) {
       return NextResponse.json(
         { ok: false, message: `state inválido no callback OAuth (${parsedState.reason}).` },
         { status: 400 }
       );
     }
+
+    if (userIdFromState !== authenticatedUserId) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: 'Usuário autenticado não corresponde ao usuário do state OAuth.',
+          diagnostics: {
+            userIdFromState,
+            authenticatedUserId,
+          },
+        },
+        { status: 403 }
+      );
+    }
+
+    const userId = authenticatedUserId;
 
     const oauth2Client = new google.auth.OAuth2(
       clientId,

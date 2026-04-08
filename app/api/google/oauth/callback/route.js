@@ -23,6 +23,23 @@ function extractOAuthTokensFromResponse(tokenResponse) {
   return null;
 }
 
+function extractUserIdFromState(state) {
+  const normalizedState = String(state || '').trim();
+  if (!normalizedState) return '';
+
+  const separatorIndex = normalizedState.indexOf(':');
+  if (separatorIndex < 0) return '';
+
+  const encodedUserId = normalizedState.slice(separatorIndex + 1).trim();
+  if (!encodedUserId) return '';
+
+  try {
+    return Buffer.from(encodedUserId, 'base64url').toString('utf8').trim();
+  } catch {
+    return '';
+  }
+}
+
 export async function GET(request) {
   try {
     const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
@@ -32,8 +49,8 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const code = searchParams.get('code');
     const state = String(searchParams.get('state') || '').trim();
-    const userIdFromState = state.includes(':') ? state.split(':').at(-1) : '';
-    const userId = String(searchParams.get('user_id') || userIdFromState || '').trim();
+    const userIdFromState = extractUserIdFromState(state);
+    const userId = String(userIdFromState || searchParams.get('user_id') || '').trim();
 
     if (!code) {
       return NextResponse.json(

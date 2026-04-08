@@ -1,10 +1,11 @@
 import { google } from 'googleapis';
+import { supabase } from './supabaseClient'; // Importe sua instância do supabase
 
 // Configuração do cliente OAuth2
 const oauth2Client = new google.auth.OAuth2(
-  process.env.GOOGLE_OAUTH_CLIENT_ID, 
-  process.env.GOOGLE_OAUTH_CLIENT_SECRET, 
-  process.env.GOOGLE_OAUTH_REDIRECT_URI
+  process.env.GOOGLE_OAUTH_CLIENT_ID, // Seu Client ID
+  process.env.GOOGLE_OAUTH_CLIENT_SECRET, // Seu Client Secret
+  process.env.GOOGLE_OAUTH_REDIRECT_URI // Sua URL de redirecionamento
 );
 
 // Função para revogar o token
@@ -15,6 +16,28 @@ async function revokeToken(refreshToken) {
     console.log('Token revogado com sucesso!');
   } catch (error) {
     console.error('Erro ao revogar o token:', error);
+  }
+}
+
+// Função para salvar os tokens no banco de dados
+async function saveTokensInDatabase(tokens) {
+  try {
+    const { data, error } = await supabase
+      .from('google_oauth_credentials')
+      .upsert([
+        {
+          refresh_token: tokens.refresh_token,
+          access_token: tokens.access_token,
+          credentials: tokens, // Armazenando as credenciais como JSON
+        },
+      ], { onConflict: ['refresh_token'] }); // Usando a chave única refresh_token para resolver conflitos
+
+    if (error) {
+      throw new Error('Erro ao salvar tokens no banco');
+    }
+    console.log('Tokens salvos com sucesso');
+  } catch (error) {
+    console.error('Erro ao salvar tokens no banco:', error);
   }
 }
 
@@ -37,7 +60,7 @@ export async function handler(req, res) {
     const { tokens } = await oauth2Client.getToken(code);
     oauth2Client.setCredentials(tokens);  // Configura as credenciais do Google
 
-    // Persistir tokens no banco de dados (ajuste para seu fluxo de persistência)
+    // Persistir tokens no banco de dados
     await saveTokensInDatabase(tokens);
 
     // Redirecionar após sucesso
@@ -46,4 +69,22 @@ export async function handler(req, res) {
     console.error('Erro ao trocar o código por tokens:', error);
     res.status(500).send('Erro ao autenticar');
   }
+}
+
+// Função de início de OAuth
+export async function startOAuth(req, res) {
+  // Gerar a URL de autenticação com access_type=offline e prompt=consent
+  const authUrl = oauth2Client.generateAuthUrl({
+    access_type: 'offline',     // Garante que o Google retorne o refresh_token
+    prompt: 'consent',          // Solicita ao Google mostrar a tela de consentimento
+    include_granted_scopes: true,
+    scope: [
+      'https://www.googleapis.com/auth/drive',
+      'https://www.googleapis.com/auth/documents'
+    ],
+    state: Math.random().toString(36).slice(2)  // Gerar estado aleatório para proteção contra CSRF
+  });
+
+  // Redirecionar o usuário para a URL de consentimento do Google
+  res.redirect(authUrl);
 }

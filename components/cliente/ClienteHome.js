@@ -11,6 +11,7 @@ import {
 } from '../../lib/cliente/repertorio';
 import { getYoutubeVideoId } from '../../lib/youtube/getYoutubeVideoId';
 
+const REPERTORIO_DRAFT_LOCAL_STORAGE_KEY = 'repertorio_draft_local';
 
 
 function classNames(...classes) {
@@ -84,6 +85,34 @@ function normalizeCompareText(value = '') {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/\s+/g, ' ');
+}
+
+function hasFilledField(value) {
+  return String(value || '').trim().length > 0;
+}
+
+function hasInitialRepertorioFromBackend(initialState = {}) {
+  const hasCortejo = Array.isArray(initialState.cortejo) && initialState.cortejo.length > 0;
+  const hasCerimonia = Array.isArray(initialState.cerimonia) && initialState.cerimonia.length > 0;
+  const hasSaida =
+    !!initialState.saida &&
+    (hasFilledField(initialState.saida.musica) ||
+      hasFilledField(initialState.saida.referencia) ||
+      hasFilledField(initialState.saida.observacao));
+  const hasAntessala =
+    !!initialState.antessala &&
+    (hasFilledField(initialState.antessala.estilo) ||
+      hasFilledField(initialState.antessala.generos) ||
+      hasFilledField(initialState.antessala.artistas) ||
+      hasFilledField(initialState.antessala.observacao));
+  const hasReceptivo =
+    !!initialState.receptivo &&
+    (hasFilledField(initialState.receptivo.duracao) ||
+      hasFilledField(initialState.receptivo.generos) ||
+      hasFilledField(initialState.receptivo.artistas) ||
+      hasFilledField(initialState.receptivo.observacao));
+
+  return hasCortejo || hasCerimonia || hasSaida || hasAntessala || hasReceptivo;
 }
 
 function getItemDestinationKey(item = {}) {
@@ -978,6 +1007,7 @@ function RepertorioTab({ data, selectedSongs, onSaved }) {
   const [step, setStep] = useState(1);
 
   const initialState = data?.repertorio?.initialState || {};
+  const hasBackendRepertorio = hasInitialRepertorioFromBackend(initialState);
   const initialCortejo = Array.isArray(initialState.cortejo)
     ? initialState.cortejo.map((item) => ({
         ...item,
@@ -1102,6 +1132,68 @@ const [receptivo, setReceptivo] = useState(
       saida,
       receptivo,
     });
+  }, [querAntessala, temReceptivo, antessala, cortejo, cerimonia, saida, receptivo]);
+
+  useEffect(() => {
+    if (hasBackendRepertorio) return;
+
+    const savedDraftRaw = localStorage.getItem(REPERTORIO_DRAFT_LOCAL_STORAGE_KEY);
+    if (!savedDraftRaw) return;
+
+    try {
+      const parsed = JSON.parse(savedDraftRaw);
+      setQuerAntessala(parsed?.querAntessala ?? null);
+      setTemReceptivo(parsed?.temReceptivo ?? !!data.repertorio.temReceptivo);
+      setCortejo(Array.isArray(parsed?.cortejo) ? parsed.cortejo : []);
+      setCerimonia(Array.isArray(parsed?.cerimonia) ? parsed.cerimonia : []);
+      setSaida(
+        parsed?.saida || {
+          musica: '',
+          referencia: '',
+          observacao: '',
+          referenceMeta: null,
+          reference_title: '',
+          reference_channel: '',
+          reference_thumbnail: '',
+          reference_video_id: '',
+        }
+      );
+      setAntessala(
+        parsed?.antessala || {
+          estilo: '',
+          generos: '',
+          artistas: '',
+          observacao: '',
+        }
+      );
+      setReceptivo(
+        parsed?.receptivo || {
+          duracao: '1h',
+          generos: '',
+          artistas: '',
+          observacao: '',
+        }
+      );
+    } catch (error) {
+      console.error('Não foi possível restaurar rascunho local do repertório:', error);
+    }
+  }, [data.repertorio.temReceptivo, hasBackendRepertorio]);
+
+  useEffect(() => {
+    const draftPayload = {
+      querAntessala,
+      temReceptivo,
+      antessala,
+      cortejo,
+      cerimonia,
+      saida,
+      receptivo,
+    };
+
+    localStorage.setItem(
+      REPERTORIO_DRAFT_LOCAL_STORAGE_KEY,
+      JSON.stringify(draftPayload)
+    );
   }, [querAntessala, temReceptivo, antessala, cortejo, cerimonia, saida, receptivo]);
 
   useEffect(() => {
@@ -1498,6 +1590,8 @@ async function saveRepertorio(mode = 'draft') {
         : 'Rascunho salvo com sucesso 💾',
       'success'
     );
+
+    localStorage.removeItem(REPERTORIO_DRAFT_LOCAL_STORAGE_KEY);
 
     onSaved?.({
       mode,

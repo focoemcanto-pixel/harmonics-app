@@ -1,6 +1,6 @@
 'use client';
 import { useToast } from '../ui/ToastProvider';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ReferenceSearchInput from '../repertorio/ReferenceSearchInput';
 import {
   formatDateBR,
@@ -1110,6 +1110,10 @@ const [receptivo, setReceptivo] = useState(
 );
   const [showLocalDraftBanner, setShowLocalDraftBanner] = useState(false);
   const [savingMode, setSavingMode] = useState('');
+  const [draftHydrated, setDraftHydrated] = useState(false);
+  const [autosaveReady, setAutosaveReady] = useState(false);
+  const firstAutosaveLoggedRef = useRef(false);
+  const hadLocalDraftOnHydrationRef = useRef(false);
   const repertorioStateRef = useRef(
     buildRepertorioSnapshot({
       querAntessala,
@@ -1135,42 +1139,84 @@ const [receptivo, setReceptivo] = useState(
     });
   }, [querAntessala, temReceptivo, antessala, cortejo, cerimonia, saida, receptivo]);
 
-  function applyLocalDraft(parsed) {
-    setQuerAntessala(parsed?.querAntessala ?? null);
-    setTemReceptivo(parsed?.temReceptivo ?? !!data.repertorio.temReceptivo);
-    setCortejo(Array.isArray(parsed?.cortejo) ? parsed.cortejo : []);
-    setCerimonia(Array.isArray(parsed?.cerimonia) ? parsed.cerimonia : []);
+  const applyLocalDraft = useCallback((parsed) => {
+    const restoredState = {
+      querAntessala: parsed?.querAntessala ?? null,
+      temReceptivo: parsed?.temReceptivo ?? !!data.repertorio.temReceptivo,
+      cortejo: Array.isArray(parsed?.cortejo) ? parsed.cortejo : [],
+      cerimonia: Array.isArray(parsed?.cerimonia) ? parsed.cerimonia : [],
+      saida:
+        parsed?.saida || {
+          musica: '',
+          referencia: '',
+          observacao: '',
+          referenceMeta: null,
+          reference_title: '',
+          reference_channel: '',
+          reference_thumbnail: '',
+          reference_video_id: '',
+        },
+      antessala:
+        parsed?.antessala || {
+          estilo: '',
+          generos: '',
+          artistas: '',
+          observacao: '',
+        },
+      receptivo:
+        parsed?.receptivo || {
+          duracao: '1h',
+          generos: '',
+          artistas: '',
+          observacao: '',
+        },
+    };
+
+    console.log('[REPERTORIO_AUTOSAVE] estados restaurados no draft local:', restoredState);
+
+    setQuerAntessala(restoredState.querAntessala);
+    setTemReceptivo(restoredState.temReceptivo);
+    setCortejo(restoredState.cortejo);
+    setCerimonia(restoredState.cerimonia);
     setSaida(
-      parsed?.saida || {
-        musica: '',
-        referencia: '',
-        observacao: '',
-        referenceMeta: null,
-        reference_title: '',
-        reference_channel: '',
-        reference_thumbnail: '',
-        reference_video_id: '',
-      }
+      restoredState.saida
     );
     setAntessala(
-      parsed?.antessala || {
-        estilo: '',
-        generos: '',
-        artistas: '',
-        observacao: '',
-      }
+      restoredState.antessala
     );
     setReceptivo(
-      parsed?.receptivo || {
-        duracao: '1h',
-        generos: '',
-        artistas: '',
-        observacao: '',
-      }
+      restoredState.receptivo
     );
-  }
+  }, [data.repertorio.temReceptivo]);
 
   useEffect(() => {
+    let hasSavedLocalDraft = false;
+
+    try {
+      const savedDraftRaw = localStorage.getItem(REPERTORIO_DRAFT_LOCAL_STORAGE_KEY);
+      hasSavedLocalDraft = !!savedDraftRaw;
+      hadLocalDraftOnHydrationRef.current = hasSavedLocalDraft;
+      console.log('[REPERTORIO_AUTOSAVE] conteúdo lido do localStorage:', savedDraftRaw);
+
+      if (!hasBackendRepertorio && savedDraftRaw) {
+        const parsed = JSON.parse(savedDraftRaw);
+        applyLocalDraft(parsed);
+        setShowLocalDraftBanner(false);
+      } else {
+        setShowLocalDraftBanner(!hasBackendRepertorio && hasSavedLocalDraft);
+      }
+    } catch (error) {
+      console.error('[REPERTORIO_AUTOSAVE] falha ao hidratar draft local:', error);
+      setShowLocalDraftBanner(false);
+    } finally {
+      setDraftHydrated(true);
+      setAutosaveReady(true);
+    }
+  }, [applyLocalDraft, hasBackendRepertorio]);
+
+  useEffect(() => {
+    if (!draftHydrated) return;
+
     if (hasBackendRepertorio) {
       setShowLocalDraftBanner(false);
       return;
@@ -1178,7 +1224,7 @@ const [receptivo, setReceptivo] = useState(
 
     const savedDraftRaw = localStorage.getItem(REPERTORIO_DRAFT_LOCAL_STORAGE_KEY);
     setShowLocalDraftBanner(!!savedDraftRaw);
-  }, [hasBackendRepertorio]);
+  }, [hasBackendRepertorio, draftHydrated]);
 
   function handleRestoreLocalDraft() {
     const savedDraftRaw = localStorage.getItem(REPERTORIO_DRAFT_LOCAL_STORAGE_KEY);
@@ -1205,6 +1251,11 @@ const [receptivo, setReceptivo] = useState(
   }
 
   useEffect(() => {
+    if (!autosaveReady) {
+      console.log('[REPERTORIO_AUTOSAVE] proteção de hidratação ativa: autosave bloqueado antes da hidratação inicial.');
+      return;
+    }
+
     const draftPayload = {
       querAntessala,
       temReceptivo,
@@ -1219,7 +1270,21 @@ const [receptivo, setReceptivo] = useState(
       REPERTORIO_DRAFT_LOCAL_STORAGE_KEY,
       JSON.stringify(draftPayload)
     );
-  }, [querAntessala, temReceptivo, antessala, cortejo, cerimonia, saida, receptivo]);
+
+    if (!firstAutosaveLoggedRef.current) {
+      firstAutosaveLoggedRef.current = true;
+      console.log('[REPERTORIO_AUTOSAVE] primeiro save no localStorage:', draftPayload);
+
+      if (
+        hadLocalDraftOnHydrationRef.current &&
+        !hasInitialRepertorioFromBackend(draftPayload)
+      ) {
+        console.warn(
+          '[REPERTORIO_AUTOSAVE] possível sobrescrita precoce detectada: existia draft local e o primeiro save está vazio.'
+        );
+      }
+    }
+  }, [autosaveReady, querAntessala, temReceptivo, antessala, cortejo, cerimonia, saida, receptivo]);
 
   useEffect(() => {
     if (!Array.isArray(selectedSongs) || selectedSongs.length === 0) return;

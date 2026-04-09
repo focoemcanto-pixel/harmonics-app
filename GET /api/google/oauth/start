@@ -112,6 +112,13 @@ function validateTokens(tokens) {
   return true;
 }
 
+function maskToken(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  if (raw.length <= 12) return `${raw.slice(0, 4)}...`;
+  return `${raw.slice(0, 6)}...${raw.slice(-4)}`;
+}
+
 async function getExistingCredentials(userId) {
   if (!userId) return null;
 
@@ -126,7 +133,18 @@ async function getExistingCredentials(userId) {
     return null;
   }
 
-  return data?.credentials || null;
+  let credentials = data?.credentials || null;
+
+  if (typeof credentials === 'string') {
+    try {
+      credentials = JSON.parse(credentials);
+    } catch (_error) {
+      console.error('[GET-EXISTING-CREDS] credentials string inválida');
+      return null;
+    }
+  }
+
+  return credentials;
 }
 
 async function saveTokensInDatabase(tokens, userId) {
@@ -156,7 +174,7 @@ async function saveTokensInDatabase(tokens, userId) {
 
     const payload = {
       user_id: userId,
-      credentials: credentialsToStore, // JSONB -> objeto, não string
+      credentials: credentialsToStore,
       status: 'valid',
       is_active: true,
       updated_at: new Date().toISOString(),
@@ -207,6 +225,29 @@ async function revokeToken(refreshToken, userId = null) {
     }
 
     const oauth2Client = getOAuth2Client();
+
+    console.error('[REVOKE-LEGACY] antes do setCredentials:', {
+      oauth2CredentialsType: typeof oauth2Client.credentials,
+      oauth2CredentialsIsArray: Array.isArray(oauth2Client.credentials),
+      hasRefreshToken: !!refreshToken,
+      refreshTokenMasked: maskToken(refreshToken),
+    });
+
+    if (!oauth2Client.credentials || typeof oauth2Client.credentials !== 'object') {
+      oauth2Client.credentials = {};
+    }
+
+    oauth2Client.setCredentials({
+      refresh_token: refreshToken,
+    });
+
+    console.error('[REVOKE-LEGACY] depois do setCredentials:', {
+      oauth2CredentialsType: typeof oauth2Client.credentials,
+      oauth2CredentialsIsArray: Array.isArray(oauth2Client.credentials),
+      hasRefreshToken: !!oauth2Client?.credentials?.refresh_token,
+      refreshTokenMasked: maskToken(oauth2Client?.credentials?.refresh_token),
+    });
+
     await oauth2Client.revokeToken(refreshToken);
 
     if (userId) {
@@ -261,7 +302,6 @@ export async function startOAuth(req, res) {
       state,
     });
 
-    // abre direto no Google
     return res.redirect(authUrl);
   } catch (error) {
     console.error('[START-OAUTH] failed:', error.message);
@@ -319,21 +359,46 @@ export async function handler(req, res) {
 
     const oauth2Client = getOAuth2Client();
     const tokenResponse = await oauth2Client.getToken(code);
-
     const tokens = tokenResponse?.tokens ?? tokenResponse;
 
-    console.error('[CALLBACK] tokens recebidos:', {
+    console.error('[CALLBACK-LEGACY] tokens recebidos:', {
       hasRefreshToken: !!tokens?.refresh_token,
       hasAccessToken: !!tokens?.access_token,
+      refreshTokenMasked: maskToken(tokens?.refresh_token),
+      accessTokenMasked: maskToken(tokens?.access_token),
     });
 
     validateTokens(tokens);
 
+    console.error('[CALLBACK-LEGACY] antes do setCredentials:', {
+      oauth2CredentialsType: typeof oauth2Client.credentials,
+      oauth2CredentialsIsArray: Array.isArray(oauth2Client.credentials),
+      tokensType: typeof tokens,
+      tokensIsArray: Array.isArray(tokens),
+      hasRefreshToken: !!tokens?.refresh_token,
+      hasAccessToken: !!tokens?.access_token,
+      refreshTokenMasked: maskToken(tokens?.refresh_token),
+      accessTokenMasked: maskToken(tokens?.access_token),
+    });
+
+    if (!oauth2Client.credentials || typeof oauth2Client.credentials !== 'object') {
+      oauth2Client.credentials = {};
+    }
+
     oauth2Client.setCredentials({
       refresh_token: tokens.refresh_token || undefined,
       access_token: tokens.access_token,
-      token_type: tokens.token_type,
+      token_type: tokens.token_type || 'Bearer',
       expiry_date: tokens.expiry_date,
+    });
+
+    console.error('[CALLBACK-LEGACY] depois do setCredentials:', {
+      oauth2CredentialsType: typeof oauth2Client.credentials,
+      oauth2CredentialsIsArray: Array.isArray(oauth2Client.credentials),
+      hasRefreshToken: !!oauth2Client?.credentials?.refresh_token,
+      hasAccessToken: !!oauth2Client?.credentials?.access_token,
+      refreshTokenMasked: maskToken(oauth2Client?.credentials?.refresh_token),
+      accessTokenMasked: maskToken(oauth2Client?.credentials?.access_token),
     });
 
     const saveResult = await saveTokensInDatabase(tokens, userId);
@@ -342,7 +407,6 @@ export async function handler(req, res) {
       return res.status(saveResult.statusCode || 500).json(saveResult);
     }
 
-    // você pode trocar isso por redirect para uma página do admin
     return res.status(200).json({
       ok: true,
       message: 'Credenciais Google salvas com sucesso',

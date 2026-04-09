@@ -1,22 +1,23 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { buildContractTemplateData } from '../../../../lib/contracts/buildContractTemplateData';
-import { generateGoogleContract } from '../../../../lib/contracts/googleContractGenerator';
 
 export const dynamic = 'force-dynamic';
 
-// Função de validação das variáveis de ambiente
 function validateEnv() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const templateId = process.env.CONTRACT_TEMPLATE_DOC_ID;
   const rootFolderId = process.env.CONTRACTS_DRIVE_FOLDER_ID;
+  const contractServiceUrl = process.env.CONTRACT_SERVICE_URL;
+  const contractServiceApiKey = process.env.CONTRACT_SERVICE_API_KEY || '';
 
   const missing = [];
   if (!supabaseUrl) missing.push('NEXT_PUBLIC_SUPABASE_URL');
   if (!supabaseServiceRoleKey) missing.push('SUPABASE_SERVICE_ROLE_KEY');
   if (!templateId) missing.push('CONTRACT_TEMPLATE_DOC_ID');
   if (!rootFolderId) missing.push('CONTRACTS_DRIVE_FOLDER_ID');
+  if (!contractServiceUrl) missing.push('CONTRACT_SERVICE_URL');
 
   if (missing.length > 0) {
     return {
@@ -31,10 +32,11 @@ function validateEnv() {
     supabaseServiceRoleKey,
     templateId,
     rootFolderId,
+    contractServiceUrl,
+    contractServiceApiKey,
   };
 }
 
-// Função para gerar mensagens de erro mais legíveis
 function getReadableErrorMessage(error) {
   if (!error) return 'Erro interno ao gerar contrato.';
 
@@ -55,7 +57,6 @@ function getReadableErrorMessage(error) {
   return String(error);
 }
 
-// Função para obter o contexto do contrato
 async function getContractContext({ contractId, precontractId, supabase }) {
   let contract = null;
 
@@ -147,7 +148,6 @@ async function getContractContext({ contractId, precontractId, supabase }) {
   };
 }
 
-// Função para gerar o nome do contrato
 function getContractName(context) {
   const clientName =
     context.contact?.name ||
@@ -163,6 +163,57 @@ function getContractName(context) {
   return `Contrato - ${clientName} - ${eventDate}`;
 }
 
+async function callContractService({
+  contractServiceUrl,
+  contractServiceApiKey,
+  payload,
+}) {
+  const baseUrl = String(contractServiceUrl || '').trim().replace(/\/+$/, '');
+  const endpoint = `${baseUrl}/api/contracts/generate`;
+
+  console.log('[/api/contracts/generate] chamando contract service:', {
+    endpoint,
+    hasApiKey: Boolean(contractServiceApiKey),
+  });
+
+  let response;
+  try {
+    response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(contractServiceApiKey
+          ? { 'x-api-key': contractServiceApiKey }
+          : {}),
+      },
+      body: JSON.stringify(payload),
+      cache: 'no-store',
+    });
+  } catch (error) {
+    throw new Error(
+      `Falha ao conectar ao contract service: ${error?.message || 'erro desconhecido'}`
+    );
+  }
+
+  let serviceJson = null;
+  try {
+    serviceJson = await response.json();
+  } catch (_error) {
+    throw new Error(
+      `Contract service respondeu com payload inválido (status ${response.status}).`
+    );
+  }
+
+  if (!response.ok || !serviceJson?.ok) {
+    throw new Error(
+      serviceJson?.message ||
+        `Contract service falhou com status ${response.status}.`
+    );
+  }
+
+  return serviceJson;
+}
+
 export async function GET() {
   return NextResponse.json({
     ok: true,
@@ -174,7 +225,6 @@ export async function POST(request) {
   try {
     const envCheck = validateEnv();
 
-    // Verificação das variáveis de ambiente
     if (!envCheck.valid) {
       return NextResponse.json(
         {
@@ -190,22 +240,21 @@ export async function POST(request) {
       supabaseServiceRoleKey,
       templateId,
       rootFolderId,
+      contractServiceUrl,
+      contractServiceApiKey,
     } = envCheck;
 
-    // Log para garantir que as variáveis de ambiente estão corretas
     console.log('templateId:', templateId);
     console.log('rootFolderId:', rootFolderId);
+    console.log('contractServiceUrl:', contractServiceUrl);
 
-    // Conectar ao banco de dados Supabase
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
-
     const body = await request.json();
 
     const contractId = body?.contractId || null;
     const precontractId = body?.precontractId || null;
     const previewOnly = !!body?.previewOnly;
 
-    // Obter o contexto do contrato
     const context = await getContractContext({
       contractId,
       precontractId,
@@ -214,7 +263,6 @@ export async function POST(request) {
 
     const templateData = buildContractTemplateData(context);
 
-    // Se for apenas preview, retorna os dados do template sem gerar o contrato
     if (previewOnly) {
       return NextResponse.json({
         ok: true,
@@ -230,19 +278,17 @@ export async function POST(request) {
       });
     }
 
-    // Verificar se existe um contrato ou pré-contrato válido
     if (!context.contract?.id && !context.precontract?.id) {
       throw new Error('Nenhum contexto válido encontrado para gerar o contrato.');
     }
 
-    // Gerar nome do contrato e data do evento
     const contractName = getContractName(context);
     const eventDate =
       context.event?.event_date ||
       context.precontract?.event_date ||
       new Date().toISOString().slice(0, 10);
 
-    console.log('[/api/contracts/generate] iniciando generateGoogleContract', {
+    console.log('[/api/contracts/generate] enviando para Render', {
       contractId: context.contract?.id || null,
       precontractId: context.precontract?.id || null,
       templateId,
@@ -254,28 +300,31 @@ export async function POST(request) {
     let generated;
 
     try {
-      // Chamada para gerar o contrato
-      generated = await generateGoogleContract({
-        templateId,
-        rootFolderId,
-        templateData,
-        contractName,
-        eventDate,
-        placeholderStyle: 'double_curly',
+      generated = await callContractService({
+        contractServiceUrl,
+        contractServiceApiKey,
+        payload: {
+          templateId,
+          rootFolderId,
+          templateData,
+          contractName,
+          eventDate,
+          placeholderStyle: 'double_curly',
+        },
       });
     } catch (error) {
-      console.error('Erro dentro de generateGoogleContract:', error);
-      console.error('Erro REAL do GoogleContractGenerator:', error);
+      console.error('Erro ao chamar contract service:', error);
 
-      // Retorna a resposta de erro com a mensagem detalhada
-      return NextResponse.json({
-        ok: false,
-        message: getReadableErrorMessage(error),
-        errorType: error?.name || 'UnknownError',
-      }, { status: 500 });
+      return NextResponse.json(
+        {
+          ok: false,
+          message: getReadableErrorMessage(error),
+          errorType: error?.name || 'ContractServiceError',
+        },
+        { status: 500 }
+      );
     }
 
-    // Atualiza o contrato com as URLs geradas
     if (context.contract?.id) {
       const { error: updateError } = await supabase
         .from('contracts')

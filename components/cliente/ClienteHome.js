@@ -1,6 +1,7 @@
 'use client';
 import { useToast } from '../ui/ToastProvider';
 import { useEffect, useMemo, useState } from 'react';
+import ReferenceSearchInput from '../repertorio/ReferenceSearchInput';
 import {
   formatDateBR,
   formatLongDateBR,
@@ -634,12 +635,28 @@ function EntryCard({
           onChange={(e) => onChange({ ...item, musica: e.target.value })}
           disabled={disabled}
         />
-        <InputField
-          label="Referência"
-          placeholder="Link YouTube ou Spotify"
-          value={item.referencia}
-          onChange={(e) => onChange({ ...item, referencia: e.target.value })}
+        <ReferenceSearchInput
+          searchValue={item.musica || ''}
+          referenceValue={item.referencia || ''}
+          selectedReference={item.referenceMeta || null}
           disabled={disabled}
+          onSearchValueChange={(value) => onChange({ ...item, musica: value })}
+          onReferenceValueChange={(e) => onChange({ ...item, referencia: e.target.value })}
+          onSelectResult={(result) =>
+            onChange({
+              ...item,
+              referencia: result.url,
+              musica: item.musica || result.title || '',
+              referenceMeta: result,
+            })
+          }
+          onClearReference={() =>
+            onChange({
+              ...item,
+              referencia: '',
+              referenceMeta: null,
+            })
+          }
         />
         <InputField
           label="Observações"
@@ -1258,11 +1275,27 @@ async function saveRepertorio(mode = 'draft') {
               value={saida.musica}
               onChange={(e) => setSaida({ ...saida, musica: e.target.value })}
             />
-            <InputField
-              label="Referência"
-              placeholder="Link YouTube ou Spotify"
-              value={saida.referencia}
-              onChange={(e) => setSaida({ ...saida, referencia: e.target.value })}
+            <ReferenceSearchInput
+              searchValue={saida.musica || ''}
+              referenceValue={saida.referencia || ''}
+              selectedReference={saida.referenceMeta || null}
+              onSearchValueChange={(value) => setSaida({ ...saida, musica: value })}
+              onReferenceValueChange={(e) => setSaida({ ...saida, referencia: e.target.value })}
+              onSelectResult={(result) =>
+                setSaida({
+                  ...saida,
+                  referencia: result.url,
+                  musica: saida.musica || result.title || '',
+                  referenceMeta: result,
+                })
+              }
+              onClearReference={() =>
+                setSaida({
+                  ...saida,
+                  referencia: '',
+                  referenceMeta: null,
+                })
+              }
             />
             <InputField
               label="Observações"

@@ -1108,6 +1108,7 @@ const [receptivo, setReceptivo] = useState(
     observacao: '',
   }
 );
+  const [showLocalDraftBanner, setShowLocalDraftBanner] = useState(false);
   const [savingMode, setSavingMode] = useState('');
   const repertorioStateRef = useRef(
     buildRepertorioSnapshot({
@@ -1134,50 +1135,74 @@ const [receptivo, setReceptivo] = useState(
     });
   }, [querAntessala, temReceptivo, antessala, cortejo, cerimonia, saida, receptivo]);
 
+  function applyLocalDraft(parsed) {
+    setQuerAntessala(parsed?.querAntessala ?? null);
+    setTemReceptivo(parsed?.temReceptivo ?? !!data.repertorio.temReceptivo);
+    setCortejo(Array.isArray(parsed?.cortejo) ? parsed.cortejo : []);
+    setCerimonia(Array.isArray(parsed?.cerimonia) ? parsed.cerimonia : []);
+    setSaida(
+      parsed?.saida || {
+        musica: '',
+        referencia: '',
+        observacao: '',
+        referenceMeta: null,
+        reference_title: '',
+        reference_channel: '',
+        reference_thumbnail: '',
+        reference_video_id: '',
+      }
+    );
+    setAntessala(
+      parsed?.antessala || {
+        estilo: '',
+        generos: '',
+        artistas: '',
+        observacao: '',
+      }
+    );
+    setReceptivo(
+      parsed?.receptivo || {
+        duracao: '1h',
+        generos: '',
+        artistas: '',
+        observacao: '',
+      }
+    );
+  }
+
   useEffect(() => {
-    if (hasBackendRepertorio) return;
+    if (hasBackendRepertorio) {
+      setShowLocalDraftBanner(false);
+      return;
+    }
 
     const savedDraftRaw = localStorage.getItem(REPERTORIO_DRAFT_LOCAL_STORAGE_KEY);
-    if (!savedDraftRaw) return;
+    setShowLocalDraftBanner(!!savedDraftRaw);
+  }, [hasBackendRepertorio]);
+
+  function handleRestoreLocalDraft() {
+    const savedDraftRaw = localStorage.getItem(REPERTORIO_DRAFT_LOCAL_STORAGE_KEY);
+    if (!savedDraftRaw) {
+      setShowLocalDraftBanner(false);
+      return;
+    }
 
     try {
       const parsed = JSON.parse(savedDraftRaw);
-      setQuerAntessala(parsed?.querAntessala ?? null);
-      setTemReceptivo(parsed?.temReceptivo ?? !!data.repertorio.temReceptivo);
-      setCortejo(Array.isArray(parsed?.cortejo) ? parsed.cortejo : []);
-      setCerimonia(Array.isArray(parsed?.cerimonia) ? parsed.cerimonia : []);
-      setSaida(
-        parsed?.saida || {
-          musica: '',
-          referencia: '',
-          observacao: '',
-          referenceMeta: null,
-          reference_title: '',
-          reference_channel: '',
-          reference_thumbnail: '',
-          reference_video_id: '',
-        }
-      );
-      setAntessala(
-        parsed?.antessala || {
-          estilo: '',
-          generos: '',
-          artistas: '',
-          observacao: '',
-        }
-      );
-      setReceptivo(
-        parsed?.receptivo || {
-          duracao: '1h',
-          generos: '',
-          artistas: '',
-          observacao: '',
-        }
-      );
+      applyLocalDraft(parsed);
+      setShowLocalDraftBanner(false);
+      showToast('Rascunho local restaurado com sucesso.', 'success');
     } catch (error) {
       console.error('Não foi possível restaurar rascunho local do repertório:', error);
+      showToast('Não foi possível restaurar o rascunho local.', 'error');
     }
-  }, [data.repertorio.temReceptivo, hasBackendRepertorio]);
+  }
+
+  function handleDiscardLocalDraft() {
+    localStorage.removeItem(REPERTORIO_DRAFT_LOCAL_STORAGE_KEY);
+    setShowLocalDraftBanner(false);
+    showToast('Rascunho local descartado.', 'default');
+  }
 
   useEffect(() => {
     const draftPayload = {
@@ -1703,6 +1728,43 @@ async function saveRepertorio(mode = 'draft') {
 
   return (
     <div className="space-y-4">
+      {!hasBackendRepertorio && showLocalDraftBanner ? (
+        <section className="overflow-hidden rounded-[24px] border border-violet-200 bg-[linear-gradient(135deg,#f7f2ff_0%,#ffffff_58%,#f3ecff_100%)] p-4 shadow-[0_12px_30px_rgba(91,33,182,0.12)]">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-violet-100 text-lg">
+              💾
+            </div>
+            <div className="flex-1">
+              <div className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-violet-700">
+                Rascunho local disponível
+              </div>
+              <div className="mt-1 text-[16px] font-black text-[#241a14]">
+                Encontramos um rascunho local não salvo
+              </div>
+              <div className="mt-1 text-[13px] leading-5 text-[#6f5d51]">
+                Você prefere restaurar esse conteúdo para continuar de onde parou ou descartar esse rascunho?
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={handleRestoreLocalDraft}
+                  className="rounded-[14px] bg-[linear-gradient(135deg,#6d28d9_0%,#8b5cf6_100%)] px-4 py-2 text-[13px] font-extrabold text-white shadow-[0_10px_20px_rgba(109,40,217,0.28)] transition hover:opacity-95"
+                >
+                  Restaurar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDiscardLocalDraft}
+                  className="rounded-[14px] border border-[#dbcff5] bg-white px-4 py-2 text-[13px] font-bold text-[#5b3f85] transition hover:bg-[#f7f1ff]"
+                >
+                  Descartar
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
       <TabHero
   badge="Repertório"
   title="Monte a trilha sonora do seu evento"

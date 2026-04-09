@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { generateRepertoirePdfBuffer } from '@/lib/repertorio/repertoirePdf';
 
+export const runtime = 'nodejs';
+
 function getAdminSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRole = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -72,7 +74,7 @@ export async function GET(_request, { params }) {
       return NextResponse.json({ ok: false, error: 'Evento não encontrado.' }, { status: 404 });
     }
 
-    const pdfBuffer = generateRepertoirePdfBuffer({
+    const pdfBuffer = await generateRepertoirePdfBuffer({
       event: eventResp.data,
       config: configResp.data || {},
       items: Array.isArray(itemsResp.data) ? itemsResp.data : [],

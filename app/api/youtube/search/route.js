@@ -1,5 +1,10 @@
 import { NextResponse } from 'next/server';
 import { mapYoutubeSearchItems } from '../../../../lib/youtube/mapYoutubeSearchItems';
+import {
+  getYoutubeSearchCache,
+  normalizeYoutubeSearchQuery,
+  setYoutubeSearchCache,
+} from '../../../../lib/youtube/searchCache';
 
 const MIN_QUERY_LENGTH = 2;
 const MAX_RESULTS = 5;
@@ -8,6 +13,9 @@ export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const rawQuery = searchParams.get('q') || '';
   const query = rawQuery.trim();
+  const normalizedQuery = normalizeYoutubeSearchQuery(rawQuery);
+
+  console.debug(`[youtube-search] Query normalizada: "${normalizedQuery}"`);
 
   if (query.length < MIN_QUERY_LENGTH) {
     return NextResponse.json(
@@ -19,6 +27,18 @@ export async function GET(request) {
       { status: 400 }
     );
   }
+
+  const cachedItems = getYoutubeSearchCache(rawQuery);
+  if (cachedItems) {
+    console.debug(`[youtube-search] Cache hit para: "${normalizedQuery}"`);
+
+    return NextResponse.json({
+      ok: true,
+      items: cachedItems,
+    });
+  }
+
+  console.debug(`[youtube-search] Cache miss para: "${normalizedQuery}"`);
 
   const apiKey = process.env.YOUTUBE_API_KEY;
   if (!apiKey) {
@@ -68,6 +88,8 @@ export async function GET(request) {
 
     const data = await response.json();
     const mappedItems = mapYoutubeSearchItems(data?.items);
+
+    setYoutubeSearchCache(rawQuery, mappedItems);
 
     return NextResponse.json({
       ok: true,

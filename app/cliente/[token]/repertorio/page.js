@@ -263,6 +263,12 @@ export default async function ClienteRepertorioPage({ params }) {
   const precontract = precontractsResp.data || null;
   const contract = contractsResp.data || null;
 
+  console.log('[CLIENTE REPERTORIO PAGE] URL PDF contrato:', contract?.pdf_url || '(vazio)');
+  console.log(
+    '[CLIENTE REPERTORIO PAGE] URL PDF repertório:',
+    config?.repertoire_pdf_url || config?.pdf_url || '(vazio)'
+  );
+
   if (precontract?.public_token) {
     clientToken = precontract.public_token;
   }
@@ -314,7 +320,7 @@ export default async function ClienteRepertorioPage({ params }) {
         event.has_reception ??
         event.has_receptivo ??
         Boolean(config?.has_reception || false),
-      pdfUrl: contract?.pdf_url || '#',
+      pdfUrl: config?.repertoire_pdf_url || config?.pdf_url || '#',
       repertoireToken: tokenRow?.token || '',
 
       initialState: {

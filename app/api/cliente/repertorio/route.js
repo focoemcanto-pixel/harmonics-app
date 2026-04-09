@@ -309,6 +309,10 @@ export async function POST(request) {
       last_saved_at: nowIso,
     };
 
+    if (mode === 'final') {
+      configPayload.repertoire_pdf_url = `/api/cliente/repertorio/pdf/${tokenRow.token}`;
+    }
+
     const { error: upsertConfigError } = await supabase
       .from('repertoire_config')
       .upsert(configPayload, {
@@ -317,6 +321,31 @@ export async function POST(request) {
 
     if (upsertConfigError) {
       throw upsertConfigError;
+    }
+
+    if (mode === 'final') {
+      const [{ data: persistedConfig, error: persistedConfigError }, { data: contractRow, error: contractError }] =
+        await Promise.all([
+          supabase
+            .from('repertoire_config')
+            .select('event_id, repertoire_pdf_url, pdf_url')
+            .eq('event_id', eventId)
+            .maybeSingle(),
+          supabase
+            .from('contracts')
+            .select('event_id, pdf_url')
+            .eq('event_id', eventId)
+            .maybeSingle(),
+        ]);
+
+      if (persistedConfigError) throw persistedConfigError;
+      if (contractError) throw contractError;
+
+      console.log('[API REPERTORIO] URL PDF contrato (somente leitura):', contractRow?.pdf_url || '(vazio)');
+      console.log(
+        '[API REPERTORIO] URL PDF repertório salvo:',
+        persistedConfig?.repertoire_pdf_url || persistedConfig?.pdf_url || '(vazio)'
+      );
     }
 
     const { error: deleteItemsError } = await supabase

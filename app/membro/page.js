@@ -587,7 +587,7 @@ export default function MembroPage() {
   const repertorios = useMemo(() => {
     return confirmados.filter(
       (row) =>
-        row?.contractInfo?.pdfUrl ||
+        row?.repertorioPdfUrl ||
         (Array.isArray(row?.youtubeUrls) && row.youtubeUrls.length > 0) ||
         (Array.isArray(row?.repertorioItems) && row.repertorioItems.length > 0)
     );
@@ -738,8 +738,20 @@ export default function MembroPage() {
   }
 
   function openPdf(item) {
-    if (item?.contractInfo?.pdfUrl && typeof window !== 'undefined') {
-      window.open(item.contractInfo.pdfUrl, '_blank', 'noopener,noreferrer');
+    if (typeof window !== 'undefined') {
+      const repertoirePdfUrl = item?.repertorioPdfUrl || '';
+      const contractPdfUrl = item?.contractInfo?.pdfUrl || '';
+
+      console.log('[MEMBRO REPERTORIO UI] URL PDF contrato:', contractPdfUrl || '(vazio)');
+      console.log('[MEMBRO REPERTORIO UI] URL PDF repertório:', repertoirePdfUrl || '(vazio)');
+      console.log(
+        '[MEMBRO REPERTORIO UI] URL usada no botão Baixar PDF:',
+        repertoirePdfUrl || '(vazio)'
+      );
+
+      if (repertoirePdfUrl) {
+        window.open(repertoirePdfUrl, '_blank', 'noopener,noreferrer');
+      }
     }
   }
 

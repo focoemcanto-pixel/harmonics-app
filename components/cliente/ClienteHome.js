@@ -2345,6 +2345,12 @@ async function saveRepertorio(mode = 'draft') {
               href={data.repertorio.pdfUrl || '#'}
               target="_blank"
               rel="noreferrer"
+              onClick={() => {
+                console.log(
+                  '[CLIENTE REPERTORIO UI] URL usada no botão Baixar PDF:',
+                  data.repertorio.pdfUrl || '(vazio)'
+                );
+              }}
               className="flex w-full items-center justify-center rounded-[20px] border border-[#e6d8ff] bg-violet-50 px-4 py-4 text-center text-[15px] font-black text-violet-700"
             >
               📄 Baixar PDF do repertório

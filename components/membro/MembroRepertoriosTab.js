@@ -105,7 +105,7 @@ function getStatus(item) {
     Array.isArray(item?.repertorioItems) && item.repertorioItems.length > 0;
   const hasLinks =
     Array.isArray(item?.youtubeUrls) && item.youtubeUrls.length > 0;
-  const hasPdf = !!item?.contractInfo?.pdfUrl;
+  const hasPdf = !!item?.repertorioPdfUrl;
 
   if (hasRepertorio || hasLinks || hasPdf) {
     return {
@@ -180,7 +180,7 @@ export default function MembroRepertoriosTab({
       Array.isArray(item?.repertorioItems) && item.repertorioItems.length > 0;
     const hasLinks =
       Array.isArray(item?.youtubeUrls) && item.youtubeUrls.length > 0;
-    const hasPdf = !!item?.contractInfo?.pdfUrl;
+    const hasPdf = !!item?.repertorioPdfUrl;
 
     return hasRepertorio || hasLinks || hasPdf;
   });

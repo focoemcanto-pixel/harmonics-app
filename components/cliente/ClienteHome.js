@@ -77,6 +77,63 @@ function buildSuggestionPayload(song, payload = {}) {
   };
 }
 
+function normalizeCompareText(value = '') {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ');
+}
+
+function getItemDestinationKey(item = {}) {
+  const section = normalizeSuggestionSection(item.section || '');
+  const moment = normalizeCompareText(item.moment || '');
+  return `${section}::${moment}`;
+}
+
+function areEquivalentRepertoireItems(existingItem = {}, candidateItem = {}) {
+  if (getItemDestinationKey(existingItem) !== getItemDestinationKey(candidateItem)) {
+    return false;
+  }
+
+  const existingVideoId = String(existingItem.reference_video_id || '').trim();
+  const candidateVideoId = String(candidateItem.reference_video_id || '').trim();
+  if (existingVideoId && candidateVideoId && existingVideoId === candidateVideoId) {
+    return true;
+  }
+
+  const existingReferenceLink = normalizeCompareText(existingItem.reference_link || '');
+  const candidateReferenceLink = normalizeCompareText(candidateItem.reference_link || '');
+  if (existingReferenceLink && candidateReferenceLink && existingReferenceLink === candidateReferenceLink) {
+    return true;
+  }
+
+  const existingSongName = normalizeCompareText(existingItem.song_name || '');
+  const candidateSongName = normalizeCompareText(candidateItem.song_name || '');
+  if (existingSongName && candidateSongName && existingSongName === candidateSongName) {
+    return true;
+  }
+
+  return false;
+}
+
+function mergeUniqueRepertoireItems(baseItems = [], incomingItems = []) {
+  const mergedItems = [...baseItems];
+
+  incomingItems.forEach((item) => {
+    const alreadyExists = mergedItems.some((existingItem) =>
+      areEquivalentRepertoireItems(existingItem, item)
+    );
+
+    if (!alreadyExists) {
+      mergedItems.push(item);
+    }
+  });
+
+  return mergedItems;
+}
+
 function StatusPill({ label, tone = 'neutral' }) {
   const toneMap = {
     neutral: 'bg-zinc-100 text-zinc-700 border-zinc-200',
@@ -1114,7 +1171,8 @@ function buildItemsPayload() {
 
   if (suggestedItems.length > 0) {
     console.log('[SUGESTOES->REPERTORIO] payload de sugestões mapeado:', suggestedItems);
-    items.push(...suggestedItems);
+    const mergedItems = mergeUniqueRepertoireItems(items, suggestedItems);
+    items.splice(0, items.length, ...mergedItems);
   }
 
   return items;

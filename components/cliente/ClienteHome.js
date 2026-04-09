@@ -34,6 +34,49 @@ function toReferenceMeta(item = {}) {
   };
 }
 
+function normalizeSuggestionSection(section = '') {
+  const normalized = String(section || '')
+    .trim()
+    .toLowerCase();
+
+  if (normalized.startsWith('cerim')) return 'cerimonia';
+  if (normalized.startsWith('sa')) return 'saida';
+  if (normalized.startsWith('ante')) return 'antessala';
+  if (normalized.startsWith('recep')) return 'receptivo';
+  return 'cortejo';
+}
+
+function buildSuggestionPayload(song, payload = {}) {
+  const normalizedSection = normalizeSuggestionSection(payload.section);
+  const youtubeVideoId = String(song?.youtubeId || '').trim();
+  const referenceLink = youtubeVideoId
+    ? `https://www.youtube.com/watch?v=${youtubeVideoId}`
+    : '';
+  const fallbackMoment =
+    normalizedSection === 'saida'
+      ? 'Saída'
+      : normalizedSection === 'cerimonia'
+      ? 'Cerimônia'
+      : normalizedSection === 'antessala'
+      ? 'Antessala'
+      : normalizedSection === 'receptivo'
+      ? 'Receptivo'
+      : 'Entrada';
+
+  return {
+    song_name: String(song?.title || '').trim(),
+    reference_link: referenceLink,
+    reference_title: String(song?.title || '').trim(),
+    reference_channel: String(song?.artist || '').trim(),
+    reference_thumbnail: String(song?.thumbnailUrl || '').trim(),
+    reference_video_id: youtubeVideoId,
+    notes: String(payload?.notes || '').trim(),
+    who_enters: String(payload?.label || '').trim(),
+    moment: fallbackMoment,
+    section: normalizedSection,
+  };
+}
+
 function StatusPill({ label, tone = 'neutral' }) {
   const toneMap = {
     neutral: 'bg-zinc-100 text-zinc-700 border-zinc-200',
@@ -913,7 +956,7 @@ const [receptivo, setReceptivo] = useState(
   ];
 
   const progresso = Math.round((step / visibleSteps.length) * 100);
-  function buildItemsPayload() {
+function buildItemsPayload() {
   const items = [];
 
   if (querAntessala === true) {
@@ -1019,6 +1062,61 @@ const [receptivo, setReceptivo] = useState(
     });
   }
 
+  const suggestedItems = selectedSongs.map((item, index) => {
+    const section = normalizeSuggestionSection(item.section || item.targetSection);
+    const isSaida = section === 'saida';
+    const isCerimonia = section === 'cerimonia';
+    const isReceptivo = section === 'receptivo';
+    const isAntessala = section === 'antessala';
+    const normalizedMoment = String(item.moment || '').trim();
+    const fallbackMoment = isSaida
+      ? 'Saída'
+      : isCerimonia
+      ? 'Cerimônia'
+      : isAntessala
+      ? 'Antessala'
+      : isReceptivo
+      ? 'Receptivo'
+      : 'Entrada';
+    const moment = normalizedMoment || fallbackMoment;
+
+    return {
+      section,
+      item_order: isSaida ? 0 : 1000 + index,
+      who_enters: isSaida
+        ? 'Saída dos noivos'
+        : String(item.who_enters || item.targetLabel || '').trim(),
+      moment,
+      song_name: String(item.song_name || item.title || '').trim(),
+      reference_link: String(item.reference_link || '').trim(),
+      reference_title: String(item.reference_title || '').trim(),
+      reference_channel: String(item.reference_channel || '').trim(),
+      reference_thumbnail: String(item.reference_thumbnail || '').trim(),
+      reference_video_id: String(item.reference_video_id || '').trim(),
+      notes: String(item.notes || '').trim(),
+      type: isSaida
+        ? 'saida'
+        : isCerimonia
+        ? 'cerimonia'
+        : isAntessala
+        ? 'ante_room'
+        : isReceptivo
+        ? 'reception'
+        : 'entrada',
+      group_name: '',
+      label: isSaida
+        ? 'Saída dos noivos'
+        : String(item.targetLabel || item.who_enters || '').trim(),
+      genres: String(item.genre || '').trim(),
+      artists: String(item.artist || '').trim(),
+    };
+  });
+
+  if (suggestedItems.length > 0) {
+    console.log('[SUGESTOES->REPERTORIO] payload de sugestões mapeado:', suggestedItems);
+    items.push(...suggestedItems);
+  }
+
   return items;
 }
 
@@ -1057,6 +1155,11 @@ async function saveRepertorio(mode = 'draft') {
       config: buildConfigPayload(),
       items: buildItemsPayload(),
     };
+
+    console.log(
+      '[SUGESTOES->REPERTORIO] payload final enviado para persistência:',
+      payload.items
+    );
 
     console.log('[CLIENTE REPERTORIO] token URL (/cliente/[token]):', data.token);
     console.log('[CLIENTE REPERTORIO] token enviado no payload.token:', payload.token);
@@ -2725,7 +2828,7 @@ const moments = [
     }
   }
 
-    function markAdded(songId, payload) {
+  function markAdded(songId, payload) {
     const alreadyExists = selectedSongs.some((item) => item.songId === songId);
 
     if (alreadyExists) {
@@ -2734,21 +2837,31 @@ const moments = [
     }
 
     const song = hydratedSongs.find((item) => item.id === songId);
+    const suggestionPayload = buildSuggestionPayload(song, payload);
 
-    setSelectedSongs((prev) => [
-      ...prev,
-      {
-        songId,
-        title: song?.title || '',
-        artist: song?.artist || '',
-        genre: song?.genre || '',
-        moment: song?.moment || '',
-        thumbnailUrl: song?.thumbnailUrl || '',
-        targetSection: payload.section,
-        targetLabel: payload.label,
-        notes: payload.notes,
-      },
-    ]);
+    console.log('[SUGESTOES] sugestão selecionada:', song);
+    console.log('[SUGESTOES] momento escolhido:', payload);
+    console.log('[SUGESTOES] payload criado:', suggestionPayload);
+    setSelectedSongs((prev) => {
+      console.log('[SUGESTOES] repertório antes da inserção:', prev);
+      const next = [
+        ...prev,
+        {
+          songId,
+          title: song?.title || '',
+          artist: song?.artist || '',
+          genre: song?.genre || '',
+          moment: song?.moment || '',
+          thumbnailUrl: song?.thumbnailUrl || '',
+          targetSection: payload.section,
+          targetLabel: payload.label,
+          notes: payload.notes,
+          ...suggestionPayload,
+        },
+      ];
+      console.log('[SUGESTOES] repertório depois da inserção:', next);
+      return next;
+    });
 
     showToast('Música adicionada ao repertório 🎶', 'success');
   }
@@ -2831,6 +2944,7 @@ const gospelEntranceSongs = hydratedSongs.filter(
 );
 
    function handleAddConfirm(payload) {
+    console.log('[SUGESTOES] confirmação de adição recebida:', payload);
     if (sheetSong) {
       markAdded(sheetSong.id, payload);
     }

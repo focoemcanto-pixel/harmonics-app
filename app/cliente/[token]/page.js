@@ -249,6 +249,12 @@ export default async function ClienteTokenPage({ params }) {
   const contract = contractsResp.data || null;
   const repertoireToken = repertoireTokenResp.data || null;
 
+  console.log('[CLIENTE PAGE] URL PDF contrato:', contract?.pdf_url || '(vazio)');
+  console.log(
+    '[CLIENTE PAGE] URL PDF repertório:',
+    config?.repertoire_pdf_url || config?.pdf_url || '(vazio)'
+  );
+
   const eventDate = parseLocalDate(event.event_date);
   const now = startOfDay(new Date());
   const reviewStartsAt = eventDate ? startOfDay(addDays(eventDate, 1)) : null;
@@ -305,7 +311,7 @@ export default async function ClienteTokenPage({ params }) {
           event?.has_receptivo ??
           false
       ),
-      pdfUrl: contract?.pdf_url || '#',
+      pdfUrl: config?.repertoire_pdf_url || config?.pdf_url || '#',
       repertoireToken: repertorioTokenValue,
 
       initialState: {

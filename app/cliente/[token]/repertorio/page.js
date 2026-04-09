@@ -120,6 +120,10 @@ function mapItemsToInitialState(items) {
       musica: item.song_name || '',
       referencia: item.reference_link || '',
       observacao: item.notes || '',
+      reference_title: item.reference_title || '',
+      reference_channel: item.reference_channel || '',
+      reference_thumbnail: item.reference_thumbnail || '',
+      reference_video_id: item.reference_video_id || '',
     }));
 
   const cerimonia = items
@@ -130,6 +134,10 @@ function mapItemsToInitialState(items) {
       musica: item.song_name || '',
       referencia: item.reference_link || '',
       observacao: item.notes || '',
+      reference_title: item.reference_title || '',
+      reference_channel: item.reference_channel || '',
+      reference_thumbnail: item.reference_thumbnail || '',
+      reference_video_id: item.reference_video_id || '',
     }));
 
   return {
@@ -292,6 +300,10 @@ export default async function ClienteRepertorioPage({ params }) {
           musica: config?.exit_song || '',
           referencia: config?.exit_reference || '',
           observacao: config?.exit_notes || '',
+          reference_title: config?.exit_reference_title || '',
+          reference_channel: config?.exit_reference_channel || '',
+          reference_thumbnail: config?.exit_reference_thumbnail || '',
+          reference_video_id: config?.exit_reference_video_id || '',
         },
         receptivo: {
           duracao: config?.reception_duration || '1h',

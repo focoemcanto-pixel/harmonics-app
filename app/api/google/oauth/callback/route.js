@@ -108,6 +108,10 @@ function safeKeys(value) {
     : [];
 }
 
+function getConstructorName(value) {
+  return value?.constructor?.name || null;
+}
+
 function maskToken(value) {
   const raw = String(value || '');
   if (!raw) return null;
@@ -371,41 +375,40 @@ export async function GET(request) {
     try {
       tokenResponse = await oauth2Client.getToken(code);
       console.error('[CALLBACK] getToken() executado com sucesso');
-      console.error('[CALLBACK] tokenResponse type:', typeof tokenResponse);
-      console.error('[CALLBACK] tokenResponse keys:', safeKeys(tokenResponse));
-      console.error(
-        '[CALLBACK] tokenResponse.tokens type:',
-        typeof tokenResponse?.tokens
-      );
-      console.error(
-        '[CALLBACK] tokenResponse.tokens keys:',
-        safeKeys(tokenResponse?.tokens)
-      );
-      console.error(
-        '[CALLBACK] tokenResponse.res type:',
-        typeof tokenResponse?.res
-      );
-      console.error(
-        '[CALLBACK] tokenResponse.res keys:',
-        safeKeys(tokenResponse?.res)
-      );
-      console.error(
-        '[CALLBACK] tokenResponse.res.data type:',
-        typeof tokenResponse?.res?.data
-      );
-      console.error(
-        '[CALLBACK] tokenResponse.res.data keys:',
-        safeKeys(tokenResponse?.res?.data)
-      );
-      console.error(
-        '[CALLBACK] tokenResponse.res.data raw:',
-        typeof tokenResponse?.res?.data === 'string'
-          ? tokenResponse.res.data
-          : serializeForLog(tokenResponse?.res?.data)
-      );
-      console.error(
-        '[CALLBACK] tokenResponse masked:',
-        serializeForLog(tokenResponse)
+
+      const debugPayload = {
+        tokenResponseTypeof: typeof tokenResponse,
+        tokenResponseConstructorName: getConstructorName(tokenResponse),
+        tokenResponseKeys: safeKeys(tokenResponse),
+        tokenResponseTokensTypeof: typeof tokenResponse?.tokens,
+        tokenResponseTokensConstructorName: getConstructorName(
+          tokenResponse?.tokens
+        ),
+        tokenResponseTokensKeys: safeKeys(tokenResponse?.tokens),
+        tokenResponseResTypeof: typeof tokenResponse?.res,
+        tokenResponseResConstructorName: getConstructorName(tokenResponse?.res),
+        tokenResponseResDataTypeof: typeof tokenResponse?.res?.data,
+        tokenResponseResDataConstructorName: getConstructorName(
+          tokenResponse?.res?.data
+        ),
+        tokenResponseMasked: serializeForLog(tokenResponse),
+        tokenResponseTokensMasked: serializeForLog(tokenResponse?.tokens),
+        tokenResponseResDataMasked: serializeForLog(tokenResponse?.res?.data),
+      };
+
+      if (typeof tokenResponse?.res?.data === 'string') {
+        debugPayload.tokenResponseResDataStringFirst1000 =
+          tokenResponse.res.data.slice(0, 1000);
+      }
+
+      return NextResponse.json(
+        {
+          ok: true,
+          message:
+            'Diagnóstico getToken(code): retorno bruto capturado. Fluxo interrompido antes da persistência.',
+          debug: debugPayload,
+        },
+        { status: 200 }
       );
     } catch (error) {
       console.error('[CALLBACK] getToken() falhou:', error.message);

@@ -233,6 +233,14 @@ export async function revokeToken(refreshToken, userId) {
 
   try {
     if (refreshToken) {
+      if (!oauth2Client.credentials || typeof oauth2Client.credentials !== 'object') {
+        oauth2Client.credentials = {};
+      }
+
+      oauth2Client.setCredentials({
+        refresh_token: refreshToken,
+      });
+
       await oauth2Client.revokeToken(refreshToken);
       console.info('[google-oauth][revoke] token revogado no Google.', {
         userId,
@@ -449,7 +457,32 @@ export async function GET(request) {
     }
 
     try {
+      console.error('[CALLBACK] antes do setCredentials:', {
+        oauth2CredentialsType: typeof oauth2Client.credentials,
+        oauth2CredentialsIsArray: Array.isArray(oauth2Client.credentials),
+        normalizedTokensType: typeof normalizedTokens,
+        normalizedTokensIsArray: Array.isArray(normalizedTokens),
+        hasAccessToken: !!normalizedTokens?.access_token,
+        hasRefreshToken: !!normalizedTokens?.refresh_token,
+        accessTokenMasked: maskToken(normalizedTokens?.access_token),
+        refreshTokenMasked: maskToken(normalizedTokens?.refresh_token),
+      });
+
+      if (!oauth2Client.credentials || typeof oauth2Client.credentials !== 'object') {
+        oauth2Client.credentials = {};
+      }
+
       oauth2Client.setCredentials(normalizedTokens);
+
+      console.error('[CALLBACK] depois do setCredentials:', {
+        oauth2CredentialsType: typeof oauth2Client.credentials,
+        oauth2CredentialsIsArray: Array.isArray(oauth2Client.credentials),
+        hasAccessToken: !!oauth2Client?.credentials?.access_token,
+        hasRefreshToken: !!oauth2Client?.credentials?.refresh_token,
+        accessTokenMasked: maskToken(oauth2Client?.credentials?.access_token),
+        refreshTokenMasked: maskToken(oauth2Client?.credentials?.refresh_token),
+      });
+
       console.error('[CALLBACK] setCredentials() sucesso');
     } catch (error) {
       console.error(

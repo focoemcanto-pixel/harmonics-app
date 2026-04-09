@@ -2,6 +2,7 @@
 
 import AdminSummaryCard from '../admin/AdminSummaryCard';
 import Pill from '../admin/AdminPill';
+import { normalizeTimeStrict } from '@/lib/time/normalize-time';
 
 export default function EventosResumoTab({
   resumo,
@@ -18,10 +19,10 @@ export default function EventosResumoTab({
     .filter((ev) => ev.event_date)
     .sort((a, b) => {
       const aDate = new Date(
-        `${a.event_date}T${a.event_time || '00:00:00'}`
+        `${a.event_date}T${normalizeTimeStrict(a.event_time) || '00:00'}`
       ).getTime();
       const bDate = new Date(
-        `${b.event_date}T${b.event_time || '00:00:00'}`
+        `${b.event_date}T${normalizeTimeStrict(b.event_time) || '00:00'}`
       ).getTime();
       return aDate - bDate;
     })
@@ -182,7 +183,7 @@ export default function EventosResumoTab({
 
                         <div className="mt-2 text-[13px] text-slate-700">
                           <strong>Data:</strong> {formatDateBR(ev.event_date)} •{' '}
-                          <strong>Hora:</strong> {ev.event_time || '-'}
+                          <strong>Hora:</strong> {normalizeTimeStrict(ev.event_time) || '-'}
                         </div>
 
                         <div className="mt-1 text-[13px] text-slate-500">

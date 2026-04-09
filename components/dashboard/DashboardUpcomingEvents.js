@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import AdminSectionTitle from '../admin/AdminSectionTitle';
+import { normalizeTimeStrict } from '@/lib/time/normalize-time';
 
 function formatDateBR(dateStr) {
   if (!dateStr) return '-';
@@ -150,10 +151,10 @@ export default function DashboardUpcomingEvents({
     .filter((ev) => isUpcomingEvent(ev.event_date))
     .sort((a, b) => {
       const aDate = a.event_date
-        ? new Date(`${a.event_date}T${a.event_time || '00:00:00'}`).getTime()
+        ? new Date(`${a.event_date}T${normalizeTimeStrict(a.event_time) || '00:00'}`).getTime()
         : 0;
       const bDate = b.event_date
-        ? new Date(`${b.event_date}T${b.event_time || '00:00:00'}`).getTime()
+        ? new Date(`${b.event_date}T${normalizeTimeStrict(b.event_time) || '00:00'}`).getTime()
         : 0;
 
       return aDate - bDate;

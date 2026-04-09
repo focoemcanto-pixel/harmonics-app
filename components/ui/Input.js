@@ -15,6 +15,7 @@ const Input = forwardRef(function Input(
     inputMode,
     autoComplete,
     disabled = false,
+    step,
   },
   ref
 ) {
@@ -33,6 +34,7 @@ const Input = forwardRef(function Input(
         min={min}
         max={max}
         onChange={onChange}
+        step={step}
         placeholder={placeholder}
         inputMode={inputMode}
         autoComplete={autoComplete}

@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { normalizeTimeStrict } from '@/lib/time/normalize-time';
 import {
   addHoursToTime,
   formatDateBR,
@@ -428,10 +429,10 @@ function isSameMonth(dateValue, baseDate) {
 function sortByEventDateAsc(items = []) {
   return [...items].sort((a, b) => {
     const aTime = new Date(
-      `${a?.eventDate || ''}T${a?.eventTime || '00:00:00'}`
+      `${a?.eventDate || ''}T${normalizeTimeStrict(a?.eventTime) || '00:00'}`
     ).getTime();
     const bTime = new Date(
-      `${b?.eventDate || ''}T${b?.eventTime || '00:00:00'}`
+      `${b?.eventDate || ''}T${normalizeTimeStrict(b?.eventTime) || '00:00'}`
     ).getTime();
 
     return aTime - bTime;

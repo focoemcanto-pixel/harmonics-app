@@ -108,10 +108,6 @@ function safeKeys(value) {
     : [];
 }
 
-function getConstructorName(value) {
-  return value?.constructor?.name || null;
-}
-
 function maskToken(value) {
   const raw = String(value || '');
   if (!raw) return null;
@@ -121,7 +117,7 @@ function maskToken(value) {
 
 function serializeForLog(obj) {
   try {
-    if (typeof obj === 'string') return obj;
+    if (!obj || typeof obj !== 'object') return obj;
 
     return JSON.parse(
       JSON.stringify(obj, (key, value) => {
@@ -138,121 +134,6 @@ function serializeForLog(obj) {
   } catch {
     return '[unserializable]';
   }
-}
-
-function looksLikeTokenPayload(value) {
-  return !!(
-    value &&
-    typeof value === 'object' &&
-    !Array.isArray(value) &&
-    (
-      typeof value.access_token === 'string' ||
-      typeof value.refresh_token === 'string' ||
-      typeof value.id_token === 'string' ||
-      typeof value.token_type === 'string' ||
-      typeof value.scope === 'string' ||
-      value.expiry_date != null
-    )
-  );
-}
-
-function parseMaybeStructuredValue(value) {
-  if (!value) return null;
-
-  if (looksLikeTokenPayload(value)) {
-    return value;
-  }
-
-  if (typeof value === 'string') {
-    const trimmed = value.trim();
-    if (!trimmed) return null;
-
-    try {
-      const parsed = JSON.parse(trimmed);
-      if (parsed && typeof parsed === 'object') return parsed;
-    } catch {}
-
-    try {
-      const params = new URLSearchParams(trimmed);
-      const access_token = params.get('access_token');
-      const refresh_token = params.get('refresh_token');
-      const token_type = params.get('token_type');
-      const scope = params.get('scope');
-      const expires_in = params.get('expires_in');
-      const id_token = params.get('id_token');
-
-      if (
-        access_token ||
-        refresh_token ||
-        token_type ||
-        scope ||
-        expires_in ||
-        id_token
-      ) {
-        return {
-          access_token: access_token || null,
-          refresh_token: refresh_token || null,
-          token_type: token_type || 'Bearer',
-          scope: scope || null,
-          id_token: id_token || null,
-          expiry_date: expires_in
-            ? Date.now() + Number(expires_in) * 1000
-            : null,
-        };
-      }
-    } catch {}
-
-    return null;
-  }
-
-  if (typeof Buffer !== 'undefined' && Buffer.isBuffer(value)) {
-    return parseMaybeStructuredValue(value.toString('utf8'));
-  }
-
-  if (
-    typeof URLSearchParams !== 'undefined' &&
-    value instanceof URLSearchParams
-  ) {
-    return parseMaybeStructuredValue(value.toString());
-  }
-
-  return null;
-}
-
-function deepFindTokenPayload(value, visited = new Set(), depth = 0) {
-  if (!value || depth > 10) return null;
-
-  const parsedStructured = parseMaybeStructuredValue(value);
-  if (parsedStructured && looksLikeTokenPayload(parsedStructured)) {
-    return parsedStructured;
-  }
-
-  if (typeof value !== 'object') return null;
-  if (visited.has(value)) return null;
-  visited.add(value);
-
-  if (looksLikeTokenPayload(value)) {
-    return value;
-  }
-
-  if (Array.isArray(value)) {
-    for (const item of value) {
-      const found = deepFindTokenPayload(item, visited, depth + 1);
-      if (found) return found;
-    }
-    return null;
-  }
-
-  for (const key of Object.keys(value)) {
-    const found = deepFindTokenPayload(value[key], visited, depth + 1);
-    if (found) return found;
-  }
-
-  return null;
-}
-
-function extractOAuthTokensFromResponse(tokenResponse) {
-  return deepFindTokenPayload(tokenResponse);
 }
 
 async function normalizeTokensWithPreviousRefreshToken(tokens, userId) {
@@ -375,109 +256,78 @@ export async function GET(request) {
     try {
       tokenResponse = await oauth2Client.getToken(code);
       console.error('[CALLBACK] getToken() executado com sucesso');
-
-      const debugPayload = {
-        tokenResponseTypeof: typeof tokenResponse,
-        tokenResponseConstructorName: getConstructorName(tokenResponse),
-        tokenResponseKeys: safeKeys(tokenResponse),
-        tokenResponseTokensTypeof: typeof tokenResponse?.tokens,
-        tokenResponseTokensConstructorName: getConstructorName(
-          tokenResponse?.tokens
-        ),
-        tokenResponseTokensKeys: safeKeys(tokenResponse?.tokens),
-        tokenResponseResTypeof: typeof tokenResponse?.res,
-        tokenResponseResConstructorName: getConstructorName(tokenResponse?.res),
-        tokenResponseResDataTypeof: typeof tokenResponse?.res?.data,
-        tokenResponseResDataConstructorName: getConstructorName(
-          tokenResponse?.res?.data
-        ),
-        tokenResponseMasked: serializeForLog(tokenResponse),
-        tokenResponseTokensMasked: serializeForLog(tokenResponse?.tokens),
-        tokenResponseResDataMasked: serializeForLog(tokenResponse?.res?.data),
-      };
-
-      if (typeof tokenResponse?.res?.data === 'string') {
-        debugPayload.tokenResponseResDataStringFirst1000 =
-          tokenResponse.res.data.slice(0, 1000);
-      }
-
-      return NextResponse.json(
-        {
-          ok: true,
-          message:
-            'Diagnóstico getToken(code): retorno bruto capturado. Fluxo interrompido antes da persistência.',
-          debug: debugPayload,
-        },
-        { status: 200 }
+      console.error('[CALLBACK] tokenResponse keys:', safeKeys(tokenResponse));
+      console.error(
+        '[CALLBACK] tokenResponse has tokens:',
+        !!tokenResponse?.tokens
       );
     } catch (error) {
       console.error('[CALLBACK] getToken() falhou:', error.message);
-      console.error(
-        '[CALLBACK] getToken() response data:',
-        serializeForLog(error?.response?.data)
-      );
 
       return NextResponse.json(
         {
           ok: false,
           message: `Falha ao obter tokens do Google: ${error.message}`,
-          debug: {
-            responseData: serializeForLog(error?.response?.data),
-          },
         },
         { status: 400 }
       );
     }
 
-    const rawTokens = extractOAuthTokensFromResponse(tokenResponse);
-
-    console.error('[CALLBACK] rawTokens keys:', safeKeys(rawTokens));
-    console.error('[CALLBACK] rawTokens masked:', serializeForLog(rawTokens));
-
-    if (!rawTokens || typeof rawTokens !== 'object' || Array.isArray(rawTokens)) {
-      return NextResponse.json(
-        {
-          ok: false,
-          message: 'Payload de tokens inválido recebido do Google OAuth.',
-          debug: {
-            hasTokenResponse: !!tokenResponse,
-            hasTokensProperty: !!tokenResponse?.tokens,
-            hasResData: !!tokenResponse?.res?.data,
-            tokenResponseKeys: safeKeys(tokenResponse),
-            tokenTokensKeys: safeKeys(tokenResponse?.tokens),
-            tokenResDataKeys: safeKeys(tokenResponse?.res?.data),
-          },
-        },
-        { status: 400 }
-      );
-    }
-
-    const normalizedTokensBase = {
-      access_token: String(rawTokens?.access_token || '').trim() || null,
-      refresh_token: String(rawTokens?.refresh_token || '').trim() || null,
-      scope: String(rawTokens?.scope || '').trim() || null,
-      token_type: String(rawTokens?.token_type || 'Bearer').trim(),
-      expiry_date: rawTokens?.expiry_date ?? null,
-      id_token: String(rawTokens?.id_token || '').trim() || null,
-    };
+    const rawTokensCandidate = tokenResponse?.tokens ?? tokenResponse;
 
     console.error(
-      '[CALLBACK] normalizedTokensBase:',
-      serializeForLog(normalizedTokensBase)
+      '[CALLBACK] rawTokensCandidate keys:',
+      safeKeys(rawTokensCandidate)
     );
+    console.error(
+      '[CALLBACK] rawTokensCandidate masked:',
+      serializeForLog(rawTokensCandidate)
+    );
+
+    const normalizedTokensBase = {
+      access_token:
+        typeof rawTokensCandidate?.access_token === 'string'
+          ? rawTokensCandidate.access_token.trim()
+          : null,
+      refresh_token:
+        typeof rawTokensCandidate?.refresh_token === 'string'
+          ? rawTokensCandidate.refresh_token.trim()
+          : null,
+      scope:
+        typeof rawTokensCandidate?.scope === 'string'
+          ? rawTokensCandidate.scope.trim()
+          : null,
+      token_type:
+        typeof rawTokensCandidate?.token_type === 'string'
+          ? rawTokensCandidate.token_type.trim()
+          : 'Bearer',
+      expiry_date: rawTokensCandidate?.expiry_date ?? null,
+      id_token:
+        typeof rawTokensCandidate?.id_token === 'string'
+          ? rawTokensCandidate.id_token.trim()
+          : null,
+    };
+
+    console.error('[CALLBACK] normalizedTokensBase:', {
+      hasAccessToken: !!normalizedTokensBase.access_token,
+      hasRefreshToken: !!normalizedTokensBase.refresh_token,
+      token_type: normalizedTokensBase.token_type,
+      scope: normalizedTokensBase.scope,
+      expiry_date: normalizedTokensBase.expiry_date,
+      access_token: maskToken(normalizedTokensBase.access_token),
+      refresh_token: maskToken(normalizedTokensBase.refresh_token),
+      id_token: maskToken(normalizedTokensBase.id_token),
+    });
 
     if (!normalizedTokensBase.access_token) {
       return NextResponse.json(
         {
           ok: false,
-          message: 'access_token ausente na resposta do Google OAuth',
+          message: 'access_token ausente em tokenResponse.tokens',
           debug: {
-            hasTokenResponse: !!tokenResponse,
-            hasTokensProperty: !!tokenResponse?.tokens,
-            hasResData: !!tokenResponse?.res?.data,
             tokenResponseKeys: safeKeys(tokenResponse),
-            tokenTokensKeys: safeKeys(tokenResponse?.tokens),
-            tokenResDataKeys: safeKeys(tokenResponse?.res?.data),
+            tokenResponseHasTokens: !!tokenResponse?.tokens,
+            tokenCandidateKeys: safeKeys(rawTokensCandidate),
           },
         },
         { status: 400 }
@@ -492,11 +342,9 @@ export async function GET(request) {
     console.error('[CALLBACK] tokens normalizados:', {
       hasAccessToken: !!normalizedTokens?.access_token,
       hasRefreshToken: !!normalizedTokens?.refresh_token,
+      access_token: maskToken(normalizedTokens?.access_token),
+      refresh_token: maskToken(normalizedTokens?.refresh_token),
     });
-    console.error(
-      '[CALLBACK] normalizedTokens masked:',
-      serializeForLog(normalizedTokens)
-    );
 
     const tokenValidation =
       validateGoogleOAuthTokensForStorage(normalizedTokens);

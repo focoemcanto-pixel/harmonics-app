@@ -1702,6 +1702,26 @@ async function saveRepertorio(mode = 'draft') {
   }
 }
 
+async function handleRequestReview() {
+  const reviewToken = data.repertorio?.repertoireToken || data.token;
+  if (!reviewToken) {
+    alert('Erro ao solicitar revisão');
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/cliente/repertorio/review/${reviewToken}`, {
+      method: 'POST',
+    });
+
+    if (!res.ok) throw new Error();
+
+    alert('Pedido de revisão enviado com sucesso!');
+  } catch {
+    alert('Erro ao solicitar revisão');
+  }
+}
+
   function updateListItem(list, setter, index, value) {
     setter(list.map((item, i) => (i === index ? value : item)));
   }
@@ -2342,10 +2362,15 @@ async function saveRepertorio(mode = 'draft') {
 
           <div className="space-y-3">
             <a
-              href={data.repertorio.pdfUrl || '#'}
+              href={data.repertorio.pdfUrl || undefined}
               target="_blank"
               rel="noreferrer"
-              onClick={() => {
+              onClick={(event) => {
+                if (!data.repertorio.pdfUrl) {
+                  event.preventDefault();
+                  alert('PDF do repertório ainda não disponível.');
+                  return;
+                }
                 console.log(
                   '[CLIENTE REPERTORIO UI] URL usada no botão Baixar PDF:',
                   data.repertorio.pdfUrl || '(vazio)'
@@ -2358,6 +2383,7 @@ async function saveRepertorio(mode = 'draft') {
 
             <button
               type="button"
+              onClick={handleRequestReview}
               className="w-full rounded-[20px] bg-[linear-gradient(135deg,#6d28d9_0%,#8b5cf6_100%)] px-4 py-4 text-[15px] font-black text-white"
             >
               Solicitar revisão

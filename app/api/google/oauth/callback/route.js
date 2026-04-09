@@ -117,6 +117,8 @@ function maskToken(value) {
 
 function serializeForLog(obj) {
   try {
+    if (typeof obj === 'string') return obj;
+
     return JSON.parse(
       JSON.stringify(obj, (key, value) => {
         if (
@@ -150,8 +152,78 @@ function looksLikeTokenPayload(value) {
   );
 }
 
+function parseMaybeStructuredValue(value) {
+  if (!value) return null;
+
+  if (looksLikeTokenPayload(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (parsed && typeof parsed === 'object') return parsed;
+    } catch {}
+
+    try {
+      const params = new URLSearchParams(trimmed);
+      const access_token = params.get('access_token');
+      const refresh_token = params.get('refresh_token');
+      const token_type = params.get('token_type');
+      const scope = params.get('scope');
+      const expires_in = params.get('expires_in');
+      const id_token = params.get('id_token');
+
+      if (
+        access_token ||
+        refresh_token ||
+        token_type ||
+        scope ||
+        expires_in ||
+        id_token
+      ) {
+        return {
+          access_token: access_token || null,
+          refresh_token: refresh_token || null,
+          token_type: token_type || 'Bearer',
+          scope: scope || null,
+          id_token: id_token || null,
+          expiry_date: expires_in
+            ? Date.now() + Number(expires_in) * 1000
+            : null,
+        };
+      }
+    } catch {}
+
+    return null;
+  }
+
+  if (typeof Buffer !== 'undefined' && Buffer.isBuffer(value)) {
+    return parseMaybeStructuredValue(value.toString('utf8'));
+  }
+
+  if (
+    typeof URLSearchParams !== 'undefined' &&
+    value instanceof URLSearchParams
+  ) {
+    return parseMaybeStructuredValue(value.toString());
+  }
+
+  return null;
+}
+
 function deepFindTokenPayload(value, visited = new Set(), depth = 0) {
-  if (!value || typeof value !== 'object' || depth > 10) return null;
+  if (!value || depth > 10) return null;
+
+  const parsedStructured = parseMaybeStructuredValue(value);
+  if (parsedStructured && looksLikeTokenPayload(parsedStructured)) {
+    return parsedStructured;
+  }
+
+  if (typeof value !== 'object') return null;
   if (visited.has(value)) return null;
   visited.add(value);
 
@@ -302,16 +374,34 @@ export async function GET(request) {
       console.error('[CALLBACK] tokenResponse type:', typeof tokenResponse);
       console.error('[CALLBACK] tokenResponse keys:', safeKeys(tokenResponse));
       console.error(
+        '[CALLBACK] tokenResponse.tokens type:',
+        typeof tokenResponse?.tokens
+      );
+      console.error(
         '[CALLBACK] tokenResponse.tokens keys:',
         safeKeys(tokenResponse?.tokens)
+      );
+      console.error(
+        '[CALLBACK] tokenResponse.res type:',
+        typeof tokenResponse?.res
       );
       console.error(
         '[CALLBACK] tokenResponse.res keys:',
         safeKeys(tokenResponse?.res)
       );
       console.error(
+        '[CALLBACK] tokenResponse.res.data type:',
+        typeof tokenResponse?.res?.data
+      );
+      console.error(
         '[CALLBACK] tokenResponse.res.data keys:',
         safeKeys(tokenResponse?.res?.data)
+      );
+      console.error(
+        '[CALLBACK] tokenResponse.res.data raw:',
+        typeof tokenResponse?.res?.data === 'string'
+          ? tokenResponse.res.data
+          : serializeForLog(tokenResponse?.res?.data)
       );
       console.error(
         '[CALLBACK] tokenResponse masked:',
@@ -339,10 +429,7 @@ export async function GET(request) {
     const rawTokens = extractOAuthTokensFromResponse(tokenResponse);
 
     console.error('[CALLBACK] rawTokens keys:', safeKeys(rawTokens));
-    console.error(
-      '[CALLBACK] rawTokens masked:',
-      serializeForLog(rawTokens)
-    );
+    console.error('[CALLBACK] rawTokens masked:', serializeForLog(rawTokens));
 
     if (!rawTokens || typeof rawTokens !== 'object' || Array.isArray(rawTokens)) {
       return NextResponse.json(

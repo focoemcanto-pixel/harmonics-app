@@ -34,7 +34,7 @@ import {
   getMonthKey,
   formatMonthYearLabel,
 } from '@/lib/eventos/eventos-format';
-import { normalizeTime } from '@/lib/time/normalize-time';
+import { normalizeTimeStrict, isValidTime, sanitizeTimeFields } from '@/lib/time/normalize-time';
 
 import {
   normalizeFormation,
@@ -211,12 +211,7 @@ export default function EventosPage() {
       const { data, error } = await supabase.from('events').select('*');
 
       if (error) throw error;
-      setEventos(
-        (data || []).map((item) => ({
-          ...item,
-          event_time: normalizeTime(item.event_time),
-        }))
-      );
+      setEventos((data || []).map((item) => sanitizeTimeFields(item)));
     } catch (error) {
       console.error('Erro ao carregar eventos:', error);
       alert('Erro ao carregar eventos. Tente novamente mais tarde.');
@@ -347,7 +342,7 @@ export default function EventosPage() {
   function handleFormChange(field, value) {
     setForm((prev) => ({
       ...prev,
-      [field]: field === 'event_time' ? normalizeTime(value) : value,
+      [field]: field === 'event_time' ? normalizeTimeStrict(value) : value,
     }));
   }
 
@@ -358,7 +353,7 @@ export default function EventosPage() {
         .select('*');
 
       if (error) throw error;
-      setPrecontracts(data || []);
+      setPrecontracts((data || []).map((item) => sanitizeTimeFields(item)));
     } catch (error) {
       console.error('Erro ao carregar precontracts:', error);
     }
@@ -371,7 +366,7 @@ export default function EventosPage() {
         .select('*');
 
       if (error) throw error;
-      setContracts(data || []);
+      setContracts((data || []).map((item) => sanitizeTimeFields(item)));
     } catch (error) {
       console.error('Erro ao carregar contracts:', error);
     }
@@ -487,7 +482,7 @@ export default function EventosPage() {
       client_name: evento.client_name || '',
       event_type: evento.event_type || '',
       event_date: evento.event_date || '',
-      event_time: normalizeTime(evento.event_time || ''),
+      event_time: normalizeTimeStrict(evento.event_time || ''),
       duration_min: String(evento.duration_min ?? 60),
       location_name: evento.location_name || '',
       formation: evento.formation || '',
@@ -624,6 +619,11 @@ export default function EventosPage() {
       return;
     }
 
+    if (!isValidTime(form.event_time)) {
+      alert('Informe um horário válido no formato HH:mm.');
+      return;
+    }
+
     if (!form.location_name.trim()) {
       alert('Informe o local do evento.');
       return;
@@ -632,12 +632,18 @@ export default function EventosPage() {
     try {
       setSalvando(true);
 
+      console.log('[TIME AUDIT]', {
+        flow: 'criacao-evento',
+        original: form.event_time,
+        normalized: normalizeTimeStrict(form.event_time),
+      });
+
       const payload = {
         client_contact_id: form.client_contact_id || null,
         client_name: form.client_name.trim(),
         event_type: form.event_type || null,
         event_date: form.event_date || null,
-        event_time: normalizeTime(form.event_time) || null,
+        event_time: normalizeTimeStrict(form.event_time) || null,
         duration_min: parseInt(form.duration_min, 10) || 60,
         location_name: form.location_name.trim() || null,
         formation: normalizeFormation(form.formation),
@@ -789,10 +795,10 @@ export default function EventosPage() {
     if (sortMode === 'Data do evento') {
       lista.sort((a, b) => {
         const aDate = a.event_date
-          ? new Date(`${a.event_date}T${a.event_time || '00:00:00'}`).getTime()
+          ? new Date(`${a.event_date}T${normalizeTimeStrict(a.event_time) || '00:00'}`).getTime()
           : 0;
         const bDate = b.event_date
-          ? new Date(`${b.event_date}T${b.event_time || '00:00:00'}`).getTime()
+          ? new Date(`${b.event_date}T${normalizeTimeStrict(b.event_time) || '00:00'}`).getTime()
           : 0;
         return aDate - bDate;
       });
@@ -1038,7 +1044,7 @@ export default function EventosPage() {
   cliente={ev.client_name}
   tipo={ev.event_type || 'Evento'}
   data={formatDateBR(ev.event_date)}
-  hora={ev.event_time || '-'}
+  hora={normalizeTimeStrict(ev.event_time) || '-'}
   local={ev.location_name || '-'}
   formacao={ev.formation || '-'}
   receptivo={ev.reception_hours ? `${ev.reception_hours}h` : 'Não'}

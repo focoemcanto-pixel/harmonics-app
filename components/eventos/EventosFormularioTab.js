@@ -221,6 +221,7 @@ export default function EventosFormularioTab({
             <Field label="Hora">
               <Input
                 type="time"
+                step="60"
                 value={form.event_time}
                 onChange={(e) => handleFormChange('event_time', e.target.value)}
               />

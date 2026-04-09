@@ -8,7 +8,7 @@ import Button from '../../../components/ui/Button';
 import Input from '../../../components/ui/Input';
 import Badge from '../../../components/ui/Badge';
 import { useGoogleMapsReady } from '../../../hooks/useGoogleMapsReady';
-import { normalizeTime } from '../../../lib/time/normalize-time';
+import { normalizeTimeStrict, isValidTime, sanitizeTimeFields } from '../../../lib/time/normalize-time';
 
 function formatMoney(value) {
   return new Intl.NumberFormat('pt-BR', {
@@ -62,7 +62,7 @@ function maskDate(value) {
 }
 
 function maskTime(value) {
-  const normalized = normalizeTime(value);
+  const normalized = normalizeTimeStrict(value);
   if (/^\d{2}:\d{2}$/.test(normalized)) return normalized;
 
   const digits = cleanDigits(value).slice(0, 4);
@@ -141,9 +141,6 @@ function isValidDateBr(value) {
   );
 }
 
-function isValidTime(value) {
-  return /^([01]\d|2[0-3]):[0-5]\d$/.test(normalizeTime(value));
-}
 
 function getAddressComponent(components, type) {
   if (!Array.isArray(components)) return '';
@@ -364,7 +361,7 @@ async function upsertEventFromSignature({
 
     event_type: precontract?.event_type || null,
     event_date: convertDateToInput(form.event_date) || precontract?.event_date || null,
-    event_time: normalizeTime(form.event_time) || normalizeTime(precontract?.event_time) || null,
+    event_time: normalizeTimeStrict(form.event_time) || normalizeTimeStrict(precontract?.event_time) || null,
     duration_min: Number(precontract?.duration_min || 60),
 
     location_name:
@@ -484,13 +481,14 @@ const mapsLoaded = useGoogleMapsReady();
           .single();
 
         if (preError) throw preError;
-        setPrecontract(preData || null);
+        const safePreData = sanitizeTimeFields(preData || null);
+        setPrecontract(safePreData || null);
 
         if (preData?.id) {
           const { data: contractData, error: contractError } = await supabase
             .from('contracts')
             .select('*')
-            .eq('precontract_id', preData.id)
+            .eq('precontract_id', safePreData.id)
             .maybeSingle();
 
           if (contractError) throw contractError;
@@ -499,7 +497,7 @@ const mapsLoaded = useGoogleMapsReady();
           const saved = contractData?.raw_payload?.client_form || {};
 
           setForm({
-            full_name: saved.full_name || preData.client_name || '',
+            full_name: saved.full_name || safePreData.client_name || '',
             marital_status: saved.marital_status || '',
             profession: saved.profession || '',
             cpf: saved.cpf ? maskCpf(saved.cpf) : '',
@@ -514,11 +512,11 @@ const mapsLoaded = useGoogleMapsReady();
             address_city: saved.address_city || '',
             address_state: saved.address_state || '',
 
-            event_date: convertDateToBr(saved.event_date || preData.event_date || ''),
-            event_time: normalizeTime(saved.event_time || preData.event_time || ''),
-            event_location_name: saved.event_location_name || preData.location_name || '',
+            event_date: convertDateToBr(saved.event_date || safePreData.event_date || ''),
+            event_time: normalizeTimeStrict(saved.event_time || safePreData.event_time || ''),
+            event_location_name: saved.event_location_name || safePreData.location_name || '',
             event_location_address:
-              saved.event_location_address || preData.location_address || '',
+              saved.event_location_address || safePreData.location_address || '',
 
             adjustment_request: saved.adjustment_request || '',
 
@@ -536,11 +534,11 @@ const mapsLoaded = useGoogleMapsReady();
           if (saved.event_location_address) setEventAddressStatus('selected');
         }
 
-        if (preData?.status === 'link_generated') {
+        if (safePreData?.status === 'link_generated') {
           await supabase
             .from('precontracts')
             .update({ status: 'client_filling' })
-            .eq('id', preData.id);
+            .eq('id', safePreData.id);
 
           setPrecontract((prev) =>
             prev ? { ...prev, status: 'client_filling' } : prev
@@ -719,7 +717,7 @@ const mapsLoaded = useGoogleMapsReady();
     }
 
     if (field === 'event_time') {
-      nextValue = normalizeTime(maskTime(value));
+      nextValue = normalizeTimeStrict(maskTime(value));
     }
 
     setForm((prev) => ({
@@ -762,7 +760,7 @@ const mapsLoaded = useGoogleMapsReady();
       clientName: precontract.client_name || '',
       eventType: precontract.event_type || '',
       eventDate: precontract.event_date || '',
-      eventTime: normalizeTime(precontract.event_time || ''),
+      eventTime: normalizeTimeStrict(precontract.event_time || ''),
       formation: precontract.formation || '',
       instruments: precontract.instruments || '',
       locationName: precontract.location_name || '',
@@ -832,7 +830,7 @@ const contratoFinalizado =
 
     if (!form.event_time.trim()) {
       errors.event_time = 'Informe o horário do evento.';
-    } else if (!isValidTime(normalizeTime(form.event_time))) {
+    } else if (!isValidTime(form.event_time)) {
       errors.event_time = 'Horário inválido.';
     }
 
@@ -875,6 +873,12 @@ const contratoFinalizado =
 
     const assinaturaEm = new Date().toISOString();
 
+    console.log('[TIME AUDIT]', {
+      flow: 'assinatura-contrato',
+      original: form.event_time,
+      normalized: normalizeTimeStrict(form.event_time),
+    });
+
     const clientForm = {
       full_name: form.full_name.trim() || null,
       marital_status: form.marital_status.trim() || null,
@@ -892,7 +896,7 @@ const contratoFinalizado =
       address_state: form.address_state.trim() || null,
 
       event_date: convertDateToInput(form.event_date) || null,
-      event_time: normalizeTime(form.event_time) || null,
+      event_time: normalizeTimeStrict(form.event_time) || null,
       event_location_name: form.event_location_name.trim() || null,
       event_location_address: form.event_location_address.trim() || null,
 
@@ -1017,7 +1021,7 @@ const contratoFinalizado =
           client_email: precontract.client_email || null,
           client_phone: cleanDigits(form.whatsapp) || precontract.client_phone || null,
           event_date: convertDateToInput(form.event_date) || precontract.event_date || null,
-          event_time: normalizeTime(form.event_time) || normalizeTime(precontract.event_time) || null,
+          event_time: normalizeTimeStrict(form.event_time) || normalizeTimeStrict(precontract.event_time) || null,
           location_name: form.event_location_name.trim() || precontract.location_name || null,
           location_address:
             form.event_location_address.trim() || precontract.location_address || null,
@@ -1186,7 +1190,7 @@ if (!generateRes.ok || !generateJson?.ok) {
         `Cidade: ${form.address_city || '-'}`,
         `Estado: ${form.address_state || '-'}`,
         `Data do evento: ${form.event_date || '-'}`,
-        `Horário do evento: ${normalizeTime(form.event_time) || '-'}`,
+        `Horário do evento: ${normalizeTimeStrict(form.event_time) || '-'}`,
         `Local do evento: ${form.event_location_name || '-'}`,
         `Endereço do evento: ${form.event_location_address || '-'}`,
         `Solicitação de ajuste: ${form.adjustment_request || '-'}`,
@@ -1217,7 +1221,7 @@ if (contractSignedError) throw contractSignedError;
           client_email: precontract.client_email || null,
           client_phone: cleanDigits(form.whatsapp) || precontract.client_phone || null,
           event_date: convertDateToInput(form.event_date) || precontract.event_date || null,
-          event_time: normalizeTime(form.event_time) || normalizeTime(precontract.event_time) || null,
+          event_time: normalizeTimeStrict(form.event_time) || normalizeTimeStrict(precontract.event_time) || null,
           location_name: form.event_location_name.trim() || precontract.location_name || null,
           location_address:
             form.event_location_address.trim() || precontract.location_address || null,
@@ -1388,7 +1392,7 @@ if (contractSignedError) throw contractSignedError;
                   label="Hora"
                   value={
                     resumo?.eventTime
-                      ? normalizeTime(resumo.eventTime)
+                      ? normalizeTimeStrict(resumo.eventTime)
                       : '--:--'
                   }
                 />
@@ -1636,10 +1640,10 @@ if (contractSignedError) throw contractSignedError;
     <div>
       <Input
         label="Horário do evento"
-        value={normalizeTime(form.event_time)}
+        type="time"
+        step="60"
+        value={normalizeTimeStrict(form.event_time)}
         onChange={(e) => handleChange('event_time', e.target.value)}
-        placeholder="hh:mm"
-        inputMode="numeric"
         className={getInputTone(fieldErrors.event_time)}
       />
       <FieldFeedback error={fieldErrors.event_time} />

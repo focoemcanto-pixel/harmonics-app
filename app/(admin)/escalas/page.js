@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase';
 import AdminShell from '@/components/admin/AdminShell';
 import AdminPageHero from '@/components/admin/AdminPageHero';
 import AdminSegmentTabs from '@/components/admin/AdminSegmentTabs';
+import { normalizeTimeStrict } from '@/lib/time/normalize-time';
 
 function formatDateBR(value) {
   if (!value) return '-';
@@ -556,8 +557,8 @@ export default function EscalasPage() {
       });
 
     return cards.sort((a, b) => {
-      const aDate = a.eventDate ? new Date(`${a.eventDate}T${a.eventTime || '00:00:00'}`).getTime() : 0;
-      const bDate = b.eventDate ? new Date(`${b.eventDate}T${b.eventTime || '00:00:00'}`).getTime() : 0;
+      const aDate = a.eventDate ? new Date(`${a.eventDate}T${normalizeTimeStrict(a.eventTime) || '00:00'}`).getTime() : 0;
+      const bDate = b.eventDate ? new Date(`${b.eventDate}T${normalizeTimeStrict(b.eventTime) || '00:00'}`).getTime() : 0;
       return aDate - bDate;
     });
   }, [eventos, escalas]);

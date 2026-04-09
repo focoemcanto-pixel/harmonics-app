@@ -8,7 +8,7 @@ import Input from '../../components/ui/Input';
 import Select from '../../components/ui/Select';
 import Badge from '../../components/ui/Badge';
 import { supabase } from '../../lib/supabase';
-import { normalizeTime } from '../../lib/time/normalize-time';
+import { normalizeTimeStrict, isValidTime, sanitizeTimeFields } from '../../lib/time/normalize-time';
 
 const EVENT_TYPES = [
   'Casamento',
@@ -393,10 +393,7 @@ export default function PreContratosPage() {
 
     if (error) throw error;
     setItems(
-      (data || []).map((item) => ({
-        ...item,
-        event_time: normalizeTime(item.event_time),
-      }))
+      (data || []).map((item) => sanitizeTimeFields(item))
     );
   }
 
@@ -408,10 +405,7 @@ export default function PreContratosPage() {
 
     if (error) throw error;
     setEventos(
-      (data || []).map((item) => ({
-        ...item,
-        event_time: normalizeTime(item.event_time),
-      }))
+      (data || []).map((item) => sanitizeTimeFields(item))
     );
   }
 
@@ -434,7 +428,7 @@ export default function PreContratosPage() {
   function handleFormChange(field, value) {
     setForm((prev) => ({
       ...prev,
-      [field]: field === 'event_time' ? normalizeTime(value) : value,
+      [field]: field === 'event_time' ? normalizeTimeStrict(value) : value,
     }));
   }
 
@@ -453,7 +447,7 @@ export default function PreContratosPage() {
 
       event_type: item.event_type || '',
       event_date: item.event_date || '',
-      event_time: normalizeTime(item.event_time || ''),
+      event_time: normalizeTimeStrict(item.event_time || ''),
       duration_min: String(item.duration_min ?? 60),
 
       location_name: item.location_name || '',
@@ -502,7 +496,7 @@ export default function PreContratosPage() {
     if (!form.event_date) return [];
 
     const dataSelecionada = form.event_date;
-    const horaSelecionada = normalizeTime(form.event_time) || null;
+    const horaSelecionada = normalizeTimeStrict(form.event_time) || null;
 
     return eventos.filter((ev) => {
       if (!ev.event_date) return false;
@@ -511,7 +505,7 @@ export default function PreContratosPage() {
       if (!horaSelecionada || !ev.event_time) return true;
 
       const [h1, m1] = String(horaSelecionada).slice(0, 5).split(':').map(Number);
-      const [h2, m2] = normalizeTime(ev.event_time).split(':').map(Number);
+      const [h2, m2] = normalizeTimeStrict(ev.event_time).split(':').map(Number);
 
       const minutos1 = h1 * 60 + m1;
       const minutos2 = h2 * 60 + m2;
@@ -549,6 +543,11 @@ export default function PreContratosPage() {
       return;
     }
 
+    if (form.event_time && !isValidTime(form.event_time)) {
+      alert('Informe um horário válido no formato HH:mm.');
+      return;
+    }
+
     try {
       setSalvando(true);
 
@@ -565,6 +564,12 @@ export default function PreContratosPage() {
         ? null
         : buildContractLink(finalToken);
 
+      console.log('[TIME AUDIT]', {
+        flow: 'pre-contrato',
+        original: form.event_time,
+        normalized: normalizeTimeStrict(form.event_time),
+      });
+
       const payload = {
         client_name: form.client_name.trim() || null,
         client_email: form.client_email.trim() || null,
@@ -572,7 +577,7 @@ export default function PreContratosPage() {
 
         event_type: form.event_type || null,
         event_date: form.event_date || null,
-        event_time: normalizeTime(form.event_time) || null,
+        event_time: normalizeTimeStrict(form.event_time) || null,
         duration_min: parseInt(form.duration_min, 10) || 60,
 
         location_name: form.location_name.trim() || null,
@@ -621,7 +626,7 @@ export default function PreContratosPage() {
           .single();
 
         if (error) throw error;
-        savedItem = data;
+        savedItem = sanitizeTimeFields(data);
       } else {
         const { data, error } = await supabase
           .from('precontracts')
@@ -636,7 +641,7 @@ export default function PreContratosPage() {
           .single();
 
         if (error) throw error;
-        savedItem = data;
+        savedItem = sanitizeTimeFields(data);
       }
 
       await carregarPreContratos();
@@ -821,6 +826,7 @@ export default function PreContratosPage() {
                   <Input
                     label="Hora"
                     type="time"
+                    step="60"
                     value={form.event_time}
                     onChange={(e) => handleFormChange('event_time', e.target.value)}
                   />

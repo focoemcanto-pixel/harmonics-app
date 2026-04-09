@@ -538,6 +538,7 @@ export default function RegrasPageClient() {
                   </label>
                   <input
                     type="time"
+                    step="60"
                     value={form.send_time}
                     onChange={(e) => setForm((f) => ({ ...f, send_time: e.target.value }))}
                     className="w-full rounded-[12px] border border-[#dbe3ef] px-3 py-2.5 text-[14px] outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100"

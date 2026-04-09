@@ -157,6 +157,77 @@ async function normalizeTokensWithPreviousRefreshToken(tokens, userId) {
   };
 }
 
+function buildRawTokensCandidate(tokenResponse) {
+  const tokenData =
+    tokenResponse?.tokens && typeof tokenResponse.tokens === 'object'
+      ? tokenResponse.tokens
+      : null;
+
+  const responseData =
+    tokenResponse?.res?.data && typeof tokenResponse.res.data === 'object'
+      ? tokenResponse.res.data
+      : null;
+
+  if (responseData?.access_token) {
+    return responseData;
+  }
+
+  if (tokenData?.access_token) {
+    return tokenData;
+  }
+
+  return {
+    ...(responseData || {}),
+    ...(tokenData || {}),
+  };
+}
+
+function normalizeTokens(rawTokensCandidate) {
+  const accessToken =
+    typeof rawTokensCandidate?.access_token === 'string'
+      ? rawTokensCandidate.access_token.trim()
+      : null;
+
+  const refreshToken =
+    typeof rawTokensCandidate?.refresh_token === 'string'
+      ? rawTokensCandidate.refresh_token.trim()
+      : null;
+
+  const scope =
+    typeof rawTokensCandidate?.scope === 'string'
+      ? rawTokensCandidate.scope.trim()
+      : null;
+
+  const tokenType =
+    typeof rawTokensCandidate?.token_type === 'string'
+      ? rawTokensCandidate.token_type.trim()
+      : 'Bearer';
+
+  const idToken =
+    typeof rawTokensCandidate?.id_token === 'string'
+      ? rawTokensCandidate.id_token.trim()
+      : null;
+
+  let expiryDate = rawTokensCandidate?.expiry_date ?? null;
+
+  if (
+    !expiryDate &&
+    typeof rawTokensCandidate?.expires_in === 'number' &&
+    Number.isFinite(rawTokensCandidate.expires_in)
+  ) {
+    expiryDate = Date.now() + rawTokensCandidate.expires_in * 1000;
+  }
+
+  return {
+    access_token: accessToken,
+    refresh_token: refreshToken,
+    scope,
+    token_type: tokenType,
+    expiry_date: expiryDate,
+    id_token: idToken,
+  };
+}
+
 export async function revokeToken(refreshToken, userId) {
   const oauth2Client = getOAuth2Client();
 
@@ -261,19 +332,45 @@ export async function GET(request) {
         '[CALLBACK] tokenResponse has tokens:',
         !!tokenResponse?.tokens
       );
+      console.error(
+        '[CALLBACK] tokenResponse.tokens keys:',
+        safeKeys(tokenResponse?.tokens)
+      );
+      console.error(
+        '[CALLBACK] tokenResponse.res keys:',
+        safeKeys(tokenResponse?.res)
+      );
+      console.error(
+        '[CALLBACK] tokenResponse.res.data keys:',
+        safeKeys(tokenResponse?.res?.data)
+      );
     } catch (error) {
-      console.error('[CALLBACK] getToken() falhou:', error.message);
+      console.error('[CALLBACK] getToken() falhou:', error?.message || error);
 
       return NextResponse.json(
         {
           ok: false,
-          message: `Falha ao obter tokens do Google: ${error.message}`,
+          message: `Falha ao obter tokens do Google: ${
+            error?.message || 'erro desconhecido'
+          }`,
         },
         { status: 400 }
       );
     }
 
-    const rawTokensCandidate = tokenResponse?.tokens ?? tokenResponse;
+    console.error(
+      '[CALLBACK] tokenResponse completo:',
+      serializeForLog({
+        tokenResponseKeys: safeKeys(tokenResponse),
+        tokenKeys: safeKeys(tokenResponse?.tokens),
+        resKeys: safeKeys(tokenResponse?.res),
+        resDataKeys: safeKeys(tokenResponse?.res?.data),
+        tokens: tokenResponse?.tokens,
+        resData: tokenResponse?.res?.data,
+      })
+    );
+
+    const rawTokensCandidate = buildRawTokensCandidate(tokenResponse);
 
     console.error(
       '[CALLBACK] rawTokensCandidate keys:',
@@ -284,29 +381,7 @@ export async function GET(request) {
       serializeForLog(rawTokensCandidate)
     );
 
-    const normalizedTokensBase = {
-      access_token:
-        typeof rawTokensCandidate?.access_token === 'string'
-          ? rawTokensCandidate.access_token.trim()
-          : null,
-      refresh_token:
-        typeof rawTokensCandidate?.refresh_token === 'string'
-          ? rawTokensCandidate.refresh_token.trim()
-          : null,
-      scope:
-        typeof rawTokensCandidate?.scope === 'string'
-          ? rawTokensCandidate.scope.trim()
-          : null,
-      token_type:
-        typeof rawTokensCandidate?.token_type === 'string'
-          ? rawTokensCandidate.token_type.trim()
-          : 'Bearer',
-      expiry_date: rawTokensCandidate?.expiry_date ?? null,
-      id_token:
-        typeof rawTokensCandidate?.id_token === 'string'
-          ? rawTokensCandidate.id_token.trim()
-          : null,
-    };
+    const normalizedTokensBase = normalizeTokens(rawTokensCandidate);
 
     console.error('[CALLBACK] normalizedTokensBase:', {
       hasAccessToken: !!normalizedTokensBase.access_token,
@@ -328,6 +403,8 @@ export async function GET(request) {
             tokenResponseKeys: safeKeys(tokenResponse),
             tokenResponseHasTokens: !!tokenResponse?.tokens,
             tokenCandidateKeys: safeKeys(rawTokensCandidate),
+            tokenResponseTokensKeys: safeKeys(tokenResponse?.tokens),
+            tokenResponseResDataKeys: safeKeys(tokenResponse?.res?.data),
           },
         },
         { status: 400 }
@@ -375,11 +452,16 @@ export async function GET(request) {
       oauth2Client.setCredentials(normalizedTokens);
       console.error('[CALLBACK] setCredentials() sucesso');
     } catch (error) {
-      console.error('[CALLBACK] setCredentials() falhou:', error.message);
+      console.error(
+        '[CALLBACK] setCredentials() falhou:',
+        error?.message || error
+      );
       return NextResponse.json(
         {
           ok: false,
-          message: `Falha ao configurar credenciais: ${error.message}`,
+          message: `Falha ao configurar credenciais: ${
+            error?.message || 'erro desconhecido'
+          }`,
         },
         { status: 500 }
       );

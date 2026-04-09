@@ -1154,6 +1154,54 @@ const [receptivo, setReceptivo] = useState(
     setReceptivo(nextSnapshot.receptivo);
   }, [selectedSongs]);
 
+  const renderedRepertorioItems = useMemo(() => {
+    const cortejoItems = cortejo
+      .filter((item) => item?.musica || item?.referencia)
+      .map((item, index) => ({
+        key: `cortejo-${index}`,
+        section: 'Cortejo',
+        label: item?.label || 'Entrada',
+        title: item?.musica || 'Sem música definida',
+        subtitle: item?.reference_channel || '',
+        notes: item?.observacao || '',
+      }));
+
+    const cerimoniaItems = cerimonia
+      .filter((item) => item?.musica || item?.referencia)
+      .map((item, index) => ({
+        key: `cerimonia-${index}`,
+        section: 'Cerimônia',
+        label: item?.label || 'Momento da cerimônia',
+        title: item?.musica || 'Sem música definida',
+        subtitle: item?.reference_channel || '',
+        notes: item?.observacao || '',
+      }));
+
+    const saidaItems = saida?.musica || saida?.referencia
+      ? [
+          {
+            key: 'saida',
+            section: 'Saída',
+            label: 'Saída dos noivos',
+            title: saida?.musica || 'Sem música definida',
+            subtitle: saida?.reference_channel || '',
+            notes: saida?.observacao || '',
+          },
+        ]
+      : [];
+
+    return [...cortejoItems, ...cerimoniaItems, ...saidaItems];
+  }, [cortejo, cerimonia, saida]);
+
+  useEffect(() => {
+    console.log('[SUGESTOES->REPERTORIO][RENDER] fonte visual atual da aba Repertório:', {
+      cortejo,
+      cerimonia,
+      saida,
+      renderedRepertorioItems,
+    });
+  }, [cortejo, cerimonia, saida, renderedRepertorioItems]);
+
   function normalizeReferenceFields(reference = {}) {
     const referenceLink = String(reference.referencia || '').trim();
     const referenceVideoId = getYoutubeVideoId(referenceLink);
@@ -1986,7 +2034,7 @@ async function saveRepertorio(mode = 'draft') {
               <RowInfo icon="⛪" label="Momentos da cerimônia" value={String(cerimonia.length)} />
               <RowInfo icon="🎉" label="Música da saída" value={saida.musica || 'Não definida'} />
               <RowInfo icon="🎤" label="Receptivo" value={temReceptivo ? 'Incluído' : 'Não incluído'} />
-              <RowInfo icon="✨" label="Vindas das sugestões"value={String(selectedSongs.length)} />
+              <RowInfo icon="✨" label="Músicas no repertório" value={String(renderedRepertorioItems.length)} />
             </div>
           </SectionCard>
 
@@ -2032,31 +2080,31 @@ async function saveRepertorio(mode = 'draft') {
             <div className="mb-4 text-[18px] font-black text-[#241a14]">Resumo do cortejo</div>
             {renderResumoCortejo()}
           </SectionCard>
-          {selectedSongs.length > 0 && (
+          {renderedRepertorioItems.length > 0 && (
   <SectionCard>
     <div className="mb-4 text-[18px] font-black text-[#241a14]">
-      Músicas vindas das sugestões
+      Músicas no repertório
     </div>
 
     <div className="space-y-3">
-      {selectedSongs.map((item, index) => (
+      {renderedRepertorioItems.map((item) => (
         <div
-          key={`${item.songId}-${index}`}
+          key={item.key}
           className="rounded-[18px] border border-[#eadfd6] bg-white px-4 py-4"
         >
           <div className="text-[15px] font-black text-[#241a14]">
             {item.title}
           </div>
           <div className="mt-1 text-[13px] font-semibold text-[#7a6a5e]">
-            {item.artist}
+            {item.subtitle || item.section}
           </div>
           <div className="mt-2 flex flex-wrap gap-2">
             <span className="rounded-full bg-[#faf7f3] px-2 py-1 text-[10px] font-black text-[#7a6a5e]">
-              {item.targetSection}
+              {item.section}
             </span>
-            {item.targetLabel ? (
+            {item.label ? (
               <span className="rounded-full bg-violet-50 px-2 py-1 text-[10px] font-black text-violet-700">
-                {item.targetLabel}
+                {item.label}
               </span>
             ) : null}
           </div>

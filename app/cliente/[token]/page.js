@@ -311,7 +311,9 @@ export default async function ClienteTokenPage({ params }) {
           event?.has_receptivo ??
           false
       ),
-      pdfUrl: config?.repertoire_pdf_url || config?.pdf_url || '#',
+      pdfUrl:
+        config?.repertoire_pdf_url ||
+        (token ? `/api/cliente/repertorio/pdf/${token}` : null),
       repertoireToken: repertorioTokenValue,
 
       initialState: {

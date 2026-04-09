@@ -17,7 +17,7 @@ function formatRepertoireStatus(status, isLocked) {
 
   if (s === 'NAO_INICIADO') return 'Não iniciado';
   if (s === 'REABERTO') return 'Reaberto';
-  if (s === 'REVISAO_SOLICITADA') return 'Revisão solicitada';
+  if (s === 'REVISAO_SOLICITADA' || s === 'REVIEW_REQUESTED') return 'REVISÃO SOLICITADA';
   if (s === 'FINALIZADO') return 'Finalizado';
   if (isLocked) return 'Travado';
 
@@ -29,7 +29,7 @@ function getRepertoireTone(status, isLocked) {
 
   if (s === 'FINALIZADO' || isLocked) return 'emerald';
   if (s === 'REABERTO') return 'violet';
-  if (s === 'REVISAO_SOLICITADA') return 'amber';
+  if (s === 'REVISAO_SOLICITADA' || s === 'REVIEW_REQUESTED') return 'amber';
   if (s === 'NAO_INICIADO') return 'slate';
 
   return 'blue';

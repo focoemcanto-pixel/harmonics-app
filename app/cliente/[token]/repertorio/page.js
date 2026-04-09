@@ -320,7 +320,9 @@ export default async function ClienteRepertorioPage({ params }) {
         event.has_reception ??
         event.has_receptivo ??
         Boolean(config?.has_reception || false),
-      pdfUrl: config?.repertoire_pdf_url || config?.pdf_url || '#',
+      pdfUrl:
+        config?.repertoire_pdf_url ||
+        (token ? `/api/cliente/repertorio/pdf/${token}` : null),
       repertoireToken: tokenRow?.token || '',
 
       initialState: {

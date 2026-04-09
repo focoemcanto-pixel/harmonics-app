@@ -8,6 +8,7 @@ import Button from '../../../components/ui/Button';
 import Input from '../../../components/ui/Input';
 import Badge from '../../../components/ui/Badge';
 import { useGoogleMapsReady } from '../../../hooks/useGoogleMapsReady';
+import { normalizeTime } from '../../../lib/time/normalize-time';
 
 function formatMoney(value) {
   return new Intl.NumberFormat('pt-BR', {
@@ -61,6 +62,9 @@ function maskDate(value) {
 }
 
 function maskTime(value) {
+  const normalized = normalizeTime(value);
+  if (/^\d{2}:\d{2}$/.test(normalized)) return normalized;
+
   const digits = cleanDigits(value).slice(0, 4);
 
   if (digits.length <= 2) return digits;
@@ -138,10 +142,7 @@ function isValidDateBr(value) {
 }
 
 function isValidTime(value) {
-  if (!/^\d{2}:\d{2}$/.test(String(value || ''))) return false;
-
-  const [hh, mm] = String(value).split(':').map(Number);
-  return hh >= 0 && hh <= 23 && mm >= 0 && mm <= 59;
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(normalizeTime(value));
 }
 
 function getAddressComponent(components, type) {
@@ -363,7 +364,7 @@ async function upsertEventFromSignature({
 
     event_type: precontract?.event_type || null,
     event_date: convertDateToInput(form.event_date) || precontract?.event_date || null,
-    event_time: form.event_time || precontract?.event_time || null,
+    event_time: normalizeTime(form.event_time) || normalizeTime(precontract?.event_time) || null,
     duration_min: Number(precontract?.duration_min || 60),
 
     location_name:
@@ -514,7 +515,7 @@ const mapsLoaded = useGoogleMapsReady();
             address_state: saved.address_state || '',
 
             event_date: convertDateToBr(saved.event_date || preData.event_date || ''),
-            event_time: saved.event_time || preData.event_time || '',
+            event_time: normalizeTime(saved.event_time || preData.event_time || ''),
             event_location_name: saved.event_location_name || preData.location_name || '',
             event_location_address:
               saved.event_location_address || preData.location_address || '',
@@ -718,7 +719,7 @@ const mapsLoaded = useGoogleMapsReady();
     }
 
     if (field === 'event_time') {
-      nextValue = maskTime(value);
+      nextValue = normalizeTime(maskTime(value));
     }
 
     setForm((prev) => ({
@@ -761,7 +762,7 @@ const mapsLoaded = useGoogleMapsReady();
       clientName: precontract.client_name || '',
       eventType: precontract.event_type || '',
       eventDate: precontract.event_date || '',
-      eventTime: precontract.event_time || '',
+      eventTime: normalizeTime(precontract.event_time || ''),
       formation: precontract.formation || '',
       instruments: precontract.instruments || '',
       locationName: precontract.location_name || '',
@@ -831,7 +832,7 @@ const contratoFinalizado =
 
     if (!form.event_time.trim()) {
       errors.event_time = 'Informe o horário do evento.';
-    } else if (!isValidTime(form.event_time)) {
+    } else if (!isValidTime(normalizeTime(form.event_time))) {
       errors.event_time = 'Horário inválido.';
     }
 
@@ -891,7 +892,7 @@ const contratoFinalizado =
       address_state: form.address_state.trim() || null,
 
       event_date: convertDateToInput(form.event_date) || null,
-      event_time: form.event_time || null,
+      event_time: normalizeTime(form.event_time) || null,
       event_location_name: form.event_location_name.trim() || null,
       event_location_address: form.event_location_address.trim() || null,
 
@@ -1016,7 +1017,7 @@ const contratoFinalizado =
           client_email: precontract.client_email || null,
           client_phone: cleanDigits(form.whatsapp) || precontract.client_phone || null,
           event_date: convertDateToInput(form.event_date) || precontract.event_date || null,
-          event_time: form.event_time || precontract.event_time || null,
+          event_time: normalizeTime(form.event_time) || normalizeTime(precontract.event_time) || null,
           location_name: form.event_location_name.trim() || precontract.location_name || null,
           location_address:
             form.event_location_address.trim() || precontract.location_address || null,
@@ -1185,7 +1186,7 @@ if (!generateRes.ok || !generateJson?.ok) {
         `Cidade: ${form.address_city || '-'}`,
         `Estado: ${form.address_state || '-'}`,
         `Data do evento: ${form.event_date || '-'}`,
-        `Horário do evento: ${form.event_time || '-'}`,
+        `Horário do evento: ${normalizeTime(form.event_time) || '-'}`,
         `Local do evento: ${form.event_location_name || '-'}`,
         `Endereço do evento: ${form.event_location_address || '-'}`,
         `Solicitação de ajuste: ${form.adjustment_request || '-'}`,
@@ -1216,7 +1217,7 @@ if (contractSignedError) throw contractSignedError;
           client_email: precontract.client_email || null,
           client_phone: cleanDigits(form.whatsapp) || precontract.client_phone || null,
           event_date: convertDateToInput(form.event_date) || precontract.event_date || null,
-          event_time: form.event_time || precontract.event_time || null,
+          event_time: normalizeTime(form.event_time) || normalizeTime(precontract.event_time) || null,
           location_name: form.event_location_name.trim() || precontract.location_name || null,
           location_address:
             form.event_location_address.trim() || precontract.location_address || null,
@@ -1387,7 +1388,7 @@ if (contractSignedError) throw contractSignedError;
                   label="Hora"
                   value={
                     resumo?.eventTime
-                      ? String(resumo.eventTime).slice(0, 5)
+                      ? normalizeTime(resumo.eventTime)
                       : '--:--'
                   }
                 />
@@ -1635,7 +1636,7 @@ if (contractSignedError) throw contractSignedError;
     <div>
       <Input
         label="Horário do evento"
-        value={form.event_time}
+        value={normalizeTime(form.event_time)}
         onChange={(e) => handleChange('event_time', e.target.value)}
         placeholder="hh:mm"
         inputMode="numeric"

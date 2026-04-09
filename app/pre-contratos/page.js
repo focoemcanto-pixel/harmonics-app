@@ -8,6 +8,7 @@ import Input from '../../components/ui/Input';
 import Select from '../../components/ui/Select';
 import Badge from '../../components/ui/Badge';
 import { supabase } from '../../lib/supabase';
+import { normalizeTime } from '../../lib/time/normalize-time';
 
 const EVENT_TYPES = [
   'Casamento',
@@ -391,7 +392,12 @@ export default function PreContratosPage() {
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    setItems(data || []);
+    setItems(
+      (data || []).map((item) => ({
+        ...item,
+        event_time: normalizeTime(item.event_time),
+      }))
+    );
   }
 
   async function carregarEventos() {
@@ -401,7 +407,12 @@ export default function PreContratosPage() {
       .order('event_date', { ascending: true });
 
     if (error) throw error;
-    setEventos(data || []);
+    setEventos(
+      (data || []).map((item) => ({
+        ...item,
+        event_time: normalizeTime(item.event_time),
+      }))
+    );
   }
 
   useEffect(() => {
@@ -423,7 +434,7 @@ export default function PreContratosPage() {
   function handleFormChange(field, value) {
     setForm((prev) => ({
       ...prev,
-      [field]: value,
+      [field]: field === 'event_time' ? normalizeTime(value) : value,
     }));
   }
 
@@ -442,7 +453,7 @@ export default function PreContratosPage() {
 
       event_type: item.event_type || '',
       event_date: item.event_date || '',
-      event_time: item.event_time || '',
+      event_time: normalizeTime(item.event_time || ''),
       duration_min: String(item.duration_min ?? 60),
 
       location_name: item.location_name || '',
@@ -491,7 +502,7 @@ export default function PreContratosPage() {
     if (!form.event_date) return [];
 
     const dataSelecionada = form.event_date;
-    const horaSelecionada = form.event_time || null;
+    const horaSelecionada = normalizeTime(form.event_time) || null;
 
     return eventos.filter((ev) => {
       if (!ev.event_date) return false;
@@ -500,7 +511,7 @@ export default function PreContratosPage() {
       if (!horaSelecionada || !ev.event_time) return true;
 
       const [h1, m1] = String(horaSelecionada).slice(0, 5).split(':').map(Number);
-      const [h2, m2] = String(ev.event_time).slice(0, 5).split(':').map(Number);
+      const [h2, m2] = normalizeTime(ev.event_time).split(':').map(Number);
 
       const minutos1 = h1 * 60 + m1;
       const minutos2 = h2 * 60 + m2;
@@ -561,7 +572,7 @@ export default function PreContratosPage() {
 
         event_type: form.event_type || null,
         event_date: form.event_date || null,
-        event_time: form.event_time || null,
+        event_time: normalizeTime(form.event_time) || null,
         duration_min: parseInt(form.duration_min, 10) || 60,
 
         location_name: form.location_name.trim() || null,

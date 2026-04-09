@@ -1049,18 +1049,32 @@ function buildConfigPayload() {
 async function saveRepertorio(mode = 'draft') {
   try {
     setSavingMode(mode);
+    const payload = {
+      token: data.repertorio?.repertoireToken || data.token,
+      repertoireToken: data.repertorio?.repertoireToken || '',
+      clientToken: data.token || '',
+      mode,
+      config: buildConfigPayload(),
+      items: buildItemsPayload(),
+    };
+
+    console.log('[CLIENTE REPERTORIO] token URL (/cliente/[token]):', data.token);
+    console.log('[CLIENTE REPERTORIO] token enviado no payload.token:', payload.token);
+    console.log(
+      '[CLIENTE REPERTORIO] repertoireToken enviado explicitamente:',
+      payload.repertoireToken || '(vazio)'
+    );
+    console.log(
+      '[CLIENTE REPERTORIO] clientToken enviado explicitamente:',
+      payload.clientToken || '(vazio)'
+    );
 
     const response = await fetch('/api/cliente/repertorio', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-  token: data.repertorio?.repertoireToken || data.token,
-  mode,
-  config: buildConfigPayload(),
-  items: buildItemsPayload(),
-}),
+      body: JSON.stringify(payload),
     });
 
     const result = await response.json();

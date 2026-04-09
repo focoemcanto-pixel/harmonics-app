@@ -34,6 +34,7 @@ import {
   getMonthKey,
   formatMonthYearLabel,
 } from '@/lib/eventos/eventos-format';
+import { normalizeTime } from '@/lib/time/normalize-time';
 
 import {
   normalizeFormation,
@@ -210,7 +211,12 @@ export default function EventosPage() {
       const { data, error } = await supabase.from('events').select('*');
 
       if (error) throw error;
-      setEventos(data || []);
+      setEventos(
+        (data || []).map((item) => ({
+          ...item,
+          event_time: normalizeTime(item.event_time),
+        }))
+      );
     } catch (error) {
       console.error('Erro ao carregar eventos:', error);
       alert('Erro ao carregar eventos. Tente novamente mais tarde.');
@@ -341,7 +347,7 @@ export default function EventosPage() {
   function handleFormChange(field, value) {
     setForm((prev) => ({
       ...prev,
-      [field]: value,
+      [field]: field === 'event_time' ? normalizeTime(value) : value,
     }));
   }
 
@@ -481,7 +487,7 @@ export default function EventosPage() {
       client_name: evento.client_name || '',
       event_type: evento.event_type || '',
       event_date: evento.event_date || '',
-      event_time: evento.event_time || '',
+      event_time: normalizeTime(evento.event_time || ''),
       duration_min: String(evento.duration_min ?? 60),
       location_name: evento.location_name || '',
       formation: evento.formation || '',
@@ -631,7 +637,7 @@ export default function EventosPage() {
         client_name: form.client_name.trim(),
         event_type: form.event_type || null,
         event_date: form.event_date || null,
-        event_time: form.event_time || null,
+        event_time: normalizeTime(form.event_time) || null,
         duration_min: parseInt(form.duration_min, 10) || 60,
         location_name: form.location_name.trim() || null,
         formation: normalizeFormation(form.formation),

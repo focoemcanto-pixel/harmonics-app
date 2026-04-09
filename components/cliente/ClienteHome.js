@@ -9,11 +9,29 @@ import {
   getRepertorioProgress,
   getRepertorioUiState,
 } from '../../lib/cliente/repertorio';
+import { getYoutubeVideoId } from '../../lib/youtube/getYoutubeVideoId';
 
 
 
 function classNames(...classes) {
   return classes.filter(Boolean).join(' ');
+}
+
+function toReferenceMeta(item = {}) {
+  const url = item?.referencia || item?.reference_link || '';
+  const videoId =
+    item?.referenceMeta?.videoId ||
+    item?.reference_video_id ||
+    getYoutubeVideoId(url);
+
+  return {
+    videoId: videoId || '',
+    title: item?.referenceMeta?.title || item?.reference_title || '',
+    channelTitle:
+      item?.referenceMeta?.channelTitle || item?.reference_channel || '',
+    thumbnail:
+      item?.referenceMeta?.thumbnail || item?.reference_thumbnail || '',
+  };
 }
 
 function StatusPill({ label, tone = 'neutral' }) {
@@ -641,13 +659,32 @@ function EntryCard({
           selectedReference={item.referenceMeta || null}
           disabled={disabled}
           onSearchValueChange={(value) => onChange({ ...item, musica: value })}
-          onReferenceValueChange={(e) => onChange({ ...item, referencia: e.target.value })}
+          onReferenceValueChange={(e) =>
+            onChange({
+              ...item,
+              referencia: e.target.value,
+              referenceMeta: null,
+              reference_title: '',
+              reference_channel: '',
+              reference_thumbnail: '',
+              reference_video_id: '',
+            })
+          }
           onSelectResult={(result) =>
             onChange({
               ...item,
               referencia: result.url,
               musica: item.musica || result.title || '',
-              referenceMeta: result,
+              reference_title: result.title || '',
+              reference_channel: result.channelTitle || '',
+              reference_thumbnail: result.thumbnail || '',
+              reference_video_id: result.videoId || '',
+              referenceMeta: {
+                videoId: result.videoId || '',
+                title: result.title || '',
+                channelTitle: result.channelTitle || '',
+                thumbnail: result.thumbnail || '',
+              },
             })
           }
           onClearReference={() =>
@@ -655,6 +692,10 @@ function EntryCard({
               ...item,
               referencia: '',
               referenceMeta: null,
+              reference_title: '',
+              reference_channel: '',
+              reference_thumbnail: '',
+              reference_video_id: '',
             })
           }
         />
@@ -711,6 +752,24 @@ function RepertorioTab({ data, selectedSongs, onSaved }) {
   const [step, setStep] = useState(1);
 
   const initialState = data?.repertorio?.initialState || {};
+  const initialCortejo = Array.isArray(initialState.cortejo)
+    ? initialState.cortejo.map((item) => ({
+        ...item,
+        referenceMeta: toReferenceMeta(item),
+      }))
+    : null;
+  const initialCerimonia = Array.isArray(initialState.cerimonia)
+    ? initialState.cerimonia.map((item) => ({
+        ...item,
+        referenceMeta: toReferenceMeta(item),
+      }))
+    : null;
+  const initialSaida = initialState.saida
+    ? {
+        ...initialState.saida,
+        referenceMeta: toReferenceMeta(initialState.saida),
+      }
+    : null;
 
 const [querAntessala, setQuerAntessala] = useState(
   data.repertorio.temAntessala
@@ -730,23 +789,58 @@ const [antessala, setAntessala] = useState(
 );
 
 const [cortejo, setCortejo] = useState(
-  initialState.cortejo || [
-    { label: 'Padrinhos', musica: '', referencia: '', observacao: '' },
-    { label: 'Noiva', musica: '', referencia: '', observacao: '' },
+  initialCortejo || [
+    {
+      label: 'Padrinhos',
+      musica: '',
+      referencia: '',
+      observacao: '',
+      referenceMeta: null,
+      reference_title: '',
+      reference_channel: '',
+      reference_thumbnail: '',
+      reference_video_id: '',
+    },
+    {
+      label: 'Noiva',
+      musica: '',
+      referencia: '',
+      observacao: '',
+      referenceMeta: null,
+      reference_title: '',
+      reference_channel: '',
+      reference_thumbnail: '',
+      reference_video_id: '',
+    },
   ]
 );
 
 const [cerimonia, setCerimonia] = useState(
-  initialState.cerimonia || [
-    { label: 'Alianças', musica: '', referencia: '', observacao: '' },
+  initialCerimonia || [
+    {
+      label: 'Alianças',
+      musica: '',
+      referencia: '',
+      observacao: '',
+      referenceMeta: null,
+      reference_title: '',
+      reference_channel: '',
+      reference_thumbnail: '',
+      reference_video_id: '',
+    },
   ]
 );
 
 const [saida, setSaida] = useState(
-  initialState.saida || {
+  initialSaida || {
     musica: '',
     referencia: '',
     observacao: '',
+    referenceMeta: null,
+    reference_title: '',
+    reference_channel: '',
+    reference_thumbnail: '',
+    reference_video_id: '',
   }
 );
 
@@ -963,14 +1057,34 @@ async function saveRepertorio(mode = 'draft') {
   function addCortejo(label = '') {
     setCortejo([
       ...cortejo,
-      { label, musica: '', referencia: '', observacao: '' },
+      {
+        label,
+        musica: '',
+        referencia: '',
+        observacao: '',
+        referenceMeta: null,
+        reference_title: '',
+        reference_channel: '',
+        reference_thumbnail: '',
+        reference_video_id: '',
+      },
     ]);
   }
 
   function addCerimonia(label = '') {
     setCerimonia([
       ...cerimonia,
-      { label, musica: '', referencia: '', observacao: '' },
+      {
+        label,
+        musica: '',
+        referencia: '',
+        observacao: '',
+        referenceMeta: null,
+        reference_title: '',
+        reference_channel: '',
+        reference_thumbnail: '',
+        reference_video_id: '',
+      },
     ]);
   }
 
@@ -1280,13 +1394,32 @@ async function saveRepertorio(mode = 'draft') {
               referenceValue={saida.referencia || ''}
               selectedReference={saida.referenceMeta || null}
               onSearchValueChange={(value) => setSaida({ ...saida, musica: value })}
-              onReferenceValueChange={(e) => setSaida({ ...saida, referencia: e.target.value })}
+              onReferenceValueChange={(e) =>
+                setSaida({
+                  ...saida,
+                  referencia: e.target.value,
+                  referenceMeta: null,
+                  reference_title: '',
+                  reference_channel: '',
+                  reference_thumbnail: '',
+                  reference_video_id: '',
+                })
+              }
               onSelectResult={(result) =>
                 setSaida({
                   ...saida,
                   referencia: result.url,
                   musica: saida.musica || result.title || '',
-                  referenceMeta: result,
+                  reference_title: result.title || '',
+                  reference_channel: result.channelTitle || '',
+                  reference_thumbnail: result.thumbnail || '',
+                  reference_video_id: result.videoId || '',
+                  referenceMeta: {
+                    videoId: result.videoId || '',
+                    title: result.title || '',
+                    channelTitle: result.channelTitle || '',
+                    thumbnail: result.thumbnail || '',
+                  },
                 })
               }
               onClearReference={() =>
@@ -1294,6 +1427,10 @@ async function saveRepertorio(mode = 'draft') {
                   ...saida,
                   referencia: '',
                   referenceMeta: null,
+                  reference_title: '',
+                  reference_channel: '',
+                  reference_thumbnail: '',
+                  reference_video_id: '',
                 })
               }
             />

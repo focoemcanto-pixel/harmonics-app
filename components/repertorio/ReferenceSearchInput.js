@@ -1,28 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-
-function getYoutubeVideoId(url = '') {
-  const value = String(url || '').trim();
-  if (!value) return '';
-
-  try {
-    const parsed = new URL(value);
-    const host = parsed.hostname.replace('www.', '');
-
-    if (host === 'youtu.be') {
-      return parsed.pathname.replace('/', '');
-    }
-
-    if (host.includes('youtube.com')) {
-      return parsed.searchParams.get('v') || '';
-    }
-  } catch {
-    return '';
-  }
-
-  return '';
-}
+import YouTubeReferencePreview from './YouTubeReferencePreview';
+import { getYoutubeVideoId } from '../../lib/youtube/getYoutubeVideoId';
 
 export default function ReferenceSearchInput({
   searchValue = '',
@@ -89,16 +69,19 @@ export default function ReferenceSearchInput({
     };
   }, [query, isOpen, disabled]);
 
-  const videoId = useMemo(
-    () => selectedReference?.videoId || getYoutubeVideoId(referenceValue),
-    [referenceValue, selectedReference?.videoId]
-  );
-  const previewThumbnail =
-    selectedReference?.thumbnail ||
-    (videoId ? `https://i.ytimg.com/vi/${videoId}/default.jpg` : '');
-  const previewTitle = selectedReference?.title || '';
-  const previewChannel = selectedReference?.channelTitle || '';
-  const hasReference = Boolean(referenceValue);
+  const fallbackVideoId = useMemo(() => getYoutubeVideoId(referenceValue), [referenceValue]);
+
+  const selectedReferenceData = useMemo(() => {
+    const title = selectedReference?.title || selectedReference?.reference_title || '';
+    const channelTitle =
+      selectedReference?.channelTitle || selectedReference?.reference_channel || '';
+    const thumbnail =
+      selectedReference?.thumbnail || selectedReference?.reference_thumbnail || '';
+    const videoId =
+      selectedReference?.videoId || selectedReference?.reference_video_id || fallbackVideoId;
+
+    return { title, channelTitle, thumbnail, videoId };
+  }, [fallbackVideoId, selectedReference]);
 
   return (
     <div className="space-y-3">
@@ -122,57 +105,15 @@ export default function ReferenceSearchInput({
         />
       </div>
 
-      {hasReference ? (
-        <div className="rounded-[16px] border border-[#eadfd6] bg-[#fcfbff] p-3">
-          <div className="mb-2 inline-flex rounded-full bg-violet-100 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.08em] text-violet-700">
-            Referência selecionada
-          </div>
-          <div className="flex items-start gap-3">
-            {previewThumbnail ? (
-              <img
-                src={previewThumbnail}
-                alt="Miniatura da referência"
-                className="h-12 w-20 rounded-md border border-[#eadfd6] object-cover"
-              />
-            ) : null}
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-[13px] font-black text-[#241a14]">
-                {previewTitle || referenceValue}
-              </div>
-              {previewChannel ? (
-                <div className="mt-1 truncate text-[12px] font-semibold text-[#7a6a5e]">{previewChannel}</div>
-              ) : null}
-              <a
-                href={referenceValue}
-                target="_blank"
-                rel="noreferrer"
-                className="mt-1 block truncate text-[12px] font-bold text-violet-700"
-              >
-                {referenceValue}
-              </a>
-            </div>
-          </div>
-
-          <div className="mt-3 flex flex-wrap gap-2">
-            <button
-              type="button"
-              disabled={disabled}
-              onClick={() => setIsOpen(true)}
-              className="rounded-xl border border-violet-200 bg-white px-3 py-2 text-[12px] font-black text-violet-700"
-            >
-              Trocar referência
-            </button>
-            <button
-              type="button"
-              disabled={disabled}
-              onClick={onClearReference}
-              className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-[12px] font-black text-red-600"
-            >
-              Limpar referência
-            </button>
-          </div>
-        </div>
-      ) : null}
+      <YouTubeReferencePreview
+        url={referenceValue}
+        title={selectedReferenceData.title}
+        channelTitle={selectedReferenceData.channelTitle}
+        thumbnail={selectedReferenceData.thumbnail}
+        disabled={disabled}
+        onReplace={() => setIsOpen(true)}
+        onClear={onClearReference}
+      />
 
       {isOpen && !disabled ? (
         <div className="rounded-[16px] border border-[#eadfd6] bg-white p-2 shadow-[0_8px_24px_rgba(36,26,20,0.06)]">

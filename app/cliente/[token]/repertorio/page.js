@@ -158,30 +158,55 @@ function mapItemsToInitialState(items) {
 export default async function ClienteRepertorioPage({ params }) {
   const { token } = await params;
   const supabase = getAdminSupabase();
+  const requestTimeMs = new Date().getTime();
 
-  const { data: tokenRow, error: tokenError } = await supabase
-    .from('repertoire_tokens')
-    .select('id, token, event_id, status, expires_at')
-    .eq('token', token)
-    .maybeSingle();
+  const { data: precontractByClientToken, error: precontractByClientTokenError } =
+    await supabase
+      .from('precontracts')
+      .select('id, public_token, event_id')
+      .eq('public_token', token)
+      .maybeSingle();
 
-  if (tokenError) {
-    throw tokenError;
-  }
+  if (precontractByClientTokenError) throw precontractByClientTokenError;
 
-  if (!tokenRow) {
-    notFound();
-  }
+  let eventId = precontractByClientToken?.event_id || null;
+  let clientToken = precontractByClientToken?.public_token || token;
+  let tokenRow = null;
 
-  if (String(tokenRow.status || '').toLowerCase() !== 'open') {
-    notFound();
-  }
+  if (!eventId) {
+    const { data: repertoireTokenRow, error: tokenError } = await supabase
+      .from('repertoire_tokens')
+      .select('id, token, event_id, status, expires_at')
+      .eq('token', token)
+      .maybeSingle();
 
-  if (tokenRow.expires_at) {
-    const expiresAt = new Date(tokenRow.expires_at);
-    if (!Number.isNaN(expiresAt.getTime()) && expiresAt.getTime() < Date.now()) {
+    if (tokenError) throw tokenError;
+    if (!repertoireTokenRow) notFound();
+
+    if (String(repertoireTokenRow.status || '').toLowerCase() !== 'open') {
       notFound();
     }
+
+    if (repertoireTokenRow.expires_at) {
+      const expiresAt = new Date(repertoireTokenRow.expires_at);
+      if (!Number.isNaN(expiresAt.getTime()) && expiresAt.getTime() < requestTimeMs) {
+        notFound();
+      }
+    }
+
+    tokenRow = repertoireTokenRow;
+    eventId = repertoireTokenRow.event_id;
+  } else {
+    const { data: latestToken, error: latestTokenError } = await supabase
+      .from('repertoire_tokens')
+      .select('id, token, event_id, status, expires_at')
+      .eq('event_id', eventId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (latestTokenError) throw latestTokenError;
+    tokenRow = latestToken || null;
   }
 
   const [
@@ -194,31 +219,31 @@ export default async function ClienteRepertorioPage({ params }) {
     supabase
       .from('events')
       .select('*')
-      .eq('id', tokenRow.event_id)
+      .eq('id', eventId)
       .maybeSingle(),
 
     supabase
       .from('repertoire_config')
       .select('*')
-      .eq('event_id', tokenRow.event_id)
+      .eq('event_id', eventId)
       .maybeSingle(),
 
     supabase
       .from('repertoire_items')
       .select('*')
-      .eq('event_id', tokenRow.event_id)
+      .eq('event_id', eventId)
       .order('item_order', { ascending: true }),
 
     supabase
       .from('precontracts')
       .select('id, public_token, event_id')
-      .eq('event_id', tokenRow.event_id)
+      .eq('event_id', eventId)
       .maybeSingle(),
 
     supabase
       .from('contracts')
       .select('id, event_id, precontract_id, pdf_url, doc_url, signed_at')
-      .eq('event_id', tokenRow.event_id)
+      .eq('event_id', eventId)
       .maybeSingle(),
   ]);
 
@@ -235,7 +260,12 @@ export default async function ClienteRepertorioPage({ params }) {
 
   const config = configResp.data || null;
   const items = Array.isArray(itemsResp.data) ? itemsResp.data : [];
+  const precontract = precontractsResp.data || null;
   const contract = contractsResp.data || null;
+
+  if (precontract?.public_token) {
+    clientToken = precontract.public_token;
+  }
 
   const eventDate = parseLocalDate(event.event_date);
   const now = startOfDay(new Date());
@@ -245,13 +275,13 @@ export default async function ClienteRepertorioPage({ params }) {
     !!reviewStartsAt && now.getTime() > reviewStartsAt.getTime();
 
   if (shouldRedirectToReview) {
-    redirect(`/cliente/${token}/review`);
+    redirect(`/cliente/${clientToken}/review`);
   }
 
   const initialLists = mapItemsToInitialState(items);
 
   const data = {
-    token,
+    token: clientToken,
     clienteNome: event.client_name || 'Cliente',
     eventoTitulo: event.client_name
       ? `Evento • ${event.client_name}`
@@ -276,8 +306,8 @@ export default async function ClienteRepertorioPage({ params }) {
       totalEtapas: 7,
       liberadoParaEdicao: !config?.is_locked,
       enviadoEm: config?.submitted_at || null,
-      linkPreenchimento: `/cliente/${token}/repertorio`,
-      linkVisualizacao: `/cliente/${token}/repertorio`,
+      linkPreenchimento: `/cliente/${clientToken}/repertorio`,
+      linkVisualizacao: `/cliente/${clientToken}/repertorio`,
       podeSolicitarCorrecao: true,
       temAntessala: event.has_reception ? true : Boolean(config?.has_ante_room || false),
       temReceptivo:
@@ -285,6 +315,7 @@ export default async function ClienteRepertorioPage({ params }) {
         event.has_receptivo ??
         Boolean(config?.has_reception || false),
       pdfUrl: contract?.pdf_url || '#',
+      repertoireToken: tokenRow?.token || '',
 
       initialState: {
         querAntessala: config?.has_ante_room ?? null,

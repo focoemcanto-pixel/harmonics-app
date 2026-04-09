@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getYoutubeVideoId } from '../../../../lib/youtube/getYoutubeVideoId';
+import { randomUUID } from 'node:crypto';
 
 function getAdminSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -126,12 +127,59 @@ function normalizeItems(items = []) {
     });
 }
 
+async function findLatestRepertoireTokenByEvent(supabase, eventId) {
+  const { data, error } = await supabase
+    .from('repertoire_tokens')
+    .select('id, event_id, token, status, expires_at, created_at')
+    .eq('event_id', eventId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data || null;
+}
+
+async function ensureOpenRepertoireToken(supabase, eventId) {
+  const existing = await findLatestRepertoireTokenByEvent(supabase, eventId);
+
+  if (existing && String(existing.status || '').toLowerCase() === 'open') {
+    if (existing.expires_at) {
+      const expiresAt = new Date(existing.expires_at);
+      if (!Number.isNaN(expiresAt.getTime()) && expiresAt.getTime() < Date.now()) {
+        // token aberto porém expirado -> cria um novo
+      } else {
+        return { tokenRow: existing, created: false };
+      }
+    } else {
+      return { tokenRow: existing, created: false };
+    }
+  }
+
+  const payload = {
+    event_id: eventId,
+    token: randomUUID(),
+    status: 'open',
+  };
+
+  const { data: inserted, error: insertError } = await supabase
+    .from('repertoire_tokens')
+    .insert(payload)
+    .select('id, event_id, token, status, expires_at, created_at')
+    .single();
+
+  if (insertError) throw insertError;
+  return { tokenRow: inserted, created: true };
+}
+
 export async function POST(request) {
   try {
     const supabase = getAdminSupabase();
     const body = await request.json();
 
     const token = String(body?.token || '').trim();
+    const repertoireTokenInput = String(body?.repertoireToken || '').trim();
+    const clientTokenInput = String(body?.clientToken || '').trim();
     const mode = String(body?.mode || 'draft').trim().toLowerCase();
     const config = body?.config || {};
     const rawItems = body?.items || [];
@@ -152,48 +200,76 @@ export async function POST(request) {
 
     const nowIso = new Date().toISOString();
 
-    const { data: tokenRows, error: tokenError } = await supabase
-      .from('repertoire_tokens')
-      .select('id, event_id, token, status, expires_at, created_at')
-      .eq('token', token)
-      .order('created_at', { ascending: false })
-      .limit(1);
+    const tokenCandidate = repertoireTokenInput || token;
+    let tokenRow = null;
+    let eventId = null;
+    let tokenResolution = 'none';
+    let createdToken = false;
 
-    if (tokenError) {
-      throw tokenError;
+    if (tokenCandidate) {
+      const { data: tokenRows, error: tokenError } = await supabase
+        .from('repertoire_tokens')
+        .select('id, event_id, token, status, expires_at, created_at')
+        .eq('token', tokenCandidate)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (tokenError) throw tokenError;
+      tokenRow = tokenRows?.[0] || null;
     }
 
-    if (!tokenRows || tokenRows.length === 0) {
-      return NextResponse.json(
-        { ok: false, error: 'Token de repertório inválido.' },
-        { status: 404 }
-      );
-    }
+    if (tokenRow) {
+      tokenResolution = 'repertoire_token';
+      eventId = tokenRow.event_id;
 
-    const tokenRow = tokenRows[0];
-
-    console.log('[API REPERTORIO] token recebido:', token);
-    console.log('[API REPERTORIO] token encontrado:', tokenRow?.token);
-    console.log('[API REPERTORIO] event_id:', tokenRow?.event_id);
-
-    if (String(tokenRow.status || '').toLowerCase() !== 'open') {
-      return NextResponse.json(
-        { ok: false, error: 'Este link de repertório não está disponível.' },
-        { status: 403 }
-      );
-    }
-
-    if (tokenRow.expires_at) {
-      const expiresAt = new Date(tokenRow.expires_at);
-      if (!Number.isNaN(expiresAt.getTime()) && expiresAt.getTime() < Date.now()) {
+      if (String(tokenRow.status || '').toLowerCase() !== 'open') {
         return NextResponse.json(
-          { ok: false, error: 'Este link de repertório expirou.' },
+          { ok: false, error: 'Este link de repertório não está disponível.' },
           { status: 403 }
         );
       }
+
+      if (tokenRow.expires_at) {
+        const expiresAt = new Date(tokenRow.expires_at);
+        if (!Number.isNaN(expiresAt.getTime()) && expiresAt.getTime() < Date.now()) {
+          return NextResponse.json(
+            { ok: false, error: 'Este link de repertório expirou.' },
+            { status: 403 }
+          );
+        }
+      }
+    } else {
+      const clientToken = clientTokenInput || token;
+      const { data: precontract, error: precontractError } = await supabase
+        .from('precontracts')
+        .select('id, public_token, event_id')
+        .eq('public_token', clientToken)
+        .maybeSingle();
+
+      if (precontractError) throw precontractError;
+
+      if (!precontract?.event_id) {
+        return NextResponse.json(
+          { ok: false, error: 'Token de repertório inválido.' },
+          { status: 404 }
+        );
+      }
+
+      eventId = precontract.event_id;
+      tokenResolution = 'client_token';
+      const ensured = await ensureOpenRepertoireToken(supabase, eventId);
+      tokenRow = ensured.tokenRow;
+      createdToken = ensured.created;
     }
 
-    const eventId = tokenRow.event_id;
+    console.log('[API REPERTORIO] token recebido:', token);
+    console.log('[API REPERTORIO] repertoireToken explícito:', repertoireTokenInput || '(não informado)');
+    console.log('[API REPERTORIO] clientToken explícito:', clientTokenInput || '(não informado)');
+    console.log('[API REPERTORIO] estratégia resolução:', tokenResolution);
+    console.log('[API REPERTORIO] token validado:', tokenRow?.token);
+    console.log('[API REPERTORIO] event_id resolvido:', eventId);
+    console.log('[API REPERTORIO] repertoire_token criado nesta chamada:', createdToken);
+
     const items = normalizeItems(rawItems);
 
     const status = mode === 'final' ? 'ENVIADO' : 'RASCUNHO';

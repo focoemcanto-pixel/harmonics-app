@@ -10,6 +10,7 @@ import {
   getRepertorioUiState,
 } from '../../lib/cliente/repertorio';
 import { getYoutubeVideoId } from '../../lib/youtube/getYoutubeVideoId';
+import { buildWhatsAppUrl } from '../../lib/whatsapp/support-config';
 
 const REPERTORIO_DRAFT_LOCAL_STORAGE_KEY = 'repertorio_draft_local';
 
@@ -661,6 +662,12 @@ function TabHero({ badge, title, text, children }) {
 
 
 function InicioTab({ data, setActiveTab, selectedSongs }) {
+  const supportWhatsAppUrl = buildWhatsAppUrl(
+    data?.suporteWhatsapp,
+    data?.suporteWhatsappMensagem || ''
+  );
+  const hasSupportWhatsApp = supportWhatsAppUrl !== '#';
+
   return (
     <div className="space-y-4">
         <TabHero
@@ -764,14 +771,19 @@ function InicioTab({ data, setActiveTab, selectedSongs }) {
         </div>
 
         <a
-          href={
-            data.suporteWhatsapp
-              ? `https://wa.me/${String(data.suporteWhatsapp).replace(/\D/g, '')}`
-              : '#'
-          }
-          target="_blank"
-          rel="noreferrer"
-          className="mt-5 flex w-full items-center justify-center rounded-[18px] bg-[linear-gradient(135deg,#16a34a_0%,#22c55e_100%)] px-4 py-4 text-center text-[15px] font-black text-white shadow-[0_10px_24px_rgba(34,197,94,0.22)]"
+          href={supportWhatsAppUrl}
+          target={hasSupportWhatsApp ? '_blank' : undefined}
+          rel={hasSupportWhatsApp ? 'noreferrer' : undefined}
+          aria-disabled={!hasSupportWhatsApp}
+          onClick={(event) => {
+            if (!hasSupportWhatsApp) event.preventDefault();
+          }}
+          className={classNames(
+            'mt-5 flex w-full items-center justify-center rounded-[18px] px-4 py-4 text-center text-[15px] font-black',
+            hasSupportWhatsApp
+              ? 'bg-[linear-gradient(135deg,#16a34a_0%,#22c55e_100%)] text-white shadow-[0_10px_24px_rgba(34,197,94,0.22)]'
+              : 'cursor-not-allowed bg-zinc-200 text-zinc-500'
+          )}
         >
           Falar no WhatsApp
         </a>

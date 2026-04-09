@@ -1,6 +1,7 @@
 import { notFound, redirect } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
 import ClienteHome from '../../../components/cliente/ClienteHome';
+import { resolveSupportWhatsAppConfig } from '../../../lib/whatsapp/support-config';
 
 function getAdminSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -269,6 +270,7 @@ export default async function ClienteTokenPage({ params }) {
   const initialLists = mapItemsToInitialState(items);
 
   const repertorioTokenValue = repertoireToken?.token || token;
+  const supportConfig = resolveSupportWhatsAppConfig();
 
   const data = {
     token,
@@ -287,7 +289,8 @@ export default async function ClienteTokenPage({ params }) {
       event.observations ||
       'Alinhar com a assessoria a ordem correta do cortejo e o roteiro enviado à equipe.',
     horarioChegada: addHoursToTime(event.event_time, -2),
-    suporteWhatsapp: process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP || '',
+    suporteWhatsapp: supportConfig.phone,
+    suporteWhatsappMensagem: supportConfig.message,
     reviewSubmitted: false,
 
     repertorio: {

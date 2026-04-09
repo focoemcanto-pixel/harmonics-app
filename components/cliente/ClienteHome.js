@@ -854,6 +854,41 @@ const [receptivo, setReceptivo] = useState(
 );
   const [savingMode, setSavingMode] = useState('');
 
+  function normalizeReferenceFields(reference = {}) {
+    const referenceLink = String(reference.referencia || '').trim();
+    const referenceVideoId = getYoutubeVideoId(referenceLink);
+
+    if (!referenceLink) {
+      return {
+        reference_link: '',
+        reference_title: '',
+        reference_channel: '',
+        reference_thumbnail: '',
+        reference_video_id: '',
+      };
+    }
+
+    const selectedVideoId = String(reference.reference_video_id || '').trim();
+    const metadataMatchesLink =
+      !referenceVideoId ||
+      !selectedVideoId ||
+      selectedVideoId === referenceVideoId;
+
+    return {
+      reference_link: referenceLink,
+      reference_title: metadataMatchesLink
+        ? String(reference.reference_title || '').trim()
+        : '',
+      reference_channel: metadataMatchesLink
+        ? String(reference.reference_channel || '').trim()
+        : '',
+      reference_thumbnail: metadataMatchesLink
+        ? String(reference.reference_thumbnail || '').trim()
+        : '',
+      reference_video_id: referenceVideoId || selectedVideoId || '',
+    };
+  }
+
   const quickCortejo = [
     'Padrinhos',
     'Madrinhas',
@@ -899,13 +934,19 @@ const [receptivo, setReceptivo] = useState(
   }
 
   cortejo.forEach((item, index) => {
+    const referenceFields = normalizeReferenceFields(item);
+
     items.push({
       section: 'cortejo',
       item_order: index,
       who_enters: item.label || '',
       moment: 'Entrada',
       song_name: item.musica || '',
-      reference_link: item.referencia || '',
+      reference_link: referenceFields.reference_link,
+      reference_title: referenceFields.reference_title,
+      reference_channel: referenceFields.reference_channel,
+      reference_thumbnail: referenceFields.reference_thumbnail,
+      reference_video_id: referenceFields.reference_video_id,
       notes: item.observacao || '',
       type: 'entrada',
       group_name: '',
@@ -916,13 +957,19 @@ const [receptivo, setReceptivo] = useState(
   });
 
   cerimonia.forEach((item, index) => {
+    const referenceFields = normalizeReferenceFields(item);
+
     items.push({
       section: 'cerimonia',
       item_order: index,
       who_enters: '',
       moment: item.label || 'Cerimônia',
       song_name: item.musica || '',
-      reference_link: item.referencia || '',
+      reference_link: referenceFields.reference_link,
+      reference_title: referenceFields.reference_title,
+      reference_channel: referenceFields.reference_channel,
+      reference_thumbnail: referenceFields.reference_thumbnail,
+      reference_video_id: referenceFields.reference_video_id,
       notes: item.observacao || '',
       type: 'cerimonia',
       group_name: '',
@@ -933,13 +980,19 @@ const [receptivo, setReceptivo] = useState(
   });
 
   if (saida.musica || saida.referencia || saida.observacao) {
+    const exitReferenceFields = normalizeReferenceFields(saida);
+
     items.push({
       section: 'saida',
       item_order: 0,
       who_enters: 'Saída dos noivos',
       moment: 'Saída',
       song_name: saida.musica || '',
-      reference_link: saida.referencia || '',
+      reference_link: exitReferenceFields.reference_link,
+      reference_title: exitReferenceFields.reference_title,
+      reference_channel: exitReferenceFields.reference_channel,
+      reference_thumbnail: exitReferenceFields.reference_thumbnail,
+      reference_video_id: exitReferenceFields.reference_video_id,
       notes: saida.observacao || '',
       type: 'saida',
       group_name: '',
@@ -970,6 +1023,8 @@ const [receptivo, setReceptivo] = useState(
 }
 
 function buildConfigPayload() {
+  const exitReferenceFields = normalizeReferenceFields(saida);
+
   return {
     has_ante_room: querAntessala === true,
     ante_room_style: antessala.estilo || '',
@@ -980,7 +1035,11 @@ function buildConfigPayload() {
     reception_artists: temReceptivo ? receptivo.artistas || '' : '',
     reception_notes: temReceptivo ? receptivo.observacao || '' : '',
     exit_song: saida.musica || '',
-    exit_reference: saida.referencia || '',
+    exit_reference: exitReferenceFields.reference_link,
+    exit_reference_title: exitReferenceFields.reference_title,
+    exit_reference_channel: exitReferenceFields.reference_channel,
+    exit_reference_thumbnail: exitReferenceFields.reference_thumbnail,
+    exit_reference_video_id: exitReferenceFields.reference_video_id,
     exit_notes: saida.observacao || '',
     desired_songs: '',
     general_notes: '',

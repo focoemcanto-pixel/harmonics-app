@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { getYoutubeVideoId } from '../../../../lib/youtube/getYoutubeVideoId';
 
 function getAdminSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -25,27 +26,85 @@ function normalizeBool(value) {
   return value === true;
 }
 
+function normalizeReferenceMetadata({
+  referenceLink,
+  referenceTitle,
+  referenceChannel,
+  referenceThumbnail,
+  referenceVideoId,
+}) {
+  const normalizedLink = normalizeText(referenceLink);
+  const providedVideoId = normalizeText(referenceVideoId);
+  const videoIdFromLink = getYoutubeVideoId(normalizedLink || '');
+
+  if (!normalizedLink) {
+    return {
+      reference_title: null,
+      reference_channel: null,
+      reference_thumbnail: null,
+      reference_video_id: null,
+    };
+  }
+
+  let normalizedVideoId = providedVideoId || videoIdFromLink || null;
+  let normalizedTitle = normalizeText(referenceTitle);
+  let normalizedChannel = normalizeText(referenceChannel);
+  let normalizedThumbnail = normalizeText(referenceThumbnail);
+
+  if (videoIdFromLink && providedVideoId && videoIdFromLink !== providedVideoId) {
+    normalizedTitle = null;
+    normalizedChannel = null;
+    normalizedThumbnail = null;
+    normalizedVideoId = videoIdFromLink;
+  }
+
+  if (!normalizedVideoId) {
+    normalizedTitle = null;
+    normalizedChannel = null;
+    normalizedThumbnail = null;
+  }
+
+  return {
+    reference_title: normalizedTitle,
+    reference_channel: normalizedChannel,
+    reference_thumbnail: normalizedThumbnail,
+    reference_video_id: normalizedVideoId,
+  };
+}
+
 function normalizeItems(items = []) {
   if (!Array.isArray(items)) return [];
 
   return items
-    .map((item, index) => ({
-      section: normalizeText(item.section),
-      item_order:
-        Number.isFinite(Number(item.item_order))
-          ? Number(item.item_order)
-          : index,
-      who_enters: normalizeText(item.who_enters),
-      moment: normalizeText(item.moment),
-      song_name: normalizeText(item.song_name),
-      reference_link: normalizeText(item.reference_link),
-      notes: normalizeText(item.notes),
-      type: normalizeText(item.type),
-      group_name: normalizeText(item.group_name),
-      label: normalizeText(item.label),
-      genres: normalizeText(item.genres),
-      artists: normalizeText(item.artists),
-    }))
+    .map((item, index) => {
+      const referenceLink = normalizeText(item.reference_link);
+      const referenceMetadata = normalizeReferenceMetadata({
+        referenceLink,
+        referenceTitle: item.reference_title,
+        referenceChannel: item.reference_channel,
+        referenceThumbnail: item.reference_thumbnail,
+        referenceVideoId: item.reference_video_id,
+      });
+
+      return {
+        section: normalizeText(item.section),
+        item_order:
+          Number.isFinite(Number(item.item_order))
+            ? Number(item.item_order)
+            : index,
+        who_enters: normalizeText(item.who_enters),
+        moment: normalizeText(item.moment),
+        song_name: normalizeText(item.song_name),
+        reference_link: referenceLink,
+        ...referenceMetadata,
+        notes: normalizeText(item.notes),
+        type: normalizeText(item.type),
+        group_name: normalizeText(item.group_name),
+        label: normalizeText(item.label),
+        genres: normalizeText(item.genres),
+        artists: normalizeText(item.artists),
+      };
+    })
     .filter((item) => {
       return (
         item.section ||
@@ -53,6 +112,10 @@ function normalizeItems(items = []) {
         item.moment ||
         item.song_name ||
         item.reference_link ||
+        item.reference_title ||
+        item.reference_channel ||
+        item.reference_thumbnail ||
+        item.reference_video_id ||
         item.notes ||
         item.type ||
         item.group_name ||
@@ -135,6 +198,14 @@ export async function POST(request) {
 
     const status = mode === 'final' ? 'ENVIADO' : 'RASCUNHO';
     const isLocked = mode === 'final';
+    const exitReference = normalizeText(config.exit_reference);
+    const exitReferenceMetadata = normalizeReferenceMetadata({
+      referenceLink: exitReference,
+      referenceTitle: config.exit_reference_title,
+      referenceChannel: config.exit_reference_channel,
+      referenceThumbnail: config.exit_reference_thumbnail,
+      referenceVideoId: config.exit_reference_video_id,
+    });
 
     const configPayload = {
       event_id: eventId,
@@ -148,7 +219,11 @@ export async function POST(request) {
       reception_artists: normalizeText(config.reception_artists),
       reception_notes: normalizeText(config.reception_notes),
       exit_song: normalizeText(config.exit_song),
-      exit_reference: normalizeText(config.exit_reference),
+      exit_reference: exitReference,
+      exit_reference_title: exitReferenceMetadata.reference_title,
+      exit_reference_channel: exitReferenceMetadata.reference_channel,
+      exit_reference_thumbnail: exitReferenceMetadata.reference_thumbnail,
+      exit_reference_video_id: exitReferenceMetadata.reference_video_id,
       exit_notes: normalizeText(config.exit_notes),
       desired_songs: normalizeText(config.desired_songs),
       general_notes: normalizeText(config.general_notes),
@@ -187,6 +262,10 @@ export async function POST(request) {
         moment: item.moment,
         song_name: item.song_name,
         reference_link: item.reference_link,
+        reference_title: item.reference_title,
+        reference_channel: item.reference_channel,
+        reference_thumbnail: item.reference_thumbnail,
+        reference_video_id: item.reference_video_id,
         notes: item.notes,
         type: item.type,
         group_name: item.group_name,

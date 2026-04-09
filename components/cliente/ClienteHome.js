@@ -1,6 +1,6 @@
 'use client';
 import { useToast } from '../ui/ToastProvider';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import ReferenceSearchInput from '../repertorio/ReferenceSearchInput';
 import {
   formatDateBR,
@@ -132,6 +132,132 @@ function mergeUniqueRepertoireItems(baseItems = [], incomingItems = []) {
   });
 
   return mergedItems;
+}
+
+function buildRepertorioSnapshot({
+  querAntessala,
+  temReceptivo,
+  antessala,
+  cortejo,
+  cerimonia,
+  saida,
+  receptivo,
+}) {
+  return {
+    querAntessala,
+    temReceptivo,
+    antessala,
+    cortejo,
+    cerimonia,
+    saida,
+    receptivo,
+  };
+}
+
+function applySuggestionToRepertorioState(state, suggestionItem = {}) {
+  const nextState = {
+    ...state,
+    cortejo: Array.isArray(state.cortejo) ? [...state.cortejo] : [],
+    cerimonia: Array.isArray(state.cerimonia) ? [...state.cerimonia] : [],
+    saida: { ...(state.saida || {}) },
+    antessala: { ...(state.antessala || {}) },
+    receptivo: { ...(state.receptivo || {}) },
+  };
+
+  const section = normalizeSuggestionSection(suggestionItem.section || suggestionItem.targetSection);
+  const songName = String(suggestionItem.song_name || suggestionItem.title || '').trim();
+  const referenceLink = String(suggestionItem.reference_link || '').trim();
+  const notes = String(suggestionItem.notes || '').trim();
+  const referenceMeta = toReferenceMeta({
+    referencia: referenceLink,
+    reference_title: suggestionItem.reference_title || suggestionItem.title || '',
+    reference_channel: suggestionItem.reference_channel || suggestionItem.artist || '',
+    reference_thumbnail: suggestionItem.reference_thumbnail || suggestionItem.thumbnailUrl || '',
+    reference_video_id: suggestionItem.reference_video_id || '',
+  });
+
+  if (section === 'cortejo') {
+    const label = String(suggestionItem.who_enters || suggestionItem.targetLabel || 'Entrada').trim();
+    const alreadyExists = nextState.cortejo.some((item) => {
+      const sameLabel = normalizeCompareText(item.label) === normalizeCompareText(label);
+      const sameSong = normalizeCompareText(item.musica) === normalizeCompareText(songName);
+      const sameVideoId =
+        String(item.reference_video_id || '').trim() &&
+        String(item.reference_video_id || '').trim() === String(referenceMeta.videoId || '').trim();
+      return sameLabel && (sameSong || sameVideoId);
+    });
+
+    if (!alreadyExists) {
+      nextState.cortejo.push({
+        label,
+        musica: songName,
+        referencia: referenceLink,
+        observacao: notes,
+        referenceMeta,
+        reference_title: suggestionItem.reference_title || '',
+        reference_channel: suggestionItem.reference_channel || '',
+        reference_thumbnail: suggestionItem.reference_thumbnail || '',
+        reference_video_id: suggestionItem.reference_video_id || '',
+      });
+    }
+  } else if (section === 'cerimonia') {
+    const label = String(suggestionItem.who_enters || suggestionItem.targetLabel || suggestionItem.moment || 'Cerimônia').trim();
+    const alreadyExists = nextState.cerimonia.some((item) => {
+      const sameLabel = normalizeCompareText(item.label) === normalizeCompareText(label);
+      const sameSong = normalizeCompareText(item.musica) === normalizeCompareText(songName);
+      const sameVideoId =
+        String(item.reference_video_id || '').trim() &&
+        String(item.reference_video_id || '').trim() === String(referenceMeta.videoId || '').trim();
+      return sameLabel && (sameSong || sameVideoId);
+    });
+
+    if (!alreadyExists) {
+      nextState.cerimonia.push({
+        label,
+        musica: songName,
+        referencia: referenceLink,
+        observacao: notes,
+        referenceMeta,
+        reference_title: suggestionItem.reference_title || '',
+        reference_channel: suggestionItem.reference_channel || '',
+        reference_thumbnail: suggestionItem.reference_thumbnail || '',
+        reference_video_id: suggestionItem.reference_video_id || '',
+      });
+    }
+  } else if (section === 'saida') {
+    nextState.saida = {
+      ...nextState.saida,
+      musica: songName || nextState.saida.musica || '',
+      referencia: referenceLink || nextState.saida.referencia || '',
+      observacao: notes || nextState.saida.observacao || '',
+      referenceMeta: referenceMeta.videoId ? referenceMeta : nextState.saida.referenceMeta || null,
+      reference_title:
+        suggestionItem.reference_title || nextState.saida.reference_title || '',
+      reference_channel:
+        suggestionItem.reference_channel || nextState.saida.reference_channel || '',
+      reference_thumbnail:
+        suggestionItem.reference_thumbnail || nextState.saida.reference_thumbnail || '',
+      reference_video_id:
+        suggestionItem.reference_video_id || nextState.saida.reference_video_id || '',
+    };
+  } else if (section === 'antessala') {
+    nextState.querAntessala = true;
+    nextState.antessala = {
+      ...nextState.antessala,
+      estilo: songName || nextState.antessala.estilo || '',
+      observacao: notes || nextState.antessala.observacao || '',
+    };
+  } else if (section === 'receptivo') {
+    nextState.temReceptivo = true;
+    nextState.receptivo = {
+      ...nextState.receptivo,
+      generos: suggestionItem.genre || nextState.receptivo.generos || '',
+      artistas: suggestionItem.artist || nextState.receptivo.artistas || '',
+      observacao: notes || nextState.receptivo.observacao || '',
+    };
+  }
+
+  return nextState;
 }
 
 function StatusPill({ label, tone = 'neutral' }) {
@@ -953,6 +1079,80 @@ const [receptivo, setReceptivo] = useState(
   }
 );
   const [savingMode, setSavingMode] = useState('');
+  const repertorioStateRef = useRef(
+    buildRepertorioSnapshot({
+      querAntessala,
+      temReceptivo,
+      antessala,
+      cortejo,
+      cerimonia,
+      saida,
+      receptivo,
+    })
+  );
+  const appliedSuggestionKeysRef = useRef(new Set());
+
+  useEffect(() => {
+    repertorioStateRef.current = buildRepertorioSnapshot({
+      querAntessala,
+      temReceptivo,
+      antessala,
+      cortejo,
+      cerimonia,
+      saida,
+      receptivo,
+    });
+  }, [querAntessala, temReceptivo, antessala, cortejo, cerimonia, saida, receptivo]);
+
+  useEffect(() => {
+    if (!Array.isArray(selectedSongs) || selectedSongs.length === 0) return;
+
+    const pendingSuggestions = selectedSongs.filter((item) => {
+      const key = `${item.songId}::${normalizeSuggestionSection(item.section || item.targetSection)}::${normalizeCompareText(item.who_enters || item.targetLabel || item.moment || '')}`;
+      return !appliedSuggestionKeysRef.current.has(key);
+    });
+
+    if (pendingSuggestions.length === 0) return;
+
+    let nextSnapshot = repertorioStateRef.current;
+
+    pendingSuggestions.forEach((item) => {
+      const songLike = {
+        title: item.title,
+        artist: item.artist,
+        genre: item.genre,
+        thumbnailUrl: item.thumbnailUrl,
+        youtubeId: item.reference_video_id,
+      };
+      const payloadLike = {
+        section: item.section || item.targetSection,
+        label: item.who_enters || item.targetLabel,
+        notes: item.notes,
+      };
+      const suggestionPayload = buildSuggestionPayload(songLike, payloadLike);
+      const key = `${item.songId}::${normalizeSuggestionSection(item.section || item.targetSection)}::${normalizeCompareText(item.who_enters || item.targetLabel || item.moment || '')}`;
+
+      console.log('[SUGESTOES->REPERTORIO] destino escolhido:', payloadLike.section);
+      console.log('[SUGESTOES->REPERTORIO] item montado por buildSuggestionPayload:', suggestionPayload);
+      console.log('[SUGESTOES->REPERTORIO] estado do repertório antes da inserção:', nextSnapshot);
+
+      nextSnapshot = applySuggestionToRepertorioState(nextSnapshot, {
+        ...item,
+        ...suggestionPayload,
+      });
+
+      console.log('[SUGESTOES->REPERTORIO] estado do repertório depois da inserção:', nextSnapshot);
+      appliedSuggestionKeysRef.current.add(key);
+    });
+
+    setQuerAntessala(nextSnapshot.querAntessala);
+    setTemReceptivo(nextSnapshot.temReceptivo);
+    setAntessala(nextSnapshot.antessala);
+    setCortejo(nextSnapshot.cortejo);
+    setCerimonia(nextSnapshot.cerimonia);
+    setSaida(nextSnapshot.saida);
+    setReceptivo(nextSnapshot.receptivo);
+  }, [selectedSongs]);
 
   function normalizeReferenceFields(reference = {}) {
     const referenceLink = String(reference.referencia || '').trim();

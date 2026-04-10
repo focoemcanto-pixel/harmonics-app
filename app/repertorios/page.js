@@ -254,18 +254,23 @@ export default function RepertoriosPage() {
   }, [tokens]);
 
   const repertorios = useMemo(() => {
+    const eventsById = new Map(events.map((event) => [String(event.id), event]));
+
     return configs
       .map((config) => {
-        const event = events.find((ev) => String(ev.id) === String(config.event_id));
+        const eventId = String(config.event_id || '').trim();
+        if (!eventId) return null;
+
+        const event = eventsById.get(eventId);
         if (!event) return null;
 
-        const repertoireItems = itemsByEventId.get(String(config.event_id)) || [];
-        const fallbackRepertoireToken =
-          repertoireTokenByEventId.get(String(config.event_id)) || null;
-        const contractInfo = contractsByEventId.get(String(config.event_id)) || null;
+        const repertoireItems = itemsByEventId.get(eventId) || [];
+        const fallbackRepertoireToken = repertoireTokenByEventId.get(eventId) || null;
+        const contractInfo = contractsByEventId.get(eventId) || null;
         const clientPanelToken = String(config.client_public_token || '').trim();
 
         return {
+          event_id: eventId,
           event,
           config,
           items: repertoireItems,
@@ -464,15 +469,21 @@ export default function RepertoriosPage() {
                 const contractLabel = formatContractLabel(entry.contractInfo?.status);
                 const contractTone = getContractTone(entry.contractInfo?.status);
                 const resumoAberto = resumoAbertoId === entry.config.id;
-                const painelToken =
-                  entry.client_public_token || entry.fallbackRepertoireToken?.token || '';
+                const painelToken = entry.client_public_token || '';
                 const painelUrl = painelToken
                   ? `/cliente/${painelToken}`
                   : null;
 
+                console.log('[repertorios] card render', {
+                  client_name: entry.event.client_name || null,
+                  event_id: entry.event_id,
+                  client_public_token: entry.client_public_token || null,
+                  href: painelUrl,
+                });
+
                 return (
                   <div
-                    key={entry.config.id}
+                    key={`${entry.event_id}-${entry.config.id}`}
                     className="rounded-[24px] border border-[#dbe3ef] bg-white p-5 shadow-[0_8px_22px_rgba(17,24,39,0.04)]"
                   >
                     <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">

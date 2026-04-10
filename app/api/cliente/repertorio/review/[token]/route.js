@@ -17,6 +17,17 @@ function getAdminSupabase() {
 }
 
 async function resolveEventIdFromToken(supabase, token) {
+  const { data: configByClientToken, error: configError } = await supabase
+    .from('repertoire_config')
+    .select('event_id, client_public_token')
+    .eq('client_public_token', token)
+    .maybeSingle();
+
+  if (configError) throw configError;
+  if (configByClientToken?.event_id) {
+    return configByClientToken.event_id;
+  }
+
   const { data: tokenRows, error: tokenError } = await supabase
     .from('repertoire_tokens')
     .select('id, event_id, token, created_at')

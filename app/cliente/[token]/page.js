@@ -249,6 +249,8 @@ export default async function ClienteTokenPage({ params }) {
   const items = Array.isArray(itemsResp.data) ? itemsResp.data : [];
   const contract = contractsResp.data || null;
   const repertoireToken = repertoireTokenResp.data || null;
+  const configClientToken = String(config?.client_public_token || '').trim();
+  const clientToken = configClientToken || token;
 
   console.log('[CLIENTE PAGE] URL PDF contrato:', contract?.pdf_url || '(vazio)');
   console.log(
@@ -264,13 +266,13 @@ export default async function ClienteTokenPage({ params }) {
     !!reviewStartsAt && now.getTime() > reviewStartsAt.getTime();
 
   if (shouldRedirectToReview) {
-    redirect(`/cliente/${token}/review`);
+    redirect(`/cliente/${clientToken}/review`);
   }
 
   const initialLists = mapItemsToInitialState(items);
 
   const repertorioTokenValue = repertoireToken?.token || token;
-  const repertorioPdfToken = token;
+  const repertorioPdfToken = clientToken;
   const repertorioPdfUrl = repertorioPdfToken
     ? `/api/cliente/repertorio/pdf/${repertorioPdfToken}`
     : null;
@@ -285,7 +287,7 @@ export default async function ClienteTokenPage({ params }) {
   const supportConfig = resolveSupportWhatsAppConfig();
 
   const data = {
-    token,
+    token: clientToken,
     clienteNome: event.client_name || 'Cliente',
     eventoTitulo: event.client_name
       ? `Evento • ${event.client_name}`
@@ -311,8 +313,8 @@ export default async function ClienteTokenPage({ params }) {
       totalEtapas: 7,
       liberadoParaEdicao: !config?.is_locked,
       enviadoEm: config?.submitted_at || null,
-      linkPreenchimento: `/cliente/${token}/repertorio`,
-      linkVisualizacao: `/cliente/${token}/repertorio`,
+      linkPreenchimento: `/cliente/${clientToken}/repertorio`,
+      linkVisualizacao: `/cliente/${clientToken}/repertorio`,
       podeSolicitarCorrecao: true,
       temAntessala: Boolean(
         config?.has_ante_room ??

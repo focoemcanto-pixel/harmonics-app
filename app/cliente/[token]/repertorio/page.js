@@ -270,7 +270,10 @@ export default async function ClienteRepertorioPage({ params }) {
     config?.repertoire_pdf_url || config?.pdf_url || '(vazio)'
   );
 
-  if (precontract?.public_token) {
+  const configClientToken = String(config?.client_public_token || '').trim();
+  if (configClientToken) {
+    clientToken = configClientToken;
+  } else if (precontract?.public_token) {
     clientToken = precontract.public_token;
   }
 

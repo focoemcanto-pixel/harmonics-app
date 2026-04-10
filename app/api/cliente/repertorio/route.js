@@ -172,6 +172,21 @@ async function ensureOpenRepertoireToken(supabase, eventId) {
   return { tokenRow: inserted, created: true };
 }
 
+async function getFallbackClientPublicTokenByEvent(supabase, eventId) {
+  if (!eventId) return null;
+
+  const { data: precontract, error } = await supabase
+    .from('precontracts')
+    .select('public_token')
+    .eq('event_id', eventId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+  return normalizeText(precontract?.public_token);
+}
+
 export async function POST(request) {
   try {
     const supabase = getAdminSupabase();
@@ -283,9 +298,30 @@ export async function POST(request) {
       referenceVideoId: config.exit_reference_video_id,
     });
 
+    const { data: existingConfig, error: existingConfigError } = await supabase
+      .from('repertoire_config')
+      .select('client_public_token')
+      .eq('event_id', eventId)
+      .maybeSingle();
+
+    if (existingConfigError) throw existingConfigError;
+
+    const tokenFromConfig = normalizeText(existingConfig?.client_public_token);
+    const tokenFromRequest = normalizeText(clientTokenInput);
+    const fallbackClientToken =
+      tokenResolution === 'client_token'
+        ? normalizeText(clientTokenInput || token)
+        : null;
+    const resolvedClientPublicToken =
+      tokenFromRequest ||
+      tokenFromConfig ||
+      fallbackClientToken ||
+      (await getFallbackClientPublicTokenByEvent(supabase, eventId));
+
     const configPayload = {
       event_id: eventId,
       repertoire_token_id: tokenRow.id,
+      client_public_token: resolvedClientPublicToken,
       has_ante_room: normalizeBool(config.has_ante_room),
       ante_room_style: normalizeText(config.ante_room_style),
       ante_room_notes: normalizeText(config.ante_room_notes),

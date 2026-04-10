@@ -242,7 +242,7 @@ export default function RepertoriosPage() {
     return map;
   }, [items]);
 
-  const tokenByEventId = useMemo(() => {
+  const repertoireTokenByEventId = useMemo(() => {
     const map = new Map();
 
     for (const token of tokens) {
@@ -260,19 +260,22 @@ export default function RepertoriosPage() {
         if (!event) return null;
 
         const repertoireItems = itemsByEventId.get(String(config.event_id)) || [];
-        const token = tokenByEventId.get(String(config.event_id)) || null;
+        const fallbackRepertoireToken =
+          repertoireTokenByEventId.get(String(config.event_id)) || null;
         const contractInfo = contractsByEventId.get(String(config.event_id)) || null;
+        const clientPanelToken = String(config.client_public_token || '').trim();
 
         return {
           event,
           config,
           items: repertoireItems,
-          token,
+          client_public_token: clientPanelToken || null,
+          fallbackRepertoireToken,
           contractInfo,
         };
       })
       .filter(Boolean);
-  }, [configs, events, itemsByEventId, tokenByEventId, contractsByEventId]);
+  }, [configs, events, itemsByEventId, repertoireTokenByEventId, contractsByEventId]);
 
   const repertoriosFiltrados = useMemo(() => {
     const termo = busca.trim().toLowerCase();
@@ -461,8 +464,10 @@ export default function RepertoriosPage() {
                 const contractLabel = formatContractLabel(entry.contractInfo?.status);
                 const contractTone = getContractTone(entry.contractInfo?.status);
                 const resumoAberto = resumoAbertoId === entry.config.id;
-                const painelUrl = entry.token?.token
-                  ? `/cliente/${entry.token.token}`
+                const painelToken =
+                  entry.client_public_token || entry.fallbackRepertoireToken?.token || '';
+                const painelUrl = painelToken
+                  ? `/cliente/${painelToken}`
                   : null;
 
                 return (
@@ -493,8 +498,8 @@ export default function RepertoriosPage() {
                             {contractLabel}
                           </RepertoirePill>
 
-                          <RepertoirePill tone={entry.token ? 'blue' : 'slate'}>
-                            {entry.token ? 'Painel ativo' : 'Sem painel'}
+                          <RepertoirePill tone={painelUrl ? 'blue' : 'slate'}>
+                            {painelUrl ? 'Painel ativo' : 'Sem painel'}
                           </RepertoirePill>
                         </div>
                       </div>

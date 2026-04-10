@@ -27,31 +27,22 @@ export async function GET(_request, { params }) {
     const baseUrl = contractServiceUrl.replace(/\/+$/, '');
     const renderUrl = `${baseUrl}/api/repertoire/pdf/${encodeURIComponent(token)}`;
 
+    console.log('[PDF PROXY] chamando Render:', renderUrl);
+
     const response = await fetch(renderUrl, {
       method: 'GET',
       cache: 'no-store',
     });
 
-    const contentType = response.headers.get('content-type') || '';
-
     if (!response.ok) {
-      let errorPayload = null;
+      const text = await response.text();
 
-      try {
-        errorPayload = contentType.includes('application/json')
-          ? await response.json()
-          : await response.text();
-      } catch {
-        errorPayload = null;
-      }
+      console.error('[PDF PROXY] erro do Render:', text);
 
       return NextResponse.json(
         {
           ok: false,
-          error:
-            (typeof errorPayload === 'object' && errorPayload?.error) ||
-            (typeof errorPayload === 'string' && errorPayload) ||
-            `Falha ao gerar PDF no Render (status ${response.status}).`,
+          error: `Erro no Render: ${response.status}`,
         },
         { status: response.status }
       );
@@ -64,16 +55,16 @@ export async function GET(_request, { params }) {
       headers: {
         'Content-Type': 'application/pdf',
         'Content-Disposition': `inline; filename="repertorio-${token}.pdf"`,
-        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        'Cache-Control': 'no-store',
       },
     });
   } catch (error) {
-    console.error('[api/cliente/repertorio/pdf] erro ao buscar PDF no Render:', error);
+    console.error('[PDF PROXY] erro geral:', error);
 
     return NextResponse.json(
       {
         ok: false,
-        error: error?.message || 'Erro ao gerar PDF do repertório.',
+        error: error?.message || 'Erro ao gerar PDF',
       },
       { status: 500 }
     );

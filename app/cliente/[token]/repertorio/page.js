@@ -286,6 +286,25 @@ export default async function ClienteRepertorioPage({ params }) {
   }
 
   const initialLists = mapItemsToInitialState(items);
+  const repertorioPdfToken = clientToken;
+  const repertorioPdfUrl = repertorioPdfToken
+    ? `/api/cliente/repertorio/pdf/${repertorioPdfToken}`
+    : null;
+
+  console.log('[CLIENTE REPERTORIO PAGE] token da rota do cliente:', token || '(vazio)');
+  console.log(
+    '[CLIENTE REPERTORIO PAGE] token público resolvido para cliente:',
+    clientToken || '(vazio)'
+  );
+  console.log(
+    '[CLIENTE REPERTORIO PAGE] token usado na URL do PDF:',
+    repertorioPdfToken || '(vazio)'
+  );
+  console.log(
+    '[CLIENTE REPERTORIO PAGE] tokens da rota e PDF são idênticos?',
+    String(token || '') === String(repertorioPdfToken || '')
+  );
+
   const supportConfig = resolveSupportWhatsAppConfig();
 
   const data = {
@@ -323,9 +342,7 @@ export default async function ClienteRepertorioPage({ params }) {
         event.has_reception ??
         event.has_receptivo ??
         Boolean(config?.has_reception || false),
-      pdfUrl:
-        config?.repertoire_pdf_url ||
-        (token ? `/api/cliente/repertorio/pdf/${token}` : null),
+      pdfUrl: repertorioPdfUrl,
       repertoireToken: tokenRow?.token || '',
 
       initialState: {

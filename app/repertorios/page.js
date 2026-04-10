@@ -253,6 +253,29 @@ export default function RepertoriosPage() {
     return map;
   }, [tokens]);
 
+  const clientPanelTokenByEventId = useMemo(() => {
+    const map = new Map();
+    const contractsByPreId = new Map(
+      contracts.map((contract) => [String(contract.precontract_id || ''), contract])
+    );
+
+    for (const pre of precontracts) {
+      const eventId = pre?.event_id || contractsByPreId.get(String(pre?.id || ''))?.event_id;
+      if (!eventId) continue;
+
+      const linkedContract = contractsByPreId.get(String(pre?.id || ''));
+      const publicToken = pre?.public_token || linkedContract?.public_token || null;
+      map.set(String(eventId), publicToken);
+    }
+
+    for (const contract of contracts) {
+      if (!contract?.event_id || map.has(String(contract.event_id))) continue;
+      map.set(String(contract.event_id), contract?.public_token || null);
+    }
+
+    return map;
+  }, [precontracts, contracts]);
+
   const repertorios = useMemo(() => {
     return configs
       .map((config) => {
@@ -262,6 +285,7 @@ export default function RepertoriosPage() {
         const repertoireItems = itemsByEventId.get(String(config.event_id)) || [];
         const token = tokenByEventId.get(String(config.event_id)) || null;
         const contractInfo = contractsByEventId.get(String(config.event_id)) || null;
+        const clientPanelToken = clientPanelTokenByEventId.get(String(config.event_id)) || null;
 
         return {
           event,
@@ -269,10 +293,30 @@ export default function RepertoriosPage() {
           items: repertoireItems,
           token,
           contractInfo,
+          clientPanelToken,
         };
       })
       .filter(Boolean);
-  }, [configs, events, itemsByEventId, tokenByEventId, contractsByEventId]);
+  }, [configs, events, itemsByEventId, tokenByEventId, contractsByEventId, clientPanelTokenByEventId]);
+
+  useEffect(() => {
+    for (const entry of repertorios) {
+      const valorAtualLink = entry.token?.token || null;
+      const tokenPublicoResolvido = entry.clientPanelToken || null;
+      const valorCorrigidoLink = tokenPublicoResolvido
+        ? `/cliente/${tokenPublicoResolvido}`
+        : null;
+
+      console.log(
+        '[REPERTORIOS ADMIN] token público resolvido:',
+        tokenPublicoResolvido,
+        '| valor usado hoje no link:',
+        valorAtualLink,
+        '| valor corrigido:',
+        valorCorrigidoLink
+      );
+    }
+  }, [repertorios]);
 
   const repertoriosFiltrados = useMemo(() => {
     const termo = busca.trim().toLowerCase();
@@ -461,8 +505,8 @@ export default function RepertoriosPage() {
                 const contractLabel = formatContractLabel(entry.contractInfo?.status);
                 const contractTone = getContractTone(entry.contractInfo?.status);
                 const resumoAberto = resumoAbertoId === entry.config.id;
-                const painelUrl = entry.token?.token
-                  ? `/cliente/${entry.token.token}`
+                const painelUrl = entry.clientPanelToken
+                  ? `/cliente/${entry.clientPanelToken}`
                   : null;
 
                 return (
@@ -493,8 +537,8 @@ export default function RepertoriosPage() {
                             {contractLabel}
                           </RepertoirePill>
 
-                          <RepertoirePill tone={entry.token ? 'blue' : 'slate'}>
-                            {entry.token ? 'Painel ativo' : 'Sem painel'}
+                          <RepertoirePill tone={entry.clientPanelToken ? 'blue' : 'slate'}>
+                            {entry.clientPanelToken ? 'Painel ativo' : 'Sem painel'}
                           </RepertoirePill>
                         </div>
                       </div>

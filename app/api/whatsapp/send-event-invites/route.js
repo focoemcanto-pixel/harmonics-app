@@ -11,6 +11,7 @@ export async function POST(request) {
   try {
     const body = await request.json();
     const eventId = body?.eventId;
+    console.info('[automation][scale_save] trigger_received', { eventId });
 
     if (!eventId) {
       return NextResponse.json(
@@ -28,11 +29,20 @@ export async function POST(request) {
     if (error) throw error;
 
     const pendentes = (invites || []).filter((invite) => !invite.whatsapp_sent_at);
+    console.info('[automation][scale_save] pending_invites_resolved', {
+      eventId,
+      totalInvites: (invites || []).length,
+      pendingToSend: pendentes.length,
+    });
 
     const internalEndpoint = new URL('/api/whatsapp/send-invite', request.url).toString();
 
     const results = [];
     for (const invite of pendentes) {
+      console.info('[automation][scale_save] invite_dispatch_started', {
+        eventId,
+        inviteId: invite.id,
+      });
       const response = await fetch(internalEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -45,6 +55,12 @@ export async function POST(request) {
         inviteId: invite.id,
         ok: response.ok,
         data,
+      });
+      console.info('[automation][scale_save] invite_dispatch_finished', {
+        eventId,
+        inviteId: invite.id,
+        ok: response.ok,
+        status: response.status,
       });
     }
 

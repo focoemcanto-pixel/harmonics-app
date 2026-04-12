@@ -886,7 +886,12 @@ export default function EventoEscalaTab({ eventId }) {
 
     const { error: reactivateError } = await supabase
       .from('invites')
-      .update({ status: 'pending', responded_at: null })
+      .update({
+        status: 'pending',
+        responded_at: null,
+        whatsapp_sent_at: null,
+        whatsapp_last_error: null,
+      })
       .in('id', existingIds);
 
     if (reactivateError) throw reactivateError;
@@ -944,7 +949,23 @@ export default function EventoEscalaTab({ eventId }) {
 
     await persistirEscala();
 
-    setSucesso('Escala salva e convites sincronizados.');
+    const response = await fetch('/api/whatsapp/send-event-invites', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ eventId }),
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data?.error || 'Erro ao disparar automação de convites');
+    }
+
+    const total = Number(data?.total || 0);
+    setSucesso(
+      total > 0
+        ? `Escala salva e ${total} convite(s) enviado(s) automaticamente.`
+        : 'Escala salva. Nenhum convite pendente para envio automático.'
+    );
   } catch (e) {
     console.error('Erro ao salvar escala:', e);
     alert(e?.message || 'Erro ao salvar escala.');

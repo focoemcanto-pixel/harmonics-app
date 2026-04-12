@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '../../../../lib/supabase-admin';
 import { executeAutomationEvent } from '../../../../lib/automation/execute-automation-event';
+import { logAutomationDispatch } from '../../../../lib/automation/log-dispatch';
+import { getDefaultWorkspace } from '../../../../lib/automation/get-workspace';
 
 function cleanPhone(value) {
   return String(value || '').replace(/\D/g, '');
@@ -22,6 +24,7 @@ export async function POST(request) {
   try {
     const body = await request.json();
     inviteId = body?.inviteId;
+    console.info('[automation][send_invite] started', { inviteId });
 
     if (!inviteId) {
       return NextResponse.json(
@@ -51,8 +54,31 @@ export async function POST(request) {
         { status: 404 }
       );
     }
+    console.info('[automation][send_invite] invite_resolved', {
+      inviteId: invite.id,
+      eventId: invite.event_id,
+      contactId: invite.contact_id,
+      status: invite.status,
+    });
 
     if (String(invite.status || '').toLowerCase() === 'removed') {
+      const workspace = await getDefaultWorkspace();
+      await logAutomationDispatch({
+        workspaceId: workspace.id,
+        ruleId: null,
+        templateId: null,
+        channelId: null,
+        entityId: invite.id,
+        entityType: 'invite',
+        recipientType: 'member',
+        recipient: null,
+        renderedMessage: null,
+        metadata: { eventType: 'invite_member', stage: 'invite_validation' },
+        providerResponse: null,
+        status: 'failed',
+        errorMessage: 'Invite removido, envio cancelado',
+        source: 'automation_center',
+      });
       return NextResponse.json(
         { error: 'Invite removido, envio cancelado' },
         { status: 400 }
@@ -61,11 +87,32 @@ export async function POST(request) {
 
     const phone = cleanPhone(invite.contact?.phone);
     if (!phone) {
+      const workspace = await getDefaultWorkspace();
+      await logAutomationDispatch({
+        workspaceId: workspace.id,
+        ruleId: null,
+        templateId: null,
+        channelId: null,
+        entityId: invite.id,
+        entityType: 'invite',
+        recipientType: 'member',
+        recipient: null,
+        renderedMessage: null,
+        metadata: { eventType: 'invite_member', stage: 'recipient_resolution' },
+        providerResponse: null,
+        status: 'failed',
+        errorMessage: 'Contato sem telefone',
+        source: 'automation_center',
+      });
       return NextResponse.json(
         { error: 'Contato sem telefone' },
         { status: 400 }
       );
     }
+    console.info('[automation][send_invite] recipient_resolved', {
+      inviteId: invite.id,
+      recipient: phone,
+    });
 
     // Garantir token de convite antes de chamar o motor (build-automation-context também faz isso,
     // mas fazemos aqui para garantir disponibilidade imediata no banco)
@@ -85,6 +132,12 @@ export async function POST(request) {
     const result = await executeAutomationEvent({
       eventType: 'invite_member',
       entityId: invite.id,
+    });
+    console.info('[automation][send_invite] automation_result', {
+      inviteId: invite.id,
+      sent: result.sent,
+      failed: result.failed,
+      skipped: result.skipped,
     });
 
     // If the engine didn't find active rules, return a warning (sending was skipped — not an error)

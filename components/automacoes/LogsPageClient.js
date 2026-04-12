@@ -31,6 +31,10 @@ function formatarTelefone(numero) {
   return numero;
 }
 
+function getRecipientNumber(log) {
+  return log?.recipient_number || log?.recipient || '';
+}
+
 function StatusBadge({ status }) {
   if (status === 'sent') {
     return (
@@ -163,7 +167,7 @@ function LogDetailModal({ log, onClose, onRetrySuccess }) {
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             <div className="rounded-xl bg-[#f8fafc] p-3">
               <div className="text-[11px] font-bold uppercase tracking-wide text-[#94a3b8]">Destinatário</div>
-              <div className="mt-1 text-[13px] font-semibold text-[#0f172a]">{formatarTelefone(log.recipient_number)}</div>
+              <div className="mt-1 text-[13px] font-semibold text-[#0f172a]">{formatarTelefone(getRecipientNumber(log))}</div>
             </div>
             <div className="rounded-xl bg-[#f8fafc] p-3">
               <div className="text-[11px] font-bold uppercase tracking-wide text-[#94a3b8]">Origem</div>
@@ -384,7 +388,7 @@ function LogCard({ log, onVerDetalhes, onRetrySuccess, isSelected, onToggle }) {
 
           {/* Número destinatário */}
           <div className="mt-1.5 text-[14px] font-bold text-[#0f172a]">
-            {formatarTelefone(log.recipient_number)}
+            {formatarTelefone(getRecipientNumber(log))}
           </div>
 
           {/* Mensagem */}

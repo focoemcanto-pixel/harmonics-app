@@ -39,7 +39,9 @@ export async function GET(request) {
     }
 
     if (recipient) {
-      query = query.ilike('recipient_number', `%${recipient}%`);
+      query = query.or(
+        `recipient_number.ilike.%${recipient}%,recipient.ilike.%${recipient}%`
+      );
     }
 
     if (ruleId) {

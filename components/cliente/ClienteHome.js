@@ -19,6 +19,26 @@ function classNames(...classes) {
   return classes.filter(Boolean).join(' ');
 }
 
+function isRepertoireFinalizedStatus(status) {
+  return ['ENVIADO', 'ENVIADO_TRANCADO', 'FINALIZADO', 'CONCLUIDO'].includes(
+    String(status || '').trim().toUpperCase()
+  );
+}
+
+function daysUntilEvent(dateValue) {
+  if (!dateValue) return null;
+  const target = new Date(dateValue);
+  if (Number.isNaN(target.getTime())) return null;
+  const now = new Date();
+  const nowStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const targetStart = new Date(
+    target.getFullYear(),
+    target.getMonth(),
+    target.getDate()
+  ).getTime();
+  return Math.round((targetStart - nowStart) / 86400000);
+}
+
 function toReferenceMeta(item = {}) {
   const url = item?.referencia || item?.reference_link || '';
   const videoId =
@@ -941,7 +961,7 @@ function EntryCard({
             onChange({
               ...item,
               referencia: result.url,
-              musica: item.musica || result.title || '',
+              musica: result.title || item.musica || '',
               reference_title: result.title || '',
               reference_channel: result.channelTitle || '',
               reference_thumbnail: result.thumbnail || '',
@@ -2143,7 +2163,7 @@ async function handleRequestReview() {
                 setSaida({
                   ...saida,
                   referencia: result.url,
-                  musica: saida.musica || result.title || '',
+                  musica: result.title || saida.musica || '',
                   reference_title: result.title || '',
                   reference_channel: result.channelTitle || '',
                   reference_thumbnail: result.thumbnail || '',
@@ -3910,11 +3930,13 @@ function PaymentHistoryItem({ item }) {
   );
 }
 
-function FinanceiroTab({ data, paymentHistory, setPaymentHistory }) {
+function FinanceiroTab({ data, paymentHistory, setPaymentHistory, onPaymentRegistered }) {
   const [paymentValue, setPaymentValue] = useState('');
   const [paymentDate, setPaymentDate] = useState('');
   const [paymentNote, setPaymentNote] = useState('');
   const [paymentFile, setPaymentFile] = useState(null);
+  const [paymentMethod, setPaymentMethod] = useState('pix');
+  const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
   const { showToast } = useToast();
 
   const financeiro = data.financeiro || {};
@@ -4043,6 +4065,22 @@ function FinanceiroTab({ data, paymentHistory, setPaymentHistory }) {
 
           <div className="space-y-2">
             <label className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#9b8576]">
+              Forma de pagamento
+            </label>
+            <select
+              value={paymentMethod}
+              onChange={(e) => setPaymentMethod(e.target.value)}
+              className="w-full rounded-[16px] border border-[#eadfd6] bg-white px-4 py-4 text-[15px] font-semibold text-[#241a14] outline-none"
+            >
+              <option value="pix">Pix</option>
+              <option value="transferencia">Transferência</option>
+              <option value="dinheiro">Dinheiro</option>
+              <option value="cartao">Cartão</option>
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#9b8576]">
               Comprovante
             </label>
 
@@ -4058,33 +4096,61 @@ function FinanceiroTab({ data, paymentHistory, setPaymentHistory }) {
 
           <button
   type="button"
-  onClick={() => {
+  disabled={isSubmittingPayment}
+  onClick={async () => {
     if (!paymentValue || !paymentDate) {
       showToast('Preencha valor e data antes de enviar', 'warning');
       return;
     }
 
-    const novoItem = {
-      label: 'Comprovante enviado',
-      date: paymentDate,
-      amount: `R$ ${paymentValue}`,
-      status: 'EM_ANALISE',
-      note: paymentNote || 'Aguardando conferência da equipe.',
-      fileName: paymentFile?.name || 'comprovante-anexado',
-    };
+    try {
+      setIsSubmittingPayment(true);
+      const response = await fetch('/api/cliente/pagamentos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: data.token,
+          amount: paymentValue,
+          paymentDate,
+          notes: paymentNote,
+          paymentMethod,
+          proofFileName: paymentFile?.name || '',
+        }),
+      });
 
-    setPaymentHistory((prev) => [novoItem, ...prev]);
+      const result = await response.json();
 
-    setPaymentValue('');
-    setPaymentDate('');
-    setPaymentNote('');
-    setPaymentFile(null);
+      if (!response.ok || !result?.ok) {
+        showToast(result?.error || 'Não foi possível registrar o pagamento.', 'error');
+        return;
+      }
 
-    showToast('Comprovante enviado com sucesso', 'success');
+      const novoItem = {
+        label: 'Comprovante enviado',
+        date: paymentDate,
+        amount: `R$ ${paymentValue}`,
+        status: 'EM_ANALISE',
+        note: paymentNote || 'Aguardando conferência da equipe.',
+        fileName: paymentFile?.name || 'comprovante-anexado',
+      };
+
+      setPaymentHistory((prev) => [novoItem, ...prev]);
+      onPaymentRegistered?.(result);
+
+      setPaymentValue('');
+      setPaymentDate('');
+      setPaymentNote('');
+      setPaymentFile(null);
+      setPaymentMethod('pix');
+
+      showToast('Comprovante enviado com sucesso', 'success');
+    } finally {
+      setIsSubmittingPayment(false);
+    }
   }}
-  className="w-full rounded-[20px] bg-[linear-gradient(135deg,#6d28d9_0%,#8b5cf6_100%)] px-4 py-4 text-[15px] font-black text-white shadow-[0_12px_28px_rgba(124,58,237,0.24)]"
+  className="w-full rounded-[20px] bg-[linear-gradient(135deg,#6d28d9_0%,#8b5cf6_100%)] px-4 py-4 text-[15px] font-black text-white shadow-[0_12px_28px_rgba(124,58,237,0.24)] disabled:cursor-not-allowed disabled:opacity-70"
 >
-  Enviar comprovante
+  {isSubmittingPayment ? 'Enviando...' : 'Enviar comprovante'}
 </button>
         </div>
       </SectionCard>
@@ -4184,6 +4250,7 @@ export default function ClienteHome({ data, initialTab = 'inicio' }) {
   const [paymentHistory, setPaymentHistory] = useState(
     data?.financeiro?.historico || []
   );
+  const [dismissedRepertoireAlert, setDismissedRepertoireAlert] = useState(false);
 
   const handleRepertorioSaved = useCallback(
     ({ mode, result }) => {
@@ -4237,6 +4304,54 @@ export default function ClienteHome({ data, initialTab = 'inicio' }) {
     });
   }, []);
 
+  const handlePaymentRegistered = useCallback((result) => {
+    setPanelData((prev) => {
+      if (!prev) return prev;
+      const financeiro = result?.financeiro || {};
+      const toMoney = (value) =>
+        new Intl.NumberFormat('pt-BR', {
+          style: 'currency',
+          currency: 'BRL',
+        }).format(Number(value || 0));
+
+      return {
+        ...prev,
+        financeiro: {
+          ...prev.financeiro,
+          resumo: {
+            valorTotal: toMoney(financeiro.valorTotal),
+            valorPago: toMoney(financeiro.valorPago),
+            saldo: toMoney(financeiro.saldo),
+            status: financeiro.status || prev.financeiro?.resumo?.status || 'Em aberto',
+          },
+        },
+      };
+    });
+  }, []);
+
+  const daysToEvent = useMemo(
+    () => daysUntilEvent(panelData?.dataEvento),
+    [panelData?.dataEvento]
+  );
+
+  const shouldShowRepertoire15DaysAlert =
+    !dismissedRepertoireAlert &&
+    daysToEvent !== null &&
+    daysToEvent <= 15 &&
+    !isRepertoireFinalizedStatus(panelData?.repertorio?.status);
+
+  useEffect(() => {
+    if (!shouldShowRepertoire15DaysAlert || !panelData?.token) return;
+
+    fetch('/api/cliente/alertas/repertorio-pendente', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: panelData.token }),
+    }).catch((error) => {
+      console.error('[CLIENTE HOME] Falha ao disparar automação de alerta de repertório:', error);
+    });
+  }, [panelData?.token, shouldShowRepertoire15DaysAlert]);
+
   if (!panelData) {
     return <ClienteLoadingScreen />;
   }
@@ -4251,6 +4366,41 @@ export default function ClienteHome({ data, initialTab = 'inicio' }) {
 
   return (
     <main className="min-h-screen bg-[#f8f4ef] text-[#241a14]">
+      {shouldShowRepertoire15DaysAlert ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#1f1427]/55 px-4">
+          <div className="w-full max-w-[520px] rounded-[28px] border border-red-200 bg-white p-6 shadow-[0_20px_60px_rgba(36,26,20,0.28)]">
+            <div className="inline-flex rounded-full bg-red-100 px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.08em] text-red-700">
+              Ação obrigatória
+            </div>
+            <div className="mt-4 text-[24px] font-black text-[#241a14]">
+              Faltam {Math.max(daysToEvent ?? 0, 0)} dias para o seu evento e seu repertório ainda não foi enviado.
+            </div>
+            <div className="mt-3 text-[15px] leading-7 text-[#6f5d51]">
+              Envie o quanto antes para que nossa equipe tenha tempo hábil para se preparar.
+            </div>
+            <div className="mt-5 flex gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setDismissedRepertoireAlert(true);
+                  setActiveTab('repertorio');
+                }}
+                className="flex-1 rounded-[18px] bg-[linear-gradient(135deg,#dc2626_0%,#ef4444_100%)] px-4 py-3 text-[14px] font-black text-white"
+              >
+                Ir para repertório
+              </button>
+              <a
+                href={`https://wa.me/${(panelData?.suporteWhatsapp || '').replace(/\D/g, '')}`}
+                target="_blank"
+                rel="noreferrer"
+                className="flex-1 rounded-[18px] border border-[#eadfd6] bg-[#faf7f3] px-4 py-3 text-center text-[14px] font-black text-[#6f5d51]"
+              >
+                Falar com equipe
+              </a>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <div className="mx-auto w-full max-w-[520px] px-4 pb-32 pt-4">
         <section className="overflow-hidden rounded-[30px] border border-[#2f2231] bg-[linear-gradient(135deg,#1e1723_0%,#2d1c4b_52%,#5b21b6_100%)] px-5 py-6 text-white shadow-[0_16px_50px_rgba(37,25,52,0.24)]">
           <div className="inline-flex rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.08em] text-white/90">
@@ -4312,6 +4462,7 @@ export default function ClienteHome({ data, initialTab = 'inicio' }) {
               data={panelData}
               paymentHistory={paymentHistory}
               setPaymentHistory={setPaymentHistory}
+              onPaymentRegistered={handlePaymentRegistered}
             />
           )}
         </div>

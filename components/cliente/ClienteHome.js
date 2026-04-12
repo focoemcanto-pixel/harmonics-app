@@ -8,6 +8,7 @@ import {
   getRepertorioDeadline,
   getRepertorioProgress,
   getRepertorioUiState,
+  isRepertorioTravado,
 } from '../../lib/cliente/repertorio';
 import { getYoutubeVideoId } from '../../lib/youtube/getYoutubeVideoId';
 import { buildWhatsAppUrl } from '../../lib/whatsapp/support-config';
@@ -19,10 +20,8 @@ function classNames(...classes) {
   return classes.filter(Boolean).join(' ');
 }
 
-function isRepertoireFinalizedStatus(status) {
-  return ['ENVIADO', 'ENVIADO_TRANCADO', 'FINALIZADO', 'CONCLUIDO'].includes(
-    String(status || '').trim().toUpperCase()
-  );
+function isRepertoireFinalizedStatus(status, isLocked = false) {
+  return isRepertorioTravado(status, isLocked);
 }
 
 function daysUntilEvent(dateValue) {
@@ -428,12 +427,14 @@ function RepertorioCard({ data }) {
     status: data.repertorio.status,
     eventDate: data.dataEvento,
     liberadoParaEdicao: data.repertorio.liberadoParaEdicao,
+    isLocked: data.repertorio.isLocked,
   });
 
   const progress = getRepertorioProgress({
     status: data.repertorio.status,
     etapasPreenchidas: data.repertorio.etapasPreenchidas,
     totalEtapas: data.repertorio.totalEtapas,
+    isLocked: data.repertorio.isLocked,
   });
 
   const deadline = getRepertorioDeadline(data.dataEvento);
@@ -452,6 +453,9 @@ function RepertorioCard({ data }) {
   }, [uiState, data.token]);
 
   const stateMeta = useMemo(() => {
+    const isAwaitingReview =
+      String(data.repertorio.status || '').toUpperCase() === 'AGUARDANDO_REVISAO';
+
     switch (uiState) {
       case 'rascunho':
         return {
@@ -469,17 +473,30 @@ function RepertorioCard({ data }) {
         };
       case 'enviado':
         return {
-          pill: <StatusPill label="Enviado" tone="success" />,
-          title: 'Seu repertório foi enviado com sucesso.',
-          text: 'A equipe Harmonics já recebeu suas escolhas e seguirá com o alinhamento do evento.',
+          pill: (
+            <StatusPill
+              label={isAwaitingReview ? 'Aguardando revisão' : 'Enviado'}
+              tone={isAwaitingReview ? 'warning' : 'success'}
+            />
+          ),
+          title: isAwaitingReview
+            ? 'Revisão solicitada, aguardando liberação.'
+            : 'Seu repertório foi enviado com sucesso.',
+          text: isAwaitingReview
+            ? 'Seu repertório permanece bloqueado até que a equipe libere a edição no painel admin.'
+            : 'A equipe Harmonics já recebeu suas escolhas e seguirá com o alinhamento do evento.',
           deadlineText: data.repertorio.enviadoEm
             ? `Enviado em ${formatDateBR(data.repertorio.enviadoEm)}`
             : 'Repertório finalizado.',
-          primaryLabel: data.repertorio.podeSolicitarCorrecao ? 'Solicitar correção' : 'Ver repertório enviado',
+          primaryLabel: data.repertorio.podeSolicitarCorrecao
+            ? 'Solicitar correção'
+            : 'Ver repertório enviado',
           primaryHref: data.repertorio.linkVisualizacao || data.repertorio.linkPreenchimento || '#',
           secondaryLabel: data.repertorio.linkVisualizacao ? 'Visualizar repertório' : '',
           secondaryHref: data.repertorio.linkVisualizacao || '#',
-          note: 'Após o envio final, alterações só podem ser feitas se a equipe liberar correção.',
+          note: isAwaitingReview
+            ? 'Enquanto aguarda liberação, os campos continuam bloqueados para edição.'
+            : 'Após o envio final, alterações só podem ser feitas se a equipe liberar correção.',
         };
       case 'liberado':
         return {
@@ -758,9 +775,7 @@ function InicioTab({ data, setActiveTab, selectedSongs }) {
           <TimelineItem title="Evento confirmado" status="done" />
           <TimelineItem
             title={
-              ['ENVIADO', 'ENVIADO_TRANCADO', 'FINALIZADO', 'CONCLUIDO'].includes(
-                String(data.repertorio.status || '').toUpperCase()
-              )
+              isRepertorioTravado(data.repertorio.status, data.repertorio.isLocked)
                 ? 'Repertório concluído'
                 : 'Repertório em andamento'
             }
@@ -1031,9 +1046,9 @@ function MiniStep({
 
 function RepertorioTab({ data, selectedSongs, onSaved, onReviewRequested }) {
   const { showToast } = useToast();
-  const travado = ['ENVIADO', 'ENVIADO_TRANCADO', 'FINALIZADO', 'CONCLUIDO'].includes(
-    String(data.repertorio.status || '').toUpperCase()
-  );
+  const statusNormalizado = String(data.repertorio.status || '').toUpperCase();
+  const travado = isRepertorioTravado(statusNormalizado, data.repertorio.isLocked);
+  const aguardandoRevisao = statusNormalizado === 'AGUARDANDO_REVISAO';
   
 
   const [step, setStep] = useState(1);
@@ -1732,6 +1747,8 @@ async function saveRepertorio(mode = 'draft') {
 }
 
 async function handleRequestReview() {
+  if (aguardandoRevisao) return;
+
   const reviewToken = data.repertorio?.repertoireToken || data.token;
   if (!reviewToken) {
     alert('Erro ao solicitar revisão');
@@ -2340,9 +2357,13 @@ async function handleRequestReview() {
                 ✅
               </div>
               <div>
-                <div className="text-[22px] font-black text-[#241a14]">Repertório finalizado</div>
+                <div className="text-[22px] font-black text-[#241a14]">
+                  {aguardandoRevisao ? 'Revisão solicitada' : 'Repertório finalizado'}
+                </div>
                 <div className="mt-2 text-[14px] leading-6 text-[#6f5d51]">
-                  Seu repertório já foi enviado e agora está travado para edição. Caso precise ajustar algo, solicite revisão.
+                  {aguardandoRevisao
+                    ? 'Recebemos seu pedido de revisão. O repertório segue bloqueado até liberação da equipe.'
+                    : 'Seu repertório já foi enviado e agora está travado para edição. Caso precise ajustar algo, solicite revisão.'}
                 </div>
               </div>
             </div>
@@ -2415,9 +2436,12 @@ async function handleRequestReview() {
             <button
               type="button"
               onClick={handleRequestReview}
-              className="w-full rounded-[20px] bg-[linear-gradient(135deg,#6d28d9_0%,#8b5cf6_100%)] px-4 py-4 text-[15px] font-black text-white"
+              disabled={aguardandoRevisao}
+              className="w-full rounded-[20px] bg-[linear-gradient(135deg,#6d28d9_0%,#8b5cf6_100%)] px-4 py-4 text-[15px] font-black text-white disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Solicitar revisão
+              {aguardandoRevisao
+                ? 'Revisão solicitada, aguardando liberação'
+                : 'Solicitar revisão'}
             </button>
           </div>
         </div>
@@ -4270,6 +4294,7 @@ export default function ClienteHome({ data, initialTab = 'inicio' }) {
           repertorio: {
             ...prev.repertorio,
             status: nextStatus,
+            isLocked: isFinalized,
             liberadoParaEdicao: !isFinalized,
             enviadoEm: isFinalized
               ? new Date().toISOString()
@@ -4297,6 +4322,7 @@ export default function ClienteHome({ data, initialTab = 'inicio' }) {
         repertorio: {
           ...prev.repertorio,
           status: 'AGUARDANDO_REVISAO',
+          isLocked: true,
           liberadoParaEdicao: false,
           podeSolicitarCorrecao: false,
         },
@@ -4338,7 +4364,10 @@ export default function ClienteHome({ data, initialTab = 'inicio' }) {
     !dismissedRepertoireAlert &&
     daysToEvent !== null &&
     daysToEvent <= 15 &&
-    !isRepertoireFinalizedStatus(panelData?.repertorio?.status);
+    !isRepertoireFinalizedStatus(
+      panelData?.repertorio?.status,
+      panelData?.repertorio?.isLocked
+    );
 
   useEffect(() => {
     if (!shouldShowRepertoire15DaysAlert || !panelData?.token) return;

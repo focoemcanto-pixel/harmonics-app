@@ -66,7 +66,21 @@ function addHoursToTime(timeValue, deltaHours = 0) {
 function mapStatusToUi(status, isLocked) {
   const normalized = String(status || '').toUpperCase();
 
-  if (normalized === 'ENVIADO' || normalized === 'FINALIZADO' || isLocked) {
+  if (
+    normalized === 'ENVIADO' ||
+    normalized === 'ENVIADO_TRANCADO' ||
+    normalized === 'FINALIZADO' ||
+    normalized === 'CONCLUIDO' ||
+    normalized === 'AGUARDANDO_REVISAO'
+  ) {
+    return normalized;
+  }
+
+  if (normalized === 'EM_EDICAO') {
+    return 'LIBERADO';
+  }
+
+  if (!normalized && isLocked) {
     return 'ENVIADO';
   }
 
@@ -331,13 +345,15 @@ export default async function ClienteTokenPage({ params }) {
 
     repertorio: {
       status: mapStatusToUi(config?.status, config?.is_locked),
+      isLocked: Boolean(config?.is_locked),
       etapasPreenchidas: computeEtapasPreenchidas(config, items),
       totalEtapas: 7,
       liberadoParaEdicao: !config?.is_locked,
       enviadoEm: config?.submitted_at || null,
       linkPreenchimento: `/cliente/${clientToken}/repertorio`,
       linkVisualizacao: `/cliente/${clientToken}/repertorio`,
-      podeSolicitarCorrecao: true,
+      podeSolicitarCorrecao:
+        String(config?.status || '').toUpperCase() !== 'AGUARDANDO_REVISAO',
       temAntessala: Boolean(
         config?.has_ante_room ??
           event?.has_ante_room ??

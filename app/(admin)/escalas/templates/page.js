@@ -1,3 +1,3 @@
 'use client';
 
-export { default } from '@/app/templates-escala/page';
+export { default } from '../../templates-escala/page';

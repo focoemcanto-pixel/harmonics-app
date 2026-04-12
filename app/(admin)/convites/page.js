@@ -2,12 +2,12 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import AdminShell from '../../components/admin/AdminShell';
-import AdminPageHero from '../../components/admin/AdminPageHero';
-import AdminSectionTitle from '../../components/admin/AdminSectionTitle';
-import AdminSummaryCard from '../../components/admin/AdminSummaryCard';
-import { supabase } from '../../lib/supabase';
-import { formatDateBR, formatPhoneDisplay } from '../../lib/eventos/eventos-format';
+import AdminShell from '@/components/admin/AdminShell';
+import AdminPageHero from '@/components/admin/AdminPageHero';
+import AdminSectionTitle from '@/components/admin/AdminSectionTitle';
+import AdminSummaryCard from '@/components/admin/AdminSummaryCard';
+import { supabase } from '@/lib/supabase';
+import { formatDateBR, formatPhoneDisplay } from '@/lib/eventos/eventos-format';
 
 function normalizeInviteStatus(status) {
   const s = String(status || '').trim().toLowerCase();

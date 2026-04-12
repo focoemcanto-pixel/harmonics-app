@@ -1,14 +1,14 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { supabase } from '../../lib/supabase';
-import AdminShell from '../../components/admin/AdminShell';
-import AdminPageHero from '../../components/admin/AdminPageHero';
-import AdminSummaryCard from '../../components/admin/AdminSummaryCard';
-import AdminSegmentTabs from '../../components/admin/AdminSegmentTabs';
-import TemplatesEscalaListaTab from '../../components/templates-escala/TemplatesEscalaListaTab';
-import TemplatesEscalaFormularioTab from '../../components/templates-escala/TemplatesEscalaFormularioTab';
-import { filterOperationalTeamContacts } from '../../lib/escalas/team-contacts';
+import { supabase } from '@/lib/supabase';
+import AdminShell from '@/components/admin/AdminShell';
+import AdminPageHero from '@/components/admin/AdminPageHero';
+import AdminSummaryCard from '@/components/admin/AdminSummaryCard';
+import AdminSegmentTabs from '@/components/admin/AdminSegmentTabs';
+import TemplatesEscalaListaTab from '@/components/templates-escala/TemplatesEscalaListaTab';
+import TemplatesEscalaFormularioTab from '@/components/templates-escala/TemplatesEscalaFormularioTab';
+import { filterOperationalTeamContacts } from '@/lib/escalas/team-contacts';
 
 function getInitialForm() {
   return {

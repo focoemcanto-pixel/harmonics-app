@@ -1,5 +1,5 @@
-import AdminShell from '../../components/admin/AdminShell';
-import SuggestoesPageClient from '../../components/sugestoes/SuggestoesPageClient';
+import AdminShell from '@/components/admin/AdminShell';
+import SuggestoesPageClient from '@/components/sugestoes/SuggestoesPageClient';
 
 export default function SuggestoesPage() {
   return (

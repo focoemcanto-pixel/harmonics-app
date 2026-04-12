@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import Link from 'next/link';
 import AutomationBackLink from '@/components/automacoes/AutomationBackLink';
 
 const EVENT_TYPES = [
@@ -752,12 +753,12 @@ export default function RegrasPageClient() {
           <button onClick={abrirCriarAvancado} className="rounded-full bg-violet-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-violet-700">
             Nova regra avançada
           </button>
-          <a href="/automacoes/templates" className="rounded-full border border-slate-300 px-5 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50">
+          <Link href="/automacoes/templates" className="rounded-full border border-slate-300 px-5 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50">
             Ver templates
-          </a>
-          <a href="/automacoes/logs" className="rounded-full border border-slate-300 px-5 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50">
+          </Link>
+          <Link href="/automacoes/logs" className="rounded-full border border-slate-300 px-5 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50">
             Ver logs
-          </a>
+          </Link>
         </div>
       </section>
 

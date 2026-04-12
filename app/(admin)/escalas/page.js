@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import AdminShell from '@/components/admin/AdminShell';
 import AdminPageHero from '@/components/admin/AdminPageHero';
@@ -399,6 +399,7 @@ export default function EscalasPage() {
   const [eventos, setEventos] = useState([]);
   const [escalas, setEscalas] = useState([]);
   const [invites, setInvites] = useState([]);
+  const loadingRef = useRef(false);
 
   const mobileTabs = [
     { key: 'resumo', label: 'Resumo' },
@@ -415,45 +416,48 @@ export default function EscalasPage() {
     { key: 'convites', label: 'Convites' },
   ];
 
-  async function carregarTudo() {
+  const carregarTudo = useCallback(async () => {
+    if (loadingRef.current) return;
+
     try {
+      loadingRef.current = true;
       setCarregando(true);
       setErro('');
 
-     const [eventosResp, escalasResp, invitesResp] = await Promise.all([
-  supabase
-    .from('events')
-    .select('id, client_name, event_date, event_time, location_name, formation, instruments, status, created_at')
-    .order('event_date', { ascending: true }),
+      const eventosResp = await supabase
+        .from('events')
+        .select(
+          'id, client_name, event_date, event_time, location_name, formation, instruments, status, created_at'
+        )
+        .order('event_date', { ascending: true });
 
-  supabase
-    .from('event_musicians')
-    .select(`
-      id,
-      event_id,
-      musician_id,
-      role,
-      status,
-      notes,
-      confirmed_at,
-      created_at,
-      musician:contacts(id, name, phone, email, tag, category)
-    `)
-    .order('created_at', { ascending: true }),
+      const escalasResp = await supabase
+        .from('event_musicians')
+        .select(`
+          id,
+          event_id,
+          musician_id,
+          role,
+          status,
+          notes,
+          confirmed_at,
+          created_at,
+          musician:contacts(id, name, phone, email, tag, category)
+        `)
+        .order('created_at', { ascending: true });
 
-  supabase
-    .from('invites')
-    .select(`
-      id,
-      event_id,
-      contact_id,
-      suggested_role_name,
-      status,
-      event:events(id, client_name, event_date, event_time, location_name),
-      contact:contacts(id, name, phone, email)
-    `)
-    .order('id', { ascending: false }),
-]);
+      const invitesResp = await supabase
+        .from('invites')
+        .select(`
+          id,
+          event_id,
+          contact_id,
+          suggested_role_name,
+          status,
+          event:events(id, client_name, event_date, event_time, location_name),
+          contact:contacts(id, name, phone, email)
+        `)
+        .order('id', { ascending: false });
 
       if (eventosResp.error) throw eventosResp.error;
       if (escalasResp.error) throw escalasResp.error;
@@ -477,13 +481,14 @@ export default function EscalasPage() {
           : 'Não foi possível carregar o painel de escalas.'
       );
     } finally {
+      loadingRef.current = false;
       setCarregando(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     carregarTudo();
-  }, []);
+  }, [carregarTudo]);
 
   const eventCards = useMemo(() => {
     const escalasByEventId = new Map();

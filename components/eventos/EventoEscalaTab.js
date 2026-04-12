@@ -4,11 +4,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '../../lib/supabase';
 import { diffEscala } from '../../lib/escalas/escalas-sync';
-import {
-  pickBestScaleTemplate,
-  splitCsvLike,
-  normalizeText,
-} from '../../lib/templates-escala/templates-escala-match';
+import { splitCsvLike, normalizeText } from '../../lib/templates-escala/templates-escala-match';
+import { matchTemplatesForEvent } from '../../lib/scale/template-matcher';
 import {
   filterOperationalTeamContacts,
   getRoleInstrumentTagsFromEvent,
@@ -405,6 +402,7 @@ export default function EventoEscalaTab({ eventId }) {
   const [escalaLocal, setEscalaLocal] = useState([]);
   const [templateAplicado, setTemplateAplicado] = useState(null);
   const [templateSugerido, setTemplateSugerido] = useState(null);
+  const [outrasSugestoes, setOutrasSugestoes] = useState([]);
   const [templateSuggestionStrategy, setTemplateSuggestionStrategy] = useState('none');
   const [itensTemplateSugerido, setItensTemplateSugerido] = useState([]);
 
@@ -492,18 +490,27 @@ export default function EventoEscalaTab({ eventId }) {
       let suggestedItems = [];
 
       if (escalaData.length === 0 && eventoData) {
-        const suggestion = pickBestScaleTemplate(
-          templatesResp.data || [],
-          eventoData.formation,
-          eventoData.instruments,
-          getRoleInstrumentTagsFromEvent(eventoData).join(', ')
+        const suggestion = matchTemplatesForEvent(
+          {
+            formation: eventoData.formation,
+            instruments: eventoData.instruments,
+            roleInstrumentTags: getRoleInstrumentTagsFromEvent(eventoData).join(', '),
+          },
+          templatesResp.data || []
         );
-        const bestTemplate = suggestion.template;
+
+        const bestTemplate = suggestion.bestTemplate;
         suggestionStrategy = suggestion.strategy;
 
+        const templateItemsByTemplate = new Map();
+        for (const templateItem of templateItemsResp.data || []) {
+          const key = String(templateItem.template_id || '');
+          if (!templateItemsByTemplate.has(key)) templateItemsByTemplate.set(key, []);
+          templateItemsByTemplate.get(key).push(templateItem);
+        }
+
         if (bestTemplate) {
-          const templateItems = (templateItemsResp.data || [])
-            .filter((item) => String(item.template_id) === String(bestTemplate.id))
+          const templateItems = (templateItemsByTemplate.get(String(bestTemplate.id)) || [])
             .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
 
           const mappedSuggestedItems = templateItems
@@ -529,9 +536,23 @@ export default function EventoEscalaTab({ eventId }) {
             })
             .filter(Boolean);
 
-          templateSugeridoAtual = bestTemplate;
+          templateSugeridoAtual = {
+            ...bestTemplate,
+            match_explanation: suggestion.suggestions?.[0]?.explanation || '',
+            match_score: suggestion.suggestions?.[0]?.score || 0,
+          };
           suggestedItems = mappedSuggestedItems;
         }
+
+        const suggestions = (suggestion.suggestions || []).map((item) => ({
+          ...item.template,
+          match_score: item.score,
+          match_explanation: item.explanation,
+        }));
+
+        setOutrasSugestoes(bestTemplate
+          ? suggestions.filter((item) => String(item.id) !== String(bestTemplate.id)).slice(0, 3)
+          : suggestions.slice(0, 3));
       }
 
       setEvento(eventoData);
@@ -540,6 +561,7 @@ export default function EventoEscalaTab({ eventId }) {
       setEscalaLocal(escalaInicial);
       setTemplateAplicado(templateSelecionado);
       setTemplateSugerido(templateSugeridoAtual);
+      if (escalaData.length > 0) setOutrasSugestoes([]);
       setTemplateSuggestionStrategy(suggestionStrategy);
       setItensTemplateSugerido(suggestedItems);
     } catch (e) {
@@ -824,9 +846,21 @@ export default function EventoEscalaTab({ eventId }) {
     (invitesExistentes || []).map((i) => [String(i.contact_id), i])
   );
 
-  const novosParaCriar = novos.filter(
-    (item) => !inviteMap.has(String(item.musician_id))
-  );
+  const novosParaCriar = [];
+  const existentesParaReativar = [];
+
+  for (const item of novos) {
+    const existing = inviteMap.get(String(item.musician_id));
+    if (!existing) {
+      novosParaCriar.push(item);
+      continue;
+    }
+
+    existentesParaReativar.push({
+      id: existing.id,
+      suggested_role_name: item.role || item.contact_tag_text || null,
+    });
+  }
 
   if (novosParaCriar.length > 0) {
     const invitesPayload = novosParaCriar.map((item) => ({
@@ -845,6 +879,41 @@ export default function EventoEscalaTab({ eventId }) {
       .insert(invitesPayload);
 
     if (insertInviteError) throw insertInviteError;
+  }
+
+  if (existentesParaReativar.length > 0) {
+    const existingIds = existentesParaReativar.map((item) => item.id);
+
+    const { error: reactivateError } = await supabase
+      .from('invites')
+      .update({ status: 'pending', responded_at: null })
+      .in('id', existingIds);
+
+    if (reactivateError) throw reactivateError;
+
+    for (const invite of existentesParaReativar) {
+      const { error: updateRoleError } = await supabase
+        .from('invites')
+        .update({ suggested_role_name: invite.suggested_role_name })
+        .eq('id', invite.id);
+
+      if (updateRoleError) throw updateRoleError;
+    }
+  }
+
+  for (const item of escalaLocal) {
+    const existing = inviteMap.get(String(item.musician_id));
+    if (!existing) continue;
+
+    const shouldRole = item.role || item.contact_tag_text || null;
+    if (String(existing.suggested_role_name || '') === String(shouldRole || '')) continue;
+
+    const { error: roleError } = await supabase
+      .from('invites')
+      .update({ suggested_role_name: shouldRole })
+      .eq('id', existing.id);
+
+    if (roleError) throw roleError;
   }
 
   const removidosIds = removidos.map((item) => item.musician_id);
@@ -1001,12 +1070,15 @@ export default function EventoEscalaTab({ eventId }) {
               {templateSugerido.name}
             </div>
             <div className="mt-1 text-[14px] leading-6 text-violet-700">
-              Estratégia: {templateSuggestionStrategy === 'formation_instruments'
-                ? 'match exato por formação + instrumentos'
-                : templateSuggestionStrategy === 'formation_tags'
-                ? 'match por formação + tags'
-                : 'match por formação e prioridade'}.
+              Estratégia: {templateSuggestionStrategy === 'formation_weighted_score'
+                ? 'formação + score ponderado (fase 2)'
+                : 'match por formação'}.
             </div>
+            {templateSugerido?.match_explanation ? (
+              <div className="mt-3 rounded-[16px] border border-violet-200 bg-white px-4 py-3 text-[13px] font-semibold text-violet-700">
+                Score {templateSugerido.match_score ?? 0}: {templateSugerido.match_explanation}
+              </div>
+            ) : null}
           </div>
         ) : null}
 
@@ -1016,13 +1088,13 @@ export default function EventoEscalaTab({ eventId }) {
               Sem sugestão automática
             </div>
             <div className="mt-1 text-[14px] leading-6 text-amber-800">
-              Não encontramos template compatível para este evento.
+              Nenhum template encontrado para a formação e funções/instrumentos deste evento.
             </div>
             <Link
               href="/escalas/templates"
               className="mt-3 inline-flex rounded-[14px] border border-amber-300 bg-white px-4 py-2 text-[13px] font-black text-amber-800"
             >
-              Criar novo template
+              Criar template a partir deste evento
             </Link>
           </div>
         ) : null}
@@ -1036,6 +1108,34 @@ export default function EventoEscalaTab({ eventId }) {
             >
               Aplicar template sugerido
             </button>
+          ) : null}
+
+          {!editando && escalaSalva.length === 0 && outrasSugestoes.length > 0 ? (
+            <div className="w-full rounded-[18px] border border-[#dbe3ef] bg-white p-4">
+              <div className="text-[12px] font-black uppercase tracking-[0.12em] text-[#64748b]">
+                Outras sugestões
+              </div>
+              <div className="mt-3 space-y-2">
+                {outrasSugestoes.map((suggestion) => (
+                  <div
+                    key={suggestion.id}
+                    className="rounded-[14px] border border-[#e5e7eb] bg-[#f8fafc] px-3 py-2"
+                  >
+                    <div className="text-[14px] font-black text-[#0f172a]">
+                      {suggestion.name}
+                    </div>
+                    <div className="text-[12px] font-semibold text-[#64748b]">
+                      Score {suggestion.match_score ?? 0}
+                    </div>
+                    {suggestion.match_explanation ? (
+                      <div className="mt-1 text-[12px] leading-5 text-[#64748b]">
+                        {suggestion.match_explanation}
+                      </div>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </div>
           ) : null}
 
           {!editando && escalaSalva.length === 0 ? (

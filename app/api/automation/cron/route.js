@@ -29,10 +29,8 @@ export async function GET(request) {
   let workspaceId = null;
 
   try {
-    workspaceId = await getDefaultWorkspace();
-    if (!workspaceId) {
-      throw new Error('Workspace não encontrado');
-    }
+    const workspace = await getDefaultWorkspace();
+    workspaceId = workspace.id;
 
     let totalRules = 0;
     let totalEligible = 0;

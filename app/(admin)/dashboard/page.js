@@ -544,9 +544,9 @@ export default function DashboardPage() {
       setErro('');
 
       const results = await Promise.allSettled([
-        supabase.from('events').select('*').limit(50),
-        supabase.from('contracts').select('*').limit(50),
-        supabase.from('precontracts').select('*').limit(50),
+        supabase.from('events').select('*'),
+        supabase.from('contracts').select('*'),
+        supabase.from('precontracts').select('*'),
         supabase.from('event_musicians').select('*').limit(50),
         supabase.from('repertoire_config').select('*'),
       ]);
@@ -580,15 +580,26 @@ if (repertoireConfigsRes.error) console.warn('[dashboard] repertoire_config falh
       setEventMusicians(eventMusiciansData);
       setRepertoireConfigs(repertoireConfigsData);
 
-      setSummary(
-        buildDashboardSummary(
-          eventsData,
-          contractsData,
-          precontractsData,
-          eventMusiciansData,
-          repertoireConfigsData
-        )
+      const nextSummary = buildDashboardSummary(
+        eventsData,
+        contractsData,
+        precontractsData,
+        eventMusiciansData,
+        repertoireConfigsData
       );
+      setSummary(nextSummary);
+
+      const urgentReview = nextSummary?.revisaoSolicitadaMaisUrgente || null;
+      console.log('[dashboard][revisao-card] total revisoes pendentes:', nextSummary?.revisoesSolicitadas || 0);
+      console.log('[dashboard][revisao-card] item mais urgente:', urgentReview);
+      console.log('[dashboard][revisao-card] event_id escolhido:', urgentReview?.eventId || null);
+      console.log('[dashboard][revisao-card] nome resolvido:', urgentReview?.clientName || null);
+      console.log('[dashboard][revisao-card] data resolvida:', urgentReview?.eventDate || null);
+      console.log('[dashboard][revisao-card] origem nome/data:', {
+        clientNameSource: urgentReview?.clientNameSource || null,
+        eventDateSource: urgentReview?.eventDateSource || null,
+        sourceSnapshot: urgentReview?.sourceSnapshot || null,
+      });
     } catch (error) {
       console.error('Erro ao carregar dashboard:', error);
       setErro(error?.message || 'Não foi possível carregar o dashboard.');

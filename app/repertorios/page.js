@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import AdminShell from '../../components/admin/AdminShell';
 import AdminPageHero from '../../components/admin/AdminPageHero';
 import AdminSectionTitle from '../../components/admin/AdminSectionTitle';
@@ -139,6 +140,7 @@ function RepertoirePill({ tone = 'slate', children }) {
 }
 
 export default function RepertoriosPage() {
+  const searchParams = useSearchParams();
   const [events, setEvents] = useState([]);
   const [configs, setConfigs] = useState([]);
   const [items, setItems] = useState([]);
@@ -154,6 +156,14 @@ export default function RepertoriosPage() {
   const [feedback, setFeedback] = useState(null);
   const [reabrindoId, setReabrindoId] = useState(null);
   const [resumoAbertoId, setResumoAbertoId] = useState(null);
+
+  useEffect(() => {
+    const statusParam = normalizeStatus(searchParams.get('status'));
+
+    if (statusParam === 'AGUARDANDO_REVISAO') {
+      setStatusFiltro('revisao_solicitada');
+    }
+  }, [searchParams]);
 
   async function carregarTudo() {
     const [

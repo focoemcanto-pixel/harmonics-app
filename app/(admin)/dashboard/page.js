@@ -250,6 +250,43 @@ function InsightCard({ insight }) {
   );
 }
 
+function ReviewRequestsAlertCard({ total }) {
+  const linkHref = '/repertorios?status=AGUARDANDO_REVISAO';
+  const title =
+    total === 1 ? '1 revisão solicitada' : `${total} clientes aguardando liberação`;
+  const description =
+    total === 1
+      ? 'Um repertório está aguardando revisão do admin.'
+      : 'Existem repertórios aguardando revisão e liberação.';
+
+  return (
+    <Link
+      href={linkHref}
+      className="group block rounded-[24px] border-2 border-amber-300 bg-gradient-to-r from-amber-50 via-orange-50 to-amber-100 p-5 shadow-[0_12px_28px_rgba(245,158,11,0.14)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_16px_32px_rgba(245,158,11,0.2)]"
+    >
+      <div className="flex items-start gap-4">
+        <div className="mt-0.5 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-amber-200/80 text-amber-800">
+          <AlertTriangleIcon className="h-6 w-6" aria-hidden="true" />
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <p className="text-[11px] font-black uppercase tracking-[0.1em] text-amber-700">
+            Atenção imediata
+          </p>
+          <h2 className="mt-1 text-lg font-black text-amber-950">{title}</h2>
+          <p className="mt-1 text-sm font-semibold text-amber-900/90">
+            {description}
+          </p>
+        </div>
+
+        <div className="rounded-[14px] bg-white/90 px-3 py-2 text-[12px] font-black text-amber-800 transition-colors group-hover:bg-white">
+          Liberar revisão
+        </div>
+      </div>
+    </Link>
+  );
+}
+
 function CheckCircleIcon({ className, ...props }) {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} {...props}>
@@ -919,6 +956,10 @@ if (repertoireConfigsRes.error) console.warn('[dashboard] repertoire_config falh
               <div className="mt-2 text-[11px] font-semibold text-emerald-600">↑ Taxa {completionRate}%</div>
             </div>
           </div>
+
+          {summary?.revisoesSolicitadas > 0 ? (
+            <ReviewRequestsAlertCard total={summary.revisoesSolicitadas} />
+          ) : null}
 
           {/* Ações Rápidas */}
           <div>

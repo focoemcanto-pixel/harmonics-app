@@ -98,6 +98,15 @@ function timeAgo(date) {
   });
 }
 
+function formatEventDate(value) {
+  if (!value) return '--';
+
+  const parsed = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return '--';
+
+  return parsed.toLocaleDateString('pt-BR');
+}
+
 function ActivityItem({ activity }) {
   return (
     <div className="flex items-start gap-3 hover:bg-slate-50 p-2 rounded-lg transition-colors">
@@ -250,14 +259,11 @@ function InsightCard({ insight }) {
   );
 }
 
-function ReviewRequestsAlertCard({ total }) {
+function ReviewRequestsAlertCard({ total, urgentClientName, urgentEventDate }) {
   const linkHref = '/repertorios?status=AGUARDANDO_REVISAO';
-  const title =
-    total === 1 ? '1 revisão solicitada' : `${total} clientes aguardando liberação`;
-  const description =
-    total === 1
-      ? 'Um repertório está aguardando revisão do admin.'
-      : 'Existem repertórios aguardando revisão e liberação.';
+  const title = total === 1 ? '1 revisão solicitada' : `${total} revisões solicitadas`;
+  const urgentClientLabel = urgentClientName || 'Cliente não identificado';
+  const urgentEventLabel = formatEventDate(urgentEventDate);
 
   return (
     <Link
@@ -275,7 +281,10 @@ function ReviewRequestsAlertCard({ total }) {
           </p>
           <h2 className="mt-1 text-lg font-black text-amber-950">{title}</h2>
           <p className="mt-1 text-sm font-semibold text-amber-900/90">
-            {description}
+            Mais urgente: {urgentClientLabel}
+          </p>
+          <p className="mt-1 text-sm font-semibold text-amber-900/90">
+            Evento: {urgentEventLabel}
           </p>
         </div>
 
@@ -958,7 +967,11 @@ if (repertoireConfigsRes.error) console.warn('[dashboard] repertoire_config falh
           </div>
 
           {summary?.revisoesSolicitadas > 0 ? (
-            <ReviewRequestsAlertCard total={summary.revisoesSolicitadas} />
+            <ReviewRequestsAlertCard
+              total={summary.revisoesSolicitadas}
+              urgentClientName={summary?.revisaoSolicitadaMaisUrgente?.clientName}
+              urgentEventDate={summary?.revisaoSolicitadaMaisUrgente?.eventDate}
+            />
           ) : null}
 
           {/* Ações Rápidas */}

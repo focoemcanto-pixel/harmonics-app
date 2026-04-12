@@ -9,6 +9,10 @@ import {
   splitCsvLike,
   normalizeText,
 } from '../../lib/templates-escala/templates-escala-match';
+import {
+  filterOperationalTeamContacts,
+  getRoleInstrumentTagsFromEvent,
+} from '../../lib/escalas/team-contacts';
 
 function formatDateBR(value) {
   if (!value) return '-';
@@ -415,7 +419,11 @@ export default function EventoEscalaTab({ eventId }) {
   const buscaRef = useRef(null);
 
   async function carregarTudo() {
-    if (!eventId) return;
+    if (!eventId) {
+      setCarregando(false);
+      setErro('Evento inválido para carregar a escala.');
+      return;
+    }
 
     try {
       setCarregando(true);
@@ -454,10 +462,12 @@ export default function EventoEscalaTab({ eventId }) {
       if (templateItemsResp.error) throw templateItemsResp.error;
 
       const eventoData = eventoResp.data || null;
-      const contatosData = contatosResp.data || [];
+      const contatosData = filterOperationalTeamContacts(contatosResp.data || []);
       const contatosMap = new Map(contatosData.map((contact) => [String(contact.id), contact]));
 
-      const escalaData = (escalaResp.data || []).map((item) => {
+      const escalaData = (escalaResp.data || [])
+        .filter((item) => contatosMap.has(String(item.musician_id)))
+        .map((item) => {
         const contact = contatosMap.get(String(item.musician_id)) || null;
 
         return {
@@ -486,7 +496,7 @@ export default function EventoEscalaTab({ eventId }) {
           templatesResp.data || [],
           eventoData.formation,
           eventoData.instruments,
-          eventoData.event_type
+          getRoleInstrumentTagsFromEvent(eventoData).join(', ')
         );
         const bestTemplate = suggestion.template;
         suggestionStrategy = suggestion.strategy;

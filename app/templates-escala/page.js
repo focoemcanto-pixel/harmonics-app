@@ -8,6 +8,7 @@ import AdminSummaryCard from '../../components/admin/AdminSummaryCard';
 import AdminSegmentTabs from '../../components/admin/AdminSegmentTabs';
 import TemplatesEscalaListaTab from '../../components/templates-escala/TemplatesEscalaListaTab';
 import TemplatesEscalaFormularioTab from '../../components/templates-escala/TemplatesEscalaFormularioTab';
+import { filterOperationalTeamContacts } from '../../lib/escalas/team-contacts';
 
 function getInitialForm() {
   return {
@@ -80,7 +81,7 @@ export default function TemplatesEscalaPage() {
 
       setTemplates(templatesResp.data || []);
       setTemplateItems(itemsResp.data || []);
-      setContatos(contatosResp.data || []);
+      setContatos(filterOperationalTeamContacts(contatosResp.data || []));
     } catch (error) {
       console.error('Erro ao carregar templates de escala:', error);
       alert(`Erro ao carregar templates: ${error?.message}`);
@@ -118,6 +119,7 @@ export default function TemplatesEscalaPage() {
       .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
       .map((item) => {
         const contato = contatosMap.get(String(item.contact_id)) || null;
+        if (!contato) return null;
 
         return {
           id: item.id,
@@ -129,7 +131,8 @@ export default function TemplatesEscalaPage() {
           phone: contato?.phone || '',
           tag: contato?.tag || '',
         };
-      });
+      })
+      .filter(Boolean);
 
     setEditandoId(template.id);
     setForm({
@@ -195,6 +198,14 @@ export default function TemplatesEscalaPage() {
 
     if (itens.length === 0) {
       alert('Adicione pelo menos um membro ao template.');
+      return;
+    }
+
+    const itensSemFuncao = itens.filter(
+      (item) => !String(item.role || item.tag || '').trim()
+    );
+    if (itensSemFuncao.length > 0) {
+      alert('Todos os membros base precisam ter função/instrumento definido.');
       return;
     }
 
@@ -303,9 +314,11 @@ export default function TemplatesEscalaPage() {
   }, [contatos, itens]);
 
   const templatesComResumo = useMemo(() => {
+    const contatosIds = new Set(contatos.map((c) => String(c.id)));
     const itemsByTemplateId = new Map();
 
     for (const item of templateItems) {
+      if (!contatosIds.has(String(item.contact_id))) continue;
       const key = String(item.template_id);
       if (!itemsByTemplateId.has(key)) itemsByTemplateId.set(key, []);
       itemsByTemplateId.get(key).push(item);
@@ -315,7 +328,7 @@ export default function TemplatesEscalaPage() {
       ...template,
       items_count: itemsByTemplateId.get(String(template.id))?.length || 0,
     }));
-  }, [templates, templateItems]);
+  }, [templates, templateItems, contatos]);
 
   const templatesFiltrados = useMemo(() => {
     const termo = String(busca || '').toLowerCase().trim();

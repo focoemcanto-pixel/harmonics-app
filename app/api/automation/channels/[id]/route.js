@@ -55,8 +55,8 @@ export async function PATCH(request, { params }) {
       supabase_url: supabaseUrl,
       channel_id: id,
       workspace_found: !!workspace,
-      existing_workspace_id: existing.workspace_id || null,
-      resolved_workspace_id: workspace?.id || null,
+      existing_workspace_settings_id: existing.workspace_id || null,
+      resolved_workspace_settings_id: workspace?.id || null,
       operation: 'update',
       payload: {
         ...updates,

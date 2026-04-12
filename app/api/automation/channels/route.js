@@ -68,7 +68,7 @@ export async function POST(request) {
       deploy_sha: process.env.VERCEL_GIT_COMMIT_SHA || process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA || 'unknown',
       supabase_url: supabaseUrl,
       workspace_found: !!workspace,
-      resolved_workspace_id: workspace?.id || null,
+      resolved_workspace_settings_id: workspace?.id || null,
       operation: 'insert',
       payload: {
         ...insertPayload,

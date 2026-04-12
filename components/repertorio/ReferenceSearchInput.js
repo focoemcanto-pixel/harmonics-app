@@ -25,12 +25,28 @@ export default function ReferenceSearchInput({
     setQuery(searchValue || '');
   }, [searchValue]);
 
+  const fallbackVideoId = useMemo(() => getYoutubeVideoId(referenceValue), [referenceValue]);
+
+  const selectedReferenceData = useMemo(() => {
+    const title = selectedReference?.title || selectedReference?.reference_title || '';
+    const channelTitle =
+      selectedReference?.channelTitle || selectedReference?.reference_channel || '';
+    const thumbnail =
+      selectedReference?.thumbnail || selectedReference?.reference_thumbnail || '';
+    const videoId =
+      selectedReference?.videoId || selectedReference?.reference_video_id || fallbackVideoId;
+
+    return { title, channelTitle, thumbnail, videoId };
+  }, [fallbackVideoId, selectedReference]);
+
+  const hasSelectedReference = Boolean(selectedReferenceData.videoId);
+
   useEffect(() => {
-    if (disabled || !autoOpenOnSearchValue) return;
+    if (disabled || !autoOpenOnSearchValue || hasSelectedReference) return;
     if (String(searchValue || '').trim().length >= 2) {
       setIsOpen(true);
     }
-  }, [searchValue, disabled, autoOpenOnSearchValue]);
+  }, [searchValue, disabled, autoOpenOnSearchValue, hasSelectedReference]);
 
   useEffect(() => {
     if (disabled) return undefined;
@@ -77,20 +93,6 @@ export default function ReferenceSearchInput({
     };
   }, [query, isOpen, disabled]);
 
-  const fallbackVideoId = useMemo(() => getYoutubeVideoId(referenceValue), [referenceValue]);
-
-  const selectedReferenceData = useMemo(() => {
-    const title = selectedReference?.title || selectedReference?.reference_title || '';
-    const channelTitle =
-      selectedReference?.channelTitle || selectedReference?.reference_channel || '';
-    const thumbnail =
-      selectedReference?.thumbnail || selectedReference?.reference_thumbnail || '';
-    const videoId =
-      selectedReference?.videoId || selectedReference?.reference_video_id || fallbackVideoId;
-
-    return { title, channelTitle, thumbnail, videoId };
-  }, [fallbackVideoId, selectedReference]);
-
   return (
     <div className="space-y-3">
       <div className="space-y-2">
@@ -107,7 +109,7 @@ export default function ReferenceSearchInput({
             const nextValue = event.target.value;
             setQuery(nextValue);
             onSearchValueChange?.(nextValue);
-            setIsOpen(true);
+            setIsOpen((current) => (hasSelectedReference ? current : true));
           }}
           className="w-full rounded-[16px] border border-[#eadfd6] bg-white px-4 py-4 text-[15px] font-semibold text-[#241a14] outline-none disabled:cursor-not-allowed disabled:bg-[#f4efea] disabled:text-[#a59588]"
         />
@@ -120,7 +122,10 @@ export default function ReferenceSearchInput({
         thumbnail={selectedReferenceData.thumbnail}
         disabled={disabled}
         onReplace={() => setIsOpen(true)}
-        onClear={onClearReference}
+        onClear={() => {
+          onClearReference?.();
+          setIsOpen(true);
+        }}
       />
 
       {isOpen && !disabled ? (
@@ -143,6 +148,9 @@ export default function ReferenceSearchInput({
                   onClick={() => {
                     onSelectResult?.(result);
                     setQuery(result.title || query);
+                    setResults([]);
+                    setError('');
+                    setLoading(false);
                     setIsOpen(false);
                   }}
                   className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition hover:bg-[#f8f4ef]"

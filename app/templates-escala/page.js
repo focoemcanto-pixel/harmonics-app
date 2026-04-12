@@ -14,6 +14,8 @@ function getInitialForm() {
     name: '',
     formation: '',
     instruments: '',
+    compatible_tags: '',
+    suggestion_priority: 100,
     notes: '',
     is_active: true,
   };
@@ -134,6 +136,8 @@ export default function TemplatesEscalaPage() {
       name: template.name || '',
       formation: template.formation || '',
       instruments: template.instruments || '',
+      compatible_tags: template.compatible_tags || '',
+      suggestion_priority: Number(template.suggestion_priority ?? 100),
       notes: template.notes || '',
       is_active: template.is_active !== false,
     });
@@ -201,6 +205,8 @@ export default function TemplatesEscalaPage() {
         name: form.name.trim(),
         formation: form.formation.trim(),
         instruments: form.instruments.trim() || null,
+        compatible_tags: form.compatible_tags.trim() || null,
+        suggestion_priority: Number(form.suggestion_priority || 100),
         notes: form.notes.trim() || null,
         is_active: !!form.is_active,
       };
@@ -274,6 +280,20 @@ export default function TemplatesEscalaPage() {
     } catch (error) {
       console.error('Erro ao excluir template:', error);
       alert(`Erro ao excluir template: ${error?.message}`);
+    }
+  }
+
+  async function alternarStatus(template) {
+    try {
+      const { error } = await supabase
+        .from('scale_templates')
+        .update({ is_active: template.is_active === false })
+        .eq('id', template.id);
+      if (error) throw error;
+      await carregarTudo();
+    } catch (error) {
+      console.error('Erro ao atualizar status do template:', error);
+      alert(`Erro ao atualizar status: ${error?.message}`);
     }
   }
 
@@ -353,7 +373,7 @@ export default function TemplatesEscalaPage() {
 
   if (carregando) {
     return (
-      <AdminShell pageTitle="Templates de escala" activeItem="eventos" mobileActions={mobileActions}>
+      <AdminShell pageTitle="Templates de escala" activeItem="escalas" mobileActions={mobileActions}>
         <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-6 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
           <p className="text-center text-[#64748b]">Carregando templates...</p>
         </section>
@@ -362,7 +382,7 @@ export default function TemplatesEscalaPage() {
   }
 
   return (
-    <AdminShell pageTitle="Templates de escala" activeItem="eventos" mobileActions={mobileActions}>
+    <AdminShell pageTitle="Templates de escala" activeItem="escalas" mobileActions={mobileActions}>
       <div className="space-y-5">
         <AdminPageHero
           badge="Harmonics Admin"
@@ -423,6 +443,7 @@ export default function TemplatesEscalaPage() {
               formations={FORMATIONS}
               iniciarEdicao={iniciarEdicao}
               excluirTemplate={excluirTemplate}
+              alternarStatus={alternarStatus}
             />
           )}
 
@@ -461,6 +482,7 @@ export default function TemplatesEscalaPage() {
               formations={FORMATIONS}
               iniciarEdicao={iniciarEdicao}
               excluirTemplate={excluirTemplate}
+              alternarStatus={alternarStatus}
             />
           )}
 

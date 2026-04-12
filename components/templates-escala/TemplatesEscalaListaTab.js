@@ -37,7 +37,7 @@ function EmptyState() {
   );
 }
 
-function TemplateCard({ template, iniciarEdicao, excluirTemplate }) {
+function TemplateCard({ template, iniciarEdicao, excluirTemplate, alternarStatus }) {
   const ativo = template.is_active !== false;
 
   return (
@@ -65,6 +65,14 @@ function TemplateCard({ template, iniciarEdicao, excluirTemplate }) {
 
           <button
             type="button"
+            onClick={() => alternarStatus(template)}
+            className="rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3 text-[14px] font-black text-[#0f172a]"
+          >
+            {ativo ? 'Desativar' : 'Ativar'}
+          </button>
+
+          <button
+            type="button"
             onClick={() => excluirTemplate(template.id)}
             className="rounded-[16px] bg-red-600 px-4 py-3 text-[14px] font-black text-white"
           >
@@ -73,7 +81,7 @@ function TemplateCard({ template, iniciarEdicao, excluirTemplate }) {
         </div>
       </div>
 
-      <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-[18px] border border-[#eef2f7] bg-[#f8fafc] px-4 py-4">
           <div className="text-[11px] font-black uppercase tracking-[0.08em] text-[#64748b]">
             Formação
@@ -100,7 +108,25 @@ function TemplateCard({ template, iniciarEdicao, excluirTemplate }) {
             {template.items_count || 0}
           </div>
         </div>
+
+        <div className="rounded-[18px] border border-[#eef2f7] bg-[#f8fafc] px-4 py-4">
+          <div className="text-[11px] font-black uppercase tracking-[0.08em] text-[#64748b]">
+            Prioridade
+          </div>
+          <div className="mt-2 text-[15px] font-semibold text-[#0f172a]">
+            {template.suggestion_priority ?? 100}
+          </div>
+        </div>
       </div>
+
+      {template.compatible_tags ? (
+        <div className="mt-4 rounded-[18px] border border-[#eef2f7] bg-white px-4 py-4">
+          <div className="text-[11px] font-black uppercase tracking-[0.08em] text-[#64748b]">
+            Tags compatíveis
+          </div>
+          <div className="mt-2 text-[14px] leading-7 text-[#64748b]">{template.compatible_tags}</div>
+        </div>
+      ) : null}
 
       {template.notes ? (
         <div className="mt-4 rounded-[18px] border border-[#eef2f7] bg-white px-4 py-4">
@@ -127,6 +153,7 @@ export default function TemplatesEscalaListaTab({
   formations,
   iniciarEdicao,
   excluirTemplate,
+  alternarStatus,
 }) {
   return (
     <section className="space-y-5">
@@ -177,6 +204,7 @@ export default function TemplatesEscalaListaTab({
               template={template}
               iniciarEdicao={iniciarEdicao}
               excluirTemplate={excluirTemplate}
+              alternarStatus={alternarStatus}
             />
           ))}
         </div>

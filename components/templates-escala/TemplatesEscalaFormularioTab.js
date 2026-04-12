@@ -135,6 +135,24 @@ export default function TemplatesEscalaFormularioTab({
             />
           </Field>
 
+          <Field label="Tags compatíveis">
+            <Input
+              value={form.compatible_tags || ''}
+              onChange={(e) => handleFormChange('compatible_tags', e.target.value)}
+              placeholder="Ex.: casamento, cerimônia clássica, corporativo"
+            />
+          </Field>
+
+          <Field label="Prioridade da sugestão">
+            <Input
+              type="number"
+              min="1"
+              value={form.suggestion_priority ?? 100}
+              onChange={(e) => handleFormChange('suggestion_priority', e.target.value)}
+              placeholder="100"
+            />
+          </Field>
+
           <div className="rounded-[22px] border border-[#dbe3ef] bg-[#f8fafc] p-4">
             <label className="flex items-start gap-3">
               <input

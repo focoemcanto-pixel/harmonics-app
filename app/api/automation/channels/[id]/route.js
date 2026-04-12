@@ -2,12 +2,16 @@ import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { getDefaultWorkspace } from '@/lib/automation/get-workspace';
 
+const SAVE_CHANNELS_AUDIT_VERSION = '2026-04-12-audit-v2';
+
 export async function PATCH(request, { params }) {
   try {
     const { id } = await params;
     const body = await request.json();
 
     const supabaseAdmin = getSupabaseAdmin();
+    const workspace = await getDefaultWorkspace();
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'missing';
 
     const { data: existing, error: findError } = await supabaseAdmin
       .from('whatsapp_channels')
@@ -43,16 +47,29 @@ export async function PATCH(request, { params }) {
       }
     }
 
+    updates.workspace_id = workspace.id;
+
+    console.info('[PATCH /api/automation/channels/:id] save-audit:start', {
+      audit_version: SAVE_CHANNELS_AUDIT_VERSION,
+      deploy_sha: process.env.VERCEL_GIT_COMMIT_SHA || process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA || 'unknown',
+      supabase_url: supabaseUrl,
+      channel_id: id,
+      workspace_found: !!workspace,
+      existing_workspace_id: existing.workspace_id || null,
+      resolved_workspace_id: workspace?.id || null,
+      operation: 'update',
+      payload: {
+        ...updates,
+        api_key: updates.api_key ? '[REDACTED]' : updates.api_key,
+      },
+    });
+
     if (updates.is_default === true) {
-      const workspace = await getDefaultWorkspace();
-      const wsId = existing.workspace_id || workspace.id;
-      if (wsId) {
-        await supabaseAdmin
-          .from('whatsapp_channels')
-          .update({ is_default: false })
-          .eq('workspace_id', wsId)
-          .neq('id', id);
-      }
+      await supabaseAdmin
+        .from('whatsapp_channels')
+        .update({ is_default: false })
+        .eq('workspace_id', workspace.id)
+        .neq('id', id);
     }
 
     const { data, error } = await supabaseAdmin

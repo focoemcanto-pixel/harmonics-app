@@ -4,6 +4,15 @@ import { getDefaultWorkspace } from '@/lib/automation/get-workspace';
 
 const DEFAULT_LIMIT = 100;
 
+function normalizeStatusFilter(rawStatus) {
+  const value = String(rawStatus || '').toLowerCase().trim();
+  if (!value) return '';
+  if (value === 'success') return 'sent';
+  if (value === 'error' || value === 'failure') return 'failed';
+  if (value === 'ignored') return 'skipped';
+  return value;
+}
+
 export async function GET(request) {
   try {
     const supabaseAdmin = getSupabaseAdmin();
@@ -11,7 +20,7 @@ export async function GET(request) {
 
     const { searchParams } = new URL(request.url);
 
-    const status = searchParams.get('status');
+    const status = normalizeStatusFilter(searchParams.get('status'));
     const recipient = searchParams.get('recipient');
     const ruleId = searchParams.get('rule_id');
     const dateFrom = searchParams.get('date_from');
@@ -68,6 +77,21 @@ export async function GET(request) {
       console.error('[GET /api/automation/logs] Supabase error:', error);
       throw error;
     }
+
+    console.info('[GET /api/automation/logs] logs_loaded', {
+      workspaceId: workspace.id,
+      filters: {
+        status: status || null,
+        recipient: recipient || null,
+        ruleId: ruleId || null,
+        source: source || null,
+        dateFrom: dateFrom || null,
+        dateTo: dateTo || null,
+        sort: sortParam || 'desc',
+        limit,
+      },
+      count: data?.length || 0,
+    });
 
     return NextResponse.json({
       ok: true,

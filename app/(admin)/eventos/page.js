@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { generatePrecontractFromEvent } from '@/lib/contracts/generate-precontract-from-event';
 import AdminShell from '@/components/admin/AdminShell';
@@ -16,7 +17,6 @@ import EventosOperacaoTab from '@/components/eventos/EventosOperacaoTab';
 import EventosResumoTab from '@/components/eventos/EventosResumoTab';
 import EventosPricingTab from '@/components/eventos/EventosPricingTab';
 import EventosFormularioTab from '@/components/eventos/EventosFormularioTab';
-import EventoEscalaTab from '@/components/eventos/EventoEscalaTab';
 import {
   isContratoPendente,
   isFinanceiroPendente,
@@ -175,6 +175,7 @@ function FeedbackBanner({ feedback, onClose }) {
 }
 
 export default function EventosPage() {
+  const router = useRouter();
   const [eventos, setEventos] = useState([]);
   const [editandoId, setEditandoId] = useState(null);
   const [salvando, setSalvando] = useState(false);
@@ -203,8 +204,6 @@ export default function EventosPage() {
   const [form, setForm] = useState(getInitialForm());
   const [mobileTab, setMobileTab] = useState('resumo');
   const [desktopTab, setDesktopTab] = useState('visao');
-  const [escalaAberta, setEscalaAberta] = useState(false);
-  const [eventoEscala, setEventoEscala] = useState(null);
 
   async function carregarEventos() {
     try {
@@ -308,12 +307,6 @@ export default function EventosPage() {
 
     if (!error) setContatos(data || []);
   }
-
-  useEffect(() => {
-    return () => {
-      document.body.style.overflow = '';
-    };
-  }, []);
 
   useEffect(() => {
     async function carregar() {
@@ -519,15 +512,8 @@ export default function EventosPage() {
   }
 
   function abrirEscala(evento) {
-    setEventoEscala(evento);
-    setEscalaAberta(true);
-    document.body.style.overflow = 'hidden';
-  }
-
-  function fecharEscala() {
-    setEscalaAberta(false);
-    setEventoEscala(null);
-    document.body.style.overflow = '';
+    if (!evento?.id) return;
+    router.push(`/eventos/${evento.id}?tab=escala`);
   }
 
   const financial = useMemo(() => {
@@ -1307,45 +1293,6 @@ export default function EventosPage() {
         </div>
       </div>
 
-      {escalaAberta && eventoEscala ? (
-        <div className="fixed inset-0 z-[120] bg-black/40 backdrop-blur-[2px]">
-          <div className="flex min-h-screen items-stretch justify-center md:p-6">
-            <div className="flex min-h-screen w-full flex-col overflow-hidden bg-white md:min-h-0 md:max-h-[92vh] md:max-w-4xl md:rounded-[28px] md:border md:border-[#dbe3ef] md:shadow-[0_25px_60px_rgba(15,23,42,0.18)]">
-              <div className="sticky top-0 z-10 border-b border-[#e6ebf2] bg-white px-5 py-4 md:px-6 md:py-5">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <h2 className="text-[32px] font-black tracking-[-0.04em] text-[#0f172a]">
-                      Escala
-                    </h2>
-
-                    <div className="mt-2 text-[15px] font-semibold leading-7 text-[#64748b] md:text-[16px]">
-                      {formatDateBR(eventoEscala.event_date)} • {String(eventoEscala.event_time || '-').slice(0, 5)} • {eventoEscala.client_name || 'Evento'}
-                      {eventoEscala.location_name ? ` • ${eventoEscala.location_name}` : ''}
-                    </div>
-
-                    <div className="mt-2 text-[15px] font-semibold leading-7 text-[#64748b] md:text-[16px]">
-                      {eventoEscala.formation || 'Sem formação definida'}
-                      {eventoEscala.instruments ? ` — ${eventoEscala.instruments}` : ''}
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={fecharEscala}
-                    className="shrink-0 rounded-[18px] bg-[#f1f5f9] px-5 py-3 text-[15px] font-black text-[#0f172a]"
-                  >
-                    Fechar
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex-1 overflow-y-auto px-5 py-5 md:px-6 md:py-6">
-                <EventoEscalaTab eventId={eventoEscala.id} />
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : null}
     </AdminShell>
   );
 }

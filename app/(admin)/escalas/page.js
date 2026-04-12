@@ -339,7 +339,7 @@ function EventScaleCard({ card }) {
 
       <div className="mt-5 flex flex-wrap gap-3">
         <Link
-          href={`/eventos/${card.eventId}`}
+          href={`/eventos/${card.eventId}?tab=escala`}
           className="rounded-[18px] bg-violet-600 px-5 py-3 text-[14px] font-black text-white shadow-[0_12px_28px_rgba(124,58,237,0.18)]"
         >
           Abrir evento
@@ -744,6 +744,13 @@ export default function EscalasPage() {
           subtitle="Acompanhe a saúde das equipes, identifique pendências e aja rápido nos eventos que precisam de atenção."
           actions={
             <div className="flex flex-wrap gap-3">
+              <Link
+                href="/escalas/templates"
+                className="rounded-[18px] border border-[#dbe3ef] bg-white px-5 py-4 text-[14px] font-black text-[#0f172a]"
+              >
+                Templates
+              </Link>
+
               <Link
                 href="/eventos"
                 className="rounded-[18px] border border-[#dbe3ef] bg-white px-5 py-4 text-[14px] font-black text-[#0f172a]"

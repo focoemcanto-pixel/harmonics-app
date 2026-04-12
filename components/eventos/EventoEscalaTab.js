@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import { supabase } from '../../lib/supabase';
 import { diffEscala } from '../../lib/escalas/escalas-sync';
 import {
@@ -209,7 +210,7 @@ function CoveragePill({ label, tone = 'default' }) {
 
   return (
     <span
-      className={`inline-flex rounded-full border px-3 py-1.5 text-[12px] font-black ${tones[tone] || tones.default}`}
+      className={`inline-flex max-w-full min-w-0 whitespace-normal break-words rounded-full border px-3 py-1.5 text-[12px] font-black leading-5 ${tones[tone] || tones.default}`}
     >
       {label}
     </span>
@@ -399,6 +400,9 @@ export default function EventoEscalaTab({ eventId }) {
   const [escalaSalva, setEscalaSalva] = useState([]);
   const [escalaLocal, setEscalaLocal] = useState([]);
   const [templateAplicado, setTemplateAplicado] = useState(null);
+  const [templateSugerido, setTemplateSugerido] = useState(null);
+  const [templateSuggestionStrategy, setTemplateSuggestionStrategy] = useState('none');
+  const [itensTemplateSugerido, setItensTemplateSugerido] = useState([]);
 
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
@@ -473,20 +477,26 @@ export default function EventoEscalaTab({ eventId }) {
 
       let escalaInicial = escalaData;
       let templateSelecionado = null;
+      let templateSugeridoAtual = null;
+      let suggestionStrategy = 'none';
+      let suggestedItems = [];
 
       if (escalaData.length === 0 && eventoData) {
-        const bestTemplate = pickBestScaleTemplate(
+        const suggestion = pickBestScaleTemplate(
           templatesResp.data || [],
           eventoData.formation,
-          eventoData.instruments
+          eventoData.instruments,
+          eventoData.event_type
         );
+        const bestTemplate = suggestion.template;
+        suggestionStrategy = suggestion.strategy;
 
         if (bestTemplate) {
           const templateItems = (templateItemsResp.data || [])
             .filter((item) => String(item.template_id) === String(bestTemplate.id))
             .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
 
-          const suggestedItems = templateItems
+          const mappedSuggestedItems = templateItems
             .map((item) => {
               const contact = contatosMap.get(String(item.contact_id)) || null;
               if (!contact) return null;
@@ -509,10 +519,8 @@ export default function EventoEscalaTab({ eventId }) {
             })
             .filter(Boolean);
 
-          if (suggestedItems.length > 0) {
-            escalaInicial = suggestedItems;
-            templateSelecionado = bestTemplate;
-          }
+          templateSugeridoAtual = bestTemplate;
+          suggestedItems = mappedSuggestedItems;
         }
       }
 
@@ -521,6 +529,9 @@ export default function EventoEscalaTab({ eventId }) {
       setEscalaSalva(escalaData);
       setEscalaLocal(escalaInicial);
       setTemplateAplicado(templateSelecionado);
+      setTemplateSugerido(templateSugeridoAtual);
+      setTemplateSuggestionStrategy(suggestionStrategy);
+      setItensTemplateSugerido(suggestedItems);
     } catch (e) {
       console.error('Erro ao carregar escala do evento:', e);
       setErro(
@@ -692,6 +703,24 @@ export default function EventoEscalaTab({ eventId }) {
     setBusca('');
     setSucesso('');
     setEditando(true);
+  }
+
+  function aplicarTemplateSugerido() {
+    if (!templateSugerido || itensTemplateSugerido.length === 0) return;
+    setEscalaLocal([...itensTemplateSugerido]);
+    setTemplateAplicado(templateSugerido);
+    setTemplateSugerido(null);
+    setEditando(true);
+    setSucesso('');
+  }
+
+  function iniciarMontagemManual() {
+    setTemplateAplicado(null);
+    setTemplateSugerido(null);
+    setEscalaLocal([]);
+    setEditando(true);
+    setBusca('');
+    setSucesso('');
   }
 
   function cancelarEdicao() {
@@ -953,14 +982,69 @@ export default function EventoEscalaTab({ eventId }) {
           </div>
         ) : null}
 
+        {!editando && escalaSalva.length === 0 && templateSugerido ? (
+          <div className="mt-5 rounded-[22px] border border-violet-200 bg-violet-50 px-4 py-4">
+            <div className="text-[12px] font-black uppercase tracking-[0.08em] text-violet-700">
+              Template sugerido automaticamente
+            </div>
+            <div className="mt-1 text-[15px] font-semibold text-violet-800">
+              {templateSugerido.name}
+            </div>
+            <div className="mt-1 text-[14px] leading-6 text-violet-700">
+              Estratégia: {templateSuggestionStrategy === 'formation_instruments'
+                ? 'match exato por formação + instrumentos'
+                : templateSuggestionStrategy === 'formation_tags'
+                ? 'match por formação + tags'
+                : 'match por formação e prioridade'}.
+            </div>
+          </div>
+        ) : null}
+
+        {!editando && escalaSalva.length === 0 && !templateSugerido ? (
+          <div className="mt-5 rounded-[22px] border border-amber-200 bg-amber-50 px-4 py-4">
+            <div className="text-[12px] font-black uppercase tracking-[0.08em] text-amber-700">
+              Sem sugestão automática
+            </div>
+            <div className="mt-1 text-[14px] leading-6 text-amber-800">
+              Não encontramos template compatível para este evento.
+            </div>
+            <Link
+              href="/escalas/templates"
+              className="mt-3 inline-flex rounded-[14px] border border-amber-300 bg-white px-4 py-2 text-[13px] font-black text-amber-800"
+            >
+              Criar novo template
+            </Link>
+          </div>
+        ) : null}
+
         <div className="mt-5 flex flex-wrap gap-3">
+          {!editando && escalaSalva.length === 0 && templateSugerido && itensTemplateSugerido.length > 0 ? (
+            <button
+              type="button"
+              onClick={aplicarTemplateSugerido}
+              className="rounded-[18px] bg-violet-600 px-5 py-3 text-[14px] font-black text-white shadow-[0_12px_28px_rgba(124,58,237,0.18)] transition hover:translate-y-[-1px]"
+            >
+              Aplicar template sugerido
+            </button>
+          ) : null}
+
+          {!editando && escalaSalva.length === 0 ? (
+            <button
+              type="button"
+              onClick={iniciarMontagemManual}
+              className="rounded-[18px] border border-[#dbe3ef] bg-white px-5 py-3 text-[14px] font-black text-[#0f172a] transition hover:bg-[#f8fafc]"
+            >
+              Montagem manual
+            </button>
+          ) : null}
+
           {!editando ? (
             <button
               type="button"
               onClick={iniciarEdicao}
               className="rounded-[18px] bg-violet-600 px-5 py-3 text-[14px] font-black text-white shadow-[0_12px_28px_rgba(124,58,237,0.18)] transition hover:translate-y-[-1px]"
             >
-              {escalaParaExibir.length > 0 ? 'Editar escala' : 'Montar escala'}
+              {escalaParaExibir.length > 0 ? 'Editar escala' : 'Ajustar escala'}
             </button>
           ) : (
             <div className="rounded-[18px] border border-violet-200 bg-violet-50 px-4 py-3 text-[13px] font-black text-violet-700">
@@ -1012,12 +1096,12 @@ export default function EventoEscalaTab({ eventId }) {
           />
         </div>
 
-        <div className="mt-5 grid gap-4 xl:grid-cols-3">
-          <div className="rounded-[24px] border border-emerald-200 bg-emerald-50 p-4">
+        <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="min-w-0 rounded-[24px] border border-emerald-200 bg-emerald-50 p-4">
             <div className="text-[12px] font-black uppercase tracking-[0.1em] text-emerald-700">
               Cobertos
             </div>
-            <div className="mt-3 flex flex-wrap gap-2">
+            <div className="mt-3 flex min-w-0 flex-wrap gap-2">
               {coverage.covered.length > 0 ? (
                 coverage.covered.map((item) => (
                   <CoveragePill key={`covered-${item}`} label={item} tone="covered" />
@@ -1028,11 +1112,11 @@ export default function EventoEscalaTab({ eventId }) {
             </div>
           </div>
 
-          <div className="rounded-[24px] border border-amber-200 bg-amber-50 p-4">
+          <div className="min-w-0 rounded-[24px] border border-amber-200 bg-amber-50 p-4">
             <div className="text-[12px] font-black uppercase tracking-[0.1em] text-amber-700">
               Cobertura frágil
             </div>
-            <div className="mt-3 flex flex-wrap gap-2">
+            <div className="mt-3 flex min-w-0 flex-wrap gap-2">
               {coverage.pending.length > 0 ? (
                 coverage.pending.map((item) => (
                   <CoveragePill key={`pending-${item}`} label={item} tone="pending" />
@@ -1043,11 +1127,11 @@ export default function EventoEscalaTab({ eventId }) {
             </div>
           </div>
 
-          <div className="rounded-[24px] border border-red-200 bg-red-50 p-4">
+          <div className="min-w-0 rounded-[24px] border border-red-200 bg-red-50 p-4">
             <div className="text-[12px] font-black uppercase tracking-[0.1em] text-red-700">
               Faltando
             </div>
-            <div className="mt-3 flex flex-wrap gap-2">
+            <div className="mt-3 flex min-w-0 flex-wrap gap-2">
               {coverage.missing.length > 0 ? (
                 coverage.missing.map((item) => (
                   <CoveragePill key={`missing-${item}`} label={item} tone="missing" />

@@ -24,12 +24,17 @@ function formatRepertoireStatus(status, isLocked) {
   return status || 'Em edição';
 }
 
+function isReviewRequestedStatus(status) {
+  const s = normalizeStatus(status);
+  return s === 'REVISAO_SOLICITADA' || s === 'REVIEW_REQUESTED';
+}
+
 function getRepertoireTone(status, isLocked) {
   const s = normalizeStatus(status);
 
+  if (isReviewRequestedStatus(s)) return 'amber';
   if (s === 'FINALIZADO' || isLocked) return 'emerald';
   if (s === 'REABERTO') return 'violet';
-  if (s === 'REVISAO_SOLICITADA' || s === 'REVIEW_REQUESTED') return 'amber';
   if (s === 'NAO_INICIADO') return 'slate';
 
   return 'blue';
@@ -306,6 +311,8 @@ export default function RepertoriosPage() {
         statusFiltro === 'todos' ||
         (statusFiltro === 'nao_iniciado' && normalizedStatus === 'NAO_INICIADO') ||
         (statusFiltro === 'reaberto' && normalizedStatus === 'REABERTO') ||
+        (statusFiltro === 'revisao_solicitada' &&
+          isReviewRequestedStatus(normalizedStatus)) ||
         (statusFiltro === 'finalizado' && (normalizedStatus === 'FINALIZADO' || entry.config.is_locked)) ||
         (statusFiltro === 'aberto' && !entry.config.is_locked);
 
@@ -323,8 +330,11 @@ export default function RepertoriosPage() {
     const reabertos = repertorios.filter(
       (r) => normalizeStatus(r.config.status) === 'REABERTO'
     ).length;
+    const revisoesSolicitadas = repertorios.filter((r) =>
+      isReviewRequestedStatus(r.config.status)
+    ).length;
 
-    return { total, aguardando, finalizados, reabertos };
+    return { total, aguardando, finalizados, reabertos, revisoesSolicitadas };
   }, [repertorios]);
 
   async function liberarEdicao(entry) {
@@ -410,6 +420,12 @@ export default function RepertoriosPage() {
             helper="Liberados novamente pelo admin"
             tone="accent"
           />
+          <AdminSummaryCard
+            label="Revisão solicitada"
+            value={String(resumo.revisoesSolicitadas)}
+            helper="Clientes aguardando liberação"
+            tone="warning"
+          />
         </div>
 
         <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-6 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
@@ -435,6 +451,7 @@ export default function RepertoriosPage() {
               <option value="nao_iniciado">Não iniciado</option>
               <option value="aberto">Abertos</option>
               <option value="reaberto">Reabertos</option>
+              <option value="revisao_solicitada">Revisão solicitada</option>
               <option value="finalizado">Finalizados</option>
             </select>
 
@@ -469,6 +486,7 @@ export default function RepertoriosPage() {
                 const contractLabel = formatContractLabel(entry.contractInfo?.status);
                 const contractTone = getContractTone(entry.contractInfo?.status);
                 const resumoAberto = resumoAbertoId === entry.config.id;
+                const hasReviewRequested = isReviewRequestedStatus(entry.config.status);
                 const painelToken = entry.client_public_token || '';
                 const painelUrl = painelToken
                   ? `/cliente/${painelToken}`
@@ -488,6 +506,12 @@ export default function RepertoriosPage() {
                   >
                     <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                       <div className="min-w-0">
+                        {hasReviewRequested ? (
+                          <div className="mb-3 rounded-[16px] border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] font-black uppercase tracking-[0.08em] text-amber-800">
+                            ⚠️ Cliente solicitou edição • aguardando liberação do admin
+                          </div>
+                        ) : null}
+
                         <div className="text-[20px] font-black tracking-[-0.03em] text-[#0f172a]">
                           {entry.event.client_name || 'Evento sem cliente'}
                         </div>

@@ -1009,8 +1009,8 @@ function MiniStep({
   );
 }
 
-function RepertorioTab({ data, selectedSongs, onSaved }) {
-    const { showToast } = useToast();
+function RepertorioTab({ data, selectedSongs, onSaved, onReviewRequested }) {
+  const { showToast } = useToast();
   const travado = ['ENVIADO', 'ENVIADO_TRANCADO', 'FINALIZADO', 'CONCLUIDO'].includes(
     String(data.repertorio.status || '').toUpperCase()
   );
@@ -1700,9 +1700,6 @@ async function saveRepertorio(mode = 'draft') {
       result,
     });
 
-    if (mode === 'final') {
-      window.location.reload();
-    }
   } catch (error) {
     console.error('Erro ao salvar repertório:', error);
     showToast(
@@ -1726,8 +1723,10 @@ async function handleRequestReview() {
       method: 'POST',
     });
 
-    if (!res.ok) throw new Error();
+    const result = await res.json();
+    if (!res.ok || !result?.ok) throw new Error(result?.error || 'Erro ao solicitar revisão');
 
+    onReviewRequested?.(result);
     alert('Pedido de revisão enviado com sucesso!');
   } catch {
     alert('Erro ao solicitar revisão');
@@ -4178,6 +4177,7 @@ function EmptyStateCard({ title, text }) {
 }
 
 export default function ClienteHome({ data, initialTab = 'inicio' }) {
+  const [panelData, setPanelData] = useState(data);
   const [activeTab, setActiveTab] = useState(initialTab);
   const [selectedSongs, setSelectedSongs] = useState([]);
   const [favoriteSongIds, setFavoriteSongIds] = useState([]);
@@ -4185,19 +4185,67 @@ export default function ClienteHome({ data, initialTab = 'inicio' }) {
     data?.financeiro?.historico || []
   );
 
-    useEffect(() => {
-    setActiveTab(initialTab || 'inicio');
-  }, [initialTab]);
+  const handleRepertorioSaved = useCallback(
+    ({ mode, result }) => {
+      if (!result?.ok) return;
 
-  if (!data) {
+      setPanelData((prev) => {
+        if (!prev) return prev;
+
+        const nextStatus = result?.status || prev.repertorio?.status || '';
+        const isFinalized =
+          mode === 'final' ||
+          result?.locked === true ||
+          String(nextStatus || '').trim().toUpperCase() === 'ENVIADO';
+
+        return {
+          ...prev,
+          repertorio: {
+            ...prev.repertorio,
+            status: nextStatus,
+            liberadoParaEdicao: !isFinalized,
+            enviadoEm: isFinalized
+              ? new Date().toISOString()
+              : prev.repertorio?.enviadoEm || null,
+            pdfUrl:
+              prev.repertorio?.pdfUrl ||
+              (prev.token ? `/api/cliente/repertorio/pdf/${prev.token}` : ''),
+            podeSolicitarCorrecao: isFinalized,
+          },
+        };
+      });
+
+      if (mode === 'final') {
+        setActiveTab('repertorio');
+      }
+    },
+    []
+  );
+
+  const handleReviewRequested = useCallback(() => {
+    setPanelData((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        repertorio: {
+          ...prev.repertorio,
+          status: 'REVIEW_REQUESTED',
+          liberadoParaEdicao: false,
+          podeSolicitarCorrecao: false,
+        },
+      };
+    });
+  }, []);
+
+  if (!panelData) {
     return <ClienteLoadingScreen />;
   }
 
-  if (data.invalid) {
+  if (panelData.invalid) {
     return <ClienteInvalidScreen />;
   }
 
-  if (data.blocked) {
+  if (panelData.blocked) {
     return <ClienteBlockedScreen />;
   }
 
@@ -4210,7 +4258,7 @@ export default function ClienteHome({ data, initialTab = 'inicio' }) {
           </div>
 
           <div className="mt-4 text-[28px] font-black leading-tight">
-            {data.eventoTitulo || 'Seu evento'}
+            {panelData.eventoTitulo || 'Seu evento'}
           </div>
 
           <div className="mt-2 text-[15px] font-medium leading-6 text-white/80">
@@ -4218,9 +4266,9 @@ export default function ClienteHome({ data, initialTab = 'inicio' }) {
           </div>
 
           <div className="mt-5 flex flex-wrap items-center gap-2">
-            <StatusPill label={data.statusContrato || 'Em andamento'} tone="success" />
+            <StatusPill label={panelData.statusContrato || 'Em andamento'} tone="success" />
             <div className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[12px] font-bold text-white/90">
-              📅 {formatLongDateBR(data.dataEvento)}
+              📅 {formatLongDateBR(panelData.dataEvento)}
             </div>
           </div>
 
@@ -4228,14 +4276,14 @@ export default function ClienteHome({ data, initialTab = 'inicio' }) {
             <div className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-white/70">
               Cliente
             </div>
-            <div className="mt-1 text-[18px] font-black">{data.clienteNome}</div>
+            <div className="mt-1 text-[18px] font-black">{panelData.clienteNome}</div>
           </div>
         </section>
 
         <div className="mt-4">
           {activeTab === 'inicio' && (
             <InicioTab
-              data={data}
+              data={panelData}
               setActiveTab={setActiveTab}
               selectedSongs={selectedSongs}
             />
@@ -4243,11 +4291,10 @@ export default function ClienteHome({ data, initialTab = 'inicio' }) {
 
           {activeTab === 'repertorio' && (
             <RepertorioTab
-              data={data}
+              data={panelData}
               selectedSongs={selectedSongs}
-              onSaved={({ mode }) => {
-                if (mode === 'final') return;
-              }}
+              onSaved={handleRepertorioSaved}
+              onReviewRequested={handleReviewRequested}
             />
           )}
 
@@ -4262,7 +4309,7 @@ export default function ClienteHome({ data, initialTab = 'inicio' }) {
 
           {activeTab === 'financeiro' && (
             <FinanceiroTab
-              data={data}
+              data={panelData}
               paymentHistory={paymentHistory}
               setPaymentHistory={setPaymentHistory}
             />

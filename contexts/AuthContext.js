@@ -1,47 +1,18 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 
-const AuthContext = createContext({});
+const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [initialized, setInitialized] = useState(false);
+  const [authError, setAuthError] = useState(null);
 
-  useEffect(() => {
-    checkUser();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (session?.user) {
-          await loadProfile(session.user);
-        } else {
-          setUser(null);
-          setProfile(null);
-        }
-        setLoading(false);
-      }
-    );
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  async function checkUser() {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        await loadProfile(session.user);
-      }
-    } catch (error) {
-      console.error('Erro ao verificar sessão:', error);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function loadProfile(user) {
+  const loadProfile = useCallback(async (user) => {
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -53,14 +24,77 @@ export function AuthProvider({ children }) {
 
       setUser(user);
       setProfile(data);
+      setAuthError(null);
+      console.info('[Auth] perfil resolvido', {
+        userId: user?.id || null,
+        role: data?.role || null,
+      });
     } catch (error) {
       console.error('Erro ao carregar perfil:', error);
       setUser(user);
       setProfile(null);
+      setAuthError(error?.message || 'Erro ao carregar perfil');
     }
-  }
+  }, []);
+
+  const checkUser = useCallback(async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      console.info('[Auth] sessão inicial resolvida', {
+        hasSession: Boolean(session?.user),
+        userId: session?.user?.id || null,
+      });
+      if (session?.user) {
+        await loadProfile(session.user);
+      } else {
+        setUser(null);
+        setProfile(null);
+      }
+    } catch (error) {
+      console.error('Erro ao verificar sessão:', error);
+      setAuthError(error?.message || 'Erro ao verificar sessão');
+    } finally {
+      setLoading(false);
+      setInitialized(true);
+    }
+  }, [loadProfile]);
+
+  useEffect(() => {
+    if (!supabase) {
+      const errorMessage = 'Supabase client indisponível no browser';
+      console.error('[Auth] erro crítico:', errorMessage);
+      setAuthError(errorMessage);
+      setLoading(false);
+      setInitialized(true);
+      return undefined;
+    }
+
+    checkUser();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.info('[Auth] onAuthStateChange', {
+          event,
+          hasSession: Boolean(session?.user),
+          userId: session?.user?.id || null,
+        });
+        setAuthError(null);
+        if (session?.user) {
+          await loadProfile(session.user);
+        } else {
+          setUser(null);
+          setProfile(null);
+        }
+        setLoading(false);
+        setInitialized(true);
+      }
+    );
+
+    return () => subscription.unsubscribe();
+  }, [checkUser, loadProfile]);
 
   async function signIn(email, password) {
+    setAuthError(null);
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -111,6 +145,8 @@ export function AuthProvider({ children }) {
     profile,
     role: profile?.role || null,
     loading,
+    initialized,
+    authError,
     signIn,
     signOut,
   };

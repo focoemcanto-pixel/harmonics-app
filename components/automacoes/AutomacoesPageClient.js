@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 
 function getHealthStatus(systemState, summary, alerts) {
   const failedToday = summary.failed_today ?? 0;
@@ -113,9 +114,9 @@ function AlertItem({ alert }) {
         </div>
       </div>
       {alert.cta?.href && (
-        <a href={alert.cta.href} className="text-[12px] font-bold underline underline-offset-2">
+        <Link href={alert.cta.href} className="text-[12px] font-bold underline underline-offset-2">
           {alert.cta.label}
-        </a>
+        </Link>
       )}
     </div>
   );
@@ -149,9 +150,9 @@ function HealthIndicator({ health }) {
           <div className="text-xs font-black uppercase tracking-[0.14em]">{health.label}</div>
           <div className="text-sm mt-1">{health.message}</div>
         </div>
-        <a href={health.cta.href} className="inline-flex rounded-2xl px-4 py-2 bg-slate-900 text-white text-sm font-semibold">
+        <Link href={health.cta.href} className="inline-flex rounded-2xl px-4 py-2 bg-slate-900 text-white text-sm font-semibold">
           {health.cta.label}
-        </a>
+        </Link>
       </div>
     </div>
   );
@@ -189,9 +190,9 @@ function SetupCtas({ onboarding }) {
       <h2 className="text-[13px] font-black uppercase tracking-[0.1em] text-amber-700 mb-2">Setup pendente</h2>
       <div className="flex flex-wrap gap-2">
         {items.map((item) => (
-          <a key={item.href} href={item.href} className="rounded-full border border-amber-300 px-4 py-2 text-[13px] font-bold text-amber-800 bg-white">
+          <Link key={item.href} href={item.href} className="rounded-full border border-amber-300 px-4 py-2 text-[13px] font-bold text-amber-800 bg-white">
             {item.label}
-          </a>
+          </Link>
         ))}
       </div>
     </section>
@@ -283,7 +284,7 @@ export default function AutomacoesPageClient() {
       <section>
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-[13px] font-black uppercase tracking-[0.1em] text-[#94a3b8]">Últimas falhas</h2>
-          <a href="/automacoes/logs?status=failed" className="text-[13px] font-bold text-violet-600">Ver todos os logs →</a>
+          <Link href="/automacoes/logs?status=failed" className="text-[13px] font-bold text-violet-600">Ver todos os logs →</Link>
         </div>
         <div className="rounded-[24px] border border-[#dbe3ef] bg-white p-5 shadow-[0_4px_14px_rgba(17,24,39,0.04)]">
           {failures.length === 0 ? (

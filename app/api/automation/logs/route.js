@@ -17,6 +17,7 @@ export async function GET(request) {
     const dateFrom = searchParams.get('date_from');
     const dateTo = searchParams.get('date_to');
     const sortParam = searchParams.get('sort');
+    const source = searchParams.get('source');
 
     const ascending = sortParam === 'asc';
 
@@ -47,6 +48,10 @@ export async function GET(request) {
 
     if (ruleId) {
       query = query.eq('rule_id', ruleId);
+    }
+
+    if (source) {
+      query = query.eq('source', source);
     }
 
     if (dateFrom) {

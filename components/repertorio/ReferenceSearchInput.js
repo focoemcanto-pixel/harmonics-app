@@ -13,6 +13,7 @@ export default function ReferenceSearchInput({
   onSelectResult,
   onClearReference,
   disabled = false,
+  autoOpenOnSearchValue = true,
 }) {
   const [query, setQuery] = useState(searchValue);
   const [results, setResults] = useState([]);
@@ -23,6 +24,13 @@ export default function ReferenceSearchInput({
   useEffect(() => {
     setQuery(searchValue || '');
   }, [searchValue]);
+
+  useEffect(() => {
+    if (disabled || !autoOpenOnSearchValue) return;
+    if (String(searchValue || '').trim().length >= 2) {
+      setIsOpen(true);
+    }
+  }, [searchValue, disabled, autoOpenOnSearchValue]);
 
   useEffect(() => {
     if (disabled) return undefined;

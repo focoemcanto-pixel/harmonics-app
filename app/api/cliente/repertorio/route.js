@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getYoutubeVideoId } from '../../../../lib/youtube/getYoutubeVideoId';
 import { randomUUID } from 'node:crypto';
+import { sendAdminWhatsAppAlert } from '@/lib/whatsapp/send-admin-alert';
 
 function getAdminSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -125,6 +126,27 @@ function normalizeItems(items = []) {
         item.artists
       );
     });
+}
+
+
+function formatDateBR(value) {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+
+  return new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(date);
+}
+
+function buildRepertoireSummary(items = []) {
+  const cortejo = items.filter((item) => item.section === 'cortejo').length;
+  const cerimonia = items.filter((item) => item.section === 'cerimonia').length;
+  const hasSaida = items.some((item) => item.section === 'saida');
+
+  return `Cortejo: ${cortejo} | Cerimônia: ${cerimonia} | Saída: ${hasSaida ? 'sim' : 'não'}`;
 }
 
 async function findLatestRepertoireTokenByEvent(supabase, eventId) {
@@ -421,6 +443,48 @@ export async function POST(request) {
 
       if (insertItemsError) {
         throw insertItemsError;
+      }
+    }
+
+    if (mode === 'final') {
+      const [{ data: eventRow, error: eventError }, { data: precontractRow, error: precontractError }] =
+        await Promise.all([
+          supabase
+            .from('events')
+            .select('client_name, event_date, location_name')
+            .eq('id', eventId)
+            .maybeSingle(),
+          supabase
+            .from('precontracts')
+            .select('public_token')
+            .eq('event_id', eventId)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+        ]);
+
+      if (eventError) throw eventError;
+      if (precontractError) throw precontractError;
+
+      const pdfToken = normalizeText(precontractRow?.public_token) || normalizeText(clientTokenInput) || normalizeText(token);
+      const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_BASE_URL || '';
+      const pdfPath = pdfToken ? `/api/cliente/repertorio/pdf/${pdfToken}` : '';
+      const pdfUrl = appBaseUrl ? `${appBaseUrl}${pdfPath}` : pdfPath;
+
+      const alertMessage = [
+        `✅ Repertório enviado por ${eventRow?.client_name || 'Cliente'}`,
+        `📅 Evento: ${formatDateBR(eventRow?.event_date)}`,
+        eventRow?.location_name ? `📍 Local: ${eventRow.location_name}` : null,
+        `📝 Resumo: ${buildRepertoireSummary(items)}`,
+        pdfUrl ? `📄 PDF: ${pdfUrl}` : null,
+      ]
+        .filter(Boolean)
+        .join('\n');
+
+      try {
+        await sendAdminWhatsAppAlert(alertMessage);
+      } catch (whatsappError) {
+        console.error('[API REPERTORIO] Não foi possível enviar alerta WhatsApp para admin:', whatsappError);
       }
     }
 

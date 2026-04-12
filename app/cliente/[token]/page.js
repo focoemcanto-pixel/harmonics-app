@@ -202,6 +202,7 @@ export default async function ClienteTokenPage({ params }) {
     itemsResp,
     contractsResp,
     repertoireTokenResp,
+    paymentsResp,
   ] = await Promise.all([
     supabase
       .from('events')
@@ -234,6 +235,11 @@ export default async function ClienteTokenPage({ params }) {
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle(),
+    supabase
+      .from('payments')
+      .select('id, amount, payment_date, payment_method, status, notes, proof_file_url')
+      .eq('event_id', eventId)
+      .order('payment_date', { ascending: false }),
   ]);
 
   if (eventResp.error) throw eventResp.error;
@@ -241,6 +247,7 @@ export default async function ClienteTokenPage({ params }) {
   if (itemsResp.error) throw itemsResp.error;
   if (contractsResp.error) throw contractsResp.error;
   if (repertoireTokenResp.error) throw repertoireTokenResp.error;
+  if (paymentsResp.error) throw paymentsResp.error;
 
   const event = eventResp.data;
   if (!event) notFound();
@@ -249,6 +256,7 @@ export default async function ClienteTokenPage({ params }) {
   const items = Array.isArray(itemsResp.data) ? itemsResp.data : [];
   const contract = contractsResp.data || null;
   const repertoireToken = repertoireTokenResp.data || null;
+  const payments = Array.isArray(paymentsResp.data) ? paymentsResp.data : [];
   const configClientToken = String(config?.client_public_token || '').trim();
   const clientToken = configClientToken || token;
 
@@ -285,6 +293,20 @@ export default async function ClienteTokenPage({ params }) {
   );
 
   const supportConfig = resolveSupportWhatsAppConfig();
+  const paymentHistory = payments.map((entry) => ({
+    label: 'Comprovante enviado',
+    date: entry.payment_date || '',
+    amount:
+      typeof entry.amount === 'number'
+        ? new Intl.NumberFormat('pt-BR', {
+            style: 'currency',
+            currency: 'BRL',
+          }).format(entry.amount)
+        : '—',
+    status: String(entry.status || '').trim().toUpperCase() || 'EM_ANALISE',
+    note: entry.notes || '',
+    fileName: entry.proof_file_url || '',
+  }));
 
   const data = {
     token: clientToken,
@@ -364,7 +386,7 @@ export default async function ClienteTokenPage({ params }) {
     financeiro: {
       resumo: buildFinancialSummary(event),
       vencimentos: [],
-      historico: [],
+      historico: paymentHistory,
     },
   };
 

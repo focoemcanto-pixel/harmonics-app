@@ -95,7 +95,7 @@ export default function TemplatesEscalaFormularioTab({
               {editandoId ? 'Editar template' : 'Novo template'}
             </h2>
             <p className="mt-2 max-w-2xl text-[15px] leading-7 text-[#64748b]">
-              Defina uma formação base para sugerir automaticamente a equipe ao abrir a escala do evento.
+              Defina uma formação base com funções/instrumentos para sugerir automaticamente a equipe operacional ao abrir a escala.
             </p>
           </div>
 
@@ -139,7 +139,7 @@ export default function TemplatesEscalaFormularioTab({
             <Input
               value={form.compatible_tags || ''}
               onChange={(e) => handleFormChange('compatible_tags', e.target.value)}
-              placeholder="Ex.: casamento, cerimônia clássica, corporativo"
+              placeholder="Ex.: violino, vocal_feminino, teclado, baixo"
             />
           </Field>
 
@@ -194,7 +194,7 @@ export default function TemplatesEscalaFormularioTab({
           Equipe padrão da formação
         </h3>
         <p className="mt-2 text-[15px] leading-7 text-[#64748b]">
-          Escolha os membros mais frequentes dessa formação. Você poderá revisar tudo antes de salvar a escala real do evento.
+          Escolha os membros mais frequentes dessa formação e vincule cada um a uma função/instrumento da equipe.
         </p>
 
         <div className="mt-5 rounded-[22px] border border-[#e7edf5] bg-[#fafbff] p-4">

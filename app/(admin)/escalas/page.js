@@ -7,6 +7,7 @@ import AdminShell from '@/components/admin/AdminShell';
 import AdminPageHero from '@/components/admin/AdminPageHero';
 import AdminSegmentTabs from '@/components/admin/AdminSegmentTabs';
 import { normalizeTimeStrict } from '@/lib/time/normalize-time';
+import { isOperationalTeamContact } from '@/lib/escalas/team-contacts';
 
 function formatDateBR(value) {
   if (!value) return '-';
@@ -462,7 +463,11 @@ export default function EscalasPage() {
       }
 
       setEventos(eventosResp.data || []);
-      setEscalas(escalasResp.data || []);
+      setEscalas(
+        (escalasResp.data || []).filter((item) =>
+          isOperationalTeamContact(item?.musician)
+        )
+      );
       setInvites(invitesResp.data || []);
     } catch (e) {
       console.error('Erro ao carregar painel de escalas:', e);

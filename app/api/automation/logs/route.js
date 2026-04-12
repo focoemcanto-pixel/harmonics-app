@@ -7,7 +7,7 @@ const DEFAULT_LIMIT = 100;
 export async function GET(request) {
   try {
     const supabaseAdmin = getSupabaseAdmin();
-    const workspaceId = await getDefaultWorkspace();
+    const workspace = await getDefaultWorkspace();
 
     const { searchParams } = new URL(request.url);
 
@@ -32,11 +32,7 @@ export async function GET(request) {
       .order('created_at', { ascending })
       .limit(limit);
 
-    // Se você tiver certeza que automation_logs tem workspace_id, mantenha isso.
-    // Se der erro mesmo depois dessa correção, comente este bloco temporariamente.
-    if (workspaceId) {
-      query = query.eq('workspace_id', workspaceId);
-    }
+    query = query.eq('workspace_id', workspace.id);
 
     if (status) {
       query = query.eq('status', status);

@@ -5,18 +5,15 @@ import { getDefaultWorkspace } from '@/lib/automation/get-workspace';
 export async function GET() {
   try {
     const supabaseAdmin = getSupabaseAdmin();
-    const workspaceId = await getDefaultWorkspace();
+    const workspace = await getDefaultWorkspace();
 
-    let query = supabaseAdmin
+    const query = supabaseAdmin
       .from('whatsapp_channels')
       .select(
         'id, name, provider, api_url, instance_id, sender_number, admin_alert_number, is_active, is_default, created_at'
       )
+      .eq('workspace_id', workspace.id)
       .order('created_at', { ascending: false });
-
-    if (workspaceId) {
-      query = query.eq('workspace_id', workspaceId);
-    }
 
     const { data, error } = await query;
 
@@ -46,21 +43,21 @@ export async function POST(request) {
     }
 
     const supabaseAdmin = getSupabaseAdmin();
-    const workspaceId = await getDefaultWorkspace();
+    const workspace = await getDefaultWorkspace();
 
     const isDefault = body.is_default === true;
 
-    if (isDefault && workspaceId) {
+    if (isDefault) {
       await supabaseAdmin
         .from('whatsapp_channels')
         .update({ is_default: false })
-        .eq('workspace_id', workspaceId);
+        .eq('workspace_id', workspace.id);
     }
 
     const { data, error } = await supabaseAdmin
       .from('whatsapp_channels')
       .insert({
-        workspace_id: workspaceId,
+        workspace_id: workspace.id,
         name,
         provider: body.provider || 'wasender',
         api_url: body.api_url || null,

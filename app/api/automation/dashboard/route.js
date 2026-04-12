@@ -75,36 +75,36 @@ function buildCronStatus(lastRun) {
 export async function GET() {
   try {
     const supabase = getSupabaseAdmin();
-    const workspaceId = await getDefaultWorkspace();
+    const workspace = await getDefaultWorkspace();
+    const workspaceId = workspace.id;
     const { start: todayStart, end: todayEnd } = getSaoPauloBounds();
 
-    let templatesQuery = supabase.from('message_templates').select('id, is_active');
-    if (workspaceId) templatesQuery = templatesQuery.eq('workspace_id', workspaceId);
+    const templatesQuery = supabase.from('message_templates').select('id, is_active').eq('workspace_id', workspaceId);
 
     let channelsQuery = supabase
       .from('whatsapp_channels')
-      .select('id, is_active, is_default, api_url, api_key, instance_id');
-    if (workspaceId) channelsQuery = channelsQuery.eq('workspace_id', workspaceId);
+      .select('id, is_active, is_default, api_url, api_key, instance_id')
+      .eq('workspace_id', workspaceId);
 
     let rulesQuery = supabase
       .from('automation_rules')
-      .select('id, is_active, template_id, channel_id, name');
-    if (workspaceId) rulesQuery = rulesQuery.eq('workspace_id', workspaceId);
+      .select('id, is_active, template_id, channel_id, name')
+      .eq('workspace_id', workspaceId);
 
     let logsTodayQuery = supabase
       .from('automation_logs')
       .select('id, status')
       .gte('created_at', todayStart)
-      .lte('created_at', todayEnd);
-    if (workspaceId) logsTodayQuery = logsTodayQuery.eq('workspace_id', workspaceId);
+      .lte('created_at', todayEnd)
+      .eq('workspace_id', workspaceId);
 
     let failuresQuery = supabase
       .from('automation_logs')
       .select('id, created_at, recipient_number, source, error_message, rule_id')
       .eq('status', 'failed')
       .order('created_at', { ascending: false })
-      .limit(5);
-    if (workspaceId) failuresQuery = failuresQuery.eq('workspace_id', workspaceId);
+      .limit(5)
+      .eq('workspace_id', workspaceId);
 
     const [templatesRes, channelsRes, rulesRes, logsRes, failuresRes, latestCronRun] = await Promise.all([
       templatesQuery,

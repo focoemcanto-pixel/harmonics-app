@@ -44,8 +44,8 @@ export async function PATCH(request, { params }) {
     }
 
     if (updates.is_default === true) {
-      const workspaceId = await getDefaultWorkspace();
-      const wsId = existing.workspace_id || workspaceId;
+      const workspace = await getDefaultWorkspace();
+      const wsId = existing.workspace_id || workspace.id;
       if (wsId) {
         await supabaseAdmin
           .from('whatsapp_channels')

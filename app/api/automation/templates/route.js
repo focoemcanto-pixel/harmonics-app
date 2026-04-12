@@ -5,16 +5,13 @@ import { getDefaultWorkspace } from '@/lib/automation/get-workspace';
 export async function GET() {
   try {
     const supabaseAdmin = getSupabaseAdmin();
-    const workspaceId = await getDefaultWorkspace();
+    const workspace = await getDefaultWorkspace();
 
-    let query = supabaseAdmin
+    const query = supabaseAdmin
       .from('message_templates')
       .select('id, workspace_id, key, name, channel, recipient_type, body, is_active, created_at, updated_at')
+      .eq('workspace_id', workspace.id)
       .order('updated_at', { ascending: false });
-
-    if (workspaceId) {
-      query = query.eq('workspace_id', workspaceId);
-    }
 
     const { data, error } = await query;
 
@@ -44,12 +41,12 @@ export async function POST(request) {
     }
 
     const supabaseAdmin = getSupabaseAdmin();
-    const workspaceId = await getDefaultWorkspace();
+    const workspace = await getDefaultWorkspace();
 
     const { data, error } = await supabaseAdmin
       .from('message_templates')
       .insert({
-        workspace_id: workspaceId,
+        workspace_id: workspace.id,
         name,
         key,
         channel: body.channel || 'whatsapp',

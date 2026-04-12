@@ -29,9 +29,11 @@ export async function POST(request) {
 
     const pendentes = (invites || []).filter((invite) => !invite.whatsapp_sent_at);
 
+    const internalEndpoint = new URL('/api/whatsapp/send-invite', request.url).toString();
+
     const results = [];
     for (const invite of pendentes) {
-      const response = await fetch(`${process.env.APP_BASE_URL}/api/whatsapp/send-invite`, {
+      const response = await fetch(internalEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ inviteId: invite.id }),

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { getDefaultWorkspace } from '@/lib/automation/get-workspace';
+import { getDefaultWorkspaceSettings } from '@/lib/automation/get-workspace';
 import { getLatestAutomationCronRun } from '@/lib/automation/cron-run';
 
 function getSaoPauloBounds() {
@@ -75,7 +75,7 @@ function buildCronStatus(lastRun) {
 export async function GET() {
   try {
     const supabase = getSupabaseAdmin();
-    const workspace = await getDefaultWorkspace();
+    const workspace = await getDefaultWorkspaceSettings();
     const workspaceId = workspace.id;
     const { start: todayStart, end: todayEnd } = getSaoPauloBounds();
 

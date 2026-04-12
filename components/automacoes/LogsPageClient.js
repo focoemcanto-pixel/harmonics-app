@@ -46,8 +46,15 @@ function StatusBadge({ status }) {
       </span>
     );
   }
+  if (status === 'skipped') {
+    return (
+      <span className="rounded-full bg-amber-100 px-3 py-1 text-[11px] font-bold text-amber-700">
+        Ignorado
+      </span>
+    );
+  }
   return (
-    <span className="rounded-full bg-amber-100 px-3 py-1 text-[11px] font-bold text-amber-700">
+    <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold text-slate-700">
       Pendente
     </span>
   );

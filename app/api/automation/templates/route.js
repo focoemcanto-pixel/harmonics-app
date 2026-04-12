@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { getDefaultWorkspace } from '@/lib/automation/get-workspace';
+import { getDefaultWorkspaceSettings } from '@/lib/automation/get-workspace';
 
 export async function GET() {
   try {
     const supabaseAdmin = getSupabaseAdmin();
-    const workspace = await getDefaultWorkspace();
+    const workspace = await getDefaultWorkspaceSettings();
 
     const query = supabaseAdmin
       .from('message_templates')
@@ -41,7 +41,7 @@ export async function POST(request) {
     }
 
     const supabaseAdmin = getSupabaseAdmin();
-    const workspace = await getDefaultWorkspace();
+    const workspace = await getDefaultWorkspaceSettings();
 
     const { data, error } = await supabaseAdmin
       .from('message_templates')

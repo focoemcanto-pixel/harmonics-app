@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '../../../../lib/supabase-admin';
 import { executeAutomationEvent } from '../../../../lib/automation/execute-automation-event';
 import { logAutomationDispatch } from '../../../../lib/automation/log-dispatch';
-import { getDefaultWorkspace } from '../../../../lib/automation/get-workspace';
+import { getDefaultWorkspaceSettings } from '../../../../lib/automation/get-workspace';
 
 function cleanPhone(value) {
   return String(value || '').replace(/\D/g, '');
@@ -62,7 +62,7 @@ export async function POST(request) {
     });
 
     if (String(invite.status || '').toLowerCase() === 'removed') {
-      const workspace = await getDefaultWorkspace();
+      const workspace = await getDefaultWorkspaceSettings();
       await logAutomationDispatch({
         workspaceId: workspace.id,
         ruleId: null,
@@ -87,7 +87,7 @@ export async function POST(request) {
 
     const phone = cleanPhone(invite.contact?.phone);
     if (!phone) {
-      const workspace = await getDefaultWorkspace();
+      const workspace = await getDefaultWorkspaceSettings();
       await logAutomationDispatch({
         workspaceId: workspace.id,
         ruleId: null,

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { getDefaultWorkspace } from '@/lib/automation/get-workspace';
+import { getDefaultWorkspaceSettings } from '@/lib/automation/get-workspace';
 
 const DEFAULT_LIMIT = 100;
 
@@ -16,7 +16,7 @@ function normalizeStatusFilter(rawStatus) {
 export async function GET(request) {
   try {
     const supabaseAdmin = getSupabaseAdmin();
-    const workspace = await getDefaultWorkspace();
+    const workspace = await getDefaultWorkspaceSettings();
 
     const { searchParams } = new URL(request.url);
 

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getDefaultWorkspace } from '@/lib/automation/get-workspace';
+import { getDefaultWorkspaceSettings } from '@/lib/automation/get-workspace';
 import { getActiveRules } from '@/lib/automation/get-active-rules';
 import { getScheduledCandidates } from '@/lib/automation/get-scheduled-candidates';
 import { runScheduledAutomation } from '@/lib/automation/run-scheduled-automation';
@@ -29,7 +29,7 @@ export async function GET(request) {
   let workspaceId = null;
 
   try {
-    const workspace = await getDefaultWorkspace();
+    const workspace = await getDefaultWorkspaceSettings();
     workspaceId = workspace.id;
 
     let totalRules = 0;

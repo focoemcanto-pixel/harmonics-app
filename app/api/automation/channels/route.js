@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { getDefaultWorkspace } from '@/lib/automation/get-workspace';
+import { getDefaultWorkspaceSettings } from '@/lib/automation/get-workspace';
 
 const SAVE_CHANNELS_AUDIT_VERSION = '2026-04-12-audit-v2';
 
 export async function GET() {
   try {
     const supabaseAdmin = getSupabaseAdmin();
-    const workspace = await getDefaultWorkspace();
+    const workspace = await getDefaultWorkspaceSettings();
 
     const query = supabaseAdmin
       .from('whatsapp_channels')
@@ -45,7 +45,7 @@ export async function POST(request) {
     }
 
     const supabaseAdmin = getSupabaseAdmin();
-    const workspace = await getDefaultWorkspace();
+    const workspace = await getDefaultWorkspaceSettings();
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'missing';
 
     const isDefault = body.is_default === true;

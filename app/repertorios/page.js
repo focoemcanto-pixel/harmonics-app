@@ -17,7 +17,9 @@ function formatRepertoireStatus(status, isLocked) {
 
   if (s === 'NAO_INICIADO') return 'Não iniciado';
   if (s === 'REABERTO') return 'Reaberto';
-  if (s === 'REVISAO_SOLICITADA' || s === 'REVIEW_REQUESTED') return 'REVISÃO SOLICITADA';
+  if (s === 'AGUARDANDO_REVISAO') return 'Aguardando revisão';
+  if (s === 'REVISAO_SOLICITADA' || s === 'REVIEW_REQUESTED') return 'Revisão solicitada';
+  if (s === 'EM_EDICAO') return 'Em edição';
   if (s === 'FINALIZADO') return 'Finalizado';
   if (isLocked) return 'Travado';
 
@@ -26,7 +28,7 @@ function formatRepertoireStatus(status, isLocked) {
 
 function isReviewRequestedStatus(status) {
   const s = normalizeStatus(status);
-  return s === 'REVISAO_SOLICITADA' || s === 'REVIEW_REQUESTED';
+  return s === 'AGUARDANDO_REVISAO' || s === 'REVISAO_SOLICITADA' || s === 'REVIEW_REQUESTED';
 }
 
 function getRepertoireTone(status, isLocked) {
@@ -341,29 +343,35 @@ export default function RepertoriosPage() {
     try {
       setReabrindoId(entry.config.id);
 
-      const { error } = await supabase
-        .from('repertoire_config')
-        .update({
-          is_locked: false,
-          status: 'REABERTO',
-        })
-        .eq('id', entry.config.id);
+      const response = await fetch('/api/admin/repertorio/liberar-revisao', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          eventId: entry.event_id,
+        }),
+      });
 
-      if (error) throw error;
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok || !result?.ok) {
+        throw new Error(result?.error || 'Não foi possível liberar revisão.');
+      }
 
       await carregarTudo();
 
       setFeedback({
         type: 'success',
-        title: 'Edição liberada',
-        message: `O repertório de ${entry.event.client_name || 'evento'} foi reaberto com sucesso.`,
+        title: 'Revisão liberada',
+        message: `O repertório de ${entry.event.client_name || 'evento'} foi liberado para edição.`,
       });
     } catch (error) {
       console.error('Erro ao liberar edição:', error);
       setFeedback({
         type: 'error',
-        title: 'Erro ao liberar edição',
-        message: 'Não foi possível reabrir este repertório agora.',
+        title: 'Erro ao liberar revisão',
+        message: 'Não foi possível liberar esta revisão agora.',
       });
     } finally {
       setReabrindoId(null);
@@ -508,7 +516,7 @@ export default function RepertoriosPage() {
                       <div className="min-w-0">
                         {hasReviewRequested ? (
                           <div className="mb-3 rounded-[16px] border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] font-black uppercase tracking-[0.08em] text-amber-800">
-                            ⚠️ Cliente solicitou edição • aguardando liberação do admin
+                            ⚠️ Revisão solicitada • aguardando liberação do admin
                           </div>
                         ) : null}
 
@@ -582,18 +590,20 @@ export default function RepertoriosPage() {
                         </a>
                       ) : null}
 
-                      <button
-                        type="button"
-                        onClick={() => liberarEdicao(entry)}
-                        disabled={reabrindoId === entry.config.id}
-                        className={`rounded-[16px] px-4 py-3 text-[14px] font-black ${
-                          reabrindoId === entry.config.id
-                            ? 'cursor-not-allowed border border-[#e5e7eb] bg-[#f8fafc] text-[#94a3b8]'
-                            : 'bg-violet-600 text-white shadow-[0_12px_28px_rgba(124,58,237,0.18)]'
-                        }`}
-                      >
-                        {reabrindoId === entry.config.id ? 'Liberando...' : 'Liberar edição'}
-                      </button>
+                      {hasReviewRequested ? (
+                        <button
+                          type="button"
+                          onClick={() => liberarEdicao(entry)}
+                          disabled={reabrindoId === entry.config.id}
+                          className={`rounded-[16px] px-4 py-3 text-[14px] font-black ${
+                            reabrindoId === entry.config.id
+                              ? 'cursor-not-allowed border border-[#e5e7eb] bg-[#f8fafc] text-[#94a3b8]'
+                              : 'bg-violet-600 text-white shadow-[0_12px_28px_rgba(124,58,237,0.18)]'
+                          }`}
+                        >
+                          {reabrindoId === entry.config.id ? 'Liberando...' : 'Liberar revisão'}
+                        </button>
+                      ) : null}
                     </div>
 
                     {resumoAberto ? (

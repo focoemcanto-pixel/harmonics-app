@@ -322,11 +322,23 @@ export async function POST(request) {
 
     const { data: existingConfig, error: existingConfigError } = await supabase
       .from('repertoire_config')
-      .select('client_public_token')
+      .select('client_public_token, is_locked, status')
       .eq('event_id', eventId)
       .maybeSingle();
 
     if (existingConfigError) throw existingConfigError;
+
+    if (existingConfig?.is_locked) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: 'Repertório bloqueado. Aguarde a liberação da equipe para editar novamente.',
+          status: existingConfig.status || 'BLOQUEADO',
+          locked: true,
+        },
+        { status: 423 }
+      );
+    }
 
     const tokenFromConfig = normalizeText(existingConfig?.client_public_token);
     const tokenFromRequest = normalizeText(clientTokenInput);

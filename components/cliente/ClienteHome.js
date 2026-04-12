@@ -4296,7 +4296,7 @@ export default function ClienteHome({ data, initialTab = 'inicio' }) {
         ...prev,
         repertorio: {
           ...prev.repertorio,
-          status: 'REVIEW_REQUESTED',
+          status: 'AGUARDANDO_REVISAO',
           liberadoParaEdicao: false,
           podeSolicitarCorrecao: false,
         },

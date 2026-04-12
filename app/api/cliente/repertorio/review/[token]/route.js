@@ -72,11 +72,12 @@ export async function POST(_request, { params }) {
     const { data: updatedConfig, error: updateError } = await supabase
       .from('repertoire_config')
       .update({
-        status: 'review_requested',
+        status: 'AGUARDANDO_REVISAO',
+        is_locked: true,
         updated_at: nowIso,
       })
       .eq('event_id', eventId)
-      .select('id, event_id, status, updated_at')
+      .select('id, event_id, status, is_locked, updated_at')
       .maybeSingle();
 
     if (updateError) throw updateError;
@@ -92,6 +93,7 @@ export async function POST(_request, { params }) {
       ok: true,
       eventId,
       status: updatedConfig.status,
+      locked: updatedConfig.is_locked,
       updatedAt: updatedConfig.updated_at,
     });
   } catch (error) {

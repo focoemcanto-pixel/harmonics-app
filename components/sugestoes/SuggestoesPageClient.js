@@ -229,6 +229,7 @@ function SuggestionEditorModal({
   const [form, setForm] = useState({
     title: '',
     artist: '',
+    music_key: '',
     genre_id: '',
     moment_id: '',
     youtube_url: '',
@@ -244,10 +245,11 @@ function SuggestionEditorModal({
 
   useEffect(() => {
     if (!open) return;
-
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setForm({
       title: song?.title || '',
       artist: song?.artist || '',
+      music_key: song?.music_key || '',
       genre_id: song?.genre?.id || '',
       moment_id: song?.moment?.id || '',
       youtube_url: song?.youtube_url || '',
@@ -322,6 +324,15 @@ function SuggestionEditorModal({
                     value={form.artist}
                     onChange={(e) => setForm((prev) => ({ ...prev, artist: e.target.value }))}
                     placeholder="Ex: Christina Perri"
+                  />
+                </FormField>
+                <FormField label="Tom (opcional)">
+                  <Input
+                    value={form.music_key}
+                    onChange={(e) =>
+                      setForm((prev) => ({ ...prev, music_key: e.target.value }))
+                    }
+                    placeholder="Ex: C, Dm, F#"
                   />
                 </FormField>
 
@@ -677,6 +688,7 @@ function SuggestoesBibliotecaTab({
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('todos');
   const [genreFilter, setGenreFilter] = useState('todos');
+  const [featuredFilter, setFeaturedFilter] = useState('todos');
 
   const genres = useMemo(() => {
     return Array.from(
@@ -709,10 +721,14 @@ function SuggestoesBibliotecaTab({
         (statusFilter === 'erro' && hasError);
 
       const matchesGenre = genreFilter === 'todos' || song?.genre?.name === genreFilter;
+      const matchesFeatured =
+        featuredFilter === 'todos' ||
+        (featuredFilter === 'featured' && song?.is_featured) ||
+        (featuredFilter === 'nao-featured' && !song?.is_featured);
 
-      return matchesSearch && matchesStatus && matchesGenre;
+      return matchesSearch && matchesStatus && matchesGenre && matchesFeatured;
     });
-  }, [songs, search, statusFilter, genreFilter]);
+  }, [songs, search, statusFilter, genreFilter, featuredFilter]);
 
   return (
     <div className="space-y-5">
@@ -720,10 +736,12 @@ function SuggestoesBibliotecaTab({
         search={search}
         statusFilter={statusFilter}
         genreFilter={genreFilter}
+        featuredFilter={featuredFilter}
         genres={genres}
         onSearchChange={setSearch}
         onStatusChange={setStatusFilter}
         onGenreChange={setGenreFilter}
+        onFeaturedChange={setFeaturedFilter}
         onCreate={onCreate}
         total={filteredSongs.length}
       />
@@ -837,7 +855,7 @@ function TaxonomyEditorModal({
 
   useEffect(() => {
     if (!open) return;
-
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setForm({
       name: item?.name || '',
       slug: item?.slug || '',
@@ -1129,13 +1147,69 @@ function SuggestoesMomentosTab({
   );
 }
 
-function PlaceholderTab({ title, text }) {
-  return (
-    <SectionCard eyebrow="Em sequência" title={title} subtitle={text}>
+function SuggestoesTagsTab({ tags, loading }) {
+  if (loading) {
+    return <SectionCard title="Carregando tags" subtitle="Buscando tags editoriais." />;
+  }
+  if (!tags.length) {
+    return (
       <EmptyState
-        title="Próxima etapa do módulo"
-        text="A estrutura da página já está pronta para receber esse gerenciamento com a mesma linguagem visual premium."
+        title="Nenhuma tag cadastrada ainda"
+        text="As tags aparecem aqui automaticamente quando músicas têm vínculos em suggestion_song_tags."
       />
+    );
+  }
+  return (
+    <SectionCard eyebrow="Organização" title="Tags" subtitle="Tags editoriais detectadas no catálogo.">
+      <div className="flex flex-wrap gap-2">
+        {tags.map((tag) => (
+          <Pill key={tag.id}>{tag.name}</Pill>
+        ))}
+      </div>
+    </SectionCard>
+  );
+}
+
+function SuggestoesColecoesTab({ collections, loading }) {
+  if (loading) {
+    return <SectionCard title="Carregando coleções" subtitle="Buscando coleções editoriais." />;
+  }
+  if (!collections.length) {
+    return (
+      <EmptyState
+        title="Nenhuma coleção cadastrada ainda"
+        text="Vincule músicas em suggestion_collection_songs para organizar vitrines."
+      />
+    );
+  }
+  return (
+    <SectionCard eyebrow="Organização" title="Coleções" subtitle="Coleções disponíveis para curadoria.">
+      <div className="grid gap-3 md:grid-cols-2">
+        {collections.map((collection) => (
+          <div key={collection.id} className="rounded-[18px] border border-[#dbe3ef] bg-white p-4">
+            <div className="text-[16px] font-black text-[#0f172a]">{collection.name}</div>
+            <div className="text-[13px] font-semibold text-[#64748b]">slug: {collection.slug}</div>
+          </div>
+        ))}
+      </div>
+    </SectionCard>
+  );
+}
+
+function SuggestoesQualidadeTab({ songs }) {
+  const semGenero = songs.filter((song) => !song?.genre?.id).length;
+  const semMomento = songs.filter((song) => !song?.moment?.id).length;
+  const semYoutube = songs.filter((song) => !(song?.youtube_id || song?.youtube_url)).length;
+  const semThumb = songs.filter((song) => !song?.thumbnail_url).length;
+
+  return (
+    <SectionCard eyebrow="Qualidade" title="Auditoria do catálogo">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <SummaryCard label="Sem gênero" value={semGenero} tone="amber" />
+        <SummaryCard label="Sem momento" value={semMomento} tone="amber" />
+        <SummaryCard label="Sem YouTube" value={semYoutube} tone="amber" />
+        <SummaryCard label="Sem thumbnail" value={semThumb} tone="amber" />
+      </div>
     </SectionCard>
   );
 }
@@ -1156,6 +1230,7 @@ const [savingMoment, setSavingMoment] = useState(false);
   const [loading, setLoading] = useState(true);
   const [savingSong, setSavingSong] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingSong, setEditingSong] = useState(null);
 
@@ -1185,6 +1260,7 @@ const [savingMoment, setSavingMoment] = useState(false);
 
  async function loadAll() {
   try {
+    console.info('[sugestoes] load start');
     setLoading(true);
     setError('');
 
@@ -1207,21 +1283,22 @@ const [savingMoment, setSavingMoment] = useState(false);
       momentsStatus: momentsResponse.status,
     });
 
-    if (!songsResponse.ok) {
-      throw new Error(songsData?.error || 'Erro ao carregar músicas');
-    }
+    const songsList = songsResponse.ok && Array.isArray(songsData?.songs) ? songsData.songs : [];
+    const genresList = genresResponse.ok && Array.isArray(genresData?.genres) ? genresData.genres : [];
+    const momentsList = momentsResponse.ok && Array.isArray(momentsData?.moments) ? momentsData.moments : [];
 
+    const loadErrors = [];
+    if (!songsResponse.ok) loadErrors.push(songsData?.error || 'Falha ao buscar músicas');
     if (!genresResponse.ok) {
-      throw new Error(genresData?.error || 'Erro ao carregar gêneros');
+      loadErrors.push(
+        genresData?.error ||
+          'Gêneros não encontrados na tabela suggestion_genres'
+      );
     }
-
-    if (!momentsResponse.ok) {
-      throw new Error(momentsData?.error || 'Erro ao carregar momentos');
+    if (!momentsResponse.ok) loadErrors.push(momentsData?.error || 'Falha ao buscar momentos');
+    if (loadErrors.length) {
+      setError(loadErrors.join(' | '));
     }
-
-    const songsList = Array.isArray(songsData?.songs) ? songsData.songs : [];
-    const genresList = Array.isArray(genresData?.genres) ? genresData.genres : [];
-    const momentsList = Array.isArray(momentsData?.moments) ? momentsData.moments : [];
 
     setSongs(songsList);
     setGenres(genresList);
@@ -1248,8 +1325,13 @@ const [savingMoment, setSavingMoment] = useState(false);
         (a, b) => Number(a?.sort_order || 0) - Number(b?.sort_order || 0)
       )
     );
+    console.info('[sugestoes] data loaded', {
+      songs: songsList.length,
+      genres: genresList.length,
+      moments: momentsList.length,
+    });
   } catch (err) {
-    console.error('[sugestoes-debug] erro no loadAll', err);
+    console.error('[sugestoes] error', err);
     setError(err?.message || 'Erro ao carregar módulo de sugestões');
   } finally {
     setLoading(false);
@@ -1273,6 +1355,14 @@ const [savingMoment, setSavingMoment] = useState(false);
     try {
       setSavingSong(true);
       setError('');
+      setNotice('');
+
+      if (!String(form?.title || '').trim()) {
+        throw new Error('Nome da música é obrigatório');
+      }
+      if (!String(form?.artist || '').trim()) {
+        throw new Error('Artista é obrigatório');
+      }
 
       const songId = options.songId || editingSong?.id || null;
       const method = songId ? 'PATCH' : 'POST';
@@ -1284,6 +1374,7 @@ const [savingMoment, setSavingMoment] = useState(false);
         ...form,
         title: String(form.title || '').trim(),
         artist: String(form.artist || '').trim(),
+        music_key: String(form.music_key || '').trim(),
         description: String(form.description || '').trim(),
         youtube_url: String(form.youtube_url || '').trim(),
         youtube_id: String(form.youtube_id || '').trim(),
@@ -1305,6 +1396,7 @@ const [savingMoment, setSavingMoment] = useState(false);
       setEditorOpen(false);
       setEditingSong(null);
       await loadAll();
+      setNotice(songId ? 'Música atualizada com sucesso.' : 'Música criada com sucesso.');
       setActiveTab('biblioteca');
     } catch (err) {
       console.error(err);
@@ -1323,6 +1415,7 @@ const [savingMoment, setSavingMoment] = useState(false);
 
     try {
       setError('');
+      setNotice('');
 
       const response = await fetch(`/api/suggestions/songs/${song.id}`, {
         method: 'DELETE',
@@ -1335,6 +1428,7 @@ const [savingMoment, setSavingMoment] = useState(false);
       }
 
       await loadAll();
+      setNotice('Música excluída com sucesso.');
     } catch (err) {
       console.error(err);
       setError(err?.message || 'Erro ao excluir música');
@@ -1345,6 +1439,7 @@ const [savingMoment, setSavingMoment] = useState(false);
     await handleSaveSong({
       title: song.title,
       artist: song.artist || '',
+      music_key: song.music_key || '',
       genre_id: song?.genre?.id || '',
       moment_id: song?.moment?.id || '',
       youtube_url: song.youtube_url || '',
@@ -1365,6 +1460,7 @@ const [savingMoment, setSavingMoment] = useState(false);
     await handleSaveSong({
       title: song.title,
       artist: song.artist || '',
+      music_key: song.music_key || '',
       genre_id: song?.genre?.id || '',
       moment_id: song?.moment?.id || '',
       youtube_url: song.youtube_url || '',
@@ -1565,6 +1661,11 @@ const [savingMoment, setSavingMoment] = useState(false);
           {error}
         </div>
       ) : null}
+      {notice ? (
+        <div className="rounded-[24px] border border-emerald-200 bg-emerald-50 px-5 py-5 text-[15px] font-bold text-emerald-700">
+          {notice}
+        </div>
+      ) : null}
 
       <div className="rounded-[24px] border border-[#dbe3ef] bg-white p-2 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
         <div className="flex flex-wrap gap-2">
@@ -1642,24 +1743,15 @@ const [savingMoment, setSavingMoment] = useState(false);
 />
 
       {activeTab === 'tags' && (
-        <PlaceholderTab
-          title="Tags editoriais"
-          text="Aqui vamos organizar as tags da curadoria, badges e agrupamentos semânticos."
-        />
+        <SuggestoesTagsTab tags={tags} loading={loading} />
       )}
 
       {activeTab === 'colecoes' && (
-        <PlaceholderTab
-          title="Coleções"
-          text="Aqui vamos montar vitrines como Mais escolhidas, Entrada da noiva e Gospel para cerimônia."
-        />
+        <SuggestoesColecoesTab collections={collections} loading={loading} />
       )}
 
       {activeTab === 'qualidade' && (
-        <PlaceholderTab
-          title="Qualidade do catálogo"
-          text="Aqui vamos auditar músicas sem thumb, sem vídeo, sem gênero, sem momento e outras pendências."
-        />
+        <SuggestoesQualidadeTab songs={songs} />
       )}
 
       <SuggestionEditorModal

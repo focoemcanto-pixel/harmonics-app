@@ -2,10 +2,12 @@ export default function SugestoesFilters({
   search,
   statusFilter,
   genreFilter,
+  featuredFilter,
   genres,
   onSearchChange,
   onStatusChange,
   onGenreChange,
+  onFeaturedChange,
   onCreate,
   total,
 }) {
@@ -27,7 +29,7 @@ export default function SugestoesFilters({
         </button>
       </div>
 
-      <div className="mt-5 grid gap-3 lg:grid-cols-4">
+      <div className="mt-5 grid gap-3 lg:grid-cols-5">
         <input
           type="text"
           value={search}
@@ -59,6 +61,16 @@ export default function SugestoesFilters({
           <option value="inativas">Inativas</option>
           <option value="pendentes">Pendentes</option>
           <option value="erro">Com erro</option>
+        </select>
+
+        <select
+          value={featuredFilter}
+          onChange={(e) => onFeaturedChange(e.target.value)}
+          className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-[15px] font-semibold text-slate-900"
+        >
+          <option value="todos">Todos os destaques</option>
+          <option value="featured">Somente destaque</option>
+          <option value="nao-featured">Sem destaque</option>
         </select>
       </div>
     </section>

@@ -45,6 +45,7 @@ function sanitizeSongPayload(body) {
   return {
     title: String(body?.title || '').trim(),
     artist: String(body?.artist || '').trim() || null,
+    music_key: String(body?.music_key || '').trim() || null,
     genre_id: body?.genre_id || null,
     moment_id: body?.moment_id || null,
     youtube_url: String(body?.youtube_url || '').trim() || null,
@@ -130,6 +131,7 @@ async function fetchSongs(supabase) {
       id,
       title,
       artist,
+      music_key,
       youtube_url,
       youtube_id,
       thumbnail_url,
@@ -160,19 +162,24 @@ async function fetchSongs(supabase) {
 
 export async function GET() {
   try {
+    console.info('[sugestoes] load start songs');
     const supabase = getSupabaseAdmin();
     const songs = await fetchSongs(supabase);
 
-    console.log('[sugestoes-debug] GET /api/suggestions/songs', { count: songs.length });
+    console.info('[sugestoes] data loaded songs', { count: songs.length });
 
     return NextResponse.json({
       ok: true,
       songs,
     });
   } catch (error) {
-    console.error('Erro ao listar suggestion_songs:', error);
+    console.error('[sugestoes] error songs', error);
     return NextResponse.json(
-      { error: error?.message || 'Erro ao listar músicas de sugestões' },
+      {
+        error:
+          error?.message ||
+          'Falha ao buscar músicas na tabela suggestion_songs',
+      },
       { status: 500 }
     );
   }

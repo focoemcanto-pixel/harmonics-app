@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '../../../../lib/supabase-admin';
 import { executeAutomationEvent } from '../../../../lib/automation/execute-automation-event';
-import { logAutomationDispatch } from '../../../../lib/automation/log-dispatch';
+import { safeLogDispatch } from '../../../../lib/automation/log-dispatch';
 import { getDefaultWorkspaceSettings } from '../../../../lib/automation/get-workspace';
 
 function cleanPhone(value) {
@@ -24,7 +24,7 @@ export async function POST(request) {
   try {
     const body = await request.json();
     inviteId = body?.inviteId;
-    console.info('[automation][send_invite] started', { inviteId });
+    console.info('[automation][step] send_invite_started', { inviteId });
 
     if (!inviteId) {
       return NextResponse.json(
@@ -54,7 +54,7 @@ export async function POST(request) {
         { status: 404 }
       );
     }
-    console.info('[automation][send_invite] invite_resolved', {
+    console.info('[automation][step] invite_resolved', {
       inviteId: invite.id,
       eventId: invite.event_id,
       contactId: invite.contact_id,
@@ -63,7 +63,7 @@ export async function POST(request) {
 
     if (String(invite.status || '').toLowerCase() === 'removed') {
       const workspace = await getDefaultWorkspaceSettings();
-      await logAutomationDispatch({
+      await safeLogDispatch({
         workspaceId: workspace.id,
         ruleId: null,
         templateId: null,
@@ -88,7 +88,7 @@ export async function POST(request) {
     const phone = cleanPhone(invite.contact?.phone);
     if (!phone) {
       const workspace = await getDefaultWorkspaceSettings();
-      await logAutomationDispatch({
+      await safeLogDispatch({
         workspaceId: workspace.id,
         ruleId: null,
         templateId: null,
@@ -109,7 +109,7 @@ export async function POST(request) {
         { status: 400 }
       );
     }
-    console.info('[automation][send_invite] recipient_resolved', {
+    console.info('[automation][step] recipient_resolved', {
       inviteId: invite.id,
       recipient: phone,
     });
@@ -133,7 +133,7 @@ export async function POST(request) {
       eventType: 'invite_member',
       entityId: invite.id,
     });
-    console.info('[automation][send_invite] automation_result', {
+    console.info('[automation][step] execute_automation_event_finished', {
       inviteId: invite.id,
       sent: result.sent,
       failed: result.failed,
@@ -182,7 +182,28 @@ export async function POST(request) {
       skipped: result.skipped,
     });
   } catch (error) {
-    console.error('[send-invite] Erro ao enviar convite via WhatsApp:', error);
+    console.error('[automation][step] send_invite_unexpected_error', error);
+    try {
+      const workspace = await getDefaultWorkspaceSettings();
+      await safeLogDispatch({
+        workspaceId: workspace.id,
+        ruleId: null,
+        templateId: null,
+        channelId: null,
+        entityId: inviteId || null,
+        entityType: 'invite',
+        recipientType: 'member',
+        recipient: null,
+        renderedMessage: null,
+        metadata: { eventType: 'invite_member', stage: 'unexpected_catch' },
+        providerResponse: null,
+        status: 'failed',
+        errorMessage: error?.message || 'Erro interno ao enviar convite',
+        source: 'automation_center',
+      });
+    } catch (logError) {
+      console.error('[automation][step] send_invite_unexpected_error_log_failed', logError);
+    }
 
     return NextResponse.json(
       { error: error?.message || 'Erro interno ao enviar convite' },

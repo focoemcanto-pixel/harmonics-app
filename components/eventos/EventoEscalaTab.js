@@ -1013,13 +1013,20 @@ export default function EventoEscalaTab({ eventId }) {
   try {
     setSalvando(true);
     setSucesso('');
+    console.info('[automation][step] salvar_escala_started', { eventId });
 
     await persistirEscala();
+    console.info('[automation][step] salvar_escala_persisted', { eventId });
 
     const response = await fetch('/api/whatsapp/send-event-invites', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ eventId }),
+    });
+    console.info('[automation][step] send_event_invites_called', {
+      eventId,
+      responseStatus: response.status,
+      ok: response.ok,
     });
 
     const data = await response.json().catch(() => ({}));
@@ -1034,7 +1041,7 @@ export default function EventoEscalaTab({ eventId }) {
         : 'Escala salva. Nenhum convite pendente para envio automático.'
     );
   } catch (e) {
-    console.error('Erro ao salvar escala:', e);
+    console.error('[automation][step] salvar_escala_failed', e);
     alert(e?.message || 'Erro ao salvar escala.');
   } finally {
     setSalvando(false);

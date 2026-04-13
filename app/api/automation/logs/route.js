@@ -72,6 +72,7 @@ export async function GET(request) {
     }
 
     const { data, error } = await query;
+    console.log('[logs] query result:', data?.length || 0);
 
     if (error) {
       console.error('[GET /api/automation/logs] Supabase error:', error);

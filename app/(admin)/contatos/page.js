@@ -10,11 +10,11 @@ import AdminSegmentTabs from '@/components/admin/AdminSegmentTabs';
 import { cleanPhone } from '@/lib/contatos/contatos-format';
 import {
   filterBySearchTerm,
-  filterByTag,
   filterByActive,
   sortContatos,
   getUniqueTags,
 } from '@/lib/contatos/contatos-filters';
+import { resolveContactType, isClientType, isMemberType } from '@/lib/contatos/contact-type';
 
 import ContatosFormularioTab from '@/components/contatos/ContatosFormularioTab';
 import ContatosListaTab from '@/components/contatos/ContatosListaTab';
@@ -26,6 +26,7 @@ function getInitialForm() {
     phone: '',
     tag: '',
     notes: '',
+    contact_type: 'musician',
     is_active: true,
   };
 }
@@ -45,12 +46,14 @@ export default function ContatosPage() {
   const [form, setForm] = useState(getInitialForm());
 
   const [busca, setBusca] = useState('');
-  const [tagFilter, setTagFilter] = useState('all');
+  const [typeFilter, setTypeFilter] = useState('all');
   const [activeFilter, setActiveFilter] = useState('all');
   const [sortMode, setSortMode] = useState('name_asc');
+  const [segment, setSegment] = useState('members');
 
   const [desktopTab, setDesktopTab] = useState('lista');
   const [mobileTab, setMobileTab] = useState('lista');
+  const [selectedClientIds, setSelectedClientIds] = useState(new Set());
 
   const desktopFormRef = useRef(null);
   const mobileFormRef = useRef(null);
@@ -85,10 +88,7 @@ export default function ContatosPage() {
   }, [mobileTab]);
 
   const carregarContatos = useCallback(async () => {
-    if (loadingRef.current) {
-      console.log('[Contatos] Load já em andamento, ignorando chamada duplicada');
-      return;
-    }
+    if (loadingRef.current) return;
 
     try {
       loadingRef.current = true;
@@ -108,10 +108,10 @@ export default function ContatosPage() {
         setContatos(data || []);
       }
     } catch (error) {
-      console.error('Erro ao carregar membros:', error);
+      console.error('Erro ao carregar contatos:', error);
 
       if (isMountedRef.current) {
-        setErrorMessage(error?.message || 'Erro ao carregar membros');
+        setErrorMessage(error?.message || 'Erro ao carregar contatos');
       }
     } finally {
       if (isMountedRef.current) {
@@ -139,6 +139,7 @@ export default function ContatosPage() {
       phone: contato.phone || '',
       tag: contato.tag || '',
       notes: contato.notes || '',
+      contact_type: resolveContactType(contato),
       is_active: contato.is_active !== false,
     });
 
@@ -156,7 +157,7 @@ export default function ContatosPage() {
     if (salvando) return;
 
     if (!form.name.trim()) {
-      setErrorMessage('Informe o nome do membro.');
+      setErrorMessage('Informe o nome do contato.');
       return;
     }
 
@@ -170,6 +171,7 @@ export default function ContatosPage() {
         phone: cleanPhone(form.phone),
         tag: form.tag.trim() || null,
         notes: form.notes.trim() || null,
+        contact_type: form.contact_type,
         is_active: !!form.is_active,
       };
 
@@ -193,8 +195,8 @@ export default function ContatosPage() {
       setDesktopTab('lista');
       setMobileTab('lista');
     } catch (error) {
-      console.error('Erro ao salvar membro:', error);
-      setErrorMessage(error?.message || 'Erro ao salvar membro');
+      console.error('Erro ao salvar contato:', error);
+      setErrorMessage(error?.message || 'Erro ao salvar contato');
     } finally {
       setSalvando(false);
     }
@@ -202,7 +204,7 @@ export default function ContatosPage() {
 
   async function excluirContato(id) {
     if (salvando) return;
-    if (!confirm('Tem certeza que deseja excluir este membro?')) return;
+    if (!confirm('Tem certeza que deseja excluir este contato?')) return;
 
     try {
       setSalvando(true);
@@ -219,8 +221,8 @@ export default function ContatosPage() {
 
       await carregarContatos();
     } catch (error) {
-      console.error('Erro ao excluir membro:', error);
-      setErrorMessage(error?.message || 'Erro ao excluir membro');
+      console.error('Erro ao excluir contato:', error);
+      setErrorMessage(error?.message || 'Erro ao excluir contato');
     } finally {
       setSalvando(false);
     }
@@ -231,27 +233,104 @@ export default function ContatosPage() {
   const contatosFiltrados = useMemo(() => {
     let lista = [...contatos];
 
+    if (segment === 'members') {
+      lista = lista.filter((item) => isMemberType(item));
+    } else if (segment === 'clients') {
+      lista = lista.filter((item) => isClientType(item));
+    }
+
+    if (typeFilter !== 'all') {
+      lista = lista.filter((item) => resolveContactType(item) === typeFilter);
+    }
+
     lista = filterBySearchTerm(lista, busca);
-    lista = filterByTag(lista, tagFilter);
     lista = filterByActive(lista, activeFilter);
     lista = sortContatos(lista, sortMode);
 
     return lista;
-  }, [contatos, busca, tagFilter, activeFilter, sortMode]);
+  }, [contatos, busca, activeFilter, sortMode, typeFilter, segment]);
 
   const resumo = useMemo(() => {
     const total = contatos.length;
-    const ativos = contatos.filter((c) => c.is_active !== false).length;
-    const inativos = total - ativos;
-    const comEmail = contatos.filter((c) => c.email).length;
+    const membrosAtivos = contatos.filter((c) => isMemberType(c) && c.is_active !== false).length;
+    const clientes = contatos.filter((c) => isClientType(c)).length;
+    const novosContatos = contatos.filter((c) => {
+      if (!c.created_at) return false;
+      const createdAt = new Date(c.created_at).getTime();
+      const now = Date.now();
+      const THIRTY_DAYS = 1000 * 60 * 60 * 24 * 30;
+      return now - createdAt <= THIRTY_DAYS;
+    }).length;
 
-    return { total, ativos, inativos, comEmail };
+    return { total, membrosAtivos, clientes, novosContatos };
   }, [contatos]);
+
+  const contatosClientesFiltrados = useMemo(
+    () => contatosFiltrados.filter((item) => isClientType(item)),
+    [contatosFiltrados]
+  );
+
+  const handleToggleSelectClient = useCallback((id) => {
+    setSelectedClientIds((prev) => {
+      const next = new Set(prev);
+      const key = String(id);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleSelectAllFilteredClients = useCallback(() => {
+    setSelectedClientIds(new Set(contatosClientesFiltrados.map((item) => String(item.id))));
+  }, [contatosClientesFiltrados]);
+
+  const handleClearSelection = useCallback(() => {
+    setSelectedClientIds(new Set());
+  }, []);
+
+  async function excluirClientesSelecionados() {
+    if (salvando || segment !== 'clients') return;
+    const ids = Array.from(selectedClientIds);
+    if (!ids.length) return;
+
+    const confirmed = confirm(
+      `Você está prestes a excluir ${ids.length} cliente(s). Essa ação não poderá ser desfeita. Deseja continuar?`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setSalvando(true);
+      setErrorMessage('');
+
+      const { error } = await supabase
+        .from('contacts')
+        .delete()
+        .in('id', ids);
+
+      if (error) throw error;
+
+      setSelectedClientIds(new Set());
+      await carregarContatos();
+    } catch (error) {
+      console.error('Erro ao excluir clientes em massa:', error);
+      setErrorMessage(error?.message || 'Erro ao excluir clientes selecionados');
+    } finally {
+      setSalvando(false);
+    }
+  }
 
   const mobileTabs = [
     { key: 'lista', label: 'Lista' },
     { key: 'novo', label: editandoId ? 'Editar' : 'Novo' },
   ];
+
+  useEffect(() => {
+    setSelectedClientIds(new Set());
+  }, [segment, busca, activeFilter, sortMode, typeFilter]);
 
   const mobileActions = (
     <button
@@ -270,16 +349,16 @@ export default function ContatosPage() {
 
   if (carregando) {
     return (
-      <AdminShell pageTitle="Membros" activeItem="contatos" mobileActions={mobileActions}>
+      <AdminShell pageTitle="Contatos" activeItem="contatos" mobileActions={mobileActions}>
         <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-6 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
-          <p className="text-center text-[#64748b]">Carregando membros...</p>
+          <p className="text-center text-[#64748b]">Carregando contatos...</p>
         </section>
       </AdminShell>
     );
   }
 
   return (
-    <AdminShell pageTitle="Membros" activeItem="contatos" mobileActions={mobileActions}>
+    <AdminShell pageTitle="Contatos" activeItem="contatos" mobileActions={mobileActions}>
       <div className="space-y-5">
         {errorMessage && (
           <div className="rounded-[18px] border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
@@ -289,8 +368,8 @@ export default function ContatosPage() {
 
         <AdminPageHero
           badge="Harmonics Admin"
-          title="Membros da equipe"
-          subtitle="Cadastre e gerencie os músicos e prestadores que participam das suas escalas."
+          title="Contatos"
+          subtitle="Separe claramente equipe operacional e clientes comerciais em uma única visão premium."
           actions={
             <button
               type="button"
@@ -303,35 +382,16 @@ export default function ContatosPage() {
               }}
               className="rounded-[18px] bg-violet-600 px-5 py-4 text-[14px] font-black text-white shadow-[0_12px_28px_rgba(124,58,237,0.18)]"
             >
-              Novo membro
+              Novo contato
             </button>
           }
         />
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <AdminSummaryCard
-            label="Total de membros"
-            value={resumo.total}
-            helper="Base operacional da equipe"
-          />
-          <AdminSummaryCard
-            label="Ativos"
-            value={resumo.ativos}
-            helper="Disponíveis para escala"
-            tone="success"
-          />
-          <AdminSummaryCard
-            label="Inativos"
-            value={resumo.inativos}
-            helper="Ocultos da operação"
-            tone="warning"
-          />
-          <AdminSummaryCard
-            label="Com email"
-            value={resumo.comEmail}
-            helper="Prontos para acesso"
-            tone="accent"
-          />
+          <AdminSummaryCard label="Total de contatos" value={resumo.total} helper="Base geral" />
+          <AdminSummaryCard label="Membros ativos" value={resumo.membrosAtivos} helper="Escalas e convites" tone="success" />
+          <AdminSummaryCard label="Clientes" value={resumo.clientes} helper="Eventos e contratos" tone="warning" />
+          <AdminSummaryCard label="Novos contatos" value={resumo.novosContatos} helper="Últimos 30 dias" tone="accent" />
         </div>
 
         <div className="hidden md:block">
@@ -363,17 +423,23 @@ export default function ContatosPage() {
           {desktopTab === 'lista' && (
             <ContatosListaTab
               contatosFiltrados={contatosFiltrados}
+              segment={segment}
+              setSegment={setSegment}
               busca={busca}
               setBusca={setBusca}
-              tagFilter={tagFilter}
-              setTagFilter={setTagFilter}
+              typeFilter={typeFilter}
+              setTypeFilter={setTypeFilter}
               activeFilter={activeFilter}
               setActiveFilter={setActiveFilter}
               sortMode={sortMode}
               setSortMode={setSortMode}
-              uniqueTags={uniqueTags}
               iniciarEdicao={iniciarEdicao}
               excluirContato={excluirContato}
+              selectedIds={selectedClientIds}
+              onToggleSelect={handleToggleSelectClient}
+              onSelectAllFiltered={handleSelectAllFilteredClients}
+              onClearSelection={handleClearSelection}
+              onBulkDeleteClients={excluirClientesSelecionados}
             />
           )}
 
@@ -401,17 +467,23 @@ export default function ContatosPage() {
           {mobileTab === 'lista' && (
             <ContatosListaTab
               contatosFiltrados={contatosFiltrados}
+              segment={segment}
+              setSegment={setSegment}
               busca={busca}
               setBusca={setBusca}
-              tagFilter={tagFilter}
-              setTagFilter={setTagFilter}
+              typeFilter={typeFilter}
+              setTypeFilter={setTypeFilter}
               activeFilter={activeFilter}
               setActiveFilter={setActiveFilter}
               sortMode={sortMode}
               setSortMode={setSortMode}
-              uniqueTags={uniqueTags}
               iniciarEdicao={iniciarEdicao}
               excluirContato={excluirContato}
+              selectedIds={selectedClientIds}
+              onToggleSelect={handleToggleSelectClient}
+              onSelectAllFiltered={handleSelectAllFilteredClients}
+              onClearSelection={handleClearSelection}
+              onBulkDeleteClients={excluirClientesSelecionados}
             />
           )}
 

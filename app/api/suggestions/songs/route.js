@@ -131,6 +131,13 @@ async function replaceSongCollections(supabase, songId, collectionIds = []) {
 }
 
 async function fetchSongs(supabase) {
+  const sourceFilter = 'source_type.eq.admin,source_type.is.null';
+  console.info('[sugestoes] songs query', {
+    table: 'public.suggestion_songs',
+    sourceFilter,
+    dataOrigin: 'editorial_catalog_only',
+  });
+
   const { data, error } = await supabase
     .from('suggestion_songs')
     .select(`
@@ -169,10 +176,15 @@ async function fetchSongs(supabase) {
       )
     `)
     .order('sort_order', { ascending: true })
-    .eq('source_type', 'admin')
+    .or(sourceFilter)
     .order('created_at', { ascending: false });
 
   if (error) throw error;
+  console.info('[sugestoes] songs query result', {
+    count: (data || []).length,
+    table: 'public.suggestion_songs',
+    dataOrigin: 'editorial_catalog_only',
+  });
   return data || [];
 }
 

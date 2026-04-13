@@ -297,6 +297,14 @@ function SuggestionEditorModal({
     const nextVideoId = result?.videoId || '';
     const nextUrl = nextVideoId ? `https://www.youtube.com/watch?v=${nextVideoId}` : '';
     const nextThumb = result?.thumbnail || '';
+    console.info('[sugestoes] referência selecionada no cadastro', {
+      title: result?.title || '',
+      channelTitle: result?.channelTitle || '',
+      youtube_id: nextVideoId || null,
+      youtube_url: nextUrl || null,
+      thumbnail_url: nextThumb || null,
+      source: 'youtube_search',
+    });
 
     setSelectedReference(result || null);
     setReferenceSearch(result?.title || '');
@@ -750,6 +758,8 @@ function SuggestoesResumoTab({ songs }) {
 function SuggestoesBibliotecaTab({
   songs,
   loading,
+  songsLoadFailed,
+  onRetryLoad,
   onCreate,
   onEdit,
   onDelete,
@@ -835,6 +845,13 @@ function SuggestoesBibliotecaTab({
             ))}
           </div>
         </section>
+      ) : songsLoadFailed ? (
+        <EmptyState
+          title="Não foi possível carregar o catálogo agora"
+          text="Tivemos um erro ao consultar o catálogo editorial. Tente atualizar em instantes."
+          actionLabel="Tentar novamente"
+          onAction={onRetryLoad}
+        />
       ) : filteredSongs.length === 0 ? (
         <EmptyState
           title="Nenhuma música encontrada"
@@ -1303,6 +1320,7 @@ const [savingMoment, setSavingMoment] = useState(false);
   const [enrichingCatalog, setEnrichingCatalog] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [songsLoadFailed, setSongsLoadFailed] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingSong, setEditingSong] = useState(null);
 
@@ -1335,6 +1353,7 @@ const [savingMoment, setSavingMoment] = useState(false);
     console.info('[sugestoes] load start');
     setLoading(true);
     setError('');
+    setSongsLoadFailed(false);
 
     const [songsResponse, genresResponse, momentsResponse] = await Promise.all([
       fetch('/api/suggestions/songs', { cache: 'no-store' }),
@@ -1360,7 +1379,13 @@ const [savingMoment, setSavingMoment] = useState(false);
     const momentsList = momentsResponse.ok && Array.isArray(momentsData?.moments) ? momentsData.moments : [];
 
     const loadErrors = [];
-    if (!songsResponse.ok) loadErrors.push(songsData?.error || 'Falha ao buscar músicas');
+    if (!songsResponse.ok) {
+      setSongsLoadFailed(true);
+      loadErrors.push(
+        songsData?.error ||
+          'Falha ao buscar músicas do catálogo editorial (suggestion_songs)'
+      );
+    }
     if (!genresResponse.ok) {
       loadErrors.push(
         genresData?.error ||
@@ -1401,9 +1426,12 @@ const [savingMoment, setSavingMoment] = useState(false);
       songs: songsList.length,
       genres: genresList.length,
       moments: momentsList.length,
+      source: 'public.suggestion_songs',
+      source_scope: 'editorial_catalog_only',
     });
   } catch (err) {
     console.error('[sugestoes] error', err);
+    setSongsLoadFailed(true);
     setError(err?.message || 'Erro ao carregar módulo de sugestões');
   } finally {
     setLoading(false);
@@ -1451,6 +1479,10 @@ const [savingMoment, setSavingMoment] = useState(false);
         youtube_id: String(form.youtube_id || '').trim(),
         thumbnail_url: String(form.thumbnail_url || '').trim(),
       };
+      console.info('[sugestoes] save song payload origin', {
+        destination: 'public.suggestion_songs',
+        source: 'admin_editorial_form',
+      });
 
       const response = await fetch(url, {
         method,
@@ -1793,6 +1825,8 @@ const [savingMoment, setSavingMoment] = useState(false);
         <SuggestoesBibliotecaTab
           songs={songs}
           loading={loading}
+          songsLoadFailed={songsLoadFailed}
+          onRetryLoad={loadAll}
           onCreate={openCreate}
           onEdit={openEdit}
           onDelete={handleDelete}

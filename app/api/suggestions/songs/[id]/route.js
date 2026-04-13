@@ -132,6 +132,7 @@ async function replaceSongCollections(supabase, songId, collectionIds = []) {
 }
 
 async function fetchSongById(supabase, id) {
+  const sourceFilter = 'source_type.eq.admin,source_type.is.null';
   const { data, error } = await supabase
     .from('suggestion_songs')
     .select(`
@@ -170,7 +171,7 @@ async function fetchSongById(supabase, id) {
       )
     `)
     .eq('id', id)
-    .eq('source_type', 'admin')
+    .or(sourceFilter)
     .single();
 
   if (error) throw error;
@@ -203,7 +204,7 @@ export async function PATCH(request, { params }) {
       .from('suggestion_songs')
       .update(payload)
       .eq('id', id)
-      .eq('source_type', 'admin');
+      .or('source_type.eq.admin,source_type.is.null');
 
     if (updateError) throw updateError;
 
@@ -245,7 +246,7 @@ export async function DELETE(_request, { params }) {
       .from('suggestion_songs')
       .delete()
       .eq('id', id)
-      .eq('source_type', 'admin');
+      .or('source_type.eq.admin,source_type.is.null');
 
     if (error) throw error;
 

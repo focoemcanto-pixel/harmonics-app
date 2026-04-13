@@ -58,16 +58,29 @@ export default function SugestaoCard({
 }) {
   const genreName = song?.genre?.name || 'Sem gênero';
   const tags = (song?.song_tags || []).map((item) => item?.tag?.name).filter(Boolean);
+  const safeTitle = String(song?.title || 'Música').trim();
   const { hasThumb, hasYoutube, hasError, isPending } = getSongFlags(song);
+  const shouldShowImage = Boolean(song?.thumbnail_url);
 
   return (
     <article className="group overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_14px_34px_rgba(15,23,42,0.07)] transition hover:-translate-y-[1px] hover:shadow-[0_18px_44px_rgba(15,23,42,0.1)]">
       <div className="relative h-[164px] bg-slate-100">
-        {song?.thumbnail_url ? (
-          <Image src={song.thumbnail_url} alt={song.title || 'Música'} fill sizes="(max-width: 1280px) 100vw, 50vw" className="object-cover" />
+        {shouldShowImage ? (
+          <Image
+            src={song.thumbnail_url}
+            alt={song.title || 'Música'}
+            fill
+            sizes="(max-width: 1280px) 100vw, 50vw"
+            className="object-cover"
+          />
         ) : (
-          <div className="flex h-full items-center justify-center text-[13px] font-black text-slate-500">
-            Sem thumbnail
+          <div className="flex h-full flex-col items-center justify-center gap-2 bg-[radial-gradient(circle_at_20%_20%,#e2e8f0_0%,#cbd5e1_45%,#94a3b8_100%)] px-5 text-center text-[13px] font-black text-slate-700">
+            <span className="rounded-full border border-white/60 bg-white/45 px-3 py-1 text-[11px] uppercase tracking-[0.08em] text-slate-600">
+              Capa premium
+            </span>
+            <span className="line-clamp-2 max-w-[90%] text-[14px] tracking-[-0.01em] text-slate-800">
+              {safeTitle}
+            </span>
           </div>
         )}
 

@@ -10,7 +10,8 @@
     "deploy:preview": "npm run build:worker && wrangler deploy --env preview",
     "preview:local": "wrangler dev",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "backfill:suggestion-songs": "node scripts/backfill-suggestion-songs-metadata.js"
   },
   "dependencies": {
     "@supabase/auth-helpers-nextjs": "^0.15.0",

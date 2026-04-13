@@ -1218,6 +1218,7 @@ const [savingMoment, setSavingMoment] = useState(false);
   const [collections, setCollections] = useState([]);
   const [loading, setLoading] = useState(true);
   const [savingSong, setSavingSong] = useState(false);
+  const [enrichingCatalog, setEnrichingCatalog] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [editorOpen, setEditorOpen] = useState(false);
@@ -1589,6 +1590,34 @@ const [savingMoment, setSavingMoment] = useState(false);
     );
   }
 
+  async function handleEnrichCatalog() {
+    try {
+      setEnrichingCatalog(true);
+      setError('');
+      setNotice('');
+
+      const response = await fetch('/api/admin/suggestions/enrich-catalog', {
+        method: 'POST',
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data?.error || 'Erro ao enriquecer catálogo.');
+      }
+
+      await loadAll();
+      const updated = Number(data?.result?.updated || 0);
+      const scanned = Number(data?.result?.scanned || 0);
+      setNotice(`Enriquecimento concluído: ${updated} de ${scanned} músicas atualizadas.`);
+      setActiveTab('qualidade');
+    } catch (err) {
+      console.error(err);
+      setError(err?.message || 'Erro ao enriquecer catálogo.');
+    } finally {
+      setEnrichingCatalog(false);
+    }
+  }
+
   return (
     <div className="space-y-5">
       <SectionCard
@@ -1597,6 +1626,15 @@ const [savingMoment, setSavingMoment] = useState(false);
         subtitle="Gerencie a curadoria musical do painel do cliente com controle editorial, visão de catálogo e ações rápidas."
         right={
           <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={handleEnrichCatalog}
+              disabled={enrichingCatalog}
+              className="rounded-[18px] border border-sky-200 bg-sky-50 px-5 py-4 text-[14px] font-black text-sky-700 disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              {enrichingCatalog ? 'Enriquecendo…' : 'Enriquecer catálogo'}
+            </button>
+
             <button
               type="button"
               onClick={openCreate}

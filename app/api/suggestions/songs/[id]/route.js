@@ -45,6 +45,7 @@ function sanitizeSongPayload(body) {
   return {
     title: String(body?.title || '').trim(),
     artist: String(body?.artist || '').trim() || null,
+    music_key: String(body?.music_key || '').trim() || null,
     genre_id: body?.genre_id || null,
     moment_id: body?.moment_id || null,
     youtube_url: String(body?.youtube_url || '').trim() || null,
@@ -131,6 +132,7 @@ async function fetchSongById(supabase, id) {
       id,
       title,
       artist,
+      music_key,
       youtube_url,
       youtube_id,
       thumbnail_url,
@@ -198,9 +200,13 @@ export async function PATCH(request, { params }) {
       song,
     });
   } catch (error) {
-    console.error('Erro ao atualizar suggestion_song:', error);
+    console.error('[sugestoes] error update song', error);
     return NextResponse.json(
-      { error: error?.message || 'Erro ao atualizar música de sugestões' },
+      {
+        error:
+          error?.message ||
+          'Falha ao atualizar música na tabela suggestion_songs',
+      },
       { status: 500 }
     );
   }
@@ -230,9 +236,13 @@ export async function DELETE(_request, { params }) {
       deletedId: id,
     });
   } catch (error) {
-    console.error('Erro ao excluir suggestion_song:', error);
+    console.error('[sugestoes] error delete song', error);
     return NextResponse.json(
-      { error: error?.message || 'Erro ao excluir música de sugestões' },
+      {
+        error:
+          error?.message ||
+          'Falha ao excluir música da tabela suggestion_songs',
+      },
       { status: 500 }
     );
   }

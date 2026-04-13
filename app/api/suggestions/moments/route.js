@@ -23,16 +23,21 @@ async function fetchMoments(supabase) {
 
 export async function GET() {
   try {
+    console.info('[sugestoes] load start moments');
     const supabase = getSupabaseAdmin();
     const moments = await fetchMoments(supabase);
 
-    console.log('[sugestoes-debug] GET /api/suggestions/moments', { count: moments.length });
+    console.info('[sugestoes] data loaded moments', { count: moments.length });
 
     return NextResponse.json({ ok: true, moments });
   } catch (error) {
-    console.error('Erro ao listar suggestion_moments:', error);
+    console.error('[sugestoes] error moments', error);
     return NextResponse.json(
-      { error: error?.message || 'Erro ao listar momentos' },
+      {
+        error:
+          error?.message ||
+          'Momentos não encontrados na tabela suggestion_moments',
+      },
       { status: 500 }
     );
   }

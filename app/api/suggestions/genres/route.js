@@ -23,18 +23,23 @@ async function fetchGenres(supabase) {
 
 export async function GET() {
   try {
+    console.info('[sugestoes] load start genres');
     const supabase = getSupabaseAdmin();
     const genres = await fetchGenres(supabase);
 
-    console.log('[sugestoes-debug] GET /api/suggestions/genres', {
+    console.info('[sugestoes] data loaded genres', {
       count: genres.length,
     });
 
     return NextResponse.json({ ok: true, genres });
   } catch (error) {
-    console.error('Erro ao listar suggestion_genres:', error);
+    console.error('[sugestoes] error genres', error);
     return NextResponse.json(
-      { error: error?.message || 'Erro ao listar gêneros' },
+      {
+        error:
+          error?.message ||
+          'Gêneros não encontrados na tabela suggestion_genres',
+      },
       { status: 500 }
     );
   }

@@ -1,6 +1,6 @@
 'use client';
 
-import { Field, Input } from '../admin/AdminFormPrimitives';
+import { Field, Input, Select } from '../admin/AdminFormPrimitives';
 
 export default function ContatosFormularioTab({
   editandoId,
@@ -12,29 +12,41 @@ export default function ContatosFormularioTab({
   uniqueTags = [],
   firstInputRef,
 }) {
+  const isClient = form.contact_type === 'client';
+
   return (
     <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_26px_rgba(17,24,39,0.04)] md:p-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
           <div className="text-[12px] font-black uppercase tracking-[0.14em] text-violet-600">
-            Cadastro operacional
+            Cadastro de contatos
           </div>
           <h2 className="mt-2 text-[28px] font-black tracking-[-0.04em] text-[#0f172a]">
-            {editandoId ? 'Editar membro' : 'Novo membro'}
+            {editandoId ? 'Editar contato' : 'Novo contato'}
           </h2>
           <p className="mt-2 max-w-2xl text-[15px] leading-7 text-[#64748b]">
-            Cadastre aqui quem participa das escalas. O e-mail será usado para acesso
-            ao sistema e o WhatsApp para comunicação operacional.
+            Defina o tipo corretamente para separar operação de equipe e relacionamento comercial.
           </p>
         </div>
 
         <div className="rounded-[18px] border border-[#e9ddff] bg-[#faf5ff] px-4 py-3 text-[13px] font-semibold text-violet-700">
-          Base de músicos e prestadores
+          {isClient ? 'Contato comercial (cliente)' : 'Contato operacional (membro/equipe)'}
         </div>
       </div>
 
       <div className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-2">
-        <Field label="Nome do membro">
+        <Field label="Tipo do contato">
+          <Select
+            value={form.contact_type}
+            onChange={(e) => handleFormChange('contact_type', e.target.value)}
+          >
+            <option value="musician">Membro</option>
+            <option value="staff">Staff</option>
+            <option value="client">Cliente</option>
+          </Select>
+        </Field>
+
+        <Field label="Nome">
           <Input
             ref={firstInputRef}
             value={form.name}
@@ -43,31 +55,28 @@ export default function ContatosFormularioTab({
           />
         </Field>
 
-        <Field label="Email de acesso">
+        <Field label="Email">
           <Input
             type="email"
             value={form.email}
             onChange={(e) => handleFormChange('email', e.target.value)}
-            placeholder="Ex.: membro@email.com"
-            helpText="Este email será usado no login com Google."
+            placeholder="Ex.: contato@email.com"
           />
         </Field>
 
-        <Field label="WhatsApp operacional">
+        <Field label={isClient ? 'WhatsApp comercial' : 'WhatsApp operacional'}>
           <Input
             value={form.phone}
             onChange={(e) => handleFormChange('phone', e.target.value)}
             placeholder="Ex.: 71999999999"
-            helpText="Número usado para convites e comunicação."
           />
         </Field>
 
-        <Field label="Função / Instrumento (tag)">
+        <Field label={isClient ? 'Segmento/Tag' : 'Função / Instrumento (tag)'}>
           <Input
             value={form.tag}
             onChange={(e) => handleFormChange('tag', e.target.value)}
-            placeholder="Ex.: Vocal, Violão, Sax, Backing, Som"
-            helpText="Essa tag aparece na busca e nos cards da escala."
+            placeholder={isClient ? 'Ex.: Casamento, Corporativo' : 'Ex.: Vocal, Violão, Backing'}
           />
         </Field>
 
@@ -77,7 +86,7 @@ export default function ContatosFormularioTab({
               value={form.notes}
               onChange={(e) => handleFormChange('notes', e.target.value)}
               rows={4}
-              placeholder="Ex.: tenor principal, responde rápido, só toca à noite..."
+              placeholder="Ex.: informações úteis para operação/comercial..."
               className="w-full rounded-[18px] border border-[#dbe3ef] bg-white px-4 py-3 text-[15px] text-[#0f172a] outline-none transition focus:border-violet-300 focus:ring-4 focus:ring-violet-100"
             />
           </Field>
@@ -114,11 +123,9 @@ export default function ContatosFormularioTab({
             className="mt-1 h-4 w-4 rounded border-[#cbd5e1] text-violet-600 focus:ring-violet-500"
           />
           <div>
-            <div className="text-[14px] font-black text-[#0f172a]">
-              Membro ativo
-            </div>
+            <div className="text-[14px] font-black text-[#0f172a]">Contato ativo</div>
             <p className="mt-1 text-[14px] leading-6 text-[#64748b]">
-              Quando ativo, ele fica disponível para busca e seleção nas escalas.
+              Contatos inativos ficam ocultos dos fluxos de operação.
             </p>
           </div>
         </label>
@@ -140,7 +147,7 @@ export default function ContatosFormularioTab({
           disabled={salvando}
           className="rounded-[18px] bg-violet-600 px-5 py-4 text-[15px] font-black text-white shadow-[0_12px_28px_rgba(124,58,237,0.18)] disabled:opacity-60"
         >
-          {salvando ? 'Salvando...' : editandoId ? 'Salvar alterações' : 'Cadastrar membro'}
+          {salvando ? 'Salvando...' : editandoId ? 'Salvar alterações' : 'Cadastrar contato'}
         </button>
       </div>
     </section>

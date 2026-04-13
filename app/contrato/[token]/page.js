@@ -304,6 +304,7 @@ async function upsertContactFromSignature({
     email,
     phone,
     tag: 'cliente',
+    contact_type: 'client',
     notes: [
       'Criado/atualizado automaticamente após assinatura.',
       precontract?.event_type ? `Tipo: ${precontract.event_type}` : '',

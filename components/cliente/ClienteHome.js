@@ -3042,6 +3042,31 @@ function SugestoesTab({
   favoriteSongIds,
   setFavoriteSongIds,
 }) {
+  function mapSuggestionSongFromCatalog(song = {}) {
+    const title = String(song?.title || '').trim();
+    if (!title) return null;
+
+    const youtubeId =
+      String(song?.youtube_id || '').trim() || getYoutubeVideoId(song?.youtube_url) || '';
+
+    return {
+      id: String(song?.id || ''),
+      title,
+      artist: String(song?.artist || '').trim() || 'Artista não informado',
+      genre: String(song?.genre?.name || '').trim() || 'Outros',
+      moment: String(song?.moment?.name || '').trim() || 'Cerimônia',
+      youtubeId,
+      thumbnailUrl:
+        String(song?.thumbnail_url || '').trim() ||
+        (youtubeId ? `https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg` : ''),
+      description: String(song?.description || '').trim(),
+      isFavorite: false,
+      isAdded: false,
+      featured: Boolean(song?.is_featured || song?.is_recommended),
+      tags: [],
+    };
+  }
+
    const { showToast } = useToast();
   const [search, setSearch] = useState('');
   const [quickFilter, setQuickFilter] = useState('Todos');
@@ -3397,6 +3422,35 @@ function SugestoesTab({
   tags: ['gospel', 'casamento', 'romantico'],
 },
 ]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadSuggestionSongs() {
+      try {
+        const response = await fetch('/api/suggestions/songs', { cache: 'no-store' });
+        if (!response.ok) throw new Error('Falha ao carregar catálogo de sugestões.');
+
+        const payload = await response.json();
+        const catalogSongs = Array.isArray(payload?.songs)
+          ? payload.songs
+              .map(mapSuggestionSongFromCatalog)
+              .filter(Boolean)
+          : [];
+
+        if (isMounted && catalogSongs.length > 0) {
+          setSongs(catalogSongs);
+        }
+      } catch (error) {
+        console.error('[SUGESTOES] não foi possível carregar catálogo editorial:', error);
+      }
+    }
+
+    loadSuggestionSongs();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
   const hydratedSongs = useMemo(() => {
     return songs.map((song) => ({
       ...song,

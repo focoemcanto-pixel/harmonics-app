@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { getSupabaseAdmin } from '../../../../../lib/supabase-admin';
 
 function slugify(value) {
   return String(value || '')
@@ -25,6 +25,10 @@ export async function GET() {
   try {
     const supabase = getSupabaseAdmin();
     const genres = await fetchGenres(supabase);
+
+    console.log('[sugestoes-debug] GET /api/suggestions/genres', {
+      count: genres.length,
+    });
 
     return NextResponse.json({ ok: true, genres });
   } catch (error) {
@@ -68,6 +72,11 @@ export async function POST(request) {
       .single();
 
     if (error) throw error;
+
+    console.log('[sugestoes-debug] POST /api/suggestions/genres', {
+      id: data?.id,
+      name: data?.name,
+    });
 
     return NextResponse.json({ ok: true, genre: data });
   } catch (error) {

@@ -1372,61 +1372,6 @@ const [savingMoment, setSavingMoment] = useState(false);
     { key: 'qualidade', label: 'Qualidade' },
   ];
 
-  async function loadSongs() {
-    const response = await fetch('/api/suggestions/songs', {
-      cache: 'no-store',
-    });
-
-    const data = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
-      throw new Error(data?.error || 'Erro ao carregar músicas');
-    }
-
-    const list = Array.isArray(data?.songs) ? data.songs : [];
-    setSongs(list);
-
-    const genresMap = new Map();
-    const momentsMap = new Map();
-    const tagsMap = new Map();
-    const collectionsMap = new Map();
-
-    list.forEach((song) => {
-      if (song?.genre?.id) genresMap.set(song.genre.id, song.genre);
-      if (song?.moment?.id) momentsMap.set(song.moment.id, song.moment);
-
-      (song?.song_tags || []).forEach((item) => {
-        if (item?.tag?.id) tagsMap.set(item.tag.id, item.tag);
-      });
-
-      (song?.collection_links || []).forEach((item) => {
-        if (item?.collection?.id) {
-          collectionsMap.set(item.collection.id, item.collection);
-        }
-      });
-    });
-
-    setGenres(
-      Array.from(genresMap.values()).sort(
-        (a, b) => Number(a?.sort_order || 0) - Number(b?.sort_order || 0)
-      )
-    );
-
-    setMoments(
-      Array.from(momentsMap.values()).sort(
-        (a, b) => Number(a?.sort_order || 0) - Number(b?.sort_order || 0)
-      )
-    );
-
-    setTags(Array.from(tagsMap.values()).sort((a, b) => a.name.localeCompare(b.name)));
-
-    setCollections(
-      Array.from(collectionsMap.values()).sort(
-        (a, b) => Number(a?.sort_order || 0) - Number(b?.sort_order || 0)
-      )
-    );
-  }
-
  async function loadAll() {
   try {
     setLoading(true);
@@ -1443,6 +1388,13 @@ const [savingMoment, setSavingMoment] = useState(false);
       genresResponse.json().catch(() => ({})),
       momentsResponse.json().catch(() => ({})),
     ]);
+
+
+    console.log('[sugestoes-debug] loadAll status', {
+      songsStatus: songsResponse.status,
+      genresStatus: genresResponse.status,
+      momentsStatus: momentsResponse.status,
+    });
 
     if (!songsResponse.ok) {
       throw new Error(songsData?.error || 'Erro ao carregar músicas');
@@ -1486,7 +1438,7 @@ const [savingMoment, setSavingMoment] = useState(false);
       )
     );
   } catch (err) {
-    console.error(err);
+    console.error('[sugestoes-debug] erro no loadAll', err);
     setError(err?.message || 'Erro ao carregar módulo de sugestões');
   } finally {
     setLoading(false);
@@ -1506,14 +1458,15 @@ const [savingMoment, setSavingMoment] = useState(false);
     setEditorOpen(true);
   }
 
-  async function handleSaveSong(form) {
+  async function handleSaveSong(form, options = {}) {
     try {
       setSavingSong(true);
       setError('');
 
-      const method = editingSong?.id ? 'PATCH' : 'POST';
-      const url = editingSong?.id
-        ? `/api/suggestions/songs/${editingSong.id}`
+      const songId = options.songId || editingSong?.id || null;
+      const method = songId ? 'PATCH' : 'POST';
+      const url = songId
+        ? `/api/suggestions/songs/${songId}`
         : '/api/suggestions/songs';
 
       const payload = {
@@ -1594,9 +1547,7 @@ const [savingMoment, setSavingMoment] = useState(false);
       collection_ids: (song.collection_links || [])
         .map((item) => item?.collection?.id)
         .filter(Boolean),
-    });
-
-    setEditingSong({ ...song, is_featured: !song.is_featured, id: song.id });
+    }, { songId: song.id });
   }
 
   async function handleToggleActive(song) {
@@ -1616,9 +1567,133 @@ const [savingMoment, setSavingMoment] = useState(false);
       collection_ids: (song.collection_links || [])
         .map((item) => item?.collection?.id)
         .filter(Boolean),
-    });
+    }, { songId: song.id });
+  }
 
-    setEditingSong({ ...song, is_active: !song.is_active, id: song.id });
+  function openCreateGenre() {
+    setEditingGenre(null);
+    setGenreEditorOpen(true);
+  }
+
+  function openEditGenre(item) {
+    setEditingGenre(item);
+    setGenreEditorOpen(true);
+  }
+
+  function openCreateMoment() {
+    setEditingMoment(null);
+    setMomentEditorOpen(true);
+  }
+
+  function openEditMoment(item) {
+    setEditingMoment(item);
+    setMomentEditorOpen(true);
+  }
+
+  async function handleSaveGenre(form, options = {}) {
+    try {
+      setSavingGenre(true);
+      setError('');
+
+      const genreId = options.genreId || editingGenre?.id || null;
+      const method = genreId ? 'PATCH' : 'POST';
+      const url = genreId
+        ? `/api/suggestions/genres/${genreId}`
+        : '/api/suggestions/genres';
+
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: String(form.name || '').trim(),
+          slug: String(form.slug || '').trim(),
+          is_active: Boolean(form.is_active),
+          sort_order: Number(form.sort_order || 0),
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+      console.log('[sugestoes-debug] save genre response', { method, url, status: response.status, data });
+
+      if (!response.ok) {
+        throw new Error(data?.error || 'Erro ao salvar gênero');
+      }
+
+      setGenreEditorOpen(false);
+      setEditingGenre(null);
+      await loadAll();
+      setActiveTab('generos');
+    } catch (err) {
+      console.error('[sugestoes-debug] erro ao salvar gênero', err);
+      setError(err?.message || 'Erro ao salvar gênero');
+    } finally {
+      setSavingGenre(false);
+    }
+  }
+
+  async function handleToggleGenreActive(item) {
+    await handleSaveGenre(
+      {
+        name: item.name,
+        slug: item.slug,
+        is_active: !item.is_active,
+        sort_order: item.sort_order || 0,
+      },
+      { genreId: item.id }
+    );
+  }
+
+  async function handleSaveMoment(form, options = {}) {
+    try {
+      setSavingMoment(true);
+      setError('');
+
+      const momentId = options.momentId || editingMoment?.id || null;
+      const method = momentId ? 'PATCH' : 'POST';
+      const url = momentId
+        ? `/api/suggestions/moments/${momentId}`
+        : '/api/suggestions/moments';
+
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: String(form.name || '').trim(),
+          slug: String(form.slug || '').trim(),
+          is_active: Boolean(form.is_active),
+          sort_order: Number(form.sort_order || 0),
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+      console.log('[sugestoes-debug] save moment response', { method, url, status: response.status, data });
+
+      if (!response.ok) {
+        throw new Error(data?.error || 'Erro ao salvar momento');
+      }
+
+      setMomentEditorOpen(false);
+      setEditingMoment(null);
+      await loadAll();
+      setActiveTab('momentos');
+    } catch (err) {
+      console.error('[sugestoes-debug] erro ao salvar momento', err);
+      setError(err?.message || 'Erro ao salvar momento');
+    } finally {
+      setSavingMoment(false);
+    }
+  }
+
+  async function handleToggleMomentActive(item) {
+    await handleSaveMoment(
+      {
+        name: item.name,
+        slug: item.slug,
+        is_active: !item.is_active,
+        sort_order: item.sort_order || 0,
+      },
+      { momentId: item.id }
+    );
   }
 
   return (
@@ -1792,121 +1867,4 @@ const [savingMoment, setSavingMoment] = useState(false);
       />
     </div>
   );
-}
-async function handleSaveGenre(form) {
-  try {
-    setSavingGenre(true);
-    setError('');
-
-    const method = editingGenre?.id ? 'PATCH' : 'POST';
-    const url = editingGenre?.id
-      ? `/api/suggestions/genres/${editingGenre.id}`
-      : '/api/suggestions/genres';
-
-    const response = await fetch(url, {
-      method,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: String(form.name || '').trim(),
-        slug: String(form.slug || '').trim(),
-        is_active: Boolean(form.is_active),
-        sort_order: Number(form.sort_order || 0),
-      }),
-    });
-
-    const data = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
-      throw new Error(data?.error || 'Erro ao salvar gênero');
-    }
-
-    setGenreEditorOpen(false);
-    setEditingGenre(null);
-    await loadAll();
-    setActiveTab('generos');
-  } catch (err) {
-    console.error(err);
-    setError(err?.message || 'Erro ao salvar gênero');
-  } finally {
-    setSavingGenre(false);
-  }
-}
-
-async function handleToggleGenreActive(item) {
-  await handleSaveGenre({
-    name: item.name,
-    slug: item.slug,
-    is_active: !item.is_active,
-    sort_order: item.sort_order || 0,
-  });
-  setEditingGenre({ ...item, is_active: !item.is_active, id: item.id });
-}
-
-async function handleSaveMoment(form) {
-  try {
-    setSavingMoment(true);
-    setError('');
-
-    const method = editingMoment?.id ? 'PATCH' : 'POST';
-    const url = editingMoment?.id
-      ? `/api/suggestions/moments/${editingMoment.id}`
-      : '/api/suggestions/moments';
-
-    const response = await fetch(url, {
-      method,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: String(form.name || '').trim(),
-        slug: String(form.slug || '').trim(),
-        is_active: Boolean(form.is_active),
-        sort_order: Number(form.sort_order || 0),
-      }),
-    });
-
-    const data = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
-      throw new Error(data?.error || 'Erro ao salvar momento');
-    }
-
-    setMomentEditorOpen(false);
-    setEditingMoment(null);
-    await loadAll();
-    setActiveTab('momentos');
-  } catch (err) {
-    console.error(err);
-    setError(err?.message || 'Erro ao salvar momento');
-  } finally {
-    setSavingMoment(false);
-  }
-}
-
-async function handleToggleMomentActive(item) {
-  await handleSaveMoment({
-    name: item.name,
-    slug: item.slug,
-    is_active: !item.is_active,
-    sort_order: item.sort_order || 0,
-  });
-  setEditingMoment({ ...item, is_active: !item.is_active, id: item.id });
-}
-
-function openCreateGenre() {
-  setEditingGenre(null);
-  setGenreEditorOpen(true);
-}
-
-function openEditGenre(item) {
-  setEditingGenre(item);
-  setGenreEditorOpen(true);
-}
-
-function openCreateMoment() {
-  setEditingMoment(null);
-  setMomentEditorOpen(true);
-}
-
-function openEditMoment(item) {
-  setEditingMoment(item);
-  setMomentEditorOpen(true);
 }

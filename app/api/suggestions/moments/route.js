@@ -26,6 +26,8 @@ export async function GET() {
     const supabase = getSupabaseAdmin();
     const moments = await fetchMoments(supabase);
 
+    console.log('[sugestoes-debug] GET /api/suggestions/moments', { count: moments.length });
+
     return NextResponse.json({ ok: true, moments });
   } catch (error) {
     console.error('Erro ao listar suggestion_moments:', error);

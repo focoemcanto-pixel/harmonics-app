@@ -45,6 +45,19 @@ function formatDateBR(value) {
   }).format(d);
 }
 
+function normalizeSuggestionSong(song = {}) {
+  return {
+    ...song,
+    id: song?.id ? String(song.id) : null,
+    title: String(song?.title || ''),
+    artist: String(song?.artist || ''),
+    youtube_url: String(song?.youtube_url || ''),
+    youtube_id: String(song?.youtube_id || ''),
+    thumbnail_url: String(song?.thumbnail_url || ''),
+    __isPersisted: Boolean(song?.id),
+  };
+}
+
 function EmptyState({ title, text, actionLabel, onAction }) {
   return (
     <div className="rounded-[26px] border border-dashed border-[#dbe3ef] bg-[#f8fafc] px-5 py-8 text-center">
@@ -229,6 +242,7 @@ function SuggestionEditorModal({
   collections,
 }) {
   const [form, setForm] = useState({
+    persisted_song_id: null,
     title: '',
     artist: '',
     genre_id: '',
@@ -250,6 +264,7 @@ function SuggestionEditorModal({
     if (!open) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setForm({
+      persisted_song_id: song?.id ? String(song.id) : null,
       title: song?.title || '',
       artist: song?.artist || '',
       genre_id: song?.genre?.id || '',
@@ -662,7 +677,12 @@ function SuggestionEditorModal({
             <div className="flex flex-col gap-3">
               <button
                 type="button"
-                onClick={() => onSubmit(form)}
+                onClick={() =>
+                  onSubmit(form, {
+                    persistedSongId: form?.persisted_song_id || null,
+                    fromSelectedReference: Boolean(selectedReference?.videoId),
+                  })
+                }
                 disabled={loading}
                 className="rounded-[18px] bg-violet-600 px-5 py-4 text-[15px] font-black text-white shadow-[0_12px_28px_rgba(124,58,237,0.18)] disabled:opacity-60"
               >
@@ -1374,7 +1394,9 @@ const [savingMoment, setSavingMoment] = useState(false);
       momentsStatus: momentsResponse.status,
     });
 
-    const songsList = songsResponse.ok && Array.isArray(songsData?.songs) ? songsData.songs : [];
+    const songsList = songsResponse.ok && Array.isArray(songsData?.songs)
+      ? songsData.songs.map(normalizeSuggestionSong)
+      : [];
     const genresList = genresResponse.ok && Array.isArray(genresData?.genres) ? genresData.genres : [];
     const momentsList = momentsResponse.ok && Array.isArray(momentsData?.moments) ? momentsData.moments : [];
 
@@ -1464,7 +1486,11 @@ const [savingMoment, setSavingMoment] = useState(false);
         throw new Error('Artista é obrigatório');
       }
 
-      const songId = options.songId || editingSong?.id || null;
+      const songId =
+        options.songId ||
+        options.persistedSongId ||
+        editingSong?.id ||
+        null;
       const method = songId ? 'PATCH' : 'POST';
       const url = songId
         ? `/api/suggestions/songs/${songId}`
@@ -1479,9 +1505,13 @@ const [savingMoment, setSavingMoment] = useState(false);
         youtube_id: String(form.youtube_id || '').trim(),
         thumbnail_url: String(form.thumbnail_url || '').trim(),
       };
+      delete payload.persisted_song_id;
       console.info('[sugestoes] save song payload origin', {
         destination: 'public.suggestion_songs',
         source: 'admin_editorial_form',
+        action: method === 'PATCH' ? 'update' : 'create',
+        songId: songId || null,
+        selectedReferenceOnly: Boolean(options?.fromSelectedReference && !songId),
       });
 
       const response = await fetch(url, {
@@ -1494,6 +1524,14 @@ const [savingMoment, setSavingMoment] = useState(false);
 
       if (!response.ok) {
         throw new Error(data?.error || 'Erro ao salvar música');
+      }
+
+      const persistedSong = normalizeSuggestionSong(data?.song || {});
+      if (persistedSong?.id) {
+        setSongs((prev) => {
+          const withoutCurrent = prev.filter((item) => String(item?.id || '') !== persistedSong.id);
+          return [persistedSong, ...withoutCurrent];
+        });
       }
 
       setEditorOpen(false);

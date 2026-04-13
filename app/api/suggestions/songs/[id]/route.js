@@ -181,7 +181,8 @@ async function fetchSongById(supabase, id) {
 export async function PATCH(request, { params }) {
   try {
     const supabase = getSupabaseAdmin();
-    const id = String(params?.id || '').trim();
+    const routeParams = await params;
+    const id = String(routeParams?.id || '').trim();
 
     if (!id) {
       return NextResponse.json(
@@ -233,7 +234,8 @@ export async function PATCH(request, { params }) {
 export async function DELETE(_request, { params }) {
   try {
     const supabase = getSupabaseAdmin();
-    const id = String(params?.id || '').trim();
+    const routeParams = await params;
+    const id = String(routeParams?.id || '').trim();
 
     if (!id) {
       return NextResponse.json(

@@ -1011,11 +1011,16 @@ export default function EventoEscalaTab({ eventId }) {
 
 function summarizeInviteDispatchResults(data) {
   const results = Array.isArray(data?.results) ? data.results : [];
-  const sentCount = results.filter((result) => result?.ok === true).length;
-  const failedCount = results.filter((result) => result?.ok === false).length;
+  const computedSentCount = results.filter((result) => result?.ok === true).length;
+  const computedFailedCount = results.filter((result) => result?.ok === false).length;
+  const parsedSuccessCount = Number(data?.successCount);
+  const parsedFailedCount = Number(data?.failedCount);
+  const sentCount = Number.isFinite(parsedSuccessCount) ? parsedSuccessCount : computedSentCount;
+  const failedCount = Number.isFinite(parsedFailedCount) ? parsedFailedCount : computedFailedCount;
+  const total = results.length;
 
   return {
-    total: results.length,
+    total,
     sentCount,
     failedCount,
   };
@@ -1053,7 +1058,7 @@ async function salvarEscala() {
 
     if (failedCount > 0 && sentCount > 0) {
       setSucesso(
-        `Escala salva. ${sentCount} convite(s) enviado(s) e ${failedCount} falha(s) no envio automático.`
+        `Escala salva. Envio parcial: ${sentCount} convite(s) enviado(s) e ${failedCount} falha(s) no envio automático.`
       );
       return;
     }
@@ -1100,7 +1105,7 @@ async function salvarEEnviarConvites() {
     }
 
     if (failedCount > 0 && sentCount > 0) {
-      setSucesso(`Escala salva. ${sentCount} convite(s) enviado(s) e ${failedCount} falha(s).`);
+      setSucesso(`Escala salva. Envio parcial: ${sentCount} convite(s) enviado(s) e ${failedCount} falha(s).`);
       return;
     }
 

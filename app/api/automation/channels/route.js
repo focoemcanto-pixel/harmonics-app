@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { getDefaultWorkspaceSettings } from '@/lib/automation/get-workspace';
+import { validateChannelConfig } from '@/lib/whatsapp/channel-config';
 
 const SAVE_CHANNELS_AUDIT_VERSION = '2026-04-12-audit-v2';
 
@@ -21,7 +22,18 @@ export async function GET() {
 
     if (error) throw error;
 
-    return NextResponse.json({ ok: true, channels: data || [] });
+    const channels = (data || []).map((channel) => {
+      const validation = validateChannelConfig(channel);
+      return {
+        ...channel,
+        has_api_key: Boolean(channel.api_key),
+        status: validation.isValid ? 'valid' : 'invalid',
+        status_reason: validation.isValid ? null : `Faltando: ${validation.missing.join(', ')}`,
+        api_key: undefined,
+      };
+    });
+
+    return NextResponse.json({ ok: true, channels });
   } catch (error) {
     console.error('[GET /api/automation/channels] Erro:', error);
     return NextResponse.json(
@@ -52,13 +64,13 @@ export async function POST(request) {
 
     const insertPayload = {
       workspace_id: workspace.id,
-      name,
-      provider: body.provider || 'wasender',
-      api_url: body.api_url || null,
-      api_key: body.api_key || null,
-      instance_id: body.instance_id || null,
-      sender_number: body.sender_number || null,
-      admin_alert_number: body.admin_alert_number || null,
+      name: String(name).trim(),
+      provider: String(body.provider || 'wasender').trim().toLowerCase(),
+      api_url: body.api_url ? String(body.api_url).trim() : null,
+      api_key: body.api_key ? String(body.api_key).trim() : null,
+      instance_id: body.instance_id ? String(body.instance_id).trim() : null,
+      sender_number: body.sender_number ? String(body.sender_number).trim() : null,
+      admin_alert_number: body.admin_alert_number ? String(body.admin_alert_number).trim() : null,
       is_active: body.is_active !== undefined ? body.is_active : true,
       is_default: isDefault,
     };

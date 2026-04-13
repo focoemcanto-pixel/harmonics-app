@@ -45,6 +45,18 @@ function StatusBadge({ isActive }) {
   );
 }
 
+
+function ConfigStatusBadge({ status }) {
+  if (status === 'valid') {
+    return (
+      <span className="rounded-full bg-emerald-100 px-3 py-1 text-[11px] font-bold text-emerald-700">Configuração válida</span>
+    );
+  }
+
+  return (
+    <span className="rounded-full bg-amber-100 px-3 py-1 text-[11px] font-bold text-amber-700">Configuração inválida</span>
+  );
+}
 function ProviderLabel({ provider }) {
   const found = PROVIDERS.find((p) => p.value === provider);
   return (
@@ -326,6 +338,7 @@ export default function CanaisPageClient() {
                       {canal.name}
                     </span>
                     <StatusBadge isActive={canal.is_active} />
+                    <ConfigStatusBadge status={canal.status} />
                     {canal.is_default && (
                       <span className="rounded-full bg-violet-600 px-3 py-1 text-[11px] font-bold text-white">
                         Padrão
@@ -340,6 +353,12 @@ export default function CanaisPageClient() {
 
                   {/* Details */}
                   <div className="mt-2 space-y-0.5 text-[13px] text-[#64748b]">
+                    <div>
+                      <span className="font-semibold">API URL:</span> {canal.api_url || '—'}
+                    </div>
+                    <div>
+                      <span className="font-semibold">API Key:</span> {canal.has_api_key ? '•••••••• configurada' : 'não configurada'}
+                    </div>
                     {canal.sender_number && (
                       <div>
                         <span className="font-semibold">Número:</span> {canal.sender_number}
@@ -351,6 +370,11 @@ export default function CanaisPageClient() {
                         <code className="rounded bg-[#f1f5f9] px-1.5 py-0.5 text-[12px] font-bold text-[#475569]">
                           {canal.instance_id}
                         </code>
+                      </div>
+                    )}
+                    {canal.status_reason && (
+                      <div className="text-amber-700">
+                        <span className="font-semibold">Diagnóstico:</span> {canal.status_reason}
                       </div>
                     )}
                   </div>

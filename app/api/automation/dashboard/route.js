@@ -224,7 +224,7 @@ export async function GET() {
         level: cronStatus.level,
         kind: 'system',
         message: cronStatus.message,
-        cta: { href: '/automacoes/logs?status=failed', label: 'Analisar logs' },
+        cta: { href: '/automacoes/logs', label: 'Analisar logs' },
       });
     }
 

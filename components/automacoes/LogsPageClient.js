@@ -6,6 +6,16 @@ import AdminSummaryCard from '@/components/admin/AdminSummaryCard';
 import AutomationBackLink from '@/components/automacoes/AutomationBackLink';
 
 const MESSAGE_PREVIEW_LENGTH = 120;
+const VALID_STATUS_FILTERS = new Set(['sent', 'failed', 'skipped']);
+
+function normalizeStatusParam(rawStatus) {
+  const value = String(rawStatus || '').toLowerCase().trim();
+  if (!value || value === 'all' || value === 'todos') return '';
+  if (value === 'success') return 'sent';
+  if (value === 'error' || value === 'failure') return 'failed';
+  if (value === 'ignored') return 'skipped';
+  return VALID_STATUS_FILTERS.has(value) ? value : '';
+}
 
 function formatarData(isoString) {
   if (!isoString) return '-';
@@ -449,13 +459,13 @@ export default function LogsPageClient() {
   const [bulkToast, setBulkToast] = useState(null);
 
   // Filtros — inicializar a partir de query params da URL (ex: ?status=failed)
-  const [filtroStatus, setFiltroStatus] = useState(() => searchParams.get('status') || '');
+  const [filtroStatus, setFiltroStatus] = useState(() => normalizeStatusParam(searchParams.get('status')));
   const [filtroRecipient, setFiltroRecipient] = useState(() => searchParams.get('recipient') || '');
   const [filtroSource, setFiltroSource] = useState(() => searchParams.get('source') || '');
 
   // Sincronizar filtros quando os query params mudarem (ex: navegação via browser)
   useEffect(() => {
-    setFiltroStatus(searchParams.get('status') || '');
+    setFiltroStatus(normalizeStatusParam(searchParams.get('status')));
     setFiltroRecipient(searchParams.get('recipient') || '');
     setFiltroSource(searchParams.get('source') || '');
   }, [searchParams]);
@@ -569,6 +579,7 @@ export default function LogsPageClient() {
     { total: 0, enviados: 0, falhas: 0 }
   );
   const { total, enviados, falhas } = stats;
+  const summaryLabelSuffix = temFiltros ? ' (filtro atual)' : '';
 
   return (
     <div className="space-y-6">
@@ -592,9 +603,9 @@ export default function LogsPageClient() {
 
       {/* Summary Cards */}
       <section className="grid grid-cols-3 gap-4">
-        <AdminSummaryCard label="Total" value={carregando ? '–' : total} tone="default" />
-        <AdminSummaryCard label="Enviados" value={carregando ? '–' : enviados} tone="success" />
-        <AdminSummaryCard label="Falhas" value={carregando ? '–' : falhas} tone="warning" />
+        <AdminSummaryCard label={`Total${summaryLabelSuffix}`} value={carregando ? '–' : total} tone="default" />
+        <AdminSummaryCard label={`Enviados${summaryLabelSuffix}`} value={carregando ? '–' : enviados} tone="success" />
+        <AdminSummaryCard label={`Falhas${summaryLabelSuffix}`} value={carregando ? '–' : falhas} tone="warning" />
       </section>
 
       {/* Filtros */}

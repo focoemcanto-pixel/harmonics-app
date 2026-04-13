@@ -64,11 +64,21 @@ export async function POST(request) {
       });
     }
 
-    return NextResponse.json({
-      ok: true,
-      total: pendentes.length,
-      results,
-    });
+    const successCount = results.filter((result) => result.ok === true).length;
+    const failedCount = results.length - successCount;
+    const hasFailures = failedCount > 0;
+    const status = hasFailures ? (successCount > 0 ? 207 : 500) : 200;
+
+    return NextResponse.json(
+      {
+        ok: failedCount === 0,
+        total: pendentes.length,
+        successCount,
+        failedCount,
+        results,
+      },
+      { status }
+    );
   } catch (error) {
     console.error('Erro ao enviar convites do evento:', error);
     return NextResponse.json(

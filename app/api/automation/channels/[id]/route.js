@@ -28,6 +28,13 @@ export async function PATCH(request, { params }) {
       );
     }
 
+    if (existing.workspace_id && existing.workspace_id !== workspace.id) {
+      return NextResponse.json(
+        { error: 'Canal não pertence ao workspace atual' },
+        { status: 403 }
+      );
+    }
+
     const allowed = [
       'name',
       'provider',
@@ -46,6 +53,14 @@ export async function PATCH(request, { params }) {
         updates[field] = body[field];
       }
     }
+
+    if (updates.name !== undefined) updates.name = String(updates.name || '').trim();
+    if (updates.provider !== undefined) updates.provider = String(updates.provider || 'wasender').trim().toLowerCase();
+    if (updates.api_url !== undefined) updates.api_url = updates.api_url ? String(updates.api_url).trim() : null;
+    if (updates.api_key !== undefined) updates.api_key = updates.api_key ? String(updates.api_key).trim() : null;
+    if (updates.instance_id !== undefined) updates.instance_id = updates.instance_id ? String(updates.instance_id).trim() : null;
+    if (updates.sender_number !== undefined) updates.sender_number = updates.sender_number ? String(updates.sender_number).trim() : null;
+    if (updates.admin_alert_number !== undefined) updates.admin_alert_number = updates.admin_alert_number ? String(updates.admin_alert_number).trim() : null;
 
     updates.workspace_id = workspace.id;
 

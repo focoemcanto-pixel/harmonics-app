@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { sendWhatsAppMessage } from '@/lib/whatsapp/send-whatsapp-message';
+import { validateChannelConfig } from '@/lib/whatsapp/channel-config';
 
 export async function POST(request) {
   try {
@@ -27,9 +28,10 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Canal não encontrado' }, { status: 404 });
     }
 
-    if (!channel.api_url || !channel.api_key) {
+    const validation = validateChannelConfig(channel);
+    if (!validation.isValid) {
       return NextResponse.json(
-        { error: 'Canal sem api_url ou api_key configurados' },
+        { error: `Canal inválido para envio. Faltando: ${validation.missing.join(', ')}` },
         { status: 400 }
       );
     }

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { getDefaultWorkspaceSettings } from '@/lib/automation/get-workspace';
 import { getLatestAutomationCronRun } from '@/lib/automation/cron-run';
+import { validateChannelConfig } from '@/lib/whatsapp/channel-config';
 
 function getSaoPauloBounds() {
   const now = new Date();
@@ -133,9 +134,7 @@ export async function GET() {
     const defaultChannel = channels.find((c) => c.is_default);
     const defaultChannelReady =
       !!defaultChannel?.is_active &&
-      !!defaultChannel?.api_url &&
-      !!defaultChannel?.api_key &&
-      !!defaultChannel?.instance_id;
+      (defaultChannel ? validateChannelConfig(defaultChannel).isValid : false);
 
     if (!channels.length) {
       alerts.push({

@@ -93,7 +93,6 @@ export default function SugestaoCard({
 
         <div className="flex flex-wrap gap-2">
           <Pill tone="sky">{genreName}</Pill>
-          {song?.music_key ? <Pill>{song.music_key}</Pill> : null}
           {!hasYoutube ? <Pill tone="amber">Sem YouTube</Pill> : null}
           {!hasThumb ? <Pill tone="amber">Sem thumb</Pill> : null}
           {tags.slice(0, 3).map((tag) => (

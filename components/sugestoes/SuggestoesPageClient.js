@@ -229,7 +229,6 @@ function SuggestionEditorModal({
   const [form, setForm] = useState({
     title: '',
     artist: '',
-    music_key: '',
     genre_id: '',
     moment_id: '',
     youtube_url: '',
@@ -249,7 +248,6 @@ function SuggestionEditorModal({
     setForm({
       title: song?.title || '',
       artist: song?.artist || '',
-      music_key: song?.music_key || '',
       genre_id: song?.genre?.id || '',
       moment_id: song?.moment?.id || '',
       youtube_url: song?.youtube_url || '',
@@ -324,15 +322,6 @@ function SuggestionEditorModal({
                     value={form.artist}
                     onChange={(e) => setForm((prev) => ({ ...prev, artist: e.target.value }))}
                     placeholder="Ex: Christina Perri"
-                  />
-                </FormField>
-                <FormField label="Tom (opcional)">
-                  <Input
-                    value={form.music_key}
-                    onChange={(e) =>
-                      setForm((prev) => ({ ...prev, music_key: e.target.value }))
-                    }
-                    placeholder="Ex: C, Dm, F#"
                   />
                 </FormField>
 
@@ -1374,7 +1363,6 @@ const [savingMoment, setSavingMoment] = useState(false);
         ...form,
         title: String(form.title || '').trim(),
         artist: String(form.artist || '').trim(),
-        music_key: String(form.music_key || '').trim(),
         description: String(form.description || '').trim(),
         youtube_url: String(form.youtube_url || '').trim(),
         youtube_id: String(form.youtube_id || '').trim(),
@@ -1439,7 +1427,6 @@ const [savingMoment, setSavingMoment] = useState(false);
     await handleSaveSong({
       title: song.title,
       artist: song.artist || '',
-      music_key: song.music_key || '',
       genre_id: song?.genre?.id || '',
       moment_id: song?.moment?.id || '',
       youtube_url: song.youtube_url || '',
@@ -1460,7 +1447,6 @@ const [savingMoment, setSavingMoment] = useState(false);
     await handleSaveSong({
       title: song.title,
       artist: song.artist || '',
-      music_key: song.music_key || '',
       genre_id: song?.genre?.id || '',
       moment_id: song?.moment?.id || '',
       youtube_url: song.youtube_url || '',

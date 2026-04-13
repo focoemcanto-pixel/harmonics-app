@@ -45,6 +45,17 @@ function formatDateBR(value) {
   }).format(d);
 }
 
+function formatDateOnlyBR(value) {
+  if (!value) return '—';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '—';
+  return new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(d);
+}
+
 function normalizeSuggestionSong(song = {}) {
   return {
     ...song,
@@ -896,6 +907,132 @@ function SuggestoesBibliotecaTab({
     </div>
   );
 }
+
+function SuggestoesRepertoriosTab({
+  songs,
+  loading,
+  onImport,
+  importingKey,
+}) {
+  const [search, setSearch] = useState('');
+
+  const filteredSongs = useMemo(() => {
+    const q = String(search || '').trim().toLowerCase();
+    return songs.filter((song) => {
+      if (!q) return true;
+      return (
+        String(song?.title || '').toLowerCase().includes(q) ||
+        String(song?.artist || '').toLowerCase().includes(q) ||
+        String(song?.last_event_client || '').toLowerCase().includes(q)
+      );
+    });
+  }, [songs, search]);
+
+  const importedCount = songs.filter((song) => song?.catalog_source_type === 'imported').length;
+  const alreadyCatalogCount = songs.filter((song) => song?.already_in_catalog).length;
+
+  return (
+    <div className="space-y-5">
+      <SectionCard
+        eyebrow="Origem dos repertórios"
+        title="Usadas por clientes"
+        subtitle="Músicas históricas vindas de repertórios preenchidos pelos clientes, separadas da curadoria editorial."
+      >
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <SummaryCard label="Músicas únicas" value={songs.length} helper="sem duplicação por título/chave" tone="default" />
+          <SummaryCard label="Já no catálogo" value={alreadyCatalogCount} helper="equivalentes em suggestion_songs" tone="emerald" />
+          <SummaryCard label="Importadas" value={importedCount} helper="com source_type = imported" tone="violet" />
+          <SummaryCard
+            label="Pendentes de curadoria"
+            value={Math.max(songs.length - alreadyCatalogCount, 0)}
+            helper="disponíveis para importar"
+            tone="amber"
+          />
+        </div>
+      </SectionCard>
+
+      <div className="rounded-[24px] border border-[#dbe3ef] bg-white p-4 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
+        <input
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Buscar por título, artista ou cliente"
+          className="w-full rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3 text-[15px] font-semibold text-[#0f172a] outline-none transition focus:border-violet-300 focus:ring-4 focus:ring-violet-100"
+        />
+      </div>
+
+      {loading ? (
+        <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_10px_30px_rgba(15,23,42,0.05)] md:p-6">
+          <div className="grid gap-4 xl:grid-cols-2">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <div key={index} className="h-36 animate-pulse rounded-[24px] bg-slate-100" />
+            ))}
+          </div>
+        </section>
+      ) : filteredSongs.length === 0 ? (
+        <EmptyState
+          title="Nenhuma música de repertório encontrada"
+          text="Quando clientes preencherem repertórios, as músicas únicas aparecerão aqui para importação manual."
+        />
+      ) : (
+        <div className="grid gap-4 xl:grid-cols-2">
+          {filteredSongs.map((song) => {
+            const isBusy = importingKey === song.key;
+            return (
+              <article key={song.key} className="rounded-[24px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_26px_rgba(15,23,42,0.05)]">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h3 className="truncate text-[20px] font-black tracking-[-0.03em] text-[#0f172a]">{song.title}</h3>
+                    <p className="mt-1 truncate text-[14px] font-semibold text-[#64748b]">{song.artist || 'Artista não informado'}</p>
+                  </div>
+                  <Pill tone={song.already_in_catalog ? 'emerald' : 'amber'}>
+                    {song.already_in_catalog ? 'Já está no catálogo' : 'Disponível para importar'}
+                  </Pill>
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Pill tone="sky">{song.usage_count} uso(s)</Pill>
+                  <Pill>Último uso: {formatDateOnlyBR(song.last_used_at)}</Pill>
+                  {song.catalog_source_type ? <Pill tone="violet">{song.catalog_source_type}</Pill> : null}
+                </div>
+
+                <div className="mt-4 rounded-[18px] bg-[#f8fafc] px-4 py-3 text-[13px] font-semibold text-[#475569]">
+                  Último cliente/evento: {song.last_event_client || 'Não identificado'}
+                </div>
+
+                <div className="mt-4 grid grid-cols-1 gap-2 md:grid-cols-2">
+                  <button
+                    type="button"
+                    disabled={isBusy || song.already_in_catalog}
+                    onClick={() => onImport(song)}
+                    className="rounded-[16px] border border-violet-200 bg-violet-50 px-4 py-3 text-[13px] font-black text-violet-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {song.already_in_catalog ? 'Já cadastrada' : isBusy ? 'Importando…' : 'Adicionar ao catálogo'}
+                  </button>
+
+                  {song.youtube_url ? (
+                    <a
+                      href={song.youtube_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3 text-center text-[13px] font-black text-[#0f172a]"
+                    >
+                      Abrir referência
+                    </a>
+                  ) : (
+                    <div className="rounded-[16px] border border-dashed border-[#dbe3ef] px-4 py-3 text-center text-[12px] font-bold text-[#94a3b8]">
+                      Sem referência externa
+                    </div>
+                  )}
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TaxonomyCard({ item, typeLabel, usageCount = 0, onEdit, onToggleActive }) {
   return (
     <div className="rounded-[24px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_26px_rgba(15,23,42,0.05)]">
@@ -1331,6 +1468,7 @@ const [savingGenre, setSavingGenre] = useState(false);
 const [savingMoment, setSavingMoment] = useState(false);
   const [activeTab, setActiveTab] = useState('resumo');
   const [songs, setSongs] = useState([]);
+  const [repertoireSongs, setRepertoireSongs] = useState([]);
   const [genres, setGenres] = useState([]);
   const [moments, setMoments] = useState([]);
   const [tags, setTags] = useState([]);
@@ -1343,6 +1481,12 @@ const [savingMoment, setSavingMoment] = useState(false);
   const [songsLoadFailed, setSongsLoadFailed] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingSong, setEditingSong] = useState(null);
+  const [importingRepertoireKey, setImportingRepertoireKey] = useState('');
+
+  const repertoireKpis = useMemo(() => ({
+    unique: repertoireSongs.length,
+    alreadyInCatalog: repertoireSongs.filter((song) => song?.already_in_catalog).length,
+  }), [repertoireSongs]);
 
   const songsKpis = useMemo(() => {
     return songs.reduce(
@@ -1361,6 +1505,7 @@ const [savingMoment, setSavingMoment] = useState(false);
   const tabs = [
     { key: 'resumo', label: 'Resumo' },
     { key: 'biblioteca', label: 'Biblioteca' },
+    { key: 'repertorios', label: 'Importar de repertórios' },
     { key: 'generos', label: 'Gêneros' },
     { key: 'momentos', label: 'Momentos' },
     { key: 'tags', label: 'Tags' },
@@ -1375,16 +1520,18 @@ const [savingMoment, setSavingMoment] = useState(false);
     setError('');
     setSongsLoadFailed(false);
 
-    const [songsResponse, genresResponse, momentsResponse] = await Promise.all([
+    const [songsResponse, genresResponse, momentsResponse, repertoireResponse] = await Promise.all([
       fetch('/api/suggestions/songs', { cache: 'no-store' }),
       fetch('/api/suggestions/genres', { cache: 'no-store' }),
       fetch('/api/suggestions/moments', { cache: 'no-store' }),
+      fetch('/api/admin/suggestions/repertoire-songs', { cache: 'no-store' }),
     ]);
 
-    const [songsData, genresData, momentsData] = await Promise.all([
+    const [songsData, genresData, momentsData, repertoireData] = await Promise.all([
       songsResponse.json().catch(() => ({})),
       genresResponse.json().catch(() => ({})),
       momentsResponse.json().catch(() => ({})),
+      repertoireResponse.json().catch(() => ({})),
     ]);
 
 
@@ -1392,6 +1539,7 @@ const [savingMoment, setSavingMoment] = useState(false);
       songsStatus: songsResponse.status,
       genresStatus: genresResponse.status,
       momentsStatus: momentsResponse.status,
+      repertoireStatus: repertoireResponse.status,
     });
 
     const songsList = songsResponse.ok && Array.isArray(songsData?.songs)
@@ -1399,6 +1547,7 @@ const [savingMoment, setSavingMoment] = useState(false);
       : [];
     const genresList = genresResponse.ok && Array.isArray(genresData?.genres) ? genresData.genres : [];
     const momentsList = momentsResponse.ok && Array.isArray(momentsData?.moments) ? momentsData.moments : [];
+    const repertoireList = repertoireResponse.ok && Array.isArray(repertoireData?.songs) ? repertoireData.songs : [];
 
     const loadErrors = [];
     if (!songsResponse.ok) {
@@ -1415,6 +1564,7 @@ const [savingMoment, setSavingMoment] = useState(false);
       );
     }
     if (!momentsResponse.ok) loadErrors.push(momentsData?.error || 'Falha ao buscar momentos');
+    if (!repertoireResponse.ok) loadErrors.push(repertoireData?.error || 'Falha ao buscar músicas de repertórios');
     if (loadErrors.length) {
       setError(loadErrors.join(' | '));
     }
@@ -1422,6 +1572,7 @@ const [savingMoment, setSavingMoment] = useState(false);
     setSongs(songsList);
     setGenres(genresList);
     setMoments(momentsList);
+    setRepertoireSongs(repertoireList);
 
     const tagsMap = new Map();
     const collectionsMap = new Map();
@@ -1448,6 +1599,7 @@ const [savingMoment, setSavingMoment] = useState(false);
       songs: songsList.length,
       genres: genresList.length,
       moments: momentsList.length,
+      repertoireSongs: repertoireList.length,
       source: 'public.suggestion_songs',
       source_scope: 'editorial_catalog_only',
     });
@@ -1544,6 +1696,35 @@ const [savingMoment, setSavingMoment] = useState(false);
       setError(err?.message || 'Erro ao salvar música');
     } finally {
       setSavingSong(false);
+    }
+  }
+
+
+  async function handleImportFromRepertoire(song) {
+    try {
+      setImportingRepertoireKey(song.key);
+      setError('');
+      setNotice('');
+
+      const response = await fetch('/api/admin/suggestions/repertoire-songs/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(song),
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data?.error || 'Falha ao importar música para o catálogo.');
+      }
+
+      setNotice(data?.message || 'Música importada para o catálogo editorial.');
+      await loadAll();
+      setActiveTab('repertorios');
+    } catch (err) {
+      console.error(err);
+      setError(err?.message || 'Falha ao importar música para o catálogo.');
+    } finally {
+      setImportingRepertoireKey('');
     }
   }
 
@@ -1808,7 +1989,7 @@ const [savingMoment, setSavingMoment] = useState(false);
           <SummaryCard
             label="Músicas cadastradas"
             value={songsKpis.cadastradas}
-            helper="total no catálogo"
+            helper={`catálogo editorial (${repertoireKpis.alreadyInCatalog} também em repertórios)`}
             tone="default"
           />
           <SummaryCard
@@ -1870,6 +2051,15 @@ const [savingMoment, setSavingMoment] = useState(false);
           onDelete={handleDelete}
           onToggleFeatured={handleToggleFeatured}
           onToggleActive={handleToggleActive}
+        />
+      )}
+
+      {activeTab === 'repertorios' && (
+        <SuggestoesRepertoriosTab
+          songs={repertoireSongs}
+          loading={loading}
+          importingKey={importingRepertoireKey}
+          onImport={handleImportFromRepertoire}
         />
       )}
 

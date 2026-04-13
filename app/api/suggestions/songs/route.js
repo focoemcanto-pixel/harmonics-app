@@ -65,6 +65,7 @@ function sanitizeSongPayload(body) {
     sort_order: Number.isFinite(Number(body?.sort_order))
       ? Number(body.sort_order)
       : 0,
+    source_type: 'admin',
   };
 }
 
@@ -151,6 +152,7 @@ async function fetchSongs(supabase) {
       usage_count,
       is_featured,
       is_active,
+      source_type,
       sort_order,
       created_at,
       updated_at,
@@ -167,6 +169,7 @@ async function fetchSongs(supabase) {
       )
     `)
     .order('sort_order', { ascending: true })
+    .eq('source_type', 'admin')
     .order('created_at', { ascending: false });
 
   if (error) throw error;

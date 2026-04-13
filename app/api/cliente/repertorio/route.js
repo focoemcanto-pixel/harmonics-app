@@ -128,38 +128,34 @@ function normalizeItems(items = []) {
     });
 }
 
-async function upsertSuggestionSongFromItem(supabase, item) {
+async function findSuggestionSongIdForItem(supabase, item) {
   const title = normalizeText(item?.song_name);
   if (!title) return null;
 
   const artist = normalizeText(item?.artists);
   const youtubeId = normalizeText(item?.reference_video_id);
-  const youtubeUrl = normalizeText(item?.reference_link);
-  const thumbnailUrl = youtubeId
-    ? `https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg`
-    : null;
-  const description = normalizeText(item?.reference_title);
 
-  const payload = {
-    title,
-    artist,
-    youtube_id: youtubeId,
-    youtube_url: youtubeUrl,
-    thumbnail_url: thumbnailUrl,
-    description,
-    is_active: true,
-    updated_at: new Date().toISOString(),
-  };
+  if (youtubeId) {
+    const { data, error } = await supabase
+      .from('suggestion_songs')
+      .select('id')
+      .eq('youtube_id', youtubeId)
+      .eq('source_type', 'admin')
+      .limit(1)
+      .maybeSingle();
 
-  const onConflict = youtubeId
-    ? 'youtube_id'
-    : 'normalized_title,normalized_artist';
+    if (error) throw error;
+    return data?.id || null;
+  }
 
   const { data, error } = await supabase
     .from('suggestion_songs')
-    .upsert(payload, { onConflict, ignoreDuplicates: false })
     .select('id')
-    .single();
+    .eq('normalized_title', String(title).toLowerCase())
+    .eq('normalized_artist', String(artist || '').toLowerCase())
+    .eq('source_type', 'admin')
+    .limit(1)
+    .maybeSingle();
 
   if (error) throw error;
   return data?.id || null;
@@ -189,7 +185,7 @@ async function attachCatalogSongIds(supabase, items = []) {
     }
 
     if (!idByKey.has(key)) {
-      const suggestionSongId = await upsertSuggestionSongFromItem(supabase, item);
+      const suggestionSongId = await findSuggestionSongIdForItem(supabase, item);
       idByKey.set(key, suggestionSongId);
     }
 

@@ -65,6 +65,7 @@ function sanitizeSongPayload(body) {
     sort_order: Number.isFinite(Number(body?.sort_order))
       ? Number(body.sort_order)
       : 0,
+    source_type: 'admin',
     updated_at: new Date().toISOString(),
   };
 }
@@ -152,6 +153,7 @@ async function fetchSongById(supabase, id) {
       usage_count,
       is_featured,
       is_active,
+      source_type,
       sort_order,
       created_at,
       updated_at,
@@ -168,6 +170,7 @@ async function fetchSongById(supabase, id) {
       )
     `)
     .eq('id', id)
+    .eq('source_type', 'admin')
     .single();
 
   if (error) throw error;
@@ -199,7 +202,8 @@ export async function PATCH(request, { params }) {
     const { error: updateError } = await supabase
       .from('suggestion_songs')
       .update(payload)
-      .eq('id', id);
+      .eq('id', id)
+      .eq('source_type', 'admin');
 
     if (updateError) throw updateError;
 
@@ -240,7 +244,8 @@ export async function DELETE(_request, { params }) {
     const { error } = await supabase
       .from('suggestion_songs')
       .delete()
-      .eq('id', id);
+      .eq('id', id)
+      .eq('source_type', 'admin');
 
     if (error) throw error;
 

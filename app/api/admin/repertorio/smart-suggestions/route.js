@@ -18,7 +18,8 @@ export async function POST(request) {
       supabase
         .from('suggestion_songs')
         .select('id,title,artist,moments,styles,moods,event_types,priority_score,is_recommended,is_featured,usage_count,is_active,youtube_url,youtube_id,thumbnail_url')
-        .eq('is_active', true),
+        .eq('is_active', true)
+        .eq('source_type', 'admin'),
     ]);
 
     if (eventError) throw eventError;

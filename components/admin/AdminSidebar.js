@@ -41,7 +41,7 @@ export default function AdminSidebar({ activeItem = 'eventos' }) {
   return (
     <aside className="sticky top-0 flex min-h-screen w-[280px] shrink-0 flex-col bg-[#020b2c] px-5 py-6 text-white">
       <div className="flex items-center gap-3 px-2">
-        <Image src="/logo.svg" alt="Harmonics" width={48} height={48} className="h-12 w-12" priority />
+        <Image src="/logo.png" alt="Harmonics" width={48} height={48} className="h-12 w-12" priority />
         <div>
           <div className="text-[15px] font-black">Harmonics</div>
           <div className="text-[12px] text-[#a5b4fc]">Admin</div>

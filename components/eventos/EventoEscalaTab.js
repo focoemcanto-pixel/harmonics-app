@@ -1009,7 +1009,19 @@ export default function EventoEscalaTab({ eventId }) {
   };
 }
 
-  async function salvarEscala() {
+function summarizeInviteDispatchResults(data) {
+  const results = Array.isArray(data?.results) ? data.results : [];
+  const sentCount = results.filter((result) => result?.ok === true).length;
+  const failedCount = results.filter((result) => result?.ok === false).length;
+
+  return {
+    total: results.length,
+    sentCount,
+    failedCount,
+  };
+}
+
+async function salvarEscala() {
   try {
     setSalvando(true);
     setSucesso('');
@@ -1030,14 +1042,29 @@ export default function EventoEscalaTab({ eventId }) {
     });
 
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      throw new Error(data?.error || 'Erro ao disparar automação de convites');
+    const { total, sentCount, failedCount } = summarizeInviteDispatchResults(data);
+
+    if (!response.ok && sentCount === 0) {
+      throw new Error(
+        data?.error ||
+        `Escala salva, mas ${failedCount} convite(s) falharam no envio automático.`
+      );
     }
 
-    const total = Number(data?.total || 0);
+    if (failedCount > 0 && sentCount > 0) {
+      setSucesso(
+        `Escala salva. ${sentCount} convite(s) enviado(s) e ${failedCount} falha(s) no envio automático.`
+      );
+      return;
+    }
+
+    if (failedCount > 0 && sentCount === 0) {
+      throw new Error(`Escala salva, mas ${failedCount} convite(s) falharam no envio automático.`);
+    }
+
     setSucesso(
       total > 0
-        ? `Escala salva e ${total} convite(s) enviado(s) automaticamente.`
+        ? `Escala salva e ${sentCount} convite(s) enviado(s) automaticamente.`
         : 'Escala salva. Nenhum convite pendente para envio automático.'
     );
   } catch (e) {
@@ -1047,7 +1074,7 @@ export default function EventoEscalaTab({ eventId }) {
     setSalvando(false);
   }
 }
-  async function salvarEEnviarConvites() {
+async function salvarEEnviarConvites() {
   try {
     setSalvando(true);
     setEnviandoConvites(true);
@@ -1063,15 +1090,27 @@ export default function EventoEscalaTab({ eventId }) {
 
     const data = await response.json();
 
-    if (!response.ok) {
-      throw new Error(data?.error || 'Erro ao enviar convites');
+    const { total, sentCount, failedCount } = summarizeInviteDispatchResults(data);
+
+    if (!response.ok && sentCount === 0) {
+      throw new Error(
+        data?.error ||
+        `Escala salva, mas ${failedCount} convite(s) falharam no envio.`
+      );
     }
 
-    const total = data?.total || 0;
+    if (failedCount > 0 && sentCount > 0) {
+      setSucesso(`Escala salva. ${sentCount} convite(s) enviado(s) e ${failedCount} falha(s).`);
+      return;
+    }
+
+    if (failedCount > 0 && sentCount === 0) {
+      throw new Error(`Escala salva, mas ${failedCount} convite(s) falharam no envio.`);
+    }
 
     setSucesso(
       total > 0
-        ? `Escala salva e ${total} convite(s) enviado(s).`
+        ? `Escala salva e ${sentCount} convite(s) enviado(s).`
         : 'Escala salva. Nenhum convite pendente.'
     );
 

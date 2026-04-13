@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { sendWhatsAppMessage } from '@/lib/whatsapp/send-whatsapp-message';
 import { validateChannelConfig } from '@/lib/whatsapp/channel-config';
+import { getDefaultWorkspaceSettings } from '@/lib/automation/get-workspace';
 
 export async function POST(request) {
   try {
@@ -16,12 +17,14 @@ export async function POST(request) {
     }
 
     const supabaseAdmin = getSupabaseAdmin();
+    const workspace = await getDefaultWorkspaceSettings();
 
-    // Buscar canal do banco
+    // Buscar canal do banco respeitando workspace atual
     const { data: channel, error: channelError } = await supabaseAdmin
       .from('whatsapp_channels')
       .select('*')
       .eq('id', channelId)
+      .eq('workspace_id', workspace.id)
       .single();
 
     if (channelError || !channel) {

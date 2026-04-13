@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '../../../../../lib/supabase-admin';
+import { getSupabaseAdmin } from '../../../../lib/supabase-admin';
 
 function slugify(value) {
   return String(value || '')

@@ -11,7 +11,7 @@ export async function POST(request) {
   try {
     const body = await request.json();
     const eventId = body?.eventId;
-    console.info('[automation][scale_save] trigger_received', { eventId });
+    console.info('[automation][step] salvar_escala_trigger_received', { eventId });
 
     if (!eventId) {
       return NextResponse.json(
@@ -29,7 +29,7 @@ export async function POST(request) {
     if (error) throw error;
 
     const pendentes = (invites || []).filter((invite) => !invite.whatsapp_sent_at);
-    console.info('[automation][scale_save] pending_invites_resolved', {
+    console.info('[automation][step] pending_invites_resolved', {
       eventId,
       totalInvites: (invites || []).length,
       pendingToSend: pendentes.length,
@@ -39,7 +39,7 @@ export async function POST(request) {
 
     const results = [];
     for (const invite of pendentes) {
-      console.info('[automation][scale_save] invite_dispatch_started', {
+      console.info('[automation][step] send_invite_call_started', {
         eventId,
         inviteId: invite.id,
       });
@@ -56,7 +56,7 @@ export async function POST(request) {
         ok: response.ok,
         data,
       });
-      console.info('[automation][scale_save] invite_dispatch_finished', {
+      console.info('[automation][step] send_invite_call_finished', {
         eventId,
         inviteId: invite.id,
         ok: response.ok,

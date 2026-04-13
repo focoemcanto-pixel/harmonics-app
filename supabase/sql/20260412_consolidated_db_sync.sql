@@ -22,7 +22,7 @@ where not exists (select 1 from public.workspaces where key = 'default');
 
 create table if not exists public.message_templates (
   id uuid primary key default gen_random_uuid(),
-  workspace_id uuid null references public.workspaces(id) on delete set null,
+  workspace_id uuid null references public.workspace_settings(id) on delete set null,
   key text not null,
   name text not null,
   channel text not null default 'whatsapp',
@@ -41,7 +41,7 @@ create index if not exists message_templates_workspace_active_idx
 
 create table if not exists public.whatsapp_channels (
   id uuid primary key default gen_random_uuid(),
-  workspace_id uuid null references public.workspaces(id) on delete set null,
+  workspace_id uuid null references public.workspace_settings(id) on delete set null,
   name text not null,
   provider text not null default 'wasender',
   api_url text null,
@@ -64,7 +64,7 @@ create index if not exists whatsapp_channels_workspace_active_idx
 
 create table if not exists public.automation_rules (
   id uuid primary key default gen_random_uuid(),
-  workspace_id uuid null references public.workspaces(id) on delete set null,
+  workspace_id uuid null references public.workspace_settings(id) on delete set null,
   key text not null,
   name text not null,
   event_type text not null,
@@ -87,7 +87,7 @@ create index if not exists automation_rules_workspace_event_active_idx
 
 create table if not exists public.automation_logs (
   id uuid primary key default gen_random_uuid(),
-  workspace_id uuid null references public.workspaces(id) on delete set null,
+  workspace_id uuid null references public.workspace_settings(id) on delete set null,
   rule_id uuid null references public.automation_rules(id) on delete set null,
   template_id uuid null references public.message_templates(id) on delete set null,
   channel_id uuid null references public.whatsapp_channels(id) on delete set null,
@@ -184,7 +184,7 @@ create index if not exists automation_logs_recipient_number_idx
 
 create table if not exists public.automation_cron_runs (
   id uuid primary key default gen_random_uuid(),
-  workspace_id uuid null references public.workspaces(id) on delete set null,
+  workspace_id uuid null references public.workspace_settings(id) on delete set null,
   started_at timestamptz not null default now(),
   completed_at timestamptz null,
   status text not null check (status in ('completed', 'completed_with_failures', 'failed')),

@@ -152,11 +152,15 @@ export async function POST(request) {
 
     // Se houve falhas, retornar erro
     if (result.failed > 0 && result.sent === 0) {
-      const firstError = result.executions.find((e) => e.status === 'failed')?.error;
+      const firstFailedExecution = result.executions.find((e) => e.status === 'failed');
+      const firstError = firstFailedExecution?.error;
+      const providerError = firstFailedExecution?.providerError || null;
+
       return NextResponse.json(
         {
           error: firstError || result.message || 'Erro ao enviar convite pelo motor de automação',
           cause: firstError || result.message || null,
+          providerError,
           sent: result.sent,
           failed: result.failed,
           skipped: result.skipped,

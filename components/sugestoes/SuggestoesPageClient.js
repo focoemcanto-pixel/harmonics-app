@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import SugestaoCard from '@/components/sugestoes/SugestaoCard';
+import SugestoesFilters from '@/components/sugestoes/SugestoesFilters';
 
 function classNames(...classes) {
   return classes.filter(Boolean).join(' ');
@@ -14,6 +16,21 @@ function slugify(value) {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/(^-|-$)/g, '');
+}
+
+
+function getSongHealth(song) {
+  const hasTitle = Boolean(String(song?.title || '').trim());
+  const hasArtist = Boolean(String(song?.artist || '').trim());
+  const hasThumb = Boolean(song?.thumbnail_url);
+  const hasYoutube = Boolean(song?.youtube_id || song?.youtube_url);
+  const hasGenre = Boolean(song?.genre?.id);
+  const hasMoment = Boolean(song?.moment?.id);
+
+  const hasError = !hasTitle || !hasArtist;
+  const isPending = !hasError && (!hasThumb || !hasYoutube || !hasGenre || !hasMoment);
+
+  return { hasError, isPending };
 }
 
 function formatDateBR(value) {
@@ -131,150 +148,6 @@ function TabButton({ active, children, onClick }) {
     >
       {children}
     </button>
-  );
-}
-
-function SuggestionCard({ song, onEdit, onDelete, onToggleFeatured, onToggleActive }) {
-  const genreName = song?.genre?.name || 'Sem gênero';
-  const momentName = song?.moment?.name || 'Sem momento';
-  const tags = (song?.song_tags || []).map((item) => item?.tag?.name).filter(Boolean);
-  const collections = (song?.collection_links || [])
-    .map((item) => item?.collection?.name)
-    .filter(Boolean);
-
-  const hasThumb = Boolean(song?.thumbnail_url);
-  const hasYoutube = Boolean(song?.youtube_id || song?.youtube_url);
-  const isComplete =
-    Boolean(song?.title) &&
-    Boolean(song?.genre?.id) &&
-    Boolean(song?.moment?.id) &&
-    hasYoutube &&
-    hasThumb;
-
-  return (
-    <div className="overflow-hidden rounded-[28px] border border-[#dbe3ef] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.06)]">
-      <div className="relative h-[180px] bg-[#f3f4f6]">
-        {song?.thumbnail_url ? (
-          <img
-            src={song.thumbnail_url}
-            alt={song.title}
-            className="h-full w-full object-cover"
-          />
-        ) : (
-          <div className="flex h-full items-center justify-center text-[13px] font-black text-[#64748b]">
-            Sem thumbnail
-          </div>
-        )}
-
-        <div className="absolute left-3 top-3 flex flex-wrap gap-2">
-          <Pill tone={song?.is_active ? 'emerald' : 'red'}>
-            {song?.is_active ? 'Ativa' : 'Oculta'}
-          </Pill>
-          {song?.is_featured ? <Pill tone="violet">Destaque</Pill> : null}
-          {!isComplete ? <Pill tone="amber">Incompleta</Pill> : null}
-        </div>
-      </div>
-
-      <div className="p-5">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="line-clamp-1 text-[20px] font-black tracking-[-0.03em] text-[#0f172a]">
-              {song?.title || 'Sem título'}
-            </div>
-            <div className="mt-1 line-clamp-1 text-[14px] font-semibold text-[#64748b]">
-              {song?.artist || 'Artista não informado'}
-            </div>
-          </div>
-
-          <div className="text-right text-[12px] font-black text-[#94a3b8]">
-            Ordem {song?.sort_order ?? 0}
-          </div>
-        </div>
-
-        {song?.description ? (
-          <p className="mt-3 line-clamp-2 text-[14px] leading-6 text-[#64748b]">
-            {song.description}
-          </p>
-        ) : (
-          <p className="mt-3 text-[14px] leading-6 text-[#94a3b8]">
-            Sem descrição editorial.
-          </p>
-        )}
-
-        <div className="mt-4 flex flex-wrap gap-2">
-          <Pill tone="sky">{genreName}</Pill>
-          <Pill>{momentName}</Pill>
-          {!hasYoutube ? <Pill tone="amber">Sem YouTube</Pill> : null}
-          {!hasThumb ? <Pill tone="amber">Sem thumbnail</Pill> : null}
-        </div>
-
-        {tags.length > 0 ? (
-          <div className="mt-4">
-            <div className="mb-2 text-[11px] font-black uppercase tracking-[0.08em] text-[#64748b]">
-              Tags
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {tags.map((tag) => (
-                <Pill key={`${song.id}-tag-${tag}`}>{tag}</Pill>
-              ))}
-            </div>
-          </div>
-        ) : null}
-
-        {collections.length > 0 ? (
-          <div className="mt-4">
-            <div className="mb-2 text-[11px] font-black uppercase tracking-[0.08em] text-[#64748b]">
-              Coleções
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {collections.map((collection) => (
-                <Pill key={`${song.id}-collection-${collection}`} tone="violet">
-                  {collection}
-                </Pill>
-              ))}
-            </div>
-          </div>
-        ) : null}
-
-        <div className="mt-5 grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            onClick={() => onEdit(song)}
-            className="rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3 text-[13px] font-black text-[#0f172a]"
-          >
-            Editar
-          </button>
-
-          <button
-            type="button"
-            onClick={() => onToggleFeatured(song)}
-            className="rounded-[16px] border border-violet-200 bg-violet-50 px-4 py-3 text-[13px] font-black text-violet-700"
-          >
-            {song?.is_featured ? 'Remover destaque' : 'Destacar'}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => onToggleActive(song)}
-            className="rounded-[16px] border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] font-black text-amber-700"
-          >
-            {song?.is_active ? 'Ocultar' : 'Ativar'}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => onDelete(song)}
-            className="rounded-[16px] border border-red-200 bg-red-50 px-4 py-3 text-[13px] font-black text-red-700"
-          >
-            Excluir
-          </button>
-        </div>
-
-        <div className="mt-4 text-[12px] font-semibold text-[#94a3b8]">
-          Atualizada em {formatDateBR(song?.updated_at)}
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -803,9 +676,7 @@ function SuggestoesBibliotecaTab({
 }) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('todos');
-  const [featuredFilter, setFeaturedFilter] = useState('todos');
   const [genreFilter, setGenreFilter] = useState('todos');
-  const [momentFilter, setMomentFilter] = useState('todos');
 
   const genres = useMemo(() => {
     return Array.from(
@@ -813,23 +684,18 @@ function SuggestoesBibliotecaTab({
     ).sort((a, b) => a.localeCompare(b));
   }, [songs]);
 
-  const moments = useMemo(() => {
-    return Array.from(
-      new Set(songs.map((song) => song?.moment?.name).filter(Boolean))
-    ).sort((a, b) => a.localeCompare(b));
-  }, [songs]);
-
   const filteredSongs = useMemo(() => {
     const q = search.trim().toLowerCase();
 
     return songs.filter((song) => {
+      const { hasError, isPending } = getSongHealth(song);
+
       const matchesSearch =
         !q ||
         String(song?.title || '').toLowerCase().includes(q) ||
         String(song?.artist || '').toLowerCase().includes(q) ||
         String(song?.description || '').toLowerCase().includes(q) ||
         String(song?.genre?.name || '').toLowerCase().includes(q) ||
-        String(song?.moment?.name || '').toLowerCase().includes(q) ||
         (song?.song_tags || [])
           .map((item) => item?.tag?.name)
           .filter(Boolean)
@@ -838,117 +704,48 @@ function SuggestoesBibliotecaTab({
       const matchesStatus =
         statusFilter === 'todos' ||
         (statusFilter === 'ativas' && song?.is_active) ||
-        (statusFilter === 'ocultas' && !song?.is_active);
+        (statusFilter === 'inativas' && !song?.is_active) ||
+        (statusFilter === 'pendentes' && isPending) ||
+        (statusFilter === 'erro' && hasError);
 
-      const matchesFeatured =
-        featuredFilter === 'todos' ||
-        (featuredFilter === 'featured' && song?.is_featured) ||
-        (featuredFilter === 'normal' && !song?.is_featured);
+      const matchesGenre = genreFilter === 'todos' || song?.genre?.name === genreFilter;
 
-      const matchesGenre =
-        genreFilter === 'todos' || song?.genre?.name === genreFilter;
-
-      const matchesMoment =
-        momentFilter === 'todos' || song?.moment?.name === momentFilter;
-
-      return (
-        matchesSearch &&
-        matchesStatus &&
-        matchesFeatured &&
-        matchesGenre &&
-        matchesMoment
-      );
+      return matchesSearch && matchesStatus && matchesGenre;
     });
-  }, [songs, search, statusFilter, featuredFilter, genreFilter, momentFilter]);
+  }, [songs, search, statusFilter, genreFilter]);
 
   return (
     <div className="space-y-5">
-      <SectionCard
-        eyebrow="Biblioteca"
-        title="Catálogo de músicas"
-        subtitle="Gerencie o acervo completo exibido no painel do cliente, com filtros e ações rápidas."
-        right={
-          <button
-            type="button"
-            onClick={onCreate}
-            className="rounded-[18px] bg-violet-600 px-5 py-4 text-[14px] font-black text-white shadow-[0_12px_28px_rgba(124,58,237,0.18)]"
-          >
-            Nova música
-          </button>
-        }
-      >
-        <div className="grid gap-3 lg:grid-cols-5">
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar título, artista, tag..."
-            className="lg:col-span-2 w-full rounded-[18px] border border-[#dbe3ef] bg-white px-4 py-3 text-[15px] font-semibold text-[#0f172a] outline-none transition focus:border-violet-300 focus:ring-4 focus:ring-violet-100"
-          />
-
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="w-full rounded-[18px] border border-[#dbe3ef] bg-white px-4 py-3 text-[15px] font-semibold text-[#0f172a]"
-          >
-            <option value="todos">Todos os status</option>
-            <option value="ativas">Ativas</option>
-            <option value="ocultas">Ocultas</option>
-          </select>
-
-          <select
-            value={featuredFilter}
-            onChange={(e) => setFeaturedFilter(e.target.value)}
-            className="w-full rounded-[18px] border border-[#dbe3ef] bg-white px-4 py-3 text-[15px] font-semibold text-[#0f172a]"
-          >
-            <option value="todos">Com ou sem destaque</option>
-            <option value="featured">Só destaque</option>
-            <option value="normal">Sem destaque</option>
-          </select>
-
-          <select
-            value={genreFilter}
-            onChange={(e) => setGenreFilter(e.target.value)}
-            className="w-full rounded-[18px] border border-[#dbe3ef] bg-white px-4 py-3 text-[15px] font-semibold text-[#0f172a]"
-          >
-            <option value="todos">Todos os gêneros</option>
-            {genres.map((genre) => (
-              <option key={genre} value={genre}>
-                {genre}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={momentFilter}
-            onChange={(e) => setMomentFilter(e.target.value)}
-            className="w-full rounded-[18px] border border-[#dbe3ef] bg-white px-4 py-3 text-[15px] font-semibold text-[#0f172a]"
-          >
-            <option value="todos">Todos os momentos</option>
-            {moments.map((moment) => (
-              <option key={moment} value={moment}>
-                {moment}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="mt-4 text-[13px] font-semibold text-[#64748b]">
-          {filteredSongs.length} música(s) encontrada(s)
-        </div>
-      </SectionCard>
+      <SugestoesFilters
+        search={search}
+        statusFilter={statusFilter}
+        genreFilter={genreFilter}
+        genres={genres}
+        onSearchChange={setSearch}
+        onStatusChange={setStatusFilter}
+        onGenreChange={setGenreFilter}
+        onCreate={onCreate}
+        total={filteredSongs.length}
+      />
 
       {loading ? (
-        <SectionCard title="Carregando" subtitle="Buscando catálogo real do banco.">
+        <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_10px_30px_rgba(15,23,42,0.05)] md:p-6">
           <div className="grid gap-4 xl:grid-cols-2">
-            {Array.from({ length: 4 }).map((_, index) => (
+            {Array.from({ length: 6 }).map((_, index) => (
               <div
                 key={index}
-                className="h-[360px] animate-pulse rounded-[28px] bg-[#eef2f7]"
-              />
+                className="overflow-hidden rounded-[28px] border border-slate-200 bg-white"
+              >
+                <div className="h-[164px] animate-pulse bg-slate-200" />
+                <div className="space-y-3 p-5">
+                  <div className="h-6 w-2/3 animate-pulse rounded-xl bg-slate-200" />
+                  <div className="h-4 w-1/2 animate-pulse rounded-xl bg-slate-200" />
+                  <div className="h-10 w-full animate-pulse rounded-2xl bg-slate-200" />
+                </div>
+              </div>
             ))}
           </div>
-        </SectionCard>
+        </section>
       ) : filteredSongs.length === 0 ? (
         <EmptyState
           title="Nenhuma música encontrada"
@@ -959,7 +756,7 @@ function SuggestoesBibliotecaTab({
       ) : (
         <div className="grid gap-4 xl:grid-cols-2">
           {filteredSongs.map((song) => (
-            <SuggestionCard
+            <SugestaoCard
               key={song.id}
               song={song}
               onEdit={onEdit}
@@ -1362,6 +1159,20 @@ const [savingMoment, setSavingMoment] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingSong, setEditingSong] = useState(null);
 
+  const songsKpis = useMemo(() => {
+    return songs.reduce(
+      (acc, song) => {
+        const { hasError, isPending } = getSongHealth(song);
+        acc.cadastradas += 1;
+        if (song?.is_active) acc.ativas += 1;
+        if (isPending) acc.pendentes += 1;
+        if (hasError) acc.comErro += 1;
+        return acc;
+      },
+      { cadastradas: 0, ativas: 0, pendentes: 0, comErro: 0 }
+    );
+  }, [songs]);
+
   const tabs = [
     { key: 'resumo', label: 'Resumo' },
     { key: 'biblioteca', label: 'Biblioteca' },
@@ -1723,28 +1534,28 @@ const [savingMoment, setSavingMoment] = useState(false);
       >
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <SummaryCard
-            label="Catálogo"
-            value={songs.length}
-            helper="músicas registradas"
+            label="Músicas cadastradas"
+            value={songsKpis.cadastradas}
+            helper="total no catálogo"
             tone="default"
           />
           <SummaryCard
             label="Ativas"
-            value={songs.filter((song) => song.is_active).length}
+            value={songsKpis.ativas}
             helper="visíveis para o cliente"
             tone="emerald"
           />
           <SummaryCard
-            label="Destaques"
-            value={songs.filter((song) => song.is_featured).length}
-            helper="featured na curadoria"
-            tone="violet"
+            label="Pendentes"
+            value={songsKpis.pendentes}
+            helper="faltam dados editoriais"
+            tone="amber"
           />
           <SummaryCard
-            label="Pendências"
-            value={songs.filter((song) => !song.thumbnail_url || !song.youtube_id).length}
-            helper="cadastros incompletos"
-            tone="amber"
+            label="Com erro"
+            value={songsKpis.comErro}
+            helper="faltam título ou artista"
+            tone="red"
           />
         </div>
       </SectionCard>

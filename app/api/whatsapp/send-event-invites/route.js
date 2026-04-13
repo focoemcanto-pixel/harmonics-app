@@ -68,6 +68,13 @@ export async function POST(request) {
     const successCount = results.filter((result) => result.ok === true).length;
     const failedCount = results.length - successCount;
     const hasFailures = failedCount > 0;
+    const firstFailed = results.find((result) => result.ok !== true);
+    const firstError =
+      firstFailed?.data?.firstError ||
+      firstFailed?.data?.error ||
+      firstFailed?.data?.cause ||
+      firstFailed?.data?.details ||
+      (firstFailed ? `Falha no invite ${firstFailed.inviteId} (status ${firstFailed.status})` : null);
     const status = hasFailures ? (successCount > 0 ? 207 : 500) : 200;
 
     return NextResponse.json(
@@ -77,6 +84,7 @@ export async function POST(request) {
         successCount,
         failedCount,
         results,
+        firstError,
       },
       { status }
     );

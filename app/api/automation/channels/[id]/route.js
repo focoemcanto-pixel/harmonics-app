@@ -17,6 +17,7 @@ export async function PATCH(request, { params }) {
       .from('whatsapp_channels')
       .select('id, workspace_id')
       .eq('id', id)
+      .eq('workspace_id', workspace.id)
       .maybeSingle();
 
     if (findError) throw findError;
@@ -103,5 +104,39 @@ export async function PATCH(request, { params }) {
       { error: error?.message || 'Erro interno' },
       { status: 500 }
     );
+  }
+}
+
+
+export async function DELETE(_request, { params }) {
+  try {
+    const { id } = await params;
+    const supabaseAdmin = getSupabaseAdmin();
+    const workspace = await getDefaultWorkspaceSettings();
+
+    const { data: existing, error: findError } = await supabaseAdmin
+      .from('whatsapp_channels')
+      .select('id, workspace_id')
+      .eq('id', id)
+      .eq('workspace_id', workspace.id)
+      .maybeSingle();
+
+    if (findError) throw findError;
+    if (!existing) {
+      return NextResponse.json({ error: 'Canal não encontrado' }, { status: 404 });
+    }
+
+    const { error } = await supabaseAdmin
+      .from('whatsapp_channels')
+      .delete()
+      .eq('id', id)
+      .eq('workspace_id', workspace.id);
+
+    if (error) throw error;
+
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    console.error('[DELETE /api/automation/channels/:id] Erro:', error);
+    return NextResponse.json({ error: error?.message || 'Erro interno' }, { status: 500 });
   }
 }

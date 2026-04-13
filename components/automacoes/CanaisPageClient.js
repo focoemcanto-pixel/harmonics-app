@@ -10,23 +10,15 @@ const FORM_INICIAL = {
   api_url: '',
   api_key: '',
   instance_id: '',
-  sender_number: '',
-  admin_alert_number: '',
   is_active: true,
   is_default: false,
 };
 
-const PROVIDERS = [
-  { value: 'wasender', label: 'WaSender' },
-  { value: 'evolution-api', label: 'Evolution API' },
-  { value: 'twilio', label: 'Twilio' },
-  { value: 'other', label: 'Outro' },
-];
+const PROVIDERS = [{ value: 'wasender', label: 'WaSender' }];
 
 function formatarData(isoString) {
   if (!isoString) return '-';
-  const date = new Date(isoString);
-  return date.toLocaleDateString('pt-BR', {
+  return new Date(isoString).toLocaleDateString('pt-BR', {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
@@ -35,35 +27,20 @@ function formatarData(isoString) {
 
 function StatusBadge({ isActive }) {
   return isActive ? (
-    <span className="rounded-full bg-emerald-100 px-3 py-1 text-[11px] font-bold text-emerald-700">
-      Ativo
-    </span>
+    <span className="rounded-full bg-emerald-100 px-3 py-1 text-[11px] font-bold text-emerald-700">Ativo</span>
   ) : (
-    <span className="rounded-full bg-gray-100 px-3 py-1 text-[11px] font-bold text-gray-600">
-      Inativo
-    </span>
+    <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold text-slate-600">Inativo</span>
   );
 }
 
-
-function ConfigStatusBadge({ status }) {
-  if (status === 'valid') {
-    return (
-      <span className="rounded-full bg-emerald-100 px-3 py-1 text-[11px] font-bold text-emerald-700">Configuração válida</span>
-    );
-  }
-
-  return (
-    <span className="rounded-full bg-amber-100 px-3 py-1 text-[11px] font-bold text-amber-700">Configuração inválida</span>
-  );
-}
-function ProviderLabel({ provider }) {
-  const found = PROVIDERS.find((p) => p.value === provider);
-  return (
-    <span className="rounded-full bg-violet-100 px-2.5 py-0.5 text-[11px] font-bold text-violet-700">
-      {found ? found.label : provider}
-    </span>
-  );
+function validateForm(form, isEdit = false) {
+  const missing = [];
+  if (!form.name?.trim()) missing.push('Nome');
+  if (!form.provider?.trim()) missing.push('Provider');
+  if (!form.api_url?.trim()) missing.push('API URL');
+  if (!isEdit && !form.api_key?.trim()) missing.push('API Key');
+  if (!form.instance_id?.trim()) missing.push('Instance ID');
+  return missing;
 }
 
 export default function CanaisPageClient() {
@@ -73,6 +50,7 @@ export default function CanaisPageClient() {
   const [editandoId, setEditandoId] = useState(null);
   const [modalAberto, setModalAberto] = useState(false);
   const [salvando, setSalvando] = useState(false);
+  const [testandoConexao, setTestandoConexao] = useState(false);
   const [form, setForm] = useState(FORM_INICIAL);
   const [canalParaTestar, setCanalParaTestar] = useState(null);
   const [telefoneTest, setTelefoneTest] = useState('');
@@ -83,17 +61,11 @@ export default function CanaisPageClient() {
     try {
       setCarregando(true);
       setErro(null);
-
       const response = await fetch('/api/automation/channels');
       const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Erro ao carregar canais');
-      }
-
+      if (!response.ok) throw new Error(data.error || 'Erro ao carregar canais');
       setCanais(data.channels || []);
     } catch (error) {
-      console.error('Erro ao carregar canais:', error);
       setErro(error.message);
     } finally {
       setCarregando(false);
@@ -118,8 +90,6 @@ export default function CanaisPageClient() {
       api_url: canal.api_url || '',
       api_key: '',
       instance_id: canal.instance_id || '',
-      sender_number: canal.sender_number || '',
-      admin_alert_number: canal.admin_alert_number || '',
       is_active: canal.is_active !== false,
       is_default: canal.is_default === true,
     });
@@ -133,31 +103,22 @@ export default function CanaisPageClient() {
   }
 
   async function salvarCanal() {
-    if (!form.name) {
-      alert('O nome do canal é obrigatório.');
+    const missing = validateForm(form, Boolean(editandoId));
+    if (missing.length) {
+      alert(`Preencha os campos obrigatórios: ${missing.join(', ')}`);
       return;
     }
 
-    if (
-      form.is_default &&
-      canais.some((c) => c.is_default && c.id !== editandoId)
-    ) {
-      const confirmou = window.confirm(
-        'Ao definir este canal como padrão, o canal padrão atual perderá essa marcação. Deseja continuar?'
-      );
+    if (form.is_default && canais.some((c) => c.is_default && c.id !== editandoId)) {
+      const confirmou = window.confirm('Este canal será o novo padrão. Deseja continuar?');
       if (!confirmou) return;
     }
 
     try {
       setSalvando(true);
-
-      const url = editandoId
-        ? `/api/automation/channels/${editandoId}`
-        : '/api/automation/channels';
-
+      const url = editandoId ? `/api/automation/channels/${editandoId}` : '/api/automation/channels';
       const method = editandoId ? 'PATCH' : 'POST';
-
-      const payload = { ...form };
+      const payload = { ...form, provider: 'wasender' };
       if (!payload.api_key) delete payload.api_key;
 
       const response = await fetch(url, {
@@ -165,67 +126,81 @@ export default function CanaisPageClient() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-
       const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Erro ao salvar canal');
-      }
+      if (!response.ok) throw new Error(data.error || 'Erro ao salvar canal');
 
       await carregarCanais();
       fecharModal();
     } catch (error) {
-      console.error('Erro ao salvar canal:', error);
       alert(error.message);
     } finally {
       setSalvando(false);
     }
   }
 
-  async function toggleAtivo(canalId, isActive) {
+  async function testarConexao() {
+    const missing = validateForm(form, Boolean(editandoId));
+    if (missing.length) {
+      alert(`Preencha os campos obrigatórios antes do teste: ${missing.join(', ')}`);
+      return;
+    }
+
     try {
-      const response = await fetch(`/api/automation/channels/${canalId}`, {
-        method: 'PATCH',
+      setTestandoConexao(true);
+      const response = await fetch('/api/automation/channels/ping', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ is_active: !isActive }),
+        body: JSON.stringify({ ...form, provider: 'wasender' }),
       });
-
-      if (!response.ok) {
-        throw new Error('Erro ao atualizar status');
-      }
-
-      await carregarCanais();
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Falha no teste de conexão');
+      alert(`Conexão OK (${data.status})`);
     } catch (error) {
-      console.error('Erro ao atualizar status:', error);
       alert(error.message);
+    } finally {
+      setTestandoConexao(false);
     }
   }
 
+  async function toggleAtivo(canalId, isActive) {
+    const response = await fetch(`/api/automation/channels/${canalId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_active: !isActive }),
+    });
+    if (!response.ok) {
+      const data = await response.json();
+      alert(data.error || 'Erro ao atualizar status');
+      return;
+    }
+    await carregarCanais();
+  }
+
   async function definirPadrao(canalId) {
-    const outros = canais.filter((c) => c.is_default && c.id !== canalId);
-    if (outros.length > 0) {
-      const confirmou = window.confirm(
-        'Ao definir este canal como padrão, o canal padrão atual perderá essa marcação. Deseja continuar?'
-      );
-      if (!confirmou) return;
+    const response = await fetch(`/api/automation/channels/${canalId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_default: true }),
+    });
+    if (!response.ok) {
+      const data = await response.json();
+      alert(data.error || 'Erro ao definir padrão');
+      return;
     }
+    await carregarCanais();
+  }
 
-    try {
-      const response = await fetch(`/api/automation/channels/${canalId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ is_default: true }),
-      });
+  async function excluirCanal(canalId) {
+    const confirmou = window.confirm('Deseja realmente excluir este canal?');
+    if (!confirmou) return;
 
-      if (!response.ok) {
-        throw new Error('Erro ao definir canal padrão');
-      }
-
-      await carregarCanais();
-    } catch (error) {
-      console.error('Erro ao definir canal padrão:', error);
-      alert(error.message);
+    const response = await fetch(`/api/automation/channels/${canalId}`, { method: 'DELETE' });
+    if (!response.ok) {
+      const data = await response.json();
+      alert(data.error || 'Erro ao excluir canal');
+      return;
     }
+    await carregarCanais();
   }
 
   const total = canais.length;
@@ -234,158 +209,52 @@ export default function CanaisPageClient() {
 
   return (
     <div className="space-y-6">
-      {/* Back Link */}
-      <div>
-        <AutomationBackLink />
-      </div>
+      <AutomationBackLink />
 
-      {/* Hero Section */}
       <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-6 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <div className="text-[12px] font-black uppercase tracking-[0.14em] text-violet-600">
-              Canais
-            </div>
-            <h1 className="mt-1 text-[28px] font-black tracking-[-0.03em] text-[#0f172a]">
-              Canais de Envio
-            </h1>
-            <p className="mt-2 max-w-3xl text-[15px] leading-7 text-[#64748b]">
-              Configure APIs de WhatsApp, instâncias e números de envio. Gerencie múltiplos canais e alterne entre eles sem alterar código.
-            </p>
+            <div className="text-[12px] font-black uppercase tracking-[0.14em] text-violet-600">Canais</div>
+            <h1 className="mt-1 text-[28px] font-black tracking-[-0.03em] text-[#0f172a]">Canais WhatsApp</h1>
           </div>
-          <div className="shrink-0">
-            <button
-              onClick={abrirModalNovo}
-              className="rounded-full bg-violet-600 px-5 py-2.5 text-[14px] font-bold text-white shadow-sm transition hover:bg-violet-700 active:scale-95"
-            >
-              + Novo canal
-            </button>
-          </div>
+          <button onClick={abrirModalNovo} className="rounded-full bg-violet-600 px-5 py-2.5 text-[14px] font-bold text-white">+ Novo canal</button>
         </div>
       </section>
 
-      {/* Summary Cards */}
       <section className="grid grid-cols-3 gap-4">
         <AdminSummaryCard label="Total" value={carregando ? '–' : total} tone="default" />
         <AdminSummaryCard label="Ativos" value={carregando ? '–' : ativos} tone="success" />
-        <AdminSummaryCard
-          label="Canal padrão"
-          value={carregando ? '–' : canalPadrao ? canalPadrao.name : '—'}
-          tone="accent"
-        />
+        <AdminSummaryCard label="Canal padrão" value={carregando ? '–' : canalPadrao ? canalPadrao.name : '—'} tone="accent" />
       </section>
 
-      {/* Loading */}
-      {carregando && (
-        <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-12 text-center shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
-          <div className="mx-auto flex max-w-xs flex-col items-center gap-3">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-violet-200 border-t-violet-600" />
-            <p className="text-[14px] font-semibold text-[#64748b]">Carregando canais...</p>
-          </div>
-        </section>
-      )}
-
-      {/* Error */}
-      {!carregando && erro && (
-        <section className="rounded-[28px] border border-red-200 bg-red-50 p-8 text-center shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
-          <div className="mb-2 text-[32px]">⚠️</div>
-          <p className="text-[15px] font-bold text-red-700">{erro}</p>
-          <button
-            onClick={carregarCanais}
-            className="mt-4 rounded-full border border-red-300 px-5 py-2 text-[13px] font-bold text-red-700 transition hover:bg-red-100"
-          >
-            Tentar novamente
-          </button>
-        </section>
-      )}
-
-      {/* Empty State */}
       {!carregando && !erro && canais.length === 0 && (
-        <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-12 text-center shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
-          <div className="mx-auto max-w-md">
-            <div className="mb-4 text-[48px]">📡</div>
-            <h2 className="text-[20px] font-black tracking-[-0.02em] text-[#0f172a]">
-              Nenhum canal cadastrado
-            </h2>
-            <p className="mt-2 text-[14px] leading-6 text-[#64748b]">
-              Configure seu primeiro canal de WhatsApp para começar a usar o sistema de envio automático.
-            </p>
-            <div className="mt-6 flex justify-center">
-              <button
-                onClick={abrirModalNovo}
-                className="rounded-full bg-violet-600 px-5 py-2.5 text-[14px] font-bold text-white shadow-sm transition hover:bg-violet-700"
-              >
-                Criar primeiro canal
-              </button>
-            </div>
-          </div>
+        <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-12 text-center">
+          Nenhum canal cadastrado.
         </section>
       )}
 
-      {/* Channels List */}
+      {!carregando && erro && <section className="rounded-[28px] border border-red-200 bg-red-50 p-8">{erro}</section>}
+
       {!carregando && !erro && canais.length > 0 && (
         <section className="space-y-4">
           {canais.map((canal) => (
-            <div
-              key={canal.id}
-              className="rounded-[28px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_26px_rgba(17,24,39,0.04)]"
-            >
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div className="min-w-0 flex-1">
-                  {/* Name + badges */}
+            <div key={canal.id} className="rounded-[28px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
+              <div className="flex flex-col gap-3 sm:flex-row sm:justify-between">
+                <div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-[16px] font-black tracking-[-0.02em] text-[#0f172a]">
-                      {canal.name}
-                    </span>
+                    <span className="text-[16px] font-black text-[#0f172a]">{canal.name}</span>
                     <StatusBadge isActive={canal.is_active} />
-                    <ConfigStatusBadge status={canal.status} />
-                    {canal.is_default && (
-                      <span className="rounded-full bg-violet-600 px-3 py-1 text-[11px] font-bold text-white">
-                        Padrão
-                      </span>
-                    )}
+                    {canal.is_default && <span className="rounded-full bg-violet-600 px-3 py-1 text-[11px] font-bold text-white">Padrão</span>}
                   </div>
-
-                  {/* Provider */}
-                  <div className="mt-1.5 flex flex-wrap gap-1.5">
-                    <ProviderLabel provider={canal.provider} />
+                  <div className="mt-2 text-[13px] text-[#64748b] space-y-0.5">
+                    <div><span className="font-semibold">Provider:</span> {canal.provider}</div>
+                    <div><span className="font-semibold">API URL:</span> {canal.api_url || '—'}</div>
+                    <div><span className="font-semibold">API Key:</span> {canal.has_api_key ? '•••••••• configurada' : 'não configurada'}</div>
+                    <div><span className="font-semibold">Instance ID:</span> {canal.instance_id || '—'}</div>
                   </div>
-
-                  {/* Details */}
-                  <div className="mt-2 space-y-0.5 text-[13px] text-[#64748b]">
-                    <div>
-                      <span className="font-semibold">API URL:</span> {canal.api_url || '—'}
-                    </div>
-                    <div>
-                      <span className="font-semibold">API Key:</span> {canal.has_api_key ? '•••••••• configurada' : 'não configurada'}
-                    </div>
-                    {canal.sender_number && (
-                      <div>
-                        <span className="font-semibold">Número:</span> {canal.sender_number}
-                      </div>
-                    )}
-                    {canal.instance_id && (
-                      <div>
-                        <span className="font-semibold">Instance:</span>{' '}
-                        <code className="rounded bg-[#f1f5f9] px-1.5 py-0.5 text-[12px] font-bold text-[#475569]">
-                          {canal.instance_id}
-                        </code>
-                      </div>
-                    )}
-                    {canal.status_reason && (
-                      <div className="text-amber-700">
-                        <span className="font-semibold">Diagnóstico:</span> {canal.status_reason}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Created at */}
-                  <div className="mt-2 text-[12px] text-[#94a3b8]">
-                    Criado em {formatarData(canal.created_at)}
-                  </div>
+                  <div className="mt-2 text-[12px] text-[#94a3b8]">Criado em {formatarData(canal.created_at)}</div>
                 </div>
 
-                {/* Actions */}
                 <div className="flex shrink-0 flex-wrap items-center gap-2">
                   <button
                     onClick={() => {
@@ -393,34 +262,14 @@ export default function CanaisPageClient() {
                       setTelefoneTest('');
                       setToastTest(null);
                     }}
-                    className="rounded-full border border-sky-200 bg-sky-50 px-4 py-1.5 text-[13px] font-bold text-sky-700 transition hover:bg-sky-100"
+                    className="rounded-full border border-sky-200 bg-sky-50 px-4 py-1.5 text-[13px] font-bold text-sky-700"
                   >
-                    Testar
+                    Testar envio
                   </button>
-                  {!canal.is_default && (
-                    <button
-                      onClick={() => definirPadrao(canal.id)}
-                      className="rounded-full border border-violet-200 px-4 py-1.5 text-[13px] font-bold text-violet-700 transition hover:bg-violet-50"
-                    >
-                      Definir padrão
-                    </button>
-                  )}
-                  <button
-                    onClick={() => abrirModalEditar(canal)}
-                    className="rounded-full border border-[#e2e8f0] px-4 py-1.5 text-[13px] font-bold text-[#475569] transition hover:bg-[#f8fafc]"
-                  >
-                    Editar
-                  </button>
-                  <button
-                    onClick={() => toggleAtivo(canal.id, canal.is_active)}
-                    className={`rounded-full border px-4 py-1.5 text-[13px] font-bold transition ${
-                      canal.is_active
-                        ? 'border-gray-200 text-gray-600 hover:bg-gray-50'
-                        : 'border-emerald-200 text-emerald-700 hover:bg-emerald-50'
-                    }`}
-                  >
-                    {canal.is_active ? 'Desativar' : 'Ativar'}
-                  </button>
+                  {!canal.is_default && <button onClick={() => definirPadrao(canal.id)} className="rounded-full border border-violet-200 px-4 py-1.5 text-[13px] font-bold text-violet-700">Definir padrão</button>}
+                  <button onClick={() => abrirModalEditar(canal)} className="rounded-full border border-[#e2e8f0] px-4 py-1.5 text-[13px] font-bold text-[#475569]">Editar</button>
+                  <button onClick={() => toggleAtivo(canal.id, canal.is_active)} className="rounded-full border border-gray-200 px-4 py-1.5 text-[13px] font-bold text-gray-600">{canal.is_active ? 'Desativar' : 'Ativar'}</button>
+                  <button onClick={() => excluirCanal(canal.id)} className="rounded-full border border-red-200 px-4 py-1.5 text-[13px] font-bold text-red-700">Excluir</button>
                 </div>
               </div>
             </div>
@@ -428,257 +277,67 @@ export default function CanaisPageClient() {
         </section>
       )}
 
-      {/* Modal */}
       {modalAberto && (
         <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
-          {/* Backdrop */}
-          <div
-            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-            onClick={fecharModal}
-          />
-
-          {/* Panel */}
-          <div className="relative z-10 w-full max-w-lg overflow-y-auto rounded-t-[28px] bg-white p-6 shadow-2xl sm:rounded-[28px] sm:m-4 max-h-[92vh]">
-            <h2 className="text-[20px] font-black tracking-[-0.02em] text-[#0f172a]">
-              {editandoId ? 'Editar canal' : 'Novo canal'}
-            </h2>
+          <div className="absolute inset-0 bg-black/40" onClick={fecharModal} />
+          <div className="relative z-10 w-full max-w-lg rounded-t-[28px] bg-white p-6 sm:m-4 sm:rounded-[28px]">
+            <h2 className="text-[20px] font-black text-[#0f172a]">{editandoId ? 'Editar canal' : 'Novo canal'}</h2>
 
             <div className="mt-5 space-y-4">
-              {/* Nome */}
               <div>
-                <label className="block text-[13px] font-bold text-[#0f172a]">
-                  Nome do canal <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={form.name}
-                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                  placeholder="Ex: Canal Principal WaSender"
-                  className="mt-1.5 w-full rounded-xl border border-[#e2e8f0] px-4 py-2.5 text-[14px] text-[#0f172a] placeholder-[#94a3b8] focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-100"
-                />
+                <label className="block text-[13px] font-bold text-[#0f172a]">Nome *</label>
+                <input type="text" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className="mt-1.5 w-full rounded-xl border border-[#e2e8f0] px-4 py-2.5 text-[14px]" />
               </div>
 
-              {/* Provider */}
               <div>
-                <label className="block text-[13px] font-bold text-[#0f172a]">
-                  Provider
-                </label>
-                <select
-                  value={form.provider}
-                  onChange={(e) => setForm((f) => ({ ...f, provider: e.target.value }))}
-                  className="mt-1.5 w-full rounded-xl border border-[#e2e8f0] px-4 py-2.5 text-[14px] text-[#0f172a] focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-100"
-                >
-                  {PROVIDERS.map((p) => (
-                    <option key={p.value} value={p.value}>
-                      {p.label}
-                    </option>
-                  ))}
+                <label className="block text-[13px] font-bold text-[#0f172a]">Provider *</label>
+                <select value={form.provider} onChange={(e) => setForm((f) => ({ ...f, provider: e.target.value }))} className="mt-1.5 w-full rounded-xl border border-[#e2e8f0] px-4 py-2.5 text-[14px]">
+                  {PROVIDERS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
                 </select>
               </div>
 
-              {/* API URL */}
               <div>
-                <label className="block text-[13px] font-bold text-[#0f172a]">
-                  API URL
-                </label>
-                <input
-                  type="url"
-                  value={form.api_url}
-                  onChange={(e) => setForm((f) => ({ ...f, api_url: e.target.value }))}
-                  placeholder="https://api.exemplo.com"
-                  className="mt-1.5 w-full rounded-xl border border-[#e2e8f0] px-4 py-2.5 text-[14px] text-[#0f172a] placeholder-[#94a3b8] focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-100"
-                />
+                <label className="block text-[13px] font-bold text-[#0f172a]">API URL *</label>
+                <input type="url" value={form.api_url} onChange={(e) => setForm((f) => ({ ...f, api_url: e.target.value }))} className="mt-1.5 w-full rounded-xl border border-[#e2e8f0] px-4 py-2.5 text-[14px]" />
               </div>
 
-              {/* API Key */}
               <div>
-                <label className="block text-[13px] font-bold text-[#0f172a]">
-                  API Key
-                </label>
-                <input
-                  type="password"
-                  value={form.api_key}
-                  onChange={(e) => setForm((f) => ({ ...f, api_key: e.target.value }))}
-                  placeholder={editandoId ? 'Deixe em branco para manter a atual' : 'Token de autenticação'}
-                  className="mt-1.5 w-full rounded-xl border border-[#e2e8f0] px-4 py-2.5 text-[14px] text-[#0f172a] placeholder-[#94a3b8] focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-100"
-                />
+                <label className="block text-[13px] font-bold text-[#0f172a]">API Key {!editandoId && '*'}</label>
+                <input type="password" value={form.api_key} onChange={(e) => setForm((f) => ({ ...f, api_key: e.target.value }))} placeholder={editandoId ? 'Deixe em branco para manter' : ''} className="mt-1.5 w-full rounded-xl border border-[#e2e8f0] px-4 py-2.5 text-[14px]" />
               </div>
 
-              {/* Instance ID + Sender Number */}
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="block text-[13px] font-bold text-[#0f172a]">
-                    Instance ID
-                  </label>
-                  <input
-                    type="text"
-                    value={form.instance_id}
-                    onChange={(e) => setForm((f) => ({ ...f, instance_id: e.target.value }))}
-                    placeholder="Ex: minha-instancia"
-                    className="mt-1.5 w-full rounded-xl border border-[#e2e8f0] px-4 py-2.5 text-[14px] text-[#0f172a] placeholder-[#94a3b8] focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-100"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[13px] font-bold text-[#0f172a]">
-                    Número de envio
-                  </label>
-                  <input
-                    type="tel"
-                    value={form.sender_number}
-                    onChange={(e) => setForm((f) => ({ ...f, sender_number: e.target.value }))}
-                    placeholder="Ex: 5511999999999"
-                    className="mt-1.5 w-full rounded-xl border border-[#e2e8f0] px-4 py-2.5 text-[14px] text-[#0f172a] placeholder-[#94a3b8] focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-100"
-                  />
-                </div>
-              </div>
-
-              {/* Admin Alert Number */}
               <div>
-                <label className="block text-[13px] font-bold text-[#0f172a]">
-                  Número de alerta admin
-                </label>
-                <input
-                  type="tel"
-                  value={form.admin_alert_number}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, admin_alert_number: e.target.value }))
-                  }
-                  placeholder="Ex: 5511888888888"
-                  className="mt-1.5 w-full rounded-xl border border-[#e2e8f0] px-4 py-2.5 text-[14px] text-[#0f172a] placeholder-[#94a3b8] focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-100"
-                />
+                <label className="block text-[13px] font-bold text-[#0f172a]">Instance ID *</label>
+                <input type="text" value={form.instance_id} onChange={(e) => setForm((f) => ({ ...f, instance_id: e.target.value }))} className="mt-1.5 w-full rounded-xl border border-[#e2e8f0] px-4 py-2.5 text-[14px]" />
               </div>
 
-              {/* Toggles */}
-              <div className="flex flex-col gap-3">
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setForm((f) => ({ ...f, is_active: !f.is_active }))}
-                    className={`relative h-6 w-11 rounded-full transition-colors ${
-                      form.is_active ? 'bg-violet-600' : 'bg-gray-200'
-                    }`}
-                  >
-                    <span
-                      className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
-                        form.is_active ? 'translate-x-5' : 'translate-x-0'
-                      }`}
-                    />
-                  </button>
-                  <label className="text-[13px] font-semibold text-[#0f172a]">
-                    Canal ativo
-                  </label>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setForm((f) => ({ ...f, is_default: !f.is_default }))}
-                    className={`relative h-6 w-11 rounded-full transition-colors ${
-                      form.is_default ? 'bg-violet-600' : 'bg-gray-200'
-                    }`}
-                  >
-                    <span
-                      className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
-                        form.is_default ? 'translate-x-5' : 'translate-x-0'
-                      }`}
-                    />
-                  </button>
-                  <label className="text-[13px] font-semibold text-[#0f172a]">
-                    Canal padrão
-                  </label>
-                </div>
+              <div className="flex gap-6">
+                <label className="text-[13px] font-semibold"><input type="checkbox" checked={form.is_active} onChange={(e) => setForm((f) => ({ ...f, is_active: e.target.checked }))} className="mr-2" />Ativo</label>
+                <label className="text-[13px] font-semibold"><input type="checkbox" checked={form.is_default} onChange={(e) => setForm((f) => ({ ...f, is_default: e.target.checked }))} className="mr-2" />Padrão</label>
               </div>
             </div>
 
-            {/* Footer actions */}
-            <div className="mt-6 flex justify-end gap-3">
-              <button
-                onClick={fecharModal}
-                className="rounded-full border border-[#e2e8f0] px-5 py-2.5 text-[14px] font-bold text-[#475569] transition hover:bg-[#f8fafc]"
-              >
-                Cancelar
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
+              <button onClick={testarConexao} disabled={testandoConexao} className="rounded-full border border-sky-200 bg-sky-50 px-5 py-2.5 text-[14px] font-bold text-sky-700">
+                {testandoConexao ? 'Testando...' : 'Testar conexão'}
               </button>
-              <button
-                onClick={salvarCanal}
-                disabled={salvando}
-                className="rounded-full bg-violet-600 px-5 py-2.5 text-[14px] font-bold text-white shadow-sm transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {salvando ? 'Salvando...' : 'Salvar'}
-              </button>
+              <button onClick={fecharModal} className="rounded-full border border-[#e2e8f0] px-5 py-2.5 text-[14px] font-bold text-[#475569]">Cancelar</button>
+              <button onClick={salvarCanal} disabled={salvando} className="rounded-full bg-violet-600 px-5 py-2.5 text-[14px] font-bold text-white">{salvando ? 'Salvando...' : 'Salvar'}</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Modal de teste de canal */}
       {canalParaTestar && (
         <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
-          <div
-            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-            onClick={() => setCanalParaTestar(null)}
-          />
-          <div className="relative z-10 w-full max-w-md overflow-y-auto rounded-t-[28px] bg-white p-6 shadow-2xl sm:rounded-[28px] sm:m-4">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h2 className="text-[20px] font-black tracking-[-0.02em] text-[#0f172a]">
-                  Testar canal
-                </h2>
-                <p className="mt-0.5 text-[13px] text-[#64748b]">
-                  <span className="font-bold">{canalParaTestar.name}</span> — envio de teste real
-                </p>
-              </div>
-              <button
-                onClick={() => setCanalParaTestar(null)}
-                className="rounded-full p-1.5 text-[#94a3b8] hover:bg-[#f1f5f9] hover:text-[#475569]"
-                aria-label="Fechar"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
-                  <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
-                </svg>
-              </button>
-            </div>
-
-            <div className="mt-5 space-y-4">
-              <div>
-                <label className="block text-[13px] font-bold text-[#0f172a]">
-                  Número destino <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="tel"
-                  value={telefoneTest}
-                  onChange={(e) => setTelefoneTest(e.target.value)}
-                  placeholder="Ex: 5511999999999"
-                  className="mt-1.5 w-full rounded-xl border border-[#e2e8f0] px-4 py-2.5 text-[14px] text-[#0f172a] placeholder-[#94a3b8] focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-100"
-                />
-                <p className="mt-1 text-[12px] text-[#94a3b8]">
-                  Formato internacional: código do país + DDD + número
-                </p>
-              </div>
-
-              <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-[12px] text-sky-700">
-                <span className="font-bold">⚡ Atenção:</span> isso irá enviar uma mensagem real via o canal selecionado.
-              </div>
-
-              {toastTest && (
-                <div
-                  className={`rounded-xl px-4 py-3 text-[13px] font-semibold ${
-                    toastTest.type === 'success'
-                      ? 'border border-emerald-200 bg-emerald-50 text-emerald-700'
-                      : 'border border-red-200 bg-red-50 text-red-700'
-                  }`}
-                >
-                  {toastTest.type === 'success' ? '✅' : '❌'} {toastTest.message}
-                </div>
-              )}
-            </div>
-
+          <div className="absolute inset-0 bg-black/40" onClick={() => setCanalParaTestar(null)} />
+          <div className="relative z-10 w-full max-w-md rounded-t-[28px] bg-white p-6 sm:m-4 sm:rounded-[28px]">
+            <h2 className="text-[20px] font-black text-[#0f172a]">Testar envio</h2>
+            <p className="mt-0.5 text-[13px] text-[#64748b]"><span className="font-bold">{canalParaTestar.name}</span></p>
+            <input type="tel" value={telefoneTest} onChange={(e) => setTelefoneTest(e.target.value)} placeholder="Ex: 5511999999999" className="mt-4 w-full rounded-xl border border-[#e2e8f0] px-4 py-2.5 text-[14px]" />
+            {toastTest && <div className={`mt-3 rounded-xl px-4 py-3 text-[13px] font-semibold ${toastTest.type === 'success' ? 'border border-emerald-200 bg-emerald-50 text-emerald-700' : 'border border-red-200 bg-red-50 text-red-700'}`}>{toastTest.message}</div>}
             <div className="mt-6 flex justify-end gap-3">
-              <button
-                onClick={() => setCanalParaTestar(null)}
-                className="rounded-full border border-[#e2e8f0] px-5 py-2.5 text-[14px] font-bold text-[#475569] transition hover:bg-[#f8fafc]"
-              >
-                Cancelar
-              </button>
+              <button onClick={() => setCanalParaTestar(null)} className="rounded-full border border-[#e2e8f0] px-5 py-2.5 text-[14px] font-bold text-[#475569]">Cancelar</button>
               <button
                 disabled={enviandoTeste || !telefoneTest.trim()}
                 onClick={async () => {
@@ -699,7 +358,7 @@ export default function CanaisPageClient() {
                     setEnviandoTeste(false);
                   }
                 }}
-                className="rounded-full bg-sky-600 px-5 py-2.5 text-[14px] font-bold text-white shadow-sm transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-full bg-sky-600 px-5 py-2.5 text-[14px] font-bold text-white"
               >
                 {enviandoTeste ? 'Enviando...' : 'Enviar teste'}
               </button>

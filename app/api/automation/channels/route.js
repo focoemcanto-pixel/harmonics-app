@@ -47,11 +47,21 @@ export async function POST(request) {
   try {
     const body = await request.json();
 
+    const required = ['name', 'provider', 'api_url', 'api_key', 'instance_id'];
+    const missing = required.filter((field) => !String(body[field] || '').trim());
+
+    if (missing.length > 0) {
+      return NextResponse.json(
+        { error: `Campos obrigatórios: ${missing.join(', ')}` },
+        { status: 400 }
+      );
+    }
+
     const { name } = body;
 
-    if (!name) {
+    if (String(body.provider).trim().toLowerCase() !== 'wasender') {
       return NextResponse.json(
-        { error: 'Campo obrigatório: name' },
+        { error: 'Apenas provider wasender é suportado no momento' },
         { status: 400 }
       );
     }

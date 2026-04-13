@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import SugestaoCard from '@/components/sugestoes/SugestaoCard';
 import SugestoesFilters from '@/components/sugestoes/SugestoesFilters';
+import ReferenceSearchInput from '@/components/repertorio/ReferenceSearchInput';
+import { getYoutubeVideoId } from '@/lib/youtube/getYoutubeVideoId';
 
 function classNames(...classes) {
   return classes.filter(Boolean).join(' ');
@@ -241,6 +243,8 @@ function SuggestionEditorModal({
     tag_ids: [],
     collection_ids: [],
   });
+  const [referenceSearch, setReferenceSearch] = useState('');
+  const [selectedReference, setSelectedReference] = useState(null);
 
   useEffect(() => {
     if (!open) return;
@@ -262,6 +266,17 @@ function SuggestionEditorModal({
         .map((item) => item?.collection?.id)
         .filter(Boolean),
     });
+    setReferenceSearch(song?.title || '');
+    setSelectedReference(
+      song?.youtube_id || song?.youtube_url
+        ? {
+            title: song?.title || '',
+            channelTitle: song?.reference_channel || '',
+            thumbnail: song?.thumbnail_url || '',
+            videoId: song?.youtube_id || getYoutubeVideoId(song?.youtube_url || ''),
+          }
+        : null
+    );
   }, [open, song]);
 
   if (!open) return null;
@@ -276,6 +291,33 @@ function SuggestionEditorModal({
           : [...prev[listKey], id],
       };
     });
+  }
+
+  function applyReference(result) {
+    const nextVideoId = result?.videoId || '';
+    const nextUrl = nextVideoId ? `https://www.youtube.com/watch?v=${nextVideoId}` : '';
+    const nextThumb = result?.thumbnail || '';
+
+    setSelectedReference(result || null);
+    setReferenceSearch(result?.title || '');
+    setForm((prev) => ({
+      ...prev,
+      title: result?.title || prev.title,
+      artist: prev.artist || result?.channelTitle || '',
+      youtube_url: nextUrl || prev.youtube_url,
+      youtube_id: nextVideoId || prev.youtube_id,
+      thumbnail_url: nextThumb || prev.thumbnail_url,
+    }));
+  }
+
+  function clearReference() {
+    setSelectedReference(null);
+    setForm((prev) => ({
+      ...prev,
+      youtube_url: '',
+      youtube_id: '',
+      thumbnail_url: '',
+    }));
   }
 
   return (
@@ -312,7 +354,11 @@ function SuggestionEditorModal({
                 <FormField label="Título">
                   <Input
                     value={form.title}
-                    onChange={(e) => setForm((prev) => ({ ...prev, title: e.target.value }))}
+                    onChange={(e) => {
+                      const nextTitle = e.target.value;
+                      setForm((prev) => ({ ...prev, title: nextTitle }));
+                      setReferenceSearch(nextTitle);
+                    }}
                     placeholder="Ex: A Thousand Years"
                   />
                 </FormField>
@@ -369,12 +415,48 @@ function SuggestionEditorModal({
               </div>
             </SectionCard>
 
+            <SectionCard eyebrow="Referência premium" title="Busca e preenchimento automático do YouTube">
+              <ReferenceSearchInput
+                searchValue={referenceSearch}
+                referenceValue={form.youtube_url}
+                selectedReference={selectedReference}
+                onSearchValueChange={setReferenceSearch}
+                onReferenceValueChange={(event) => {
+                  const nextValue = event.target.value;
+                  const nextVideoId = getYoutubeVideoId(nextValue);
+                  setSelectedReference(
+                    nextVideoId
+                      ? {
+                          title: form.title || '',
+                          channelTitle: form.artist || '',
+                          thumbnail: form.thumbnail_url || '',
+                          videoId: nextVideoId,
+                        }
+                      : null
+                  );
+                  setForm((prev) => ({
+                    ...prev,
+                    youtube_url: nextValue,
+                    youtube_id: nextVideoId,
+                  }));
+                }}
+                onSelectResult={applyReference}
+                onClearReference={clearReference}
+              />
+            </SectionCard>
+
             <SectionCard eyebrow="Mídia" title="YouTube, thumb e descrição">
               <div className="grid gap-4">
                 <FormField label="URL do YouTube">
                   <Input
                     value={form.youtube_url}
-                    onChange={(e) => setForm((prev) => ({ ...prev, youtube_url: e.target.value }))}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        youtube_url: e.target.value,
+                        youtube_id: getYoutubeVideoId(e.target.value),
+                      }))
+                    }
                     placeholder="https://www.youtube.com/watch?v=..."
                   />
                 </FormField>
@@ -576,7 +658,7 @@ function SuggestionEditorModal({
                 disabled={loading}
                 className="rounded-[18px] bg-violet-600 px-5 py-4 text-[15px] font-black text-white shadow-[0_12px_28px_rgba(124,58,237,0.18)] disabled:opacity-60"
               >
-                {loading ? 'Salvando...' : song?.id ? 'Salvar alterações' : 'Criar música'}
+                {loading ? 'Salvando curadoria premium…' : song?.id ? 'Salvar alterações' : 'Criar música'}
               </button>
 
               <button

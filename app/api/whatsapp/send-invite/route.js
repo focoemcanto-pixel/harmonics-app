@@ -7,17 +7,33 @@ export async function POST(request) {
   console.info('[automation][step] send_invite_started', { inviteId });
 
   const result = await sendInviteService({ inviteId });
+  const responseData = result.data || {};
 
   if (!result.ok) {
+    const providerError = responseData.providerError || {};
+    const errorPayload = {
+      error: result.error || responseData.error || 'Erro interno ao enviar convite',
+      cause: responseData.cause || providerError.response?.error || providerError.response?.message || result.error || null,
+      providerStatus: responseData.providerStatus ?? providerError.status ?? null,
+      providerEndpoint: responseData.providerEndpoint ?? providerError.endpoint ?? null,
+      providerResponse:
+        responseData.providerResponse ??
+        providerError.response ??
+        null,
+    };
+
     console.error('[automation][step] send_invite_failed', {
       inviteId,
       status: result.status,
-      error: result.error,
+      error: errorPayload.error,
+      cause: errorPayload.cause,
+      providerStatus: errorPayload.providerStatus,
+      providerEndpoint: errorPayload.providerEndpoint,
+      providerResponse: errorPayload.providerResponse,
     });
+
+    return NextResponse.json(errorPayload, { status: result.status });
   }
 
-  return NextResponse.json(
-    result.data || { error: result.error || 'Erro interno ao enviar convite' },
-    { status: result.status }
-  );
+  return NextResponse.json(responseData, { status: result.status });
 }

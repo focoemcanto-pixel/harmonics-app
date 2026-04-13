@@ -1,6 +1,5 @@
 'use client';
 
-import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
@@ -41,7 +40,9 @@ export default function AdminSidebar({ activeItem = 'eventos' }) {
   return (
     <aside className="sticky top-0 flex min-h-screen w-[280px] shrink-0 flex-col bg-[#020b2c] px-5 py-6 text-white">
       <div className="flex items-center gap-3 px-2">
-        <Image src="/logo.png" alt="Harmonics" width={48} height={48} className="h-12 w-12" priority />
+        <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-black/90 shadow-[0_4px_20px_rgba(0,0,0,0.45),inset_0_1px_1px_rgba(255,255,255,0.08)]">
+          <span className="text-lg font-semibold tracking-tight text-white">H</span>
+        </div>
         <div>
           <div className="text-[15px] font-black">Harmonics</div>
           <div className="text-[12px] text-[#a5b4fc]">Admin</div>

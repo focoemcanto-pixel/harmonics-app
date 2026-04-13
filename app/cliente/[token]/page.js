@@ -132,8 +132,8 @@ function mapItemsToInitialState(items) {
     .sort((a, b) => (a.item_order || 0) - (b.item_order || 0))
     .map((item) => ({
       label: item.label || item.who_enters || '',
-      musica: item.song_name || '',
-      referencia: item.reference_link || '',
+      musica: item.song_name || item.suggestion_song?.title || '',
+      referencia: item.reference_link || item.suggestion_song?.youtube_url || '',
       observacao: item.notes || '',
       reference_title: item.reference_title || '',
       reference_channel: item.reference_channel || '',
@@ -146,8 +146,8 @@ function mapItemsToInitialState(items) {
     .sort((a, b) => (a.item_order || 0) - (b.item_order || 0))
     .map((item) => ({
       label: item.label || item.moment || '',
-      musica: item.song_name || '',
-      referencia: item.reference_link || '',
+      musica: item.song_name || item.suggestion_song?.title || '',
+      referencia: item.reference_link || item.suggestion_song?.youtube_url || '',
       observacao: item.notes || '',
       reference_title: item.reference_title || '',
       reference_channel: item.reference_channel || '',
@@ -232,7 +232,7 @@ export default async function ClienteTokenPage({ params }) {
 
     supabase
       .from('repertoire_items')
-      .select('*')
+      .select('*, suggestion_song:suggestion_songs(id, title, artist, youtube_url, youtube_id, thumbnail_url)')
       .eq('event_id', eventId)
       .order('item_order', { ascending: true }),
 

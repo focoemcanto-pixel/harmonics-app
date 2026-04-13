@@ -128,6 +128,80 @@ function normalizeItems(items = []) {
     });
 }
 
+async function upsertSuggestionSongFromItem(supabase, item) {
+  const title = normalizeText(item?.song_name);
+  if (!title) return null;
+
+  const artist = normalizeText(item?.artists);
+  const youtubeId = normalizeText(item?.reference_video_id);
+  const youtubeUrl = normalizeText(item?.reference_link);
+  const thumbnailUrl = youtubeId
+    ? `https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg`
+    : null;
+  const description = normalizeText(item?.reference_title);
+
+  const payload = {
+    title,
+    artist,
+    youtube_id: youtubeId,
+    youtube_url: youtubeUrl,
+    thumbnail_url: thumbnailUrl,
+    description,
+    is_active: true,
+    updated_at: new Date().toISOString(),
+  };
+
+  const onConflict = youtubeId
+    ? 'youtube_id'
+    : 'normalized_title,normalized_artist';
+
+  const { data, error } = await supabase
+    .from('suggestion_songs')
+    .upsert(payload, { onConflict, ignoreDuplicates: false })
+    .select('id')
+    .single();
+
+  if (error) throw error;
+  return data?.id || null;
+}
+
+async function attachCatalogSongIds(supabase, items = []) {
+  const idByKey = new Map();
+
+  const buildKey = (item) => {
+    const youtubeId = normalizeText(item?.reference_video_id);
+    if (youtubeId) return `yt:${youtubeId}`;
+
+    const title = String(normalizeText(item?.song_name) || '').toLowerCase();
+    const artist = String(normalizeText(item?.artists) || '').toLowerCase();
+    return `txt:${title}::${artist}`;
+  };
+
+  const normalizedItems = [];
+
+  for (const item of items) {
+    const hasTitle = Boolean(normalizeText(item?.song_name));
+    const key = buildKey(item);
+
+    if (!hasTitle) {
+      normalizedItems.push({ ...item, suggestion_song_id: null });
+      continue;
+    }
+
+    if (!idByKey.has(key)) {
+      const suggestionSongId = await upsertSuggestionSongFromItem(supabase, item);
+      idByKey.set(key, suggestionSongId);
+    }
+
+    normalizedItems.push({
+      ...item,
+      suggestion_song_id: idByKey.get(key) || null,
+    });
+  }
+
+  return normalizedItems;
+}
+
 
 function formatDateBR(value) {
   if (!value) return '—';
@@ -308,6 +382,7 @@ export async function POST(request) {
     console.log('[API REPERTORIO] repertoire_token criado nesta chamada:', createdToken);
 
     const items = normalizeItems(rawItems);
+    const itemsWithCatalogLink = await attachCatalogSongIds(supabase, items);
 
     const status = mode === 'final' ? 'ENVIADO' : 'RASCUNHO';
     const isLocked = mode === 'final';
@@ -427,10 +502,11 @@ export async function POST(request) {
       throw deleteItemsError;
     }
 
-    if (items.length > 0) {
-      const itemsPayload = items.map((item) => ({
+    if (itemsWithCatalogLink.length > 0) {
+      const itemsPayload = itemsWithCatalogLink.map((item) => ({
         event_id: eventId,
         repertoire_token_id: tokenRow.id,
+        suggestion_song_id: item.suggestion_song_id,
         section: item.section,
         item_order: item.item_order,
         who_enters: item.who_enters,

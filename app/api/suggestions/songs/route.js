@@ -199,9 +199,23 @@ export async function POST(request) {
       );
     }
 
+    const hasYoutubeId = Boolean(String(payload.youtube_id || '').trim());
+    const onConflict = hasYoutubeId
+      ? 'youtube_id'
+      : 'normalized_title,normalized_artist';
+
     const { data: inserted, error: insertError } = await supabase
       .from('suggestion_songs')
-      .insert(payload)
+      .upsert(
+        {
+          ...payload,
+          updated_at: new Date().toISOString(),
+        },
+        {
+          onConflict,
+          ignoreDuplicates: false,
+        }
+      )
       .select('id')
       .single();
 

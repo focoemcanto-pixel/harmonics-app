@@ -1,8 +1,8 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useToast } from '@/components/ui/ToastProvider';
-import { buildDepoimentoFilename, exportElementAsImage } from '@/lib/export/export-element-as-image';
+import { exportDepoimentoAsImage } from '@/lib/export/export-element-as-image';
 
 function classNames(...classes) {
   return classes.filter(Boolean).join(' ');
@@ -33,19 +33,15 @@ function getStars(rating) {
   return `${filled}${empty}`;
 }
 
-function getSlugOrId(item, coupleName) {
-  return item?.slug || item?.id || coupleName;
-}
-
 export default function AvaliacaoCard({ item }) {
   const { showToast } = useToast() || {};
   const [copyStatus, setCopyStatus] = useState('idle');
   const [exportStatus, setExportStatus] = useState('idle');
-  const exportCardRef = useRef(null);
 
   const coupleName = useMemo(() => getCoupleName(item), [item]);
   const eventName = item?.event_title || item?.event_name || '';
   const testimonial = item?.testimonial?.trim() || 'Uma experiência incrível do começo ao fim. Recomendo demais!';
+  const exportElementId = `depoimento-card-${item?.id || coupleName.replace(/\s+/g, '-').toLowerCase()}`;
 
   const shareText = useMemo(() => {
     return [
@@ -75,27 +71,20 @@ export default function AvaliacaoCard({ item }) {
   }
 
   async function handleExportImage() {
-    if (!exportCardRef.current) {
-      showToast?.('Card indisponível para exportação.', 'error');
+    setExportStatus('loading');
+
+    const result = await exportDepoimentoAsImage(exportElementId);
+
+    if (result?.ok) {
+      setExportStatus('done');
+      showToast?.('Imagem exportada com sucesso', 'success');
+      setTimeout(() => setExportStatus('idle'), 1400);
       return;
     }
 
-    try {
-      setExportStatus('loading');
-
-      const slugOrId = getSlugOrId(item, coupleName);
-      const filename = buildDepoimentoFilename(slugOrId);
-
-      await exportElementAsImage(exportCardRef.current, { filename, scale: 3 });
-      setExportStatus('done');
-      showToast?.('Imagem gerada e download iniciado.', 'success');
-      setTimeout(() => setExportStatus('idle'), 1400);
-    } catch (error) {
-      console.error(error);
-      setExportStatus('error');
-      showToast?.('Não foi possível exportar o depoimento como imagem.', 'error');
-      setTimeout(() => setExportStatus('idle'), 2200);
-    }
+    setExportStatus('error');
+    showToast?.('Erro ao exportar imagem', 'error');
+    setTimeout(() => setExportStatus('idle'), 2200);
   }
 
   const stars = getStars(item?.rating);
@@ -106,8 +95,8 @@ export default function AvaliacaoCard({ item }) {
 
       <div className="relative flex h-full flex-col gap-4">
         <div
-          ref={exportCardRef}
-          className="space-y-5 rounded-2xl border border-slate-100 bg-white/95 p-1"
+          id={exportElementId}
+          className="space-y-5 rounded-2xl border border-slate-100 bg-white p-1"
         >
           <header className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Depoimento</p>
@@ -165,7 +154,7 @@ export default function AvaliacaoCard({ item }) {
           </button>
           <button
             type="button"
-            onClick={handleExportImage}
+            onClick={() => handleExportImage()}
             disabled={exportStatus === 'loading'}
             className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-2.5 text-sm font-semibold text-violet-700 transition hover:border-violet-300 hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-60"
           >

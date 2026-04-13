@@ -957,21 +957,32 @@ export default function RegrasPageClient() {
       )}
 
       {modalAberto && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 md:items-center">
-          <div className="w-full max-w-3xl rounded-3xl bg-white p-6 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={fecharModal}>
+          <div className="absolute inset-0 bg-black/40" />
+          <div className="relative flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
             {modalModo === 'quick' ? (
               <>
-                <div className="mb-4">
-                  <div className="text-xs font-bold uppercase tracking-[0.22em] text-violet-600">Configuração rápida</div>
-                  <h2 className="mt-1 text-2xl font-black text-slate-950">
-                    {presetSelecionado?.modalTitle || `Configurar ${presetSelecionado?.title || 'regra rápida'}`}
-                  </h2>
-                  <p className="mt-1 text-sm text-slate-500">
-                    {presetSelecionado?.modalSubtitle || 'Ajuste template, canal e ativação sem formulário técnico complexo.'}
-                  </p>
+                <div className="sticky top-0 z-10 border-b border-slate-100 bg-white px-6 py-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-xs font-bold uppercase tracking-[0.22em] text-violet-600">Configuração rápida</div>
+                      <h2 className="mt-1 text-2xl font-black text-slate-950">
+                        {presetSelecionado?.modalTitle || `Configurar ${presetSelecionado?.title || 'regra rápida'}`}
+                      </h2>
+                      <p className="mt-1 text-sm text-slate-500">
+                        {presetSelecionado?.modalSubtitle || 'Ajuste template, canal e ativação sem formulário técnico complexo.'}
+                      </p>
+                    </div>
+                    <button
+                      onClick={fecharModal}
+                      className="rounded-full border border-slate-200 px-3 py-1 text-sm font-bold text-slate-600"
+                    >
+                      Fechar
+                    </button>
+                  </div>
                 </div>
 
-                <div className="space-y-4">
+                <div className="flex-1 space-y-4 overflow-y-auto px-6 pb-6 pr-2 pt-4">
                   <div>
                     <label className="mb-1 block text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Preset</label>
                     <select
@@ -1101,11 +1112,21 @@ export default function RegrasPageClient() {
               </>
             ) : (
               <>
-                <div className="mb-4">
-                  <div className="text-xs font-bold uppercase tracking-[0.22em] text-violet-600">Modo avançado</div>
-                  <h2 className="mt-1 text-2xl font-black text-slate-950">Regra técnica</h2>
+                <div className="sticky top-0 z-10 border-b border-slate-100 bg-white px-6 py-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-xs font-bold uppercase tracking-[0.22em] text-violet-600">Modo avançado</div>
+                      <h2 className="mt-1 text-2xl font-black text-slate-950">Regra técnica</h2>
+                    </div>
+                    <button
+                      onClick={fecharModal}
+                      className="rounded-full border border-slate-200 px-3 py-1 text-sm font-bold text-slate-600"
+                    >
+                      Fechar
+                    </button>
+                  </div>
                 </div>
-                <div className="space-y-4">
+                <div className="flex-1 space-y-4 overflow-y-auto px-6 pb-6 pr-2 pt-4">
                   <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                     <input type="text" placeholder="Nome *" value={advancedForm.name} onChange={(e) => setAdvancedForm((f) => ({ ...f, name: e.target.value }))} className="rounded-2xl border border-slate-200 px-4 py-3 text-sm" />
                     <input type="text" placeholder="Key *" value={advancedForm.key} onChange={(e) => setAdvancedForm((f) => ({ ...f, key: e.target.value.toLowerCase().replace(/\s+/g, '_') }))} className="rounded-2xl border border-slate-200 px-4 py-3 text-sm" />
@@ -1159,13 +1180,26 @@ export default function RegrasPageClient() {
       )}
 
       {manualModalAberto && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 md:items-center">
-          <div className="w-full max-w-xl rounded-3xl bg-white p-6 shadow-2xl">
-            <div className="text-xs font-bold uppercase tracking-[0.22em] text-sky-700">Enviar agora</div>
-            <h2 className="mt-1 text-2xl font-black text-slate-950">Novo envio manual</h2>
-            <p className="mt-1 text-sm text-slate-500">Escolha template, destinatário e canal. Em seguida dispare manualmente.</p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setManualModalAberto(false)}>
+          <div className="absolute inset-0 bg-black/40" />
+          <div className="relative flex max-h-[90vh] w-full max-w-xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="sticky top-0 z-10 border-b border-slate-100 bg-white px-6 py-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-xs font-bold uppercase tracking-[0.22em] text-sky-700">Enviar agora</div>
+                  <h2 className="mt-1 text-2xl font-black text-slate-950">Novo envio manual</h2>
+                  <p className="mt-1 text-sm text-slate-500">Escolha template, destinatário e canal. Em seguida dispare manualmente.</p>
+                </div>
+                <button
+                  onClick={() => setManualModalAberto(false)}
+                  className="rounded-full border border-slate-200 px-3 py-1 text-sm font-bold text-slate-600"
+                >
+                  Fechar
+                </button>
+              </div>
+            </div>
 
-            <div className="mt-4 space-y-3">
+            <div className="mt-4 flex-1 space-y-3 overflow-y-auto px-6 pb-6 pr-2">
               <select value={manualForm.template_id} onChange={(e) => setManualForm((f) => ({ ...f, template_id: e.target.value }))} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm">
                 <option value="">Template (opcional)</option>
                 {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}

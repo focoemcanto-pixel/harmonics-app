@@ -45,7 +45,6 @@ function sanitizeSongPayload(body) {
   return {
     title: String(body?.title || '').trim(),
     artist: String(body?.artist || '').trim() || null,
-    music_key: String(body?.music_key || '').trim() || null,
     genre_id: body?.genre_id || null,
     moment_id: body?.moment_id || null,
     youtube_url: String(body?.youtube_url || '').trim() || null,
@@ -132,7 +131,8 @@ async function fetchSongById(supabase, id) {
       id,
       title,
       artist,
-      music_key,
+      genre_id,
+      moment_id,
       youtube_url,
       youtube_id,
       thumbnail_url,

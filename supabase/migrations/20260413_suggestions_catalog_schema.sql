@@ -48,7 +48,6 @@ create table if not exists public.suggestion_songs (
   id uuid primary key default gen_random_uuid(),
   title text not null,
   artist text null,
-  music_key text null,
   genre_id uuid null references public.suggestion_genres(id) on delete set null,
   moment_id uuid null references public.suggestion_moments(id) on delete set null,
   youtube_url text null,

@@ -54,6 +54,7 @@ export async function POST(request) {
       results.push({
         inviteId: invite.id,
         ok: response.ok,
+        status: response.status,
         data,
       });
       console.info('[automation][step] send_invite_call_finished', {

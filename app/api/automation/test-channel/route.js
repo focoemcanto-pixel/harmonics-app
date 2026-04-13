@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { sendWhatsAppMessage } from '@/lib/whatsapp/send-whatsapp-message';
 
 export async function POST(request) {
   try {
@@ -33,26 +34,11 @@ export async function POST(request) {
       );
     }
 
-    // Enviar DIRETAMENTE via fetch ao provider
-    const response = await fetch(channel.api_url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${channel.api_key}`,
-      },
-      body: JSON.stringify({
-        instanceId: channel.instance_id,
-        to: phone,
-        message: `✅ Teste de canal Harmonics\n\nCanal: ${channel.name}\nData: ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`,
-      }),
+    const providerResult = await sendWhatsAppMessage({
+      to: phone,
+      message: `✅ Teste de canal Harmonics\n\nCanal: ${channel.name}\nData: ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`,
+      channel,
     });
-
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => '');
-      throw new Error(`Falha ao enviar teste: ${response.status} ${errorText}`.trim());
-    }
-
-    const providerResult = await response.json().catch(() => ({}));
 
     return NextResponse.json({
       ok: true,

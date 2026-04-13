@@ -1,9 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '../../../../lib/supabase-admin';
-
-// LOGGING: Esta rota não registra logs individuais em automation_logs
-// porque delega para /api/whatsapp/send-invite, que já registra cada envio.
-// Ver: Fase 2 - Logging Unificado da Central de Automação
+import { sendInviteService } from '../../../../lib/whatsapp/send-invite-service';
 
 export async function POST(request) {
   const supabaseAdmin = getSupabaseAdmin();
@@ -35,34 +32,43 @@ export async function POST(request) {
       pendingToSend: pendentes.length,
     });
 
-    const internalEndpoint = new URL('/api/whatsapp/send-invite', request.url).toString();
-
     const results = [];
     for (const invite of pendentes) {
-      console.info('[automation][step] send_invite_call_started', {
+      console.info('[batch_send_invites] invite_started', {
         eventId,
         inviteId: invite.id,
       });
-      const response = await fetch(internalEndpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ inviteId: invite.id }),
+
+      const inviteResult = await sendInviteService({
+        inviteId: invite.id,
+        supabaseAdmin,
       });
 
-      const data = await response.json().catch(() => ({}));
+      const resultItem = {
+        inviteId: invite.id,
+        ok: inviteResult.ok,
+        status: inviteResult.status,
+      };
 
-      results.push({
-        inviteId: invite.id,
-        ok: response.ok,
-        status: response.status,
-        data,
-      });
-      console.info('[automation][step] send_invite_call_finished', {
-        eventId,
-        inviteId: invite.id,
-        ok: response.ok,
-        status: response.status,
-      });
+      if (inviteResult.ok) {
+        resultItem.data = inviteResult.data || {};
+        console.info('[batch_send_invites] invite_finished', {
+          eventId,
+          inviteId: invite.id,
+          status: inviteResult.status,
+        });
+      } else {
+        resultItem.error = inviteResult.error || inviteResult.data?.error || 'Falha ao enviar convite';
+        resultItem.data = inviteResult.data || {};
+        console.error('[batch_send_invites] invite_failed', {
+          eventId,
+          inviteId: invite.id,
+          status: inviteResult.status,
+          error: resultItem.error,
+        });
+      }
+
+      results.push(resultItem);
     }
 
     const successCount = results.filter((result) => result.ok === true).length;
@@ -70,6 +76,7 @@ export async function POST(request) {
     const hasFailures = failedCount > 0;
     const firstFailed = results.find((result) => result.ok !== true);
     const firstError =
+      firstFailed?.error ||
       firstFailed?.data?.firstError ||
       firstFailed?.data?.error ||
       firstFailed?.data?.cause ||

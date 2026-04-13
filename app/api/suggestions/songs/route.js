@@ -163,6 +163,8 @@ export async function GET() {
     const supabase = getSupabaseAdmin();
     const songs = await fetchSongs(supabase);
 
+    console.log('[sugestoes-debug] GET /api/suggestions/songs', { count: songs.length });
+
     return NextResponse.json({
       ok: true,
       songs,

@@ -154,7 +154,14 @@ export async function POST(request) {
     if (result.failed > 0 && result.sent === 0) {
       const firstError = result.executions.find((e) => e.status === 'failed')?.error;
       return NextResponse.json(
-        { error: firstError || 'Erro ao enviar convite pelo motor de automação' },
+        {
+          error: firstError || result.message || 'Erro ao enviar convite pelo motor de automação',
+          cause: firstError || result.message || null,
+          sent: result.sent,
+          failed: result.failed,
+          skipped: result.skipped,
+          executions: result.executions,
+        },
         { status: 500 }
       );
     }
@@ -183,6 +190,12 @@ export async function POST(request) {
     });
   } catch (error) {
     console.error('[automation][step] send_invite_unexpected_error', error);
+    const rootCause =
+      error?.message ||
+      error?.cause?.message ||
+      error?.details ||
+      error?.hint ||
+      'Erro interno ao enviar convite';
     try {
       const workspace = await getDefaultWorkspaceSettings();
       await safeLogDispatch({
@@ -198,7 +211,7 @@ export async function POST(request) {
         metadata: { eventType: 'invite_member', stage: 'unexpected_catch' },
         providerResponse: null,
         status: 'failed',
-        errorMessage: error?.message || 'Erro interno ao enviar convite',
+        errorMessage: rootCause,
         source: 'automation_center',
       });
     } catch (logError) {
@@ -206,7 +219,10 @@ export async function POST(request) {
     }
 
     return NextResponse.json(
-      { error: error?.message || 'Erro interno ao enviar convite' },
+      {
+        error: rootCause,
+        cause: rootCause,
+      },
       { status: 500 }
     );
   }

@@ -3,7 +3,7 @@ import AvaliacoesPageClient from '@/components/avaliacoes/AvaliacoesPageClient';
 
 export default function AvaliacoesPage() {
   return (
-    <AdminShell pageTitle="Avaliações" activeItem="avaliacoes">
+    <AdminShell pageTitle="Depoimentos Premium" activeItem="avaliacoes">
       <AvaliacoesPageClient />
     </AdminShell>
   );

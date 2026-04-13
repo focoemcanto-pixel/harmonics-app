@@ -1,84 +1,14 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import AvaliacaoCard from '@/components/avaliacoes/AvaliacaoCard';
 
-function classNames(...classes) {
-  return classes.filter(Boolean).join(' ');
-}
-
-function formatDateBR(value) {
-  if (!value) return '—';
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return '—';
-  return new Intl.DateTimeFormat('pt-BR', {
-    dateStyle: 'short',
-    timeStyle: 'short',
-  }).format(d);
-}
-
-function SummaryCard({ label, value, helper, tone = 'default' }) {
-  const tones = {
-    default: 'border-[#dbe3ef] bg-white text-[#0f172a]',
-    violet: 'border-violet-200 bg-violet-50 text-violet-800',
-    emerald: 'border-emerald-200 bg-emerald-50 text-emerald-800',
-    amber: 'border-amber-200 bg-amber-50 text-amber-800',
-  };
-
+function SummaryCard({ label, value, helper }) {
   return (
-    <div className={`rounded-[24px] border p-4 ${tones[tone] || tones.default}`}>
-      <div className="text-[11px] font-black uppercase tracking-[0.1em] opacity-75">
-        {label}
-      </div>
-      <div className="mt-2 text-[30px] font-black tracking-[-0.04em]">{value}</div>
-      {helper ? <div className="mt-1 text-[13px] font-semibold opacity-80">{helper}</div> : null}
-    </div>
-  );
-}
-
-function ReviewCard({ item }) {
-  return (
-    <div className="rounded-[26px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="text-[20px] font-black text-[#0f172a]">
-            {item?.event_title || 'Evento'}
-          </div>
-          <div className="mt-1 text-[14px] font-semibold text-[#64748b]">
-            {item?.client_name || 'Cliente'}
-          </div>
-        </div>
-
-        <div className="rounded-full bg-violet-50 px-3 py-1 text-[12px] font-black text-violet-700">
-          {item?.rating || 0}/5
-        </div>
-      </div>
-
-      {item?.testimonial ? (
-        <p className="mt-4 text-[15px] leading-7 text-[#475569]">
-          “{item.testimonial}”
-        </p>
-      ) : (
-        <p className="mt-4 text-[15px] leading-7 text-[#94a3b8]">
-          Sem comentário escrito.
-        </p>
-      )}
-
-      <div className="mt-4 flex flex-wrap gap-2">
-        <span className="rounded-full bg-[#f8fafc] px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-[#475569]">
-          Enviado em {formatDateBR(item?.submitted_at)}
-        </span>
-
-        <span
-          className={classNames(
-            'rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em]',
-            item?.would_recommend
-              ? 'bg-emerald-50 text-emerald-700'
-              : 'bg-amber-50 text-amber-700'
-          )}
-        >
-          {item?.would_recommend ? 'Recomendaria' : 'Não marcou recomendação'}
-        </span>
-      </div>
+    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-lg">
+      <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">{label}</p>
+      <p className="mt-2 text-3xl font-extrabold tracking-tight text-slate-900">{value}</p>
+      {helper ? <p className="mt-1 text-sm font-medium text-slate-500">{helper}</p> : null}
     </div>
   );
 }
@@ -126,57 +56,50 @@ export default function AvaliacoesPageClient() {
   const withComment = reviews.filter((item) => item?.testimonial).length;
 
   return (
-    <div className="space-y-5">
-      <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-6 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
-        <div className="text-[12px] font-black uppercase tracking-[0.14em] text-violet-600">
-          Pós-evento
-        </div>
-        <h1 className="mt-1 text-[28px] font-black tracking-[-0.03em] text-[#0f172a]">
-          Avaliações dos clientes
+    <div className="space-y-6">
+      <section className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-slate-50 p-7 shadow-lg">
+        <p className="text-xs font-bold uppercase tracking-[0.16em] text-violet-600">Prova social premium</p>
+        <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-slate-900">
+          Painel de depoimentos
         </h1>
-        <p className="mt-2 max-w-3xl text-[15px] leading-7 text-[#64748b]">
-          Acompanhe os comentários recebidos após os eventos e use os melhores depoimentos
-          como prova social da Harmonics.
+        <p className="mt-3 max-w-3xl text-base leading-7 text-slate-600">
+          Transforme cada avaliação em ativo de marketing: selecione depoimentos, copie para redes
+          sociais e prepare artes com um clique.
         </p>
 
-        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <SummaryCard label="Avaliações" value={reviews.length} helper="total recebido" />
-          <SummaryCard label="Nota média" value={average} helper="de 5.0" tone="violet" />
-          <SummaryCard label="Recomendariam" value={recommendCount} helper="marcaram sim" tone="emerald" />
-          <SummaryCard label="Com comentário" value={withComment} helper="texto escrito" tone="amber" />
+        <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <SummaryCard label="Total" value={reviews.length} helper="depoimentos recebidos" />
+          <SummaryCard label="Nota média" value={average} helper="de 5 estrelas" />
+          <SummaryCard label="Recomendariam" value={recommendCount} helper="badge verde" />
+          <SummaryCard label="Com comentário" value={withComment} helper="texto em destaque" />
         </div>
       </section>
 
       {error ? (
-        <div className="rounded-[24px] border border-red-200 bg-red-50 px-5 py-5 text-[15px] font-bold text-red-700">
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm font-bold text-red-700">
           {error}
         </div>
       ) : null}
 
       {loading ? (
-        <div className="grid gap-4 xl:grid-cols-2">
-          {Array.from({ length: 4 }).map((_, index) => (
-            <div
-              key={index}
-              className="h-[220px] animate-pulse rounded-[28px] bg-[#eef2f7]"
-            />
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, index) => (
+            <div key={index} className="h-[330px] animate-pulse rounded-2xl bg-slate-200/70" />
           ))}
         </div>
       ) : reviews.length === 0 ? (
-        <div className="rounded-[26px] border border-dashed border-[#dbe3ef] bg-[#f8fafc] px-5 py-8 text-center">
-          <div className="text-[18px] font-black text-[#0f172a]">
-            Nenhuma avaliação recebida ainda
-          </div>
-          <p className="mx-auto mt-2 max-w-xl text-[15px] leading-7 text-[#64748b]">
-            Assim que os clientes responderem o review pós-evento, as avaliações aparecerão aqui.
+        <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-5 py-9 text-center">
+          <p className="text-xl font-extrabold text-slate-900">Ainda não há depoimentos publicados</p>
+          <p className="mx-auto mt-2 max-w-xl text-sm leading-7 text-slate-600">
+            Assim que os noivos enviarem feedback pós-evento, os cards premium aparecerão aqui.
           </p>
         </div>
       ) : (
-        <div className="grid gap-4 xl:grid-cols-2">
+        <section className="grid gap-5 sm:grid-cols-2 2xl:grid-cols-3">
           {reviews.map((item) => (
-            <ReviewCard key={item.id} item={item} />
+            <AvaliacaoCard key={item.id} item={item} />
           ))}
-        </div>
+        </section>
       )}
     </div>
   );

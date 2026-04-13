@@ -73,10 +73,10 @@ function MobileMoreSheet({ open, onClose, onNavigate }) {
                 Mais opções
               </div>
               <div className="mt-1 text-[24px] font-black tracking-[-0.04em] text-[#111827]">
-                Atalhos do admin
+                Central administrativa
               </div>
               <div className="mt-1 text-[13px] font-semibold text-[#64748b]">
-                Acesse os módulos sem lotar a navegação principal.
+                Acesse os módulos complementares do Harmonics Admin.
               </div>
             </div>
 

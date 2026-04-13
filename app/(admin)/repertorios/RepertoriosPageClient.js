@@ -156,6 +156,9 @@ export default function RepertoriosPage() {
   const [feedback, setFeedback] = useState(null);
   const [reabrindoId, setReabrindoId] = useState(null);
   const [resumoAbertoId, setResumoAbertoId] = useState(null);
+  const [loadingSugestoesId, setLoadingSugestoesId] = useState(null);
+  const [sugestoesPorEvento, setSugestoesPorEvento] = useState({});
+  const [aplicandoSugestaoKey, setAplicandoSugestaoKey] = useState(null);
 
   useEffect(() => {
     const statusParam = normalizeStatus(searchParams.get('status'));
@@ -388,6 +391,74 @@ export default function RepertoriosPage() {
     }
   }
 
+  async function sugerirRepertorio(entry) {
+    try {
+      setLoadingSugestoesId(entry.event_id);
+      const response = await fetch('/api/admin/repertorio/smart-suggestions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventId: entry.event_id }),
+      });
+
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result?.ok) {
+        throw new Error(result?.error || 'Não foi possível gerar sugestões.');
+      }
+
+      setSugestoesPorEvento((prev) => ({
+        ...prev,
+        [entry.event_id]: result.suggestions || {},
+      }));
+      setResumoAbertoId(entry.config.id);
+    } catch (error) {
+      console.error('Erro ao sugerir repertório:', error);
+      setFeedback({
+        type: 'error',
+        title: 'Falha no modo inteligente',
+        message: error?.message || 'Não foi possível carregar sugestões agora.',
+      });
+    } finally {
+      setLoadingSugestoesId(null);
+    }
+  }
+
+  async function usarMusicaSugerida(entry, section, song) {
+    const key = `${entry.event_id}-${section}-${song.id}`;
+    try {
+      setAplicandoSugestaoKey(key);
+      const response = await fetch('/api/admin/repertorio/use-suggestion', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          eventId: entry.event_id,
+          section,
+          songId: song.id,
+        }),
+      });
+
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result?.ok) {
+        throw new Error(result?.error || 'Não foi possível usar esta música.');
+      }
+
+      await carregarTudo();
+      setFeedback({
+        type: 'success',
+        title: 'Música adicionada',
+        message: `${song.title || 'Música'} foi adicionada ao repertório.`,
+      });
+    } catch (error) {
+      console.error('Erro ao usar música sugerida:', error);
+      setFeedback({
+        type: 'error',
+        title: 'Falha ao usar sugestão',
+        message: error?.message || 'Não foi possível adicionar a música agora.',
+      });
+    } finally {
+      setAplicandoSugestaoKey(null);
+    }
+  }
+
   if (carregando) {
     return (
       <AdminShell pageTitle="Repertórios" activeItem="repertorios">
@@ -509,6 +580,7 @@ export default function RepertoriosPage() {
                 const painelUrl = painelToken
                   ? `/cliente/${painelToken}`
                   : null;
+                const secoesSugestoes = sugestoesPorEvento[entry.event_id] || null;
 
                 console.log('[repertorios] card render', {
                   client_name: entry.event.client_name || null,
@@ -614,10 +686,85 @@ export default function RepertoriosPage() {
                           {reabrindoId === entry.config.id ? 'Liberando...' : 'Liberar revisão'}
                         </button>
                       ) : null}
+
+                      <button
+                        type="button"
+                        onClick={() => sugerirRepertorio(entry)}
+                        disabled={loadingSugestoesId === entry.event_id}
+                        className={`rounded-[16px] px-4 py-3 text-[14px] font-black ${
+                          loadingSugestoesId === entry.event_id
+                            ? 'cursor-not-allowed border border-[#e5e7eb] bg-[#f8fafc] text-[#94a3b8]'
+                            : 'bg-[#0f172a] text-white'
+                        }`}
+                      >
+                        {loadingSugestoesId === entry.event_id
+                          ? 'Sugerindo...'
+                          : 'Sugerir repertório'}
+                      </button>
                     </div>
 
                     {resumoAberto ? (
-                      <div className="mt-5 rounded-[20px] border border-[#e8edf5] bg-[#fcfdff] p-4">
+                      <div className="mt-5 space-y-4 rounded-[20px] border border-[#e8edf5] bg-[#fcfdff] p-4">
+                        {secoesSugestoes ? (
+                          <div className="space-y-3 rounded-[18px] border border-[#e8edf5] bg-white p-4">
+                            <div className="text-[15px] font-black text-[#0f172a]">
+                              Modo inteligente · sugestões por seção
+                            </div>
+                            {['entrada', 'cerimonia', 'receptivo', 'saida'].map((secao) => {
+                              const lista = Array.isArray(secoesSugestoes?.[secao])
+                                ? secoesSugestoes[secao]
+                                : [];
+                              return (
+                                <div key={secao} className="space-y-2">
+                                  <div className="text-[12px] font-black uppercase tracking-[0.08em] text-[#64748b]">
+                                    {secao}
+                                  </div>
+                                  {lista.length === 0 ? (
+                                    <div className="text-[13px] text-[#64748b]">
+                                      Sem sugestões para esta seção.
+                                    </div>
+                                  ) : (
+                                    <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                                      {lista.map((song) => {
+                                        const key = `${entry.event_id}-${secao}-${song.id}`;
+                                        return (
+                                          <div
+                                            key={song.id}
+                                            className="rounded-[14px] border border-[#e2e8f0] bg-[#f8fafc] p-3"
+                                          >
+                                            <div className="text-[14px] font-black text-[#0f172a]">
+                                              {song.title}
+                                            </div>
+                                            <div className="text-[12px] font-semibold text-[#64748b]">
+                                              {song.artist || 'Artista não informado'}
+                                            </div>
+                                            <div className="mt-2 text-[12px] text-[#334155]">
+                                              {song.reason || 'Compatível com o contexto do evento.'}
+                                            </div>
+                                            <div className="mt-2 text-[12px] font-black text-violet-700">
+                                              Score: {song.score || 0}
+                                            </div>
+                                            <button
+                                              type="button"
+                                              onClick={() => usarMusicaSugerida(entry, secao, song)}
+                                              disabled={aplicandoSugestaoKey === key}
+                                              className="mt-3 rounded-[12px] bg-violet-600 px-3 py-2 text-[12px] font-black text-white disabled:opacity-60"
+                                            >
+                                              {aplicandoSugestaoKey === key
+                                                ? 'Adicionando...'
+                                                : 'Usar esta música'}
+                                            </button>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : null}
+
                         {entry.items.length === 0 ? (
                           <div className="text-[14px] font-semibold text-[#64748b]">
                             Nenhum item cadastrado neste repertório.

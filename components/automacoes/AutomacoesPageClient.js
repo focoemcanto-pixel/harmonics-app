@@ -284,7 +284,7 @@ export default function AutomacoesPageClient() {
       <section>
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-[13px] font-black uppercase tracking-[0.1em] text-[#94a3b8]">Últimas falhas</h2>
-          <Link href="/automacoes/logs?status=failed" className="text-[13px] font-bold text-violet-600">Ver todos os logs →</Link>
+          <Link href="/automacoes/logs" className="text-[13px] font-bold text-violet-600">Ver todos os logs →</Link>
         </div>
         <div className="rounded-[24px] border border-[#dbe3ef] bg-white p-5 shadow-[0_4px_14px_rgba(17,24,39,0.04)]">
           {failures.length === 0 ? (

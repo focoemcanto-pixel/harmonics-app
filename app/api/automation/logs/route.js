@@ -6,7 +6,7 @@ const DEFAULT_LIMIT = 100;
 
 function normalizeStatusFilter(rawStatus) {
   const value = String(rawStatus || '').toLowerCase().trim();
-  if (!value) return '';
+  if (!value || value === 'all' || value === 'todos') return '';
   if (value === 'success') return 'sent';
   if (value === 'error' || value === 'failure') return 'failed';
   if (value === 'ignored') return 'skipped';

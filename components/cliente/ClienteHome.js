@@ -3042,6 +3042,15 @@ function SugestoesTab({
   favoriteSongIds,
   setFavoriteSongIds,
 }) {
+  const safeSelectedSongs = useMemo(
+    () => (Array.isArray(selectedSongs) ? selectedSongs : []),
+    [selectedSongs]
+  );
+  const safeFavoriteSongIds = useMemo(
+    () => (Array.isArray(favoriteSongIds) ? favoriteSongIds : []),
+    [favoriteSongIds]
+  );
+
   function mapSuggestionSongFromCatalog(song = {}) {
     const title = String(song?.title || '').trim();
     if (!title) return null;
@@ -3132,10 +3141,10 @@ function SugestoesTab({
   const hydratedSongs = useMemo(() => {
     return songs.map((song) => ({
       ...song,
-      isFavorite: favoriteSongIds.includes(song.id),
-      isAdded: selectedSongs.some((item) => item.songId === song.id),
+      isFavorite: safeFavoriteSongIds.includes(song.id),
+      isAdded: safeSelectedSongs.some((item) => item.songId === song.id),
     }));
-  }, [songs, favoriteSongIds, selectedSongs]);
+  }, [songs, safeFavoriteSongIds, safeSelectedSongs]);
 
   const [currentSong, setCurrentSong] = useState(null);
   const [expandedSong, setExpandedSong] = useState(null);
@@ -3163,7 +3172,7 @@ const moments = [
 ];
 
     function toggleFavorite(songId) {
-    const isFav = favoriteSongIds.includes(songId);
+    const isFav = safeFavoriteSongIds.includes(songId);
 
     if (isFav) {
       setFavoriteSongIds((prev) => prev.filter((id) => id !== songId));
@@ -3175,7 +3184,7 @@ const moments = [
   }
 
   function markAdded(songId, payload) {
-    const alreadyExists = selectedSongs.some((item) => item.songId === songId);
+    const alreadyExists = safeSelectedSongs.some((item) => item.songId === songId);
 
     if (alreadyExists) {
       showToast('Essa música já foi adicionada ao repertório', 'info');

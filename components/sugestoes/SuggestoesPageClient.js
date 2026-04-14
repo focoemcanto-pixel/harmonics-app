@@ -913,6 +913,13 @@ function SuggestoesRepertoriosTab({
   loading,
   onImport,
   importingKey,
+  eyebrow = 'Origem dos repertórios',
+  title = 'Usadas por clientes',
+  subtitle = 'Músicas históricas vindas de repertórios preenchidos pelos clientes, separadas da curadoria editorial.',
+  emptyTitle = 'Nenhuma música de repertório encontrada',
+  emptyText = 'Quando clientes preencherem repertórios, as músicas únicas aparecerão aqui para importação manual.',
+  searchPlaceholder = 'Buscar por título, artista ou cliente',
+  searchByClient = true,
 }) {
   const [search, setSearch] = useState('');
 
@@ -923,10 +930,10 @@ function SuggestoesRepertoriosTab({
       return (
         String(song?.title || '').toLowerCase().includes(q) ||
         String(song?.artist || '').toLowerCase().includes(q) ||
-        String(song?.last_event_client || '').toLowerCase().includes(q)
+        (searchByClient && String(song?.last_event_client || '').toLowerCase().includes(q))
       );
     });
-  }, [songs, search]);
+  }, [songs, search, searchByClient]);
 
   const importedCount = songs.filter((song) => song?.catalog_source_type === 'imported').length;
   const alreadyCatalogCount = songs.filter((song) => song?.already_in_catalog).length;
@@ -934,9 +941,9 @@ function SuggestoesRepertoriosTab({
   return (
     <div className="space-y-5">
       <SectionCard
-        eyebrow="Origem dos repertórios"
-        title="Usadas por clientes"
-        subtitle="Músicas históricas vindas de repertórios preenchidos pelos clientes, separadas da curadoria editorial."
+        eyebrow={eyebrow}
+        title={title}
+        subtitle={subtitle}
       >
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <SummaryCard label="Músicas únicas" value={songs.length} helper="sem duplicação por título/chave" tone="default" />
@@ -955,7 +962,7 @@ function SuggestoesRepertoriosTab({
         <input
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="Buscar por título, artista ou cliente"
+          placeholder={searchPlaceholder}
           className="w-full rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3 text-[15px] font-semibold text-[#0f172a] outline-none transition focus:border-violet-300 focus:ring-4 focus:ring-violet-100"
         />
       </div>
@@ -970,8 +977,8 @@ function SuggestoesRepertoriosTab({
         </section>
       ) : filteredSongs.length === 0 ? (
         <EmptyState
-          title="Nenhuma música de repertório encontrada"
-          text="Quando clientes preencherem repertórios, as músicas únicas aparecerão aqui para importação manual."
+          title={emptyTitle}
+          text={emptyText}
         />
       ) : (
         <div className="grid gap-4 xl:grid-cols-2">
@@ -1468,6 +1475,7 @@ const [savingGenre, setSavingGenre] = useState(false);
 const [savingMoment, setSavingMoment] = useState(false);
   const [activeTab, setActiveTab] = useState('resumo');
   const [songs, setSongs] = useState([]);
+  const [clientPanelSongs, setClientPanelSongs] = useState([]);
   const [repertoireSongs, setRepertoireSongs] = useState([]);
   const [genres, setGenres] = useState([]);
   const [moments, setMoments] = useState([]);
@@ -1481,6 +1489,7 @@ const [savingMoment, setSavingMoment] = useState(false);
   const [songsLoadFailed, setSongsLoadFailed] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingSong, setEditingSong] = useState(null);
+  const [importingClientKey, setImportingClientKey] = useState('');
   const [importingRepertoireKey, setImportingRepertoireKey] = useState('');
 
   const repertoireKpis = useMemo(() => ({
@@ -1505,7 +1514,8 @@ const [savingMoment, setSavingMoment] = useState(false);
   const tabs = [
     { key: 'resumo', label: 'Resumo' },
     { key: 'biblioteca', label: 'Biblioteca' },
-    { key: 'repertorios', label: 'Importar de repertórios' },
+    { key: 'sugestoes-cliente', label: 'Sugestões do cliente' },
+    { key: 'repertorios', label: 'Repertórios' },
     { key: 'generos', label: 'Gêneros' },
     { key: 'momentos', label: 'Momentos' },
     { key: 'tags', label: 'Tags' },
@@ -1520,17 +1530,19 @@ const [savingMoment, setSavingMoment] = useState(false);
     setError('');
     setSongsLoadFailed(false);
 
-    const [songsResponse, genresResponse, momentsResponse, repertoireResponse] = await Promise.all([
+    const [songsResponse, genresResponse, momentsResponse, clientPanelResponse, repertoireResponse] = await Promise.all([
       fetch('/api/suggestions/songs', { cache: 'no-store' }),
       fetch('/api/suggestions/genres', { cache: 'no-store' }),
       fetch('/api/suggestions/moments', { cache: 'no-store' }),
+      fetch('/api/admin/suggestions/client-panel-songs', { cache: 'no-store' }),
       fetch('/api/admin/suggestions/repertoire-songs', { cache: 'no-store' }),
     ]);
 
-    const [songsData, genresData, momentsData, repertoireData] = await Promise.all([
+    const [songsData, genresData, momentsData, clientPanelData, repertoireData] = await Promise.all([
       songsResponse.json().catch(() => ({})),
       genresResponse.json().catch(() => ({})),
       momentsResponse.json().catch(() => ({})),
+      clientPanelResponse.json().catch(() => ({})),
       repertoireResponse.json().catch(() => ({})),
     ]);
 
@@ -1539,6 +1551,7 @@ const [savingMoment, setSavingMoment] = useState(false);
       songsStatus: songsResponse.status,
       genresStatus: genresResponse.status,
       momentsStatus: momentsResponse.status,
+      clientPanelStatus: clientPanelResponse.status,
       repertoireStatus: repertoireResponse.status,
     });
 
@@ -1547,6 +1560,7 @@ const [savingMoment, setSavingMoment] = useState(false);
       : [];
     const genresList = genresResponse.ok && Array.isArray(genresData?.genres) ? genresData.genres : [];
     const momentsList = momentsResponse.ok && Array.isArray(momentsData?.moments) ? momentsData.moments : [];
+    const clientPanelList = clientPanelResponse.ok && Array.isArray(clientPanelData?.songs) ? clientPanelData.songs : [];
     const repertoireList = repertoireResponse.ok && Array.isArray(repertoireData?.songs) ? repertoireData.songs : [];
 
     const loadErrors = [];
@@ -1564,6 +1578,7 @@ const [savingMoment, setSavingMoment] = useState(false);
       );
     }
     if (!momentsResponse.ok) loadErrors.push(momentsData?.error || 'Falha ao buscar momentos');
+    if (!clientPanelResponse.ok) loadErrors.push(clientPanelData?.error || 'Falha ao buscar sugestões do painel do cliente');
     if (!repertoireResponse.ok) loadErrors.push(repertoireData?.error || 'Falha ao buscar músicas de repertórios');
     if (loadErrors.length) {
       setError(loadErrors.join(' | '));
@@ -1572,6 +1587,7 @@ const [savingMoment, setSavingMoment] = useState(false);
     setSongs(songsList);
     setGenres(genresList);
     setMoments(momentsList);
+    setClientPanelSongs(clientPanelList);
     setRepertoireSongs(repertoireList);
 
     const tagsMap = new Map();
@@ -1599,6 +1615,7 @@ const [savingMoment, setSavingMoment] = useState(false);
       songs: songsList.length,
       genres: genresList.length,
       moments: momentsList.length,
+      clientPanelSongs: clientPanelList.length,
       repertoireSongs: repertoireList.length,
       source: 'public.suggestion_songs',
       source_scope: 'editorial_catalog_only',
@@ -1696,6 +1713,35 @@ const [savingMoment, setSavingMoment] = useState(false);
       setError(err?.message || 'Erro ao salvar música');
     } finally {
       setSavingSong(false);
+    }
+  }
+
+
+  async function handleImportFromClientPanel(song) {
+    try {
+      setImportingClientKey(song.key);
+      setError('');
+      setNotice('');
+
+      const response = await fetch('/api/admin/suggestions/client-panel-songs/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(song),
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data?.error || 'Falha ao importar sugestão do cliente.');
+      }
+
+      setNotice(data?.message || 'Sugestão do cliente adicionada ao catálogo editorial.');
+      await loadAll();
+      setActiveTab('sugestoes-cliente');
+    } catch (err) {
+      console.error(err);
+      setError(err?.message || 'Falha ao importar sugestão do cliente.');
+    } finally {
+      setImportingClientKey('');
     }
   }
 
@@ -2054,12 +2100,35 @@ const [savingMoment, setSavingMoment] = useState(false);
         />
       )}
 
+      {activeTab === 'sugestoes-cliente' && (
+        <SuggestoesRepertoriosTab
+          songs={clientPanelSongs}
+          loading={loading}
+          importingKey={importingClientKey}
+          onImport={handleImportFromClientPanel}
+          eyebrow="Origem real do painel do cliente"
+          title="Sugestões do cliente"
+          subtitle="Fonte: lista cadastrada na aba de Sugestões do painel do cliente (não usa repertório de evento)."
+          emptyTitle="Nenhuma sugestão encontrada no painel do cliente"
+          emptyText="Cadastre músicas na própria aba de Sugestões do painel do cliente para aparecerem aqui."
+          searchPlaceholder="Buscar por título, artista, gênero ou momento"
+          searchByClient={false}
+        />
+      )}
+
       {activeTab === 'repertorios' && (
         <SuggestoesRepertoriosTab
           songs={repertoireSongs}
           loading={loading}
           importingKey={importingRepertoireKey}
           onImport={handleImportFromRepertoire}
+          eyebrow="Origem dos repertórios"
+          title="Repertórios preenchidos"
+          subtitle="Músicas históricas vindas de repertórios preenchidos pelos clientes, separadas da curadoria editorial."
+          emptyTitle="Nenhuma música de repertório encontrada"
+          emptyText="Quando clientes preencherem repertórios, as músicas únicas aparecerão aqui para importação manual."
+          searchPlaceholder="Buscar por título, artista ou cliente"
+          searchByClient
         />
       )}
 

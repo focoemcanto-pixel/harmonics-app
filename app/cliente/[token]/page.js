@@ -1,4 +1,4 @@
-import { notFound, redirect } from 'next/navigation';
+import { redirect } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
 import ClienteHome from '../../../components/cliente/ClienteHome';
 import { resolveSupportWhatsAppConfig } from '../../../lib/whatsapp/support-config';
@@ -8,9 +8,10 @@ function getAdminSupabase() {
   const serviceRole = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!url || !serviceRole) {
-    throw new Error(
-      'Variáveis NEXT_PUBLIC_SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY são obrigatórias.'
+    console.error(
+      '[CLIENTE PAGE] Variáveis NEXT_PUBLIC_SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY ausentes.'
     );
+    return null;
   }
 
   return createClient(url, serviceRole, {
@@ -98,16 +99,17 @@ function mapStatusToUi(status, isLocked) {
 function computeEtapasPreenchidas(config, items) {
   let total = 0;
 
+  const safeItems = Array.isArray(items) ? items : [];
   const hasAnteRoom =
     config?.has_ante_room &&
     (config?.ante_room_style || config?.ante_room_notes);
 
   if (hasAnteRoom) total += 1;
 
-  const cortejoCount = items.filter((item) => item.section === 'cortejo').length;
+  const cortejoCount = safeItems.filter((item) => item.section === 'cortejo').length;
   if (cortejoCount > 0) total += 1;
 
-  const cerimoniaCount = items.filter((item) => item.section === 'cerimonia').length;
+  const cerimoniaCount = safeItems.filter((item) => item.section === 'cerimonia').length;
   if (cerimoniaCount > 0) total += 1;
 
   if (config?.exit_song || config?.exit_reference || config?.exit_notes) {
@@ -127,7 +129,9 @@ function computeEtapasPreenchidas(config, items) {
 }
 
 function mapItemsToInitialState(items) {
-  const cortejo = items
+  const safeItems = Array.isArray(items) ? items : [];
+
+  const cortejo = safeItems
     .filter((item) => item.section === 'cortejo')
     .sort((a, b) => (a.item_order || 0) - (b.item_order || 0))
     .map((item) => ({
@@ -141,7 +145,7 @@ function mapItemsToInitialState(items) {
       reference_video_id: item.reference_video_id || '',
     }));
 
-  const cerimonia = items
+  const cerimonia = safeItems
     .filter((item) => item.section === 'cerimonia')
     .sort((a, b) => (a.item_order || 0) - (b.item_order || 0))
     .map((item) => ({
@@ -194,83 +198,191 @@ function buildFinancialSummary(event) {
   };
 }
 
+function buildFallbackData(token = '') {
+  const supportConfig = resolveSupportWhatsAppConfig();
+  const safeToken = String(token || '').trim();
+
+  return {
+    token: safeToken,
+    clienteNome: 'Cliente',
+    eventoTitulo: 'Evento',
+    dataEvento: '',
+    horarioEvento: '',
+    localEvento: '',
+    formacao: '',
+    instrumentos: '',
+    statusContrato: 'Contrato pendente',
+    statusEvento: 'A confirmar',
+    observacoes: 'Ainda não temos todos os dados do evento. Nossa equipe vai te ajudar.',
+    horarioChegada: '--:--',
+    suporteWhatsapp: supportConfig.phone,
+    suporteWhatsappMensagem: supportConfig.message,
+    reviewSubmitted: false,
+    repertorio: {
+      status: 'NAO_INICIADO',
+      isLocked: false,
+      etapasPreenchidas: 0,
+      totalEtapas: 7,
+      liberadoParaEdicao: true,
+      enviadoEm: null,
+      linkPreenchimento: safeToken ? `/cliente/${safeToken}/repertorio` : '#',
+      linkVisualizacao: safeToken ? `/cliente/${safeToken}/repertorio` : '#',
+      podeSolicitarCorrecao: false,
+      temAntessala: false,
+      temReceptivo: false,
+      pdfUrl: null,
+      repertoireToken: safeToken,
+      initialState: {
+        querAntessala: null,
+        antessala: {
+          estilo: '',
+          generos: '',
+          artistas: '',
+          observacao: '',
+        },
+        cortejo: [
+          { label: 'Padrinhos', musica: '', referencia: '', observacao: '' },
+          { label: 'Noiva', musica: '', referencia: '', observacao: '' },
+        ],
+        cerimonia: [{ label: 'Alianças', musica: '', referencia: '', observacao: '' }],
+        saida: {
+          musica: '',
+          referencia: '',
+          observacao: '',
+          reference_title: '',
+          reference_channel: '',
+          reference_thumbnail: '',
+          reference_video_id: '',
+        },
+        receptivo: {
+          duracao: '1h',
+          generos: '',
+          artistas: '',
+          observacao: '',
+        },
+        desiredSongs: '',
+        generalNotes: '',
+      },
+    },
+    financeiro: {
+      resumo: buildFinancialSummary(null),
+      vencimentos: [],
+      historico: [],
+    },
+  };
+}
+
 export default async function ClienteTokenPage({ params }) {
   const { token } = await params;
   const supabase = getAdminSupabase();
 
-  const { data: precontract, error: precontractError } = await supabase
-    .from('precontracts')
-    .select('id, public_token, event_id')
-    .eq('public_token', token)
-    .maybeSingle();
+  if (!supabase) {
+    return <ClienteHome data={buildFallbackData(token)} />;
+  }
 
-  if (precontractError) throw precontractError;
-  if (!precontract) notFound();
+  let precontract = null;
 
-  const eventId = precontract.event_id;
-  if (!eventId) notFound();
+  try {
+    const { data: precontractData, error: precontractError } = await supabase
+      .from('precontracts')
+      .select('id, public_token, event_id')
+      .eq('public_token', token)
+      .maybeSingle();
 
-  const [
-    eventResp,
-    configResp,
-    itemsResp,
-    contractsResp,
-    repertoireTokenResp,
-    paymentsResp,
-  ] = await Promise.all([
-    supabase
-      .from('events')
-      .select('*')
-      .eq('id', eventId)
-      .maybeSingle(),
+    if (precontractError) {
+      console.error('[CLIENTE PAGE] Erro ao buscar precontract:', precontractError);
+    } else {
+      precontract = precontractData || null;
+    }
+  } catch (error) {
+    console.error('[CLIENTE PAGE] Falha inesperada ao buscar precontract:', error);
+  }
 
-    supabase
-      .from('repertoire_config')
-      .select('*')
-      .eq('event_id', eventId)
-      .maybeSingle(),
+  const eventId = precontract?.event_id;
+  if (!eventId) {
+    console.error('[CLIENTE PAGE] Evento não encontrado para token informado:', token);
+    return <ClienteHome data={buildFallbackData(token)} />;
+  }
 
-    supabase
-      .from('repertoire_items')
-      .select('*, suggestion_song:suggestion_songs(id, title, artist, youtube_url, youtube_id, thumbnail_url)')
-      .eq('event_id', eventId)
-      .order('item_order', { ascending: true }),
+  let eventResp = { data: null, error: null };
+  let configResp = { data: null, error: null };
+  let itemsResp = { data: [], error: null };
+  let contractsResp = { data: null, error: null };
+  let repertoireTokenResp = { data: null, error: null };
+  let paymentsResp = { data: [], error: null };
 
-    supabase
-      .from('contracts')
-      .select('id, event_id, precontract_id, pdf_url, doc_url, signed_at')
-      .eq('event_id', eventId)
-      .maybeSingle(),
+  try {
+    [
+      eventResp,
+      configResp,
+      itemsResp,
+      contractsResp,
+      repertoireTokenResp,
+      paymentsResp,
+    ] = await Promise.all([
+      supabase
+        .from('events')
+        .select('*')
+        .eq('id', eventId)
+        .maybeSingle(),
 
-    supabase
-      .from('repertoire_tokens')
-      .select('id, token, event_id, status, expires_at')
-      .eq('event_id', eventId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-    supabase
-      .from('payments')
-      .select('id, amount, payment_date, payment_method, status, notes, proof_file_url')
-      .eq('event_id', eventId)
-      .order('payment_date', { ascending: false }),
-  ]);
+      supabase
+        .from('repertoire_config')
+        .select('*')
+        .eq('event_id', eventId)
+        .maybeSingle(),
 
-  if (eventResp.error) throw eventResp.error;
-  if (configResp.error) throw configResp.error;
-  if (itemsResp.error) throw itemsResp.error;
-  if (contractsResp.error) throw contractsResp.error;
-  if (repertoireTokenResp.error) throw repertoireTokenResp.error;
-  if (paymentsResp.error) throw paymentsResp.error;
+      supabase
+        .from('repertoire_items')
+        .select('*, suggestion_song:suggestion_songs(id, title, artist, youtube_url, youtube_id, thumbnail_url)')
+        .eq('event_id', eventId)
+        .order('item_order', { ascending: true }),
 
-  const event = eventResp.data;
-  if (!event) notFound();
+      supabase
+        .from('contracts')
+        .select('id, event_id, precontract_id, pdf_url, doc_url, signed_at')
+        .eq('event_id', eventId)
+        .maybeSingle(),
 
-  const config = configResp.data || null;
-  const items = Array.isArray(itemsResp.data) ? itemsResp.data : [];
-  const contract = contractsResp.data || null;
-  const repertoireToken = repertoireTokenResp.data || null;
-  const payments = Array.isArray(paymentsResp.data) ? paymentsResp.data : [];
+      supabase
+        .from('repertoire_tokens')
+        .select('id, token, event_id, status, expires_at')
+        .eq('event_id', eventId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+
+      supabase
+        .from('payments')
+        .select('id, amount, payment_date, payment_method, status, notes, proof_file_url')
+        .eq('event_id', eventId)
+        .order('payment_date', { ascending: false }),
+    ]);
+  } catch (error) {
+    console.error('[CLIENTE PAGE] Falha inesperada ao carregar dados principais:', error);
+  }
+
+  if (eventResp?.error) console.error('[CLIENTE PAGE] Erro em events:', eventResp.error);
+  if (configResp?.error) console.error('[CLIENTE PAGE] Erro em repertoire_config:', configResp.error);
+  if (itemsResp?.error) console.error('[CLIENTE PAGE] Erro em repertoire_items:', itemsResp.error);
+  if (contractsResp?.error) console.error('[CLIENTE PAGE] Erro em contracts:', contractsResp.error);
+  if (repertoireTokenResp?.error) {
+    console.error('[CLIENTE PAGE] Erro em repertoire_tokens:', repertoireTokenResp.error);
+  }
+  if (paymentsResp?.error) console.error('[CLIENTE PAGE] Erro em payments:', paymentsResp.error);
+
+  const event = eventResp?.data || null;
+  const config = configResp?.data || null;
+  const items = Array.isArray(itemsResp?.data) ? itemsResp.data : [];
+  const contract = contractsResp?.data || null;
+  const repertoireToken = repertoireTokenResp?.data || null;
+  const payments = Array.isArray(paymentsResp?.data) ? paymentsResp.data : [];
+
+  if (!event) {
+    console.error('[CLIENTE PAGE] Evento ausente após consultas, renderizando fallback.');
+    return <ClienteHome data={buildFallbackData(token)} />;
+  }
+
   const configClientToken = String(config?.client_public_token || '').trim();
   const clientToken = configClientToken || token;
 

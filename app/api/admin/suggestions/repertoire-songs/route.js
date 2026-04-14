@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 
+const DEFAULT_IMPORT_ARTIST = 'não informado';
+
 function normalizeText(value) {
   const text = String(value || '').trim();
   return text || '';
@@ -37,6 +39,7 @@ export async function GET() {
             reference_video_id,
             reference_link,
             reference_thumbnail,
+            notes,
             created_at,
             events:event_id(id, client_name, event_date)
           `)
@@ -58,6 +61,15 @@ export async function GET() {
       });
       if (!catalogByKey.has(key)) {
         catalogByKey.set(key, song);
+      }
+    }
+
+
+    const catalogByTitleWithDefaultArtist = new Map();
+    for (const song of catalogRows || []) {
+      const titleKey = `txt:${normalizeText(song?.title).toLowerCase()}::${DEFAULT_IMPORT_ARTIST}`;
+      if (!catalogByTitleWithDefaultArtist.has(titleKey)) {
+        catalogByTitleWithDefaultArtist.set(titleKey, song);
       }
     }
 
@@ -90,6 +102,7 @@ export async function GET() {
           already_in_catalog: false,
           catalog_song_id: null,
           catalog_source_type: null,
+          repertoire_item_id: item?.id ? String(item.id) : null,
         });
       }
 
@@ -101,6 +114,7 @@ export async function GET() {
         entry.last_used_at = eventDate || createdAt || entry.last_used_at;
         entry.last_event_date = eventDate || entry.last_event_date;
         entry.last_event_client = normalizeText(eventRow?.client_name) || entry.last_event_client;
+        entry.repertoire_item_id = item?.id ? String(item.id) : entry.repertoire_item_id;
       }
 
       if (!entry.youtube_url && normalizeText(item?.reference_link)) {
@@ -112,7 +126,8 @@ export async function GET() {
     }
 
     const list = Array.from(aggregated.values()).map((entry) => {
-      const existing = catalogByKey.get(entry.key);
+      const fallbackKey = `txt:${normalizeText(entry?.title).toLowerCase()}::${DEFAULT_IMPORT_ARTIST}`;
+      const existing = catalogByKey.get(entry.key) || catalogByTitleWithDefaultArtist.get(fallbackKey);
       return {
         ...entry,
         already_in_catalog: Boolean(existing?.id),

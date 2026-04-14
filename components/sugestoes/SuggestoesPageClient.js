@@ -1014,11 +1014,11 @@ function SuggestoesRepertoriosTab({
                 <div className="mt-4 grid grid-cols-1 gap-2 md:grid-cols-2">
                   <button
                     type="button"
-                    disabled={isBusy || song.already_in_catalog}
+                    disabled={isBusy || song.already_in_catalog || !song.repertoire_item_id}
                     onClick={() => onImport(song)}
-                    className="rounded-[16px] border border-violet-200 bg-violet-50 px-4 py-3 text-[13px] font-black text-violet-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="rounded-[16px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-[13px] font-black text-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {song.already_in_catalog ? 'Já cadastrada' : isBusy ? 'Importando…' : 'Adicionar ao catálogo'}
+                    {song.already_in_catalog ? 'Já está no catálogo' : isBusy ? 'Importando…' : '➕ Importar'}
                   </button>
 
                   {song.youtube_url ? (
@@ -1757,10 +1757,10 @@ const [savingMoment, setSavingMoment] = useState(false);
       setError('');
       setNotice('');
 
-      const response = await fetch('/api/admin/suggestions/repertoire-songs/import', {
+      const response = await fetch('/api/suggestions/import-from-repertoire', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(song),
+        body: JSON.stringify({ repertoire_item_id: song?.repertoire_item_id }),
       });
       const data = await response.json().catch(() => ({}));
 
@@ -1768,7 +1768,7 @@ const [savingMoment, setSavingMoment] = useState(false);
         throw new Error(data?.error || 'Falha ao importar música para o catálogo.');
       }
 
-      setNotice(data?.message || 'Música importada para o catálogo editorial.');
+      setNotice(data?.message || 'Adicionado ao catálogo');
       await loadAll();
       setActiveTab('repertorios');
     } catch (err) {

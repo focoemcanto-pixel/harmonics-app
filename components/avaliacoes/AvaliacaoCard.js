@@ -36,65 +36,237 @@ const ART_FORMATS = [
   { id: 'vertical', label: 'Feed vertical', ratioLabel: '4:5', sizeLabel: '1080x1350', width: 1080, height: 1350 },
 ];
 
-const STYLE_VARIATIONS = [
-  { id: 'clean', label: 'Clean' },
-  { id: 'texto', label: 'Destaque no texto' },
-  { id: 'estrelas', label: 'Destaque nas estrelas' },
+const TEMPLATE_OPTIONS = [
+  { id: 'clean-premium', label: 'Clean Premium', idealFor: 'Textos curtos e médios' },
+  { id: 'card-editorial', label: 'Card Editorial', idealFor: 'Textos médios e longos' },
+  { id: 'avatar-card', label: 'Avatar + Card', idealFor: 'Feed com nome, estrelas e avatar' },
+  { id: 'quote-impact', label: 'Quote Impact', idealFor: 'Frases curtas e de impacto' },
 ];
+
+const TEMPLATE_TEXT_CONFIG = {
+  'clean-premium': {
+    story: { widthRatio: 0.78, heightRatio: 0.37, minFont: 36, maxFont: 74, baseLineHeight: 1.2, baseLetterSpacing: -0.012, padding: 24, maxPadding: 50 },
+    square: { widthRatio: 0.8, heightRatio: 0.34, minFont: 30, maxFont: 62, baseLineHeight: 1.2, baseLetterSpacing: -0.012, padding: 20, maxPadding: 42 },
+    vertical: { widthRatio: 0.8, heightRatio: 0.35, minFont: 32, maxFont: 66, baseLineHeight: 1.2, baseLetterSpacing: -0.012, padding: 22, maxPadding: 44 },
+  },
+  'card-editorial': {
+    story: { widthRatio: 0.78, heightRatio: 0.56, minFont: 30, maxFont: 56, baseLineHeight: 1.36, baseLetterSpacing: -0.004, padding: 36, maxPadding: 56 },
+    square: { widthRatio: 0.8, heightRatio: 0.5, minFont: 26, maxFont: 46, baseLineHeight: 1.34, baseLetterSpacing: -0.003, padding: 28, maxPadding: 48 },
+    vertical: { widthRatio: 0.79, heightRatio: 0.52, minFont: 28, maxFont: 50, baseLineHeight: 1.35, baseLetterSpacing: -0.004, padding: 30, maxPadding: 50 },
+  },
+  'avatar-card': {
+    story: { widthRatio: 0.72, heightRatio: 0.43, minFont: 28, maxFont: 52, baseLineHeight: 1.33, baseLetterSpacing: -0.004, padding: 30, maxPadding: 52 },
+    square: { widthRatio: 0.72, heightRatio: 0.4, minFont: 24, maxFont: 42, baseLineHeight: 1.32, baseLetterSpacing: -0.003, padding: 24, maxPadding: 44 },
+    vertical: { widthRatio: 0.72, heightRatio: 0.42, minFont: 26, maxFont: 46, baseLineHeight: 1.32, baseLetterSpacing: -0.004, padding: 26, maxPadding: 46 },
+  },
+  'quote-impact': {
+    story: { widthRatio: 0.66, heightRatio: 0.3, minFont: 34, maxFont: 78, baseLineHeight: 1.15, baseLetterSpacing: -0.018, padding: 10, maxPadding: 24 },
+    square: { widthRatio: 0.68, heightRatio: 0.28, minFont: 30, maxFont: 64, baseLineHeight: 1.15, baseLetterSpacing: -0.018, padding: 8, maxPadding: 22 },
+    vertical: { widthRatio: 0.67, heightRatio: 0.29, minFont: 32, maxFont: 68, baseLineHeight: 1.15, baseLetterSpacing: -0.018, padding: 8, maxPadding: 24 },
+  },
+};
+
+const TEMPLATE_SUGGESTIONS = {
+  short: ['quote-impact', 'clean-premium', 'avatar-card'],
+  medium: ['clean-premium', 'avatar-card', 'card-editorial'],
+  long: ['card-editorial', 'avatar-card', 'clean-premium'],
+};
 
 const INSTAGRAM_CREATE_URL = 'https://www.instagram.com/create/style/';
 const INSTAGRAM_URL = 'https://www.instagram.com/';
 const META_BUSINESS_SUITE_URL = 'https://business.facebook.com/latest/home';
 
-function getTestimonialLayout(text, formatId) {
-  const baseText = (text || '').trim();
-  const length = baseText.length;
+function getTextTier(text) {
+  const length = String(text || '').trim().length;
+  if (length <= 140) return 'short';
+  if (length <= 360) return 'medium';
+  return 'long';
+}
 
-  const tier = length <= 130 ? 'short' : length <= 240 ? 'medium' : 'long';
+function getInitials(name) {
+  const tokens = String(name || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2);
 
-  const config = {
-    story: {
-      short: { maxChars: 140, fontSize: 78, lineHeight: 1.16, maxWidth: '74%', lineClamp: 5, quoteSize: 138 },
-      medium: { maxChars: 185, fontSize: 66, lineHeight: 1.18, maxWidth: '78%', lineClamp: 6, quoteSize: 124 },
-      long: { maxChars: 220, fontSize: 58, lineHeight: 1.2, maxWidth: '82%', lineClamp: 6, quoteSize: 118 },
-    },
-    square: {
-      short: { maxChars: 120, fontSize: 62, lineHeight: 1.16, maxWidth: '74%', lineClamp: 4, quoteSize: 112 },
-      medium: { maxChars: 150, fontSize: 53, lineHeight: 1.2, maxWidth: '78%', lineClamp: 5, quoteSize: 104 },
-      long: { maxChars: 180, fontSize: 47, lineHeight: 1.22, maxWidth: '82%', lineClamp: 5, quoteSize: 96 },
-    },
-    vertical: {
-      short: { maxChars: 145, fontSize: 66, lineHeight: 1.16, maxWidth: '75%', lineClamp: 5, quoteSize: 124 },
-      medium: { maxChars: 195, fontSize: 58, lineHeight: 1.19, maxWidth: '79%', lineClamp: 6, quoteSize: 116 },
-      long: { maxChars: 230, fontSize: 50, lineHeight: 1.22, maxWidth: '84%', lineClamp: 6, quoteSize: 108 },
-    },
-  };
+  if (!tokens.length) return 'HC';
+  return tokens.map((token) => token[0]?.toUpperCase() || '').join('');
+}
 
-  const selected = config[formatId]?.[tier] || config.square.medium;
-  const clippedText =
-    baseText.length > selected.maxChars
-      ? `${baseText.slice(0, selected.maxChars - 1).trimEnd()}…`
-      : baseText;
+function ensureMeasureContext() {
+  if (typeof document === 'undefined') return null;
+  const canvas = ensureMeasureContext.canvas || document.createElement('canvas');
+  ensureMeasureContext.canvas = canvas;
+  return canvas.getContext('2d');
+}
+
+function measureWrappedText({
+  text,
+  maxWidth,
+  fontSize,
+  lineHeight,
+  letterSpacing,
+  fontWeight = 600,
+  fontFamily = 'Inter, ui-sans-serif, system-ui, -apple-system, sans-serif',
+}) {
+  const context = ensureMeasureContext();
+  if (!context) {
+    return {
+      lineCount: 999,
+      height: Number.POSITIVE_INFINITY,
+      width: Number.POSITIVE_INFINITY,
+    };
+  }
+
+  context.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
+
+  const paragraphs = String(text || '').split(/\n+/);
+  let lineCount = 0;
+  let maxLineWidth = 0;
+
+  for (const paragraph of paragraphs) {
+    const words = paragraph.trim().split(/\s+/).filter(Boolean);
+
+    if (!words.length) {
+      lineCount += 1;
+      continue;
+    }
+
+    let currentLine = '';
+
+    for (const word of words) {
+      const candidate = currentLine ? `${currentLine} ${word}` : word;
+      const candidateWidth =
+        context.measureText(candidate).width + Math.max(candidate.length - 1, 0) * fontSize * letterSpacing;
+
+      if (candidateWidth <= maxWidth || currentLine.length === 0) {
+        currentLine = candidate;
+      } else {
+        const lineWidth =
+          context.measureText(currentLine).width + Math.max(currentLine.length - 1, 0) * fontSize * letterSpacing;
+        maxLineWidth = Math.max(maxLineWidth, lineWidth);
+        lineCount += 1;
+        currentLine = word;
+      }
+    }
+
+    const finalLineWidth =
+      context.measureText(currentLine).width + Math.max(currentLine.length - 1, 0) * fontSize * letterSpacing;
+    maxLineWidth = Math.max(maxLineWidth, finalLineWidth);
+    lineCount += 1;
+  }
+
+  const lineHeightPx = fontSize * lineHeight;
+  const paragraphGap = Math.max(fontSize * 0.38, 10);
+  const paragraphCount = Math.max(paragraphs.length - 1, 0);
+  const height = lineCount * lineHeightPx + paragraphCount * paragraphGap;
 
   return {
-    ...selected,
-    tier,
-    clippedText,
+    lineCount,
+    height,
+    width: maxLineWidth,
   };
 }
 
-const ART_PALETTE = {
-  backgroundA: '#5b2acc',
-  backgroundB: '#7d27d6',
-  backgroundC: '#d335ae',
-  panel: 'rgba(255,255,255,0.1)',
-  panelBorder: 'rgba(255,255,255,0.22)',
-  whiteSoft: 'rgba(255,255,255,0.85)',
-  whiteMeta: 'rgba(255,255,255,0.7)',
-  whiteMuted: 'rgba(255,255,255,0.5)',
-  starOn: '#ffd166',
-  starOff: 'rgba(255,255,255,0.28)',
-};
+function computeAutoFit({ text, format, templateId }) {
+  const templateConfig = TEMPLATE_TEXT_CONFIG[templateId]?.[format.id];
+
+  if (!templateConfig) {
+    return {
+      fits: false,
+      fontSize: 28,
+      lineHeight: 1.24,
+      letterSpacing: -0.004,
+      padding: 22,
+      metrics: null,
+    };
+  }
+
+  const areaWidth = format.width * templateConfig.widthRatio;
+  const areaHeight = format.height * templateConfig.heightRatio;
+
+  for (let font = templateConfig.maxFont; font >= templateConfig.minFont; font -= 1) {
+    const lineHeight = Math.max(1.08, templateConfig.baseLineHeight - (templateConfig.maxFont - font) * 0.0045);
+    const letterSpacing = Math.max(-0.024, templateConfig.baseLetterSpacing - (templateConfig.maxFont - font) * 0.00022);
+    const padding = Math.max(templateConfig.padding, templateConfig.maxPadding - (templateConfig.maxFont - font) * 1.3);
+    const usableWidth = Math.max(areaWidth - padding * 2, areaWidth * 0.62);
+    const usableHeight = Math.max(areaHeight - padding * 2, areaHeight * 0.62);
+
+    const metrics = measureWrappedText({
+      text,
+      maxWidth: usableWidth,
+      fontSize: font,
+      lineHeight,
+      letterSpacing,
+    });
+
+    if (metrics.height <= usableHeight && metrics.width <= usableWidth) {
+      return {
+        fits: true,
+        fontSize: font,
+        lineHeight,
+        letterSpacing,
+        padding,
+        metrics,
+      };
+    }
+  }
+
+  const fallback = templateConfig.minFont;
+  return {
+    fits: false,
+    fontSize: fallback,
+    lineHeight: templateConfig.baseLineHeight,
+    letterSpacing: templateConfig.baseLetterSpacing,
+    padding: templateConfig.padding,
+    metrics: measureWrappedText({
+      text,
+      maxWidth: areaWidth - templateConfig.padding * 2,
+      fontSize: fallback,
+      lineHeight: templateConfig.baseLineHeight,
+      letterSpacing: templateConfig.baseLetterSpacing,
+    }),
+  };
+}
+
+function resolveTemplateSelection({ text, format, preferredTemplateId }) {
+  const tier = getTextTier(text);
+  const preferredFit = computeAutoFit({ text, format, templateId: preferredTemplateId });
+
+  if (preferredFit.fits) {
+    return {
+      tier,
+      selectedTemplateId: preferredTemplateId,
+      suggestionTemplateId: preferredTemplateId,
+      fitResult: preferredFit,
+      fallbackUsed: false,
+    };
+  }
+
+  const candidates = TEMPLATE_SUGGESTIONS[tier] || TEMPLATE_SUGGESTIONS.medium;
+  for (const templateId of candidates) {
+    const candidateFit = computeAutoFit({ text, format, templateId });
+    if (candidateFit.fits) {
+      return {
+        tier,
+        selectedTemplateId: templateId,
+        suggestionTemplateId: templateId,
+        fitResult: candidateFit,
+        fallbackUsed: templateId !== preferredTemplateId,
+      };
+    }
+  }
+
+  const editorialFallback = computeAutoFit({ text, format, templateId: 'card-editorial' });
+  return {
+    tier,
+    selectedTemplateId: 'card-editorial',
+    suggestionTemplateId: 'card-editorial',
+    fitResult: editorialFallback,
+    fallbackUsed: true,
+  };
+}
 
 function TestimonialArt({
   item,
@@ -103,18 +275,27 @@ function TestimonialArt({
   testimonial,
   stars,
   format,
-  styleId,
+  templateId,
+  fit,
   exportId,
   compact,
 }) {
   const isStory = format.id === 'story';
-  const textStyle = styleId === 'texto';
-  const starsStyle = styleId === 'estrelas';
-  const textLayout = getTestimonialLayout(testimonial, format.id);
-  const signatureSize = isStory ? 44 : format.id === 'vertical' ? 38 : 34;
+  const signatureSize = isStory ? 42 : format.id === 'vertical' ? 36 : 32;
   const metaSize = isStory ? 24 : format.id === 'vertical' ? 21 : 19;
-  const badgeSize = isStory ? 22 : 18;
-  const starsSize = isStory ? 68 : format.id === 'vertical' ? 60 : 54;
+  const avatarSize = isStory ? 150 : format.id === 'vertical' ? 126 : 112;
+  const initials = getInitials(coupleName);
+
+  const sharedTextStyle = {
+    margin: 0,
+    fontWeight: 600,
+    fontSize: fit.fontSize,
+    lineHeight: fit.lineHeight,
+    letterSpacing: `${fit.letterSpacing}em`,
+    whiteSpace: 'pre-wrap',
+    overflowWrap: 'anywhere',
+    textWrap: 'pretty',
+  };
 
   return (
     <div
@@ -125,140 +306,215 @@ function TestimonialArt({
         margin: '0 auto',
         overflow: 'hidden',
         borderRadius: 36,
-        border: '1px solid rgba(255,255,255,0.28)',
-        background: `linear-gradient(145deg, ${ART_PALETTE.backgroundA} 0%, ${ART_PALETTE.backgroundB} 52%, ${ART_PALETTE.backgroundC} 100%)`,
-        boxShadow: '0 35px 80px rgba(31, 24, 64, 0.45)',
+        border: '1px solid rgba(255,255,255,0.35)',
         color: '#ffffff',
         width: compact ? '100%' : `${format.width}px`,
         aspectRatio: `${format.width}/${format.height}`,
       }}
     >
-      <div
-        aria-hidden="true"
-        style={{
-          position: 'absolute',
-          inset: 0,
-          background:
-            'radial-gradient(circle at 20% 12%, rgba(255,255,255,0.26), rgba(255,255,255,0) 34%), radial-gradient(circle at 88% 85%, rgba(188,151,255,0.36), rgba(188,151,255,0) 35%)',
-        }}
-      />
+      {templateId === 'clean-premium' ? (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background:
+              'linear-gradient(145deg, #1b0d40 0%, #421c84 42%, #7c2fd0 100%), radial-gradient(circle at 20% 10%, rgba(255,255,255,0.22), transparent 36%)',
+          }}
+        />
+      ) : null}
+
+      {templateId === 'card-editorial' ? (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background:
+              'radial-gradient(circle at 18% 12%, rgba(209, 178, 255, 0.65), transparent 36%), radial-gradient(circle at 85% 82%, rgba(119, 112, 255, 0.45), transparent 38%), linear-gradient(160deg, #0f172a 0%, #2b1954 100%)',
+          }}
+        />
+      ) : null}
+
+      {templateId === 'avatar-card' ? (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background:
+              'linear-gradient(135deg, #111827 0%, #1f2937 45%, #4c1d95 100%), radial-gradient(circle at 24% 24%, rgba(196,181,253,0.3), transparent 36%)',
+          }}
+        />
+      ) : null}
+
+      {templateId === 'quote-impact' ? (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background:
+              'linear-gradient(150deg, #070b22 0%, #2a1c5f 48%, #9a2ede 100%), radial-gradient(circle at 80% 18%, rgba(255,255,255,0.18), transparent 36%)',
+          }}
+        />
+      ) : null}
 
       <div
         style={{
           position: 'relative',
           zIndex: 2,
+          height: '100%',
+          padding: '7.5% 8%',
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'space-between',
-          height: '100%',
-          padding: '7.5% 8%',
-          gap: '2.5%',
+          gap: '2%',
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span
-            style={{
-              borderRadius: 999,
-              border: `1px solid ${ART_PALETTE.panelBorder}`,
-              background: ART_PALETTE.panel,
-              padding: '9px 20px',
-              fontSize: badgeSize,
-              letterSpacing: '0.1em',
-              textTransform: 'uppercase',
-              fontWeight: 700,
-              color: ART_PALETTE.whiteSoft,
-            }}
-          >
-            Recomendado
-          </span>
-          <span
-            style={{
-              borderRadius: 999,
-              border: `1px solid ${ART_PALETTE.panelBorder}`,
-              background: 'rgba(13,9,40,0.28)',
-              padding: '8px 18px',
-              fontSize: badgeSize,
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase',
-              fontWeight: 600,
-              color: ART_PALETTE.whiteMeta,
-            }}
-          >
-            Harmonics
-          </span>
-        </div>
+        {templateId === 'clean-premium' ? (
+          <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: metaSize, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.75)', fontWeight: 700 }}>Depoimento real</span>
+              <span style={{ fontSize: metaSize, color: 'rgba(255,255,255,0.65)' }}>Harmonics</span>
+            </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
-          <p style={{ margin: 0, fontWeight: 900, fontSize: textLayout.quoteSize, lineHeight: 0.7, color: 'rgba(255,255,255,0.24)' }}>“</p>
-          <p
-            style={{
-              margin: '8px auto 0',
-              maxWidth: textLayout.maxWidth,
-              textAlign: 'center',
-              fontWeight: 650,
-              letterSpacing: '-0.015em',
-              fontSize: textLayout.fontSize,
-              lineHeight: textLayout.lineHeight,
-              display: '-webkit-box',
-              WebkitBoxOrient: 'vertical',
-              WebkitLineClamp: textLayout.lineClamp,
-              overflow: 'hidden',
-              textWrap: 'pretty',
-              ...(textStyle
-                ? {
-                    borderRadius: 30,
-                    padding: '24px 30px',
-                    background: 'rgba(255,255,255,0.12)',
-                    border: '1px solid rgba(255,255,255,0.2)',
-                    boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.16)',
-                  }
-                : {}),
-            }}
-          >
-            {textLayout.clippedText}
-          </p>
-        </div>
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div
+                style={{
+                  width: `${TEMPLATE_TEXT_CONFIG['clean-premium'][format.id].widthRatio * 100}%`,
+                  minHeight: `${TEMPLATE_TEXT_CONFIG['clean-premium'][format.id].heightRatio * 100}%`,
+                  padding: fit.padding,
+                  borderRadius: 30,
+                  border: '1px solid rgba(255,255,255,0.26)',
+                  background: 'rgba(255,255,255,0.12)',
+                  boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.14)',
+                  display: 'grid',
+                  alignItems: 'center',
+                }}
+              >
+                <p style={{ ...sharedTextStyle, textAlign: 'center' }}>{testimonial}</p>
+              </div>
+            </div>
 
-        <div style={{ textAlign: 'center', display: 'grid', gap: isStory ? 20 : 16 }}>
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'center',
-              gap: 10,
-              borderRadius: 22,
-              padding: starsStyle ? '14px 12px' : '0',
-              background: starsStyle ? 'rgba(255,255,255,0.12)' : 'transparent',
-              border: starsStyle ? '1px solid rgba(255,255,255,0.2)' : 'none',
-            }}
-          >
-            {stars.map((filled, index) => (
-              <span key={index} style={{ lineHeight: 1, fontSize: starsSize, color: filled ? ART_PALETTE.starOn : ART_PALETTE.starOff }}>
-                ★
-              </span>
-            ))}
-          </div>
+            <div style={{ textAlign: 'center' }}>
+              <p style={{ margin: 0, fontSize: signatureSize, fontWeight: 650 }}>{coupleName}</p>
+              {eventName ? <p style={{ margin: '8px 0 0', fontSize: metaSize, color: 'rgba(255,255,255,0.75)' }}>{eventName}</p> : null}
+            </div>
+          </>
+        ) : null}
 
-          <div>
-            <p style={{ margin: 0, fontSize: signatureSize, fontWeight: 620, letterSpacing: '0.03em', color: ART_PALETTE.whiteSoft }}>
-              {coupleName}
-            </p>
-            {eventName ? (
-              <p style={{ margin: '8px 0 0', fontSize: metaSize, color: ART_PALETTE.whiteMeta }}>{eventName}</p>
-            ) : null}
-            <p
-              style={{
-                margin: '10px 0 0',
-                fontSize: metaSize,
-                fontWeight: 600,
-                color: ART_PALETTE.whiteMuted,
-                letterSpacing: '0.11em',
-                textTransform: 'uppercase',
-              }}
-            >
-              {formatDate(item?.submitted_at)}
-            </p>
-          </div>
-        </div>
+        {templateId === 'card-editorial' ? (
+          <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: metaSize, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.72)', fontWeight: 700 }}>Card Editorial</span>
+              <span style={{ fontSize: metaSize, color: 'rgba(255,255,255,0.72)' }}>{format.sizeLabel}</span>
+            </div>
+
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <article
+                style={{
+                  width: `${TEMPLATE_TEXT_CONFIG['card-editorial'][format.id].widthRatio * 100}%`,
+                  minHeight: `${TEMPLATE_TEXT_CONFIG['card-editorial'][format.id].heightRatio * 100}%`,
+                  padding: fit.padding,
+                  borderRadius: 30,
+                  background: 'rgba(255,255,255,0.94)',
+                  color: '#0f172a',
+                  boxShadow: '0 28px 70px rgba(9, 6, 30, 0.38)',
+                  display: 'grid',
+                  alignItems: 'center',
+                }}
+              >
+                <p style={{ ...sharedTextStyle, color: '#0f172a' }}>{testimonial}</p>
+              </article>
+            </div>
+
+            <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.85)' }}>
+              <p style={{ margin: 0, fontSize: signatureSize, fontWeight: 650 }}>{coupleName}</p>
+              <p style={{ margin: '8px 0 0', fontSize: metaSize }}>{formatDate(item?.submitted_at)}</p>
+            </div>
+          </>
+        ) : null}
+
+        {templateId === 'avatar-card' ? (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                <div
+                  style={{
+                    width: avatarSize,
+                    height: avatarSize,
+                    borderRadius: '50%',
+                    background: 'linear-gradient(145deg, #f5f3ff 0%, #ddd6fe 100%)',
+                    color: '#4c1d95',
+                    display: 'grid',
+                    placeItems: 'center',
+                    fontSize: avatarSize * 0.34,
+                    fontWeight: 800,
+                    border: '2px solid rgba(255,255,255,0.65)',
+                  }}
+                >
+                  {initials}
+                </div>
+                <div>
+                  <p style={{ margin: 0, fontSize: signatureSize * 0.78, fontWeight: 650 }}>{coupleName}</p>
+                  <p style={{ margin: '6px 0 0', fontSize: metaSize, color: 'rgba(255,255,255,0.74)' }}>{eventName || 'Cliente Harmonics'}</p>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 10 }}>
+              {stars.map((filled, index) => (
+                <span key={index} style={{ lineHeight: 1, fontSize: isStory ? 68 : 56, color: filled ? '#fcd34d' : 'rgba(255,255,255,0.24)' }}>
+                  ★
+                </span>
+              ))}
+            </div>
+
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div
+                style={{
+                  width: `${TEMPLATE_TEXT_CONFIG['avatar-card'][format.id].widthRatio * 100}%`,
+                  minHeight: `${TEMPLATE_TEXT_CONFIG['avatar-card'][format.id].heightRatio * 100}%`,
+                  padding: fit.padding,
+                  borderRadius: 28,
+                  border: '1px solid rgba(255,255,255,0.22)',
+                  background: 'rgba(255,255,255,0.1)',
+                  display: 'grid',
+                  alignItems: 'center',
+                }}
+              >
+                <p style={{ ...sharedTextStyle }}>{testimonial}</p>
+              </div>
+            </div>
+          </>
+        ) : null}
+
+        {templateId === 'quote-impact' ? (
+          <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: metaSize, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.7)', fontWeight: 700 }}>Quote Impact</span>
+              <span style={{ fontSize: metaSize, color: 'rgba(255,255,255,0.62)' }}>★★★★★</span>
+            </div>
+
+            <div style={{ flex: 1, display: 'grid', placeItems: 'center' }}>
+              <div style={{ width: `${TEMPLATE_TEXT_CONFIG['quote-impact'][format.id].widthRatio * 100}%`, textAlign: 'center' }}>
+                <p style={{ margin: 0, fontSize: isStory ? 168 : 130, lineHeight: 0.66, color: 'rgba(255,255,255,0.22)', fontWeight: 800 }}>“</p>
+                <div
+                  style={{
+                    minHeight: `${TEMPLATE_TEXT_CONFIG['quote-impact'][format.id].heightRatio * 100}%`,
+                    padding: fit.padding,
+                  }}
+                >
+                  <p style={{ ...sharedTextStyle, textAlign: 'center' }}>{testimonial}</p>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ textAlign: 'center' }}>
+              <p style={{ margin: 0, fontSize: signatureSize, fontWeight: 650 }}>{coupleName}</p>
+              <p style={{ margin: '8px 0 0', fontSize: metaSize, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.72)' }}>
+                {formatDate(item?.submitted_at)}
+              </p>
+            </div>
+          </>
+        ) : null}
       </div>
     </div>
   );
@@ -323,7 +579,8 @@ export default function AvaliacaoCard({ item }) {
   const [generationStatus, setGenerationStatus] = useState('idle');
   const [downloadStatus, setDownloadStatus] = useState('idle');
   const [selectedFormatId, setSelectedFormatId] = useState(ART_FORMATS[0].id);
-  const [variationIndex, setVariationIndex] = useState(0);
+  const [templateMode, setTemplateMode] = useState('auto');
+  const [manualTemplateId, setManualTemplateId] = useState(TEMPLATE_OPTIONS[0].id);
   const [generatedImage, setGeneratedImage] = useState('');
   const [generationError, setGenerationError] = useState('');
 
@@ -334,7 +591,26 @@ export default function AvaliacaoCard({ item }) {
 
   const stars = getStarsArray(item?.rating);
   const selectedFormat = ART_FORMATS.find((format) => format.id === selectedFormatId) || ART_FORMATS[0];
-  const selectedStyle = STYLE_VARIATIONS[variationIndex];
+
+  const autoDecision = useMemo(() => {
+    return resolveTemplateSelection({
+      text: testimonial,
+      format: selectedFormat,
+      preferredTemplateId: manualTemplateId,
+    });
+  }, [manualTemplateId, selectedFormat, testimonial]);
+
+  const activeTemplateId = templateMode === 'auto' ? autoDecision.selectedTemplateId : manualTemplateId;
+  const activeFit = useMemo(() => {
+    if (templateMode === 'auto') return autoDecision.fitResult;
+    return computeAutoFit({ text: testimonial, format: selectedFormat, templateId: manualTemplateId });
+  }, [autoDecision.fitResult, manualTemplateId, selectedFormat, templateMode, testimonial]);
+
+  const manualSuggestion = useMemo(() => {
+    if (activeFit.fits || templateMode === 'auto') return '';
+    const suggested = TEMPLATE_OPTIONS.find((option) => option.id === autoDecision.suggestionTemplateId);
+    return suggested?.label || 'Card Editorial';
+  }, [activeFit.fits, autoDecision.suggestionTemplateId, templateMode]);
 
   const autoCaption = useMemo(() => {
     return [
@@ -366,6 +642,11 @@ export default function AvaliacaoCard({ item }) {
   }
 
   async function handleGenerateImage() {
+    if (templateMode === 'manual' && !activeFit.fits) {
+      showToast?.('Este template não comporta todo o texto. Use a sugestão automática.', 'error');
+      return;
+    }
+
     setGenerationStatus('loading');
     setGeneratedImage('');
     setGenerationError('');
@@ -416,12 +697,6 @@ export default function AvaliacaoCard({ item }) {
     setGenerationError('');
   }
 
-  function handleChangeVariation() {
-    setVariationIndex((current) => (current + 1) % STYLE_VARIATIONS.length);
-    setGenerationStatus('idle');
-    setGeneratedImage('');
-  }
-
   function handleResetPreview() {
     setGenerationStatus('idle');
     setGeneratedImage('');
@@ -442,14 +717,21 @@ export default function AvaliacaoCard({ item }) {
               testimonial={testimonial}
               stars={stars}
               format={ART_FORMATS[1]}
-              styleId={selectedStyle.id}
+              templateId={autoDecision.selectedTemplateId}
+              fit={resolveTemplateSelection({
+                text: testimonial,
+                format: ART_FORMATS[1],
+                preferredTemplateId: autoDecision.selectedTemplateId,
+              }).fitResult}
               exportId={`${exportElementId}-list`}
               compact
             />
           </div>
 
           <div className="space-y-3 text-xs text-slate-500">
-            <p className="font-semibold uppercase tracking-[0.15em] text-violet-600">Estilo: {selectedStyle.label}</p>
+            <p className="font-semibold uppercase tracking-[0.15em] text-violet-600">
+              Sugestão: {(TEMPLATE_OPTIONS.find((template) => template.id === autoDecision.selectedTemplateId) || TEMPLATE_OPTIONS[0]).label}
+            </p>
             <p className="line-clamp-2">{testimonial}</p>
           </div>
 
@@ -484,7 +766,7 @@ export default function AvaliacaoCard({ item }) {
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.14em] text-violet-600">Gerador profissional</p>
-                <h3 className="text-2xl font-extrabold text-slate-900">Arte para redes sociais</h3>
+                <h3 className="text-2xl font-extrabold text-slate-900">Templates adaptáveis para redes</h3>
               </div>
               <button
                 type="button"
@@ -495,7 +777,7 @@ export default function AvaliacaoCard({ item }) {
               </button>
             </div>
 
-            <div className="mt-5 grid gap-6 lg:grid-cols-[1fr_340px]">
+            <div className="mt-5 grid gap-6 lg:grid-cols-[1fr_360px]">
               <div className="space-y-4">
                 <div className="flex flex-wrap gap-2">
                   {ART_FORMATS.map((format) => (
@@ -521,7 +803,57 @@ export default function AvaliacaoCard({ item }) {
                   ))}
                 </div>
 
-                <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 p-4 min-h-[420px]">
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setTemplateMode('auto')}
+                    className={classNames(
+                      'rounded-xl border px-3 py-2 text-sm font-semibold transition',
+                      templateMode === 'auto'
+                        ? 'border-violet-400 bg-violet-100 text-violet-700'
+                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                    )}
+                  >
+                    Sugestão automática
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTemplateMode('manual')}
+                    className={classNames(
+                      'rounded-xl border px-3 py-2 text-sm font-semibold transition',
+                      templateMode === 'manual'
+                        ? 'border-violet-400 bg-violet-100 text-violet-700'
+                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                    )}
+                  >
+                    Escolher manualmente
+                  </button>
+                </div>
+
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {TEMPLATE_OPTIONS.map((template) => (
+                    <button
+                      key={template.id}
+                      type="button"
+                      onClick={() => {
+                        setManualTemplateId(template.id);
+                        setTemplateMode('manual');
+                        handleResetPreview();
+                      }}
+                      className={classNames(
+                        'rounded-xl border px-3 py-2 text-left text-sm transition',
+                        manualTemplateId === template.id
+                          ? 'border-violet-400 bg-violet-50 text-violet-800'
+                          : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                      )}
+                    >
+                      <p className="font-semibold">{template.label}</p>
+                      <p className="text-xs opacity-80">{template.idealFor}</p>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="relative min-h-[420px] overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 p-4">
                   <div
                     className="pointer-events-none"
                     aria-hidden="true"
@@ -542,7 +874,8 @@ export default function AvaliacaoCard({ item }) {
                       testimonial={testimonial}
                       stars={stars}
                       format={selectedFormat}
-                      styleId={selectedStyle.id}
+                      templateId={activeTemplateId}
+                      fit={activeFit}
                       exportId={exportElementId}
                     />
                   </div>
@@ -554,7 +887,8 @@ export default function AvaliacaoCard({ item }) {
                       testimonial={testimonial}
                       stars={stars}
                       format={selectedFormat}
-                      styleId={selectedStyle.id}
+                      templateId={activeTemplateId}
+                      fit={activeFit}
                       exportId={`${exportElementId}-preview`}
                     />
                   </ScaledPreviewStage>
@@ -565,31 +899,46 @@ export default function AvaliacaoCard({ item }) {
               </div>
 
               <aside className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50/90 p-4">
-                <p className="text-sm font-bold text-slate-700">Estilo atual: {selectedStyle.label}</p>
-                <p className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600">
-                  Prévia proporcional ativa: Story (9:16), Feed quadrado (1:1) e Feed vertical (4:5).
+                <p className="text-sm font-bold text-slate-700">
+                  Template ativo:{' '}
+                  {(TEMPLATE_OPTIONS.find((template) => template.id === activeTemplateId) || TEMPLATE_OPTIONS[0]).label}
                 </p>
+                <p className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600">
+                  Perfil do texto: {autoDecision.tier === 'short' ? 'curto' : autoDecision.tier === 'medium' ? 'médio' : 'longo'}.
+                  Sugestão automática: {(TEMPLATE_OPTIONS.find((template) => template.id === autoDecision.suggestionTemplateId) || TEMPLATE_OPTIONS[0]).label}.
+                </p>
+
+                {templateMode === 'manual' && !activeFit.fits ? (
+                  <div className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+                    Este modelo não acomoda o texto completo sem comprometer o layout. Sugestão: {manualSuggestion}.
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setManualTemplateId(autoDecision.suggestionTemplateId);
+                        handleResetPreview();
+                      }}
+                      className="mt-2 block rounded-lg border border-amber-400 bg-white px-3 py-1.5 text-amber-900"
+                    >
+                      Aplicar sugestão
+                    </button>
+                  </div>
+                ) : null}
+
                 <div className="rounded-xl border border-violet-200 bg-violet-50 px-3 py-2">
                   <p className="text-xs font-bold uppercase tracking-[0.08em] text-violet-700">Fluxo de postagem</p>
                   <ol className="mt-2 space-y-1 text-xs font-medium text-violet-900">
-                    <li>1. Gerar arte</li>
-                    <li>2. Baixar imagem</li>
-                    <li>3. Copiar legenda</li>
-                    <li>4. Abrir Instagram</li>
+                    <li>1. Definir formato e template</li>
+                    <li>2. Gerar arte</li>
+                    <li>3. Baixar imagem</li>
+                    <li>4. Copiar legenda</li>
                     <li>5. Publicar</li>
                   </ol>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleChangeVariation}
-                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
-                >
-                  Trocar estilo
-                </button>
+
                 <button
                   type="button"
                   onClick={handleGenerateImage}
-                  disabled={generationStatus === 'loading'}
+                  disabled={generationStatus === 'loading' || (templateMode === 'manual' && !activeFit.fits)}
                   className="w-full rounded-xl border border-violet-300 bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-70"
                 >
                   {generationStatus === 'loading' ? 'Gerando arte...' : 'Gerar arte'}

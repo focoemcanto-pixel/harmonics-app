@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { fetchClientSuggestionsCatalog } from '@/lib/sugestoes/client-suggestions-catalog';
 
 function normalizeText(value) {
   const text = String(value || '').trim();
@@ -20,30 +21,8 @@ export async function GET() {
     const supabase = getSupabaseAdmin();
     const catalogSongs = await fetchClientSuggestionsCatalog(supabase);
 
-    const { data: clientPanelRows, error: clientPanelError } = await supabase
-      .from('suggestion_songs')
-      .select(`
-        id,
-        title,
-        artist,
-        youtube_id,
-        youtube_url,
-        thumbnail_url,
-        genre:suggestion_genres(name),
-        moment:suggestion_moments(name),
-        source_type,
-        is_active,
-        sort_order,
-        created_at
-      `)
-      .or('source_type.eq.admin,source_type.is.null')
-      .eq('is_active', true)
-      .order('sort_order', { ascending: true })
-      .order('created_at', { ascending: false });
-
-    if (clientPanelError) throw clientPanelError;
-
-    const songs = (clientPanelRows || [])
+    const songs = (catalogSongs || [])
+      .filter((song) => song?.is_active)
       .map((song, index) => {
         const key = buildSongKey({
           title: song?.title,

@@ -952,8 +952,8 @@ function SuggestoesRepertoriosTab({
       >
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <SummaryCard label="Músicas únicas" value={songs.length} helper="sem duplicação por título/chave" tone="default" />
-          <SummaryCard label="Já no catálogo" value={alreadyCatalogCount} helper="equivalentes em suggestion_songs" tone="emerald" />
-          <SummaryCard label="Importadas" value={importedCount} helper="com source_type = imported" tone="violet" />
+          <SummaryCard label="Já no catálogo" value={alreadyCatalogCount} helper="já disponíveis na biblioteca editorial" tone="emerald" />
+          <SummaryCard label="Importadas" value={importedCount} helper="já aproveitadas na curadoria" tone="violet" />
           <SummaryCard
             label="Pendentes de curadoria"
             value={Math.max(songs.length - alreadyCatalogCount, 0)}
@@ -1004,7 +1004,7 @@ function SuggestoesRepertoriosTab({
                 <div className="mt-4 flex flex-wrap gap-2">
                   <Pill tone="sky">{song.usage_count} uso(s)</Pill>
                   <Pill>Último uso: {formatDateOnlyBR(song.last_used_at)}</Pill>
-                  {song.catalog_source_type ? <Pill tone="violet">{song.catalog_source_type}</Pill> : null}
+                  {song.catalog_source_type ? <Pill tone="violet">Origem: {song.catalog_source_type}</Pill> : null}
                 </div>
 
                 <div className="mt-4 rounded-[18px] bg-[#f8fafc] px-4 py-3 text-[13px] font-semibold text-[#475569]">
@@ -1482,8 +1482,6 @@ const [savingMoment, setSavingMoment] = useState(false);
   const [songs, setSongs] = useState([]);
   const [clientPanelSongs, setClientPanelSongs] = useState([]);
   const [repertoireSongs, setRepertoireSongs] = useState([]);
-  const [sourceAudit, setSourceAudit] = useState(null);
-  const [reviewSongs, setReviewSongs] = useState([]);
   const [genres, setGenres] = useState([]);
   const [moments, setMoments] = useState([]);
   const [tags, setTags] = useState([]);
@@ -1522,7 +1520,6 @@ const [savingMoment, setSavingMoment] = useState(false);
     { key: 'resumo', label: 'Resumo' },
     { key: 'biblioteca', label: 'Biblioteca' },
     { key: 'sugestoes-cliente', label: 'Sugestões do cliente' },
-    { key: 'revisao-legado', label: 'Revisão legado' },
     { key: 'repertorios', label: 'Repertórios' },
     { key: 'generos', label: 'Gêneros' },
     { key: 'momentos', label: 'Momentos' },
@@ -1538,24 +1535,20 @@ const [savingMoment, setSavingMoment] = useState(false);
     setError('');
     setSongsLoadFailed(false);
 
-    const [songsResponse, genresResponse, momentsResponse, clientPanelResponse, reviewResponse, repertoireResponse, sourceAuditResponse] = await Promise.all([
+    const [songsResponse, genresResponse, momentsResponse, clientPanelResponse, repertoireResponse] = await Promise.all([
       fetch('/api/suggestions/songs?scope=admin-editorial', { cache: 'no-store' }),
       fetch('/api/suggestions/genres', { cache: 'no-store' }),
       fetch('/api/suggestions/moments', { cache: 'no-store' }),
       fetch('/api/admin/suggestions/client-panel-songs', { cache: 'no-store' }),
-      fetch('/api/admin/suggestions/review-songs', { cache: 'no-store' }),
       fetch('/api/admin/suggestions/repertoire-songs', { cache: 'no-store' }),
-      fetch('/api/admin/suggestions/source-audit', { cache: 'no-store' }),
     ]);
 
-    const [songsData, genresData, momentsData, clientPanelData, reviewData, repertoireData, sourceAuditData] = await Promise.all([
+    const [songsData, genresData, momentsData, clientPanelData, repertoireData] = await Promise.all([
       songsResponse.json().catch(() => ({})),
       genresResponse.json().catch(() => ({})),
       momentsResponse.json().catch(() => ({})),
       clientPanelResponse.json().catch(() => ({})),
-      reviewResponse.json().catch(() => ({})),
       repertoireResponse.json().catch(() => ({})),
-      sourceAuditResponse.json().catch(() => ({})),
     ]);
 
 
@@ -1564,9 +1557,7 @@ const [savingMoment, setSavingMoment] = useState(false);
       genresStatus: genresResponse.status,
       momentsStatus: momentsResponse.status,
       clientPanelStatus: clientPanelResponse.status,
-      reviewStatus: reviewResponse.status,
       repertoireStatus: repertoireResponse.status,
-      sourceAuditStatus: sourceAuditResponse.status,
     });
 
     const songsList = songsResponse.ok && Array.isArray(songsData?.songs)
@@ -1575,28 +1566,21 @@ const [savingMoment, setSavingMoment] = useState(false);
     const genresList = genresResponse.ok && Array.isArray(genresData?.genres) ? genresData.genres : [];
     const momentsList = momentsResponse.ok && Array.isArray(momentsData?.moments) ? momentsData.moments : [];
     const clientPanelList = clientPanelResponse.ok && Array.isArray(clientPanelData?.songs) ? clientPanelData.songs : [];
-    const reviewList = reviewResponse.ok && Array.isArray(reviewData?.songs) ? reviewData.songs : [];
     const repertoireList = repertoireResponse.ok && Array.isArray(repertoireData?.songs) ? repertoireData.songs : [];
 
     const loadErrors = [];
     if (!songsResponse.ok) {
       setSongsLoadFailed(true);
       loadErrors.push(
-        songsData?.error ||
-          'Falha ao buscar músicas do catálogo editorial (suggestion_songs)'
+        songsData?.error || 'Não foi possível carregar as músicas da biblioteca editorial.'
       );
     }
     if (!genresResponse.ok) {
-      loadErrors.push(
-        genresData?.error ||
-          'Gêneros não encontrados na tabela suggestion_genres'
-      );
+      loadErrors.push(genresData?.error || 'Não foi possível carregar a lista de gêneros.');
     }
-    if (!momentsResponse.ok) loadErrors.push(momentsData?.error || 'Falha ao buscar momentos');
-    if (!clientPanelResponse.ok) loadErrors.push(clientPanelData?.error || 'Falha ao buscar itens de source_type=client');
-    if (!reviewResponse.ok) loadErrors.push(reviewData?.error || 'Falha ao buscar fila de revisão de legado source_type');
-    if (!repertoireResponse.ok) loadErrors.push(repertoireData?.error || 'Falha ao buscar músicas de repertórios');
-    if (!sourceAuditResponse.ok) loadErrors.push(sourceAuditData?.error || 'Falha ao auditar source_type do catálogo');
+    if (!momentsResponse.ok) loadErrors.push(momentsData?.error || 'Não foi possível carregar a lista de momentos.');
+    if (!clientPanelResponse.ok) loadErrors.push(clientPanelData?.error || 'Não foi possível carregar as sugestões do cliente.');
+    if (!repertoireResponse.ok) loadErrors.push(repertoireData?.error || 'Não foi possível carregar as músicas vindas de repertórios.');
     if (loadErrors.length) {
       setError(loadErrors.join(' | '));
     }
@@ -1605,9 +1589,7 @@ const [savingMoment, setSavingMoment] = useState(false);
     setGenres(genresList);
     setMoments(momentsList);
     setClientPanelSongs(clientPanelList);
-    setReviewSongs(reviewList);
     setRepertoireSongs(repertoireList);
-    setSourceAudit(sourceAuditResponse.ok ? sourceAuditData : null);
 
     const tagsMap = new Map();
     const collectionsMap = new Map();
@@ -1635,11 +1617,7 @@ const [savingMoment, setSavingMoment] = useState(false);
       genres: genresList.length,
       moments: momentsList.length,
       clientPanelSongs: clientPanelList.length,
-      reviewSongs: reviewList.length,
       repertoireSongs: repertoireList.length,
-      source: 'public.suggestion_songs',
-      source_scope: 'editorial_catalog_only',
-      sourceAudit: sourceAuditResponse.ok ? sourceAuditData?.distribution || {} : null,
     });
   } catch (err) {
     console.error('[sugestoes] error', err);
@@ -2138,22 +2116,6 @@ const [savingMoment, setSavingMoment] = useState(false);
           subtitle="Fonte: lista cadastrada na aba de Sugestões do painel do cliente (não usa repertório de evento)."
           emptyTitle="Nenhuma sugestão encontrada no painel do cliente"
           emptyText="Cadastre músicas na própria aba de Sugestões do painel do cliente para aparecerem aqui."
-          searchPlaceholder="Buscar por título, artista, gênero ou momento"
-          searchByClient={false}
-        />
-      )}
-
-      {activeTab === 'revisao-legado' && (
-        <SuggestoesRepertoriosTab
-          songs={reviewSongs}
-          loading={loading}
-          importingKey={importingClientKey}
-          onImport={handleImportFromClientPanel}
-          eyebrow="Separação semântica"
-          title="Revisão de itens client/legado"
-          subtitle={`Itens pendentes para classificar source_type. distribuição atual: ${JSON.stringify(sourceAudit?.distribution || {})}`}
-          emptyTitle="Nenhum item client/legado para revisão"
-          emptyText="Sem registros source_type=null/empty para analisar neste momento."
           searchPlaceholder="Buscar por título, artista, gênero ou momento"
           searchByClient={false}
         />

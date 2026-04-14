@@ -10,6 +10,8 @@ export default function SugestoesFilters({
   onFeaturedChange,
   onCreate,
   total,
+  sourceFilter,
+  onSourceChange,
 }) {
   return (
     <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_10px_30px_rgba(15,23,42,0.05)] md:p-6">
@@ -29,7 +31,7 @@ export default function SugestoesFilters({
         </button>
       </div>
 
-      <div className="mt-5 grid gap-3 lg:grid-cols-5">
+      <div className="mt-5 grid gap-3 lg:grid-cols-6">
         <input
           type="text"
           value={search}
@@ -71,6 +73,16 @@ export default function SugestoesFilters({
           <option value="todos">Todos os destaques</option>
           <option value="featured">Somente destaque</option>
           <option value="nao-featured">Sem destaque</option>
+        </select>
+
+        <select
+          value={sourceFilter}
+          onChange={(e) => onSourceChange(e.target.value)}
+          className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-[15px] font-semibold text-slate-900"
+        >
+          <option value="todos">Todas as origens</option>
+          <option value="admin">admin</option>
+          <option value="imported">imported</option>
         </select>
       </div>
     </section>

@@ -65,7 +65,6 @@ function sanitizeSongPayload(body) {
     sort_order: Number.isFinite(Number(body?.sort_order))
       ? Number(body.sort_order)
       : 0,
-    source_type: 'admin',
     updated_at: new Date().toISOString(),
   };
 }

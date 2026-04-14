@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '../../../../lib/supabase-admin';
-import { fetchClientSuggestionsCatalog } from '@/lib/sugestoes/client-suggestions-catalog';
+import {
+  fetchAdminEditorialCatalog,
+  fetchClientSuggestionsCatalog,
+} from '@/lib/sugestoes/client-suggestions-catalog';
 
 function normalizeYoutubeId(value) {
   const input = String(value || '').trim();
@@ -131,11 +134,17 @@ async function replaceSongCollections(supabase, songId, collectionIds = []) {
   if (insertError) throw insertError;
 }
 
-export async function GET() {
+export async function GET(request) {
   try {
-    console.info('[sugestoes] load start songs');
+    const { searchParams } = new URL(request.url);
+    const scope = String(searchParams.get('scope') || '').trim();
+    const isAdminScope = scope === 'admin-editorial';
+
+    console.info('[sugestoes] load start songs', { scope: isAdminScope ? 'admin-editorial' : 'client' });
     const supabase = getSupabaseAdmin();
-    const songs = await fetchClientSuggestionsCatalog(supabase);
+    const songs = isAdminScope
+      ? await fetchAdminEditorialCatalog(supabase)
+      : await fetchClientSuggestionsCatalog(supabase);
 
     console.info('[sugestoes] data loaded songs', { count: songs.length });
 
@@ -177,23 +186,13 @@ export async function POST(request) {
       );
     }
 
-    const hasYoutubeId = Boolean(String(payload.youtube_id || '').trim());
-    const onConflict = hasYoutubeId
-      ? 'youtube_id'
-      : 'normalized_title,normalized_artist';
-
     const { data: inserted, error: insertError } = await supabase
       .from('suggestion_songs')
-      .upsert(
-        {
-          ...payload,
-          updated_at: new Date().toISOString(),
-        },
-        {
-          onConflict,
-          ignoreDuplicates: false,
-        }
-      )
+      .insert({
+        ...payload,
+        source_type: 'admin',
+        updated_at: new Date().toISOString(),
+      })
       .select('id')
       .single();
 

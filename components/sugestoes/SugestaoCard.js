@@ -57,6 +57,8 @@ export default function SugestaoCard({
   onToggleActive,
 }) {
   const genreName = song?.genre?.name || 'Sem gênero';
+  const momentName = song?.moment?.name || 'Sem momento';
+  const sourceType = String(song?.source_type || '—');
   const tags = (song?.song_tags || []).map((item) => item?.tag?.name).filter(Boolean);
   const safeTitle = String(song?.title || 'Música').trim();
   const { hasThumb, hasYoutube, hasError, isPending } = getSongFlags(song);
@@ -89,6 +91,9 @@ export default function SugestaoCard({
             {song?.is_active ? 'Ativa' : 'Inativa'}
           </Pill>
           {song?.is_featured ? <Pill tone="violet">Destaque</Pill> : null}
+          <Pill tone={sourceType === 'imported' ? 'sky' : 'default'}>
+            {sourceType}
+          </Pill>
           {isPending ? <Pill tone="amber">Pendente</Pill> : null}
           {hasError ? <Pill tone="red">Com erro</Pill> : null}
         </div>
@@ -106,6 +111,7 @@ export default function SugestaoCard({
 
         <div className="flex flex-wrap gap-2">
           <Pill tone="sky">{genreName}</Pill>
+          <Pill>{momentName}</Pill>
           {!hasYoutube ? <Pill tone="amber">Sem YouTube</Pill> : null}
           {!hasThumb ? <Pill tone="amber">Sem thumb</Pill> : null}
           {tags.slice(0, 3).map((tag) => (

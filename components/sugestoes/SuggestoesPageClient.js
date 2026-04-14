@@ -801,6 +801,7 @@ function SuggestoesBibliotecaTab({
   const [statusFilter, setStatusFilter] = useState('todos');
   const [genreFilter, setGenreFilter] = useState('todos');
   const [featuredFilter, setFeaturedFilter] = useState('todos');
+  const [sourceFilter, setSourceFilter] = useState('todos');
 
   const genres = useMemo(() => {
     return Array.from(
@@ -837,10 +838,12 @@ function SuggestoesBibliotecaTab({
         featuredFilter === 'todos' ||
         (featuredFilter === 'featured' && song?.is_featured) ||
         (featuredFilter === 'nao-featured' && !song?.is_featured);
+      const matchesSource =
+        sourceFilter === 'todos' || String(song?.source_type || '') === sourceFilter;
 
-      return matchesSearch && matchesStatus && matchesGenre && matchesFeatured;
+      return matchesSearch && matchesStatus && matchesGenre && matchesFeatured && matchesSource;
     });
-  }, [songs, search, statusFilter, genreFilter, featuredFilter]);
+  }, [songs, search, statusFilter, genreFilter, featuredFilter, sourceFilter]);
 
   return (
     <div className="space-y-5">
@@ -856,6 +859,8 @@ function SuggestoesBibliotecaTab({
         onFeaturedChange={setFeaturedFilter}
         onCreate={onCreate}
         total={filteredSongs.length}
+        sourceFilter={sourceFilter}
+        onSourceChange={setSourceFilter}
       />
 
       {loading ? (
@@ -1534,7 +1539,7 @@ const [savingMoment, setSavingMoment] = useState(false);
     setSongsLoadFailed(false);
 
     const [songsResponse, genresResponse, momentsResponse, clientPanelResponse, reviewResponse, repertoireResponse, sourceAuditResponse] = await Promise.all([
-      fetch('/api/suggestions/songs', { cache: 'no-store' }),
+      fetch('/api/suggestions/songs?scope=admin-editorial', { cache: 'no-store' }),
       fetch('/api/suggestions/genres', { cache: 'no-store' }),
       fetch('/api/suggestions/moments', { cache: 'no-store' }),
       fetch('/api/admin/suggestions/client-panel-songs', { cache: 'no-store' }),
@@ -1676,9 +1681,15 @@ const [savingMoment, setSavingMoment] = useState(false);
         options.persistedSongId ||
         editingSong?.id ||
         null;
-      const method = songId ? 'PATCH' : 'POST';
-      const url = songId
-        ? `/api/suggestions/songs/${songId}`
+      const normalizedSongId = String(songId || '').trim();
+      const shouldUpdate = Boolean(
+        normalizedSongId &&
+        normalizedSongId !== 'undefined' &&
+        normalizedSongId !== 'null'
+      );
+      const method = shouldUpdate ? 'PATCH' : 'POST';
+      const url = shouldUpdate
+        ? `/api/suggestions/songs/${normalizedSongId}`
         : '/api/suggestions/songs';
 
       const payload = {
@@ -1695,8 +1706,8 @@ const [savingMoment, setSavingMoment] = useState(false);
         destination: 'public.suggestion_songs',
         source: 'admin_editorial_form',
         action: method === 'PATCH' ? 'update' : 'create',
-        songId: songId || null,
-        selectedReferenceOnly: Boolean(options?.fromSelectedReference && !songId),
+        songId: shouldUpdate ? normalizedSongId : null,
+        selectedReferenceOnly: Boolean(options?.fromSelectedReference && !shouldUpdate),
       });
 
       const response = await fetch(url, {
@@ -1722,7 +1733,7 @@ const [savingMoment, setSavingMoment] = useState(false);
       setEditorOpen(false);
       setEditingSong(null);
       await loadAll();
-      setNotice(songId ? 'Música atualizada com sucesso.' : 'Música criada com sucesso.');
+      setNotice(shouldUpdate ? 'Música atualizada com sucesso.' : 'Música criada com sucesso.');
       setActiveTab('biblioteca');
     } catch (err) {
       console.error(err);

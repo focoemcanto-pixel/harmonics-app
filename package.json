@@ -11,7 +11,8 @@
     "preview:local": "wrangler dev",
     "start": "next start",
     "lint": "eslint",
-    "backfill:suggestion-songs": "node scripts/backfill-suggestion-songs-metadata.js"
+    "backfill:suggestion-songs": "node scripts/backfill-suggestion-songs-metadata.js",
+    "seed:editorial-catalog": "node scripts/build-editorial-catalog-seed.mjs"
   },
   "dependencies": {
     "@supabase/auth-helpers-nextjs": "^0.15.0",

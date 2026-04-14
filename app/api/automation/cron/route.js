@@ -51,7 +51,8 @@ export async function GET(request) {
       totalRules += rules.length;
 
       for (const rule of rules) {
-        if (rule.days_before == null && rule.days_after == null) {
+        const hasPostEventDelay = eventType === 'post_event_review_request_client' && rule.delay_hours != null;
+        if (rule.days_before == null && rule.days_after == null && !hasPostEventDelay) {
           console.log(`[CRON] Regra "${rule.name}" (${rule.id}) sem timing por data — pulando`);
           continue;
         }

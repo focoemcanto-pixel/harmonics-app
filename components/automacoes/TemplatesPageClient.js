@@ -23,6 +23,7 @@ const VARIAVEIS = [
   '{pendentes}',
   '{link_escala}',
   '{link_review}',
+  '{review_link}',
 ];
 
 const FORM_INICIAL = {
@@ -53,6 +54,7 @@ const MOCK_VARS = {
   '{pendentes}': '2',
   '{link_escala}': 'https://harmonics.app/escala/demo',
   '{link_review}': 'https://harmonics.app/review/demo',
+  '{review_link}': 'https://harmonics.app/review/demo',
 };
 
 function renderTemplatePreview(body, vars) {

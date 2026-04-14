@@ -228,15 +228,16 @@ const QUICK_SECTIONS = [
       {
         id: 'post_event_review_request_client',
         key: 'pos_evento_rapido',
-        name: 'Pós-evento',
-        title: 'Pós-evento',
-        subtitle: 'Solicita feedback após o evento',
+        name: 'Pedido de avaliação pós-evento',
+        title: 'Pedido de avaliação pós-evento',
+        subtitle: 'Solicita avaliação no timing pós-evento',
         event_type: 'post_event_review_request_client',
         recipient_type: 'client',
         triggerType: 'scheduled',
         badge: 'Programado',
-        days_after: 1,
+        delay_hours: 24,
         send_time: '10:00',
+        showManualAction: true,
       },
     ],
   },
@@ -295,6 +296,7 @@ const ADVANCED_FORM = {
   channel_id: '',
   days_before: '',
   days_after: '',
+  delay_hours: '',
   send_time: '',
   is_active: true,
 };
@@ -308,6 +310,7 @@ const QUICK_FORM = {
   manual_enabled: true,
   days_before: '',
   days_after: '',
+  delay_hours: '',
   send_time: '',
 };
 
@@ -328,6 +331,8 @@ const PREVIEW_VARS = {
   '{link_escala}': 'https://harmonics.app/escalas/convite-demo',
   '{link_repertorio}': 'https://harmonics.app/repertorio/demo',
   '{link_contrato}': 'https://harmonics.app/contrato/demo',
+  '{link_review}': 'https://harmonics.app/cliente/token-demo/review',
+  '{review_link}': 'https://harmonics.app/cliente/token-demo/review',
   '{saldo_pendente}': 'R$ 1.500,00',
 };
 
@@ -344,7 +349,12 @@ function classNames(...classes) {
 }
 
 function isScheduledRule(rule) {
-  return rule.days_before != null || rule.days_after != null || Boolean(rule.send_time);
+  return (
+    rule.days_before != null ||
+    rule.days_after != null ||
+    rule.delay_hours != null ||
+    Boolean(rule.send_time)
+  );
 }
 
 function getPresetFromRule(rule) {
@@ -474,6 +484,7 @@ export default function RegrasPageClient() {
       presetId: preset.id,
       days_before: preset.days_before ?? '',
       days_after: preset.days_after ?? '',
+      delay_hours: preset.delay_hours ?? '',
       send_time: preset.send_time ?? '',
     });
     setModalAberto(true);
@@ -503,6 +514,7 @@ export default function RegrasPageClient() {
         manual_enabled: true,
         days_before: regra.days_before ?? preset.days_before ?? '',
         days_after: regra.days_after ?? preset.days_after ?? '',
+        delay_hours: regra.delay_hours ?? preset.delay_hours ?? '',
         send_time: regra.send_time || preset.send_time || '',
       });
     } else {
@@ -515,6 +527,7 @@ export default function RegrasPageClient() {
         channel_id: regra.channel_id || '',
         days_before: regra.days_before ?? '',
         days_after: regra.days_after ?? '',
+        delay_hours: regra.delay_hours ?? '',
         send_time: regra.send_time || '',
         is_active: regra.is_active !== false,
       });
@@ -554,6 +567,10 @@ export default function RegrasPageClient() {
         days_after:
           preset.triggerType === 'scheduled' && quickForm.days_after !== ''
             ? Number(quickForm.days_after)
+            : null,
+        delay_hours:
+          preset.triggerType === 'scheduled' && quickForm.delay_hours !== ''
+            ? Number(quickForm.delay_hours)
             : null,
         send_time: preset.triggerType === 'scheduled' ? quickForm.send_time || null : null,
         is_active: Boolean(quickForm.is_active && quickForm.auto_send),
@@ -598,6 +615,7 @@ export default function RegrasPageClient() {
         channel_id: advancedForm.channel_id || null,
         days_before: advancedForm.days_before !== '' ? Number(advancedForm.days_before) : null,
         days_after: advancedForm.days_after !== '' ? Number(advancedForm.days_after) : null,
+        delay_hours: advancedForm.delay_hours !== '' ? Number(advancedForm.delay_hours) : null,
         send_time: advancedForm.send_time || null,
         is_active: advancedForm.is_active,
       };
@@ -845,6 +863,7 @@ export default function RegrasPageClient() {
                           <div>
                             {regra?.days_before != null || preset.days_before != null ? `Dias antes: ${regra?.days_before ?? preset.days_before}` : ''}
                             {regra?.days_after != null || preset.days_after != null ? ` ${regra?.days_after ?? preset.days_after} dias depois` : ''}
+                            {regra?.delay_hours != null || preset.delay_hours != null ? ` Atraso: ${regra?.delay_hours ?? preset.delay_hours}h` : ''}
                           </div>
                         )}
                       </div>
@@ -994,6 +1013,7 @@ export default function RegrasPageClient() {
                           presetId: e.target.value,
                           days_before: preset?.days_before ?? '',
                           days_after: preset?.days_after ?? '',
+                          delay_hours: preset?.delay_hours ?? '',
                           send_time: preset?.send_time ?? '',
                         }));
                       }}
@@ -1057,7 +1077,7 @@ export default function RegrasPageClient() {
                   />
 
                   {presetSelecionado?.triggerType === 'scheduled' && (
-                    <div className="grid gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 md:grid-cols-3">
+                    <div className="grid gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 md:grid-cols-4">
                       <div>
                         <label className="mb-1 block text-xs font-bold uppercase tracking-[0.12em] text-amber-700">Dias antes</label>
                         <input
@@ -1082,6 +1102,16 @@ export default function RegrasPageClient() {
                           type="time"
                           value={quickForm.send_time}
                           onChange={(e) => setQuickForm((f) => ({ ...f, send_time: e.target.value }))}
+                          className="w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs font-bold uppercase tracking-[0.12em] text-amber-700">Atraso (horas)</label>
+                        <input
+                          type="number"
+                          min="1"
+                          value={quickForm.delay_hours}
+                          onChange={(e) => setQuickForm((f) => ({ ...f, delay_hours: e.target.value }))}
                           className="w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm"
                         />
                       </div>
@@ -1158,9 +1188,10 @@ export default function RegrasPageClient() {
                     </select>
                   </div>
 
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
                     <input type="number" placeholder="Dias antes" value={advancedForm.days_before} onChange={(e) => setAdvancedForm((f) => ({ ...f, days_before: e.target.value }))} className="rounded-2xl border border-slate-200 px-4 py-3 text-sm" />
                     <input type="number" placeholder="Dias depois" value={advancedForm.days_after} onChange={(e) => setAdvancedForm((f) => ({ ...f, days_after: e.target.value }))} className="rounded-2xl border border-slate-200 px-4 py-3 text-sm" />
+                    <input type="number" placeholder="Atraso (horas)" value={advancedForm.delay_hours} onChange={(e) => setAdvancedForm((f) => ({ ...f, delay_hours: e.target.value }))} className="rounded-2xl border border-slate-200 px-4 py-3 text-sm" />
                     <input type="time" value={advancedForm.send_time} onChange={(e) => setAdvancedForm((f) => ({ ...f, send_time: e.target.value }))} className="rounded-2xl border border-slate-200 px-4 py-3 text-sm" />
                   </div>
 

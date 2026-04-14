@@ -3079,355 +3079,17 @@ function SugestoesTab({
   momentFilter !== 'Todos';
 
 
-  const [songs, setSongs] = useState([
-    
-  {
-    id: '1',
-    title: 'A Thousand Years',
-    artist: 'Christina Perri',
-    genre: 'Romântico',
-    moment: 'Entrada',
-    youtubeId: 'rtOvBOTyX00',
-    thumbnailUrl: 'https://img.youtube.com/vi/rtOvBOTyX00/hqdefault.jpg',
-    description: 'Uma das músicas mais escolhidas para entrada da noiva.',
-    isFavorite: false,
-    isAdded: false,
-    featured: true,
-    tags: ['entrada', 'romantica', 'noiva'],
-  },
-  {
-    id: '2',
-    title: 'Perfect',
-    artist: 'Ed Sheeran',
-    genre: 'Pop',
-    moment: 'Entrada',
-    youtubeId: '2Vv-BfVoq4g',
-    thumbnailUrl: 'https://img.youtube.com/vi/2Vv-BfVoq4g/hqdefault.jpg',
-    description: 'Muito usada em versões acústicas e elegantes.',
-    isFavorite: true,
-    isAdded: false,
-    featured: true,
-    tags: ['entrada', 'romantica', 'pop'],
-  },
-  {
-    id: '3',
-    title: 'Canon in D',
-    artist: 'Pachelbel',
-    genre: 'Clássico',
-    moment: 'Cortejo',
-    youtubeId: 'NlprozGcs80',
-    thumbnailUrl: 'https://img.youtube.com/vi/NlprozGcs80/hqdefault.jpg',
-    description: 'Clássico muito presente em cerimônias elegantes.',
-    isFavorite: false,
-    isAdded: true,
-    featured: false,
-    tags: ['classico', 'cortejo', 'instrumental'],
-  },
-  {
-    id: '4',
-    title: 'Hallelujah',
-    artist: 'Instrumental',
-    genre: 'Instrumental',
-    moment: 'Cerimônia',
-    youtubeId: '0VqTwnAuHws',
-    thumbnailUrl: 'https://img.youtube.com/vi/0VqTwnAuHws/hqdefault.jpg',
-    description: 'Boa escolha para momentos emocionantes da cerimônia.',
-    isFavorite: false,
-    isAdded: false,
-    featured: true,
-    tags: ['cerimonia', 'emocionante', 'instrumental'],
-  },
-  {
-    id: '5',
-    title: 'All of Me',
-    artist: 'John Legend',
-    genre: 'Romântico',
-    moment: 'Saída',
-    youtubeId: '450p7goxZqg',
-    thumbnailUrl: 'https://img.youtube.com/vi/450p7goxZqg/hqdefault.jpg',
-    description: 'Muito escolhida para saída dos noivos.',
-    isFavorite: true,
-    isAdded: false,
-    featured: false,
-    tags: ['saida', 'romantica'],
-  },
-
- // GOSPEL CERIMÔNIA (VALIDADO)
-{
-  id: '100',
-  title: 'A Dois',
-  artist: 'Paulo César Baruk',
-  genre: 'Gospel',
-  moment: 'Cerimônia',
-  youtubeId: '_4LJTzAYGO4',
-  thumbnailUrl: 'https://img.youtube.com/vi/_4LJTzAYGO4/hqdefault.jpg',
-  description: 'Uma das mais usadas em casamentos cristãos no Brasil.',
-  isFavorite: false,
-  isAdded: false,
-  featured: true,
-  tags: ['gospel', 'casamento'],
-},
-{
-  id: '101',
-  title: 'Escolhi Te Esperar',
-  artist: 'Marcela Taís',
-  genre: 'Gospel',
-  moment: 'Cerimônia',
-  youtubeId: 'vZvtaen-bZY',
-  thumbnailUrl: 'https://img.youtube.com/vi/vZvtaen-bZY/hqdefault.jpg',
-  description: 'Muito conectada com propósito de relacionamento cristão.',
-  isFavorite: false,
-  isAdded: false,
-  featured: true,
-  tags: ['gospel', 'espera', 'casamento'],
-},
-{
-  id: '102',
-  title: 'Bondade de Deus',
-  artist: 'Isaias Saad',
-  genre: 'Gospel',
-  moment: 'Cerimônia',
-  youtubeId: 'mZ9yZYo9Mmk',
-  thumbnailUrl: 'https://img.youtube.com/vi/mZ9yZYo9Mmk/hqdefault.jpg',
-  description: 'Perfeita para momentos de gratidão e reverência.',
-  isFavorite: false,
-  isAdded: false,
-  featured: true,
-  tags: ['gospel', 'gratidao'],
-},
-{
-  id: '103',
-  title: 'Grande é o Senhor',
-  artist: 'Adhemar de Campos',
-  genre: 'Gospel',
-  moment: 'Cerimônia',
-  youtubeId: '4_rv9Jmgc78',
-  thumbnailUrl: 'https://img.youtube.com/vi/4_rv9Jmgc78/hqdefault.jpg',
-  description: 'Clássico muito usado em cerimônias cristãs.',
-  isFavorite: false,
-  isAdded: false,
-  featured: false,
-  tags: ['gospel', 'classico'],
-},
-{
-  id: '104',
-  title: 'Aleluia (Hallelujah)',
-  artist: 'Gabriela Rocha',
-  genre: 'Gospel',
-  moment: 'Cerimônia',
-  youtubeId: 'Ui1We7pUh9g',
-  thumbnailUrl: 'https://img.youtube.com/vi/Ui1We7pUh9g/hqdefault.jpg',
-  description: 'Versão gospel muito emocionante para cerimônias.',
-  isFavorite: false,
-  isAdded: false,
-  featured: true,
-  tags: ['gospel', 'emocionante'],
-},
-{
-  id: '105',
-  title: 'Meu Bem Querer',
-  artist: 'Sérgio Saas feat. Jennifer Rocha',
-  genre: 'Gospel',
-  moment: 'Cerimônia',
-  youtubeId: 'iI78MRnHR6Q',
-  thumbnailUrl: 'https://img.youtube.com/vi/iI78MRnHR6Q/hqdefault.jpg',
-  description: 'Romântica e muito usada em casamentos.',
-  isFavorite: false,
-  isAdded: false,
-  featured: false,
-  tags: ['gospel', 'romantico'],
-},
-{
-  id: '106',
-  title: 'Eu Te Vejo Em Tudo',
-  artist: 'Casa Worship',
-  genre: 'Gospel',
-  moment: 'Cerimônia',
-  youtubeId: 'SewS-INhP40',
-  thumbnailUrl: 'https://img.youtube.com/vi/SewS-INhP40/hqdefault.jpg',
-  description: 'Muito usada em casamentos cristãos mais modernos.',
-  isFavorite: false,
-  isAdded: false,
-  featured: true,
-  tags: ['gospel', 'moderno'],
-},
-{
-  id: '107',
-  title: 'Eu e Minha Casa',
-  artist: 'Julliany Souza & Léo Brandão',
-  genre: 'Gospel',
-  moment: 'Cerimônia',
-  youtubeId: 'BkJu5Qj6gpY',
-  thumbnailUrl: 'https://img.youtube.com/vi/BkJu5Qj6gpY/hqdefault.jpg',
-  description: 'Música muito alinhada com casamento e família cristã.',
-  isFavorite: false,
-  isAdded: false,
-  featured: true,
-  tags: ['gospel', 'familia'],
-},
-{
-  id: '108',
-  title: 'Eu Te Agradeço',
-  artist: 'Preto no Branco',
-  genre: 'Gospel',
-  moment: 'Cerimônia',
-  youtubeId: 'eiJ-9wg5W9g',
-  thumbnailUrl: 'https://img.youtube.com/vi/eiJ-9wg5W9g/hqdefault.jpg',
-  description: 'Ótima para momentos de gratidão no casamento.',
-  isFavorite: false,
-  isAdded: false,
-  featured: false,
-  tags: ['gospel', 'gratidao'],
-},
-{
-  id: '109',
-  title: 'Deus de Promessas',
-  artist: 'Davi Sacer',
-  genre: 'Gospel',
-  moment: 'Cerimônia',
-  youtubeId: '03QIkzzom1s',
-  thumbnailUrl: 'https://img.youtube.com/vi/03QIkzzom1s/hqdefault.jpg',
-  description: 'Clássica e muito forte em cerimônias cristãs.',
-  isFavorite: false,
-  isAdded: false,
-  featured: true,
-  tags: ['gospel', 'classico'],
-},
-{
-  id: '110',
-  title: 'Vai Ser Tão Lindo',
-  artist: 'Pedro Henrique',
-  genre: 'Gospel',
-  moment: 'Cerimônia',
-  youtubeId: 'C4gWwh_b3X8',
-  thumbnailUrl: 'https://img.youtube.com/vi/C4gWwh_b3X8/hqdefault.jpg',
-  description: 'Muito emocionante e atual para casamentos cristãos.',
-  isFavorite: false,
-  isAdded: false,
-  featured: true,
-  tags: ['gospel', 'emocionante'],
-},
-{
-  id: '111',
-  title: 'Seremos Um',
-  artist: 'Mariana Aguiar',
-  genre: 'Gospel',
-  moment: 'Cerimônia',
-  youtubeId: 'JwANpK-MWhk',
-  thumbnailUrl: 'https://img.youtube.com/vi/JwANpK-MWhk/hqdefault.jpg',
-  description: 'Fala diretamente sobre união e casamento.',
-  isFavorite: false,
-  isAdded: false,
-  featured: true,
-  tags: ['gospel', 'casamento'],
-},
-{
-  id: '112',
-  title: 'Que Bom Que Você Chegou',
-  artist: 'Bruna Karla',
-  genre: 'Gospel',
-  moment: 'Cerimônia',
-  youtubeId: 'Ht9V_g4O6uQ',
-  thumbnailUrl: 'https://img.youtube.com/vi/Ht9V_g4O6uQ/hqdefault.jpg',
-  description: 'Uma das mais usadas em casamento gospel no Brasil.',
-  isFavorite: false,
-  isAdded: false,
-  featured: true,
-  tags: ['gospel', 'casamento'],
-},
-{
-  id: '113',
-  title: 'Amar Você (Quando o Amor Toca o Coração)',
-  artist: 'Fernanda Brum',
-  genre: 'Gospel',
-  moment: 'Cerimônia',
-  youtubeId: 'A_jUny7lrWg',
-  thumbnailUrl: 'https://img.youtube.com/vi/A_jUny7lrWg/hqdefault.jpg',
-  description: 'Clássica e extremamente conhecida em casamentos cristãos.',
-  isFavorite: false,
-  isAdded: false,
-  featured: true,
-  tags: ['gospel', 'classico', 'romantico'],
-},
-{
-  id: '114',
-  title: 'Desde o Primeiro Momento',
-  artist: 'Pamela',
-  genre: 'Gospel',
-  moment: 'Cerimônia',
-  youtubeId: 'Kfn01PEANxw',
-  thumbnailUrl: 'https://img.youtube.com/vi/Kfn01PEANxw/hqdefault.jpg',
-  description: 'Muito usada em cerimônias cristãs com proposta romântica.',
-  isFavorite: false,
-  isAdded: false,
-  featured: false,
-  tags: ['gospel', 'romantico'],
-},
-
-// GOSPEL MODERNO (VALIDADO)
-{
-  id: '120',
-  title: 'Eles Se Amam',
-  artist: 'Vocal Livre',
-  genre: 'Gospel',
-  moment: 'Cerimônia',
-  youtubeId: 'SxJGXR9cHgs',
-  thumbnailUrl: 'https://img.youtube.com/vi/SxJGXR9cHgs/hqdefault.jpg',
-  description: 'Muito usada em cerimônias modernas e emocionantes.',
-  isFavorite: false,
-  isAdded: false,
-  featured: true,
-  tags: ['gospel', 'casamento', 'emocionante'],
-},
-{
-  id: '121',
-  title: 'De Olhos Abertos',
-  artist: 'Pedro Valença',
-  genre: 'Gospel',
-  moment: 'Cerimônia',
-  youtubeId: 'ZRaAdudCcfM',
-  thumbnailUrl: 'https://img.youtube.com/vi/ZRaAdudCcfM/hqdefault.jpg',
-  description: 'Muito sensível e usada em momentos centrais da cerimônia.',
-  isFavorite: false,
-  isAdded: false,
-  featured: true,
-  tags: ['gospel', 'moderno'],
-},
-{
-  id: '122',
-  title: 'Tantos Mares',
-  artist: 'Pedro Valença e Gabriella Stehling',
-  genre: 'Gospel',
-  moment: 'Cerimônia',
-  youtubeId: 'ebFgUXAKAzc',
-  thumbnailUrl: 'https://img.youtube.com/vi/ebFgUXAKAzc/hqdefault.jpg',
-  description: 'Muito usada em casamentos com proposta mais intimista.',
-  isFavorite: false,
-  isAdded: false,
-  featured: true,
-  tags: ['gospel', 'romantico', 'moderno'],
-},
-{
-  id: '123',
-  title: 'Nós Dois',
-  artist: 'Pedro Valença',
-  genre: 'Gospel',
-  moment: 'Cerimônia',
-  youtubeId: 'l7e_NxisJ5E',
-  thumbnailUrl: 'https://img.youtube.com/vi/l7e_NxisJ5E/hqdefault.jpg',
-  description: 'Muito forte pra casamento, fala diretamente sobre união.',
-  isFavorite: false,
-  isAdded: false,
-  featured: true,
-  tags: ['gospel', 'casamento', 'romantico'],
-},
-]);
+  const [songs, setSongs] = useState([]);
+  const [isLoadingSongs, setIsLoadingSongs] = useState(true);
+  const [songsError, setSongsError] = useState('');
 
   useEffect(() => {
     let isMounted = true;
 
     async function loadSuggestionSongs() {
       try {
+        setIsLoadingSongs(true);
+        setSongsError('');
         const response = await fetch('/api/suggestions/songs', { cache: 'no-store' });
         if (!response.ok) throw new Error('Falha ao carregar catálogo de sugestões.');
 
@@ -3438,11 +3100,21 @@ function SugestoesTab({
               .filter(Boolean)
           : [];
 
-        if (isMounted && catalogSongs.length > 0) {
+        if (isMounted) {
           setSongs(catalogSongs);
         }
       } catch (error) {
         console.error('[SUGESTOES] não foi possível carregar catálogo editorial:', error);
+        if (isMounted) {
+          setSongs([]);
+          setSongsError(
+            'Não conseguimos carregar as sugestões agora. Tente novamente em instantes.'
+          );
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoadingSongs(false);
+        }
       }
     }
 
@@ -3593,7 +3265,6 @@ function getPriorityScore(song) {
   })
   .sort((a, b) => getPriorityScore(b) - getPriorityScore(a));
 
-  const featuredSongs = hydratedSongs.filter((song) => song.featured);
 const brideEntranceSongs = hydratedSongs.filter((song) => song.moment === 'Entrada');
 const ceremonySongs = hydratedSongs.filter((song) => song.moment === 'Cerimônia');
 const gospelSongs = hydratedSongs.filter((song) =>
@@ -3666,6 +3337,41 @@ const gospelEntranceSongs = hydratedSongs.filter(
           onChange={setMomentFilter}
         />
       </SectionCard>
+
+      {isLoadingSongs ? (
+        <SectionCard className="overflow-hidden">
+          <div className="relative">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,#ede9fe_0%,transparent_60%)] opacity-70" />
+            <div className="relative">
+              <div className="text-[18px] font-black text-[#241a14]">Carregando catálogo</div>
+              <div className="mt-1 text-[13px] leading-5 text-[#7a6a5e]">
+                Buscando sugestões oficiais para o seu evento.
+              </div>
+              <div className="mt-5 space-y-3">
+                <div className="h-20 animate-pulse rounded-[18px] bg-[#f5efe9]" />
+                <div className="h-20 animate-pulse rounded-[18px] bg-[#f5efe9]" />
+                <div className="h-20 animate-pulse rounded-[18px] bg-[#f5efe9]" />
+              </div>
+            </div>
+          </div>
+        </SectionCard>
+      ) : songsError ? (
+        <SectionCard className="border-[#f5d0d6] bg-[#fff7f8]">
+          <div className="text-[28px]">⚠️</div>
+          <div className="mt-3 text-[20px] font-black text-[#7f1d1d]">Falha ao carregar sugestões</div>
+          <div className="mt-2 text-[14px] leading-6 text-[#7a3b3b]">{songsError}</div>
+        </SectionCard>
+      ) : songs.length === 0 ? (
+        <SectionCard className="overflow-hidden border-[#e8dcff] bg-[linear-gradient(160deg,#ffffff_0%,#faf5ff_100%)]">
+          <div className="text-[30px]">🎼</div>
+          <div className="mt-3 text-[20px] font-black text-[#241a14]">Catálogo em atualização</div>
+          <div className="mt-2 text-[14px] leading-6 text-[#6f5d51]">
+            Ainda não existem músicas publicadas para este painel. Assim que a curadoria liberar novas
+            faixas, elas aparecerão aqui automaticamente.
+          </div>
+        </SectionCard>
+      ) : (
+        <>
      {!hasActiveFilters && (
   <>
     {favoriteSongs.length > 0 && (
@@ -3868,6 +3574,8 @@ const gospelEntranceSongs = hydratedSongs.filter(
     )}
   </div>
 </SectionCard>
+        </>
+      )}
 
       <MiniMusicPlayer
         current={currentSong}

@@ -47,14 +47,14 @@ function RadarCard({ item, value }) {
 
   return (
     <div
-      className={`relative overflow-hidden rounded-[24px] border px-5 py-5 shadow-[0_10px_24px_rgba(17,24,39,0.04)] ${item.tone}`}
+      className={`relative min-w-0 rounded-[24px] border px-5 py-5 shadow-[0_10px_24px_rgba(17,24,39,0.04)] ${item.tone}`}
     >
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.45),transparent_34%)]" />
 
-      <div className="relative z-10 flex h-full flex-col gap-5">
+      <div className="relative z-10 flex h-full min-w-0 flex-col gap-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <div className="text-[12px] font-black uppercase tracking-[0.1em] opacity-80">
+            <div className="break-words text-[12px] font-black uppercase tracking-[0.1em] opacity-80">
               {item.title}
             </div>
           </div>
@@ -72,18 +72,18 @@ function RadarCard({ item, value }) {
           {value}
         </div>
 
-        <div className="max-w-[28rem] text-[13px] font-semibold leading-6 opacity-80">
+        <div className="min-w-0 max-w-[28rem] whitespace-normal break-words text-[13px] font-semibold leading-6 opacity-80 line-clamp-3">
           {item.helper}
         </div>
 
-        <div className="mt-auto flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="text-[12px] font-black uppercase tracking-[0.08em] text-[#475569]">
+        <div className="mt-auto flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+          <div className="min-w-0 break-words text-[12px] font-black uppercase tracking-[0.08em] text-[#475569]">
             {isZero ? 'Sem pendências agora' : 'Requer acompanhamento'}
           </div>
 
           <Link
             href={item.href}
-            className="inline-flex w-full items-center justify-center rounded-[16px] bg-white/90 px-4 py-3 text-[12px] font-black text-[#0f172a] shadow-[0_8px_18px_rgba(17,24,39,0.05)] transition hover:bg-white sm:w-auto"
+            className="inline-flex w-full min-w-[132px] shrink-0 items-center justify-center whitespace-nowrap rounded-[16px] bg-white/90 px-4 py-3 text-[12px] font-black text-[#0f172a] shadow-[0_8px_18px_rgba(17,24,39,0.05)] transition hover:bg-white sm:w-auto"
           >
             Ver detalhes
           </Link>

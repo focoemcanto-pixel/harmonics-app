@@ -44,40 +44,54 @@ const STYLE_VARIATIONS = [
 ];
 
 function getTestimonialLayout(text, formatId) {
-  const length = (text || '').trim().length;
-  const isStory = formatId === 'story';
-  const isVertical = formatId === 'vertical';
+  const baseText = (text || '').trim();
+  const length = baseText.length;
 
-  const formatCaps = isStory ? { short: 160, medium: 230, long: 300 } : isVertical ? { short: 130, medium: 190, long: 250 } : { short: 110, medium: 165, long: 220 };
-  const maxChars = length <= 120 ? formatCaps.short : length <= 220 ? formatCaps.medium : formatCaps.long;
+  const tier = length <= 130 ? 'short' : length <= 240 ? 'medium' : 'long';
 
-  const clippedText = length > maxChars ? `${text.slice(0, maxChars - 1).trimEnd()}…` : text;
-
-  const tier = length <= 120 ? 'short' : length <= 220 ? 'medium' : 'long';
-
-  const settingsByFormat = {
+  const config = {
     story: {
-      short: { textClass: 'text-[52px] leading-[1.24]', maxWidth: '83%', lineClamp: 7, quoteClass: 'text-[108px]' },
-      medium: { textClass: 'text-[45px] leading-[1.25]', maxWidth: '86%', lineClamp: 8, quoteClass: 'text-[100px]' },
-      long: { textClass: 'text-[39px] leading-[1.28]', maxWidth: '88%', lineClamp: 9, quoteClass: 'text-[92px]' },
-    },
-    vertical: {
-      short: { textClass: 'text-[46px] leading-[1.23]', maxWidth: '82%', lineClamp: 6, quoteClass: 'text-[96px]' },
-      medium: { textClass: 'text-[40px] leading-[1.25]', maxWidth: '85%', lineClamp: 7, quoteClass: 'text-[88px]' },
-      long: { textClass: 'text-[34px] leading-[1.27]', maxWidth: '87%', lineClamp: 8, quoteClass: 'text-[82px]' },
+      short: { maxChars: 140, fontSize: 78, lineHeight: 1.16, maxWidth: '74%', lineClamp: 5, quoteSize: 138 },
+      medium: { maxChars: 185, fontSize: 66, lineHeight: 1.18, maxWidth: '78%', lineClamp: 6, quoteSize: 124 },
+      long: { maxChars: 220, fontSize: 58, lineHeight: 1.2, maxWidth: '82%', lineClamp: 6, quoteSize: 118 },
     },
     square: {
-      short: { textClass: 'text-[43px] leading-[1.22]', maxWidth: '78%', lineClamp: 5, quoteClass: 'text-[90px]' },
-      medium: { textClass: 'text-[36px] leading-[1.25]', maxWidth: '82%', lineClamp: 6, quoteClass: 'text-[82px]' },
-      long: { textClass: 'text-[31px] leading-[1.27]', maxWidth: '86%', lineClamp: 7, quoteClass: 'text-[74px]' },
+      short: { maxChars: 120, fontSize: 62, lineHeight: 1.16, maxWidth: '74%', lineClamp: 4, quoteSize: 112 },
+      medium: { maxChars: 150, fontSize: 53, lineHeight: 1.2, maxWidth: '78%', lineClamp: 5, quoteSize: 104 },
+      long: { maxChars: 180, fontSize: 47, lineHeight: 1.22, maxWidth: '82%', lineClamp: 5, quoteSize: 96 },
+    },
+    vertical: {
+      short: { maxChars: 145, fontSize: 66, lineHeight: 1.16, maxWidth: '75%', lineClamp: 5, quoteSize: 124 },
+      medium: { maxChars: 195, fontSize: 58, lineHeight: 1.19, maxWidth: '79%', lineClamp: 6, quoteSize: 116 },
+      long: { maxChars: 230, fontSize: 50, lineHeight: 1.22, maxWidth: '84%', lineClamp: 6, quoteSize: 108 },
     },
   };
 
+  const selected = config[formatId]?.[tier] || config.square.medium;
+  const clippedText =
+    baseText.length > selected.maxChars
+      ? `${baseText.slice(0, selected.maxChars - 1).trimEnd()}…`
+      : baseText;
+
   return {
+    ...selected,
+    tier,
     clippedText,
-    ...settingsByFormat[formatId][tier],
   };
 }
+
+const ART_PALETTE = {
+  backgroundA: '#5b2acc',
+  backgroundB: '#7d27d6',
+  backgroundC: '#d335ae',
+  panel: 'rgba(255,255,255,0.1)',
+  panelBorder: 'rgba(255,255,255,0.22)',
+  whiteSoft: 'rgba(255,255,255,0.85)',
+  whiteMeta: 'rgba(255,255,255,0.7)',
+  whiteMuted: 'rgba(255,255,255,0.5)',
+  starOn: '#ffd166',
+  starOff: 'rgba(255,255,255,0.28)',
+};
 
 function TestimonialArt({
   item,
@@ -94,76 +108,152 @@ function TestimonialArt({
   const textStyle = styleId === 'texto';
   const starsStyle = styleId === 'estrelas';
   const textLayout = getTestimonialLayout(testimonial, format.id);
-  const signatureSize = isStory ? 'text-[25px]' : format.id === 'vertical' ? 'text-[22px]' : 'text-[20px]';
-  const metaSize = isStory ? 'text-[17px]' : 'text-[15px]';
-  const brandSize = isStory ? 'text-[13px]' : 'text-[12px]';
-  const starsSize = isStory ? 'text-[50px]' : format.id === 'vertical' ? 'text-[43px]' : 'text-[38px]';
+  const signatureSize = isStory ? 44 : format.id === 'vertical' ? 38 : 34;
+  const metaSize = isStory ? 24 : format.id === 'vertical' ? 21 : 19;
+  const badgeSize = isStory ? 22 : 18;
+  const starsSize = isStory ? 68 : format.id === 'vertical' ? 60 : 54;
 
   return (
     <div
       id={exportId}
-      className={classNames(
-        'relative mx-auto overflow-hidden rounded-[32px] border border-white/20',
-        'bg-gradient-to-br from-violet-700 via-purple-700 to-fuchsia-700 text-white shadow-2xl',
-        compact ? 'w-full' : ''
-      )}
+      className={compact ? 'w-full' : ''}
       style={{
+        position: 'relative',
+        margin: '0 auto',
+        overflow: 'hidden',
+        borderRadius: 36,
+        border: '1px solid rgba(255,255,255,0.28)',
+        background: `linear-gradient(145deg, ${ART_PALETTE.backgroundA} 0%, ${ART_PALETTE.backgroundB} 52%, ${ART_PALETTE.backgroundC} 100%)`,
+        boxShadow: '0 35px 80px rgba(31, 24, 64, 0.45)',
+        color: '#ffffff',
         width: compact ? '100%' : `${format.width}px`,
         aspectRatio: `${format.width}/${format.height}`,
       }}
     >
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.3),transparent_42%),radial-gradient(circle_at_bottom_left,rgba(196,181,253,0.4),transparent_50%)]" />
-      <div className="absolute inset-0 backdrop-blur-[1px]" />
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'absolute',
+          inset: 0,
+          background:
+            'radial-gradient(circle at 20% 12%, rgba(255,255,255,0.26), rgba(255,255,255,0) 34%), radial-gradient(circle at 88% 85%, rgba(188,151,255,0.36), rgba(188,151,255,0) 35%)',
+        }}
+      />
 
-      <div className={classNames('relative flex h-full flex-col px-[8%] pb-[7%] pt-[7%]', isStory ? 'justify-between' : 'justify-between')}>
-        <div className="flex items-center justify-between">
-          <span className={classNames('rounded-full border border-white/25 bg-white/12 px-3.5 py-1 text-white/90', brandSize, 'font-semibold tracking-[0.08em] uppercase')}>
+      <div
+        style={{
+          position: 'relative',
+          zIndex: 2,
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          height: '100%',
+          padding: '7.5% 8%',
+          gap: '2.5%',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span
+            style={{
+              borderRadius: 999,
+              border: `1px solid ${ART_PALETTE.panelBorder}`,
+              background: ART_PALETTE.panel,
+              padding: '9px 20px',
+              fontSize: badgeSize,
+              letterSpacing: '0.1em',
+              textTransform: 'uppercase',
+              fontWeight: 700,
+              color: ART_PALETTE.whiteSoft,
+            }}
+          >
             Recomendado
           </span>
-          <span className={classNames('rounded-full border border-white/20 bg-black/20 px-3 py-1 font-semibold text-white/80', brandSize)}>
+          <span
+            style={{
+              borderRadius: 999,
+              border: `1px solid ${ART_PALETTE.panelBorder}`,
+              background: 'rgba(13,9,40,0.28)',
+              padding: '8px 18px',
+              fontSize: badgeSize,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              fontWeight: 600,
+              color: ART_PALETTE.whiteMeta,
+            }}
+          >
             Harmonics
           </span>
         </div>
 
-        <div className="mt-4 flex flex-1 flex-col justify-center">
-          <p className={classNames(textLayout.quoteClass, 'font-black leading-[0.65] text-white/20')}>“</p>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
+          <p style={{ margin: 0, fontWeight: 900, fontSize: textLayout.quoteSize, lineHeight: 0.7, color: 'rgba(255,255,255,0.24)' }}>“</p>
           <p
-            className={classNames(
-              'mx-auto mt-2 text-center font-semibold tracking-tight text-white',
-              textLayout.textClass,
-              textStyle ? 'rounded-[24px] bg-white/10 px-7 py-5 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.18)]' : ''
-            )}
             style={{
+              margin: '8px auto 0',
               maxWidth: textLayout.maxWidth,
+              textAlign: 'center',
+              fontWeight: 650,
+              letterSpacing: '-0.015em',
+              fontSize: textLayout.fontSize,
+              lineHeight: textLayout.lineHeight,
               display: '-webkit-box',
               WebkitBoxOrient: 'vertical',
               WebkitLineClamp: textLayout.lineClamp,
               overflow: 'hidden',
               textWrap: 'pretty',
+              ...(textStyle
+                ? {
+                    borderRadius: 30,
+                    padding: '24px 30px',
+                    background: 'rgba(255,255,255,0.12)',
+                    border: '1px solid rgba(255,255,255,0.2)',
+                    boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.16)',
+                  }
+                : {}),
             }}
           >
             {textLayout.clippedText}
           </p>
         </div>
 
-        <div className="space-y-4 text-center">
+        <div style={{ textAlign: 'center', display: 'grid', gap: isStory ? 20 : 16 }}>
           <div
-            className={classNames(
-              'flex items-center justify-center gap-3',
-              starsStyle ? 'rounded-2xl bg-white/12 py-3 shadow-[0_12px_36px_rgba(17,24,39,0.3)]' : ''
-            )}
+            style={{
+              display: 'flex',
+              justifyContent: 'center',
+              gap: 10,
+              borderRadius: 22,
+              padding: starsStyle ? '14px 12px' : '0',
+              background: starsStyle ? 'rgba(255,255,255,0.12)' : 'transparent',
+              border: starsStyle ? '1px solid rgba(255,255,255,0.2)' : 'none',
+            }}
           >
             {stars.map((filled, index) => (
-              <span key={index} className={classNames('leading-none', starsStyle ? 'text-[54px]' : starsSize, filled ? 'text-amber-300' : 'text-white/30')}>
+              <span key={index} style={{ lineHeight: 1, fontSize: starsSize, color: filled ? ART_PALETTE.starOn : ART_PALETTE.starOff }}>
                 ★
               </span>
             ))}
           </div>
 
           <div>
-            <p className={classNames(signatureSize, 'font-semibold tracking-[0.04em] text-white/95')}>{coupleName}</p>
-            {eventName ? <p className={classNames('mt-1 text-white/75', metaSize)}>{eventName}</p> : null}
-            <p className={classNames('mt-2 font-medium uppercase tracking-[0.14em] text-white/55', metaSize)}>{formatDate(item?.submitted_at)}</p>
+            <p style={{ margin: 0, fontSize: signatureSize, fontWeight: 620, letterSpacing: '0.03em', color: ART_PALETTE.whiteSoft }}>
+              {coupleName}
+            </p>
+            {eventName ? (
+              <p style={{ margin: '8px 0 0', fontSize: metaSize, color: ART_PALETTE.whiteMeta }}>{eventName}</p>
+            ) : null}
+            <p
+              style={{
+                margin: '10px 0 0',
+                fontSize: metaSize,
+                fontWeight: 600,
+                color: ART_PALETTE.whiteMuted,
+                letterSpacing: '0.11em',
+                textTransform: 'uppercase',
+              }}
+            >
+              {formatDate(item?.submitted_at)}
+            </p>
           </div>
         </div>
       </div>
@@ -370,7 +460,19 @@ export default function AvaliacaoCard({ item }) {
                 </div>
 
                 <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 p-4 min-h-[420px]">
-                  <div className="pointer-events-none absolute -left-[9999px] top-0 h-0 w-0 overflow-hidden opacity-0" aria-hidden="true">
+                  <div
+                    className="pointer-events-none"
+                    aria-hidden="true"
+                    style={{
+                      position: 'fixed',
+                      left: '-10000px',
+                      top: 0,
+                      width: `${selectedFormat.width}px`,
+                      height: `${selectedFormat.height}px`,
+                      opacity: 0,
+                      overflow: 'hidden',
+                    }}
+                  >
                     <TestimonialArt
                       item={item}
                       coupleName={coupleName}

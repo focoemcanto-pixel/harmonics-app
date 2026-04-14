@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import SugestaoCard from '@/components/sugestoes/SugestaoCard';
 import SugestoesFilters from '@/components/sugestoes/SugestoesFilters';
 import ReferenceSearchInput from '@/components/repertorio/ReferenceSearchInput';
@@ -1427,29 +1428,136 @@ function SuggestoesTagsTab({ tags, loading }) {
   );
 }
 
-function SuggestoesColecoesTab({ collections, loading }) {
+
+function AutomaticCollectionCard({ collection }) {
+  const items = Array.isArray(collection?.items) ? collection.items : [];
+  const previewItems = items.slice(0, 3);
+  const cover = previewItems.find((item) => item?.thumbnail_url)?.thumbnail_url || '';
+
+  return (
+    <article className="overflow-hidden rounded-[22px] border border-violet-100 bg-[linear-gradient(160deg,#ffffff_0%,#f8f5ff_100%)] shadow-[0_10px_24px_rgba(76,29,149,0.06)]">
+      <div className="relative h-36 bg-[#ede9fe]">
+        {cover ? (
+          <Image
+            src={cover}
+            alt={collection?.name || 'Coleção automática'}
+            fill
+            sizes="(max-width: 1024px) 100vw, 33vw"
+            className="object-cover"
+          />
+        ) : (
+          <div className="flex h-full items-center justify-center text-[12px] font-black uppercase tracking-[0.08em] text-violet-700">
+            Sem thumb disponível
+          </div>
+        )}
+
+        <div className="absolute left-3 top-3">
+          <Pill tone="violet">Automática</Pill>
+        </div>
+      </div>
+
+      <div className="space-y-3 p-4">
+        <header>
+          <h3 className="text-[17px] font-black text-[#0f172a]">{collection?.name || 'Coleção'}</h3>
+          <p className="mt-1 text-[13px] font-semibold text-[#64748b]">{collection?.total || 0} música(s)</p>
+        </header>
+
+        {previewItems.length ? (
+          <ul className="space-y-1.5">
+            {previewItems.map((item) => (
+              <li key={`${collection?.id}-${item?.id}`} className="line-clamp-1 text-[13px] font-semibold text-[#334155]">
+                {item?.title || 'Sem título'} · {item?.artist || 'Artista não informado'}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="rounded-[14px] border border-dashed border-violet-200 bg-violet-50 px-3 py-2 text-[12px] font-semibold text-violet-700">
+            Sem músicas suficientes para esta coleção no catálogo válido.
+          </p>
+        )}
+      </div>
+    </article>
+  );
+}
+
+function SuggestoesAutomaticCollectionsSection({ collections, loading }) {
   if (loading) {
-    return <SectionCard title="Carregando coleções" subtitle="Buscando coleções editoriais." />;
-  }
-  if (!collections.length) {
     return (
-      <EmptyState
-        title="Nenhuma coleção cadastrada ainda"
-        text="Vincule músicas em suggestion_collection_songs para organizar vitrines."
-      />
+      <SectionCard
+        eyebrow="Premium"
+        title="Coleções automáticas"
+        subtitle="Gerando vitrines inteligentes a partir do catálogo editorial válido."
+      >
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, index) => (
+            <div key={index} className="h-64 animate-pulse rounded-[22px] bg-violet-50" />
+          ))}
+        </div>
+      </SectionCard>
     );
   }
+
+  if (!collections.length) {
+    return (
+      <SectionCard
+        eyebrow="Premium"
+        title="Coleções automáticas"
+        subtitle="Gerando vitrines inteligentes a partir do catálogo editorial válido."
+      >
+        <EmptyState
+          title="Ainda não há coleções automáticas disponíveis"
+          text="Ative músicas editoriais (source_type admin/imported) para preencher as vitrines automáticas sem quebra de tela."
+        />
+      </SectionCard>
+    );
+  }
+
   return (
-    <SectionCard eyebrow="Organização" title="Coleções" subtitle="Coleções disponíveis para curadoria.">
-      <div className="grid gap-3 md:grid-cols-2">
+    <SectionCard
+      eyebrow="Premium"
+      title="Coleções automáticas"
+      subtitle="Vitrines inteligentes criadas por regra com preview das músicas."
+    >
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {collections.map((collection) => (
-          <div key={collection.id} className="rounded-[18px] border border-[#dbe3ef] bg-white p-4">
-            <div className="text-[16px] font-black text-[#0f172a]">{collection.name}</div>
-            <div className="text-[13px] font-semibold text-[#64748b]">slug: {collection.slug}</div>
-          </div>
+          <AutomaticCollectionCard key={collection.id} collection={collection} />
         ))}
       </div>
     </SectionCard>
+  );
+}
+
+function SuggestoesColecoesTab({ automaticCollections, manualCollections, loading }) {
+  if (loading) {
+    return <SectionCard title="Carregando coleções" subtitle="Buscando coleções editoriais." />;
+  }
+
+  return (
+    <div className="space-y-5">
+      <SuggestoesAutomaticCollectionsSection collections={automaticCollections} loading={loading} />
+
+      <SectionCard
+        eyebrow="Organização"
+        title="Coleções manuais"
+        subtitle="Coleções vinculadas em suggestion_collection_songs para curadoria manual."
+      >
+        {!manualCollections.length ? (
+          <EmptyState
+            title="Nenhuma coleção manual cadastrada ainda"
+            text="Vincule músicas em suggestion_collection_songs para organizar vitrines manuais."
+          />
+        ) : (
+          <div className="grid gap-3 md:grid-cols-2">
+            {manualCollections.map((collection) => (
+              <div key={collection.id} className="rounded-[18px] border border-[#dbe3ef] bg-white p-4">
+                <div className="text-[16px] font-black text-[#0f172a]">{collection.name}</div>
+                <div className="text-[13px] font-semibold text-[#64748b]">slug: {collection.slug}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </SectionCard>
+    </div>
   );
 }
 
@@ -1486,6 +1594,7 @@ const [savingMoment, setSavingMoment] = useState(false);
   const [moments, setMoments] = useState([]);
   const [tags, setTags] = useState([]);
   const [collections, setCollections] = useState([]);
+  const [automaticCollections, setAutomaticCollections] = useState([]);
   const [loading, setLoading] = useState(true);
   const [savingSong, setSavingSong] = useState(false);
   const [enrichingCatalog, setEnrichingCatalog] = useState(false);
@@ -1535,20 +1644,22 @@ const [savingMoment, setSavingMoment] = useState(false);
     setError('');
     setSongsLoadFailed(false);
 
-    const [songsResponse, genresResponse, momentsResponse, clientPanelResponse, repertoireResponse] = await Promise.all([
+    const [songsResponse, genresResponse, momentsResponse, clientPanelResponse, repertoireResponse, automaticCollectionsResponse] = await Promise.all([
       fetch('/api/suggestions/songs?scope=admin-editorial', { cache: 'no-store' }),
       fetch('/api/suggestions/genres', { cache: 'no-store' }),
       fetch('/api/suggestions/moments', { cache: 'no-store' }),
       fetch('/api/admin/suggestions/client-panel-songs', { cache: 'no-store' }),
       fetch('/api/admin/suggestions/repertoire-songs', { cache: 'no-store' }),
+      fetch('/api/suggestions/collections/automatic', { cache: 'no-store' }),
     ]);
 
-    const [songsData, genresData, momentsData, clientPanelData, repertoireData] = await Promise.all([
+    const [songsData, genresData, momentsData, clientPanelData, repertoireData, automaticCollectionsData] = await Promise.all([
       songsResponse.json().catch(() => ({})),
       genresResponse.json().catch(() => ({})),
       momentsResponse.json().catch(() => ({})),
       clientPanelResponse.json().catch(() => ({})),
       repertoireResponse.json().catch(() => ({})),
+      automaticCollectionsResponse.json().catch(() => ({})),
     ]);
 
 
@@ -1558,6 +1669,7 @@ const [savingMoment, setSavingMoment] = useState(false);
       momentsStatus: momentsResponse.status,
       clientPanelStatus: clientPanelResponse.status,
       repertoireStatus: repertoireResponse.status,
+      automaticCollectionsStatus: automaticCollectionsResponse.status,
     });
 
     const songsList = songsResponse.ok && Array.isArray(songsData?.songs)
@@ -1567,6 +1679,9 @@ const [savingMoment, setSavingMoment] = useState(false);
     const momentsList = momentsResponse.ok && Array.isArray(momentsData?.moments) ? momentsData.moments : [];
     const clientPanelList = clientPanelResponse.ok && Array.isArray(clientPanelData?.songs) ? clientPanelData.songs : [];
     const repertoireList = repertoireResponse.ok && Array.isArray(repertoireData?.songs) ? repertoireData.songs : [];
+    const automaticCollectionsList = automaticCollectionsResponse.ok && Array.isArray(automaticCollectionsData?.collections)
+      ? automaticCollectionsData.collections
+      : [];
 
     const loadErrors = [];
     if (!songsResponse.ok) {
@@ -1581,6 +1696,7 @@ const [savingMoment, setSavingMoment] = useState(false);
     if (!momentsResponse.ok) loadErrors.push(momentsData?.error || 'Não foi possível carregar a lista de momentos.');
     if (!clientPanelResponse.ok) loadErrors.push(clientPanelData?.error || 'Não foi possível carregar as sugestões do cliente.');
     if (!repertoireResponse.ok) loadErrors.push(repertoireData?.error || 'Não foi possível carregar as músicas vindas de repertórios.');
+    if (!automaticCollectionsResponse.ok) loadErrors.push(automaticCollectionsData?.error || 'Não foi possível carregar as coleções automáticas.');
     if (loadErrors.length) {
       setError(loadErrors.join(' | '));
     }
@@ -1590,6 +1706,7 @@ const [savingMoment, setSavingMoment] = useState(false);
     setMoments(momentsList);
     setClientPanelSongs(clientPanelList);
     setRepertoireSongs(repertoireList);
+    setAutomaticCollections(automaticCollectionsList);
 
     const tagsMap = new Map();
     const collectionsMap = new Map();
@@ -1618,6 +1735,7 @@ const [savingMoment, setSavingMoment] = useState(false);
       moments: momentsList.length,
       clientPanelSongs: clientPanelList.length,
       repertoireSongs: repertoireList.length,
+      automaticCollections: automaticCollectionsList.length,
     });
   } catch (err) {
     console.error('[sugestoes] error', err);
@@ -2089,7 +2207,12 @@ const [savingMoment, setSavingMoment] = useState(false);
         </div>
       </div>
 
-      {activeTab === 'resumo' && <SuggestoesResumoTab songs={songs} />}
+      {activeTab === 'resumo' && (
+        <div className="space-y-5">
+          <SuggestoesResumoTab songs={songs} />
+          <SuggestoesAutomaticCollectionsSection collections={automaticCollections} loading={loading} />
+        </div>
+      )}
 
       {activeTab === 'biblioteca' && (
         <SuggestoesBibliotecaTab
@@ -2189,7 +2312,11 @@ const [savingMoment, setSavingMoment] = useState(false);
       )}
 
       {activeTab === 'colecoes' && (
-        <SuggestoesColecoesTab collections={collections} loading={loading} />
+        <SuggestoesColecoesTab
+          automaticCollections={automaticCollections}
+          manualCollections={collections}
+          loading={loading}
+        />
       )}
 
       {activeTab === 'qualidade' && (

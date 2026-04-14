@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { fetchClientSuggestionsCatalog } from '@/lib/sugestoes/client-suggestions-catalog';
 
 function normalizeText(value) {
   const text = String(value || '').trim();
@@ -21,28 +20,53 @@ export async function GET() {
     const supabase = getSupabaseAdmin();
     const catalogSongs = await fetchClientSuggestionsCatalog(supabase);
 
-    const songs = catalogSongs.map((song, index) => {
-      const key = buildSongKey({
-        title: song?.title,
-        artist: song?.artist,
-        youtubeId: song?.youtube_id,
-      });
+    const { data: clientPanelRows, error: clientPanelError } = await supabase
+      .from('suggestion_songs')
+      .select(`
+        id,
+        title,
+        artist,
+        youtube_id,
+        youtube_url,
+        thumbnail_url,
+        genre:suggestion_genres(name),
+        moment:suggestion_moments(name),
+        source_type,
+        is_active,
+        sort_order,
+        created_at
+      `)
+      .or('source_type.eq.admin,source_type.is.null')
+      .eq('is_active', true)
+      .order('sort_order', { ascending: true })
+      .order('created_at', { ascending: false });
 
-      return {
-        key: song?.id ? `client:${song.id}` : `client-index:${index}`,
-        source_key: key,
-        title: normalizeText(song?.title),
-        artist: normalizeText(song?.artist),
-        genre: normalizeText(song?.genre?.name) || null,
-        moment: normalizeText(song?.moment?.name) || null,
-        youtube_id: normalizeText(song?.youtube_id) || null,
-        youtube_url: normalizeText(song?.youtube_url) || null,
-        thumbnail_url: normalizeText(song?.thumbnail_url) || null,
-        already_in_catalog: Boolean(song?.id),
-        catalog_song_id: song?.id || null,
-        catalog_source_type: song?.source_type || null,
-      };
-    });
+    if (clientPanelError) throw clientPanelError;
+
+    const songs = (clientPanelRows || [])
+      .map((song, index) => {
+        const key = buildSongKey({
+          title: song?.title,
+          artist: song?.artist,
+          youtubeId: song?.youtube_id,
+        });
+
+        return {
+          key: song?.id ? `client-panel:${song.id}` : `client-panel-index:${index}`,
+          source_key: key,
+          title: normalizeText(song?.title),
+          artist: normalizeText(song?.artist),
+          genre: normalizeText(song?.genre?.name) || null,
+          moment: normalizeText(song?.moment?.name) || null,
+          youtube_id: normalizeText(song?.youtube_id) || null,
+          youtube_url: normalizeText(song?.youtube_url) || null,
+          thumbnail_url: normalizeText(song?.thumbnail_url) || null,
+          already_in_catalog: true,
+          catalog_song_id: song?.id || null,
+          catalog_source_type: song?.source_type || 'admin',
+        };
+      })
+      .filter((song) => song.title);
 
     return NextResponse.json({ ok: true, songs });
   } catch (error) {

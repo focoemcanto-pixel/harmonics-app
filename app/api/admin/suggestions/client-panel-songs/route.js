@@ -18,6 +18,7 @@ function buildSongKey({ title = '', artist = '', youtubeId = '' }) {
 export async function GET() {
   try {
     const supabase = getSupabaseAdmin();
+    const catalogSongs = await fetchClientSuggestionsCatalog(supabase);
 
     const { data: clientPanelRows, error: clientPanelError } = await supabase
       .from('suggestion_songs')

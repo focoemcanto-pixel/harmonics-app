@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '../../../../lib/supabase-admin';
+import { fetchClientSuggestionsCatalog } from '@/lib/sugestoes/client-suggestions-catalog';
 
 function normalizeYoutubeId(value) {
   const input = String(value || '').trim();
@@ -130,69 +131,11 @@ async function replaceSongCollections(supabase, songId, collectionIds = []) {
   if (insertError) throw insertError;
 }
 
-async function fetchSongs(supabase) {
-  const sourceFilter = 'source_type.eq.admin,source_type.is.null';
-  console.info('[sugestoes] songs query', {
-    table: 'public.suggestion_songs',
-    sourceFilter,
-    dataOrigin: 'editorial_catalog_only',
-  });
-
-  const { data, error } = await supabase
-    .from('suggestion_songs')
-    .select(`
-      id,
-      title,
-      artist,
-      genre_id,
-      moment_id,
-      youtube_url,
-      youtube_id,
-      thumbnail_url,
-      description,
-      event_types,
-      moments,
-      styles,
-      moods,
-      priority_score,
-      is_recommended,
-      usage_count,
-      is_featured,
-      is_active,
-      source_type,
-      sort_order,
-      created_at,
-      updated_at,
-      genre:suggestion_genres(id, name, slug, is_active, sort_order),
-      moment:suggestion_moments(id, name, slug, is_active, sort_order),
-      song_tags:suggestion_song_tags(
-        id,
-        tag:suggestion_tags(id, name, slug, is_active)
-      ),
-      collection_links:suggestion_collection_songs(
-        id,
-        sort_order,
-        collection:suggestion_collections(id, name, slug, is_active, sort_order)
-      )
-    `)
-    .order('sort_order', { ascending: true })
-    .or(sourceFilter)
-    .order('created_at', { ascending: false });
-
-  if (error) throw error;
-  console.info('[sugestoes] songs query result', {
-    count: (data || []).length,
-    table: 'public.suggestion_songs',
-    dataOrigin: 'editorial_catalog_only',
-  });
-  return data || [];
-}
-
 export async function GET() {
   try {
     console.info('[sugestoes] load start songs');
     const supabase = getSupabaseAdmin();
-    const songs = await fetchSongs(supabase);
+    const songs = await fetchClientSuggestionsCatalog(supabase);
 
     console.info('[sugestoes] data loaded songs', { count: songs.length });
 
@@ -259,7 +202,7 @@ export async function POST(request) {
       body?.collection_ids || []
     );
 
-    const songs = await fetchSongs(supabase);
+    const songs = await fetchClientSuggestionsCatalog(supabase);
     const song = songs.find((item) => item.id === inserted.id) || null;
 
     return NextResponse.json({

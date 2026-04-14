@@ -43,6 +43,42 @@ const STYLE_VARIATIONS = [
   { id: 'estrelas', label: 'Destaque nas estrelas' },
 ];
 
+function getTestimonialLayout(text, formatId) {
+  const length = (text || '').trim().length;
+  const isStory = formatId === 'story';
+  const isVertical = formatId === 'vertical';
+
+  const formatCaps = isStory ? { short: 160, medium: 230, long: 300 } : isVertical ? { short: 130, medium: 190, long: 250 } : { short: 110, medium: 165, long: 220 };
+  const maxChars = length <= 120 ? formatCaps.short : length <= 220 ? formatCaps.medium : formatCaps.long;
+
+  const clippedText = length > maxChars ? `${text.slice(0, maxChars - 1).trimEnd()}…` : text;
+
+  const tier = length <= 120 ? 'short' : length <= 220 ? 'medium' : 'long';
+
+  const settingsByFormat = {
+    story: {
+      short: { textClass: 'text-[52px] leading-[1.24]', maxWidth: '83%', lineClamp: 7, quoteClass: 'text-[108px]' },
+      medium: { textClass: 'text-[45px] leading-[1.25]', maxWidth: '86%', lineClamp: 8, quoteClass: 'text-[100px]' },
+      long: { textClass: 'text-[39px] leading-[1.28]', maxWidth: '88%', lineClamp: 9, quoteClass: 'text-[92px]' },
+    },
+    vertical: {
+      short: { textClass: 'text-[46px] leading-[1.23]', maxWidth: '82%', lineClamp: 6, quoteClass: 'text-[96px]' },
+      medium: { textClass: 'text-[40px] leading-[1.25]', maxWidth: '85%', lineClamp: 7, quoteClass: 'text-[88px]' },
+      long: { textClass: 'text-[34px] leading-[1.27]', maxWidth: '87%', lineClamp: 8, quoteClass: 'text-[82px]' },
+    },
+    square: {
+      short: { textClass: 'text-[43px] leading-[1.22]', maxWidth: '78%', lineClamp: 5, quoteClass: 'text-[90px]' },
+      medium: { textClass: 'text-[36px] leading-[1.25]', maxWidth: '82%', lineClamp: 6, quoteClass: 'text-[82px]' },
+      long: { textClass: 'text-[31px] leading-[1.27]', maxWidth: '86%', lineClamp: 7, quoteClass: 'text-[74px]' },
+    },
+  };
+
+  return {
+    clippedText,
+    ...settingsByFormat[formatId][tier],
+  };
+}
+
 function TestimonialArt({
   item,
   coupleName,
@@ -57,6 +93,11 @@ function TestimonialArt({
   const isStory = format.id === 'story';
   const textStyle = styleId === 'texto';
   const starsStyle = styleId === 'estrelas';
+  const textLayout = getTestimonialLayout(testimonial, format.id);
+  const signatureSize = isStory ? 'text-[25px]' : format.id === 'vertical' ? 'text-[22px]' : 'text-[20px]';
+  const metaSize = isStory ? 'text-[17px]' : 'text-[15px]';
+  const brandSize = isStory ? 'text-[13px]' : 'text-[12px]';
+  const starsSize = isStory ? 'text-[50px]' : format.id === 'vertical' ? 'text-[43px]' : 'text-[38px]';
 
   return (
     <div
@@ -74,47 +115,55 @@ function TestimonialArt({
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.3),transparent_42%),radial-gradient(circle_at_bottom_left,rgba(196,181,253,0.4),transparent_50%)]" />
       <div className="absolute inset-0 backdrop-blur-[1px]" />
 
-      <div className={classNames('relative flex h-full flex-col px-[8%] pb-[8%] pt-[10%]', isStory ? 'justify-between' : 'justify-around')}>
+      <div className={classNames('relative flex h-full flex-col px-[8%] pb-[7%] pt-[7%]', isStory ? 'justify-between' : 'justify-between')}>
         <div className="flex items-center justify-between">
-          <span className="rounded-full border border-white/25 bg-white/15 px-4 py-1.5 text-[20px] font-semibold tracking-wide text-white/95">
+          <span className={classNames('rounded-full border border-white/25 bg-white/12 px-3.5 py-1 text-white/90', brandSize, 'font-semibold tracking-[0.08em] uppercase')}>
             Recomendado
           </span>
-          <span className="rounded-full border border-white/20 bg-black/20 px-3 py-1 text-[15px] font-semibold text-white/80">
+          <span className={classNames('rounded-full border border-white/20 bg-black/20 px-3 py-1 font-semibold text-white/80', brandSize)}>
             Harmonics
           </span>
         </div>
 
-        <div className="mt-4 flex-1">
-          <p className="text-[120px] font-black leading-[0.65] text-white/25">“</p>
+        <div className="mt-4 flex flex-1 flex-col justify-center">
+          <p className={classNames(textLayout.quoteClass, 'font-black leading-[0.65] text-white/20')}>“</p>
           <p
             className={classNames(
-              'mt-3 text-center font-bold leading-[1.28] tracking-tight',
-              isStory ? 'text-[56px]' : 'text-[52px]',
-              textStyle ? 'rounded-[30px] bg-white/12 px-8 py-7 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.15)]' : ''
+              'mx-auto mt-2 text-center font-semibold tracking-tight text-white',
+              textLayout.textClass,
+              textStyle ? 'rounded-[24px] bg-white/10 px-7 py-5 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.18)]' : ''
             )}
+            style={{
+              maxWidth: textLayout.maxWidth,
+              display: '-webkit-box',
+              WebkitBoxOrient: 'vertical',
+              WebkitLineClamp: textLayout.lineClamp,
+              overflow: 'hidden',
+              textWrap: 'pretty',
+            }}
           >
-            {testimonial}
+            {textLayout.clippedText}
           </p>
         </div>
 
-        <div className="space-y-6 text-center">
+        <div className="space-y-4 text-center">
           <div
             className={classNames(
               'flex items-center justify-center gap-3',
-              starsStyle ? 'rounded-2xl bg-white/12 py-4 shadow-[0_12px_36px_rgba(17,24,39,0.3)]' : ''
+              starsStyle ? 'rounded-2xl bg-white/12 py-3 shadow-[0_12px_36px_rgba(17,24,39,0.3)]' : ''
             )}
           >
             {stars.map((filled, index) => (
-              <span key={index} className={classNames('leading-none', starsStyle ? 'text-[64px]' : 'text-[52px]', filled ? 'text-amber-300' : 'text-white/35')}>
+              <span key={index} className={classNames('leading-none', starsStyle ? 'text-[54px]' : starsSize, filled ? 'text-amber-300' : 'text-white/30')}>
                 ★
               </span>
             ))}
           </div>
 
           <div>
-            <p className="text-[32px] font-semibold tracking-[0.07em] text-white/95">{coupleName}</p>
-            {eventName ? <p className="mt-1 text-[24px] text-white/75">{eventName}</p> : null}
-            <p className="mt-2 text-[20px] font-medium uppercase tracking-[0.16em] text-white/60">{formatDate(item?.submitted_at)}</p>
+            <p className={classNames(signatureSize, 'font-semibold tracking-[0.04em] text-white/95')}>{coupleName}</p>
+            {eventName ? <p className={classNames('mt-1 text-white/75', metaSize)}>{eventName}</p> : null}
+            <p className={classNames('mt-2 font-medium uppercase tracking-[0.14em] text-white/55', metaSize)}>{formatDate(item?.submitted_at)}</p>
           </div>
         </div>
       </div>
@@ -131,6 +180,7 @@ export default function AvaliacaoCard({ item }) {
   const [selectedFormatId, setSelectedFormatId] = useState(ART_FORMATS[0].id);
   const [variationIndex, setVariationIndex] = useState(0);
   const [generatedImage, setGeneratedImage] = useState('');
+  const [generationError, setGenerationError] = useState('');
 
   const coupleName = useMemo(() => getCoupleName(item), [item]);
   const eventName = item?.event_title || item?.event_name || '';
@@ -173,10 +223,12 @@ export default function AvaliacaoCard({ item }) {
   async function handleGenerateImage() {
     setGenerationStatus('loading');
     setGeneratedImage('');
+    setGenerationError('');
 
     const result = await exportDepoimentoAsImage(exportElementId, {
       download: false,
       fileName: `depoimento-harmonics-${selectedFormat.id}-${Date.now()}.png`,
+      format: selectedFormat,
     });
 
     if (result?.ok) {
@@ -186,8 +238,11 @@ export default function AvaliacaoCard({ item }) {
       return;
     }
 
+    const reason = result?.error || 'Falha desconhecida ao exportar imagem';
+    console.error('[AvaliacaoCard] Falha na geração da arte:', reason, result?.details || {});
     setGenerationStatus('error');
-    showToast?.('Erro ao gerar arte', 'error');
+    setGenerationError(reason);
+    showToast?.(`Erro ao gerar arte: ${reason}`, 'error');
   }
 
   function handleDownload() {
@@ -209,6 +264,7 @@ export default function AvaliacaoCard({ item }) {
     setModalOpen(true);
     setGenerationStatus('idle');
     setGeneratedImage('');
+    setGenerationError('');
   }
 
   function handleChangeVariation() {
@@ -220,6 +276,7 @@ export default function AvaliacaoCard({ item }) {
   function handleResetPreview() {
     setGenerationStatus('idle');
     setGeneratedImage('');
+    setGenerationError('');
   }
 
   return (
@@ -313,6 +370,18 @@ export default function AvaliacaoCard({ item }) {
                 </div>
 
                 <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 p-4 min-h-[420px]">
+                  <div className="pointer-events-none absolute -left-[9999px] top-0 h-0 w-0 overflow-hidden opacity-0" aria-hidden="true">
+                    <TestimonialArt
+                      item={item}
+                      coupleName={coupleName}
+                      eventName={eventName}
+                      testimonial={testimonial}
+                      stars={stars}
+                      format={selectedFormat}
+                      styleId={selectedStyle.id}
+                      exportId={exportElementId}
+                    />
+                  </div>
                   {generationStatus === 'loading' ? (
                     <div className="space-y-3">
                       <div className="h-8 w-36 animate-pulse rounded bg-slate-200" />
@@ -333,7 +402,7 @@ export default function AvaliacaoCard({ item }) {
                         stars={stars}
                         format={selectedFormat}
                         styleId={selectedStyle.id}
-                        exportId={exportElementId}
+                        exportId={`${exportElementId}-preview`}
                         compact
                       />
                     </div>
@@ -362,11 +431,17 @@ export default function AvaliacaoCard({ item }) {
                 <button
                   type="button"
                   onClick={handleDownload}
-                  disabled={!generatedImage}
+                  disabled={generationStatus !== 'done' || !generatedImage}
                   className="w-full rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {downloadStatus === 'done' ? 'Baixado com sucesso ✓' : 'Baixar imagem'}
                 </button>
+
+                {generationStatus === 'error' && generationError ? (
+                  <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700">
+                    Falha técnica: {generationError}
+                  </p>
+                ) : null}
 
                 <button
                   type="button"

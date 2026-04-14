@@ -3106,9 +3106,19 @@ function SugestoesTab({
         setSongsError('');
         setSongs([]);
         const response = await fetch('/api/suggestions/songs', { cache: 'no-store' });
-        if (!response.ok) throw new Error('Falha ao carregar catálogo de sugestões.');
+        let payload = null;
+        try {
+          payload = await response.json();
+        } catch {
+          payload = null;
+        }
 
-        const payload = await response.json();
+        if (!response.ok || payload?.ok === false) {
+          throw new Error(
+            payload?.error || 'Falha ao carregar catálogo de sugestões.'
+          );
+        }
+
         const catalogSongs = Array.isArray(payload?.songs)
           ? payload.songs
               .map(mapSuggestionSongFromCatalog)

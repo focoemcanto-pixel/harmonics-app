@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { loadClientPanelSuggestions } from '@/lib/sugestoes/client-panel-suggestions-source';
+import { fetchClientSuggestionsCatalog } from '@/lib/sugestoes/client-suggestions-catalog';
 
 function normalizeText(value) {
   const text = String(value || '').trim();
@@ -19,48 +19,28 @@ function buildSongKey({ title = '', artist = '', youtubeId = '' }) {
 export async function GET() {
   try {
     const supabase = getSupabaseAdmin();
+    const catalogSongs = await fetchClientSuggestionsCatalog(supabase);
 
-    const [clientSuggestions, { data: catalogRows, error: catalogError }] = await Promise.all([
-      loadClientPanelSuggestions(),
-      supabase
-        .from('suggestion_songs')
-        .select('id, title, artist, youtube_id, source_type')
-        .or('source_type.eq.admin,source_type.is.null'),
-    ]);
-
-    if (catalogError) throw catalogError;
-
-    const catalogByKey = new Map();
-    for (const song of catalogRows || []) {
+    const songs = catalogSongs.map((song, index) => {
       const key = buildSongKey({
         title: song?.title,
         artist: song?.artist,
         youtubeId: song?.youtube_id,
       });
-      if (!catalogByKey.has(key)) catalogByKey.set(key, song);
-    }
-
-    const songs = clientSuggestions.map((song, index) => {
-      const key = buildSongKey({
-        title: song?.title,
-        artist: song?.artist,
-        youtubeId: song?.youtube_id,
-      });
-      const existing = catalogByKey.get(key);
 
       return {
         key: song?.id ? `client:${song.id}` : `client-index:${index}`,
         source_key: key,
         title: normalizeText(song?.title),
         artist: normalizeText(song?.artist),
-        genre: normalizeText(song?.genre) || null,
-        moment: normalizeText(song?.moment) || null,
+        genre: normalizeText(song?.genre?.name) || null,
+        moment: normalizeText(song?.moment?.name) || null,
         youtube_id: normalizeText(song?.youtube_id) || null,
         youtube_url: normalizeText(song?.youtube_url) || null,
         thumbnail_url: normalizeText(song?.thumbnail_url) || null,
-        already_in_catalog: Boolean(existing?.id),
-        catalog_song_id: existing?.id || null,
-        catalog_source_type: existing?.source_type || null,
+        already_in_catalog: Boolean(song?.id),
+        catalog_song_id: song?.id || null,
+        catalog_source_type: song?.source_type || null,
       };
     });
 

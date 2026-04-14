@@ -144,14 +144,21 @@ export async function GET() {
       songs,
     });
   } catch (error) {
-    console.error('[sugestoes] error songs', error);
+    console.error('[sugestoes] error songs GET /api/suggestions/songs', {
+      message: error?.message || 'unknown error',
+      details: error?.details || null,
+      hint: error?.hint || null,
+      code: error?.code || null,
+      stack: error?.stack || null,
+    });
     return NextResponse.json(
       {
+        ok: false,
+        songs: [],
         error:
-          error?.message ||
-          'Falha ao buscar músicas na tabela suggestion_songs',
+          'Não foi possível carregar o catálogo de sugestões no momento. Tente novamente em instantes.',
       },
-      { status: 500 }
+      { status: 200 }
     );
   }
 }

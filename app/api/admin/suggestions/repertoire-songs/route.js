@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 
 const DEFAULT_IMPORT_ARTIST = 'não informado';
+const CATALOG_SOURCE_TYPES = ['admin', 'imported'];
 
 function normalizeText(value) {
   const text = String(value || '').trim();
@@ -46,7 +47,8 @@ export async function GET() {
           .order('created_at', { ascending: false }),
         supabase
           .from('suggestion_songs')
-          .select('id, title, artist, youtube_id, source_type, is_active, created_at'),
+          .select('id, title, artist, youtube_id, source_type, is_active, created_at')
+          .in('source_type', CATALOG_SOURCE_TYPES),
       ]);
 
     if (repertoireError) throw repertoireError;
@@ -67,6 +69,10 @@ export async function GET() {
 
     const catalogByTitleWithDefaultArtist = new Map();
     for (const song of catalogRows || []) {
+      const normalizedArtist = normalizeText(song?.artist).toLowerCase();
+      if (normalizedArtist && normalizedArtist !== DEFAULT_IMPORT_ARTIST) {
+        continue;
+      }
       const titleKey = `txt:${normalizeText(song?.title).toLowerCase()}::${DEFAULT_IMPORT_ARTIST}`;
       if (!catalogByTitleWithDefaultArtist.has(titleKey)) {
         catalogByTitleWithDefaultArtist.set(titleKey, song);

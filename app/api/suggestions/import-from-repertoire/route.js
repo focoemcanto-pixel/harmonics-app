@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 
 const DEFAULT_ARTIST = 'Não informado';
+const CATALOG_SOURCE_TYPES = ['admin', 'imported'];
 
 function normalizeText(value) {
   const text = String(value || '').trim();
@@ -38,6 +39,7 @@ async function findDuplicateSong(supabase, { youtubeId, normalizedTitle, artist 
       .from('suggestion_songs')
       .select('id')
       .eq('youtube_id', youtubeId)
+      .in('source_type', CATALOG_SOURCE_TYPES)
       .limit(1)
       .maybeSingle();
 
@@ -50,6 +52,7 @@ async function findDuplicateSong(supabase, { youtubeId, normalizedTitle, artist 
     .select('id')
     .eq('normalized_title', normalizedTitle)
     .eq('normalized_artist', String(artist || '').toLowerCase())
+    .in('source_type', CATALOG_SOURCE_TYPES)
     .limit(1)
     .maybeSingle();
 
@@ -70,7 +73,7 @@ export async function POST(request) {
 
     const { data: repertoireItem, error: repertoireError } = await supabase
       .from('repertoire_items')
-      .select('id, song_name, reference_link, notes')
+      .select('id, song_name, artists, reference_video_id, reference_link, reference_thumbnail, notes')
       .eq('id', repertoireItemId)
       .limit(1)
       .maybeSingle();
@@ -86,10 +89,14 @@ export async function POST(request) {
       return NextResponse.json({ ok: false, error: 'Item de repertório sem song_name válido.' }, { status: 400 });
     }
 
-    const youtubeUrl = normalizeText(repertoireItem.reference_link);
-    const youtubeId = extractYoutubeIdFromUrl(youtubeUrl);
-    const thumbnailUrl = youtubeId ? `https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg` : null;
-    const artist = DEFAULT_ARTIST;
+    const youtubeId =
+      normalizeText(repertoireItem.reference_video_id) || extractYoutubeIdFromUrl(repertoireItem.reference_link);
+    const youtubeUrl =
+      normalizeText(repertoireItem.reference_link) || (youtubeId ? `https://www.youtube.com/watch?v=${youtubeId}` : null);
+    const thumbnailUrl =
+      normalizeText(repertoireItem.reference_thumbnail) ||
+      (youtubeId ? `https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg` : null);
+    const artist = normalizeText(repertoireItem.artists) || DEFAULT_ARTIST;
     const normalizedTitle = normalizeTitle(songName);
 
     const duplicate = await findDuplicateSong(supabase, {

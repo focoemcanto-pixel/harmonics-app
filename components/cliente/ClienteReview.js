@@ -97,23 +97,26 @@ export default function ClienteReview({ data, token }) {
 
         <section className="rounded-[28px] border border-[#eadfd6] bg-white p-5 shadow-[0_10px_30px_rgba(36,26,20,0.06)]">
           {submitted ? (
-            <div className="space-y-6 rounded-[28px] border border-[#eadff8] bg-[radial-gradient(circle_at_top,#ffffff_0%,#f6efff_45%,#efe3ff_100%)] p-7 text-center shadow-[0_14px_40px_rgba(91,33,182,0.18)]">
-              <div className="text-[54px]">💜</div>
-              <div className="text-[27px] font-black text-[#2f1448]">
-                Avaliação enviada com sucesso 💜
+            <div className="space-y-5 py-4">
+              <div className="text-center">
+                <div className="text-[42px]">💜</div>
+                <div className="mt-4 text-[24px] font-black text-[#241a14]">
+                  Avaliação enviada com sucesso
+                </div>
+                <div className="mt-3 text-[15px] leading-7 text-[#6f5d51]">
+                  Obrigado por compartilhar sua experiência com tanta
+                  generosidade. Sua mensagem nos inspira a seguir criando
+                  momentos inesquecíveis com o mesmo cuidado e carinho.
+                </div>
+                <div className="mt-4 text-[14px] leading-6 text-[#6f5d51]">
+                  Encerramos este ciclo com gratidão e com a alegria de ter
+                  participado de um capítulo tão especial da sua história.
+                </div>
               </div>
-              <div className="mx-auto max-w-[420px] text-[16px] leading-8 text-[#5a476c]">
-                Muito obrigado pelo carinho e pela confiança.
-                <br />
-                Foi uma alegria imensa fazer parte de um momento tão especial.
-                <br />
-                <br />
-                Desejamos que essa nova fase seja cheia de amor, paz e felicidade.
-                <br />
-                Que Deus abençoe grandemente a caminhada de vocês. ✨
-              </div>
-              <div className="text-[13px] font-black uppercase tracking-[0.22em] text-[#7a58a7]">
-                Harmonics
+              <div className="text-center">
+                <div className="inline-flex items-center justify-center rounded-full border border-[#e7ddd4] bg-[#faf7f3] px-4 py-2 text-[12px] font-extrabold uppercase tracking-[0.08em] text-[#8c7667]">
+                  Harmonics
+                </div>
               </div>
             </div>
           ) : (

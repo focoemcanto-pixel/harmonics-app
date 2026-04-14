@@ -15,7 +15,13 @@ export async function GET() {
 
     const distribution = rows.reduce(
       (acc, row) => {
-        const key = row?.source_type == null ? '__null__' : String(row.source_type);
+        const raw = row?.source_type;
+        const key =
+          raw == null
+            ? '__null__'
+            : String(raw).trim() === ''
+              ? '__empty__'
+              : String(raw);
         if (!acc[key]) {
           acc[key] = { total: 0, active: 0 };
         }
@@ -31,7 +37,7 @@ export async function GET() {
       total: rows.length,
       distribution,
       review: {
-        legacyNullCount: distribution.__null__?.total || 0,
+        legacyNullCount: (distribution.__null__?.total || 0) + (distribution.__empty__?.total || 0),
         clientCount: distribution.client?.total || 0,
       },
     });

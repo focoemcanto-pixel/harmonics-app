@@ -4,6 +4,7 @@
 --   2) revisar candidatos
 --   3) aprovar IDs
 --   4) aplicar UPDATE controlado
+--   5) remover fallback source_type.is.null das queries de catálogo
 
 -- 1) Distribuição atual de source_type (inclui legado null)
 select
@@ -19,31 +20,8 @@ group by 1
 order by total desc;
 
 -- 2) Diagnóstico de legado null com sinais de origem
-with null_candidates as (
-  select
-    ss.id,
-    ss.title,
-    ss.artist,
-    ss.youtube_id,
-    ss.created_at,
-    count(ri.id) as repertoire_links,
-    bool_or(coalesce(ri.type, '') = 'smart_suggestion') as has_editorial_usage,
-    bool_or(coalesce(ri.type, '') <> 'smart_suggestion') as has_client_usage
-  from public.suggestion_songs ss
-  left join public.repertoire_items ri on ri.suggestion_song_id = ss.id
-  where ss.source_type is null
-  group by ss.id, ss.title, ss.artist, ss.youtube_id, ss.created_at
-)
-select
-  *,
-  case
-    when repertoire_links = 0 then 'review_admin_or_imported'
-    when has_client_usage and not has_editorial_usage then 'candidate_client'
-    when has_editorial_usage and not has_client_usage then 'candidate_imported'
-    else 'needs_manual_review'
-  end as suggested_classification
-from null_candidates
-order by created_at desc nulls last;
+select *
+from public.get_suggestion_songs_null_audit();
 
 -- 3) MATERIALIZAR revisão manual (pré-update)
 -- create table if not exists public.suggestion_song_source_review (
@@ -74,3 +52,7 @@ order by created_at desc nulls last;
 -- select count(*) as remaining_null
 -- from public.suggestion_songs
 -- where source_type is null;
+
+-- 7) Pós-saneamento: catálogos separados por visão
+-- select count(*) from public.suggestion_songs_editorial_catalog_v; -- admin + imported
+-- select count(*) from public.suggestion_songs_client_catalog_v;    -- client

@@ -697,6 +697,26 @@ function TabHero({ badge, title, text, children }) {
   );
 }
 
+function formatClientRepertoireStatusLabel(status) {
+  const normalized = String(status || '')
+    .trim()
+    .toUpperCase();
+
+  if (normalized === 'AGUARDANDO_REVISAO') return 'Aguardando revisão';
+  if (normalized === 'RASCUNHO') return 'Rascunho';
+  if (normalized === 'ENVIADO' || normalized === 'ENVIADO_TRANCADO') return 'Enviado';
+  if (normalized === 'FINALIZADO' || normalized === 'CONCLUIDO') return 'Finalizado';
+  if (normalized === 'LIBERADO' || normalized === 'EM_EDICAO') return 'Liberado para ajustes';
+  if (!normalized) return 'Aguardando';
+
+  return normalized
+    .toLowerCase()
+    .split('_')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
 
 function InicioTab({ data, setActiveTab, selectedSongs }) {
   const supportWhatsAppUrl = buildWhatsAppUrl(
@@ -729,21 +749,21 @@ function InicioTab({ data, setActiveTab, selectedSongs }) {
           <div className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#9b8576]">
             Repertório
           </div>
-          <div className="mt-2 text-[18px] font-black text-[#241a14]">
-            {data.repertorio.status || 'Aguardando'}
+          <div className="mt-2 min-w-0 whitespace-normal break-words text-[18px] font-black leading-tight text-[#241a14]">
+            {formatClientRepertoireStatusLabel(data.repertorio.status)}
           </div>
-          <div className="mt-2 text-[14px] text-[#6f5d51]">
+          <div className="mt-2 whitespace-normal break-words text-[14px] text-[#6f5d51]">
             Acompanhe o preenchimento e finalize quando estiver tudo certo.
           </div>
           {selectedSongs.length > 0 ? (
-  <div className="mt-3 rounded-[14px] bg-violet-50 px-3 py-2 text-[12px] font-black text-violet-700">
+  <div className="mt-3 whitespace-normal break-words rounded-[14px] bg-violet-50 px-3 py-2 text-[12px] font-black text-violet-700">
     {selectedSongs.length} música(s) já vieram da aba Sugestões
   </div>
 ) : null}
           <button
             type="button"
             onClick={() => setActiveTab('repertorio')}
-            className="mt-4 w-full rounded-[18px] border border-[#e6d8ff] bg-violet-50 px-4 py-3 text-[14px] font-black text-violet-700"
+            className="mt-4 w-full min-w-0 rounded-[18px] border border-[#e6d8ff] bg-violet-50 px-4 py-3 text-[14px] font-black text-violet-700"
           >
             Abrir repertório
           </button>

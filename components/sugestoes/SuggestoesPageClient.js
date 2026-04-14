@@ -919,6 +919,7 @@ function SuggestoesRepertoriosTab({
   loading,
   onImport,
   importingKey,
+  recentlyImportedKeys = new Set(),
   eyebrow = 'Origem dos repertórios',
   title = 'Usadas por clientes',
   subtitle = 'Músicas históricas vindas de repertórios preenchidos pelos clientes, separadas da curadoria editorial.',
@@ -990,6 +991,7 @@ function SuggestoesRepertoriosTab({
         <div className="grid gap-4 xl:grid-cols-2">
           {filteredSongs.map((song) => {
             const isBusy = importingKey === song.key;
+            const wasImportedNow = song.already_in_catalog && recentlyImportedKeys.has(song.key);
             return (
               <article key={song.key} className="rounded-[24px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_26px_rgba(15,23,42,0.05)]">
                 <div className="flex items-start justify-between gap-3">
@@ -997,8 +999,8 @@ function SuggestoesRepertoriosTab({
                     <h3 className="truncate text-[20px] font-black tracking-[-0.03em] text-[#0f172a]">{song.title}</h3>
                     <p className="mt-1 truncate text-[14px] font-semibold text-[#64748b]">{song.artist || 'Artista não informado'}</p>
                   </div>
-                  <Pill tone={song.already_in_catalog ? 'emerald' : 'amber'}>
-                    {song.already_in_catalog ? 'Já está no catálogo' : 'Disponível para importar'}
+                  <Pill tone={wasImportedNow ? 'violet' : song.already_in_catalog ? 'emerald' : 'amber'}>
+                    {wasImportedNow ? 'Importado com sucesso' : song.already_in_catalog ? 'Já está no catálogo' : 'Disponível para importar'}
                   </Pill>
                 </div>
 
@@ -1019,7 +1021,7 @@ function SuggestoesRepertoriosTab({
                     onClick={() => onImport(song)}
                     className="rounded-[16px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-[13px] font-black text-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {song.already_in_catalog ? 'Já está no catálogo' : isBusy ? 'Importando…' : '➕ Importar'}
+                    {song.already_in_catalog ? 'Já está no catálogo' : isBusy ? 'Importando…' : '➕ Importar para catálogo'}
                   </button>
 
                   {song.youtube_url ? (
@@ -1605,6 +1607,7 @@ const [savingMoment, setSavingMoment] = useState(false);
   const [editingSong, setEditingSong] = useState(null);
   const [importingClientKey, setImportingClientKey] = useState('');
   const [importingRepertoireKey, setImportingRepertoireKey] = useState('');
+  const [recentlyImportedRepertoireKeys, setRecentlyImportedRepertoireKeys] = useState(() => new Set());
 
   const repertoireKpis = useMemo(() => ({
     unique: repertoireSongs.length,
@@ -1887,6 +1890,11 @@ const [savingMoment, setSavingMoment] = useState(false);
       }
 
       setNotice(data?.message || 'Adicionado ao catálogo');
+      setRecentlyImportedRepertoireKeys((previous) => {
+        const next = new Set(previous);
+        next.add(song.key);
+        return next;
+      });
       await loadAll();
       setActiveTab('repertorios');
     } catch (err) {
@@ -2249,6 +2257,7 @@ const [savingMoment, setSavingMoment] = useState(false);
           songs={repertoireSongs}
           loading={loading}
           importingKey={importingRepertoireKey}
+          recentlyImportedKeys={recentlyImportedRepertoireKeys}
           onImport={handleImportFromRepertoire}
           eyebrow="Origem dos repertórios"
           title="Repertórios preenchidos"

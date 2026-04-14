@@ -16,7 +16,7 @@ export async function PATCH(request, { params }) {
 
     const allowed = [
       'key', 'name', 'event_type', 'recipient_type',
-      'template_id', 'channel_id', 'days_before', 'days_after',
+      'template_id', 'channel_id', 'days_before', 'days_after', 'delay_hours',
       'send_time', 'is_active',
     ];
 

@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useState } from 'react';
 
 function classNames(...classes) {
@@ -98,61 +97,24 @@ export default function ClienteReview({ data, token }) {
 
         <section className="rounded-[28px] border border-[#eadfd6] bg-white p-5 shadow-[0_10px_30px_rgba(36,26,20,0.06)]">
           {submitted ? (
-            <div className="space-y-5">
-              <div className="text-center">
-                <div className="text-[42px]">💜</div>
-                <div className="mt-4 text-[24px] font-black text-[#241a14]">
-                  Avaliação enviada com sucesso
-                </div>
-                <div className="mt-3 text-[15px] leading-7 text-[#6f5d51]">
-                  Muito obrigado pelo carinho e pela confiança. Foi uma alegria
-                  fazer parte desse momento tão especial.
-                </div>
+            <div className="space-y-6 rounded-[28px] border border-[#eadff8] bg-[radial-gradient(circle_at_top,#ffffff_0%,#f6efff_45%,#efe3ff_100%)] p-7 text-center shadow-[0_14px_40px_rgba(91,33,182,0.18)]">
+              <div className="text-[54px]">💜</div>
+              <div className="text-[27px] font-black text-[#2f1448]">
+                Avaliação enviada com sucesso 💜
               </div>
-
-              <div className="overflow-hidden rounded-[26px] border border-[#e8dff7] bg-[radial-gradient(circle_at_top,#ffffff_0%,#f4ecff_45%,#ebddff_100%)] p-5 shadow-[0_16px_50px_rgba(91,33,182,0.22)]">
-                <div className="inline-flex items-center rounded-full border border-[#d8c1ff] bg-white/70 px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-[#5b21b6]">
-                  Resumo da sua avaliação
-                </div>
-                <div className="mt-4 text-[13px] font-extrabold uppercase tracking-[0.08em] text-[#7c5db0]">
-                  Cliente
-                </div>
-                <div className="text-[24px] font-black leading-tight text-[#25123f]">
-                  {data?.clienteNome || 'Cliente Harmonics'}
-                </div>
-
-                <div className="mt-2 text-[13px] font-semibold text-[#7c5db0]">
-                  Evento: {data?.eventoTitulo || 'Evento Harmonics'}
-                </div>
-
-                <div className="mt-4 text-[22px] text-[#f59e0b]">
-                  {'★'.repeat(Math.max(rating, 1))}
-                  <span className="text-[#d5c3f3]">
-                    {'★'.repeat(Math.max(0, 5 - Math.max(rating, 1)))}
-                  </span>
-                </div>
-
-                <blockquote className="mt-4 rounded-[20px] border border-white/70 bg-white/75 px-4 py-4 text-[16px] font-semibold leading-7 text-[#3f2d56]">
-                  “
-                  {testimonial?.trim() ||
-                    'Uma experiência inesquecível. Obrigado por tornarem nosso dia ainda mais especial!'}
-                  ”
-                </blockquote>
-
-                <div className="mt-4 text-[13px] font-semibold text-[#4c3a68]">
-                  Recomendaria a Harmonics:{' '}
-                  <span className="font-black">
-                    {wouldRecommend ? 'Sim' : 'Não'}
-                  </span>
-                </div>
+              <div className="mx-auto max-w-[420px] text-[16px] leading-8 text-[#5a476c]">
+                Muito obrigado pelo carinho e pela confiança.
+                <br />
+                Foi uma alegria imensa fazer parte de um momento tão especial.
+                <br />
+                <br />
+                Desejamos que essa nova fase seja cheia de amor, paz e felicidade.
+                <br />
+                Que Deus abençoe grandemente a caminhada de vocês. ✨
               </div>
-
-              <Link
-                href={`/cliente/${token}`}
-                className="flex w-full items-center justify-center rounded-[20px] bg-[linear-gradient(135deg,#6d28d9_0%,#8b5cf6_100%)] px-4 py-4 text-[15px] font-black text-white shadow-[0_12px_28px_rgba(124,58,237,0.24)] disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Voltar ao painel
-              </Link>
+              <div className="text-[13px] font-black uppercase tracking-[0.22em] text-[#7a58a7]">
+                Harmonics
+              </div>
             </div>
           ) : (
             <>

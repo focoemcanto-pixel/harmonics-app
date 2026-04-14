@@ -1,7 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import Image from 'next/image';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useToast } from '@/components/ui/ToastProvider';
 import { exportDepoimentoAsImage } from '@/lib/export/export-element-as-image';
 
@@ -42,6 +41,10 @@ const STYLE_VARIATIONS = [
   { id: 'texto', label: 'Destaque no texto' },
   { id: 'estrelas', label: 'Destaque nas estrelas' },
 ];
+
+const INSTAGRAM_CREATE_URL = 'https://www.instagram.com/create/style/';
+const INSTAGRAM_URL = 'https://www.instagram.com/';
+const META_BUSINESS_SUITE_URL = 'https://business.facebook.com/latest/home';
 
 function getTestimonialLayout(text, formatId) {
   const baseText = (text || '').trim();
@@ -261,6 +264,57 @@ function TestimonialArt({
   );
 }
 
+function ScaledPreviewStage({ format, children }) {
+  const containerRef = useRef(null);
+  const [scale, setScale] = useState(0.32);
+
+  useEffect(() => {
+    if (!containerRef.current) return undefined;
+
+    const updateScale = () => {
+      const container = containerRef.current;
+      if (!container) return;
+
+      const maxWidth = Math.max(container.clientWidth - 20, 220);
+      const maxHeight = 520;
+      const nextScale = Math.min(maxWidth / format.width, maxHeight / format.height, 1);
+
+      setScale(Number.isFinite(nextScale) ? Math.max(nextScale, 0.12) : 0.32);
+    };
+
+    updateScale();
+
+    const observer = new ResizeObserver(updateScale);
+    observer.observe(containerRef.current);
+    window.addEventListener('resize', updateScale);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', updateScale);
+    };
+  }, [format.height, format.width]);
+
+  const scaledWidth = Math.round(format.width * scale);
+  const scaledHeight = Math.round(format.height * scale);
+
+  return (
+    <div ref={containerRef} className="flex min-h-[420px] items-center justify-center">
+      <div style={{ width: scaledWidth, height: scaledHeight }}>
+        <div
+          style={{
+            width: format.width,
+            height: format.height,
+            transform: `scale(${scale})`,
+            transformOrigin: 'top left',
+          }}
+        >
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function AvaliacaoCard({ item }) {
   const { showToast } = useToast() || {};
   const [copyStatus, setCopyStatus] = useState('idle');
@@ -348,6 +402,10 @@ export default function AvaliacaoCard({ item }) {
     setDownloadStatus('done');
     showToast?.('Download concluído', 'success');
     setTimeout(() => setDownloadStatus('idle'), 1500);
+  }
+
+  function openExternal(url) {
+    window.open(url, '_blank', 'noopener,noreferrer');
   }
 
   function openModal() {
@@ -484,36 +542,26 @@ export default function AvaliacaoCard({ item }) {
                       exportId={exportElementId}
                     />
                   </div>
-                  {generationStatus === 'loading' ? (
-                    <div className="space-y-3">
-                      <div className="h-8 w-36 animate-pulse rounded bg-slate-200" />
-                      <div className="h-[360px] animate-pulse rounded-2xl bg-slate-200" />
-                      <div className="h-8 w-full animate-pulse rounded bg-slate-200" />
-                    </div>
-                  ) : generatedImage ? (
-                    <div className="transition-all duration-500 ease-out">
-                      <Image src={generatedImage} alt="Preview da arte do depoimento" width={selectedFormat.width} height={selectedFormat.height} unoptimized className="mx-auto max-h-[520px] h-auto w-auto rounded-2xl border border-slate-200 shadow-xl" />
-                    </div>
-                  ) : (
-                    <div className="mx-auto max-w-[320px]">
-                      <TestimonialArt
-                        item={item}
-                        coupleName={coupleName}
-                        eventName={eventName}
-                        testimonial={testimonial}
-                        stars={stars}
-                        format={selectedFormat}
-                        styleId={selectedStyle.id}
-                        exportId={`${exportElementId}-preview`}
-                        compact
-                      />
-                    </div>
-                  )}
+                  <ScaledPreviewStage format={selectedFormat}>
+                    <TestimonialArt
+                      item={item}
+                      coupleName={coupleName}
+                      eventName={eventName}
+                      testimonial={testimonial}
+                      stars={stars}
+                      format={selectedFormat}
+                      styleId={selectedStyle.id}
+                      exportId={`${exportElementId}-preview`}
+                    />
+                  </ScaledPreviewStage>
                 </div>
               </div>
 
               <aside className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50/90 p-4">
                 <p className="text-sm font-bold text-slate-700">Estilo atual: {selectedStyle.label}</p>
+                <p className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600">
+                  Prévia proporcional ativa: Story (9:16), Feed quadrado (1:1) e Feed vertical (4:5).
+                </p>
                 <button
                   type="button"
                   onClick={handleChangeVariation}
@@ -530,28 +578,55 @@ export default function AvaliacaoCard({ item }) {
                   {generationStatus === 'loading' ? 'Gerando arte...' : 'Gerar arte'}
                 </button>
 
-                <button
-                  type="button"
-                  onClick={handleDownload}
-                  disabled={generationStatus !== 'done' || !generatedImage}
-                  className="w-full rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {downloadStatus === 'done' ? 'Baixado com sucesso ✓' : 'Baixar imagem'}
-                </button>
-
                 {generationStatus === 'error' && generationError ? (
                   <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700">
                     Falha técnica: {generationError}
                   </p>
                 ) : null}
 
-                <button
-                  type="button"
-                  onClick={handleCopy}
-                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
-                >
-                  {copyStatus === 'done' ? 'Legenda copiada!' : 'Copiar legenda'}
-                </button>
+                {generationStatus === 'done' && generatedImage ? (
+                  <div className="space-y-2 rounded-xl border border-emerald-200 bg-emerald-50/60 p-3">
+                    <p className="text-xs font-bold uppercase tracking-[0.08em] text-emerald-700">
+                      Publicação pronta
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleDownload}
+                      className="w-full rounded-xl border border-emerald-300 bg-emerald-100 px-4 py-2.5 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-200"
+                    >
+                      {downloadStatus === 'done'
+                        ? 'Baixado com sucesso ✓'
+                        : selectedFormat.id === 'story'
+                          ? 'Baixar story'
+                          : 'Baixar post'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCopy}
+                      className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                    >
+                      {copyStatus === 'done' ? 'Legenda copiada!' : 'Copiar legenda'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openExternal(INSTAGRAM_CREATE_URL)}
+                      className="w-full rounded-xl border border-fuchsia-300 bg-fuchsia-50 px-4 py-2.5 text-sm font-semibold text-fuchsia-700 transition hover:bg-fuchsia-100"
+                    >
+                      Abrir Instagram
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openExternal(META_BUSINESS_SUITE_URL)}
+                      className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                    >
+                      Abrir Meta Business Suite
+                    </button>
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600">
+                    Gere a arte para liberar o fluxo completo de postagem: baixar, copiar legenda e abrir Instagram.
+                  </div>
+                )}
 
                 <button
                   type="button"
@@ -559,6 +634,14 @@ export default function AvaliacaoCard({ item }) {
                   className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-100"
                 >
                   Gerar outra versão
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => openExternal(INSTAGRAM_URL)}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-100"
+                >
+                  Instagram web
                 </button>
 
                 <div className="rounded-xl border border-slate-200 bg-white p-3">

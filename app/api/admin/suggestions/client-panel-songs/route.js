@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { fetchClientSuggestionsCatalog } from '@/lib/sugestoes/client-suggestions-catalog';
 
 function normalizeText(value) {
   const text = String(value || '').trim();
@@ -19,10 +18,15 @@ function buildSongKey({ title = '', artist = '', youtubeId = '' }) {
 export async function GET() {
   try {
     const supabase = getSupabaseAdmin();
-    const catalogSongs = await fetchClientSuggestionsCatalog(supabase);
+    const { data: catalogSongs, error } = await supabase
+      .from('suggestion_songs')
+      .select('id, title, artist, genre:suggestion_genres(name), moment:suggestion_moments(name), youtube_id, youtube_url, thumbnail_url, is_active, source_type, created_at')
+      .or('source_type.eq.client,source_type.is.null')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
 
     const songs = (catalogSongs || [])
-      .filter((song) => song?.is_active)
       .map((song, index) => {
         const key = buildSongKey({
           title: song?.title,
@@ -40,9 +44,11 @@ export async function GET() {
           youtube_id: normalizeText(song?.youtube_id) || null,
           youtube_url: normalizeText(song?.youtube_url) || null,
           thumbnail_url: normalizeText(song?.thumbnail_url) || null,
-          already_in_catalog: true,
+          already_in_catalog: false,
           catalog_song_id: song?.id || null,
-          catalog_source_type: song?.source_type || 'admin',
+          catalog_source_type: song?.source_type || null,
+          is_active: Boolean(song?.is_active),
+          requires_legacy_review: song?.source_type == null,
         };
       })
       .filter((song) => song.title);

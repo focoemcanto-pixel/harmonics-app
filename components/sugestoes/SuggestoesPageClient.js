@@ -1477,6 +1477,7 @@ const [savingMoment, setSavingMoment] = useState(false);
   const [songs, setSongs] = useState([]);
   const [clientPanelSongs, setClientPanelSongs] = useState([]);
   const [repertoireSongs, setRepertoireSongs] = useState([]);
+  const [sourceAudit, setSourceAudit] = useState(null);
   const [genres, setGenres] = useState([]);
   const [moments, setMoments] = useState([]);
   const [tags, setTags] = useState([]);
@@ -1515,6 +1516,7 @@ const [savingMoment, setSavingMoment] = useState(false);
     { key: 'resumo', label: 'Resumo' },
     { key: 'biblioteca', label: 'Biblioteca' },
     { key: 'sugestoes-cliente', label: 'Sugestões do cliente' },
+    { key: 'revisao-legado', label: 'Revisão legado' },
     { key: 'repertorios', label: 'Repertórios' },
     { key: 'generos', label: 'Gêneros' },
     { key: 'momentos', label: 'Momentos' },
@@ -1530,20 +1532,22 @@ const [savingMoment, setSavingMoment] = useState(false);
     setError('');
     setSongsLoadFailed(false);
 
-    const [songsResponse, genresResponse, momentsResponse, clientPanelResponse, repertoireResponse] = await Promise.all([
+    const [songsResponse, genresResponse, momentsResponse, clientPanelResponse, repertoireResponse, sourceAuditResponse] = await Promise.all([
       fetch('/api/suggestions/songs', { cache: 'no-store' }),
       fetch('/api/suggestions/genres', { cache: 'no-store' }),
       fetch('/api/suggestions/moments', { cache: 'no-store' }),
       fetch('/api/admin/suggestions/client-panel-songs', { cache: 'no-store' }),
       fetch('/api/admin/suggestions/repertoire-songs', { cache: 'no-store' }),
+      fetch('/api/admin/suggestions/source-audit', { cache: 'no-store' }),
     ]);
 
-    const [songsData, genresData, momentsData, clientPanelData, repertoireData] = await Promise.all([
+    const [songsData, genresData, momentsData, clientPanelData, repertoireData, sourceAuditData] = await Promise.all([
       songsResponse.json().catch(() => ({})),
       genresResponse.json().catch(() => ({})),
       momentsResponse.json().catch(() => ({})),
       clientPanelResponse.json().catch(() => ({})),
       repertoireResponse.json().catch(() => ({})),
+      sourceAuditResponse.json().catch(() => ({})),
     ]);
 
 
@@ -1553,6 +1557,7 @@ const [savingMoment, setSavingMoment] = useState(false);
       momentsStatus: momentsResponse.status,
       clientPanelStatus: clientPanelResponse.status,
       repertoireStatus: repertoireResponse.status,
+      sourceAuditStatus: sourceAuditResponse.status,
     });
 
     const songsList = songsResponse.ok && Array.isArray(songsData?.songs)
@@ -1580,6 +1585,7 @@ const [savingMoment, setSavingMoment] = useState(false);
     if (!momentsResponse.ok) loadErrors.push(momentsData?.error || 'Falha ao buscar momentos');
     if (!clientPanelResponse.ok) loadErrors.push(clientPanelData?.error || 'Falha ao buscar sugestões do painel do cliente');
     if (!repertoireResponse.ok) loadErrors.push(repertoireData?.error || 'Falha ao buscar músicas de repertórios');
+    if (!sourceAuditResponse.ok) loadErrors.push(sourceAuditData?.error || 'Falha ao auditar source_type do catálogo');
     if (loadErrors.length) {
       setError(loadErrors.join(' | '));
     }
@@ -1589,6 +1595,7 @@ const [savingMoment, setSavingMoment] = useState(false);
     setMoments(momentsList);
     setClientPanelSongs(clientPanelList);
     setRepertoireSongs(repertoireList);
+    setSourceAudit(sourceAuditResponse.ok ? sourceAuditData : null);
 
     const tagsMap = new Map();
     const collectionsMap = new Map();
@@ -1619,6 +1626,7 @@ const [savingMoment, setSavingMoment] = useState(false);
       repertoireSongs: repertoireList.length,
       source: 'public.suggestion_songs',
       source_scope: 'editorial_catalog_only',
+      sourceAudit: sourceAuditResponse.ok ? sourceAuditData?.distribution || {} : null,
     });
   } catch (err) {
     console.error('[sugestoes] error', err);
@@ -2111,6 +2119,22 @@ const [savingMoment, setSavingMoment] = useState(false);
           subtitle="Fonte: lista cadastrada na aba de Sugestões do painel do cliente (não usa repertório de evento)."
           emptyTitle="Nenhuma sugestão encontrada no painel do cliente"
           emptyText="Cadastre músicas na própria aba de Sugestões do painel do cliente para aparecerem aqui."
+          searchPlaceholder="Buscar por título, artista, gênero ou momento"
+          searchByClient={false}
+        />
+      )}
+
+      {activeTab === 'revisao-legado' && (
+        <SuggestoesRepertoriosTab
+          songs={clientPanelSongs}
+          loading={loading}
+          importingKey={importingClientKey}
+          onImport={handleImportFromClientPanel}
+          eyebrow="Separação semântica"
+          title="Revisão de itens client/legado"
+          subtitle={`Itens fora do catálogo editorial principal. source_type distribution: ${JSON.stringify(sourceAudit?.distribution || {})}`}
+          emptyTitle="Nenhum item client/legado para revisão"
+          emptyText="Sem registros source_type=client ou source_type=null para analisar neste momento."
           searchPlaceholder="Buscar por título, artista, gênero ou momento"
           searchByClient={false}
         />

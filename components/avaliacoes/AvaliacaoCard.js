@@ -31,9 +31,9 @@ function getStarsArray(rating) {
 }
 
 const ART_FORMATS = [
-  { id: 'story', label: 'Story', sizeLabel: '1080x1920', width: 1080, height: 1920 },
-  { id: 'square', label: 'Feed quadrado', sizeLabel: '1080x1080', width: 1080, height: 1080 },
-  { id: 'vertical', label: 'Feed vertical', sizeLabel: '1080x1350', width: 1080, height: 1350 },
+  { id: 'story', label: 'Story', ratioLabel: '9:16', sizeLabel: '1080x1920', width: 1080, height: 1920 },
+  { id: 'square', label: 'Feed quadrado', ratioLabel: '1:1', sizeLabel: '1080x1080', width: 1080, height: 1080 },
+  { id: 'vertical', label: 'Feed vertical', ratioLabel: '4:5', sizeLabel: '1080x1350', width: 1080, height: 1350 },
 ];
 
 const STYLE_VARIATIONS = [
@@ -275,8 +275,9 @@ function ScaledPreviewStage({ format, children }) {
       const container = containerRef.current;
       if (!container) return;
 
-      const maxWidth = Math.max(container.clientWidth - 20, 220);
-      const maxHeight = 520;
+      const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 900;
+      const maxWidth = Math.max(container.clientWidth - 28, 220);
+      const maxHeight = Math.max(Math.min(viewportHeight * 0.58, 560), 340);
       const nextScale = Math.min(maxWidth / format.width, maxHeight / format.height, 1);
 
       setScale(Number.isFinite(nextScale) ? Math.max(nextScale, 0.12) : 0.32);
@@ -512,7 +513,10 @@ export default function AvaliacaoCard({ item }) {
                           : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
                       )}
                     >
-                      {format.label} <span className="text-xs opacity-80">({format.sizeLabel})</span>
+                      {format.label}{' '}
+                      <span className="text-xs opacity-80">
+                        ({format.ratioLabel} · {format.sizeLabel})
+                      </span>
                     </button>
                   ))}
                 </div>
@@ -555,6 +559,9 @@ export default function AvaliacaoCard({ item }) {
                     />
                   </ScaledPreviewStage>
                 </div>
+                <p className="text-xs font-semibold text-slate-500">
+                  Preview proporcional: {selectedFormat.label} ({selectedFormat.ratioLabel}) · Exportação real em {selectedFormat.sizeLabel}.
+                </p>
               </div>
 
               <aside className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50/90 p-4">
@@ -562,6 +569,16 @@ export default function AvaliacaoCard({ item }) {
                 <p className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600">
                   Prévia proporcional ativa: Story (9:16), Feed quadrado (1:1) e Feed vertical (4:5).
                 </p>
+                <div className="rounded-xl border border-violet-200 bg-violet-50 px-3 py-2">
+                  <p className="text-xs font-bold uppercase tracking-[0.08em] text-violet-700">Fluxo de postagem</p>
+                  <ol className="mt-2 space-y-1 text-xs font-medium text-violet-900">
+                    <li>1. Gerar arte</li>
+                    <li>2. Baixar imagem</li>
+                    <li>3. Copiar legenda</li>
+                    <li>4. Abrir Instagram</li>
+                    <li>5. Publicar</li>
+                  </ol>
+                </div>
                 <button
                   type="button"
                   onClick={handleChangeVariation}
@@ -641,7 +658,7 @@ export default function AvaliacaoCard({ item }) {
                   onClick={() => openExternal(INSTAGRAM_URL)}
                   className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-100"
                 >
-                  Instagram web
+                  Abrir Instagram web
                 </button>
 
                 <div className="rounded-xl border border-slate-200 bg-white p-3">

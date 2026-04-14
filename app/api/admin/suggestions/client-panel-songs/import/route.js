@@ -12,7 +12,7 @@ async function findExistingCatalogSong(supabase, { title, artist, youtubeId }) {
       .from('suggestion_songs')
       .select('id, title, artist, youtube_id, source_type')
       .eq('youtube_id', youtubeId)
-      .or('source_type.eq.admin,source_type.is.null')
+      .in('source_type', ['admin', 'imported'])
       .limit(1)
       .maybeSingle();
 
@@ -25,7 +25,7 @@ async function findExistingCatalogSong(supabase, { title, artist, youtubeId }) {
     .select('id, title, artist, youtube_id, source_type')
     .eq('normalized_title', String(title || '').toLowerCase())
     .eq('normalized_artist', String(artist || '').toLowerCase())
-    .or('source_type.eq.admin,source_type.is.null')
+    .in('source_type', ['admin', 'imported'])
     .limit(1)
     .maybeSingle();
 
@@ -67,7 +67,7 @@ export async function POST(request) {
       description: normalizeText(body?.description),
       is_active: true,
       is_featured: false,
-      source_type: 'admin',
+      source_type: 'imported',
       updated_at: new Date().toISOString(),
     };
 
@@ -88,7 +88,7 @@ export async function POST(request) {
     return NextResponse.json({
       ok: true,
       alreadyExists: false,
-      message: 'Sugestão do painel do cliente adicionada ao catálogo editorial.',
+      message: 'Sugestão do painel do cliente importada para o catálogo editorial.',
       song: inserted,
     });
   } catch (error) {

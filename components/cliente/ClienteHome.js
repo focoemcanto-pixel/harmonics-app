@@ -3082,6 +3082,11 @@ function SugestoesTab({
   const [songs, setSongs] = useState([]);
   const [isLoadingSongs, setIsLoadingSongs] = useState(true);
   const [songsError, setSongsError] = useState('');
+  const [loadAttempt, setLoadAttempt] = useState(0);
+
+  const handleRetryLoadSongs = useCallback(() => {
+    setLoadAttempt((prev) => prev + 1);
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -3090,6 +3095,7 @@ function SugestoesTab({
       try {
         setIsLoadingSongs(true);
         setSongsError('');
+        setSongs([]);
         const response = await fetch('/api/suggestions/songs', { cache: 'no-store' });
         if (!response.ok) throw new Error('Falha ao carregar catálogo de sugestões.');
 
@@ -3122,7 +3128,7 @@ function SugestoesTab({
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [loadAttempt]);
   const hydratedSongs = useMemo(() => {
     return songs.map((song) => ({
       ...song,
@@ -3352,6 +3358,9 @@ const gospelEntranceSongs = hydratedSongs.filter(
                 <div className="h-20 animate-pulse rounded-[18px] bg-[#f5efe9]" />
                 <div className="h-20 animate-pulse rounded-[18px] bg-[#f5efe9]" />
               </div>
+              <div className="mt-4 inline-flex rounded-full bg-white/90 px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#7a6a5e]">
+                Fonte: Catálogo oficial Harmonics
+              </div>
             </div>
           </div>
         </SectionCard>
@@ -3360,6 +3369,13 @@ const gospelEntranceSongs = hydratedSongs.filter(
           <div className="text-[28px]">⚠️</div>
           <div className="mt-3 text-[20px] font-black text-[#7f1d1d]">Falha ao carregar sugestões</div>
           <div className="mt-2 text-[14px] leading-6 text-[#7a3b3b]">{songsError}</div>
+          <button
+            type="button"
+            onClick={handleRetryLoadSongs}
+            className="mt-4 rounded-[14px] border border-[#f3c3cb] bg-white px-4 py-2 text-[13px] font-black text-[#7f1d1d]"
+          >
+            Tentar novamente
+          </button>
         </SectionCard>
       ) : songs.length === 0 ? (
         <SectionCard className="overflow-hidden border-[#e8dcff] bg-[linear-gradient(160deg,#ffffff_0%,#faf5ff_100%)]">
@@ -3368,6 +3384,9 @@ const gospelEntranceSongs = hydratedSongs.filter(
           <div className="mt-2 text-[14px] leading-6 text-[#6f5d51]">
             Ainda não existem músicas publicadas para este painel. Assim que a curadoria liberar novas
             faixas, elas aparecerão aqui automaticamente.
+          </div>
+          <div className="mt-4 inline-flex rounded-full bg-white px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#7a6a5e]">
+            Fonte única: /api/suggestions/songs
           </div>
         </SectionCard>
       ) : (

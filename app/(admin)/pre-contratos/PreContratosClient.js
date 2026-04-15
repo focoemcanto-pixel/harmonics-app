@@ -923,6 +923,10 @@ export default function PreContratosClient() {
 
       const token = item.public_token || generateToken();
       const link = buildContractLink(token);
+      console.info('[CONTRACT_TOKEN_FLOW] token gerado para link', {
+        precontractId: item.id,
+        token_gerado: token,
+      });
 
       const { data, error } = await supabase
         .from('precontracts')
@@ -941,7 +945,11 @@ export default function PreContratosClient() {
         const current = sanitizeTimeFields(data);
         return [current, ...prev.filter((entry) => entry.id !== current.id)];
       });
-      console.info('[PRECONTRATOS] link gerado', { id: item.id, public_token: token, generated_link: link });
+      console.info('[CONTRACT_TOKEN_FLOW] token salvo após gerar link', {
+        precontractId: item.id,
+        public_token: data?.public_token || token,
+        generated_link: data?.generated_link || link,
+      });
       showToast?.('Link do contrato gerado com sucesso.', 'success');
       await copiarLink(link, item.id);
 

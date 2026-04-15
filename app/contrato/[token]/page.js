@@ -465,7 +465,12 @@ async function upsertEventFromSignature({
 
 export default function ContratoPublicoPage() {
   const params = useParams();
-  const token = params?.token;
+  const token = useMemo(() => {
+    if (Array.isArray(params?.token)) {
+      return String(params.token[0] || '').trim();
+    }
+    return String(params?.token || '').trim();
+  }, [params]);
   const [previewAberto, setPreviewAberto] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState('');
@@ -520,37 +525,23 @@ const mapsLoaded = useGoogleMapsReady();
         let preData = null;
         let contractData = null;
 
-        const { data: preByToken, error: preByTokenError } = await supabase
-          .from('precontracts')
-          .select('*')
-          .eq('public_token', token)
-          .maybeSingle();
+        console.info('[CONTRACT_PUBLIC_UI] token recebido na página pública', {
+          token,
+        });
 
-        if (preByTokenError) throw preByTokenError;
+        const response = await fetch(`/api/contracts/public/${token}`, {
+          method: 'GET',
+          cache: 'no-store',
+        });
 
-        if (preByToken) {
-          preData = preByToken;
-        } else {
-          const { data: contractByToken, error: contractByTokenError } = await supabase
-            .from('contracts')
-            .select('*')
-            .eq('public_token', token)
-            .maybeSingle();
+        const payload = await response.json();
 
-          if (contractByTokenError) throw contractByTokenError;
-
-          if (contractByToken?.precontract_id) {
-            const { data: preById, error: preByIdError } = await supabase
-              .from('precontracts')
-              .select('*')
-              .eq('id', contractByToken.precontract_id)
-              .maybeSingle();
-
-            if (preByIdError) throw preByIdError;
-            preData = preById || null;
-            contractData = contractByToken;
-          }
+        if (!response.ok || !payload?.found) {
+          throw new Error(payload?.error || 'Contrato não encontrado.');
         }
+
+        preData = payload?.precontract || null;
+        contractData = payload?.contract || null;
 
         const safePreData = sanitizeTimeFields(preData || null);
         setPrecontract(safePreData || null);

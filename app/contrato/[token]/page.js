@@ -273,6 +273,11 @@ async function upsertContactFromSignature({
   precontract,
   form,
 }) {
+  function isMissingContactTypeColumnError(error) {
+    const message = String(error?.message || '').toLowerCase();
+    return message.includes('contact_type') && message.includes('contacts');
+  }
+
   const email = String(precontract?.client_email || '').trim() || null;
   const phone = cleanDigits(form.whatsapp) || null;
   const name = String(form.full_name || '').trim();
@@ -316,21 +321,43 @@ async function upsertContactFromSignature({
   };
 
   if (existing?.id) {
-    const { error } = await supabase
+    let { error } = await supabase
       .from('contacts')
       .update(payload)
       .eq('id', existing.id);
+
+    if (error && isMissingContactTypeColumnError(error)) {
+      const safePayload = { ...payload };
+      delete safePayload.contact_type;
+      const retry = await supabase
+        .from('contacts')
+        .update(safePayload)
+        .eq('id', existing.id);
+      error = retry.error || null;
+    }
 
     if (error) throw error;
 
     return existing.id;
   }
 
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('contacts')
     .insert([payload])
     .select('id')
     .single();
+
+  if (error && isMissingContactTypeColumnError(error)) {
+    const safePayload = { ...payload };
+    delete safePayload.contact_type;
+    const retry = await supabase
+      .from('contacts')
+      .insert([safePayload])
+      .select('id')
+      .single();
+    data = retry.data || null;
+    error = retry.error || null;
+  }
 
   if (error) throw error;
 

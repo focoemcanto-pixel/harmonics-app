@@ -1034,6 +1034,15 @@ export default function EventosPage() {
   local={ev.location_name || '-'}
   formacao={ev.formation || '-'}
   receptivo={ev.reception_hours ? `${ev.reception_hours}h` : 'Não'}
+  antesala={
+    ev.has_antesala
+      ? ev.antesala_duration_minutes
+        ? `${ev.antesala_duration_minutes} min`
+        : 'Incluída'
+      : ev.antesala_requested_by_client
+      ? 'Solicitada'
+      : 'Não'
+  }
   temSom={!!ev.has_sound}
   whatsappNome={ev.whatsapp_name || '-'}
   whatsappNumero={formatPhoneDisplay(ev.whatsapp_phone)}

@@ -198,6 +198,41 @@ function buildFinancialSummary(event) {
   };
 }
 
+function toNumber(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function normalizeFormation(value) {
+  const s = String(value || '').trim().toLowerCase();
+  if (!s) return '';
+  if (s.startsWith('duo')) return 'duo';
+  if (s.startsWith('trio')) return 'trio';
+  if (s.startsWith('quart')) return 'quarteto';
+  if (s.startsWith('quint')) return 'quinteto';
+  if (s.startsWith('sext')) return 'sexteto';
+  if (s.startsWith('sept')) return 'septeto';
+  return '';
+}
+
+function buildAntesalaQuoteOptions(formation, pricing = {}) {
+  const normalizedFormation = normalizeFormation(formation);
+  if (!normalizedFormation) return [];
+
+  const oneHour = toNumber(pricing[`reception_${normalizedFormation}_1h`]);
+  const twoHours = toNumber(pricing[`reception_${normalizedFormation}_2h`]);
+  const threeHours = toNumber(pricing[`reception_${normalizedFormation}_3h`]);
+
+  if (!oneHour && !twoHours && !threeHours) return [];
+
+  return [
+    { minutes: 30, label: '30 min', price: Math.max(oneHour - 200, 0) },
+    { minutes: 60, label: '1h', price: oneHour },
+    { minutes: 120, label: '2h', price: twoHours || oneHour },
+    { minutes: 180, label: '3h', price: threeHours || twoHours || oneHour },
+  ];
+}
+
 function buildFallbackData(token = '') {
   const supportConfig = resolveSupportWhatsAppConfig();
   const safeToken = String(token || '').trim();
@@ -229,6 +264,11 @@ function buildFallbackData(token = '') {
       linkVisualizacao: safeToken ? `/cliente/${safeToken}/repertorio` : '#',
       podeSolicitarCorrecao: false,
       temAntessala: false,
+      antesalaDurationMinutes: null,
+      antesalaRequestedByClient: false,
+      antesalaRequestStatus: '',
+      antesalaPriceIncrement: 0,
+      antesalaQuoteOptions: [],
       temReceptivo: false,
       pdfUrl: null,
       repertoireToken: safeToken,
@@ -310,6 +350,7 @@ export default async function ClienteTokenPage({ params }) {
   let contractsResp = { data: null, error: null };
   let repertoireTokenResp = { data: null, error: null };
   let paymentsResp = { data: [], error: null };
+  let pricingResp = { data: null, error: null };
 
   try {
     [
@@ -319,6 +360,7 @@ export default async function ClienteTokenPage({ params }) {
       contractsResp,
       repertoireTokenResp,
       paymentsResp,
+      pricingResp,
     ] = await Promise.all([
       supabase
         .from('events')
@@ -357,6 +399,13 @@ export default async function ClienteTokenPage({ params }) {
         .select('id, amount, payment_date, payment_method, status, notes, proof_file_url')
         .eq('event_id', eventId)
         .order('payment_date', { ascending: false }),
+
+      supabase
+        .from('pricing_settings')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
     ]);
   } catch (error) {
     console.error('[CLIENTE PAGE] Falha inesperada ao carregar dados principais:', error);
@@ -370,6 +419,9 @@ export default async function ClienteTokenPage({ params }) {
     console.error('[CLIENTE PAGE] Erro em repertoire_tokens:', repertoireTokenResp.error);
   }
   if (paymentsResp?.error) console.error('[CLIENTE PAGE] Erro em payments:', paymentsResp.error);
+  if (pricingResp?.error) {
+    console.error('[CLIENTE PAGE] Erro em pricing_settings:', pricingResp.error);
+  }
 
   const event = eventResp?.data || null;
   const config = configResp?.data || null;
@@ -377,6 +429,7 @@ export default async function ClienteTokenPage({ params }) {
   const contract = contractsResp?.data || null;
   const repertoireToken = repertoireTokenResp?.data || null;
   const payments = Array.isArray(paymentsResp?.data) ? paymentsResp.data : [];
+  const pricing = pricingResp?.data || {};
 
   if (!event) {
     console.error('[CLIENTE PAGE] Evento ausente após consultas, renderizando fallback.');
@@ -468,10 +521,17 @@ export default async function ClienteTokenPage({ params }) {
         String(config?.status || '').toUpperCase() !== 'AGUARDANDO_REVISAO',
       temAntessala: Boolean(
         config?.has_ante_room ??
+          event?.has_antesala ??
           event?.has_ante_room ??
           event?.has_antessala ??
           false
       ),
+      antesalaDurationMinutes:
+        Number(event?.antesala_duration_minutes || 0) || null,
+      antesalaRequestedByClient: Boolean(event?.antesala_requested_by_client),
+      antesalaRequestStatus: String(event?.antesala_request_status || ''),
+      antesalaPriceIncrement: Number(event?.antesala_price_increment || 0),
+      antesalaQuoteOptions: buildAntesalaQuoteOptions(event?.formation, pricing),
       temReceptivo: Boolean(
         config?.has_reception ??
           event?.has_reception ??
@@ -488,6 +548,15 @@ export default async function ClienteTokenPage({ params }) {
           generos: '',
           artistas: '',
           observacao: config?.ante_room_notes || '',
+          durationMinutes: Number(event?.antesala_duration_minutes || 30) || 30,
+          styleTags: [],
+          preferredArtistsEnabled: false,
+          referenceEnabled: false,
+          references: [],
+          requestQuoteOpened: false,
+          quoteMinutes: Number(event?.antesala_duration_minutes || 0) || null,
+          quotePriceIncrement: Number(event?.antesala_price_increment || 0) || 0,
+          requestedByClient: Boolean(event?.antesala_requested_by_client),
         },
         cortejo: initialLists.cortejo,
         cerimonia: initialLists.cerimonia,

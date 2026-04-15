@@ -378,6 +378,18 @@ function EventCard({
         </div>
       ) : null}
 
+      {item?.hasAntesala ? (
+        <div className="mt-1 flex items-start gap-2 text-[13px] font-semibold text-[#a89ec8] xl:text-[14px]">
+          <span className="shrink-0">🎶</span>
+          <span>
+            Antesala:{' '}
+            {item?.antesalaDurationMinutes
+              ? `${item.antesalaDurationMinutes} min`
+              : 'Incluída'}
+          </span>
+        </div>
+      ) : null}
+
       {item?.hasSound ? (
         <div className="mt-1 flex items-start gap-2 text-[13px] font-semibold text-[#a89ec8] xl:text-[14px]">
           <span className="shrink-0">🔊</span>

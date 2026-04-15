@@ -14,10 +14,35 @@ import { getYoutubeVideoId } from '../../lib/youtube/getYoutubeVideoId';
 import { buildWhatsAppUrl } from '../../lib/whatsapp/support-config';
 
 const REPERTORIO_DRAFT_LOCAL_STORAGE_KEY = 'repertorio_draft_local';
+const ANTESALA_DURATION_OPTIONS = [
+  { minutes: 30, label: '30 min' },
+  { minutes: 60, label: '1h' },
+  { minutes: 120, label: '2h' },
+  { minutes: 180, label: '3h' },
+];
+const ANTESALA_STYLE_OPTIONS = ['Gospel', 'Internacional', 'MPB', 'Sertanejo'];
 
 
 function classNames(...classes) {
   return classes.filter(Boolean).join(' ');
+}
+
+function getDefaultAntesalaState() {
+  return {
+    estilo: '',
+    generos: '',
+    artistas: '',
+    observacao: '',
+    durationMinutes: 30,
+    styleTags: [],
+    preferredArtistsEnabled: false,
+    referenceEnabled: false,
+    references: [],
+    requestQuoteOpened: false,
+    quoteMinutes: null,
+    quotePriceIncrement: 0,
+    requestedByClient: false,
+  };
 }
 
 function isRepertoireFinalizedStatus(status, isLocked = false) {
@@ -124,7 +149,11 @@ function hasInitialRepertorioFromBackend(initialState = {}) {
     (hasFilledField(initialState.antessala.estilo) ||
       hasFilledField(initialState.antessala.generos) ||
       hasFilledField(initialState.antessala.artistas) ||
-      hasFilledField(initialState.antessala.observacao));
+      hasFilledField(initialState.antessala.observacao) ||
+      (Array.isArray(initialState.antessala.styleTags) &&
+        initialState.antessala.styleTags.length > 0) ||
+      (Array.isArray(initialState.antessala.references) &&
+        initialState.antessala.references.length > 0));
   const hasReceptivo =
     !!initialState.receptivo &&
     (hasFilledField(initialState.receptivo.duracao) ||
@@ -1095,19 +1124,24 @@ function RepertorioTab({ data, selectedSongs, onSaved, onReviewRequested }) {
     : null;
 
 const [querAntessala, setQuerAntessala] = useState(
-  data.repertorio.temAntessala
-    ? (initialState.querAntessala ?? null)
-    : false
+  initialState.querAntessala ?? null
 );
 
 const [temReceptivo, setTemReceptivo] = useState(!!data.repertorio.temReceptivo);
 
 const [antessala, setAntessala] = useState(
-  initialState.antessala || {
-    estilo: '',
-    generos: '',
-    artistas: '',
-    observacao: '',
+  {
+    ...getDefaultAntesalaState(),
+    ...(initialState.antessala || {}),
+    durationMinutes:
+      Number(initialState?.antessala?.durationMinutes || data?.repertorio?.antesalaDurationMinutes || 30) || 30,
+    requestedByClient:
+      Boolean(initialState?.antessala?.requestedByClient) ||
+      Boolean(data?.repertorio?.antesalaRequestedByClient),
+    quotePriceIncrement:
+      Number(initialState?.antessala?.quotePriceIncrement || data?.repertorio?.antesalaPriceIncrement || 0) || 0,
+    quoteMinutes:
+      Number(initialState?.antessala?.quoteMinutes || data?.repertorio?.antesalaDurationMinutes || 0) || null,
   }
 );
 
@@ -1224,12 +1258,7 @@ const [receptivo, setReceptivo] = useState(
           reference_video_id: '',
         },
       antessala:
-        parsed?.antessala || {
-          estilo: '',
-          generos: '',
-          artistas: '',
-          observacao: '',
-        },
+        { ...getDefaultAntesalaState(), ...(parsed?.antessala || {}) },
       receptivo:
         parsed?.receptivo || {
           duracao: '1h',
@@ -1501,7 +1530,7 @@ const [receptivo, setReceptivo] = useState(
 
   const visibleSteps = [
     { id: 1, label: 'Boas-vindas' },
-    { id: 2, label: 'Antessala', locked: !data.repertorio.temAntessala },
+    { id: 2, label: 'Antessala' },
     { id: 3, label: 'Cortejo' },
     { id: 4, label: 'Cerimônia' },
     { id: 5, label: 'Saída' },
@@ -1525,8 +1554,36 @@ function buildItemsPayload() {
       type: 'ante_room',
       group_name: '',
       label: 'Antessala',
-      genres: antessala.generos || '',
+      genres:
+        antessala.generos ||
+        (Array.isArray(antessala.styleTags) ? antessala.styleTags.join(', ') : ''),
       artists: antessala.artistas || '',
+    });
+
+    const beforeRoomReferences = Array.isArray(antessala.references)
+      ? antessala.references.slice(0, 5)
+      : [];
+
+    beforeRoomReferences.forEach((reference, index) => {
+      const referenceFields = normalizeReferenceFields(reference);
+      items.push({
+        section: 'antessala',
+        item_order: 100 + index,
+        who_enters: '',
+        moment: `Referência ${index + 1}`,
+        song_name: reference.title || '',
+        reference_link: referenceFields.reference_link,
+        reference_title: referenceFields.reference_title,
+        reference_channel: referenceFields.reference_channel,
+        reference_thumbnail: referenceFields.reference_thumbnail,
+        reference_video_id: referenceFields.reference_video_id,
+        notes: '',
+        type: 'ante_room',
+        group_name: '',
+        label: `Referência ${index + 1}`,
+        genres: '',
+        artists: '',
+      });
     });
   }
 
@@ -1677,11 +1734,20 @@ function buildItemsPayload() {
 
 function buildConfigPayload() {
   const exitReferenceFields = normalizeReferenceFields(saida);
+  const antesalaIncluded = querAntessala === true;
+  const mergedGenres =
+    antessala.generos ||
+    (Array.isArray(antessala.styleTags) ? antessala.styleTags.join(', ') : '');
+  const mergedArtists =
+    antessala.artistas ||
+    (antessala.preferredArtistsEnabled ? antessala.artistas || '' : '');
 
   return {
-    has_ante_room: querAntessala === true,
+    has_ante_room: antesalaIncluded,
     ante_room_style: antessala.estilo || '',
-    ante_room_notes: antessala.observacao || '',
+    ante_room_notes: [antessala.observacao || '', mergedGenres ? `Estilos: ${mergedGenres}` : '', mergedArtists ? `Artistas: ${mergedArtists}` : '']
+      .filter(Boolean)
+      .join('\n'),
     has_reception: temReceptivo,
     reception_duration: temReceptivo ? receptivo.duracao || '' : '',
     reception_genres: temReceptivo ? receptivo.generos || '' : '',
@@ -1709,6 +1775,13 @@ async function saveRepertorio(mode = 'draft') {
       mode,
       config: buildConfigPayload(),
       items: buildItemsPayload(),
+      antesalaFlow: {
+        included: querAntessala === true,
+        durationMinutes: Number(antessala.durationMinutes || 0) || null,
+        requestedByClient: Boolean(antessala.requestedByClient),
+        requestStatus: antessala.requestedByClient ? 'pending_admin_validation' : null,
+        priceIncrement: Number(antessala.quotePriceIncrement || 0) || 0,
+      },
     };
 
     console.log(
@@ -1979,100 +2052,235 @@ async function handleRequestReview() {
       )}
 
      {!travado && step === 2 && (
-  <>
-    {data.repertorio.temAntessala ? (
       <SectionCard>
-        <div className="text-[22px] font-black text-[#241a14]">Antessala 🎶</div>
+        <div className="text-[22px] font-black text-[#241a14]">Antesala 🎶</div>
         <div className="mt-2 text-[14px] leading-6 text-[#6f5d51]">
-          A antessala é a música ambiente para recepcionar os convidados antes do início da cerimônia.
+          Seu contrato possui antesala?
         </div>
 
-        <div className="mt-5 rounded-[22px] border border-[#eadfd6] bg-[#faf7f3] p-4">
-          <div className="text-[15px] font-black text-[#241a14]">
-            No seu contrato está incluso antessala (música para recepcionar os convidados)?
-          </div>
-
-          <div className="mt-4 flex gap-3">
-            <button
-              type="button"
-              onClick={() => setQuerAntessala(true)}
-              className={classNames(
-                'flex-1 rounded-[18px] border px-4 py-4 text-[15px] font-black transition',
-                querAntessala === true
-                  ? 'border-violet-200 bg-violet-50 text-violet-700'
-                  : 'border-[#eadfd6] bg-white text-[#241a14]'
-              )}
-            >
-              Sim
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setQuerAntessala(false)}
-              className={classNames(
-                'flex-1 rounded-[18px] border px-4 py-4 text-[15px] font-black transition',
-                querAntessala === false
-                  ? 'border-zinc-200 bg-zinc-50 text-zinc-700'
-                  : 'border-[#eadfd6] bg-white text-[#241a14]'
-              )}
-            >
-              Não
-            </button>
-          </div>
+        <div className="mt-4 flex gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              setQuerAntessala(true);
+              setAntessala((prev) => ({ ...prev, requestedByClient: false }));
+            }}
+            className={classNames(
+              'flex-1 rounded-[18px] border px-4 py-4 text-[15px] font-black transition',
+              querAntessala === true
+                ? 'border-violet-200 bg-violet-50 text-violet-700'
+                : 'border-[#eadfd6] bg-white text-[#241a14]'
+            )}
+          >
+            Sim
+          </button>
+          <button
+            type="button"
+            onClick={() => setQuerAntessala(false)}
+            className={classNames(
+              'flex-1 rounded-[18px] border px-4 py-4 text-[15px] font-black transition',
+              querAntessala === false
+                ? 'border-zinc-200 bg-zinc-50 text-zinc-700'
+                : 'border-[#eadfd6] bg-white text-[#241a14]'
+            )}
+          >
+            Não
+          </button>
         </div>
 
-        {querAntessala === true && (
+        {querAntessala === true ? (
           <div className="mt-5 space-y-4">
-            <InputField
-              label="Estilo desejado"
-              placeholder="Ex: instrumental suave, romântico, elegante..."
-              value={antessala.estilo}
-              onChange={(e) =>
-                setAntessala({ ...antessala, estilo: e.target.value })
-              }
-            />
-            <InputField
-              label="Gêneros"
-              placeholder="Ex: MPB, clássico, bossa nova, gospel..."
-              value={antessala.generos || ''}
-              onChange={(e) =>
-                setAntessala({ ...antessala, generos: e.target.value })
-              }
-            />
-            <InputField
-              label="Artistas desejados"
-              placeholder="Ex: Ludovico Einaudi, Ana Vilela, Coldplay..."
-              value={antessala.artistas || ''}
-              onChange={(e) =>
-                setAntessala({ ...antessala, artistas: e.target.value })
-              }
-            />
-            <InputField
-              label="Observações"
-              placeholder="Algo específico para esse momento?"
-              value={antessala.observacao}
-              onChange={(e) =>
-                setAntessala({ ...antessala, observacao: e.target.value })
-              }
-              textarea
-              rows={3}
-            />
-          </div>
-        )}
+            <div className="rounded-[18px] border border-[#eadfd6] bg-[#faf7f3] px-4 py-3 text-[13px] leading-5 text-[#6f5d51]">
+              Essa opção adiciona um acréscimo ao valor acertado. Se esse ajuste já tiver sido combinado com nossa equipe, pode prosseguir normalmente.
+            </div>
+            <div>
+              <div className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#9b8576]">Tempo da antesala</div>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                {ANTESALA_DURATION_OPTIONS.map((option) => (
+                  <button
+                    key={option.minutes}
+                    type="button"
+                    onClick={() => setAntessala({ ...antessala, durationMinutes: option.minutes })}
+                    className={classNames(
+                      'rounded-[14px] border px-3 py-3 text-[14px] font-black',
+                      Number(antessala.durationMinutes || 0) === option.minutes
+                        ? 'border-violet-200 bg-violet-50 text-violet-700'
+                        : 'border-[#eadfd6] bg-white text-[#241a14]'
+                    )}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
 
-        {querAntessala === false && (
-          <div className="mt-5 rounded-[18px] border border-[#eadfd6] bg-white px-4 py-4 text-[14px] leading-6 text-[#7a6a5e]">
-            Tudo bem. Seguiremos sem antessala neste evento.
+            <div>
+              <div className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#9b8576]">Estilos desejados (opcional)</div>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {ANTESALA_STYLE_OPTIONS.map((style) => {
+                  const selected = Array.isArray(antessala.styleTags) && antessala.styleTags.includes(style);
+                  return (
+                    <button
+                      key={style}
+                      type="button"
+                      onClick={() =>
+                        setAntessala((prev) => ({
+                          ...prev,
+                          styleTags: selected
+                            ? prev.styleTags.filter((item) => item !== style)
+                            : [...(prev.styleTags || []), style],
+                        }))
+                      }
+                      className={classNames(
+                        'rounded-full border px-3 py-2 text-[12px] font-bold',
+                        selected ? 'border-violet-200 bg-violet-50 text-violet-700' : 'border-[#eadfd6] bg-white text-[#6f5d51]'
+                      )}
+                    >
+                      {style}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <label className="flex items-center gap-2 text-[14px] font-semibold text-[#6f5d51]">
+              <input type="checkbox" checked={!!antessala.preferredArtistsEnabled} onChange={(e) => setAntessala({ ...antessala, preferredArtistsEnabled: e.target.checked })} />
+              Quero indicar artistas preferenciais
+            </label>
+            {antessala.preferredArtistsEnabled ? (
+              <InputField
+                label="Artistas preferenciais"
+                placeholder="Ex.: Djavan, Jorge Vercilo, Marisa Monte"
+                value={antessala.artistas || ''}
+                onChange={(e) => setAntessala({ ...antessala, artistas: e.target.value })}
+              />
+            ) : null}
+
+            <label className="flex items-center gap-2 text-[14px] font-semibold text-[#6f5d51]">
+              <input type="checkbox" checked={!!antessala.referenceEnabled} onChange={(e) => setAntessala({ ...antessala, referenceEnabled: e.target.checked })} />
+              Quero adicionar referências específicas
+            </label>
+            {antessala.referenceEnabled ? (
+              <div className="space-y-3">
+                {(Array.isArray(antessala.references) ? antessala.references : []).slice(0, 5).map((reference, index) => (
+                  <ReferenceSearchInput
+                    key={`antesala-ref-${index}`}
+                    searchValue={reference?.title || ''}
+                    referenceValue={reference?.referencia || ''}
+                    selectedReference={reference?.referenceMeta || null}
+                    onSearchValueChange={(value) =>
+                      setAntessala((prev) => {
+                        const next = [...(prev.references || [])];
+                        next[index] = { ...(next[index] || {}), title: value };
+                        return { ...prev, references: next };
+                      })
+                    }
+                    onReferenceValueChange={(e) =>
+                      setAntessala((prev) => {
+                        const next = [...(prev.references || [])];
+                        next[index] = { ...(next[index] || {}), referencia: e.target.value };
+                        return { ...prev, references: next };
+                      })
+                    }
+                    onSelectResult={(result) =>
+                      setAntessala((prev) => {
+                        const next = [...(prev.references || [])];
+                        next[index] = {
+                          referencia: result.url,
+                          title: result.title || '',
+                          reference_title: result.title || '',
+                          reference_channel: result.channelTitle || '',
+                          reference_thumbnail: result.thumbnail || '',
+                          reference_video_id: result.videoId || '',
+                          referenceMeta: {
+                            videoId: result.videoId || '',
+                            title: result.title || '',
+                            channelTitle: result.channelTitle || '',
+                            thumbnail: result.thumbnail || '',
+                          },
+                        };
+                        return { ...prev, references: next };
+                      })
+                    }
+                    onClearReference={() =>
+                      setAntessala((prev) => {
+                        const next = [...(prev.references || [])];
+                        next[index] = {};
+                        return { ...prev, references: next };
+                      })
+                    }
+                  />
+                ))}
+                {(antessala.references || []).length < 5 ? (
+                  <button
+                    type="button"
+                    onClick={() => setAntessala((prev) => ({ ...prev, references: [...(prev.references || []), {}] }))}
+                    className="rounded-[14px] border border-dashed border-[#d9c8f7] px-3 py-2 text-[12px] font-bold text-violet-700"
+                  >
+                    + Adicionar referência
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
           </div>
-        )}
+        ) : null}
+
+        {querAntessala === false ? (
+          <div className="mt-5 space-y-3">
+            <div className="rounded-[18px] border border-[#eadfd6] bg-white px-4 py-4 text-[14px] leading-6 text-[#7a6a5e]">
+              Você pode seguir normalmente com o repertório sem antesala.
+            </div>
+            {!antessala.requestedByClient ? (
+              <button
+                type="button"
+                onClick={() => setAntessala((prev) => ({ ...prev, requestQuoteOpened: !prev.requestQuoteOpened }))}
+                className="w-full rounded-[16px] border border-[#d9c8f7] bg-[#fcfbff] px-4 py-3 text-[14px] font-black text-violet-700"
+              >
+                Orçar antesala
+              </button>
+            ) : null}
+            {antessala.requestQuoteOpened ? (
+              <div className="rounded-[18px] border border-[#eadfd6] bg-[#faf7f3] p-3">
+                <div className="mb-2 text-[12px] font-bold text-[#6f5d51]">Selecione o tempo para solicitar orçamento:</div>
+                <div className="space-y-2">
+                  {(data.repertorio?.antesalaQuoteOptions || []).map((option) => (
+                    <button
+                      key={option.minutes}
+                      type="button"
+                      onClick={() =>
+                        setAntessala((prev) => ({
+                          ...prev,
+                          quoteMinutes: option.minutes,
+                          quotePriceIncrement: option.price,
+                          requestedByClient: true,
+                          requestQuoteOpened: false,
+                          durationMinutes: option.minutes,
+                        }))
+                      }
+                      className="flex w-full items-center justify-between rounded-[14px] border border-[#eadfd6] bg-white px-3 py-3 text-left text-[13px] font-bold text-[#241a14]"
+                    >
+                      <span>{option.label}</span>
+                      <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(option.price || 0))}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        {antessala.requestedByClient ? (
+          <div className="mt-4 rounded-[16px] border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] font-bold text-amber-700">
+            Antesala solicitada • aguardando confirmação
+          </div>
+        ) : null}
+
+        {querAntessala === true ? (
+          <div className="mt-4 rounded-[16px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-[13px] font-bold text-emerald-700">
+            Antesala incluída • {ANTESALA_DURATION_OPTIONS.find((item) => item.minutes === Number(antessala.durationMinutes || 30))?.label || '30 min'}
+          </div>
+        ) : null}
       </SectionCard>
-    ) : (
-      <LockedSectionCard
-        title="Antessala não incluída"
-        text="Essa etapa está bloqueada porque não consta no contrato deste evento."
-      />
-    )}
-  </>
 )}
 
       {!travado && step === 3 && (
@@ -2330,13 +2538,13 @@ async function handleRequestReview() {
   icon="🎶"
   label="Antessala"
   value={
-    data.repertorio.temAntessala
-      ? querAntessala === true
-        ? 'Sim, com preenchimento'
-        : querAntessala === false
-        ? 'Não utilizar'
-        : 'Não definido'
-      : 'Não incluída no contrato'
+    querAntessala === true
+      ? `Incluída • ${ANTESALA_DURATION_OPTIONS.find((item) => item.minutes === Number(antessala.durationMinutes || 30))?.label || '30 min'}`
+      : antessala.requestedByClient
+      ? 'Solicitada • aguardando confirmação'
+      : querAntessala === false
+      ? 'Sem antesala'
+      : 'Não definido'
   }
 />
               <RowInfo icon="💒" label="Entradas no cortejo" value={String(cortejo.length)} />

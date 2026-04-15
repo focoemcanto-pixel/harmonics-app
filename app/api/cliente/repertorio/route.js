@@ -219,6 +219,14 @@ function buildRepertoireSummary(items = []) {
   return `Cortejo: ${cortejo} | Cerimônia: ${cerimonia} | Saída: ${hasSaida ? 'sim' : 'não'}`;
 }
 
+function formatDurationLabel(minutes) {
+  const value = Number(minutes || 0);
+  if (!value) return 'Não definido';
+  if (value === 30) return '30 min';
+  if (value % 60 === 0) return `${value / 60}h`;
+  return `${value} min`;
+}
+
 async function findLatestRepertoireTokenByEvent(supabase, eventId) {
   const { data, error } = await supabase
     .from('repertoire_tokens')
@@ -290,6 +298,7 @@ export async function POST(request) {
     const mode = String(body?.mode || 'draft').trim().toLowerCase();
     const config = body?.config || {};
     const rawItems = body?.items || [];
+    const antesalaFlow = body?.antesalaFlow || {};
 
     if (!token) {
       return NextResponse.json(
@@ -454,6 +463,29 @@ export async function POST(request) {
       configPayload.repertoire_pdf_url = `/api/cliente/repertorio/pdf/${tokenRow.token}`;
     }
 
+    const antesalaIncluded = normalizeBool(antesalaFlow.included);
+    const antesalaRequestedByClient = normalizeBool(antesalaFlow.requestedByClient);
+    const antesalaDurationMinutes = Number(antesalaFlow.durationMinutes || 0) || null;
+    const antesalaPriceIncrement = Number(antesalaFlow.priceIncrement || 0) || 0;
+    const beforeRoomStatus = antesalaRequestedByClient
+      ? 'pending_admin_validation'
+      : antesalaIncluded
+      ? 'included'
+      : null;
+
+    const { error: updateEventError } = await supabase
+      .from('events')
+      .update({
+        has_antesala: antesalaIncluded,
+        antesala_duration_minutes: antesalaDurationMinutes,
+        antesala_requested_by_client: antesalaRequestedByClient,
+        antesala_request_status: beforeRoomStatus,
+        antesala_price_increment: antesalaPriceIncrement,
+      })
+      .eq('id', eventId);
+
+    if (updateEventError) throw updateEventError;
+
     const { error: upsertConfigError } = await supabase
       .from('repertoire_config')
       .upsert(configPayload, {
@@ -569,6 +601,36 @@ export async function POST(request) {
         await sendAdminWhatsAppAlert(alertMessage);
       } catch (whatsappError) {
         console.error('[API REPERTORIO] Não foi possível enviar alerta WhatsApp para admin:', whatsappError);
+      }
+    }
+
+    if (antesalaRequestedByClient) {
+      const { data: eventRow, error: eventBeforeRoomError } = await supabase
+        .from('events')
+        .select('client_name, event_date, formation')
+        .eq('id', eventId)
+        .maybeSingle();
+
+      if (eventBeforeRoomError) throw eventBeforeRoomError;
+
+      const beforeRoomAlert = [
+        'Novo pedido de antesala',
+        '',
+        `Evento: CLIENT_REQUEST_ANTESALA`,
+        `Cliente: ${eventRow?.client_name || 'Cliente'}`,
+        `Evento: ${formatDateBR(eventRow?.event_date)}`,
+        `Formação: ${eventRow?.formation || 'Não definida'}`,
+        '',
+        'Solicitou:',
+        `Antesala - ${formatDurationLabel(antesalaDurationMinutes)}`,
+        '',
+        'Aguardando validação.',
+      ].join('\n');
+
+      try {
+        await sendAdminWhatsAppAlert(beforeRoomAlert);
+      } catch (whatsappError) {
+        console.error('[API REPERTORIO] Não foi possível enviar alerta de solicitação de antesala:', whatsappError);
       }
     }
 

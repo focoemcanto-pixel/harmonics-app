@@ -159,6 +159,28 @@ function mapItemsToInitialState(items) {
       reference_video_id: item.reference_video_id || '',
     }));
 
+  const antessalaItems = safeItems
+    .filter((item) => item.section === 'antessala')
+    .sort((a, b) => (a.item_order || 0) - (b.item_order || 0));
+  const antessalaMainItem =
+    antessalaItems.find((item) => (item.item_order || 0) < 100) || antessalaItems[0] || null;
+  const antessalaReferences = antessalaItems
+    .filter((item) => item.reference_link || item.reference_video_id)
+    .slice(0, 5)
+    .map((item) => ({
+      title: item.song_name || item.reference_title || '',
+      link: item.reference_link || '',
+      reference_title: item.reference_title || '',
+      reference_channel: item.reference_channel || '',
+      reference_thumbnail: item.reference_thumbnail || '',
+      reference_video_id: item.reference_video_id || '',
+    }));
+
+  const receptivoItem =
+    safeItems
+      .filter((item) => item.section === 'receptivo')
+      .sort((a, b) => (a.item_order || 0) - (b.item_order || 0))[0] || null;
+
   return {
     cortejo:
       cortejo.length > 0
@@ -171,6 +193,22 @@ function mapItemsToInitialState(items) {
       cerimonia.length > 0
         ? cerimonia
         : [{ label: 'Alianças', musica: '', referencia: '', observacao: '' }],
+    antessala: {
+      estilo: antessalaMainItem?.song_name || '',
+      generos: antessalaMainItem?.genres || '',
+      artistas: antessalaMainItem?.artists || '',
+      observacao: antessalaMainItem?.notes || '',
+      styleTags: [],
+      preferredArtistsEnabled: Boolean(antessalaMainItem?.artists),
+      referenceEnabled: antessalaReferences.length > 0,
+      references: antessalaReferences,
+    },
+    receptivo: {
+      duracao: '',
+      generos: receptivoItem?.genres || '',
+      artistas: receptivoItem?.artists || '',
+      observacao: receptivoItem?.notes || '',
+    },
   };
 }
 
@@ -544,15 +582,16 @@ export default async function ClienteTokenPage({ params }) {
       initialState: {
         querAntessala: config?.has_ante_room ?? null,
         antessala: {
-          estilo: config?.ante_room_style || '',
-          generos: '',
-          artistas: '',
-          observacao: config?.ante_room_notes || '',
+          ...initialLists.antessala,
+          estilo: config?.ante_room_style || initialLists.antessala?.estilo || '',
+          generos: initialLists.antessala?.generos || '',
+          artistas: initialLists.antessala?.artistas || '',
+          observacao: config?.ante_room_notes || initialLists.antessala?.observacao || '',
           durationMinutes: Number(event?.antesala_duration_minutes || 30) || 30,
-          styleTags: [],
-          preferredArtistsEnabled: false,
-          referenceEnabled: false,
-          references: [],
+          styleTags: initialLists.antessala?.styleTags || [],
+          preferredArtistsEnabled: Boolean(initialLists.antessala?.preferredArtistsEnabled),
+          referenceEnabled: Boolean(initialLists.antessala?.referenceEnabled),
+          references: initialLists.antessala?.references || [],
           requestQuoteOpened: false,
           quoteMinutes: Number(event?.antesala_duration_minutes || 0) || null,
           quotePriceIncrement: Number(event?.antesala_price_increment || 0) || 0,
@@ -571,9 +610,9 @@ export default async function ClienteTokenPage({ params }) {
         },
         receptivo: {
           duracao: config?.reception_duration || '1h',
-          generos: config?.reception_genres || '',
-          artistas: config?.reception_artists || '',
-          observacao: config?.reception_notes || '',
+          generos: config?.reception_genres || initialLists.receptivo?.generos || '',
+          artistas: config?.reception_artists || initialLists.receptivo?.artistas || '',
+          observacao: config?.reception_notes || initialLists.receptivo?.observacao || '',
         },
         desiredSongs: config?.desired_songs || '',
         generalNotes: config?.general_notes || '',

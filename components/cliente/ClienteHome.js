@@ -220,6 +220,8 @@ function buildRepertorioSnapshot({
   cerimonia,
   saida,
   receptivo,
+  desiredSongs,
+  generalNotes,
 }) {
   return {
     querAntessala,
@@ -229,6 +231,8 @@ function buildRepertorioSnapshot({
     cerimonia,
     saida,
     receptivo,
+    desiredSongs,
+    generalNotes,
   };
 }
 
@@ -1209,6 +1213,8 @@ const [receptivo, setReceptivo] = useState(
     observacao: '',
   }
 );
+const [desiredSongs, setDesiredSongs] = useState(initialState.desiredSongs || '');
+const [generalNotes, setGeneralNotes] = useState(initialState.generalNotes || '');
   const [showLocalDraftBanner, setShowLocalDraftBanner] = useState(false);
   const [savingMode, setSavingMode] = useState('');
   const [draftHydrated, setDraftHydrated] = useState(false);
@@ -1224,6 +1230,8 @@ const [receptivo, setReceptivo] = useState(
       cerimonia,
       saida,
       receptivo,
+      desiredSongs,
+      generalNotes,
     })
   );
   const appliedSuggestionKeysRef = useRef(new Set());
@@ -1237,8 +1245,20 @@ const [receptivo, setReceptivo] = useState(
       cerimonia,
       saida,
       receptivo,
+      desiredSongs,
+      generalNotes,
     });
-  }, [querAntessala, temReceptivo, antessala, cortejo, cerimonia, saida, receptivo]);
+  }, [
+    querAntessala,
+    temReceptivo,
+    antessala,
+    cortejo,
+    cerimonia,
+    saida,
+    receptivo,
+    desiredSongs,
+    generalNotes,
+  ]);
 
   const applyLocalDraft = useCallback((parsed) => {
     const restoredState = {
@@ -1266,6 +1286,8 @@ const [receptivo, setReceptivo] = useState(
           artistas: '',
           observacao: '',
         },
+      desiredSongs: parsed?.desiredSongs || '',
+      generalNotes: parsed?.generalNotes || '',
     };
 
     console.log('[REPERTORIO_AUTOSAVE] estados restaurados no draft local:', restoredState);
@@ -1283,6 +1305,8 @@ const [receptivo, setReceptivo] = useState(
     setReceptivo(
       restoredState.receptivo
     );
+    setDesiredSongs(restoredState.desiredSongs);
+    setGeneralNotes(restoredState.generalNotes);
   }, [data.repertorio.temReceptivo]);
 
   useEffect(() => {
@@ -1360,6 +1384,8 @@ const [receptivo, setReceptivo] = useState(
       cerimonia,
       saida,
       receptivo,
+      desiredSongs,
+      generalNotes,
     };
 
     localStorage.setItem(
@@ -1380,7 +1406,18 @@ const [receptivo, setReceptivo] = useState(
         );
       }
     }
-  }, [autosaveReady, querAntessala, temReceptivo, antessala, cortejo, cerimonia, saida, receptivo]);
+  }, [
+    autosaveReady,
+    querAntessala,
+    temReceptivo,
+    antessala,
+    cortejo,
+    cerimonia,
+    saida,
+    receptivo,
+    desiredSongs,
+    generalNotes,
+  ]);
 
   useEffect(() => {
     if (!Array.isArray(selectedSongs) || selectedSongs.length === 0) return;
@@ -1760,8 +1797,8 @@ function buildConfigPayload() {
     exit_reference_thumbnail: exitReferenceFields.reference_thumbnail,
     exit_reference_video_id: exitReferenceFields.reference_video_id,
     exit_notes: saida.observacao || '',
-    desired_songs: '',
-    general_notes: '',
+    desired_songs: desiredSongs || '',
+    general_notes: generalNotes || '',
   };
 }
 
@@ -1784,10 +1821,17 @@ async function saveRepertorio(mode = 'draft') {
       },
     };
 
-    console.log(
-      '[SUGESTOES->REPERTORIO] payload final enviado para persistência:',
-      payload.items
-    );
+    const payloadItemsBySection = payload.items.reduce((acc, item) => {
+      const key = String(item?.section || 'sem_secao');
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {});
+    const expectedSections = ['antessala', 'cortejo', 'cerimonia', 'receptivo', 'saida'];
+    const missingSections = expectedSections.filter((section) => !payloadItemsBySection[section]);
+
+    console.log('[REPERTORIO_DRAFT] payload final enviado para persistência:', payload);
+    console.log('[REPERTORIO_DRAFT] quantidade de itens por seção:', payloadItemsBySection);
+    console.log('[REPERTORIO_DRAFT] seções ausentes no payload.itens:', missingSections);
 
     console.log('[CLIENTE REPERTORIO] token URL (/cliente/[token]):', data.token);
     console.log('[CLIENTE REPERTORIO] token enviado no payload.token:', payload.token);

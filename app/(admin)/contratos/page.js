@@ -32,6 +32,10 @@ function escapeCsv(value) {
   return text;
 }
 
+function getResolvedToken(precontract, contract) {
+  return String(precontract?.public_token || contract?.public_token || '').trim();
+}
+
 export default function ContratosPage() {
   const router = useRouter();
 
@@ -60,10 +64,12 @@ export default function ContratosPage() {
             supabase
               .from('precontracts')
               .select('*')
+              .neq('status', 'archived')
               .order('created_at', { ascending: false }),
             supabase
               .from('contracts')
               .select('*')
+              .neq('status', 'archived')
               .order('created_at', { ascending: false }),
           ]);
 
@@ -76,6 +82,7 @@ export default function ContratosPage() {
 
         const merged = (precontracts || []).map((pre) => {
           const contract = contractsByPreId.get(String(pre.id));
+          const resolvedToken = getResolvedToken(pre, contract);
           const resolvedStatus = mapStatus(
             contract?.status || pre?.status,
             !!contract
@@ -95,7 +102,7 @@ export default function ContratosPage() {
 
           return {
             id: pre.id,
-            token: pre.public_token,
+            token: resolvedToken,
             precontractId: pre.id,
             contractId: contract?.id || null,
             eventoId: contract?.event_id || pre?.event_id || null,
@@ -113,7 +120,7 @@ export default function ContratosPage() {
             enviadoEm: pre.created_at || '',
             assinadoEm: contract?.signed_at || '',
             observacoes: pre.notes || '',
-            linkContrato: pre.public_token ? `/contrato/${pre.public_token}` : '',
+            linkContrato: resolvedToken ? `/contrato/${resolvedToken}` : '',
             pdfUrl: contract?.pdf_url || '',
             docUrl: contract?.doc_url || '',
           };
@@ -145,6 +152,11 @@ export default function ContratosPage() {
   }
 
   async function onCopyLink(link) {
+    if (!link) {
+      alert('Este contrato ainda não possui link público.');
+      return;
+    }
+
     try {
       const full = `${window.location.origin}${link}`;
       await navigator.clipboard.writeText(full);
@@ -152,6 +164,50 @@ export default function ContratosPage() {
     } catch (error) {
       console.error(error);
       alert('Não foi possível copiar o link.');
+    }
+  }
+
+  async function onDeleteContract(item) {
+    if (!item?.precontractId) return;
+
+    const confirmed = window.confirm('Tem certeza que deseja excluir este contrato?');
+    if (!confirmed) return;
+
+    try {
+      const nowIso = new Date().toISOString();
+      const updates = [
+        supabase
+          .from('precontracts')
+          .update({
+            status: 'archived',
+            updated_at: nowIso,
+          })
+          .eq('id', item.precontractId),
+      ];
+
+      if (item.contractId) {
+        updates.push(
+          supabase
+            .from('contracts')
+            .update({
+              status: 'archived',
+              updated_at: nowIso,
+            })
+            .eq('id', item.contractId)
+        );
+      }
+
+      const results = await Promise.all(updates);
+      const failed = results.find((result) => result.error);
+      if (failed?.error) throw failed.error;
+
+      setContratos((prev) =>
+        prev.filter((entry) => String(entry.precontractId) !== String(item.precontractId))
+      );
+      alert('Contrato removido com sucesso.');
+    } catch (error) {
+      console.error('Erro ao remover contrato:', error);
+      alert('Não foi possível remover o contrato.');
     }
   }
 
@@ -288,6 +344,7 @@ export default function ContratosPage() {
             carregando={carregando}
             erro={erro}
             onCopyLink={onCopyLink}
+            onDeleteContract={onDeleteContract}
           />
         </div>
 
@@ -314,6 +371,7 @@ export default function ContratosPage() {
               carregando={carregando}
               erro={erro}
               onCopyLink={onCopyLink}
+              onDeleteContract={onDeleteContract}
             />
           )}
 

@@ -27,24 +27,62 @@ export async function GET(_request, context) {
 
     const supabase = getAdminSupabase();
 
-    const { data: precontract, error: preError } = await supabase
+    let precontract = null;
+    let contract = null;
+
+    const { data: preByToken, error: preError } = await supabase
       .from('precontracts')
       .select('*')
       .eq('public_token', token)
       .maybeSingle();
 
     if (preError) throw preError;
+
+    if (preByToken) {
+      precontract = preByToken;
+    } else {
+      const { data: contractByToken, error: contractByTokenError } = await supabase
+        .from('contracts')
+        .select('*')
+        .eq('public_token', token)
+        .maybeSingle();
+
+      if (contractByTokenError) throw contractByTokenError;
+
+      if (contractByToken?.precontract_id) {
+        const { data: preById, error: preByIdError } = await supabase
+          .from('precontracts')
+          .select('*')
+          .eq('id', contractByToken.precontract_id)
+          .maybeSingle();
+
+        if (preByIdError) throw preByIdError;
+        precontract = preById || null;
+        contract = contractByToken || null;
+      }
+    }
+
     if (!precontract) {
       return new NextResponse('Pré-contrato não encontrado.', { status: 404 });
     }
 
-    const { data: contract, error: contractError } = await supabase
-      .from('contracts')
-      .select('*')
-      .eq('precontract_id', precontract.id)
-      .maybeSingle();
+    if (!contract) {
+      const { data: contractByPre, error: contractError } = await supabase
+        .from('contracts')
+        .select('*')
+        .eq('precontract_id', precontract.id)
+        .maybeSingle();
 
-    if (contractError) throw contractError;
+      if (contractError) throw contractError;
+      contract = contractByPre || null;
+    }
+
+    if (!precontract.public_token && token) {
+      await supabase
+        .from('precontracts')
+        .update({ public_token: token })
+        .eq('id', precontract.id);
+    }
 
     let contact = null;
     let event = null;

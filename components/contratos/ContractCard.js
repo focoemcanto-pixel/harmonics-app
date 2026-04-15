@@ -39,12 +39,6 @@ function ContractPreviewModal({ item, open, onClose }) {
     };
   }, [open]);
 
-  useEffect(() => {
-    if (open) {
-      setLoading(true);
-    }
-  }, [open, item?.token]);
-
   if (!open) return null;
 
   const previewHtmlUrl = `/api/contracts/preview-html/${item.token}`;
@@ -129,7 +123,7 @@ function ContractPreviewModal({ item, open, onClose }) {
   );
 }
 
-export default function ContractCard({ item, onCopyLink }) {
+export default function ContractCard({ item, onCopyLink, onDeleteContract }) {
   const cardTone = buildContractTone(item.statusTone);
   const [previewOpen, setPreviewOpen] = useState(false);
 
@@ -270,6 +264,14 @@ export default function ContractCard({ item, onCopyLink }) {
             className="rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3 text-[14px] font-black text-[#0f172a]"
           >
             Copiar link
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onDeleteContract?.(item)}
+            className="rounded-[16px] border border-red-200 bg-red-50 px-4 py-3 text-[14px] font-black text-red-700"
+          >
+            Excluir
           </button>
 
           {item.pdfUrl ? (

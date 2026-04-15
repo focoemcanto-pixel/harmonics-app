@@ -1,14 +1,14 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import AppShell from '../../components/layout/AppShell';
-import Card from '../../components/ui/Card';
-import Button from '../../components/ui/Button';
-import Input from '../../components/ui/Input';
-import Select from '../../components/ui/Select';
-import Badge from '../../components/ui/Badge';
-import { supabase } from '../../lib/supabase';
-import { normalizeTimeStrict, isValidTime, sanitizeTimeFields } from '../../lib/time/normalize-time';
+import AdminShell from '@/components/admin/AdminShell';
+import Card from '@/components/ui/Card';
+import Button from '@/components/ui/Button';
+import Input from '@/components/ui/Input';
+import Select from '@/components/ui/Select';
+import Badge from '@/components/ui/Badge';
+import { supabase } from '@/lib/supabase';
+import { normalizeTimeStrict, isValidTime, sanitizeTimeFields } from '@/lib/time/normalize-time';
 
 const EVENT_TYPES = [
   'Casamento',
@@ -747,16 +747,16 @@ export default function PreContratosPage() {
 
   if (carregando) {
     return (
-      <AppShell title="Pré-contratos">
+      <AdminShell pageTitle="Pré-contratos" activeItem="contratos">
         <Card>
           <p className="text-center text-slate-500">Carregando pré-contratos...</p>
         </Card>
-      </AppShell>
+      </AdminShell>
     );
   }
 
   return (
-    <AppShell title="Pré-contratos">
+    <AdminShell pageTitle="Pré-contratos" activeItem="contratos">
       <div className="space-y-6">
         <Card
           title={editandoId ? 'Editar pré-contrato' : 'Novo pré-contrato'}
@@ -1175,6 +1175,6 @@ export default function PreContratosPage() {
         }}
         data={shareData}
       />
-    </AppShell>
+    </AdminShell>
   );
 }

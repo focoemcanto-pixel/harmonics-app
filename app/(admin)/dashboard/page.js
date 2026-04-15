@@ -296,6 +296,48 @@ function ReviewRequestsAlertCard({ total, urgentClientName, urgentEventDate }) {
   );
 }
 
+function ContractAdjustmentAlertCard({
+  total,
+  urgentClientName,
+  urgentEventDate,
+  urgentPublicToken,
+}) {
+  const linkHref = urgentPublicToken ? `/contrato/${urgentPublicToken}` : '/pre-contratos';
+  const title = total === 1 ? '1 ajuste solicitado' : `${total} ajustes solicitados`;
+  const urgentClientLabel = urgentClientName || 'Cliente não identificado';
+  const urgentEventLabel = formatEventDate(urgentEventDate);
+
+  return (
+    <Link
+      href={linkHref}
+      className="group block rounded-[24px] border-2 border-orange-300 bg-gradient-to-r from-orange-50 via-amber-50 to-orange-100 p-5 shadow-[0_12px_28px_rgba(251,146,60,0.14)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_16px_32px_rgba(251,146,60,0.22)]"
+    >
+      <div className="flex items-start gap-4">
+        <div className="mt-0.5 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-orange-200/80 text-orange-800">
+          <AlertCircleIcon className="h-6 w-6" aria-hidden="true" />
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <p className="text-[11px] font-black uppercase tracking-[0.1em] text-orange-700">
+            Operação pendente
+          </p>
+          <h2 className="mt-1 text-lg font-black text-orange-950">{title}</h2>
+          <p className="mt-1 text-sm font-semibold text-orange-900/90">
+            Mais urgente: {urgentClientLabel}
+          </p>
+          <p className="mt-1 text-sm font-semibold text-orange-900/90">
+            Evento: {urgentEventLabel}
+          </p>
+        </div>
+
+        <div className="rounded-[14px] bg-white/90 px-3 py-2 text-[12px] font-black text-orange-800 transition-colors group-hover:bg-white">
+          Abrir contrato
+        </div>
+      </div>
+    </Link>
+  );
+}
+
 function CheckCircleIcon({ className, ...props }) {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} {...props}>
@@ -977,13 +1019,24 @@ if (repertoireConfigsRes.error) console.warn('[dashboard] repertoire_config falh
             </div>
           </div>
 
-          {summary?.revisoesSolicitadas > 0 ? (
-            <ReviewRequestsAlertCard
-              total={summary.revisoesSolicitadas}
-              urgentClientName={summary?.revisaoSolicitadaMaisUrgente?.clientName}
-              urgentEventDate={summary?.revisaoSolicitadaMaisUrgente?.eventDate}
-            />
-          ) : null}
+          <div className="space-y-3">
+            {summary?.revisoesSolicitadas > 0 ? (
+              <ReviewRequestsAlertCard
+                total={summary.revisoesSolicitadas}
+                urgentClientName={summary?.revisaoSolicitadaMaisUrgente?.clientName}
+                urgentEventDate={summary?.revisaoSolicitadaMaisUrgente?.eventDate}
+              />
+            ) : null}
+
+            {summary?.ajustesSolicitadosPendentes > 0 ? (
+              <ContractAdjustmentAlertCard
+                total={summary.ajustesSolicitadosPendentes}
+                urgentClientName={summary?.ajusteSolicitadoMaisUrgente?.clientName}
+                urgentEventDate={summary?.ajusteSolicitadoMaisUrgente?.eventDate}
+                urgentPublicToken={summary?.ajusteSolicitadoMaisUrgente?.publicToken}
+              />
+            ) : null}
+          </div>
 
           {/* Ações Rápidas */}
           <div>

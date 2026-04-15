@@ -101,6 +101,7 @@ export default function AdminEventCard({
   local,
   formacao,
   receptivo,
+  antesala,
   temSom,
   whatsappNome,
   whatsappNumero,
@@ -190,6 +191,7 @@ export default function AdminEventCard({
             <p className="text-[14px] text-slate-700">
               <strong>Formação:</strong> {formacao || '-'} &nbsp;•&nbsp;
               <strong>Receptivo:</strong> {receptivo || 'Não'} &nbsp;•&nbsp;
+              <strong>Antesala:</strong> {antesala || 'Não'} &nbsp;•&nbsp;
               <strong>Som:</strong> {temSom ? 'Sim' : 'Não'}
             </p>
 

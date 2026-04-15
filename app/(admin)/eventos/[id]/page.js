@@ -161,11 +161,51 @@ export default function EventoDetalhePage() {
         ) : (
           <>
             {activeTab === 'resumo' && (
-              <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <MetricCard label="Formação" value={evento.formation || '-'} tone="blue" />
-                <MetricCard label="Instrumentos" value={evento.instruments || '-'} tone="default" />
-                <MetricCard label="Status" value={evento.status || 'Rascunho'} tone="amber" />
-                <MetricCard label="Pagamento" value={evento.payment_status || 'Pendente'} tone="emerald" />
+              <section className="space-y-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+                  <MetricCard label="Formação" value={evento.formation || '-'} tone="blue" />
+                  <MetricCard label="Instrumentos" value={evento.instruments || '-'} tone="default" />
+                  <MetricCard label="Status" value={evento.status || 'Rascunho'} tone="amber" />
+                  <MetricCard label="Pagamento" value={evento.payment_status || 'Pendente'} tone="emerald" />
+                </div>
+
+                <section className="rounded-[24px] border border-[#dbe3ef] bg-white p-5">
+                  <h3 className="text-[16px] font-black text-slate-900">Extras do evento</h3>
+                  <div className="mt-3 space-y-2 text-sm text-slate-700">
+                    <div>• Receptivo: {evento?.reception_hours ? `${evento.reception_hours}h` : 'Não'}</div>
+                    <div>
+                      • Antesala:{' '}
+                      {evento?.has_antesala
+                        ? evento?.antesala_duration_minutes
+                          ? `${evento.antesala_duration_minutes} min`
+                          : 'Incluída'
+                        : 'Não'}
+                    </div>
+                    <div>
+                      • Acréscimo total:{' '}
+                      {formatMoney(
+                        Number(evento?.before_room_price || 0) +
+                          Number(evento?.reception_price || 0) +
+                          Number(evento?.antesala_price_increment || 0)
+                      )}
+                    </div>
+                  </div>
+                </section>
+
+                {evento?.antesala_requested_by_client ? (
+                  <section className="rounded-[24px] border border-amber-200 bg-amber-50 p-5">
+                    <h3 className="text-[16px] font-black text-amber-800">Solicitação do cliente</h3>
+                    <p className="mt-2 text-sm font-semibold text-amber-700">
+                      Antesala solicitada
+                    </p>
+                    <p className="text-sm text-amber-700">
+                      {String(evento?.antesala_request_status || '').toLowerCase() ===
+                      'pending_admin_validation'
+                        ? 'Aguardando validação'
+                        : evento?.antesala_request_status || 'Aguardando validação'}
+                    </p>
+                  </section>
+                ) : null}
               </section>
             )}
 

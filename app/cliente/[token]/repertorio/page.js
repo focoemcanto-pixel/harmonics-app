@@ -170,6 +170,41 @@ function mapItemsToInitialState(items) {
   };
 }
 
+function toNumber(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function normalizeFormation(value) {
+  const s = String(value || '').trim().toLowerCase();
+  if (!s) return '';
+  if (s.startsWith('duo')) return 'duo';
+  if (s.startsWith('trio')) return 'trio';
+  if (s.startsWith('quart')) return 'quarteto';
+  if (s.startsWith('quint')) return 'quinteto';
+  if (s.startsWith('sext')) return 'sexteto';
+  if (s.startsWith('sept')) return 'septeto';
+  return '';
+}
+
+function buildAntesalaQuoteOptions(formation, pricing = {}) {
+  const normalizedFormation = normalizeFormation(formation);
+  if (!normalizedFormation) return [];
+
+  const oneHour = toNumber(pricing[`reception_${normalizedFormation}_1h`]);
+  const twoHours = toNumber(pricing[`reception_${normalizedFormation}_2h`]);
+  const threeHours = toNumber(pricing[`reception_${normalizedFormation}_3h`]);
+
+  if (!oneHour && !twoHours && !threeHours) return [];
+
+  return [
+    { minutes: 30, label: '30 min', price: Math.max(oneHour - 200, 0) },
+    { minutes: 60, label: '1h', price: oneHour },
+    { minutes: 120, label: '2h', price: twoHours || oneHour },
+    { minutes: 180, label: '3h', price: threeHours || twoHours || oneHour },
+  ];
+}
+
 export default async function ClienteRepertorioPage({ params }) {
   const { token } = await params;
   const supabase = getAdminSupabase();
@@ -230,6 +265,7 @@ export default async function ClienteRepertorioPage({ params }) {
     itemsResp,
     precontractsResp,
     contractsResp,
+    pricingResp,
   ] = await Promise.all([
     supabase
       .from('events')
@@ -260,6 +296,13 @@ export default async function ClienteRepertorioPage({ params }) {
       .select('id, event_id, precontract_id, pdf_url, doc_url, signed_at')
       .eq('event_id', eventId)
       .maybeSingle(),
+
+    supabase
+      .from('pricing_settings')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
 
   if (eventResp.error) throw eventResp.error;
@@ -267,6 +310,7 @@ export default async function ClienteRepertorioPage({ params }) {
   if (itemsResp.error) throw itemsResp.error;
   if (precontractsResp.error) throw precontractsResp.error;
   if (contractsResp.error) throw contractsResp.error;
+  if (pricingResp.error) throw pricingResp.error;
 
   const event = eventResp.data;
   if (!event) {
@@ -277,6 +321,7 @@ export default async function ClienteRepertorioPage({ params }) {
   const items = Array.isArray(itemsResp.data) ? itemsResp.data : [];
   const precontract = precontractsResp.data || null;
   const contract = contractsResp.data || null;
+  const pricing = pricingResp.data || {};
 
   console.log('[CLIENTE REPERTORIO PAGE] URL PDF contrato:', contract?.pdf_url || '(vazio)');
   console.log(
@@ -356,7 +401,17 @@ export default async function ClienteRepertorioPage({ params }) {
       linkVisualizacao: `/cliente/${clientToken}/repertorio`,
       podeSolicitarCorrecao:
         String(config?.status || '').toUpperCase() !== 'AGUARDANDO_REVISAO',
-      temAntessala: event.has_reception ? true : Boolean(config?.has_ante_room || false),
+      temAntessala: Boolean(
+        config?.has_ante_room ??
+          event?.has_antesala ??
+          event?.has_ante_room ??
+          false
+      ),
+      antesalaDurationMinutes: Number(event?.antesala_duration_minutes || 0) || null,
+      antesalaRequestedByClient: Boolean(event?.antesala_requested_by_client),
+      antesalaRequestStatus: String(event?.antesala_request_status || ''),
+      antesalaPriceIncrement: Number(event?.antesala_price_increment || 0),
+      antesalaQuoteOptions: buildAntesalaQuoteOptions(event?.formation, pricing),
       temReceptivo:
         event.has_reception ??
         event.has_receptivo ??
@@ -371,6 +426,15 @@ export default async function ClienteRepertorioPage({ params }) {
           generos: '',
           artistas: '',
           observacao: config?.ante_room_notes || '',
+          durationMinutes: Number(event?.antesala_duration_minutes || 30) || 30,
+          styleTags: [],
+          preferredArtistsEnabled: false,
+          referenceEnabled: false,
+          references: [],
+          requestQuoteOpened: false,
+          quoteMinutes: Number(event?.antesala_duration_minutes || 0) || null,
+          quotePriceIncrement: Number(event?.antesala_price_increment || 0) || 0,
+          requestedByClient: Boolean(event?.antesala_requested_by_client),
         },
         cortejo: initialLists.cortejo,
         cerimonia: initialLists.cerimonia,

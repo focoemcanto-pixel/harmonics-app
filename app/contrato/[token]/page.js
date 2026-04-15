@@ -256,6 +256,21 @@ function FieldFeedback({ error, success }) {
   return null;
 }
 
+function AlertCard({ tone = 'default', title, children }) {
+  const tones = {
+    default: 'border-slate-200 bg-slate-50 text-slate-700',
+    amber: 'border-amber-200 bg-amber-50 text-amber-800',
+    red: 'border-red-200 bg-red-50 text-red-800',
+  };
+
+  return (
+    <div className={`rounded-2xl border px-4 py-3 ${tones[tone] || tones.default}`}>
+      <p className="text-sm font-semibold">{title}</p>
+      <div className="mt-1 text-sm">{children}</div>
+    </div>
+  );
+}
+
 function getInputTone(error, success) {
   if (error) {
     return 'border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100';
@@ -461,6 +476,7 @@ export default function ContratoPublicoPage() {
   const [salvando, setSalvando] = useState(false);
   const [enviado, setEnviado] = useState(false);
   const [solicitandoAjuste, setSolicitandoAjuste] = useState(false);
+  const [pendingAdjustmentRequest, setPendingAdjustmentRequest] = useState(null);
 
   const [form, setForm] = useState(getInitialForm());
   const [resultadoFinal, setResultadoFinal] = useState({
@@ -560,6 +576,18 @@ const mapsLoaded = useGoogleMapsReady();
 
           if (saved.address_street) setClientAddressStatus('selected');
           if (saved.event_location_address) setEventAddressStatus('selected');
+
+          const { data: pendingAdjustment, error: adjustmentError } = await supabase
+            .from('contract_adjustment_requests')
+            .select('id, precontract_id, status, request_message, requested_at')
+            .eq('precontract_id', safePreData.id)
+            .eq('status', 'pending')
+            .order('requested_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (adjustmentError) throw adjustmentError;
+          setPendingAdjustmentRequest(pendingAdjustment || null);
         }
 
         if (safePreData?.status === 'link_generated') {
@@ -1059,6 +1087,38 @@ const contratoFinalizado =
 
       if (error) throw error;
 
+      const { error: cancelPreviousError } = await supabase
+        .from('contract_adjustment_requests')
+        .update({
+          status: 'cancelled',
+          resolved_note: 'Substituído por nova solicitação do cliente.',
+          resolved_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('precontract_id', precontract.id)
+        .eq('status', 'pending');
+
+      if (cancelPreviousError) throw cancelPreviousError;
+
+      const { data: createdAdjustment, error: createAdjustmentError } = await supabase
+        .from('contract_adjustment_requests')
+        .insert([
+          {
+            precontract_id: precontract.id,
+            contract_id: contractRow?.id || null,
+            event_id: eventId || null,
+            client_public_token: precontract.public_token || token,
+            request_message: form.adjustment_request.trim(),
+            status: 'pending',
+            requested_at: new Date().toISOString(),
+          },
+        ])
+        .select('id, precontract_id, status, request_message, requested_at')
+        .single();
+
+      if (createAdjustmentError) throw createAdjustmentError;
+      setPendingAdjustmentRequest(createdAdjustment || null);
+
       alert('Seu ajuste foi enviado com sucesso.');
     } catch (error) {
       console.error('Erro ao solicitar ajuste:', error);
@@ -1069,6 +1129,11 @@ const contratoFinalizado =
   }
 
   async function assinarContrato() {
+    if (pendingAdjustmentRequest?.id) {
+      alert('Sua solicitação de ajuste está em análise. Assim que for concluída, a assinatura será liberada.');
+      return;
+    }
+
     if (!validateMainFields()) return;
 
     if (!form.signer_name.trim()) {
@@ -1815,6 +1880,12 @@ if (contractSignedError) throw contractSignedError;
 
               <Card title="Assinatura eletrônica">
                 <div className="space-y-4">
+                  {pendingAdjustmentRequest?.id ? (
+                    <AlertCard tone="amber" title="Assinatura bloqueada temporariamente">
+                      Sua solicitação de ajuste está em análise. Assim que for concluída, a assinatura será liberada.
+                    </AlertCard>
+                  ) : null}
+
                   <Input
                     label="Nome na assinatura"
                     value={form.signer_name}
@@ -1848,7 +1919,7 @@ if (contractSignedError) throw contractSignedError;
                     </span>
                   </label>
 
-                  <Button onClick={assinarContrato} disabled={salvando}>
+                  <Button onClick={assinarContrato} disabled={salvando || !!pendingAdjustmentRequest?.id}>
                     {salvando ? 'Assinando...' : 'Assinar contrato'}
                   </Button>
                 </div>

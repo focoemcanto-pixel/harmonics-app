@@ -209,6 +209,31 @@ function mapItemsToInitialState(items) {
   };
 }
 
+function deriveContractedReceptionHours(...sources) {
+  for (const source of sources) {
+    const raw =
+      source?.reception_hours ??
+      source?.reception_duration ??
+      source?.receptivo_duration ??
+      source?.receptivo_hours ??
+      source?.receptivo_horas;
+    const numeric = Number(raw);
+    if (Number.isFinite(numeric) && numeric > 0) return numeric;
+  }
+  return 0;
+}
+
+function deriveHasContractedReception(...sources) {
+  for (const source of sources) {
+    const explicit =
+      source?.has_reception ??
+      source?.has_receptivo ??
+      source?.reception_enabled;
+    if (typeof explicit === 'boolean') return explicit;
+  }
+  return deriveContractedReceptionHours(...sources) > 0;
+}
+
 function toNumber(value) {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
@@ -326,7 +351,7 @@ export default async function ClienteRepertorioPage({ params }) {
 
     supabase
       .from('precontracts')
-      .select('id, public_token, event_id')
+      .select('id, public_token, event_id, reception_hours, has_sound, has_transport')
       .eq('event_id', eventId)
       .maybeSingle(),
 
@@ -361,6 +386,8 @@ export default async function ClienteRepertorioPage({ params }) {
   const precontract = precontractsResp.data || null;
   const contract = contractsResp.data || null;
   const pricing = pricingResp.data || {};
+  const hasContractedReception = deriveHasContractedReception(config, event, precontract);
+  const contractedReceptionHours = deriveContractedReceptionHours(config, event, precontract);
 
   console.log('[CLIENTE REPERTORIO PAGE] URL PDF contrato:', contract?.pdf_url || '(vazio)');
   console.log(
@@ -451,10 +478,7 @@ export default async function ClienteRepertorioPage({ params }) {
       antesalaRequestStatus: String(event?.antesala_request_status || ''),
       antesalaPriceIncrement: Number(event?.antesala_price_increment || 0),
       antesalaQuoteOptions: buildAntesalaQuoteOptions(event?.formation, pricing),
-      temReceptivo:
-        event.has_reception ??
-        event.has_receptivo ??
-        Boolean(config?.has_reception || false),
+      temReceptivo: Boolean(hasContractedReception),
       pdfUrl: repertorioPdfUrl,
       repertoireToken: tokenRow?.token || '',
 
@@ -488,7 +512,7 @@ export default async function ClienteRepertorioPage({ params }) {
           reference_video_id: config?.exit_reference_video_id || '',
         },
         receptivo: {
-          duracao: config?.reception_duration || '1h',
+          duracao: config?.reception_duration || `${contractedReceptionHours || 1}h`,
           generos: config?.reception_genres || initialLists.receptivo?.generos || '',
           artistas: config?.reception_artists || initialLists.receptivo?.artistas || '',
           observacao: config?.reception_notes || initialLists.receptivo?.observacao || '',

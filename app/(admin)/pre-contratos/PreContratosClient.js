@@ -404,6 +404,7 @@ export default function PreContratosClient() {
     active: false,
     message: '',
   });
+  const [adjustmentRequestsByPrecontract, setAdjustmentRequestsByPrecontract] = useState(new Map());
 
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [shareData, setShareData] = useState(null);
@@ -422,6 +423,23 @@ export default function PreContratosClient() {
     );
   }
 
+  async function carregarAdjustmentRequests() {
+    const { data, error } = await supabase
+      .from('contract_adjustment_requests')
+      .select('id, precontract_id, status, request_message, requested_at, resolved_at')
+      .order('requested_at', { ascending: false });
+
+    if (error) throw error;
+
+    const nextMap = new Map();
+    for (const row of data || []) {
+      const key = String(row?.precontract_id || '');
+      if (!key || nextMap.has(key)) continue;
+      nextMap.set(key, row);
+    }
+    setAdjustmentRequestsByPrecontract(nextMap);
+  }
+
   async function carregarEventos() {
     const { data, error } = await supabase
       .from('events')
@@ -438,7 +456,7 @@ export default function PreContratosClient() {
     async function carregar() {
       try {
         setCarregando(true);
-        await Promise.all([carregarPreContratos(), carregarEventos()]);
+        await Promise.all([carregarPreContratos(), carregarEventos(), carregarAdjustmentRequests()]);
       } catch (error) {
         console.error('Erro ao carregar pré-contratos:', error);
         alert('Erro ao carregar pré-contratos.');
@@ -704,6 +722,57 @@ export default function PreContratosClient() {
     }
   }
 
+  async function confirmarAjusteRealizado() {
+    if (!editandoId) return;
+
+    const pending = adjustmentRequestsByPrecontract.get(String(editandoId));
+    if (!pending || String(pending.status || '').toLowerCase() !== 'pending') {
+      alert('Nenhuma solicitação pendente para este pré-contrato.');
+      return;
+    }
+
+    try {
+      setSalvando(true);
+
+      const { error: resolveError } = await supabase
+        .from('contract_adjustment_requests')
+        .update({
+          status: 'resolved',
+          resolved_at: new Date().toISOString(),
+          resolved_note: 'Ajuste aplicado no pré-contrato pelo admin.',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', pending.id);
+
+      if (resolveError) throw resolveError;
+
+      const { error: precontractStatusError } = await supabase
+        .from('precontracts')
+        .update({
+          status: 'link_generated',
+        })
+        .eq('id', editandoId);
+
+      if (precontractStatusError) throw precontractStatusError;
+
+      await Promise.all([carregarPreContratos(), carregarAdjustmentRequests()]);
+
+      const shouldCreateNew = window.confirm(
+        'Ajuste confirmado com sucesso. Deseja registrar um novo ajuste?'
+      );
+      if (shouldCreateNew) {
+        handleFormChange('adjustment_request', '');
+      }
+
+      alert('Ajuste marcado como resolvido. A assinatura foi liberada novamente.');
+    } catch (error) {
+      console.error('Erro ao confirmar ajuste:', error);
+      alert(`Não foi possível confirmar o ajuste: ${error?.message || 'erro desconhecido'}`);
+    } finally {
+      setSalvando(false);
+    }
+  }
+
   async function excluirPreContrato(id) {
     if (!confirm('Excluir este pré-contrato?')) return;
 
@@ -790,6 +859,10 @@ export default function PreContratosClient() {
     );
   }, [items, busca]);
 
+  const pendingAdjustment = editandoId
+    ? adjustmentRequestsByPrecontract.get(String(editandoId)) || null
+    : null;
+
   if (carregando) {
     return (
       <AdminShell pageTitle="Pré-contratos" activeItem="contratos">
@@ -811,6 +884,16 @@ export default function PreContratosClient() {
             <div className="mb-5">
               <AlertCard tone={adjustmentHighlight.active ? 'amber' : 'default'} title="Solicitação de ajuste do cliente">
                 {adjustmentHighlight.message}
+              </AlertCard>
+            </div>
+          ) : null}
+          {editandoId && pendingAdjustment && String(pendingAdjustment.status || '').toLowerCase() === 'pending' ? (
+            <div className="mb-5">
+              <AlertCard tone="amber" title="Ajuste pendente (bloqueia assinatura)">
+                <p>{pendingAdjustment.request_message}</p>
+                <p className="mt-1 text-xs opacity-80">
+                  Solicitado em {new Date(pendingAdjustment.requested_at).toLocaleString('pt-BR')}
+                </p>
               </AlertCard>
             </div>
           ) : null}
@@ -1101,6 +1184,12 @@ export default function PreContratosClient() {
                     </Button>
                   )}
 
+                  {editandoId && pendingAdjustment && String(pendingAdjustment.status || '').toLowerCase() === 'pending' ? (
+                    <Button variant="secondary" onClick={confirmarAjusteRealizado} disabled={salvando}>
+                      Confirmar ajuste realizado
+                    </Button>
+                  ) : null}
+
                   <Button variant="secondary" disabled>
                     O link será aberto automaticamente após salvar
                   </Button>
@@ -1122,7 +1211,10 @@ export default function PreContratosClient() {
             <p className="text-slate-500">Nenhum pré-contrato encontrado.</p>
           ) : (
             <div className="space-y-4">
-              {listaFiltrada.map((item) => (
+              {listaFiltrada.map((item) => {
+                const adjustment = adjustmentRequestsByPrecontract.get(String(item.id)) || null;
+                const pending = String(adjustment?.status || '').toLowerCase() === 'pending';
+                return (
                 <Card
                   key={item.id}
                   title={item.client_name || 'Cliente a confirmar'}
@@ -1164,6 +1256,12 @@ export default function PreContratosClient() {
                       {item.notes && (
                         <p className="text-slate-500">{item.notes}</p>
                       )}
+
+                      {pending ? (
+                        <AlertCard tone="amber" title="Ajuste pendente">
+                          {adjustment.request_message}
+                        </AlertCard>
+                      ) : null}
                     </div>
 
                     <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
@@ -1214,7 +1312,8 @@ export default function PreContratosClient() {
                     </Button>
                   </div>
                 </Card>
-              ))}
+                );
+              })}
             </div>
           )}
         </Card>

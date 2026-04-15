@@ -300,9 +300,11 @@ function ContractAdjustmentAlertCard({
   total,
   urgentClientName,
   urgentEventDate,
-  urgentPublicToken,
+  urgentPrecontractId,
 }) {
-  const linkHref = urgentPublicToken ? `/contrato/${urgentPublicToken}` : '/pre-contratos';
+  const linkHref = urgentPrecontractId
+    ? `/pre-contratos?edit=${urgentPrecontractId}&highlightAdjustment=1`
+    : '/pre-contratos';
   const title = total === 1 ? '1 ajuste solicitado' : `${total} ajustes solicitados`;
   const urgentClientLabel = urgentClientName || 'Cliente não identificado';
   const urgentEventLabel = formatEventDate(urgentEventDate);
@@ -331,7 +333,7 @@ function ContractAdjustmentAlertCard({
         </div>
 
         <div className="rounded-[14px] bg-white/90 px-3 py-2 text-[12px] font-black text-orange-800 transition-colors group-hover:bg-white">
-          Abrir contrato
+          Abrir pré-contrato
         </div>
       </div>
     </Link>
@@ -1033,7 +1035,7 @@ if (repertoireConfigsRes.error) console.warn('[dashboard] repertoire_config falh
                 total={summary.ajustesSolicitadosPendentes}
                 urgentClientName={summary?.ajusteSolicitadoMaisUrgente?.clientName}
                 urgentEventDate={summary?.ajusteSolicitadoMaisUrgente?.eventDate}
-                urgentPublicToken={summary?.ajusteSolicitadoMaisUrgente?.publicToken}
+                urgentPrecontractId={summary?.ajusteSolicitadoMaisUrgente?.precontractId}
               />
             ) : null}
           </div>

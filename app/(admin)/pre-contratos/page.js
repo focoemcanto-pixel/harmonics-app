@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import AdminShell from '@/components/admin/AdminShell';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
@@ -35,6 +36,7 @@ const STATUS_OPTIONS = [
   'signed',
   'cancelled',
 ];
+const ADJUSTMENT_REQUEST_MARKER = '--- SOLICITAÇÃO DE AJUSTE DO CLIENTE ---';
 
 function toNumber(value) {
   if (value === null || value === undefined || value === '') return 0;
@@ -144,6 +146,23 @@ function getInitialForm() {
     notes: '',
     status: 'draft',
   };
+}
+
+function extractLatestAdjustmentRequest(notes) {
+  const rawNotes = String(notes || '');
+  if (!rawNotes.trim()) return '';
+
+  const upperNotes = rawNotes.toUpperCase();
+  const markerIndex = upperNotes.lastIndexOf(ADJUSTMENT_REQUEST_MARKER.toUpperCase());
+  if (markerIndex === -1) return '';
+
+  const afterMarker = rawNotes.slice(markerIndex + ADJUSTMENT_REQUEST_MARKER.length);
+  return afterMarker
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join('\n')
+    .trim();
 }
 
 function AlertCard({ tone = 'default', title, children }) {
@@ -370,6 +389,7 @@ function ShareLinkModal({
 }
 
 export default function PreContratosPage() {
+  const searchParams = useSearchParams();
   const [items, setItems] = useState([]);
   const [eventos, setEventos] = useState([]);
 
@@ -379,6 +399,11 @@ export default function PreContratosPage() {
   const [busca, setBusca] = useState('');
   const [copiadoId, setCopiadoId] = useState(null);
   const [gerandoLinkId, setGerandoLinkId] = useState(null);
+  const [ultimoAutoEditId, setUltimoAutoEditId] = useState(null);
+  const [adjustmentHighlight, setAdjustmentHighlight] = useState({
+    active: false,
+    message: '',
+  });
 
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [shareData, setShareData] = useState(null);
@@ -434,11 +459,17 @@ export default function PreContratosPage() {
 
   function resetForm() {
     setEditandoId(null);
+    setAdjustmentHighlight({ active: false, message: '' });
     setForm(getInitialForm());
   }
 
-  function iniciarEdicao(item) {
+  function iniciarEdicao(item, options = {}) {
     setEditandoId(item.id);
+    const adjustmentMessage = extractLatestAdjustmentRequest(item.notes);
+    setAdjustmentHighlight({
+      active: Boolean(options?.highlight),
+      message: adjustmentMessage,
+    });
 
     setForm({
       client_name: item.client_name || '',
@@ -472,6 +503,20 @@ export default function PreContratosPage() {
 
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
+
+  useEffect(() => {
+    const editParam = searchParams.get('edit') || searchParams.get('id');
+    if (!editParam || !items.length) return;
+
+    if (ultimoAutoEditId === editParam) return;
+
+    const item = items.find((entry) => String(entry.id) === String(editParam));
+    if (!item) return;
+
+    const shouldHighlight = searchParams.get('highlightAdjustment') === '1';
+    iniciarEdicao(item, { highlight: shouldHighlight });
+    setUltimoAutoEditId(String(editParam));
+  }, [searchParams, items, ultimoAutoEditId]);
 
   const financeiro = useMemo(() => {
     const base = toNumber(form.base_amount);
@@ -762,6 +807,14 @@ export default function PreContratosPage() {
           title={editandoId ? 'Editar pré-contrato' : 'Novo pré-contrato'}
           subtitle="Etapa comercial inicial antes do contrato e da criação operacional do evento."
         >
+          {editandoId && adjustmentHighlight.message ? (
+            <div className="mb-5">
+              <AlertCard tone={adjustmentHighlight.active ? 'amber' : 'default'} title="Solicitação de ajuste do cliente">
+                {adjustmentHighlight.message}
+              </AlertCard>
+            </div>
+          ) : null}
+
           <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
             <div className="space-y-6 xl:col-span-2">
               <Card title="Cliente">

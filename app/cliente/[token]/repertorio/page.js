@@ -486,6 +486,8 @@ export default async function ClienteRepertorioPage({ params }) {
       antesalaPriceIncrement: Number(event?.antesala_price_increment || 0),
       antesalaQuoteOptions: buildAntesalaQuoteOptions(event?.formation, pricing),
       temReceptivo: Boolean(hasContractedReception),
+      receptivoContratadoHoras: contractedReceptionHours || 0,
+      receptivoDuracaoTravada: Boolean(hasContractedReception),
       pdfUrl: repertorioPdfUrl,
       repertoireToken: tokenRow?.token || '',
 
@@ -519,7 +521,7 @@ export default async function ClienteRepertorioPage({ params }) {
           reference_video_id: config?.exit_reference_video_id || '',
         },
         receptivo: {
-          duracao: config?.reception_duration || `${contractedReceptionHours || 1}h`,
+          duracao: `${contractedReceptionHours || 1}h`,
           generos: config?.reception_genres || initialLists.receptivo?.generos || '',
           artistas: config?.reception_artists || initialLists.receptivo?.artistas || '',
           observacao: config?.reception_notes || initialLists.receptivo?.observacao || '',

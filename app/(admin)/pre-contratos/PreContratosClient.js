@@ -8,6 +8,7 @@ import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
 import Badge from '@/components/ui/Badge';
+import { useToast } from '@/components/ui/ToastProvider';
 import { supabase } from '@/lib/supabase';
 import { normalizeTimeStrict, isValidTime, sanitizeTimeFields } from '@/lib/time/normalize-time';
 
@@ -37,6 +38,33 @@ const STATUS_OPTIONS = [
   'cancelled',
 ];
 const ADJUSTMENT_REQUEST_MARKER = '--- SOLICITAÇÃO DE AJUSTE DO CLIENTE ---';
+const PRECONTRACT_SELECT_FIELDS = [
+  'id',
+  'created_at',
+  'client_name',
+  'client_email',
+  'client_phone',
+  'event_type',
+  'event_date',
+  'event_time',
+  'duration_min',
+  'location_name',
+  'location_address',
+  'formation',
+  'instruments',
+  'has_sound',
+  'reception_hours',
+  'has_transport',
+  'base_amount',
+  'add_reception',
+  'add_sound',
+  'add_transport',
+  'agreed_amount',
+  'notes',
+  'status',
+  'public_token',
+  'generated_link',
+].join(', ');
 
 function toNumber(value) {
   if (value === null || value === undefined || value === '') return 0;
@@ -195,7 +223,7 @@ function buildClientPanelLink(token) {
   return `${window.location.origin}/cliente/${token}`;
 }
 
-function buildWhatsAppMessage({ clientName, contractLink, clientPanelLink }) {
+function buildWhatsAppMessage({ clientName, contractLink }) {
   const saudacao = clientName?.trim()
     ? `Olá, ${clientName.trim()}!`
     : 'Olá!';
@@ -230,6 +258,7 @@ function ShareLinkModal({
   open,
   onClose,
   data,
+  onToast,
 }) {
   if (!open || !data) return null;
 
@@ -345,10 +374,10 @@ function ShareLinkModal({
                 onClick={async () => {
                   try {
                     await navigator.clipboard.writeText(data.message);
-                    alert('Mensagem copiada com sucesso.');
+                    onToast?.('Mensagem copiada com sucesso.', 'success');
                   } catch (error) {
                     console.error(error);
-                    alert('Não foi possível copiar a mensagem.');
+                    onToast?.('Não foi possível copiar a mensagem.', 'error');
                   }
                 }}
               >
@@ -360,10 +389,10 @@ function ShareLinkModal({
                 onClick={async () => {
                   try {
                     await navigator.clipboard.writeText(data.contractLink);
-                    alert('Link copiado com sucesso.');
+                    onToast?.('Link copiado com sucesso.', 'success');
                   } catch (error) {
                     console.error(error);
-                    alert('Não foi possível copiar o link.');
+                    onToast?.('Não foi possível copiar o link.', 'error');
                   }
                 }}
               >
@@ -388,8 +417,74 @@ function ShareLinkModal({
   );
 }
 
+function LoadingSkeleton() {
+  return (
+    <div className="space-y-4">
+      {Array.from({ length: 3 }).map((_, index) => (
+        <div key={index} className="animate-pulse rounded-3xl border border-slate-200 bg-white p-5">
+          <div className="h-4 w-40 rounded bg-slate-200" />
+          <div className="mt-3 h-3 w-64 rounded bg-slate-100" />
+          <div className="mt-5 grid grid-cols-2 gap-3">
+            <div className="h-16 rounded-2xl bg-slate-100" />
+            <div className="h-16 rounded-2xl bg-slate-100" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PreviewContractModal({ open, item, onClose }) {
+  if (!open || !item) return null;
+
+  const adjustmentMessage = extractLatestAdjustmentRequest(item.notes);
+
+  return (
+    <div className="fixed inset-0 z-[190] bg-slate-950/70 px-4 py-6 backdrop-blur-[3px]" onClick={onClose}>
+      <div
+        className="mx-auto max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-[30px] border border-white/15 bg-white p-6 shadow-[0_30px_90px_rgba(0,0,0,0.45)]"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-[11px] font-black uppercase tracking-[0.1em] text-violet-600">Visualização premium</p>
+            <h3 className="mt-1 text-2xl font-black text-slate-900">Contrato de {item.client_name || 'Cliente'}</h3>
+          </div>
+          <Button variant="soft" onClick={onClose}>Fechar</Button>
+        </div>
+
+        <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
+          <Card title="Dados do cliente">
+            <p><strong>Nome:</strong> {item.client_name || '-'}</p>
+            <p className="mt-1"><strong>WhatsApp:</strong> {formatPhoneDisplay(item.client_phone)}</p>
+            <p className="mt-1"><strong>Email:</strong> {item.client_email || '-'}</p>
+          </Card>
+          <Card title="Dados do evento">
+            <p><strong>Data:</strong> {formatDateBR(item.event_date)}</p>
+            <p className="mt-1"><strong>Hora:</strong> {item.event_time ? String(item.event_time).slice(0, 5) : '--:--'}</p>
+            <p className="mt-1"><strong>Local:</strong> {item.location_name || '-'}</p>
+            <p className="mt-1"><strong>Formação:</strong> {item.formation || '-'}</p>
+            <p className="mt-1"><strong>Valor acertado:</strong> {formatMoney(item.agreed_amount)}</p>
+          </Card>
+        </div>
+
+        <Card title="Observações" className="mt-4">
+          <p className="whitespace-pre-wrap text-sm text-slate-700">{item.notes || 'Sem observações.'}</p>
+        </Card>
+
+        {adjustmentMessage ? (
+          <Card title="Solicitação de ajuste" className="mt-4">
+            <p className="whitespace-pre-wrap text-sm text-amber-800">{adjustmentMessage}</p>
+          </Card>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 export default function PreContratosClient() {
   const searchParams = useSearchParams();
+  const { showToast } = useToast() || {};
   const [items, setItems] = useState([]);
   const [eventos, setEventos] = useState([]);
 
@@ -408,13 +503,15 @@ export default function PreContratosClient() {
 
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [shareData, setShareData] = useState(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewItem, setPreviewItem] = useState(null);
 
   const [form, setForm] = useState(getInitialForm());
 
   async function carregarPreContratos() {
     const { data, error } = await supabase
       .from('precontracts')
-      .select('*')
+      .select(PRECONTRACT_SELECT_FIELDS)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
@@ -429,7 +526,11 @@ export default function PreContratosClient() {
       .select('id, precontract_id, status, request_message, requested_at, resolved_at')
       .order('requested_at', { ascending: false });
 
-    if (error) throw error;
+    if (error) {
+      console.warn('[PRECONTRATOS] contract_adjustment_requests indisponível:', error);
+      setAdjustmentRequestsByPrecontract(new Map());
+      return;
+    }
 
     const nextMap = new Map();
     for (const row of data || []) {
@@ -456,17 +557,18 @@ export default function PreContratosClient() {
     async function carregar() {
       try {
         setCarregando(true);
-        await Promise.all([carregarPreContratos(), carregarEventos(), carregarAdjustmentRequests()]);
+        await Promise.all([carregarPreContratos(), carregarEventos()]);
+        carregarAdjustmentRequests();
       } catch (error) {
         console.error('Erro ao carregar pré-contratos:', error);
-        alert('Erro ao carregar pré-contratos.');
+        showToast?.(`Erro ao carregar pré-contratos: ${error?.message || 'erro desconhecido'}`, 'error');
       } finally {
         setCarregando(false);
       }
     }
 
     carregar();
-  }, []);
+  }, [showToast]);
 
   function handleFormChange(field, value) {
     setForm((prev) => ({
@@ -602,12 +704,12 @@ export default function PreContratosClient() {
 
   async function salvarPreContrato() {
     if (!form.event_date) {
-      alert('Informe a data do evento.');
+      showToast?.('Informe a data do evento.', 'warning');
       return;
     }
 
     if (form.event_time && !isValidTime(form.event_time)) {
-      alert('Informe um horário válido no formato HH:mm.');
+      showToast?.('Informe um horário válido no formato HH:mm.', 'warning');
       return;
     }
 
@@ -685,7 +787,7 @@ export default function PreContratosClient() {
             generated_link: linkFinal,
           })
           .eq('id', editandoId)
-          .select('*')
+          .select(PRECONTRACT_SELECT_FIELDS)
           .single();
 
         if (error) throw error;
@@ -700,14 +802,23 @@ export default function PreContratosClient() {
               generated_link: generatedLink,
             },
           ])
-          .select('*')
+          .select(PRECONTRACT_SELECT_FIELDS)
           .single();
 
         if (error) throw error;
         savedItem = sanitizeTimeFields(data);
       }
 
-      await carregarPreContratos();
+      setItems((prev) => {
+        const next = [savedItem, ...prev.filter((entry) => entry.id !== savedItem.id)];
+        return next.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+      });
+      console.info('[PRECONTRATOS] salvo com sucesso', {
+        id: savedItem?.id,
+        mode: editandoId ? 'update' : 'insert',
+        public_token: savedItem?.public_token || '(vazio)',
+      });
+      showToast?.('Pré-contrato salvo com sucesso.', 'success');
 
       if (savedItem?.public_token) {
         openShareModalFromItem(savedItem);
@@ -716,7 +827,7 @@ export default function PreContratosClient() {
       resetForm();
     } catch (error) {
       console.error('Erro ao salvar pré-contrato:', error);
-      alert(`Erro ao salvar pré-contrato: ${error?.message || 'erro desconhecido'}`);
+      showToast?.(`Erro ao salvar pré-contrato: ${error?.message || 'erro desconhecido'}`, 'error');
     } finally {
       setSalvando(false);
     }
@@ -727,7 +838,7 @@ export default function PreContratosClient() {
 
     const pending = adjustmentRequestsByPrecontract.get(String(editandoId));
     if (!pending || String(pending.status || '').toLowerCase() !== 'pending') {
-      alert('Nenhuma solicitação pendente para este pré-contrato.');
+      showToast?.('Nenhuma solicitação pendente para este pré-contrato.', 'warning');
       return;
     }
 
@@ -764,10 +875,10 @@ export default function PreContratosClient() {
         handleFormChange('adjustment_request', '');
       }
 
-      alert('Ajuste marcado como resolvido. A assinatura foi liberada novamente.');
+      showToast?.('Ajuste marcado como resolvido. A assinatura foi liberada novamente.', 'success');
     } catch (error) {
       console.error('Erro ao confirmar ajuste:', error);
-      alert(`Não foi possível confirmar o ajuste: ${error?.message || 'erro desconhecido'}`);
+      showToast?.(`Não foi possível confirmar o ajuste: ${error?.message || 'erro desconhecido'}`, 'error');
     } finally {
       setSalvando(false);
     }
@@ -791,7 +902,7 @@ export default function PreContratosClient() {
       await carregarPreContratos();
     } catch (error) {
       console.error('Erro ao excluir pré-contrato:', error);
-      alert('Erro ao excluir pré-contrato.');
+      showToast?.('Erro ao excluir pré-contrato.', 'error');
     }
   }
 
@@ -802,7 +913,7 @@ export default function PreContratosClient() {
       setTimeout(() => setCopiadoId(null), 1800);
     } catch (error) {
       console.error('Erro ao copiar link:', error);
-      alert('Não foi possível copiar o link.');
+      showToast?.('Não foi possível copiar o link.', 'error');
     }
   }
 
@@ -821,12 +932,17 @@ export default function PreContratosClient() {
           status: item.status === 'signed' ? 'signed' : 'link_generated',
         })
         .eq('id', item.id)
-        .select('*')
+        .select(PRECONTRACT_SELECT_FIELDS)
         .single();
 
       if (error) throw error;
 
-      await carregarPreContratos();
+      setItems((prev) => {
+        const current = sanitizeTimeFields(data);
+        return [current, ...prev.filter((entry) => entry.id !== current.id)];
+      });
+      console.info('[PRECONTRATOS] link gerado', { id: item.id, public_token: token, generated_link: link });
+      showToast?.('Link do contrato gerado com sucesso.', 'success');
       await copiarLink(link, item.id);
 
       if (data) {
@@ -834,7 +950,7 @@ export default function PreContratosClient() {
       }
     } catch (error) {
       console.error('Erro ao gerar link do contrato:', error);
-      alert(`Erro ao gerar link: ${error?.message || 'erro desconhecido'}`);
+      showToast?.(`Erro ao gerar link: ${error?.message || 'erro desconhecido'}`, 'error');
     } finally {
       setGerandoLinkId(null);
     }
@@ -867,7 +983,7 @@ export default function PreContratosClient() {
     return (
       <AdminShell pageTitle="Pré-contratos" activeItem="contratos">
         <Card>
-          <p className="text-center text-slate-500">Carregando pré-contratos...</p>
+          <LoadingSkeleton />
         </Card>
       </AdminShell>
     );
@@ -1225,64 +1341,49 @@ export default function PreContratosClient() {
                     </Badge>
                   }
                 >
-                  <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.4fr_1fr]">
-                    <div className="space-y-2 text-slate-700">
-                      <p>
-                        <strong>WhatsApp:</strong> {formatPhoneDisplay(item.client_phone)}
+                  <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+                    <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Data</p>
+                      <p className="mt-1 text-sm font-bold text-slate-800">{formatDateBR(item.event_date)}</p>
+                    </div>
+                    <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Local</p>
+                      <p className="mt-1 text-sm font-bold text-slate-800">{item.location_name || '-'}</p>
+                    </div>
+                    <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Formação</p>
+                      <p className="mt-1 text-sm font-bold text-slate-800">{item.formation || '-'}</p>
+                    </div>
+                    <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-4 xl:col-span-2">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Valor acertado</p>
+                      <p className="mt-1 text-lg font-black text-emerald-700">{formatMoney(item.agreed_amount)}</p>
+                    </div>
+                    <div className="rounded-3xl border border-violet-200 bg-violet-50 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-violet-700">Extras</p>
+                      <p className="mt-1 text-sm font-semibold text-violet-800">
+                        Receptivo: {item.reception_hours ? `${item.reception_hours}h` : 'Não'} • Antesala: {item.has_ante_room ? 'Sim' : 'Não'}
                       </p>
-                      <p>
-                        <strong>Email:</strong> {item.client_email || '-'}
-                      </p>
-                      <p>
-                        <strong>Tipo:</strong> {item.event_type || '-'} &nbsp;•&nbsp;
-                        <strong>Formação:</strong> {item.formation || '-'}
-                      </p>
-                      <p>
-                        <strong>Hora:</strong> {item.event_time ? String(item.event_time).slice(0, 5) : '--:--'} &nbsp;•&nbsp;
-                        <strong>Receptivo:</strong> {item.reception_hours ? `${item.reception_hours}h` : 'Não'}
-                      </p>
+                    </div>
 
-                      {item.generated_link && (
-                        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                            Link do contrato
-                          </p>
-                          <p className="mt-1 break-all text-sm text-slate-700">
-                            {item.generated_link}
-                          </p>
-                        </div>
-                      )}
-
-                      {item.notes && (
-                        <p className="text-slate-500">{item.notes}</p>
-                      )}
-
-                      {pending ? (
+                    {pending ? (
+                      <div className="xl:col-span-3">
                         <AlertCard tone="amber" title="Ajuste pendente">
                           {adjustment.request_message}
                         </AlertCard>
-                      ) : null}
-                    </div>
-
-                    <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
-                      <p className="text-sm text-slate-500">
-                        <strong>Base:</strong> {formatMoney(item.base_amount)}
-                      </p>
-                      <p className="mt-1 text-sm text-slate-500">
-                        <strong>Adicionais:</strong>{' '}
-                        {formatMoney(
-                          toNumber(item.add_reception) +
-                            toNumber(item.add_sound) +
-                            toNumber(item.add_transport)
-                        )}
-                      </p>
-                      <p className="mt-1 text-sm font-semibold text-emerald-600">
-                        <strong>Acertado:</strong> {formatMoney(item.agreed_amount)}
-                      </p>
-                    </div>
+                      </div>
+                    ) : null}
                   </div>
 
                   <div className="mt-5 flex flex-wrap gap-3">
+                    <Button
+                      variant="secondary"
+                      onClick={() => {
+                        setPreviewItem(item);
+                        setPreviewOpen(true);
+                      }}
+                    >
+                      Visualizar contrato
+                    </Button>
                     <Button variant="soft" onClick={() => iniciarEdicao(item)}>
                       Editar
                     </Button>
@@ -1326,6 +1427,15 @@ export default function PreContratosClient() {
           setShareData(null);
         }}
         data={shareData}
+        onToast={(message, type) => showToast?.(message, type)}
+      />
+      <PreviewContractModal
+        open={previewOpen}
+        item={previewItem}
+        onClose={() => {
+          setPreviewOpen(false);
+          setPreviewItem(null);
+        }}
       />
     </AdminShell>
   );

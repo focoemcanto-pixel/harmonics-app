@@ -1102,6 +1102,9 @@ function RepertorioTab({ data, selectedSongs, onSaved, onReviewRequested }) {
   const statusNormalizado = String(data.repertorio.status || '').toUpperCase();
   const travado = isRepertorioTravado(statusNormalizado, data.repertorio.isLocked);
   const aguardandoRevisao = statusNormalizado === 'AGUARDANDO_REVISAO';
+  const receptivoContratadoHoras = Number(data?.repertorio?.receptivoContratadoHoras || 0);
+  const receptivoDuracaoTravada = Boolean(data?.repertorio?.receptivoDuracaoTravada);
+  const receptivoDuracaoLabel = `${receptivoContratadoHoras || 1}h`;
   
 
   const [step, setStep] = useState(1);
@@ -1205,16 +1208,18 @@ const [saida, setSaida] = useState(
   }
 );
 
-const [receptivo, setReceptivo] = useState(
-  initialState.receptivo || {
-    duracao: '1h',
-    generos: '',
-    artistas: '',
-    observacao: '',
-  }
-);
+const [receptivo, setReceptivo] = useState({
+  ...(initialState.receptivo || {}),
+  duracao: receptivoDuracaoTravada
+    ? receptivoDuracaoLabel
+    : initialState?.receptivo?.duracao || '1h',
+  generos: initialState?.receptivo?.generos || '',
+  artistas: initialState?.receptivo?.artistas || '',
+  observacao: initialState?.receptivo?.observacao || '',
+});
 const [desiredSongs, setDesiredSongs] = useState(initialState.desiredSongs || '');
 const [generalNotes, setGeneralNotes] = useState(initialState.generalNotes || '');
+
   const [showLocalDraftBanner, setShowLocalDraftBanner] = useState(false);
   const [savingMode, setSavingMode] = useState('');
   const [draftHydrated, setDraftHydrated] = useState(false);
@@ -1786,7 +1791,11 @@ function buildConfigPayload() {
       .filter(Boolean)
       .join('\n'),
     has_reception: temReceptivo,
-    reception_duration: temReceptivo ? receptivo.duracao || '' : '',
+    reception_duration: temReceptivo
+      ? receptivoDuracaoTravada
+        ? receptivoDuracaoLabel
+        : receptivo.duracao || ''
+      : '',
     reception_genres: temReceptivo ? receptivo.generos || '' : '',
     reception_artists: temReceptivo ? receptivo.artistas || '' : '',
     reception_notes: temReceptivo ? receptivo.observacao || '' : '',
@@ -2499,28 +2508,34 @@ async function handleRequestReview() {
               </div>
 
               <div className="mt-5 space-y-4">
-                <div className="space-y-2">
-                  <label className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#9b8576]">
-                    Duração
-                  </label>
-                  <div className="flex gap-2">
-                    {['1h', '2h', '3h'].map((item) => (
-                      <button
-                        key={item}
-                        type="button"
-                        onClick={() => setReceptivo({ ...receptivo, duracao: item })}
-                        className={classNames(
-                          'flex-1 rounded-[16px] border px-4 py-4 text-[14px] font-black',
-                          receptivo.duracao === item
-                            ? 'border-violet-200 bg-violet-50 text-violet-700'
-                            : 'border-[#eadfd6] bg-white text-[#241a14]'
-                        )}
-                      >
-                        {item}
-                      </button>
-                    ))}
+                {receptivoDuracaoTravada ? (
+                  <div className="rounded-[16px] border border-violet-200 bg-violet-50 px-4 py-3 text-[14px] font-black text-violet-700">
+                    Receptivo incluído: {receptivoDuracaoLabel}
                   </div>
-                </div>
+                ) : (
+                  <div className="space-y-2">
+                    <label className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#9b8576]">
+                      Duração
+                    </label>
+                    <div className="flex gap-2">
+                      {['1h', '2h', '3h'].map((item) => (
+                        <button
+                          key={item}
+                          type="button"
+                          onClick={() => setReceptivo({ ...receptivo, duracao: item })}
+                          className={classNames(
+                            'flex-1 rounded-[16px] border px-4 py-4 text-[14px] font-black',
+                            receptivo.duracao === item
+                              ? 'border-violet-200 bg-violet-50 text-violet-700'
+                              : 'border-[#eadfd6] bg-white text-[#241a14]'
+                          )}
+                        >
+                          {item}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <InputField
                   label="Gêneros preferidos"

@@ -517,26 +517,66 @@ const mapsLoaded = useGoogleMapsReady();
 
       try {
         setCarregando(true);
+        let preData = null;
+        let contractData = null;
 
-        const { data: preData, error: preError } = await supabase
+        const { data: preByToken, error: preByTokenError } = await supabase
           .from('precontracts')
           .select('*')
           .eq('public_token', token)
-          .single();
+          .maybeSingle();
 
-        if (preError) throw preError;
+        if (preByTokenError) throw preByTokenError;
+
+        if (preByToken) {
+          preData = preByToken;
+        } else {
+          const { data: contractByToken, error: contractByTokenError } = await supabase
+            .from('contracts')
+            .select('*')
+            .eq('public_token', token)
+            .maybeSingle();
+
+          if (contractByTokenError) throw contractByTokenError;
+
+          if (contractByToken?.precontract_id) {
+            const { data: preById, error: preByIdError } = await supabase
+              .from('precontracts')
+              .select('*')
+              .eq('id', contractByToken.precontract_id)
+              .maybeSingle();
+
+            if (preByIdError) throw preByIdError;
+            preData = preById || null;
+            contractData = contractByToken;
+          }
+        }
+
         const safePreData = sanitizeTimeFields(preData || null);
         setPrecontract(safePreData || null);
 
-        if (preData?.id) {
-          const { data: contractData, error: contractError } = await supabase
-            .from('contracts')
-            .select('*')
-            .eq('precontract_id', safePreData.id)
-            .maybeSingle();
+        if (safePreData?.id) {
+          if (!contractData) {
+            const { data: contractByPreId, error: contractError } = await supabase
+              .from('contracts')
+              .select('*')
+              .eq('precontract_id', safePreData.id)
+              .maybeSingle();
 
-          if (contractError) throw contractError;
+            if (contractError) throw contractError;
+            contractData = contractByPreId || null;
+          }
+
           setContract(contractData || null);
+
+          if (!safePreData.public_token) {
+            await supabase
+              .from('precontracts')
+              .update({
+                public_token: String(token).trim(),
+              })
+              .eq('id', safePreData.id);
+          }
 
           const saved = contractData?.raw_payload?.client_form || {};
 

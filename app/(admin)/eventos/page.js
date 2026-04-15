@@ -833,7 +833,9 @@ export default function EventosPage() {
         precontractId: pre.id,
         contractId: contract?.id || null,
         token: pre.public_token || contract?.public_token || '',
-        link: pre.public_token ? `/contrato/${pre.public_token}` : '',
+        link: pre.public_token || contract?.public_token
+          ? `/contrato/${pre.public_token || contract?.public_token}`
+          : '',
         status: rawStatus,
         label,
         tone,

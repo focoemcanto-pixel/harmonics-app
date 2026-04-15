@@ -224,14 +224,21 @@ function deriveContractedReceptionHours(...sources) {
 }
 
 function deriveHasContractedReception(...sources) {
+  let foundExplicitFalse = false;
+
   for (const source of sources) {
     const explicit =
       source?.has_reception ??
       source?.has_receptivo ??
       source?.reception_enabled;
-    if (typeof explicit === 'boolean') return explicit;
+    if (explicit === true) return true;
+    if (explicit === false) foundExplicitFalse = true;
   }
-  return deriveContractedReceptionHours(...sources) > 0;
+
+  if (deriveContractedReceptionHours(...sources) > 0) return true;
+  if (foundExplicitFalse) return false;
+
+  return false;
 }
 
 function toNumber(value) {

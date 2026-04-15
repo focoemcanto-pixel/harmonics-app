@@ -593,6 +593,7 @@ export default function DashboardPage() {
         supabase.from('precontracts').select('*'),
         supabase.from('event_musicians').select('*').limit(50),
         supabase.from('repertoire_config').select('*'),
+        supabase.from('contract_adjustment_requests').select('*'),
       ]);
 
       const eventsRes =
@@ -605,18 +606,24 @@ export default function DashboardPage() {
         results[3].status === 'fulfilled' ? results[3].value : { data: [], error: null };
       const repertoireConfigsRes =
         results[4].status === 'fulfilled' ? results[4].value : { data: [], error: null };
+      const adjustmentRequestsRes =
+        results[5].status === 'fulfilled' ? results[5].value : { data: [], error: null };
 
       if (eventsRes.error) console.warn('[dashboard] events falhou:', eventsRes.error);
       if (contractsRes.error) console.warn('[dashboard] contracts falhou:', contractsRes.error);
       if (precontractsRes.error) console.warn('[dashboard] precontracts falhou:', precontractsRes.error);
 if (eventMusiciansRes.error) console.warn('[dashboard] event_musicians falhou:', eventMusiciansRes.error);
 if (repertoireConfigsRes.error) console.warn('[dashboard] repertoire_config falhou:', repertoireConfigsRes.error);
+if (adjustmentRequestsRes.error) console.warn('[dashboard] contract_adjustment_requests falhou:', adjustmentRequestsRes.error);
 
       const eventsData = Array.isArray(eventsRes.data) ? eventsRes.data : [];
       const contractsData = Array.isArray(contractsRes.data) ? contractsRes.data : [];
       const precontractsData = Array.isArray(precontractsRes.data) ? precontractsRes.data : [];
       const eventMusiciansData = Array.isArray(eventMusiciansRes.data) ? eventMusiciansRes.data : [];
       const repertoireConfigsData = Array.isArray(repertoireConfigsRes.data) ? repertoireConfigsRes.data : [];
+      const adjustmentRequestsData = Array.isArray(adjustmentRequestsRes.data)
+        ? adjustmentRequestsRes.data
+        : [];
 
       setEvents(eventsData);
       setContracts(contractsData);
@@ -629,7 +636,8 @@ if (repertoireConfigsRes.error) console.warn('[dashboard] repertoire_config falh
         contractsData,
         precontractsData,
         eventMusiciansData,
-        repertoireConfigsData
+        repertoireConfigsData,
+        adjustmentRequestsData
       );
       setSummary(nextSummary);
 
@@ -652,7 +660,7 @@ if (repertoireConfigsRes.error) console.warn('[dashboard] repertoire_config falh
       setPrecontracts([]);
       setEventMusicians([]);
       setRepertoireConfigs([]);
-      setSummary(buildDashboardSummary([], [], [], [], []));
+      setSummary(buildDashboardSummary([], [], [], [], [], []));
     } finally {
       setCarregando(false);
     }

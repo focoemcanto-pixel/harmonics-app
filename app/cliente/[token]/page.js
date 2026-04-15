@@ -236,6 +236,31 @@ function buildFinancialSummary(event) {
   };
 }
 
+function deriveContractedReceptionHours(...sources) {
+  for (const source of sources) {
+    const raw =
+      source?.reception_hours ??
+      source?.reception_duration ??
+      source?.receptivo_duration ??
+      source?.receptivo_hours ??
+      source?.receptivo_horas;
+    const numeric = Number(raw);
+    if (Number.isFinite(numeric) && numeric > 0) return numeric;
+  }
+  return 0;
+}
+
+function deriveHasContractedReception(...sources) {
+  for (const source of sources) {
+    const explicit =
+      source?.has_reception ??
+      source?.has_receptivo ??
+      source?.reception_enabled;
+    if (typeof explicit === 'boolean') return explicit;
+  }
+  return deriveContractedReceptionHours(...sources) > 0;
+}
+
 function toNumber(value) {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
@@ -363,7 +388,7 @@ export default async function ClienteTokenPage({ params }) {
   try {
     const { data: precontractData, error: precontractError } = await supabase
       .from('precontracts')
-      .select('id, public_token, event_id')
+      .select('id, public_token, event_id, reception_hours, has_sound, has_transport')
       .eq('public_token', token)
       .maybeSingle();
 
@@ -465,6 +490,8 @@ export default async function ClienteTokenPage({ params }) {
   const config = configResp?.data || null;
   const items = Array.isArray(itemsResp?.data) ? itemsResp.data : [];
   const contract = contractsResp?.data || null;
+  const hasContractedReception = deriveHasContractedReception(config, event, precontract);
+  const contractedReceptionHours = deriveContractedReceptionHours(config, event, precontract);
   const repertoireToken = repertoireTokenResp?.data || null;
   const payments = Array.isArray(paymentsResp?.data) ? paymentsResp.data : [];
   const pricing = pricingResp?.data || {};
@@ -571,10 +598,7 @@ export default async function ClienteTokenPage({ params }) {
       antesalaPriceIncrement: Number(event?.antesala_price_increment || 0),
       antesalaQuoteOptions: buildAntesalaQuoteOptions(event?.formation, pricing),
       temReceptivo: Boolean(
-        config?.has_reception ??
-          event?.has_reception ??
-          event?.has_receptivo ??
-          false
+        hasContractedReception
       ),
       pdfUrl: repertorioPdfUrl,
       repertoireToken: repertorioTokenValue,
@@ -609,7 +633,7 @@ export default async function ClienteTokenPage({ params }) {
           reference_video_id: config?.exit_reference_video_id || '',
         },
         receptivo: {
-          duracao: config?.reception_duration || '1h',
+          duracao: config?.reception_duration || `${contractedReceptionHours || 1}h`,
           generos: config?.reception_genres || initialLists.receptivo?.generos || '',
           artistas: config?.reception_artists || initialLists.receptivo?.artistas || '',
           observacao: config?.reception_notes || initialLists.receptivo?.observacao || '',

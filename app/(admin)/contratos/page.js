@@ -33,7 +33,20 @@ function escapeCsv(value) {
 }
 
 function getResolvedToken(precontract, contract) {
-  return String(precontract?.public_token || contract?.public_token || '').trim();
+  const preToken = String(precontract?.public_token || '').trim();
+  const contractToken = String(contract?.public_token || '').trim();
+
+  if (preToken && contractToken && preToken !== contractToken) {
+    console.warn('[CONTRATOS_ADMIN] divergência de token detectada', {
+      precontractId: precontract?.id || null,
+      contractId: contract?.id || null,
+      precontract_public_token: preToken,
+      contract_public_token: contractToken,
+      token_escolhido: preToken,
+    });
+  }
+
+  return preToken || contractToken;
 }
 
 export default function ContratosPage() {
@@ -83,6 +96,11 @@ export default function ContratosPage() {
         const merged = (precontracts || []).map((pre) => {
           const contract = contractsByPreId.get(String(pre.id));
           const resolvedToken = getResolvedToken(pre, contract);
+          console.info('[CONTRATOS_ADMIN] token exibido no admin', {
+            precontractId: pre.id,
+            contractId: contract?.id || null,
+            token: resolvedToken || null,
+          });
           const resolvedStatus = mapStatus(
             contract?.status || pre?.status,
             !!contract
@@ -159,6 +177,10 @@ export default function ContratosPage() {
 
     try {
       const full = `${window.location.origin}${link}`;
+      console.info('[CONTRATOS_ADMIN] copiar link com token', {
+        link,
+        token: String(link).split('/').filter(Boolean).pop() || null,
+      });
       await navigator.clipboard.writeText(full);
       alert('Link copiado com sucesso.');
     } catch (error) {
@@ -174,36 +196,34 @@ export default function ContratosPage() {
     if (!confirmed) return;
 
     try {
-      const nowIso = new Date().toISOString();
-      const updates = [
-        supabase
-          .from('precontracts')
-          .update({
-            status: 'archived',
-            updated_at: nowIso,
-          })
-          .eq('id', item.precontractId),
-      ];
+      console.info('[CONTRATOS_ADMIN] solicitando exclusão', {
+        precontractId: item.precontractId,
+        contractId: item.contractId || null,
+      });
 
-      if (item.contractId) {
-        updates.push(
-          supabase
-            .from('contracts')
-            .update({
-              status: 'archived',
-              updated_at: nowIso,
-            })
-            .eq('id', item.contractId)
-        );
+      const response = await fetch('/api/contracts/archive', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          precontractId: item.precontractId,
+          contractId: item.contractId,
+        }),
+      });
+
+      const payload = await response.json();
+      if (!response.ok || !payload?.ok) {
+        throw new Error(payload?.error || 'Falha ao arquivar contrato.');
       }
-
-      const results = await Promise.all(updates);
-      const failed = results.find((result) => result.error);
-      if (failed?.error) throw failed.error;
 
       setContratos((prev) =>
         prev.filter((entry) => String(entry.precontractId) !== String(item.precontractId))
       );
+      console.info('[CONTRATOS_ADMIN] exclusão concluída', {
+        precontractId: item.precontractId,
+        contractId: item.contractId || null,
+      });
       alert('Contrato removido com sucesso.');
     } catch (error) {
       console.error('Erro ao remover contrato:', error);

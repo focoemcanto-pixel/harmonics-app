@@ -128,6 +128,14 @@ function normalizeItems(items = []) {
     });
 }
 
+function countItemsBySection(items = []) {
+  return (Array.isArray(items) ? items : []).reduce((acc, item) => {
+    const section = String(item?.section || 'sem_secao').trim() || 'sem_secao';
+    acc[section] = (acc[section] || 0) + 1;
+    return acc;
+  }, {});
+}
+
 async function findSuggestionSongIdForItem(supabase, item) {
   const title = normalizeText(item?.song_name);
   if (!title) return null;
@@ -386,8 +394,10 @@ export async function POST(request) {
     console.log('[API REPERTORIO] event_id resolvido:', eventId);
     console.log('[API REPERTORIO] repertoire_token criado nesta chamada:', createdToken);
 
-    const items = normalizeItems(rawItems);
-    const itemsWithCatalogLink = await attachCatalogSongIds(supabase, items);
+    const incomingItems = normalizeItems(rawItems);
+    console.log('[API REPERTORIO] payload config recebido:', config);
+    console.log('[API REPERTORIO] payload itens recebido (normalizado):', incomingItems);
+    console.log('[API REPERTORIO] quantidade de itens por seção (payload):', countItemsBySection(incomingItems));
 
     const status = mode === 'final' ? 'ENVIADO' : 'RASCUNHO';
     const isLocked = mode === 'final';
@@ -521,6 +531,59 @@ export async function POST(request) {
       );
     }
 
+    const { data: existingItems, error: existingItemsError } = await supabase
+      .from('repertoire_items')
+      .select(
+        'section, item_order, who_enters, moment, song_name, reference_link, reference_title, reference_channel, reference_thumbnail, reference_video_id, notes, type, group_name, label, genres, artists, suggestion_song_id'
+      )
+      .eq('event_id', eventId);
+
+    if (existingItemsError) throw existingItemsError;
+
+    const existingBySection = countItemsBySection(existingItems || []);
+    const incomingBySection = countItemsBySection(incomingItems);
+    const incomingSections = new Set(incomingItems.map((item) => String(item.section || '').trim()).filter(Boolean));
+    const missingSectionsFromIncoming = Object.keys(existingBySection).filter(
+      (section) => !incomingSections.has(section)
+    );
+
+    let itemsToPersist = incomingItems;
+
+    if (missingSectionsFromIncoming.length > 0) {
+      const preservedItems = (existingItems || []).filter((item) =>
+        missingSectionsFromIncoming.includes(String(item.section || '').trim())
+      );
+      itemsToPersist = [...incomingItems, ...preservedItems];
+      console.warn(
+        '[API REPERTORIO] payload parcial detectado; preservando seções não enviadas:',
+        missingSectionsFromIncoming
+      );
+    }
+
+    if (incomingItems.length === 0 && (existingItems || []).length > 0) {
+      console.error(
+        '[API REPERTORIO] bloqueando overwrite destrutivo: payload sem itens e evento já possui itens persistidos.'
+      );
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            'Payload parcial detectado (sem itens). Salvamento bloqueado para evitar perda de dados do rascunho.',
+        },
+        { status: 409 }
+      );
+    }
+
+    const itemsWithCatalogLink = await attachCatalogSongIds(supabase, itemsToPersist);
+
+    console.log('[API REPERTORIO] itens existentes por seção (antes de salvar):', existingBySection);
+    console.log('[API REPERTORIO] itens recebidos por seção:', incomingBySection);
+    console.log('[API REPERTORIO] seções ausentes no payload.itens:', missingSectionsFromIncoming);
+    console.log(
+      '[API REPERTORIO] quantidade final de itens por seção (após preservação):',
+      countItemsBySection(itemsWithCatalogLink)
+    );
+
     const { error: deleteItemsError } = await supabase
       .from('repertoire_items')
       .delete()
@@ -591,7 +654,7 @@ export async function POST(request) {
         `✅ Repertório enviado por ${eventRow?.client_name || 'Cliente'}`,
         `📅 Evento: ${formatDateBR(eventRow?.event_date)}`,
         eventRow?.location_name ? `📍 Local: ${eventRow.location_name}` : null,
-        `📝 Resumo: ${buildRepertoireSummary(items)}`,
+        `📝 Resumo: ${buildRepertoireSummary(itemsWithCatalogLink)}`,
         pdfUrl ? `📄 PDF: ${pdfUrl}` : null,
       ]
         .filter(Boolean)
@@ -638,7 +701,7 @@ export async function POST(request) {
       ok: true,
       eventId,
       status,
-      savedItems: items.length,
+      savedItems: itemsWithCatalogLink.length,
       locked: isLocked,
     });
   } catch (error) {

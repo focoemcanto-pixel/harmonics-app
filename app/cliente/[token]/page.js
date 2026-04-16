@@ -565,9 +565,7 @@ export default async function ClienteTokenPage({ params }) {
   try {
     const { data: precontractData, error: precontractError } = await supabase
       .from('precontracts')
-      .select(
-        'id, public_token, event_id, reception_hours, has_sound, has_transport, agreed_amount, base_amount, add_sound, add_transport, signal_due_date, balance_due_date, card_due_date, payment_card'
-      )
+      .select('id, public_token, event_id, reception_hours, has_sound, has_transport')
       .eq('public_token', token)
       .maybeSingle();
 
@@ -578,6 +576,35 @@ export default async function ClienteTokenPage({ params }) {
     }
   } catch (error) {
     console.error('[CLIENTE PAGE] Falha inesperada ao buscar precontract:', error);
+  }
+
+  if (precontract?.id) {
+    try {
+      const { data: precontractFinancialData, error: precontractFinancialError } = await supabase
+        .from('precontracts')
+        .select(
+          'id, agreed_amount, base_amount, add_sound, add_transport, signal_due_date, balance_due_date, card_due_date, payment_card'
+        )
+        .eq('id', precontract.id)
+        .maybeSingle();
+
+      if (precontractFinancialError) {
+        console.warn(
+          '[CLIENTE PAGE] Campos financeiros opcionais de precontract indisponíveis, seguindo com fallback seguro:',
+          precontractFinancialError
+        );
+      } else if (precontractFinancialData) {
+        precontract = {
+          ...precontract,
+          ...precontractFinancialData,
+        };
+      }
+    } catch (error) {
+      console.warn(
+        '[CLIENTE PAGE] Falha inesperada ao buscar campos financeiros opcionais de precontract:',
+        error
+      );
+    }
   }
 
   const eventId = precontract?.event_id;

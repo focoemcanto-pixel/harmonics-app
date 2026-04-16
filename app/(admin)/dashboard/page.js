@@ -2,17 +2,32 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import AdminShell from '@/components/layout/AdminShell';
 import DashboardPrimaryKpis from '@/components/dashboard/DashboardPrimaryKpis';
 import DashboardSecondaryKpis from '@/components/dashboard/DashboardSecondaryKpis';
-import DashboardRevenueChart from '@/components/dashboard/DashboardRevenueChart';
-import DashboardFinanceBreakdown from '@/components/dashboard/DashboardFinanceBreakdown';
-import DashboardOperationsRadar from '@/components/dashboard/DashboardOperationsRadar';
-import DashboardUpcomingEvents from '@/components/dashboard/DashboardUpcomingEvents';
 import { supabase } from '@/lib/supabase';
 import { buildDashboardSummary } from '@/lib/dashboard/dashboard-summary';
 
+const DashboardRevenueChart = dynamic(() => import('@/components/dashboard/DashboardRevenueChart'));
+const DashboardFinanceBreakdown = dynamic(() => import('@/components/dashboard/DashboardFinanceBreakdown'));
+const DashboardOperationsRadar = dynamic(() => import('@/components/dashboard/DashboardOperationsRadar'));
+const DashboardUpcomingEvents = dynamic(() => import('@/components/dashboard/DashboardUpcomingEvents'));
+
+const DASHBOARD_EVENTS_SELECT =
+  'id, created_at, event_date, status, client_name, agreed_amount, paid_amount, open_amount, profit_amount';
+const DASHBOARD_PRECONTRACTS_SELECT =
+  'id, created_at, event_id, event_date, status, client_name, notes, public_token';
+const DASHBOARD_CONTRACTS_SELECT =
+  'id, created_at, event_id, precontract_id, event_date, status, client_name, notes, public_token, raw_payload';
+const DASHBOARD_EVENT_MUSICIANS_SELECT = 'id, created_at, status';
+const DASHBOARD_REPERTOIRE_CONFIG_SELECT = 'id, created_at, event_id, status, is_locked, submitted_at';
+const DASHBOARD_ADJUSTMENT_REQUESTS_SELECT = 'id, created_at, precontract_id, status';
+const DASHBOARD_FETCH_LIMIT = 50;
+
 const MAX_DISPLAYED_ACTIVITIES = 2;
+const DASHBOARD_CACHE_TTL_MS = 60 * 1000;
+let dashboardMemoryCache = null;
 
 function DashboardLoading() {
   return (
@@ -552,6 +567,8 @@ export default function DashboardPage() {
   const [erro, setErro] = useState('');
   const [mobileSection, setMobileSection] = useState('overview');
   const [activities, setActivities] = useState([]);
+  const [secondaryReady, setSecondaryReady] = useState(false);
+  const [heavyReady, setHeavyReady] = useState(false);
 
   // Gerar insights com useMemo (performance)
   const insights = useMemo(() => {
@@ -586,14 +603,56 @@ export default function DashboardPage() {
     try {
       setCarregando(true);
       setErro('');
+      setSecondaryReady(false);
+      setHeavyReady(false);
+
+      // Cache curto para navegação interna: melhora TTI sem alterar comportamento.
+      if (
+        dashboardMemoryCache &&
+        Date.now() - dashboardMemoryCache.updatedAt < DASHBOARD_CACHE_TTL_MS
+      ) {
+        setEvents(dashboardMemoryCache.events);
+        setContracts(dashboardMemoryCache.contracts);
+        setPrecontracts(dashboardMemoryCache.precontracts);
+        setEventMusicians(dashboardMemoryCache.eventMusicians);
+        setRepertoireConfigs(dashboardMemoryCache.repertoireConfigs);
+        setSummary(dashboardMemoryCache.summary);
+        setSecondaryReady(true);
+        setHeavyReady(true);
+        setCarregando(false);
+      }
 
       const results = await Promise.allSettled([
-        supabase.from('events').select('*'),
-        supabase.from('contracts').select('*'),
-        supabase.from('precontracts').select('*'),
-        supabase.from('event_musicians').select('*').limit(50),
-        supabase.from('repertoire_config').select('*'),
-        supabase.from('contract_adjustment_requests').select('*'),
+        supabase
+          .from('events')
+          .select(DASHBOARD_EVENTS_SELECT)
+          .order('created_at', { ascending: false })
+          .limit(DASHBOARD_FETCH_LIMIT),
+        supabase
+          .from('contracts')
+          .select(DASHBOARD_CONTRACTS_SELECT)
+          .order('created_at', { ascending: false })
+          .limit(DASHBOARD_FETCH_LIMIT),
+        supabase
+          .from('precontracts')
+          .select(DASHBOARD_PRECONTRACTS_SELECT)
+          .order('created_at', { ascending: false })
+          .limit(DASHBOARD_FETCH_LIMIT),
+        supabase
+          .from('event_musicians')
+          .select(DASHBOARD_EVENT_MUSICIANS_SELECT)
+          .order('created_at', { ascending: false })
+          .limit(DASHBOARD_FETCH_LIMIT),
+        supabase
+          .from('repertoire_config')
+          .select(DASHBOARD_REPERTOIRE_CONFIG_SELECT)
+          .order('created_at', { ascending: false })
+          .limit(DASHBOARD_FETCH_LIMIT),
+        supabase
+          .from('contract_adjustment_requests')
+          .select(DASHBOARD_ADJUSTMENT_REQUESTS_SELECT)
+          .order('created_at', { ascending: false })
+          .limit(DASHBOARD_FETCH_LIMIT),
       ]);
 
       const eventsRes =
@@ -628,8 +687,10 @@ if (adjustmentRequestsRes.error) console.warn('[dashboard] contract_adjustment_r
       setEvents(eventsData);
       setContracts(contractsData);
       setPrecontracts(precontractsData);
+      setSecondaryReady(true);
       setEventMusicians(eventMusiciansData);
       setRepertoireConfigs(repertoireConfigsData);
+      setHeavyReady(true);
 
       const nextSummary = buildDashboardSummary(
         eventsData,
@@ -640,18 +701,15 @@ if (adjustmentRequestsRes.error) console.warn('[dashboard] contract_adjustment_r
         adjustmentRequestsData
       );
       setSummary(nextSummary);
-
-      const urgentReview = nextSummary?.revisaoSolicitadaMaisUrgente || null;
-      console.log('[dashboard][revisao-card] total revisoes pendentes:', nextSummary?.revisoesSolicitadas || 0);
-      console.log('[dashboard][revisao-card] item mais urgente:', urgentReview);
-      console.log('[dashboard][revisao-card] event_id escolhido:', urgentReview?.eventId || null);
-      console.log('[dashboard][revisao-card] nome resolvido:', urgentReview?.clientName || null);
-      console.log('[dashboard][revisao-card] data resolvida:', urgentReview?.eventDate || null);
-      console.log('[dashboard][revisao-card] origem nome/data:', {
-        clientNameSource: urgentReview?.clientNameSource || null,
-        eventDateSource: urgentReview?.eventDateSource || null,
-        sourceSnapshot: urgentReview?.sourceSnapshot || null,
-      });
+      dashboardMemoryCache = {
+        updatedAt: Date.now(),
+        events: eventsData,
+        contracts: contractsData,
+        precontracts: precontractsData,
+        eventMusicians: eventMusiciansData,
+        repertoireConfigs: repertoireConfigsData,
+        summary: nextSummary,
+      };
     } catch (error) {
       console.error('Erro ao carregar dashboard:', error);
       setErro(error?.message || 'Não foi possível carregar o dashboard.');
@@ -667,10 +725,7 @@ if (adjustmentRequestsRes.error) console.warn('[dashboard] contract_adjustment_r
   }
 
   carregarDashboard();
-
-  setTimeout(() => {
-    fetchRecentActivity();
-  }, 0);
+  fetchRecentActivity();
 }, []);
   async function fetchRecentActivity() {
   try {
@@ -752,68 +807,96 @@ if (adjustmentRequestsRes.error) console.warn('[dashboard] contract_adjustment_r
             <DashboardPrimaryKpis summary={summary} />
           </MobileSlide>
           <MobileSlide wide>
-            <DashboardSecondaryKpis summary={summary} />
+            {secondaryReady ? (
+              <DashboardSecondaryKpis summary={summary} />
+            ) : (
+              <div className="h-[148px] animate-pulse rounded-[28px] border border-[#dbe3ef] bg-white" />
+            )}
           </MobileSlide>
         </MobileCarousel>
 
         <MobileCarousel>
           <MobileSlide wide>
-            <DashboardUpcomingEvents
-              events={events}
-              contracts={contracts}
-              precontracts={precontracts}
-            />
+            {heavyReady ? (
+              <DashboardUpcomingEvents
+                events={events}
+                contracts={contracts}
+                precontracts={precontracts}
+              />
+            ) : (
+              <div className="h-[360px] animate-pulse rounded-[28px] border border-[#dbe3ef] bg-white" />
+            )}
           </MobileSlide>
         </MobileCarousel>
       </div>
     );
-  }, [summary, events, contracts, precontracts]);
+  }, [summary, events, contracts, precontracts, secondaryReady, heavyReady]);
 
   const mobileFinance = useMemo(() => {
     return (
       <div className="space-y-4 xl:hidden">
         <MobileCarousel>
           <MobileSlide wide>
-            <DashboardRevenueChart events={events} />
+            {heavyReady ? (
+              <DashboardRevenueChart events={events} />
+            ) : (
+              <div className="h-[420px] animate-pulse rounded-[30px] border border-[#dbe3ef] bg-white" />
+            )}
           </MobileSlide>
           <MobileSlide wide>
-            <DashboardFinanceBreakdown events={events} summary={summary} />
+            {heavyReady ? (
+              <DashboardFinanceBreakdown events={events} summary={summary} />
+            ) : (
+              <div className="h-[420px] animate-pulse rounded-[30px] border border-[#dbe3ef] bg-white" />
+            )}
           </MobileSlide>
         </MobileCarousel>
       </div>
     );
-  }, [events, summary]);
+  }, [events, summary, heavyReady]);
 
   const mobileOps = useMemo(() => {
     return (
       <div className="space-y-4 xl:hidden">
         <MobileCarousel>
           <MobileSlide wide>
-            <DashboardOperationsRadar summary={summary} />
+            {heavyReady ? (
+              <DashboardOperationsRadar summary={summary} />
+            ) : (
+              <div className="h-[360px] animate-pulse rounded-[28px] border border-[#dbe3ef] bg-white" />
+            )}
           </MobileSlide>
         </MobileCarousel>
       </div>
     );
-  }, [summary]);
+  }, [summary, heavyReady]);
 
   const mobileAgenda = useMemo(() => {
     return (
       <div className="space-y-4 xl:hidden">
         <MobileCarousel>
           <MobileSlide wide>
-            <DashboardUpcomingEvents
-              events={events}
-              contracts={contracts}
-              precontracts={precontracts}
-            />
+            {heavyReady ? (
+              <DashboardUpcomingEvents
+                events={events}
+                contracts={contracts}
+                precontracts={precontracts}
+              />
+            ) : (
+              <div className="h-[360px] animate-pulse rounded-[28px] border border-[#dbe3ef] bg-white" />
+            )}
           </MobileSlide>
           <MobileSlide wide>
-            <DashboardSecondaryKpis summary={summary} />
+            {secondaryReady ? (
+              <DashboardSecondaryKpis summary={summary} />
+            ) : (
+              <div className="h-[148px] animate-pulse rounded-[28px] border border-[#dbe3ef] bg-white" />
+            )}
           </MobileSlide>
         </MobileCarousel>
       </div>
     );
-  }, [events, contracts, precontracts, summary]);
+  }, [events, contracts, precontracts, summary, heavyReady, secondaryReady]);
 
   return (
     <AdminShell
@@ -1137,20 +1220,42 @@ if (adjustmentRequestsRes.error) console.warn('[dashboard] contract_adjustment_r
               <DashboardPrimaryKpis summary={summary} />
 
               <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.5fr_1fr]">
-                <DashboardRevenueChart events={events} />
-                <DashboardFinanceBreakdown events={events} summary={summary} />
+                {heavyReady ? (
+                  <>
+                    <DashboardRevenueChart events={events} />
+                    <DashboardFinanceBreakdown events={events} summary={summary} />
+                  </>
+                ) : (
+                  <>
+                    <div className="h-[420px] animate-pulse rounded-[30px] border border-[#dbe3ef] bg-white" />
+                    <div className="h-[420px] animate-pulse rounded-[30px] border border-[#dbe3ef] bg-white" />
+                  </>
+                )}
               </div>
 
               <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_1.2fr]">
-                <DashboardOperationsRadar summary={summary} />
-                <DashboardUpcomingEvents
-                  events={events}
-                  contracts={contracts}
-                  precontracts={precontracts}
-                />
+                {heavyReady ? (
+                  <>
+                    <DashboardOperationsRadar summary={summary} />
+                    <DashboardUpcomingEvents
+                      events={events}
+                      contracts={contracts}
+                      precontracts={precontracts}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <div className="h-[360px] animate-pulse rounded-[28px] border border-[#dbe3ef] bg-white" />
+                    <div className="h-[420px] animate-pulse rounded-[28px] border border-[#dbe3ef] bg-white" />
+                  </>
+                )}
               </div>
 
-              <DashboardSecondaryKpis summary={summary} />
+              {secondaryReady ? (
+                <DashboardSecondaryKpis summary={summary} />
+              ) : (
+                <div className="h-[148px] animate-pulse rounded-[28px] border border-[#dbe3ef] bg-white" />
+              )}
             </div>
           </div>
         </div>

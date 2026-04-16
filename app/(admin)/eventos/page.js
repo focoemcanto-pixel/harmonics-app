@@ -80,6 +80,14 @@ const DESKTOP_TABS = [
   { key: 'evento', label: 'Novo / Editar' },
   { key: 'precos', label: 'Preços' },
 ];
+const ADMIN_LIST_LIMIT = 100;
+const EVENTS_SELECT_FIELDS =
+  'id, created_at, client_name, client_email, client_phone, event_type, event_date, event_time, duration_min, location_name, location_address, formation, instruments, has_sound, reception_hours, has_transport, agreed_amount, paid_amount, open_amount, payment_status, status, notes';
+const PRECONTRACTS_SELECT_FIELDS =
+  'id, created_at, event_id, client_name, event_date, event_time, status, public_token';
+const CONTRACTS_SELECT_FIELDS =
+  'id, created_at, precontract_id, event_id, status, signed_at, pdf_url, doc_url, public_token';
+const PRICING_SELECT_FIELDS = 'id, slug, formation_prices, reception_prices, sound_price, transport_price';
 
 function getContractStatus(ev, contractsByEventId) {
   const contract = contractsByEventId.get(String(ev.id));
@@ -207,7 +215,11 @@ export default function EventosPage() {
 
   async function carregarEventos() {
     try {
-      const { data, error } = await supabase.from('events').select('*');
+      const { data, error } = await supabase
+        .from('events')
+        .select(EVENTS_SELECT_FIELDS)
+        .order('created_at', { ascending: false })
+        .limit(ADMIN_LIST_LIMIT);
 
       if (error) throw error;
       setEventos((data || []).map((item) => sanitizeTimeFields(item)));
@@ -282,7 +294,7 @@ export default function EventosPage() {
     try {
       const { data, error } = await supabase
         .from('pricing_settings')
-        .select('*')
+        .select(PRICING_SELECT_FIELDS)
         .eq('slug', 'default')
         .single();
 
@@ -343,7 +355,9 @@ export default function EventosPage() {
     try {
       const { data, error } = await supabase
         .from('precontracts')
-        .select('*');
+        .select(PRECONTRACTS_SELECT_FIELDS)
+        .order('created_at', { ascending: false })
+        .limit(ADMIN_LIST_LIMIT);
 
       if (error) throw error;
       setPrecontracts((data || []).map((item) => sanitizeTimeFields(item)));
@@ -356,7 +370,9 @@ export default function EventosPage() {
     try {
       const { data, error } = await supabase
         .from('contracts')
-        .select('*');
+        .select(CONTRACTS_SELECT_FIELDS)
+        .order('created_at', { ascending: false })
+        .limit(ADMIN_LIST_LIMIT);
 
       if (error) throw error;
       setContracts((data || []).map((item) => sanitizeTimeFields(item)));

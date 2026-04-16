@@ -38,6 +38,7 @@ const STATUS_OPTIONS = [
   'cancelled',
 ];
 const ADJUSTMENT_REQUEST_MARKER = '--- SOLICITAÇÃO DE AJUSTE DO CLIENTE ---';
+const IS_DEV = process.env.NODE_ENV !== 'production';
 const PRECONTRACT_SELECT_FIELDS = [
   'id',
   'created_at',
@@ -252,6 +253,15 @@ function buildWhatsAppUrl(phone, message) {
   }
 
   return `https://api.whatsapp.com/send?text=${text}`;
+}
+
+function devLog(message, payload) {
+  if (!IS_DEV) return;
+  if (payload === undefined) {
+    console.info(message);
+    return;
+  }
+  console.info(message, payload);
 }
 
 function ShareLinkModal({
@@ -922,7 +932,7 @@ export default function PreContratosClient() {
 
       const token = item.public_token || generateToken();
       const link = buildContractLink(token);
-      console.info('[CONTRACT_TOKEN_FLOW] token gerado para link', {
+      devLog('[CONTRACT_TOKEN_FLOW] token gerado para link', {
         precontractId: item.id,
         token_gerado: token,
       });
@@ -944,7 +954,7 @@ export default function PreContratosClient() {
         const current = sanitizeTimeFields(data);
         return [current, ...prev.filter((entry) => entry.id !== current.id)];
       });
-      console.info('[CONTRACT_TOKEN_FLOW] token salvo após gerar link', {
+      devLog('[CONTRACT_TOKEN_FLOW] token salvo após gerar link', {
         precontractId: item.id,
         public_token: data?.public_token || token,
         generated_link: data?.generated_link || link,

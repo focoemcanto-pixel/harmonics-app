@@ -20,6 +20,30 @@ const DESKTOP_TABS = [
   { key: 'repertorios', label: 'Repertórios', icon: '🎧' },
   { key: 'perfil', label: 'Perfil', icon: '👤' },
 ];
+const REPERTOIRE_CONFIG_SELECT = [
+  'id',
+  'event_id',
+  'repertoire_pdf_url',
+  'pdf_url',
+  'has_ante_room',
+  'ante_room_style',
+  'ante_room_notes',
+].join(', ');
+const REPERTOIRE_ITEMS_SELECT = [
+  'id',
+  'event_id',
+  'item_order',
+  'song_name',
+  'moment',
+  'who_enters',
+  'reference_link',
+  'notes',
+  'type',
+  'label',
+  'section',
+  'genres',
+  'artists',
+].join(', ');
 
 function getDesktopTabMeta(activeTab) {
   if (activeTab === 'home') {
@@ -379,11 +403,11 @@ export default function MembroPage() {
 
           supabase
             .from('repertoire_config')
-            .select('*'),
+            .select(REPERTOIRE_CONFIG_SELECT),
 
           supabase
             .from('repertoire_items')
-            .select('*')
+            .select(REPERTOIRE_ITEMS_SELECT)
             .order('item_order', { ascending: true }),
         ]);
 
@@ -437,11 +461,11 @@ export default function MembroPage() {
 
         supabase
           .from('repertoire_config')
-          .select('*'),
+          .select(REPERTOIRE_CONFIG_SELECT),
 
         supabase
           .from('repertoire_items')
-          .select('*')
+          .select(REPERTOIRE_ITEMS_SELECT)
           .order('item_order', { ascending: true }),
       ]);
 
@@ -740,14 +764,6 @@ export default function MembroPage() {
   function openPdf(item) {
     if (typeof window !== 'undefined') {
       const repertoirePdfUrl = item?.repertorioPdfUrl || '';
-      const contractPdfUrl = item?.contractInfo?.pdfUrl || '';
-
-      console.log('[MEMBRO REPERTORIO UI] URL PDF contrato:', contractPdfUrl || '(vazio)');
-      console.log('[MEMBRO REPERTORIO UI] URL PDF repertório:', repertoirePdfUrl || '(vazio)');
-      console.log(
-        '[MEMBRO REPERTORIO UI] URL usada no botão Baixar PDF:',
-        repertoirePdfUrl || '(vazio)'
-      );
 
       if (repertoirePdfUrl) {
         window.open(repertoirePdfUrl, '_blank', 'noopener,noreferrer');

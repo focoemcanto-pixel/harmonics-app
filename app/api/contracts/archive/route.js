@@ -3,32 +3,27 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin';
 
 function isMissingUpdatedAtColumn(error) {
   const message = String(error?.message || '').toLowerCase();
-  return message.includes('updated_at') && (
-    message.includes('column') ||
-    message.includes('does not exist') ||
-    message.includes('schema cache')
+  return (
+    message.includes('updated_at') &&
+    (message.includes('column') ||
+      message.includes('does not exist') ||
+      message.includes('schema cache'))
   );
 }
 
-async function archiveRow(supabase, table, id) {
-  let payload = {
-    status: 'archived',
-    updated_at: new Date().toISOString(),
-  };
-
+async function updateStatusById(supabase, table, id, status) {
   let { error } = await supabase
     .from(table)
-    .update(payload)
+    .update({
+      status,
+      updated_at: new Date().toISOString(),
+    })
     .eq('id', id);
 
   if (error && isMissingUpdatedAtColumn(error)) {
-    const fallbackPayload = {
-      status: 'archived',
-    };
-
     const retry = await supabase
       .from(table)
-      .update(fallbackPayload)
+      .update({ status })
       .eq('id', id);
 
     error = retry.error || null;
@@ -45,11 +40,6 @@ export async function POST(request) {
     const precontractId = String(body?.precontractId || '').trim();
     const contractId = String(body?.contractId || '').trim() || null;
 
-    console.info('[CONTRACTS_ARCHIVE] payload recebido', {
-      precontractId,
-      contractId,
-    });
-
     if (!precontractId) {
       return NextResponse.json(
         { ok: false, error: 'precontractId é obrigatório.' },
@@ -59,20 +49,16 @@ export async function POST(request) {
 
     const supabase = getSupabaseAdmin();
 
-    await archiveRow(supabase, 'precontracts', precontractId);
+    await updateStatusById(supabase, 'precontracts', precontractId, 'cancelled');
 
     if (contractId) {
-      await archiveRow(supabase, 'contracts', contractId);
+      await updateStatusById(supabase, 'contracts', contractId, 'cancelled');
     }
-
-    console.info('[CONTRACTS_ARCHIVE] sucesso', {
-      precontractId,
-      contractId,
-    });
 
     return NextResponse.json({
       ok: true,
       archived: true,
+      statusApplied: 'cancelled',
       precontractId,
       contractId,
     });
@@ -82,7 +68,7 @@ export async function POST(request) {
     });
 
     return NextResponse.json(
-      { ok: false, error: error?.message || 'Erro ao arquivar contrato.' },
+      { ok: false, error: error?.message || 'Erro ao remover contrato.' },
       { status: 500 }
     );
   }

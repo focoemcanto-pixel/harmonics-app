@@ -482,6 +482,9 @@ export default function ContratoPublicoPage() {
   const [enviado, setEnviado] = useState(false);
   const [solicitandoAjuste, setSolicitandoAjuste] = useState(false);
   const [pendingAdjustmentRequest, setPendingAdjustmentRequest] = useState(null);
+  const hasPendingAdjustment =
+  pendingAdjustmentRequest?.id &&
+  String(pendingAdjustmentRequest?.status || '').toLowerCase() === 'pending';
 
   const [form, setForm] = useState(getInitialForm());
   const [resultadoFinal, setResultadoFinal] = useState({
@@ -604,7 +607,10 @@ const mapsLoaded = useGoogleMapsReady();
         event_location_address:
           saved.event_location_address || safePreData.location_address || '',
 
-        adjustment_request: saved.adjustment_request || '',
+       adjustment_request:
+  String(pendingAdjustmentRequest?.status || '').toLowerCase() === 'resolved'
+    ? ''
+    : saved.adjustment_request || '',
 
         signer_name: saved.signer_name || '',
         signer_cpf: saved.signer_cpf ? maskCpf(saved.signer_cpf) : '',
@@ -620,15 +626,13 @@ const mapsLoaded = useGoogleMapsReady();
       if (saved.event_location_address) setEventAddressStatus('selected');
 
       try {
-        const { data: pendingAdjustment, error: adjustmentError } = await supabase
-          .from('contract_adjustment_requests')
-          .select('id, precontract_id, status, request_message, requested_at')
-          .eq('precontract_id', safePreData.id)
-          .eq('status', 'pending')
-          .order('requested_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
+        const { data: latestAdjustment, error: adjustmentError } = await supabase
+  .from('contract_adjustment_requests')
+  .select('id, precontract_id, status, request_message, created_at, resolved_at, resolved_note')
+  .eq('precontract_id', safePreData.id)
+  .order('created_at', { ascending: false })
+  .limit(1)
+  .maybeSingle();
         if (adjustmentError) {
           console.warn('[CONTRACT_PUBLIC_UI] falha não fatal ao buscar ajuste pendente', {
             token,
@@ -637,7 +641,7 @@ const mapsLoaded = useGoogleMapsReady();
           });
           setPendingAdjustmentRequest(null);
         } else {
-          setPendingAdjustmentRequest(pendingAdjustment || null);
+          setPendingAdjustmentRequest(latestAdjustment || null);
         }
       } catch (error) {
         console.warn('[CONTRACT_PUBLIC_UI] erro não fatal ao buscar ajuste pendente', {
@@ -1215,7 +1219,7 @@ const contratoFinalizado =
   }
 
   async function assinarContrato() {
-    if (pendingAdjustmentRequest?.id) {
+   if (hasPendingAdjustment) {
       alert('Sua solicitação de ajuste está em análise. Assim que for concluída, a assinatura será liberada.');
       return;
     }
@@ -1908,6 +1912,16 @@ if (contractSignedError) throw contractSignedError;
                   Solicitar ajuste
                 </SectionTitle>
 
+      {pendingAdjustmentRequest?.id &&
+ String(pendingAdjustmentRequest?.status || '').toLowerCase() === 'resolved' ? (
+  <div className="mb-4">
+    <AlertCard tone="default" title="Pedido corrigido!">
+      Seu último pedido de ajuste foi revisado e a assinatura já foi liberada novamente.
+      Caso ainda queira alterar algo, você pode enviar uma nova solicitação abaixo.
+    </AlertCard>
+  </div>
+) : null}
+
                 <textarea
                   value={form.adjustment_request}
                   onChange={(e) =>
@@ -1966,7 +1980,7 @@ if (contractSignedError) throw contractSignedError;
 
               <Card title="Assinatura eletrônica">
                 <div className="space-y-4">
-                  {pendingAdjustmentRequest?.id ? (
+                  {hasPendingAdjustment ? (
                     <AlertCard tone="amber" title="Assinatura bloqueada temporariamente">
                       Sua solicitação de ajuste está em análise. Assim que for concluída, a assinatura será liberada.
                     </AlertCard>
@@ -2005,7 +2019,7 @@ if (contractSignedError) throw contractSignedError;
                     </span>
                   </label>
 
-                  <Button onClick={assinarContrato} disabled={salvando || !!pendingAdjustmentRequest?.id}>
+                  <Button onClick={assinarContrato} disabled={salvando || !!hasPendingAdjustment}>
                     {salvando ? 'Assinando...' : 'Assinar contrato'}
                   </Button>
                 </div>

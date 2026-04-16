@@ -553,7 +553,6 @@ const mapsLoaded = useGoogleMapsReady();
         return;
       }
 
-      // Tenta complementar contract apenas se necessário, mas sem derrubar a página
       if (!contractData) {
         try {
           const { data: contractByPreId, error: contractError } = await supabase
@@ -620,7 +619,6 @@ const mapsLoaded = useGoogleMapsReady();
       if (saved.address_street) setClientAddressStatus('selected');
       if (saved.event_location_address) setEventAddressStatus('selected');
 
-      // Não derruba a página se contract_adjustment_requests falhar
       try {
         const { data: pendingAdjustment, error: adjustmentError } = await supabase
           .from('contract_adjustment_requests')
@@ -650,7 +648,6 @@ const mapsLoaded = useGoogleMapsReady();
         setPendingAdjustmentRequest(null);
       }
 
-      // Não derruba a página se update do public_token falhar
       if (!safePreData.public_token) {
         try {
           await supabase
@@ -668,7 +665,6 @@ const mapsLoaded = useGoogleMapsReady();
         }
       }
 
-      // Não derruba a página se update de status falhar
       if (safePreData?.status === 'link_generated') {
         try {
           await supabase
@@ -690,7 +686,6 @@ const mapsLoaded = useGoogleMapsReady();
     } catch (error) {
       console.error('Erro ao carregar contrato público:', error);
 
-      // Só mostra inválido se nem a carga principal conseguiu trazer o precontract
       if (!safePreData?.id) {
         setPrecontract(null);
       }

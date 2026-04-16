@@ -1,22 +1,29 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 
-function normalizeToken(rawToken) {
-  if (Array.isArray(rawToken)) {
-    return String(rawToken[0] || '').trim();
+function extractTokenFromRequest(request, params) {
+  const fromParams = Array.isArray(params?.token)
+    ? String(params.token[0] || '').trim()
+    : String(params?.token || '').trim();
+
+  if (fromParams) return fromParams;
+
+  try {
+    const url = new URL(request.url);
+    const parts = url.pathname.split('/').filter(Boolean);
+    const lastPart = String(parts[parts.length - 1] || '').trim();
+    return lastPart;
+  } catch {
+    return '';
   }
-  return String(rawToken || '').trim();
 }
 
 export async function GET(request, { params }) {
-  const rawToken = params?.token;
-
-  const token = Array.isArray(rawToken)
-    ? String(rawToken[0] || '').trim()
-    : String(rawToken || '').trim();
+  const token = extractTokenFromRequest(request, params);
 
   console.info('[CONTRACT_PUBLIC_ROUTE] token recebido', {
-    rawToken,
+    paramsToken: params?.token || null,
+    requestUrl: request?.url || null,
     token,
   });
 

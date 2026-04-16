@@ -33,18 +33,14 @@ export async function GET(_request, context) {
     });
 
     const { data: preData, error: preByTokenError } = await supabase
-  .from('precontracts')
-  .select('*')
-  .eq('public_token', token)
-  .limit(1);
-
-if (preByTokenError) throw preByTokenError;
-
-let precontract = preData?.[0] || null;
+      .from('precontracts')
+      .select('*')
+      .eq('public_token', token)
+      .limit(1);
 
     if (preByTokenError) throw preByTokenError;
 
-    let precontract = preByToken || null;
+    let precontract = preData?.[0] || null;
     let contract = null;
 
     if (!precontract) {
@@ -54,36 +50,30 @@ let precontract = preData?.[0] || null;
       });
 
       const { data: contractData, error: contractByTokenError } = await supabase
-  .from('contracts')
-  .select('*')
-  .eq('public_token', token)
-  .limit(1);
-
-if (contractByTokenError) throw contractByTokenError;
-
-let contract = contractData?.[0] || null;} = await supabase
         .from('contracts')
         .select('*')
         .eq('public_token', token)
-        .maybeSingle();
+        .limit(1);
 
       if (contractByTokenError) throw contractByTokenError;
-      contract = contractByToken || null;
 
-      if (contractByToken?.precontract_id) {
+      contract = contractData?.[0] || null;
+
+      if (contract?.precontract_id) {
         console.info('[CONTRACT_PUBLIC_ROUTE] query precontracts por precontract_id', {
           table: 'precontracts',
-          where: { id: contractByToken.precontract_id },
+          where: { id: contract.precontract_id },
         });
 
-        const { data: preById, error: preByIdError } = await supabase
+        const { data: preByIdData, error: preByIdError } = await supabase
           .from('precontracts')
           .select('*')
-          .eq('id', contractByToken.precontract_id)
-          .maybeSingle();
+          .eq('id', contract.precontract_id)
+          .limit(1);
 
         if (preByIdError) throw preByIdError;
-        precontract = preById || null;
+
+        precontract = preByIdData?.[0] || null;
       }
     }
 
@@ -91,7 +81,11 @@ let contract = contractData?.[0] || null;} = await supabase
       console.warn('[CONTRACT_PUBLIC_ROUTE] contrato inválido: nenhum precontract encontrado', {
         token,
       });
-      return NextResponse.json({ ok: false, found: false, token }, { status: 404 });
+
+      return NextResponse.json(
+        { ok: false, found: false, token },
+        { status: 404 }
+      );
     }
 
     if (!contract && precontract.id) {
@@ -100,14 +94,15 @@ let contract = contractData?.[0] || null;} = await supabase
         where: { precontract_id: precontract.id },
       });
 
-      const { data: contractByPreId, error: contractByPreIdError } = await supabase
+      const { data: contractByPreData, error: contractByPreIdError } = await supabase
         .from('contracts')
         .select('*')
         .eq('precontract_id', precontract.id)
-        .maybeSingle();
+        .limit(1);
 
       if (contractByPreIdError) throw contractByPreIdError;
-      contract = contractByPreId || null;
+
+      contract = contractByPreData?.[0] || null;
     }
 
     if (!precontract.public_token) {
@@ -137,6 +132,7 @@ let contract = contractData?.[0] || null;} = await supabase
       token,
       message: error?.message,
     });
+
     return NextResponse.json(
       { ok: false, error: error?.message || 'Erro ao carregar contrato público.' },
       { status: 500 }

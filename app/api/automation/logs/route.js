@@ -3,6 +3,24 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { getDefaultWorkspaceSettings } from '@/lib/automation/get-workspace';
 
 const DEFAULT_LIMIT = 100;
+const AUTOMATION_LOGS_SELECT_FIELDS = [
+  'id',
+  'workspace_id',
+  'status',
+  'source',
+  'recipient',
+  'recipient_number',
+  'recipient_type',
+  'rule_id',
+  'template_id',
+  'channel_id',
+  'rendered_message',
+  'error_message',
+  'metadata',
+  'provider_response',
+  'sent_at',
+  'created_at',
+].join(', ');
 
 function normalizeStatusFilter(rawStatus) {
   const value = String(rawStatus || '').toLowerCase().trim();
@@ -37,7 +55,7 @@ export async function GET(request) {
 
     let query = supabaseAdmin
       .from('automation_logs')
-      .select('*')
+      .select(AUTOMATION_LOGS_SELECT_FIELDS)
       .order('created_at', { ascending })
       .limit(limit);
 
@@ -72,27 +90,28 @@ export async function GET(request) {
     }
 
     const { data, error } = await query;
-    console.log('[logs] query result:', data?.length || 0);
 
     if (error) {
       console.error('[GET /api/automation/logs] Supabase error:', error);
       throw error;
     }
 
-    console.info('[GET /api/automation/logs] logs_loaded', {
-      workspaceId: workspace.id,
-      filters: {
-        status: status || null,
-        recipient: recipient || null,
-        ruleId: ruleId || null,
-        source: source || null,
-        dateFrom: dateFrom || null,
-        dateTo: dateTo || null,
-        sort: sortParam || 'desc',
-        limit,
-      },
-      count: data?.length || 0,
-    });
+    if (process.env.NODE_ENV !== 'production') {
+      console.info('[GET /api/automation/logs] logs_loaded', {
+        workspaceId: workspace.id,
+        filters: {
+          status: status || null,
+          recipient: recipient || null,
+          ruleId: ruleId || null,
+          source: source || null,
+          dateFrom: dateFrom || null,
+          dateTo: dateTo || null,
+          sort: sortParam || 'desc',
+          limit,
+        },
+        count: data?.length || 0,
+      });
+    }
 
     return NextResponse.json({
       ok: true,

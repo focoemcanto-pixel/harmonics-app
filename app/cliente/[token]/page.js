@@ -472,6 +472,11 @@ function buildAntesalaQuoteOptions(formation, pricing = {}) {
 function buildFallbackData(token = '') {
   const supportConfig = resolveSupportWhatsAppConfig();
   const safeToken = String(token || '').trim();
+  const fallbackFinancialData = buildFinancialData({
+    event: null,
+    precontract: null,
+    payments: [],
+  });
 
   return {
     token: safeToken,
@@ -541,8 +546,7 @@ function buildFallbackData(token = '') {
       },
     },
     financeiro: {
-      resumo: buildFinancialSummary(null),
-      vencimentos: [],
+      ...fallbackFinancialData,
       historico: [],
     },
   };

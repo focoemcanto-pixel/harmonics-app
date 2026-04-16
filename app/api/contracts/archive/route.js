@@ -1,6 +1,44 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 
+function isMissingUpdatedAtColumn(error) {
+  const message = String(error?.message || '').toLowerCase();
+  return message.includes('updated_at') && (
+    message.includes('column') ||
+    message.includes('does not exist') ||
+    message.includes('schema cache')
+  );
+}
+
+async function archiveRow(supabase, table, id) {
+  let payload = {
+    status: 'archived',
+    updated_at: new Date().toISOString(),
+  };
+
+  let { error } = await supabase
+    .from(table)
+    .update(payload)
+    .eq('id', id);
+
+  if (error && isMissingUpdatedAtColumn(error)) {
+    const fallbackPayload = {
+      status: 'archived',
+    };
+
+    const retry = await supabase
+      .from(table)
+      .update(fallbackPayload)
+      .eq('id', id);
+
+    error = retry.error || null;
+  }
+
+  if (error) {
+    throw new Error(`[${table}] ${error.message}`);
+  }
+}
+
 export async function POST(request) {
   try {
     const body = await request.json();
@@ -20,34 +58,11 @@ export async function POST(request) {
     }
 
     const supabase = getSupabaseAdmin();
-    const nowIso = new Date().toISOString();
 
-    console.info('[CONTRACTS_ARCHIVE] executando operação', {
-      operation: 'soft_delete',
-      precontracts: { id: precontractId, status: 'archived' },
-      contracts: contractId ? { id: contractId, status: 'archived' } : null,
-    });
-
-    const { error: preError } = await supabase
-      .from('precontracts')
-      .update({
-        status: 'archived',
-        updated_at: nowIso,
-      })
-      .eq('id', precontractId);
-
-    if (preError) throw preError;
+    await archiveRow(supabase, 'precontracts', precontractId);
 
     if (contractId) {
-      const { error: contractError } = await supabase
-        .from('contracts')
-        .update({
-          status: 'archived',
-          updated_at: nowIso,
-        })
-        .eq('id', contractId);
-
-      if (contractError) throw contractError;
+      await archiveRow(supabase, 'contracts', contractId);
     }
 
     console.info('[CONTRACTS_ARCHIVE] sucesso', {
@@ -65,6 +80,7 @@ export async function POST(request) {
     console.error('[CONTRACTS_ARCHIVE] erro', {
       message: error?.message,
     });
+
     return NextResponse.json(
       { ok: false, error: error?.message || 'Erro ao arquivar contrato.' },
       { status: 500 }

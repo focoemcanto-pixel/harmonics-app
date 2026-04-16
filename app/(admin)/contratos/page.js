@@ -75,15 +75,16 @@ export default function ContratosPage() {
         const [{ data: precontracts, error: preErr }, { data: contracts, error: conErr }] =
           await Promise.all([
             supabase
-              .from('precontracts')
-              .select('*')
-              .neq('status', 'archived')
-              .order('created_at', { ascending: false }),
-            supabase
-              .from('contracts')
-              .select('*')
-              .neq('status', 'archived')
-              .order('created_at', { ascending: false }),
+  .from('precontracts')
+  .select('*')
+  .neq('status', 'cancelled')
+  .order('created_at', { ascending: false }),
+
+supabase
+  .from('contracts')
+  .select('*')
+  .neq('status', 'cancelled')
+  .order('created_at', { ascending: false }),
           ]);
 
         if (preErr) throw preErr;

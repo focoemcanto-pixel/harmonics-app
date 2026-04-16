@@ -39,7 +39,53 @@ function ContractPreviewModal({ item, open, onClose }) {
     };
   }, [open]);
 
+  useEffect(() => {
+    if (open) {
+      setLoading(true);
+    }
+  }, [open, item?.token]);
+
   if (!open) return null;
+
+  const hasToken = !!String(item?.token || '').trim();
+
+  if (!hasToken) {
+    return (
+      <div className="fixed inset-0 z-[140] bg-black/45 backdrop-blur-[3px]">
+        <div className="flex min-h-screen items-center justify-center p-3 md:p-6">
+          <div className="flex w-full max-w-2xl flex-col overflow-hidden rounded-[30px] border border-[#dbe3ef] bg-white shadow-[0_30px_80px_rgba(15,23,42,0.24)]">
+            <div className="border-b border-[#e7edf5] bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] px-5 py-4 md:px-6">
+              <div className="text-[11px] font-black uppercase tracking-[0.12em] text-violet-700">
+                Preview do contrato
+              </div>
+              <div className="mt-2 text-[26px] font-black tracking-[-0.04em] text-[#0f172a]">
+                {item?.clienteNome || 'Contrato'}
+              </div>
+              <div className="mt-2 text-[14px] font-semibold text-[#64748b]">
+                Este contrato ainda não possui token público válido.
+              </div>
+            </div>
+
+            <div className="px-5 py-6 md:px-6">
+              <div className="rounded-[20px] border border-amber-200 bg-amber-50 px-4 py-4 text-[14px] font-semibold text-amber-800">
+                Gere ou regenere o link do contrato antes de abrir a prévia.
+              </div>
+
+              <div className="mt-5 flex justify-end">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3 text-[13px] font-black text-[#0f172a]"
+                >
+                  Fechar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const previewHtmlUrl = `/api/contracts/preview-html/${item.token}`;
   const previewPdfUrl = `/api/contracts/preview/${item.token}`;
@@ -83,13 +129,23 @@ function ContractPreviewModal({ item, open, onClose }) {
                 Prévia PDF
               </a>
 
-              <Link
-                href={item.linkContrato}
-                target="_blank"
-                className="rounded-[16px] bg-[#0f172a] px-4 py-3 text-[13px] font-black text-white shadow-[0_10px_24px_rgba(15,23,42,0.18)]"
-              >
-                Abrir contrato
-              </Link>
+              {item.linkContrato ? (
+                <Link
+                  href={item.linkContrato}
+                  target="_blank"
+                  className="rounded-[16px] bg-[#0f172a] px-4 py-3 text-[13px] font-black text-white shadow-[0_10px_24px_rgba(15,23,42,0.18)]"
+                >
+                  Abrir contrato
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  disabled
+                  className="cursor-not-allowed rounded-[16px] bg-slate-300 px-4 py-3 text-[13px] font-black text-white"
+                >
+                  Sem link
+                </button>
+              )}
 
               <button
                 type="button"
@@ -126,6 +182,26 @@ function ContractPreviewModal({ item, open, onClose }) {
 export default function ContractCard({ item, onCopyLink, onDeleteContract }) {
   const cardTone = buildContractTone(item.statusTone);
   const [previewOpen, setPreviewOpen] = useState(false);
+
+  const hasLink = !!String(item?.linkContrato || '').trim();
+  const hasToken = !!String(item?.token || '').trim();
+
+  function handleOpenPreview() {
+    if (!hasToken) {
+      alert('Este contrato ainda não possui token público válido.');
+      return;
+    }
+    setPreviewOpen(true);
+  }
+
+  function handleCopyLink() {
+    if (!hasLink) {
+      alert('Este contrato ainda não possui link público.');
+      return;
+    }
+
+    onCopyLink?.(item.linkContrato);
+  }
 
   return (
     <>
@@ -236,18 +312,28 @@ export default function ContractCard({ item, onCopyLink, onDeleteContract }) {
         <div className="mt-5 flex flex-wrap gap-3">
           <button
             type="button"
-            onClick={() => setPreviewOpen(true)}
+            onClick={handleOpenPreview}
             className="rounded-[16px] bg-violet-600 px-4 py-3 text-[14px] font-black text-white shadow-[0_10px_24px_rgba(124,58,237,0.22)]"
           >
             Preview
           </button>
 
-          <Link
-            href={item.linkContrato}
-            className="rounded-[16px] bg-[#0f172a] px-4 py-3 text-[14px] font-black text-white shadow-[0_10px_24px_rgba(15,23,42,0.18)]"
-          >
-            Abrir contrato
-          </Link>
+          {hasLink ? (
+            <Link
+              href={item.linkContrato}
+              className="rounded-[16px] bg-[#0f172a] px-4 py-3 text-[14px] font-black text-white shadow-[0_10px_24px_rgba(15,23,42,0.18)]"
+            >
+              Abrir contrato
+            </Link>
+          ) : (
+            <button
+              type="button"
+              disabled
+              className="cursor-not-allowed rounded-[16px] bg-slate-300 px-4 py-3 text-[14px] font-black text-white"
+            >
+              Sem link
+            </button>
+          )}
 
           {item.eventoId ? (
             <Link
@@ -260,7 +346,7 @@ export default function ContractCard({ item, onCopyLink, onDeleteContract }) {
 
           <button
             type="button"
-            onClick={() => onCopyLink(item.linkContrato)}
+            onClick={handleCopyLink}
             className="rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3 text-[14px] font-black text-[#0f172a]"
           >
             Copiar link

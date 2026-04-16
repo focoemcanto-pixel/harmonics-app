@@ -517,111 +517,160 @@ const mapsLoaded = useGoogleMapsReady();
   }
 
   useEffect(() => {
-    async function carregar() {
-      if (!token) return;
+  async function carregar() {
+    if (!token) return;
 
-      try {
-        setCarregando(true);
-        let preData = null;
-        let contractData = null;
+    let safePreData = null;
 
-        console.info('[CONTRACT_PUBLIC_UI] token recebido na página pública', {
-          token,
-        });
+    try {
+      setCarregando(true);
+      let preData = null;
+      let contractData = null;
 
-        const response = await fetch(`/api/contracts/public/${token}`, {
-          method: 'GET',
-          cache: 'no-store',
-        });
+      console.info('[CONTRACT_PUBLIC_UI] token recebido na página pública', {
+        token,
+      });
 
-        const payload = await response.json();
+      const response = await fetch(`/api/contracts/public/${token}`, {
+        method: 'GET',
+        cache: 'no-store',
+      });
 
-        if (!response.ok || !payload?.found) {
-          throw new Error(payload?.error || 'Contrato não encontrado.');
-        }
+      const payload = await response.json();
 
-        preData = payload?.precontract || null;
-        contractData = payload?.contract || null;
+      if (!response.ok || !payload?.found) {
+        throw new Error(payload?.error || 'Contrato não encontrado.');
+      }
 
-        const safePreData = sanitizeTimeFields(preData || null);
-        setPrecontract(safePreData || null);
+      preData = payload?.precontract || null;
+      contractData = payload?.contract || null;
 
-        if (safePreData?.id) {
-          if (!contractData) {
-            const { data: contractByPreId, error: contractError } = await supabase
-              .from('contracts')
-              .select('*')
-              .eq('precontract_id', safePreData.id)
-              .maybeSingle();
+      safePreData = sanitizeTimeFields(preData || null);
+      setPrecontract(safePreData || null);
+      setContract(contractData || null);
 
-            if (contractError) throw contractError;
-            contractData = contractByPreId || null;
-          }
+      if (!safePreData?.id) {
+        return;
+      }
 
-          setContract(contractData || null);
-
-          if (!safePreData.public_token) {
-            await supabase
-              .from('precontracts')
-              .update({
-                public_token: String(token).trim(),
-              })
-              .eq('id', safePreData.id);
-          }
-
-          const saved = contractData?.raw_payload?.client_form || {};
-
-          setForm({
-            full_name: saved.full_name || safePreData.client_name || '',
-            marital_status: saved.marital_status || '',
-            profession: saved.profession || '',
-            cpf: saved.cpf ? maskCpf(saved.cpf) : '',
-            rg: saved.rg || '',
-            whatsapp: saved.whatsapp ? maskPhone(saved.whatsapp) : '',
-
-            address_street: saved.address_street || '',
-            address_number: saved.address_number || '',
-            address_complement: saved.address_complement || '',
-            address_neighborhood: saved.address_neighborhood || '',
-            address_cep: saved.address_cep ? maskCep(saved.address_cep) : '',
-            address_city: saved.address_city || '',
-            address_state: saved.address_state || '',
-
-            event_date: convertDateToBr(saved.event_date || safePreData.event_date || ''),
-            event_time: normalizeTimeStrict(saved.event_time || safePreData.event_time || ''),
-            event_location_name: saved.event_location_name || safePreData.location_name || '',
-            event_location_address:
-              saved.event_location_address || safePreData.location_address || '',
-
-            adjustment_request: saved.adjustment_request || '',
-
-            signer_name: saved.signer_name || '',
-            signer_cpf: saved.signer_cpf ? maskCpf(saved.signer_cpf) : '',
-            accepted_terms: !!saved.accepted_terms,
-          });
-
-          setAddressValidation({
-            clientAddressConfirmed: !!saved.address_street,
-            eventAddressConfirmed: !!saved.event_location_address,
-          });
-
-          if (saved.address_street) setClientAddressStatus('selected');
-          if (saved.event_location_address) setEventAddressStatus('selected');
-
-          const { data: pendingAdjustment, error: adjustmentError } = await supabase
-            .from('contract_adjustment_requests')
-            .select('id, precontract_id, status, request_message, requested_at')
+      // Tenta complementar contract apenas se necessário, mas sem derrubar a página
+      if (!contractData) {
+        try {
+          const { data: contractByPreId, error: contractError } = await supabase
+            .from('contracts')
+            .select('*')
             .eq('precontract_id', safePreData.id)
-            .eq('status', 'pending')
-            .order('requested_at', { ascending: false })
-            .limit(1)
             .maybeSingle();
 
-          if (adjustmentError) throw adjustmentError;
+          if (contractError) {
+            console.warn('[CONTRACT_PUBLIC_UI] falha ao buscar contract por precontract_id', {
+              token,
+              precontractId: safePreData.id,
+              message: contractError.message,
+            });
+          } else {
+            contractData = contractByPreId || null;
+            setContract(contractData || null);
+          }
+        } catch (error) {
+          console.warn('[CONTRACT_PUBLIC_UI] erro não fatal ao buscar contract complementar', {
+            token,
+            precontractId: safePreData.id,
+            message: error?.message,
+          });
+        }
+      }
+
+      const saved = contractData?.raw_payload?.client_form || {};
+
+      setForm({
+        full_name: saved.full_name || safePreData.client_name || '',
+        marital_status: saved.marital_status || '',
+        profession: saved.profession || '',
+        cpf: saved.cpf ? maskCpf(saved.cpf) : '',
+        rg: saved.rg || '',
+        whatsapp: saved.whatsapp ? maskPhone(saved.whatsapp) : '',
+
+        address_street: saved.address_street || '',
+        address_number: saved.address_number || '',
+        address_complement: saved.address_complement || '',
+        address_neighborhood: saved.address_neighborhood || '',
+        address_cep: saved.address_cep ? maskCep(saved.address_cep) : '',
+        address_city: saved.address_city || '',
+        address_state: saved.address_state || '',
+
+        event_date: convertDateToBr(saved.event_date || safePreData.event_date || ''),
+        event_time: normalizeTimeStrict(saved.event_time || safePreData.event_time || ''),
+        event_location_name: saved.event_location_name || safePreData.location_name || '',
+        event_location_address:
+          saved.event_location_address || safePreData.location_address || '',
+
+        adjustment_request: saved.adjustment_request || '',
+
+        signer_name: saved.signer_name || '',
+        signer_cpf: saved.signer_cpf ? maskCpf(saved.signer_cpf) : '',
+        accepted_terms: !!saved.accepted_terms,
+      });
+
+      setAddressValidation({
+        clientAddressConfirmed: !!saved.address_street,
+        eventAddressConfirmed: !!saved.event_location_address,
+      });
+
+      if (saved.address_street) setClientAddressStatus('selected');
+      if (saved.event_location_address) setEventAddressStatus('selected');
+
+      // Não derruba a página se contract_adjustment_requests falhar
+      try {
+        const { data: pendingAdjustment, error: adjustmentError } = await supabase
+          .from('contract_adjustment_requests')
+          .select('id, precontract_id, status, request_message, requested_at')
+          .eq('precontract_id', safePreData.id)
+          .eq('status', 'pending')
+          .order('requested_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (adjustmentError) {
+          console.warn('[CONTRACT_PUBLIC_UI] falha não fatal ao buscar ajuste pendente', {
+            token,
+            precontractId: safePreData.id,
+            message: adjustmentError.message,
+          });
+          setPendingAdjustmentRequest(null);
+        } else {
           setPendingAdjustmentRequest(pendingAdjustment || null);
         }
+      } catch (error) {
+        console.warn('[CONTRACT_PUBLIC_UI] erro não fatal ao buscar ajuste pendente', {
+          token,
+          precontractId: safePreData.id,
+          message: error?.message,
+        });
+        setPendingAdjustmentRequest(null);
+      }
 
-        if (safePreData?.status === 'link_generated') {
+      // Não derruba a página se update do public_token falhar
+      if (!safePreData.public_token) {
+        try {
+          await supabase
+            .from('precontracts')
+            .update({
+              public_token: String(token).trim(),
+            })
+            .eq('id', safePreData.id);
+        } catch (error) {
+          console.warn('[CONTRACT_PUBLIC_UI] falha não fatal ao atualizar public_token', {
+            token,
+            precontractId: safePreData.id,
+            message: error?.message,
+          });
+        }
+      }
+
+      // Não derruba a página se update de status falhar
+      if (safePreData?.status === 'link_generated') {
+        try {
           await supabase
             .from('precontracts')
             .update({ status: 'client_filling' })
@@ -630,17 +679,28 @@ const mapsLoaded = useGoogleMapsReady();
           setPrecontract((prev) =>
             prev ? { ...prev, status: 'client_filling' } : prev
           );
+        } catch (error) {
+          console.warn('[CONTRACT_PUBLIC_UI] falha não fatal ao atualizar status para client_filling', {
+            token,
+            precontractId: safePreData.id,
+            message: error?.message,
+          });
         }
-      } catch (error) {
-        console.error('Erro ao carregar contrato público:', error);
-        setPrecontract(null);
-      } finally {
-        setCarregando(false);
       }
-    }
+    } catch (error) {
+      console.error('Erro ao carregar contrato público:', error);
 
-    carregar();
-  }, [token]);
+      // Só mostra inválido se nem a carga principal conseguiu trazer o precontract
+      if (!safePreData?.id) {
+        setPrecontract(null);
+      }
+    } finally {
+      setCarregando(false);
+    }
+  }
+
+  carregar();
+}, [token]);
  useEffect(() => {
   console.log('🔥 EFFECT AUTOCOMPLETE RODANDO');
   if (!mapsLoaded) return;

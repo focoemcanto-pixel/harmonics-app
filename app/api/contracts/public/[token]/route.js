@@ -8,9 +8,12 @@ function normalizeToken(rawToken) {
   return String(rawToken || '').trim();
 }
 
-export async function GET(_request, context) {
-  const rawToken = context?.params?.token;
-  const token = normalizeToken(rawToken);
+export async function GET(request, { params }) {
+  const rawToken = params?.token;
+
+  const token = Array.isArray(rawToken)
+    ? String(rawToken[0] || '').trim()
+    : String(rawToken || '').trim();
 
   console.info('[CONTRACT_PUBLIC_ROUTE] token recebido', {
     rawToken,

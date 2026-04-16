@@ -53,7 +53,15 @@ let precontract = preData?.[0] || null;
         where: { public_token: token },
       });
 
-      const { data: contractByToken, error: contractByTokenError } = await supabase
+      const { data: contractData, error: contractByTokenError } = await supabase
+  .from('contracts')
+  .select('*')
+  .eq('public_token', token)
+  .limit(1);
+
+if (contractByTokenError) throw contractByTokenError;
+
+let contract = contractData?.[0] || null;} = await supabase
         .from('contracts')
         .select('*')
         .eq('public_token', token)

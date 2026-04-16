@@ -212,27 +212,193 @@ function mapItemsToInitialState(items) {
   };
 }
 
-function buildFinancialSummary(event) {
-  const total = Number(event?.total_price || event?.amount || 0);
-  const paid = Number(event?.amount_paid || event?.paid_amount || 0);
-  const saldo = Math.max(total - paid, 0);
+function formatCurrencyBRL(value) {
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  }).format(Number(value || 0));
+}
 
-  const toBRL = (value) =>
-    new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-    }).format(Number(value || 0));
+function formatDateToBR(value) {
+  if (!value) return '';
+  const date = parseLocalDate(value);
+  if (!date) return '';
+  return new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(date);
+}
+
+function toPositiveNumber(value) {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+function pickFirstPositiveNumber(candidates = []) {
+  for (const value of candidates) {
+    const n = toPositiveNumber(value);
+    if (n > 0) return n;
+  }
+  return 0;
+}
+
+function normalizePaymentStatus(status = '') {
+  const raw = String(status || '').trim().toLowerCase();
+  if (['confirmed', 'confirmado', 'paid', 'pago'].includes(raw)) return 'PAGO';
+  if (['pending', 'pendente'].includes(raw)) return 'PENDENTE';
+  if (['cancelled', 'cancelado', 'canceled'].includes(raw)) return 'CANCELADO';
+  if (['em_analise', 'analyzing', 'analysis'].includes(raw)) return 'EM_ANALISE';
+  return raw ? raw.toUpperCase() : '';
+}
+
+function buildFinancialData({ event, precontract, payments = [] }) {
+  const totalAmount = pickFirstPositiveNumber([
+    event?.agreed_amount,
+    precontract?.agreed_amount,
+    event?.total_price,
+    event?.amount,
+    toPositiveNumber(precontract?.base_amount) +
+      toPositiveNumber(precontract?.add_sound) +
+      toPositiveNumber(precontract?.add_transport),
+  ]);
+
+  const normalizedPayments = (Array.isArray(payments) ? payments : []).map((entry) => {
+    const normalizedStatus = normalizePaymentStatus(entry?.status);
+    return {
+      ...entry,
+      normalizedStatus,
+      amountValue: toPositiveNumber(entry?.amount),
+      paymentDateValue: parseLocalDate(entry?.payment_date),
+    };
+  });
+
+  const confirmedPaidFromPayments = normalizedPayments.reduce((acc, entry) => {
+    if (entry.normalizedStatus === 'PAGO') return acc + entry.amountValue;
+    return acc;
+  }, 0);
+
+  const paidAmount = Math.max(
+    pickFirstPositiveNumber([event?.paid_amount, event?.amount_paid]),
+    confirmedPaidFromPayments
+  );
+
+  const rawSaldo = totalAmount - paidAmount;
+  const saldoAmount = Math.max(rawSaldo, 0);
+
+  let financialStatus = 'Consulte a equipe';
+  if (totalAmount > 0) {
+    if (paidAmount <= 0) financialStatus = 'Pagamento pendente';
+    else if (rawSaldo <= 0) financialStatus = 'Pago';
+    else financialStatus = 'Parcialmente pago';
+  } else if (paidAmount > 0) {
+    financialStatus = 'Parcialmente pago';
+  }
+
+  const upcomingFromPayments = normalizedPayments
+    .filter((entry) => {
+      if (!entry.paymentDateValue) return false;
+      if (entry.normalizedStatus === 'PAGO' || entry.normalizedStatus === 'CANCELADO') return false;
+      return true;
+    })
+    .sort((a, b) => a.paymentDateValue.getTime() - b.paymentDateValue.getTime())
+    .map((entry, index) => ({
+      title: entry?.notes ? `Parcela ${index + 1}` : `Pagamento ${index + 1}`,
+      dueDate: formatDateToBR(entry.payment_date),
+      amount: entry.amountValue > 0 ? formatCurrencyBRL(entry.amountValue) : 'Não informado',
+      status: entry.normalizedStatus || 'PENDENTE',
+      description: entry?.notes || '',
+    }));
+
+  const eventDate = parseLocalDate(event?.event_date);
+  const fallbackSignalDate = eventDate ? formatDateToBR(addDays(eventDate, -14)) : '';
+  const fallbackBalanceDate = eventDate ? formatDateToBR(addDays(eventDate, -2)) : '';
+
+  const explicitSignalDueDate = formatDateToBR(precontract?.signal_due_date || event?.signal_due_date);
+  const explicitBalanceDueDate = formatDateToBR(precontract?.balance_due_date || event?.balance_due_date);
+
+  const explicitVencimentos = [];
+  if (explicitSignalDueDate) {
+    explicitVencimentos.push({
+      title: 'Sinal',
+      dueDate: explicitSignalDueDate,
+      amount: totalAmount > 0 ? formatCurrencyBRL(totalAmount / 2) : 'Não informado',
+      status: paidAmount > 0 ? 'PAGO' : 'PENDENTE',
+      description: 'Pagamento inicial para reserva da data.',
+    });
+  }
+
+  if (explicitBalanceDueDate) {
+    explicitVencimentos.push({
+      title: 'Saldo final',
+      dueDate: explicitBalanceDueDate,
+      amount: saldoAmount > 0 ? formatCurrencyBRL(saldoAmount) : formatCurrencyBRL(0),
+      status: saldoAmount <= 0 && totalAmount > 0 ? 'PAGO' : 'PENDENTE',
+      description: 'Pagamento final conforme condições do evento.',
+    });
+  }
+
+  const fallbackVencimentos =
+    totalAmount > 0
+      ? [
+          {
+            title: 'Primeira parcela',
+            dueDate: explicitSignalDueDate || fallbackSignalDate || 'Não informado',
+            amount: formatCurrencyBRL(totalAmount / 2),
+            status: paidAmount >= totalAmount / 2 ? 'PAGO' : 'PENDENTE',
+            description: '50% do valor total até 14 dias antes do evento.',
+          },
+          {
+            title: 'Parcela final',
+            dueDate: explicitBalanceDueDate || fallbackBalanceDate || 'Não informado',
+            amount: formatCurrencyBRL(Math.max(totalAmount - totalAmount / 2, 0)),
+            status: saldoAmount <= 0 ? 'PAGO' : 'PENDENTE',
+            description: 'Saldo final até 48 horas antes do evento.',
+          },
+        ]
+      : [];
+
+  const vencimentos =
+    upcomingFromPayments.length > 0
+      ? upcomingFromPayments
+      : explicitVencimentos.length > 0
+      ? explicitVencimentos
+      : fallbackVencimentos;
+
+  const rules = [];
+
+  if (explicitSignalDueDate) {
+    rules.push(`Sinal previsto para ${explicitSignalDueDate}.`);
+  }
+  if (explicitBalanceDueDate) {
+    rules.push(`Saldo final previsto para ${explicitBalanceDueDate}.`);
+  }
+
+  const cardDueDate = formatDateToBR(precontract?.card_due_date || event?.card_due_date);
+  if (precontract?.payment_card && cardDueDate) {
+    rules.push(`Pagamento em cartão com vencimento em ${cardDueDate}.`);
+  } else if (precontract?.payment_card) {
+    rules.push('Pagamento via cartão disponível conforme combinado em contrato.');
+  }
+
+  if (rules.length === 0) {
+    rules.push(
+      '50% do valor deve ser quitado até 14 dias antes do evento.',
+      'O saldo final deve ser quitado até 48 horas antes da data do evento.',
+      'Após o envio de comprovante, o pagamento fica em análise até confirmação.'
+    );
+  }
 
   return {
-    valorTotal: total > 0 ? toBRL(total) : 'A definir',
-    valorPago: paid > 0 ? toBRL(paid) : 'A definir',
-    saldo: total > 0 ? toBRL(saldo) : 'A definir',
-    status:
-      saldo <= 0 && total > 0
-        ? 'Quitado'
-        : paid > 0
-        ? 'Em aberto'
-        : 'Consulte a equipe',
+    resumo: {
+      valorTotal: totalAmount > 0 ? formatCurrencyBRL(totalAmount) : 'Não informado',
+      valorPago: paidAmount > 0 ? formatCurrencyBRL(paidAmount) : 'Sem lançamento ainda',
+      saldo: totalAmount > 0 ? formatCurrencyBRL(saldoAmount) : 'Em definição com a equipe',
+      status: financialStatus,
+      overpaidAmount: rawSaldo < 0 ? formatCurrencyBRL(Math.abs(rawSaldo)) : null,
+    },
+    vencimentos,
+    regras: rules,
   };
 }
 
@@ -395,7 +561,9 @@ export default async function ClienteTokenPage({ params }) {
   try {
     const { data: precontractData, error: precontractError } = await supabase
       .from('precontracts')
-      .select('id, public_token, event_id, reception_hours, has_sound, has_transport')
+      .select(
+        'id, public_token, event_id, reception_hours, has_sound, has_transport, agreed_amount, base_amount, add_sound, add_transport, signal_due_date, balance_due_date, card_due_date, payment_card'
+      )
       .eq('public_token', token)
       .maybeSingle();
 
@@ -559,6 +727,12 @@ export default async function ClienteTokenPage({ params }) {
     fileName: entry.proof_file_url || '',
   }));
 
+  const financialData = buildFinancialData({
+    event,
+    precontract,
+    payments,
+  });
+
   const data = {
     token: clientToken,
     clienteNome: event.client_name || 'Cliente',
@@ -651,8 +825,7 @@ export default async function ClienteTokenPage({ params }) {
     },
 
     financeiro: {
-      resumo: buildFinancialSummary(event),
-      vencimentos: [],
+      ...financialData,
       historico: paymentHistory,
     },
   };

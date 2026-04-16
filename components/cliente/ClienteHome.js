@@ -4050,43 +4050,63 @@ function FinanceiroTab({ data, paymentHistory, setPaymentHistory, onPaymentRegis
   const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
   const { showToast } = useToast();
 
-  const financeiro = data.financeiro || {};
+  const financeiro = data?.financeiro;
+  const resumo = useMemo(
+    () => ({
+      valorTotal: financeiro?.resumo?.valorTotal || 'Não informado',
+      valorPago: financeiro?.resumo?.valorPago || 'Sem lançamento ainda',
+      saldo: financeiro?.resumo?.saldo || 'Em definição com a equipe',
+      status: financeiro?.resumo?.status || 'Consulte a equipe',
+      overpaidAmount: financeiro?.resumo?.overpaidAmount || null,
+    }),
+    [financeiro]
+  );
 
-  const resumo = financeiro.resumo || {
-    valorTotal: 'R$ 4.000,00',
-    valorPago: 'R$ 2.000,00',
-    saldo: 'R$ 2.000,00',
-    status: 'Em aberto',
-  };
+  const vencimentos = useMemo(() => {
+    if (Array.isArray(financeiro?.vencimentos) && financeiro.vencimentos.length > 0) {
+      return financeiro.vencimentos;
+    }
+    return [
+      {
+        title: 'Sem vencimentos lançados',
+        dueDate: 'Não informado',
+        amount: 'Não informado',
+        status: 'PENDENTE',
+        description: 'Assim que houver lançamento, os próximos vencimentos aparecerão aqui.',
+      },
+    ];
+  }, [financeiro]);
 
-  const vencimentos = financeiro.vencimentos || [
-    {
-      title: 'Primeiro pagamento',
-      dueDate: '05/09/2026',
-      amount: 'R$ 2.000,00',
-      status: 'PAGO',
-      description: '50% do valor total até 14 dias antes do evento.',
-    },
-    {
-      title: 'Pagamento final',
-      dueDate: '17/09/2026',
-      amount: 'R$ 2.000,00',
-      status: 'PENDENTE',
-      description: 'Saldo final até 48h antes do evento.',
-    },
-  ];
+  const regrasFinanceiras = useMemo(() => {
+    if (Array.isArray(financeiro?.regras) && financeiro.regras.length > 0) {
+      return financeiro.regras;
+    }
+    return [
+      '50% do valor deve ser quitado até 14 dias antes do evento.',
+      'O saldo final deve ser quitado até 48 horas antes da data do evento.',
+      'Após enviar um comprovante, ele ficará em análise até a confirmação.',
+    ];
+  }, [financeiro]);
+
+  const situacaoTone = useMemo(() => {
+    const status = String(resumo.status || '').toLowerCase();
+    if (status.includes('pago')) return 'success';
+    if (status.includes('parcial')) return 'accent';
+    if (status.includes('pendente')) return 'warning';
+    return 'default';
+  }, [resumo.status]);
 
   const historico =
   paymentHistory && paymentHistory.length
     ? paymentHistory
     : [
     {
-      label: 'Sinal recebido',
-      date: '01/09/2026',
-      amount: 'R$ 2.000,00',
-      status: 'PAGO',
-      note: 'Pagamento confirmado com sucesso.',
-      fileName: 'comprovante-pix-setembro.pdf',
+      label: 'Sem lançamento ainda',
+      date: '—',
+      amount: 'Não informado',
+      status: 'PENDENTE',
+      note: 'Nenhum comprovante foi enviado até o momento.',
+      fileName: '',
     },
   ];
 
@@ -4102,8 +4122,19 @@ function FinanceiroTab({ data, paymentHistory, setPaymentHistory, onPaymentRegis
         <FinanceSummaryCard label="Valor total" value={resumo.valorTotal} />
         <FinanceSummaryCard label="Valor pago" value={resumo.valorPago} tone="success" />
         <FinanceSummaryCard label="Saldo" value={resumo.saldo} tone="warning" />
-        <FinanceSummaryCard label="Situação" value={resumo.status} tone="accent" />
+        <FinanceSummaryCard label="Situação" value={resumo.status} tone={situacaoTone} />
       </div>
+
+      {resumo.overpaidAmount ? (
+        <SectionCard className="border-emerald-200 bg-emerald-50">
+          <div className="text-[14px] font-black text-emerald-700">
+            Pagamento acima do valor contratado
+          </div>
+          <div className="mt-1 text-[14px] leading-6 text-emerald-700">
+            Foi identificado crédito de {resumo.overpaidAmount}. Nossa equipe vai considerar este valor na conciliação.
+          </div>
+        </SectionCard>
+      ) : null}
 
       <SectionCard>
         <div className="mb-4 text-[18px] font-black text-[#241a14]">
@@ -4130,9 +4161,9 @@ function FinanceiroTab({ data, paymentHistory, setPaymentHistory, onPaymentRegis
         </div>
 
         <div className="mt-3 space-y-2 text-[14px] leading-6 text-[#7b5d2d]">
-          <div>• 50% do valor deve ser quitado até 14 dias antes do evento.</div>
-          <div>• O saldo final deve ser quitado até 48 horas antes da data do evento.</div>
-          <div>• Após enviar um comprovante, ele ficará em análise até a confirmação.</div>
+          {regrasFinanceiras.map((regra, index) => (
+            <div key={`${regra}-${index}`}>• {regra}</div>
+          ))}
         </div>
       </SectionCard>
 

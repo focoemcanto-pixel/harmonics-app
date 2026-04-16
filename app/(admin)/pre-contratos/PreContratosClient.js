@@ -703,6 +703,8 @@ export default function PreContratosClient() {
   }
 
   async function salvarPreContrato() {
+    if (salvando) return;
+
     if (!form.event_date) {
       showToast?.('Informe a data do evento.', 'warning');
       return;
@@ -712,6 +714,8 @@ export default function PreContratosClient() {
       showToast?.('Informe um horário válido no formato HH:mm.', 'warning');
       return;
     }
+
+    let savedItemForShare = null;
 
     try {
       setSalvando(true);
@@ -768,16 +772,9 @@ export default function PreContratosClient() {
       let savedItem = null;
 
       if (editandoId) {
-        const { data: existing, error: existingError } = await supabase
-          .from('precontracts')
-          .select('id, public_token, generated_link')
-          .eq('id', editandoId)
-          .single();
-
-        if (existingError) throw existingError;
-
-        const tokenFinal = existing?.public_token || generateToken();
-        const linkFinal = existing?.generated_link || buildContractLink(tokenFinal);
+        const existingItem = items.find((entry) => String(entry.id) === String(editandoId));
+        const tokenFinal = existingItem?.public_token || generateToken();
+        const linkFinal = existingItem?.generated_link || buildContractLink(tokenFinal);
 
         const { data, error } = await supabase
           .from('precontracts')
@@ -819,17 +816,19 @@ export default function PreContratosClient() {
         public_token: savedItem?.public_token || '(vazio)',
       });
       showToast?.('Pré-contrato salvo com sucesso.', 'success');
-
-      if (savedItem?.public_token) {
-        openShareModalFromItem(savedItem);
-      }
-
+      savedItemForShare = savedItem;
       resetForm();
     } catch (error) {
       console.error('Erro ao salvar pré-contrato:', error);
       showToast?.(`Erro ao salvar pré-contrato: ${error?.message || 'erro desconhecido'}`, 'error');
     } finally {
       setSalvando(false);
+    }
+
+    if (savedItemForShare?.public_token) {
+      setTimeout(() => {
+        openShareModalFromItem(savedItemForShare);
+      }, 0);
     }
   }
 

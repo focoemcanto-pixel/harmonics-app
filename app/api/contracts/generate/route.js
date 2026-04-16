@@ -9,15 +9,24 @@ function validateEnv() {
   const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const templateId = process.env.CONTRACT_TEMPLATE_DOC_ID;
   const rootFolderId = process.env.CONTRACTS_DRIVE_FOLDER_ID;
-  const contractServiceUrl = process.env.CONTRACT_SERVICE_URL;
-  const contractServiceApiKey = process.env.CONTRACT_SERVICE_API_KEY || '';
+
+  const contractServiceUrl =
+    process.env.CONTRACT_SERVICE_URL ||
+    process.env.NEXT_PUBLIC_CONTRACT_SERVICE_URL;
+
+  const contractServiceApiKey =
+    process.env.CONTRACT_SERVICE_API_KEY ||
+    process.env.NEXT_PUBLIC_CONTRACT_SERVICE_API_KEY ||
+    '';
 
   const missing = [];
   if (!supabaseUrl) missing.push('NEXT_PUBLIC_SUPABASE_URL');
   if (!supabaseServiceRoleKey) missing.push('SUPABASE_SERVICE_ROLE_KEY');
   if (!templateId) missing.push('CONTRACT_TEMPLATE_DOC_ID');
   if (!rootFolderId) missing.push('CONTRACTS_DRIVE_FOLDER_ID');
-  if (!contractServiceUrl) missing.push('CONTRACT_SERVICE_URL');
+  if (!contractServiceUrl) {
+    missing.push('CONTRACT_SERVICE_URL ou NEXT_PUBLIC_CONTRACT_SERVICE_URL');
+  }
 
   if (missing.length > 0) {
     return {
@@ -171,7 +180,7 @@ async function callContractService({
   const baseUrl = String(contractServiceUrl || '').trim().replace(/\/+$/, '');
   const endpoint = `${baseUrl}/api/contracts/generate`;
 
-  console.log('[/api/contracts/generate] chamando contract service:', {
+  console.log('[/api/contracts/generate] chamando contract service', {
     endpoint,
     hasApiKey: Boolean(contractServiceApiKey),
   });
@@ -244,9 +253,12 @@ export async function POST(request) {
       contractServiceApiKey,
     } = envCheck;
 
-    console.log('templateId:', templateId);
-    console.log('rootFolderId:', rootFolderId);
-    console.log('contractServiceUrl:', contractServiceUrl);
+    console.log('[/api/contracts/generate] env ok', {
+      templateId,
+      rootFolderId,
+      contractServiceUrl,
+      hasContractServiceApiKey: Boolean(contractServiceApiKey),
+    });
 
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
     const body = await request.json();
@@ -259,6 +271,15 @@ export async function POST(request) {
       contractId,
       precontractId,
       supabase,
+    });
+
+    console.log('[/api/contracts/generate] contexto resolvido', {
+      requestedContractId: contractId,
+      requestedPrecontractId: precontractId,
+      resolvedContractId: context.contract?.id || null,
+      resolvedPrecontractId: context.precontract?.id || null,
+      resolvedContactId: context.contact?.id || null,
+      resolvedEventId: context.event?.id || null,
     });
 
     const templateData = buildContractTemplateData(context);
@@ -313,7 +334,9 @@ export async function POST(request) {
         },
       });
     } catch (error) {
-      console.error('Erro ao chamar contract service:', error);
+      console.error('[/api/contracts/generate] erro ao chamar contract service', {
+        message: error?.message,
+      });
 
       return NextResponse.json(
         {
@@ -324,6 +347,19 @@ export async function POST(request) {
         { status: 500 }
       );
     }
+
+    console.log('[/api/contracts/generate] resposta do Render recebida', {
+      hasDocUrl: Boolean(generated?.docUrl),
+      hasPdfUrl: Boolean(generated?.pdfUrl),
+      folderYear: generated?.folderYear || null,
+      folderMonth: generated?.folderMonth || null,
+    });
+
+    console.log('[/api/contracts/generate] persistência pós-geração', {
+      hasContractId: Boolean(context.contract?.id),
+      contractId: context.contract?.id || null,
+      precontractId: context.precontract?.id || null,
+    });
 
     if (context.contract?.id) {
       const { error: updateError } = await supabase
@@ -338,6 +374,13 @@ export async function POST(request) {
       if (updateError) {
         throw new Error(`Erro ao salvar links do contrato: ${updateError.message}`);
       }
+    } else {
+      console.warn(
+        '[/api/contracts/generate] contrato gerado sem contract.id; links não foram persistidos na tabela contracts',
+        {
+          precontractId: context.precontract?.id || null,
+        }
+      );
     }
 
     return NextResponse.json({
@@ -362,7 +405,7 @@ export async function POST(request) {
     return NextResponse.json(
       {
         ok: false,
-        message: error.message,
+        message: error?.message || 'Erro interno ao gerar contrato.',
         errorType: error?.name || 'UnknownError',
       },
       { status: 500 }

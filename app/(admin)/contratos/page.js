@@ -17,6 +17,12 @@ import ContratosResumoTab from '@/components/contratos/ContratosResumoTab';
 import ContratosListaTab from '@/components/contratos/ContratosListaTab';
 import ContratosFiltrosTab from '@/components/contratos/ContratosFiltrosTab';
 
+const ADMIN_LIST_LIMIT = 100;
+const PRECONTRACTS_SELECT_FIELDS =
+  'id, created_at, event_id, client_name, event_type, event_date, location_name, client_phone, status, notes, public_token';
+const CONTRACTS_SELECT_FIELDS =
+  'id, created_at, precontract_id, event_id, status, signed_at, pdf_url, doc_url, public_token';
+
 function formatDateBR(value) {
   if (!value) return '';
   const date = new Date(`${value}T12:00:00`);
@@ -76,15 +82,17 @@ export default function ContratosPage() {
           await Promise.all([
             supabase
   .from('precontracts')
-  .select('*')
+  .select(PRECONTRACTS_SELECT_FIELDS)
   .neq('status', 'cancelled')
-  .order('created_at', { ascending: false }),
+  .order('created_at', { ascending: false })
+  .limit(ADMIN_LIST_LIMIT),
 
 supabase
   .from('contracts')
-  .select('*')
+  .select(CONTRACTS_SELECT_FIELDS)
   .neq('status', 'cancelled')
-  .order('created_at', { ascending: false }),
+  .order('created_at', { ascending: false })
+  .limit(ADMIN_LIST_LIMIT),
           ]);
 
         if (preErr) throw preErr;
@@ -97,11 +105,6 @@ supabase
         const merged = (precontracts || []).map((pre) => {
           const contract = contractsByPreId.get(String(pre.id));
           const resolvedToken = getResolvedToken(pre, contract);
-          console.info('[CONTRATOS_ADMIN] token exibido no admin', {
-            precontractId: pre.id,
-            contractId: contract?.id || null,
-            token: resolvedToken || null,
-          });
           const resolvedStatus = mapStatus(
             contract?.status || pre?.status,
             !!contract

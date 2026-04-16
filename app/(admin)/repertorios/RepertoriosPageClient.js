@@ -9,6 +9,14 @@ import AdminSummaryCard from '@/components/admin/AdminSummaryCard';
 import { supabase } from '@/lib/supabase';
 import { formatDateBR } from '@/lib/eventos/eventos-format';
 
+const ADMIN_LIST_LIMIT = 100;
+const EVENTS_SELECT_FIELDS = 'id, created_at, client_name, event_type, event_date';
+const REPERTOIRE_CONFIG_SELECT_FIELDS = 'id, created_at, event_id, status, is_locked, submitted_at';
+const REPERTOIRE_ITEMS_SELECT_FIELDS = 'id, event_id, section, item_order, title, artist, key, notes';
+const REPERTOIRE_TOKENS_SELECT_FIELDS = 'id, event_id, public_token, created_at';
+const PRECONTRACTS_SELECT_FIELDS = 'id, created_at, event_id, status, public_token';
+const CONTRACTS_SELECT_FIELDS = 'id, created_at, event_id, precontract_id, status';
+
 function normalizeStatus(value) {
   return String(value || '').trim().toUpperCase();
 }
@@ -177,12 +185,32 @@ export default function RepertoriosPage() {
       precontractsRes,
       contractsRes,
     ] = await Promise.all([
-      supabase.from('events').select('*'),
-      supabase.from('repertoire_config').select('*'),
-      supabase.from('repertoire_items').select('*'),
-      supabase.from('repertoire_tokens').select('*'),
-      supabase.from('precontracts').select('*'),
-      supabase.from('contracts').select('*'),
+      supabase
+        .from('events')
+        .select(EVENTS_SELECT_FIELDS)
+        .order('created_at', { ascending: false })
+        .limit(ADMIN_LIST_LIMIT),
+      supabase
+        .from('repertoire_config')
+        .select(REPERTOIRE_CONFIG_SELECT_FIELDS)
+        .order('created_at', { ascending: false })
+        .limit(ADMIN_LIST_LIMIT),
+      supabase.from('repertoire_items').select(REPERTOIRE_ITEMS_SELECT_FIELDS),
+      supabase
+        .from('repertoire_tokens')
+        .select(REPERTOIRE_TOKENS_SELECT_FIELDS)
+        .order('created_at', { ascending: false })
+        .limit(ADMIN_LIST_LIMIT),
+      supabase
+        .from('precontracts')
+        .select(PRECONTRACTS_SELECT_FIELDS)
+        .order('created_at', { ascending: false })
+        .limit(ADMIN_LIST_LIMIT),
+      supabase
+        .from('contracts')
+        .select(CONTRACTS_SELECT_FIELDS)
+        .order('created_at', { ascending: false })
+        .limit(ADMIN_LIST_LIMIT),
     ]);
 
     if (eventsRes.error) throw eventsRes.error;

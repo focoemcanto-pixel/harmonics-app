@@ -522,9 +522,9 @@ export default function PreContratosClient() {
 
   async function carregarAdjustmentRequests() {
     const { data, error } = await supabase
-      .from('contract_adjustment_requests')
-      .select('id, precontract_id, status, request_message, requested_at, resolved_at')
-      .order('requested_at', { ascending: false });
+  .from('contract_adjustment_requests')
+  .select('id, precontract_id, status, request_message, created_at, resolved_at')
+  .order('created_at', { ascending: false });
 
     if (error) {
       console.warn('[PRECONTRATOS] contract_adjustment_requests indisponível:', error);
@@ -1016,7 +1016,7 @@ export default function PreContratosClient() {
               <AlertCard tone="amber" title="Ajuste pendente (bloqueia assinatura)">
                 <p>{pendingAdjustment.request_message}</p>
                 <p className="mt-1 text-xs opacity-80">
-                  Solicitado em {new Date(pendingAdjustment.requested_at).toLocaleString('pt-BR')}
+                  Solicitado em {new Date(pendingAdjustment.created_at).toLocaleString('pt-BR')}
                 </p>
               </AlertCard>
             </div>

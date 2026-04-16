@@ -32,11 +32,15 @@ export async function GET(_request, context) {
       where: { public_token: token },
     });
 
-    const { data: preByToken, error: preByTokenError } = await supabase
-      .from('precontracts')
-      .select('*')
-      .eq('public_token', token)
-      .maybeSingle();
+    const { data: preData, error: preByTokenError } = await supabase
+  .from('precontracts')
+  .select('*')
+  .eq('public_token', token)
+  .limit(1);
+
+if (preByTokenError) throw preByTokenError;
+
+let precontract = preData?.[0] || null;
 
     if (preByTokenError) throw preByTokenError;
 

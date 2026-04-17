@@ -2508,34 +2508,9 @@ async function handleRequestReview() {
               </div>
 
               <div className="mt-5 space-y-4">
-                {receptivoDuracaoTravada ? (
-                  <div className="rounded-[16px] border border-violet-200 bg-violet-50 px-4 py-3 text-[14px] font-black text-violet-700">
-                    Receptivo incluído: {receptivoDuracaoLabel}
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <label className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#9b8576]">
-                      Duração
-                    </label>
-                    <div className="flex gap-2">
-                      {['1h', '2h', '3h'].map((item) => (
-                        <button
-                          key={item}
-                          type="button"
-                          onClick={() => setReceptivo({ ...receptivo, duracao: item })}
-                          className={classNames(
-                            'flex-1 rounded-[16px] border px-4 py-4 text-[14px] font-black',
-                            receptivo.duracao === item
-                              ? 'border-violet-200 bg-violet-50 text-violet-700'
-                              : 'border-[#eadfd6] bg-white text-[#241a14]'
-                          )}
-                        >
-                          {item}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                <div className="rounded-[16px] border border-violet-200 bg-violet-50 px-4 py-3 text-[14px] font-black text-violet-700">
+                  Receptivo incluído: {receptivoDuracaoLabel}
+                </div>
 
                 <InputField
                   label="Gêneros preferidos"

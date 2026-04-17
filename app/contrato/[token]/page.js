@@ -391,7 +391,7 @@ async function upsertEventFromSignature({
   if (legacyId) {
     const { data } = await supabase
       .from('events')
-      .select('id')
+      .select('id, observations')
       .eq('legacy_id', legacyId)
       .maybeSingle();
 
@@ -429,7 +429,7 @@ async function upsertEventFromSignature({
     whatsapp_name: String(form.full_name || '').trim() || null,
     whatsapp_phone: cleanDigits(form.whatsapp) || null,
 
-    observations: String(form.adjustment_request || '').trim() || null,
+    observations: existing?.observations || null,
     notes: [
       'Criado/atualizado automaticamente após assinatura.',
       precontract?.notes || '',

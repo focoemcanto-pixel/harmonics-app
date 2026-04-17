@@ -136,6 +136,30 @@ function countItemsBySection(items = []) {
   }, {});
 }
 
+function buildEventAntesalaUpdatePayload({
+  antesalaIncluded,
+  antesalaDurationMinutes,
+  antesalaRequestedByClient,
+  beforeRoomStatus,
+  antesalaPriceIncrement,
+  useLegacyDurationColumn = false,
+}) {
+  const payload = {
+    has_antesala: antesalaIncluded,
+    antesala_requested_by_client: antesalaRequestedByClient,
+    antesala_request_status: beforeRoomStatus,
+    antesala_price_increment: antesalaPriceIncrement,
+  };
+
+  if (useLegacyDurationColumn) {
+    payload.before_room_minutes = antesalaDurationMinutes;
+  } else {
+    payload.antesala_duration_minutes = antesalaDurationMinutes;
+  }
+
+  return payload;
+}
+
 async function findSuggestionSongIdForItem(supabase, item) {
   const title = normalizeText(item?.song_name);
   if (!title) return null;
@@ -483,16 +507,40 @@ export async function POST(request) {
       ? 'included'
       : null;
 
-    const { error: updateEventError } = await supabase
+    let { error: updateEventError } = await supabase
       .from('events')
-      .update({
-        has_antesala: antesalaIncluded,
-        antesala_duration_minutes: antesalaDurationMinutes,
-        antesala_requested_by_client: antesalaRequestedByClient,
-        antesala_request_status: beforeRoomStatus,
-        antesala_price_increment: antesalaPriceIncrement,
-      })
+      .update(
+        buildEventAntesalaUpdatePayload({
+          antesalaIncluded,
+          antesalaDurationMinutes,
+          antesalaRequestedByClient,
+          beforeRoomStatus,
+          antesalaPriceIncrement,
+        })
+      )
       .eq('id', eventId);
+
+    const missingDurationColumn =
+      updateEventError &&
+      String(updateEventError.message || '').includes(
+        "'antesala_duration_minutes' column"
+      );
+
+    if (missingDurationColumn) {
+      ({ error: updateEventError } = await supabase
+        .from('events')
+        .update(
+          buildEventAntesalaUpdatePayload({
+            antesalaIncluded,
+            antesalaDurationMinutes,
+            antesalaRequestedByClient,
+            beforeRoomStatus,
+            antesalaPriceIncrement,
+            useLegacyDurationColumn: true,
+          })
+        )
+        .eq('id', eventId));
+    }
 
     if (updateEventError) throw updateEventError;
 

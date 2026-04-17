@@ -434,6 +434,28 @@ function deriveHasContractedReception(...sources) {
   return false;
 }
 
+function sanitizeResolvedAdjustmentFromObservations(observations, latestAdjustmentRequest) {
+  const rawObservation = String(observations || '').trim();
+  if (!rawObservation) return '';
+
+  const status = String(latestAdjustmentRequest?.status || '').trim().toLowerCase();
+  const rawRequest = String(latestAdjustmentRequest?.request_message || '').trim();
+  if (status !== 'resolved' || !rawRequest) return rawObservation;
+
+  const normalizedObservation = rawObservation.toLowerCase();
+  const normalizedRequest = rawRequest.toLowerCase();
+  const prefixedRequest = `solicitação de ajuste: ${normalizedRequest}`;
+
+  if (
+    normalizedObservation === normalizedRequest ||
+    normalizedObservation === prefixedRequest
+  ) {
+    return '';
+  }
+
+  return rawObservation;
+}
+
 function toNumber(value) {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
@@ -511,6 +533,8 @@ function buildFallbackData(token = '') {
       antesalaPriceIncrement: 0,
       antesalaQuoteOptions: [],
       temReceptivo: false,
+      receptivoContratadoHoras: 0,
+      receptivoDuracaoTravada: false,
       pdfUrl: null,
       repertoireToken: safeToken,
       initialState: {
@@ -620,6 +644,7 @@ export default async function ClienteTokenPage({ params }) {
   let repertoireTokenResp = { data: null, error: null };
   let paymentsResp = { data: [], error: null };
   let pricingResp = { data: null, error: null };
+  let adjustmentResp = { data: null, error: null };
 
   try {
     [
@@ -630,6 +655,7 @@ export default async function ClienteTokenPage({ params }) {
       repertoireTokenResp,
       paymentsResp,
       pricingResp,
+      adjustmentResp,
     ] = await Promise.all([
       supabase
         .from('events')
@@ -675,6 +701,14 @@ export default async function ClienteTokenPage({ params }) {
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle(),
+
+      supabase
+        .from('contract_adjustment_requests')
+        .select('id, status, request_message, created_at, resolved_at')
+        .eq('precontract_id', precontract.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
     ]);
   } catch (error) {
     console.error('[CLIENTE PAGE] Falha inesperada ao carregar dados principais:', error);
@@ -691,6 +725,9 @@ export default async function ClienteTokenPage({ params }) {
   if (pricingResp?.error) {
     console.error('[CLIENTE PAGE] Erro em pricing_settings:', pricingResp.error);
   }
+  if (adjustmentResp?.error) {
+    console.error('[CLIENTE PAGE] Erro em contract_adjustment_requests:', adjustmentResp.error);
+  }
 
   const event = eventResp?.data || null;
   const config = configResp?.data || null;
@@ -701,11 +738,17 @@ export default async function ClienteTokenPage({ params }) {
   const repertoireToken = repertoireTokenResp?.data || null;
   const payments = Array.isArray(paymentsResp?.data) ? paymentsResp.data : [];
   const pricing = pricingResp?.data || {};
+  const latestAdjustmentRequest = adjustmentResp?.data || null;
 
   if (!event) {
     console.error('[CLIENTE PAGE] Evento ausente após consultas, renderizando fallback.');
     return <ClienteHome data={buildFallbackData(token)} />;
   }
+
+  const sanitizedObservations = sanitizeResolvedAdjustmentFromObservations(
+    event?.observations,
+    latestAdjustmentRequest
+  );
 
   const configClientToken = String(config?.client_public_token || '').trim();
   const clientToken = configClientToken || token;
@@ -778,7 +821,7 @@ export default async function ClienteTokenPage({ params }) {
     statusContrato: contract?.signed_at ? 'Contrato assinado' : 'Contrato pendente',
     statusEvento: event.status || 'Confirmado',
     observacoes:
-      event.observations ||
+      sanitizedObservations ||
       'Alinhar com a assessoria a ordem correta do cortejo e o roteiro enviado à equipe.',
     horarioChegada: addHoursToTime(event.event_time, -2),
     suporteWhatsapp: supportConfig.phone,
@@ -804,14 +847,14 @@ export default async function ClienteTokenPage({ params }) {
           false
       ),
       antesalaDurationMinutes:
-        Number(event?.antesala_duration_minutes || 0) || null,
+        Number(event?.antesala_duration_minutes ?? event?.before_room_minutes ?? 0) || null,
       antesalaRequestedByClient: Boolean(event?.antesala_requested_by_client),
       antesalaRequestStatus: String(event?.antesala_request_status || ''),
       antesalaPriceIncrement: Number(event?.antesala_price_increment || 0),
       antesalaQuoteOptions: buildAntesalaQuoteOptions(event?.formation, pricing),
-      temReceptivo: Boolean(
-        hasContractedReception
-      ),
+      temReceptivo: Boolean(hasContractedReception),
+      receptivoContratadoHoras: contractedReceptionHours || 0,
+      receptivoDuracaoTravada: Boolean(hasContractedReception),
       pdfUrl: repertorioPdfUrl,
       repertoireToken: repertorioTokenValue,
 
@@ -823,13 +866,15 @@ export default async function ClienteTokenPage({ params }) {
           generos: initialLists.antessala?.generos || '',
           artistas: initialLists.antessala?.artistas || '',
           observacao: config?.ante_room_notes || initialLists.antessala?.observacao || '',
-          durationMinutes: Number(event?.antesala_duration_minutes || 30) || 30,
+          durationMinutes:
+            Number(event?.antesala_duration_minutes ?? event?.before_room_minutes ?? 30) || 30,
           styleTags: initialLists.antessala?.styleTags || [],
           preferredArtistsEnabled: Boolean(initialLists.antessala?.preferredArtistsEnabled),
           referenceEnabled: Boolean(initialLists.antessala?.referenceEnabled),
           references: initialLists.antessala?.references || [],
           requestQuoteOpened: false,
-          quoteMinutes: Number(event?.antesala_duration_minutes || 0) || null,
+          quoteMinutes:
+            Number(event?.antesala_duration_minutes ?? event?.before_room_minutes ?? 0) || null,
           quotePriceIncrement: Number(event?.antesala_price_increment || 0) || 0,
           requestedByClient: Boolean(event?.antesala_requested_by_client),
         },
@@ -845,7 +890,7 @@ export default async function ClienteTokenPage({ params }) {
           reference_video_id: config?.exit_reference_video_id || '',
         },
         receptivo: {
-          duracao: config?.reception_duration || `${contractedReceptionHours || 1}h`,
+          duracao: `${contractedReceptionHours || 1}h`,
           generos: config?.reception_genres || initialLists.receptivo?.generos || '',
           artistas: config?.reception_artists || initialLists.receptivo?.artistas || '',
           observacao: config?.reception_notes || initialLists.receptivo?.observacao || '',

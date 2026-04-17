@@ -15,7 +15,7 @@ const AREAS_SISTEMA = [
   { key: 'automacoes', label: 'Automações' },
 ];
 const USERS_LIST_LIMIT = 200;
-const USERS_SELECT_FIELDS = 'id, created_at, name, email, role, permissions';
+const USERS_SELECT_FIELDS = 'id, created_at, name, email, role';
 
 function PencilIcon({ className }) {
   return (

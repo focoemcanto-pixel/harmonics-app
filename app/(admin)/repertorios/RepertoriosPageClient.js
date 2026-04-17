@@ -12,8 +12,9 @@ import { formatDateBR } from '@/lib/eventos/eventos-format';
 const ADMIN_LIST_LIMIT = 100;
 const EVENTS_SELECT_FIELDS = 'id, created_at, client_name, event_type, event_date';
 const REPERTOIRE_CONFIG_SELECT_FIELDS = 'id, created_at, event_id, status, is_locked, submitted_at';
-const REPERTOIRE_ITEMS_SELECT_FIELDS = 'id, event_id, section, item_order, title, artist, key, notes';
-const REPERTOIRE_TOKENS_SELECT_FIELDS = 'id, event_id, public_token, created_at';
+const REPERTOIRE_ITEMS_SELECT_FIELDS =
+  'id, event_id, section, item_order, song_name, artists, moment, reference_link, reference_title, reference_channel, reference_thumbnail, reference_video_id, notes, label, suggestion_song_id';
+const REPERTOIRE_TOKENS_SELECT_FIELDS = 'id, event_id, token, created_at';
 const PRECONTRACTS_SELECT_FIELDS = 'id, created_at, event_id, status, public_token';
 const CONTRACTS_SELECT_FIELDS = 'id, created_at, event_id, precontract_id, status';
 let repertoriosAdminCache = null;

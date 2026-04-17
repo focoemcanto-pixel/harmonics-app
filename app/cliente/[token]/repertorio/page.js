@@ -241,6 +241,28 @@ function deriveHasContractedReception(...sources) {
   return false;
 }
 
+function sanitizeResolvedAdjustmentFromObservations(observations, latestAdjustmentRequest) {
+  const rawObservation = String(observations || '').trim();
+  if (!rawObservation) return '';
+
+  const status = String(latestAdjustmentRequest?.status || '').trim().toLowerCase();
+  const rawRequest = String(latestAdjustmentRequest?.request_message || '').trim();
+  if (status !== 'resolved' || !rawRequest) return rawObservation;
+
+  const normalizedObservation = rawObservation.toLowerCase();
+  const normalizedRequest = rawRequest.toLowerCase();
+  const prefixedRequest = `solicitação de ajuste: ${normalizedRequest}`;
+
+  if (
+    normalizedObservation === normalizedRequest ||
+    normalizedObservation === prefixedRequest
+  ) {
+    return '';
+  }
+
+  return rawObservation;
+}
+
 function toNumber(value) {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
@@ -393,8 +415,26 @@ export default async function ClienteRepertorioPage({ params }) {
   const precontract = precontractsResp.data || null;
   const contract = contractsResp.data || null;
   const pricing = pricingResp.data || {};
+  let latestAdjustmentRequest = null;
+
+  if (precontract?.id) {
+    const { data: adjustmentData, error: adjustmentError } = await supabase
+      .from('contract_adjustment_requests')
+      .select('id, status, request_message, created_at, resolved_at')
+      .eq('precontract_id', precontract.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (adjustmentError) throw adjustmentError;
+    latestAdjustmentRequest = adjustmentData || null;
+  }
   const hasContractedReception = deriveHasContractedReception(config, event, precontract);
   const contractedReceptionHours = deriveContractedReceptionHours(config, event, precontract);
+  const sanitizedObservations = sanitizeResolvedAdjustmentFromObservations(
+    event?.observations,
+    latestAdjustmentRequest
+  );
 
   console.log('[CLIENTE REPERTORIO PAGE] URL PDF contrato:', contract?.pdf_url || '(vazio)');
   console.log(
@@ -456,7 +496,7 @@ export default async function ClienteRepertorioPage({ params }) {
     statusContrato: contract?.signed_at ? 'Contrato assinado' : 'Contrato pendente',
     statusEvento: event.status || 'Confirmado',
     observacoes:
-      event.observations ||
+      sanitizedObservations ||
       'Alinhar com a assessoria a ordem correta do cortejo e o roteiro enviado à equipe.',
     horarioChegada: addHoursToTime(event.event_time, -2),
     suporteWhatsapp: supportConfig.phone,
@@ -480,7 +520,8 @@ export default async function ClienteRepertorioPage({ params }) {
           event?.has_ante_room ??
           false
       ),
-      antesalaDurationMinutes: Number(event?.antesala_duration_minutes || 0) || null,
+      antesalaDurationMinutes:
+        Number(event?.antesala_duration_minutes ?? event?.before_room_minutes ?? 0) || null,
       antesalaRequestedByClient: Boolean(event?.antesala_requested_by_client),
       antesalaRequestStatus: String(event?.antesala_request_status || ''),
       antesalaPriceIncrement: Number(event?.antesala_price_increment || 0),
@@ -499,13 +540,15 @@ export default async function ClienteRepertorioPage({ params }) {
           generos: initialLists.antessala?.generos || '',
           artistas: initialLists.antessala?.artistas || '',
           observacao: config?.ante_room_notes || initialLists.antessala?.observacao || '',
-          durationMinutes: Number(event?.antesala_duration_minutes || 30) || 30,
+          durationMinutes:
+            Number(event?.antesala_duration_minutes ?? event?.before_room_minutes ?? 30) || 30,
           styleTags: initialLists.antessala?.styleTags || [],
           preferredArtistsEnabled: Boolean(initialLists.antessala?.preferredArtistsEnabled),
           referenceEnabled: Boolean(initialLists.antessala?.referenceEnabled),
           references: initialLists.antessala?.references || [],
           requestQuoteOpened: false,
-          quoteMinutes: Number(event?.antesala_duration_minutes || 0) || null,
+          quoteMinutes:
+            Number(event?.antesala_duration_minutes ?? event?.before_room_minutes ?? 0) || null,
           quotePriceIncrement: Number(event?.antesala_price_increment || 0) || 0,
           requestedByClient: Boolean(event?.antesala_requested_by_client),
         },

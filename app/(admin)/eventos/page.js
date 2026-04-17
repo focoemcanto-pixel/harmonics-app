@@ -323,16 +323,19 @@ export default function EventosPage() {
   useEffect(() => {
     async function carregar() {
       setCarregando(true);
-
-      await Promise.all([
-        carregarEventos(),
-        carregarPricing(),
-        carregarContatos(),
-        carregarPrecontracts(),
-        carregarContracts(),
-      ]);
-
-      setCarregando(false);
+      try {
+        await Promise.all([
+          carregarEventos(),
+          carregarPricing(),
+          carregarContatos(),
+          carregarPrecontracts(),
+          carregarContracts(),
+        ]);
+      } catch (error) {
+        console.error('[EVENTOS] Falha inesperada ao carregar dados iniciais:', error);
+      } finally {
+        setCarregando(false);
+      }
     }
 
     carregar();

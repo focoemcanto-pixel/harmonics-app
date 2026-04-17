@@ -260,8 +260,7 @@ export async function GET() {
       }
     }
 
-    return NextResponse.json({
-      ok: true,
+    const payload = {
       summary: {
         total_templates: templates.length,
         active_templates: activeTemplates,
@@ -284,11 +283,17 @@ export async function GET() {
       cron_status: cronStatus,
       alerts,
       recent_failures: failures,
+    };
+
+    return NextResponse.json({
+      ok: true,
+      data: payload,
+      ...payload,
     });
   } catch (error) {
     console.error('[GET /api/automation/dashboard] Erro:', error);
     return NextResponse.json(
-      { error: error?.message || 'Erro interno' },
+      { ok: false, error: error?.message || 'Erro interno' },
       { status: 500 }
     );
   }

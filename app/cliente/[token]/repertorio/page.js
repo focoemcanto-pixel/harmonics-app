@@ -8,9 +8,10 @@ function getAdminSupabase() {
   const serviceRole = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!url || !serviceRole) {
-    throw new Error(
-      'Variáveis NEXT_PUBLIC_SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY são obrigatórias.'
+    console.error(
+      '[CLIENTE REPERTORIO PAGE] Variáveis NEXT_PUBLIC_SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY ausentes.'
     );
+    return null;
   }
 
   return createClient(url, serviceRole, {
@@ -61,6 +62,82 @@ function addHoursToTime(timeValue, deltaHours = 0) {
   const mm = String(normalized % 60).padStart(2, '0');
 
   return `${hh}:${mm}`;
+}
+
+function buildFallbackData(token = '') {
+  const safeToken = String(token || '').trim();
+  const supportConfig = resolveSupportWhatsAppConfig();
+
+  return {
+    token: safeToken,
+    clienteNome: 'Cliente',
+    eventoTitulo: 'Evento',
+    dataEvento: '',
+    horarioEvento: '',
+    localEvento: '',
+    formacao: '',
+    instrumentos: '',
+    statusContrato: 'Contrato pendente',
+    statusEvento: 'A confirmar',
+    observacoes: 'Ainda não temos todos os dados do evento. Nossa equipe vai te ajudar.',
+    horarioChegada: '--:--',
+    suporteWhatsapp: supportConfig.phone,
+    suporteWhatsappMensagem: supportConfig.message,
+    reviewSubmitted: false,
+    repertorio: {
+      status: 'NAO_INICIADO',
+      isLocked: false,
+      etapasPreenchidas: 0,
+      totalEtapas: 7,
+      liberadoParaEdicao: true,
+      enviadoEm: null,
+      linkPreenchimento: safeToken ? `/cliente/${safeToken}/repertorio` : '#',
+      linkVisualizacao: safeToken ? `/cliente/${safeToken}/repertorio` : '#',
+      podeSolicitarCorrecao: false,
+      temAntessala: false,
+      antesalaDurationMinutes: null,
+      antesalaRequestedByClient: false,
+      antesalaRequestStatus: '',
+      antesalaPriceIncrement: 0,
+      antesalaQuoteOptions: [],
+      temReceptivo: false,
+      receptivoContratadoHoras: 0,
+      receptivoDuracaoTravada: false,
+      pdfUrl: null,
+      repertoireToken: safeToken,
+      initialState: {
+        querAntessala: null,
+        antessala: { estilo: '', generos: '', artistas: '', observacao: '' },
+        cortejo: [
+          { label: 'Padrinhos', musica: '', referencia: '', observacao: '' },
+          { label: 'Noiva', musica: '', referencia: '', observacao: '' },
+        ],
+        cerimonia: [{ label: 'Alianças', musica: '', referencia: '', observacao: '' }],
+        saida: {
+          musica: '',
+          referencia: '',
+          observacao: '',
+          reference_title: '',
+          reference_channel: '',
+          reference_thumbnail: '',
+          reference_video_id: '',
+        },
+        receptivo: { duracao: '1h', generos: '', artistas: '', observacao: '' },
+        desiredSongs: '',
+        generalNotes: '',
+      },
+    },
+    financeiro: {
+      resumo: {
+        valorTotal: 'A definir',
+        valorPago: 'A definir',
+        saldo: 'A definir',
+        status: 'Consulte a equipe',
+      },
+      vencimentos: [],
+      historico: [],
+    },
+  };
 }
 
 function mapStatusToUi(status, isLocked) {
@@ -301,6 +378,9 @@ function buildAntesalaQuoteOptions(formation, pricing = {}) {
 export default async function ClienteRepertorioPage({ params }) {
   const { token } = await params;
   const supabase = getAdminSupabase();
+  if (!supabase) {
+    return <ClienteHome data={buildFallbackData(token)} initialTab="repertorio" />;
+  }
   const requestTimeMs = new Date().getTime();
 
   const { data: precontractByClientToken, error: precontractByClientTokenError } =
@@ -310,7 +390,12 @@ export default async function ClienteRepertorioPage({ params }) {
       .eq('public_token', token)
       .maybeSingle();
 
-  if (precontractByClientTokenError) throw precontractByClientTokenError;
+  if (precontractByClientTokenError) {
+    console.error(
+      '[CLIENTE REPERTORIO PAGE] Erro ao buscar precontract por token público:',
+      precontractByClientTokenError
+    );
+  }
 
   let eventId = precontractByClientToken?.event_id || null;
   let clientToken = precontractByClientToken?.public_token || token;
@@ -323,8 +408,12 @@ export default async function ClienteRepertorioPage({ params }) {
       .eq('token', token)
       .maybeSingle();
 
-    if (tokenError) throw tokenError;
-    if (!repertoireTokenRow) notFound();
+    if (tokenError) {
+      console.error('[CLIENTE REPERTORIO PAGE] Erro ao buscar repertoire_token:', tokenError);
+    }
+    if (tokenError || !repertoireTokenRow) {
+      return <ClienteHome data={buildFallbackData(token)} initialTab="repertorio" />;
+    }
 
     if (String(repertoireTokenRow.status || '').toLowerCase() !== 'open') {
       notFound();
@@ -348,73 +437,99 @@ export default async function ClienteRepertorioPage({ params }) {
       .limit(1)
       .maybeSingle();
 
-    if (latestTokenError) throw latestTokenError;
-    tokenRow = latestToken || null;
+    if (latestTokenError) {
+      console.error(
+        '[CLIENTE REPERTORIO PAGE] Erro ao buscar token mais recente de repertório:',
+        latestTokenError
+      );
+    } else {
+      tokenRow = latestToken || null;
+    }
   }
 
-  const [
-    eventResp,
-    configResp,
-    itemsResp,
-    precontractsResp,
-    contractsResp,
-    pricingResp,
-  ] = await Promise.all([
-    supabase
-      .from('events')
-      .select('*')
-      .eq('id', eventId)
-      .maybeSingle(),
+  let eventResp = { data: null, error: null };
+  let configResp = { data: null, error: null };
+  let itemsResp = { data: [], error: null };
+  let precontractsResp = { data: null, error: null };
+  let contractsResp = { data: null, error: null };
+  let pricingResp = { data: null, error: null };
 
-    supabase
-      .from('repertoire_config')
-      .select('*')
-      .eq('event_id', eventId)
-      .maybeSingle(),
+  try {
+    [
+      eventResp,
+      configResp,
+      itemsResp,
+      precontractsResp,
+      contractsResp,
+      pricingResp,
+    ] = await Promise.all([
+      supabase
+        .from('events')
+        .select('*')
+        .eq('id', eventId)
+        .maybeSingle(),
 
-    supabase
-      .from('repertoire_items')
-      .select('*, suggestion_song:suggestion_songs(id, title, artist, youtube_url, youtube_id, thumbnail_url)')
-      .eq('event_id', eventId)
-      .order('item_order', { ascending: true }),
+      supabase
+        .from('repertoire_config')
+        .select('*')
+        .eq('event_id', eventId)
+        .maybeSingle(),
 
-    supabase
-      .from('precontracts')
-      .select('id, public_token, event_id, reception_hours, has_sound, has_transport')
-      .eq('event_id', eventId)
-      .maybeSingle(),
+      supabase
+        .from('repertoire_items')
+        .select(
+          '*, suggestion_song:suggestion_songs(id, title, artist, youtube_url, youtube_id, thumbnail_url)'
+        )
+        .eq('event_id', eventId)
+        .order('item_order', { ascending: true }),
 
-    supabase
-      .from('contracts')
-      .select('id, event_id, precontract_id, pdf_url, doc_url, signed_at')
-      .eq('event_id', eventId)
-      .maybeSingle(),
+      supabase
+        .from('precontracts')
+        .select('id, public_token, event_id, reception_hours, has_sound, has_transport')
+        .eq('event_id', eventId)
+        .maybeSingle(),
 
-    supabase
-      .from('pricing_settings')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-  ]);
+      supabase
+        .from('contracts')
+        .select('id, event_id, precontract_id, pdf_url, doc_url, signed_at')
+        .eq('event_id', eventId)
+        .maybeSingle(),
 
-  if (eventResp.error) throw eventResp.error;
-  if (configResp.error) throw configResp.error;
-  if (itemsResp.error) throw itemsResp.error;
-  if (precontractsResp.error) throw precontractsResp.error;
-  if (contractsResp.error) throw contractsResp.error;
-  if (pricingResp.error) throw pricingResp.error;
+      supabase
+        .from('pricing_settings')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ]);
+  } catch (error) {
+    console.error('[CLIENTE REPERTORIO PAGE] Falha inesperada ao carregar dados principais:', error);
+  }
 
-  const event = eventResp.data;
+  if (eventResp?.error) console.error('[CLIENTE REPERTORIO PAGE] Erro em events:', eventResp.error);
+  if (configResp?.error) {
+    console.error('[CLIENTE REPERTORIO PAGE] Erro em repertoire_config:', configResp.error);
+  }
+  if (itemsResp?.error) console.error('[CLIENTE REPERTORIO PAGE] Erro em repertoire_items:', itemsResp.error);
+  if (precontractsResp?.error) {
+    console.error('[CLIENTE REPERTORIO PAGE] Erro em precontracts:', precontractsResp.error);
+  }
+  if (contractsResp?.error) console.error('[CLIENTE REPERTORIO PAGE] Erro em contracts:', contractsResp.error);
+  if (pricingResp?.error) {
+    console.error('[CLIENTE REPERTORIO PAGE] Erro em pricing_settings:', pricingResp.error);
+  }
+
+  const event = eventResp?.data || null;
   if (!event) {
-    notFound();
+    console.error('[CLIENTE REPERTORIO PAGE] Evento ausente após consultas, renderizando fallback.');
+    return <ClienteHome data={buildFallbackData(clientToken || token)} initialTab="repertorio" />;
   }
 
-  const config = configResp.data || null;
-  const items = Array.isArray(itemsResp.data) ? itemsResp.data : [];
-  const precontract = precontractsResp.data || null;
-  const contract = contractsResp.data || null;
-  const pricing = pricingResp.data || {};
+  const config = configResp?.data || null;
+  const items = Array.isArray(itemsResp?.data) ? itemsResp.data : [];
+  const precontract = precontractsResp?.data || null;
+  const contract = contractsResp?.data || null;
+  const pricing = pricingResp?.data || {};
   let latestAdjustmentRequest = null;
 
   if (precontract?.id) {
@@ -426,8 +541,14 @@ export default async function ClienteRepertorioPage({ params }) {
       .limit(1)
       .maybeSingle();
 
-    if (adjustmentError) throw adjustmentError;
-    latestAdjustmentRequest = adjustmentData || null;
+    if (adjustmentError) {
+      console.error(
+        '[CLIENTE REPERTORIO PAGE] Erro em contract_adjustment_requests:',
+        adjustmentError
+      );
+    } else {
+      latestAdjustmentRequest = adjustmentData || null;
+    }
   }
   const hasContractedReception = deriveHasContractedReception(config, event, precontract);
   const contractedReceptionHours = deriveContractedReceptionHours(config, event, precontract);

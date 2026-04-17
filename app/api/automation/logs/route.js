@@ -31,7 +31,6 @@ const AUTOMATION_LOGS_FALLBACK_SELECT_FIELDS = [
   'rule_id',
   'template_id',
   'error_message',
-  'metadata',
   'sent_at',
   'created_at',
 ].join(', ');
@@ -192,9 +191,11 @@ export async function GET(request) {
       });
     }
 
+    const logs = data || [];
     return NextResponse.json({
       ok: true,
-      logs: data || [],
+      data: { logs },
+      logs,
     });
   } catch (error) {
     console.error('[GET /api/automation/logs] Erro:', error);

@@ -37,28 +37,6 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
-  const checkUser = useCallback(async () => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      console.info('[Auth] sessão inicial resolvida', {
-        hasSession: Boolean(session?.user),
-        userId: session?.user?.id || null,
-      });
-      if (session?.user) {
-        await loadProfile(session.user);
-      } else {
-        setUser(null);
-        setProfile(null);
-      }
-    } catch (error) {
-      console.error('Erro ao verificar sessão:', error);
-      setAuthError(error?.message || 'Erro ao verificar sessão');
-    } finally {
-      setLoading(false);
-      setInitialized(true);
-    }
-  }, [loadProfile]);
-
   useEffect(() => {
     if (!supabase) {
       const errorMessage = 'Supabase client indisponível no browser';
@@ -68,8 +46,6 @@ export function AuthProvider({ children }) {
       setInitialized(true);
       return undefined;
     }
-
-    checkUser();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
@@ -91,7 +67,7 @@ export function AuthProvider({ children }) {
     );
 
     return () => subscription.unsubscribe();
-  }, [checkUser, loadProfile]);
+  }, [loadProfile]);
 
   async function signIn(email, password) {
     setAuthError(null);

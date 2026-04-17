@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 
 const AuthContext = createContext(null);
@@ -11,6 +11,8 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [initialized, setInitialized] = useState(false);
   const [authError, setAuthError] = useState(null);
+  const sessionFlowRef = useRef(Promise.resolve());
+  const isMountedRef = useRef(false);
 
   const loadProfile = useCallback(async (user) => {
     try {
@@ -37,7 +39,52 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
+  const applySessionState = useCallback(async (session) => {
+    if (session?.user) {
+      await loadProfile(session.user);
+      return;
+    }
+
+    setUser(null);
+    setProfile(null);
+  }, [loadProfile]);
+
+  const runSessionFlow = useCallback((session, source = 'unknown', options = {}) => {
+    const { markLoading = false } = options;
+
+    sessionFlowRef.current = sessionFlowRef.current
+      .catch(() => undefined)
+      .then(async () => {
+        if (!isMountedRef.current) return;
+
+        console.info('[Auth] sync session', {
+          source,
+          hasSession: Boolean(session?.user),
+          userId: session?.user?.id || null,
+        });
+
+        setAuthError(null);
+        if (markLoading) setLoading(true);
+        await applySessionState(session);
+        if (!isMountedRef.current) return;
+        setInitialized(true);
+        setLoading(false);
+      })
+      .catch((error) => {
+        if (!isMountedRef.current) return;
+        console.error('[Auth] falha ao sincronizar sessão:', error);
+        setAuthError(error?.message || 'Erro ao sincronizar sessão');
+        setInitialized(true);
+        setLoading(false);
+      });
+
+    return sessionFlowRef.current;
+  }, [applySessionState]);
+
   useEffect(() => {
+    let active = true;
+    isMountedRef.current = true;
+
     if (!supabase) {
       const errorMessage = 'Supabase client indisponível no browser';
       console.error('[Auth] erro crítico:', errorMessage);
@@ -49,25 +96,42 @@ export function AuthProvider({ children }) {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        if (!active) return;
         console.info('[Auth] onAuthStateChange', {
           event,
           hasSession: Boolean(session?.user),
           userId: session?.user?.id || null,
         });
-        setAuthError(null);
-        if (session?.user) {
-          await loadProfile(session.user);
-        } else {
-          setUser(null);
-          setProfile(null);
+
+        if (event === 'INITIAL_SESSION') {
+          return;
         }
-        setLoading(false);
-        setInitialized(true);
+
+        await runSessionFlow(session, `listener:${event}`);
       }
     );
 
-    return () => subscription.unsubscribe();
-  }, [loadProfile]);
+    (async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error) throw error;
+        if (!active) return;
+        await runSessionFlow(session, 'bootstrap:getSession', { markLoading: true });
+      } catch (error) {
+        if (!active) return;
+        console.error('[Auth] falha no bootstrap de sessão:', error);
+        setAuthError(error?.message || 'Erro ao verificar sessão');
+        setInitialized(true);
+        setLoading(false);
+      }
+    })();
+
+    return () => {
+      active = false;
+      isMountedRef.current = false;
+      subscription.unsubscribe();
+    };
+  }, [runSessionFlow]);
 
   async function signIn(email, password) {
     setAuthError(null);
@@ -129,7 +193,14 @@ export function AuthProvider({ children }) {
 
   return (
     <AuthContext.Provider value={value}>
-      {children}
+      {initialized ? children : (
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-violet-600 mx-auto mb-3" />
+            <p className="text-slate-600 text-sm">Verificando sessão...</p>
+          </div>
+        </div>
+      )}
     </AuthContext.Provider>
   );
 }

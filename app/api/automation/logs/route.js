@@ -192,9 +192,11 @@ export async function GET(request) {
       });
     }
 
+    const logs = data || [];
     return NextResponse.json({
       ok: true,
-      logs: data || [],
+      data: { logs },
+      logs,
     });
   } catch (error) {
     console.error('[GET /api/automation/logs] Erro:', error);

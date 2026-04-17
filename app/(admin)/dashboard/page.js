@@ -24,6 +24,7 @@ const DASHBOARD_EVENT_MUSICIANS_SELECT = 'id, created_at, status';
 const DASHBOARD_REPERTOIRE_CONFIG_SELECT = 'id, created_at, event_id, status, is_locked, submitted_at';
 const DASHBOARD_ADJUSTMENT_REQUESTS_SELECT = 'id, created_at, precontract_id, status';
 const DASHBOARD_FETCH_LIMIT = 50;
+const DASHBOARD_HEAVY_FETCH_LIMIT = 30;
 
 const MAX_DISPLAYED_ACTIVITIES = 2;
 const DASHBOARD_CACHE_TTL_MS = 60 * 1000;
@@ -622,7 +623,7 @@ export default function DashboardPage() {
         setCarregando(false);
       }
 
-      const results = await Promise.allSettled([
+      const primaryResults = await Promise.allSettled([
         supabase
           .from('events')
           .select(DASHBOARD_EVENTS_SELECT)
@@ -638,56 +639,62 @@ export default function DashboardPage() {
           .select(DASHBOARD_PRECONTRACTS_SELECT)
           .order('created_at', { ascending: false })
           .limit(DASHBOARD_FETCH_LIMIT),
-        supabase
-          .from('event_musicians')
-          .select(DASHBOARD_EVENT_MUSICIANS_SELECT)
-          .order('created_at', { ascending: false })
-          .limit(DASHBOARD_FETCH_LIMIT),
-        supabase
-          .from('repertoire_config')
-          .select(DASHBOARD_REPERTOIRE_CONFIG_SELECT)
-          .order('created_at', { ascending: false })
-          .limit(DASHBOARD_FETCH_LIMIT),
-        supabase
-          .from('contract_adjustment_requests')
-          .select(DASHBOARD_ADJUSTMENT_REQUESTS_SELECT)
-          .order('created_at', { ascending: false })
-          .limit(DASHBOARD_FETCH_LIMIT),
       ]);
 
       const eventsRes =
-        results[0].status === 'fulfilled' ? results[0].value : { data: [], error: null };
+        primaryResults[0].status === 'fulfilled' ? primaryResults[0].value : { data: [], error: null };
       const contractsRes =
-        results[1].status === 'fulfilled' ? results[1].value : { data: [], error: null };
+        primaryResults[1].status === 'fulfilled' ? primaryResults[1].value : { data: [], error: null };
       const precontractsRes =
-        results[2].status === 'fulfilled' ? results[2].value : { data: [], error: null };
-      const eventMusiciansRes =
-        results[3].status === 'fulfilled' ? results[3].value : { data: [], error: null };
-      const repertoireConfigsRes =
-        results[4].status === 'fulfilled' ? results[4].value : { data: [], error: null };
-      const adjustmentRequestsRes =
-        results[5].status === 'fulfilled' ? results[5].value : { data: [], error: null };
+        primaryResults[2].status === 'fulfilled' ? primaryResults[2].value : { data: [], error: null };
 
       if (eventsRes.error) console.warn('[dashboard] events falhou:', eventsRes.error);
       if (contractsRes.error) console.warn('[dashboard] contracts falhou:', contractsRes.error);
       if (precontractsRes.error) console.warn('[dashboard] precontracts falhou:', precontractsRes.error);
-if (eventMusiciansRes.error) console.warn('[dashboard] event_musicians falhou:', eventMusiciansRes.error);
-if (repertoireConfigsRes.error) console.warn('[dashboard] repertoire_config falhou:', repertoireConfigsRes.error);
-if (adjustmentRequestsRes.error) console.warn('[dashboard] contract_adjustment_requests falhou:', adjustmentRequestsRes.error);
 
       const eventsData = Array.isArray(eventsRes.data) ? eventsRes.data : [];
       const contractsData = Array.isArray(contractsRes.data) ? contractsRes.data : [];
       const precontractsData = Array.isArray(precontractsRes.data) ? precontractsRes.data : [];
+
+      setEvents(eventsData);
+      setContracts(contractsData);
+      setPrecontracts(precontractsData);
+      setSecondaryReady(true);
+
+      const heavyResults = await Promise.allSettled([
+        supabase
+          .from('event_musicians')
+          .select(DASHBOARD_EVENT_MUSICIANS_SELECT)
+          .order('created_at', { ascending: false })
+          .limit(DASHBOARD_HEAVY_FETCH_LIMIT),
+        supabase
+          .from('repertoire_config')
+          .select(DASHBOARD_REPERTOIRE_CONFIG_SELECT)
+          .order('created_at', { ascending: false })
+          .limit(DASHBOARD_HEAVY_FETCH_LIMIT),
+        supabase
+          .from('contract_adjustment_requests')
+          .select(DASHBOARD_ADJUSTMENT_REQUESTS_SELECT)
+          .order('created_at', { ascending: false })
+          .limit(DASHBOARD_HEAVY_FETCH_LIMIT),
+      ]);
+      const eventMusiciansRes =
+        heavyResults[0].status === 'fulfilled' ? heavyResults[0].value : { data: [], error: null };
+      const repertoireConfigsRes =
+        heavyResults[1].status === 'fulfilled' ? heavyResults[1].value : { data: [], error: null };
+      const adjustmentRequestsRes =
+        heavyResults[2].status === 'fulfilled' ? heavyResults[2].value : { data: [], error: null };
+
+      if (eventMusiciansRes.error) console.warn('[dashboard] event_musicians falhou:', eventMusiciansRes.error);
+      if (repertoireConfigsRes.error) console.warn('[dashboard] repertoire_config falhou:', repertoireConfigsRes.error);
+      if (adjustmentRequestsRes.error) console.warn('[dashboard] contract_adjustment_requests falhou:', adjustmentRequestsRes.error);
+
       const eventMusiciansData = Array.isArray(eventMusiciansRes.data) ? eventMusiciansRes.data : [];
       const repertoireConfigsData = Array.isArray(repertoireConfigsRes.data) ? repertoireConfigsRes.data : [];
       const adjustmentRequestsData = Array.isArray(adjustmentRequestsRes.data)
         ? adjustmentRequestsRes.data
         : [];
 
-      setEvents(eventsData);
-      setContracts(contractsData);
-      setPrecontracts(precontractsData);
-      setSecondaryReady(true);
       setEventMusicians(eventMusiciansData);
       setRepertoireConfigs(repertoireConfigsData);
       setHeavyReady(true);

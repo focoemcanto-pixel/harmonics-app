@@ -1,5 +1,6 @@
 'use client';
 
+import { memo } from 'react';
 import Link from 'next/link';
 
 function getToneClasses(tone) {
@@ -92,7 +93,7 @@ function formatContractLabel(contractLabel) {
   return contractLabel;
 }
 
-export default function AdminEventCard({
+function AdminEventCard({
   id,
   cliente,
   tipo,
@@ -299,3 +300,36 @@ export default function AdminEventCard({
     </article>
   );
 }
+
+function areEventCardPropsEqual(prev, next) {
+  return (
+    prev.id === next.id &&
+    prev.cliente === next.cliente &&
+    prev.tipo === next.tipo &&
+    prev.data === next.data &&
+    prev.hora === next.hora &&
+    prev.local === next.local &&
+    prev.formacao === next.formacao &&
+    prev.receptivo === next.receptivo &&
+    prev.antesala === next.antesala &&
+    prev.temSom === next.temSom &&
+    prev.whatsappNome === next.whatsappNome &&
+    prev.whatsappNumero === next.whatsappNumero &&
+    prev.observacoes === next.observacoes &&
+    prev.valorAcertado === next.valorAcertado &&
+    prev.valorPago === next.valorPago &&
+    prev.valorAberto === next.valorAberto &&
+    prev.lucroFinal === next.lucroFinal &&
+    prev.paymentStatus === next.paymentStatus &&
+    prev.operationalStatus === next.operationalStatus &&
+    prev.timelineText === next.timelineText &&
+    prev.timelineTone === next.timelineTone &&
+    prev.contractLabel === next.contractLabel &&
+    prev.contractTone === next.contractTone &&
+    prev.contractLink === next.contractLink &&
+    prev.gerandoContrato === next.gerandoContrato &&
+    prev.flat === next.flat
+  );
+}
+
+export default memo(AdminEventCard, areEventCardPropsEqual);

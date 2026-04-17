@@ -13,6 +13,13 @@ export function AuthProvider({ children }) {
   const [authError, setAuthError] = useState(null);
   const sessionFlowRef = useRef(Promise.resolve());
   const isMountedRef = useRef(false);
+  const bootstrapResolvedRef = useRef(false);
+  const lastSessionFingerprintRef = useRef(null);
+  const initializedRef = useRef(false);
+
+  useEffect(() => {
+    initializedRef.current = initialized;
+  }, [initialized]);
 
   const loadProfile = useCallback(async (user) => {
     try {
@@ -50,7 +57,12 @@ export function AuthProvider({ children }) {
   }, [loadProfile]);
 
   const runSessionFlow = useCallback((session, source = 'unknown', options = {}) => {
-    const { markLoading = false } = options;
+    const { markLoading = false, force = false } = options;
+    const sessionFingerprint = session?.access_token || session?.user?.id || 'no-session';
+
+    if (!force && lastSessionFingerprintRef.current === sessionFingerprint && initializedRef.current) {
+      return sessionFlowRef.current;
+    }
 
     sessionFlowRef.current = sessionFlowRef.current
       .catch(() => undefined)
@@ -67,6 +79,8 @@ export function AuthProvider({ children }) {
         if (markLoading) setLoading(true);
         await applySessionState(session);
         if (!isMountedRef.current) return;
+        lastSessionFingerprintRef.current = sessionFingerprint;
+        bootstrapResolvedRef.current = true;
         setInitialized(true);
         setLoading(false);
       })
@@ -74,6 +88,7 @@ export function AuthProvider({ children }) {
         if (!isMountedRef.current) return;
         console.error('[Auth] falha ao sincronizar sessão:', error);
         setAuthError(error?.message || 'Erro ao sincronizar sessão');
+        bootstrapResolvedRef.current = true;
         setInitialized(true);
         setLoading(false);
       });
@@ -104,6 +119,7 @@ export function AuthProvider({ children }) {
         });
 
         if (event === 'INITIAL_SESSION') {
+          await runSessionFlow(session, 'listener:INITIAL_SESSION', { markLoading: true, force: true });
           return;
         }
 
@@ -116,6 +132,7 @@ export function AuthProvider({ children }) {
         const { data: { session }, error } = await supabase.auth.getSession();
         if (error) throw error;
         if (!active) return;
+        if (bootstrapResolvedRef.current) return;
         await runSessionFlow(session, 'bootstrap:getSession', { markLoading: true });
       } catch (error) {
         if (!active) return;

@@ -16,6 +16,7 @@ const REPERTOIRE_ITEMS_SELECT_FIELDS = 'id, event_id, section, item_order, title
 const REPERTOIRE_TOKENS_SELECT_FIELDS = 'id, event_id, public_token, created_at';
 const PRECONTRACTS_SELECT_FIELDS = 'id, created_at, event_id, status, public_token';
 const CONTRACTS_SELECT_FIELDS = 'id, created_at, event_id, precontract_id, status';
+let repertoriosAdminCache = null;
 
 function normalizeStatus(value) {
   return String(value || '').trim().toUpperCase();
@@ -177,14 +178,8 @@ export default function RepertoriosPage() {
   }, [searchParams]);
 
   async function carregarTudo() {
-    const [
-      eventsRes,
-      configsRes,
-      itemsRes,
-      tokensRes,
-      precontractsRes,
-      contractsRes,
-    ] = await Promise.all([
+    const [eventsRes, configsRes, tokensRes, precontractsRes, contractsRes] =
+      await Promise.all([
       supabase
         .from('events')
         .select(EVENTS_SELECT_FIELDS)
@@ -215,10 +210,21 @@ export default function RepertoriosPage() {
 
     if (eventsRes.error) throw eventsRes.error;
     if (configsRes.error) throw configsRes.error;
-    if (itemsRes.error) throw itemsRes.error;
     if (tokensRes.error) throw tokensRes.error;
     if (precontractsRes.error) throw precontractsRes.error;
     if (contractsRes.error) throw contractsRes.error;
+
+    const configEventIds = Array.from(
+      new Set((configsRes.data || []).map((cfg) => cfg?.event_id).filter(Boolean))
+    );
+    const itemsRes =
+      configEventIds.length > 0
+        ? await supabase
+            .from('repertoire_items')
+            .select(REPERTOIRE_ITEMS_SELECT_FIELDS)
+            .in('event_id', configEventIds)
+        : { data: [], error: null };
+    if (itemsRes.error) throw itemsRes.error;
 
     setEvents(eventsRes.data || []);
     setConfigs(configsRes.data || []);
@@ -226,12 +232,22 @@ export default function RepertoriosPage() {
     setTokens(tokensRes.data || []);
     setPrecontracts(precontractsRes.data || []);
     setContracts(contractsRes.data || []);
+    repertoriosAdminCache = {
+      events: eventsRes.data || [],
+      configs: configsRes.data || [],
+      items: itemsRes.data || [],
+      tokens: tokensRes.data || [],
+      precontracts: precontractsRes.data || [],
+      contracts: contractsRes.data || [],
+    };
   }
 
   useEffect(() => {
     async function init() {
       try {
-        setCarregando(true);
+        if (!repertoriosAdminCache) {
+          setCarregando(true);
+        }
         await carregarTudo();
       } catch (error) {
         console.error('Erro ao carregar repertórios:', error);
@@ -243,6 +259,16 @@ export default function RepertoriosPage() {
       } finally {
         setCarregando(false);
       }
+    }
+
+    if (repertoriosAdminCache) {
+      setEvents(repertoriosAdminCache.events || []);
+      setConfigs(repertoriosAdminCache.configs || []);
+      setItems(repertoriosAdminCache.items || []);
+      setTokens(repertoriosAdminCache.tokens || []);
+      setPrecontracts(repertoriosAdminCache.precontracts || []);
+      setContracts(repertoriosAdminCache.contracts || []);
+      setCarregando(false);
     }
 
     init();
@@ -329,6 +355,17 @@ export default function RepertoriosPage() {
       })
       .filter(Boolean);
   }, [configs, events, itemsByEventId, repertoireTokenByEventId, contractsByEventId]);
+
+  useEffect(() => {
+    repertoriosAdminCache = {
+      events,
+      configs,
+      items,
+      tokens,
+      precontracts,
+      contracts,
+    };
+  }, [events, configs, items, tokens, precontracts, contracts]);
 
   const repertoriosFiltrados = useMemo(() => {
     const termo = busca.trim().toLowerCase();
@@ -609,13 +646,6 @@ export default function RepertoriosPage() {
                   ? `/cliente/${painelToken}`
                   : null;
                 const secoesSugestoes = sugestoesPorEvento[entry.event_id] || null;
-
-                console.log('[repertorios] card render', {
-                  client_name: entry.event.client_name || null,
-                  event_id: entry.event_id,
-                  client_public_token: entry.client_public_token || null,
-                  href: painelUrl,
-                });
 
                 return (
                   <div

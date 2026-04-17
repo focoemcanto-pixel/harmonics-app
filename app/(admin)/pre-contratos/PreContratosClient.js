@@ -67,6 +67,11 @@ const PRECONTRACT_SELECT_FIELDS = [
   'public_token',
   'generated_link',
 ].join(', ');
+let preContratosCache = {
+  items: [],
+  eventos: [],
+  adjustmentRequestsByPrecontract: new Map(),
+};
 
 function toNumber(value) {
   if (value === null || value === undefined || value === '') return 0;
@@ -529,6 +534,7 @@ async function carregarPreContratos() {
     if (error) throw error;
     const sanitizedItems = (data || []).map((item) => sanitizeTimeFields(item));
     setItems(sanitizedItems);
+    preContratosCache.items = sanitizedItems;
     return sanitizedItems;
   }
 
@@ -561,6 +567,7 @@ async function carregarPreContratos() {
       nextMap.set(key, row);
     }
     setAdjustmentRequestsByPrecontract(nextMap);
+    preContratosCache.adjustmentRequestsByPrecontract = nextMap;
   }
 
   async function carregarEventos() {
@@ -573,20 +580,32 @@ async function carregarPreContratos() {
     setEventos(
       (data || []).map((item) => sanitizeTimeFields(item))
     );
+    preContratosCache.eventos = (data || []).map((item) => sanitizeTimeFields(item));
   }
 
   useEffect(() => {
     async function carregar() {
       try {
-        setCarregando(true);
+        if ((preContratosCache.items || []).length === 0) {
+          setCarregando(true);
+        }
         const [loadedPrecontracts] = await Promise.all([carregarPreContratos(), carregarEventos()]);
-        carregarAdjustmentRequests(loadedPrecontracts);
+        await carregarAdjustmentRequests(loadedPrecontracts);
       } catch (error) {
         console.error('Erro ao carregar pré-contratos:', error);
         showToast?.(`Erro ao carregar pré-contratos: ${error?.message || 'erro desconhecido'}`, 'error');
       } finally {
         setCarregando(false);
       }
+    }
+
+    if ((preContratosCache.items || []).length > 0) {
+      setItems(preContratosCache.items || []);
+      setEventos(preContratosCache.eventos || []);
+      setAdjustmentRequestsByPrecontract(
+        preContratosCache.adjustmentRequestsByPrecontract || new Map()
+      );
+      setCarregando(false);
     }
 
     carregar();
@@ -659,6 +678,14 @@ async function carregarPreContratos() {
     iniciarEdicao(item, { highlight: shouldHighlight });
     setUltimoAutoEditId(String(editParam));
   }, [searchParams, items, ultimoAutoEditId]);
+
+  useEffect(() => {
+    preContratosCache.items = items;
+  }, [items]);
+
+  useEffect(() => {
+    preContratosCache.eventos = eventos;
+  }, [eventos]);
 
   const financeiro = useMemo(() => {
     const base = toNumber(form.base_amount);
@@ -887,7 +914,19 @@ async function carregarPreContratos() {
 
       if (precontractStatusError) throw precontractStatusError;
 
-      await Promise.all([carregarPreContratos(), carregarAdjustmentRequests()]);
+      setItems((prev) =>
+        prev.map((entry) =>
+          String(entry.id) === String(editandoId) ? { ...entry, status: 'link_generated' } : entry
+        )
+      );
+      const nextRequestsMap = new Map(adjustmentRequestsByPrecontract);
+      nextRequestsMap.set(String(editandoId), {
+        ...pending,
+        status: 'resolved',
+        resolved_at: new Date().toISOString(),
+      });
+      setAdjustmentRequestsByPrecontract(nextRequestsMap);
+      preContratosCache.adjustmentRequestsByPrecontract = nextRequestsMap;
 
       const shouldCreateNew = window.confirm(
         'Ajuste confirmado com sucesso. Deseja registrar um novo ajuste?'
@@ -920,7 +959,7 @@ async function carregarPreContratos() {
         resetForm();
       }
 
-      await carregarPreContratos();
+      setItems((prev) => prev.filter((entry) => String(entry.id) !== String(id)));
     } catch (error) {
       console.error('Erro ao excluir pré-contrato:', error);
       showToast?.('Erro ao excluir pré-contrato.', 'error');

@@ -88,6 +88,14 @@ const PRECONTRACTS_SELECT_FIELDS =
 const CONTRACTS_SELECT_FIELDS =
   'id, created_at, precontract_id, event_id, status, signed_at, pdf_url, doc_url, public_token';
 const PRICING_SELECT_FIELDS = 'id, slug, formation_prices, reception_prices, sound_price, transport_price';
+let eventosAdminCache = {
+  eventos: [],
+  precontracts: [],
+  contracts: [],
+  contatos: [],
+  pricingId: null,
+  pricing: null,
+};
 
 function getContractStatus(ev, contractsByEventId) {
   const contract = contractsByEventId.get(String(ev.id));
@@ -222,7 +230,9 @@ export default function EventosPage() {
         .limit(ADMIN_LIST_LIMIT);
 
       if (error) throw error;
-      setEventos((data || []).map((item) => sanitizeTimeFields(item)));
+      const sanitized = (data || []).map((item) => sanitizeTimeFields(item));
+      setEventos(sanitized);
+      eventosAdminCache.eventos = sanitized;
     } catch (error) {
       console.error('Erro ao carregar eventos:', error);
       alert('Erro ao carregar eventos. Tente novamente mais tarde.');
@@ -306,6 +316,8 @@ export default function EventosPage() {
           ...prev,
           ...data,
         }));
+        eventosAdminCache.pricingId = data.id;
+        eventosAdminCache.pricing = data;
       }
     } catch (error) {
       console.error('Erro ao carregar pricing:', error);
@@ -318,12 +330,17 @@ export default function EventosPage() {
       .select('id, name, email, phone')
       .order('name', { ascending: true });
 
-    if (!error) setContatos(data || []);
+    if (!error) {
+      setContatos(data || []);
+      eventosAdminCache.contatos = data || [];
+    }
   }
 
   useEffect(() => {
     async function carregar() {
-      setCarregando(true);
+      if ((eventosAdminCache.eventos || []).length === 0) {
+        setCarregando(true);
+      }
       try {
         await Promise.allSettled([
           carregarEventos(),
@@ -340,6 +357,21 @@ export default function EventosPage() {
         console.error('[EVENTOS] Falha inesperada ao carregar dados iniciais:', error);
         setCarregando(false);
       }
+    }
+
+    if ((eventosAdminCache.eventos || []).length > 0) {
+      setEventos(eventosAdminCache.eventos || []);
+      setPrecontracts(eventosAdminCache.precontracts || []);
+      setContracts(eventosAdminCache.contracts || []);
+      setContatos(eventosAdminCache.contatos || []);
+      if (eventosAdminCache.pricingId) setPricingId(eventosAdminCache.pricingId);
+      if (eventosAdminCache.pricing) {
+        setPricing((prev) => ({
+          ...prev,
+          ...eventosAdminCache.pricing,
+        }));
+      }
+      setCarregando(false);
     }
 
     carregar();
@@ -367,7 +399,9 @@ export default function EventosPage() {
         .limit(ADMIN_LIST_LIMIT);
 
       if (error) throw error;
-      setPrecontracts((data || []).map((item) => sanitizeTimeFields(item)));
+      const sanitized = (data || []).map((item) => sanitizeTimeFields(item));
+      setPrecontracts(sanitized);
+      eventosAdminCache.precontracts = sanitized;
     } catch (error) {
       console.error('Erro ao carregar precontracts:', error);
     }
@@ -382,7 +416,9 @@ export default function EventosPage() {
         .limit(ADMIN_LIST_LIMIT);
 
       if (error) throw error;
-      setContracts((data || []).map((item) => sanitizeTimeFields(item)));
+      const sanitized = (data || []).map((item) => sanitizeTimeFields(item));
+      setContracts(sanitized);
+      eventosAdminCache.contracts = sanitized;
     } catch (error) {
       console.error('Erro ao carregar contracts:', error);
     }

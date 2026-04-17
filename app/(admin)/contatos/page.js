@@ -35,6 +35,9 @@ const DESKTOP_TABS = [
   { key: 'lista', label: 'Lista' },
   { key: 'novo', label: 'Novo / Editar' },
 ];
+const CONTACTS_SELECT_FIELDS =
+  'id, created_at, name, email, phone, tag, notes, contact_type, is_active';
+let contatosCache = [];
 
 export default function ContatosPage() {
   const [contatos, setContatos] = useState([]);
@@ -87,25 +90,28 @@ export default function ContatosPage() {
     }
   }, [mobileTab]);
 
-  const carregarContatos = useCallback(async () => {
+  const carregarContatos = useCallback(async ({ background = false } = {}) => {
     if (loadingRef.current) return;
 
     try {
       loadingRef.current = true;
       if (isMountedRef.current) {
-        setCarregando(true);
+        if (!background || contatosCache.length === 0) {
+          setCarregando(true);
+        }
         setErrorMessage('');
       }
 
       const { data, error } = await supabase
         .from('contacts')
-        .select('*')
+        .select(CONTACTS_SELECT_FIELDS)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
 
       if (isMountedRef.current) {
         setContatos(data || []);
+        contatosCache = data || [];
       }
     } catch (error) {
       console.error('Erro ao carregar contatos:', error);
@@ -122,8 +128,19 @@ export default function ContatosPage() {
   }, []);
 
   useEffect(() => {
+    if (contatosCache.length > 0) {
+      setContatos(contatosCache);
+      setCarregando(false);
+      carregarContatos({ background: true });
+      return;
+    }
+
     carregarContatos();
   }, [carregarContatos]);
+
+  useEffect(() => {
+    contatosCache = contatos;
+  }, [contatos]);
 
   function handleFormChange(field, value) {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -191,7 +208,7 @@ export default function ContatosPage() {
       }
 
       cancelarEdicao();
-      await carregarContatos();
+      await carregarContatos({ background: true });
       setDesktopTab('lista');
       setMobileTab('lista');
     } catch (error) {
@@ -219,7 +236,7 @@ export default function ContatosPage() {
 
       if (editandoId === id) cancelarEdicao();
 
-      await carregarContatos();
+      await carregarContatos({ background: true });
     } catch (error) {
       console.error('Erro ao excluir contato:', error);
       setErrorMessage(error?.message || 'Erro ao excluir contato');
@@ -314,7 +331,7 @@ export default function ContatosPage() {
       if (error) throw error;
 
       setSelectedClientIds(new Set());
-      await carregarContatos();
+      await carregarContatos({ background: true });
     } catch (error) {
       console.error('Erro ao excluir clientes em massa:', error);
       setErrorMessage(error?.message || 'Erro ao excluir clientes selecionados');

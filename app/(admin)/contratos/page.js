@@ -22,6 +22,7 @@ const PRECONTRACTS_SELECT_FIELDS =
   'id, created_at, event_id, client_name, event_type, event_date, location_name, client_phone, status, notes, public_token';
 const CONTRACTS_SELECT_FIELDS =
   'id, created_at, precontract_id, event_id, status, signed_at, pdf_url, doc_url, public_token';
+let contratosAdminCache = [];
 
 function formatDateBR(value) {
   if (!value) return '';
@@ -72,10 +73,60 @@ export default function ContratosPage() {
     { key: 'filtros', label: 'Filtros' },
   ];
 
+  const mergeContratos = (precontracts = [], contracts = []) => {
+    const contractsByPreId = new Map(
+      (contracts || []).map((item) => [String(item.precontract_id), item])
+    );
+
+    return (precontracts || []).map((pre) => {
+      const contract = contractsByPreId.get(String(pre.id));
+      const resolvedToken = getResolvedToken(pre, contract);
+      const resolvedStatus = mapStatus(contract?.status || pre?.status, !!contract);
+
+      const visualizado =
+        String(pre?.status || '').toLowerCase() !== 'link_generated' || !!contract;
+
+      const clienteNome = pre.client_name || 'Cliente a confirmar';
+
+      const eventoTitulo = pre.event_type
+        ? pre.client_name
+          ? `${pre.event_type} • ${pre.client_name}`
+          : `${pre.event_type} • Cliente a confirmar`
+        : 'Contrato';
+
+      return {
+        id: pre.id,
+        token: resolvedToken,
+        precontractId: pre.id,
+        contractId: contract?.id || null,
+        eventoId: contract?.event_id || pre?.event_id || null,
+        clienteNome,
+        eventoTitulo,
+        eventoTipo: pre.event_type || '',
+        dataEvento: pre.event_date || '',
+        localEvento: pre.location_name || '',
+        whatsapp: pre.client_phone || '',
+        statusRaw: contract?.status || pre?.status || '',
+        statusKey: resolvedStatus.key,
+        statusLabel: resolvedStatus.label,
+        statusTone: resolvedStatus.tone,
+        visualizado,
+        enviadoEm: pre.created_at || '',
+        assinadoEm: contract?.signed_at || '',
+        observacoes: pre.notes || '',
+        linkContrato: resolvedToken ? `/contrato/${resolvedToken}` : '',
+        pdfUrl: contract?.pdf_url || '',
+        docUrl: contract?.doc_url || '',
+      };
+    });
+  };
+
   useEffect(() => {
     async function carregar() {
       try {
-        setCarregando(true);
+        if (contratosAdminCache.length === 0) {
+          setCarregando(true);
+        }
         setErro('');
 
         const [{ data: precontracts, error: preErr }, { data: contracts, error: conErr }] =
@@ -98,63 +149,21 @@ supabase
         if (preErr) throw preErr;
         if (conErr) throw conErr;
 
-        const contractsByPreId = new Map(
-          (contracts || []).map((item) => [String(item.precontract_id), item])
-        );
-
-        const merged = (precontracts || []).map((pre) => {
-          const contract = contractsByPreId.get(String(pre.id));
-          const resolvedToken = getResolvedToken(pre, contract);
-          const resolvedStatus = mapStatus(
-            contract?.status || pre?.status,
-            !!contract
-          );
-
-          const visualizado =
-            String(pre?.status || '').toLowerCase() !== 'link_generated' ||
-            !!contract;
-
-          const clienteNome = pre.client_name || 'Cliente a confirmar';
-
-          const eventoTitulo = pre.event_type
-            ? pre.client_name
-              ? `${pre.event_type} • ${pre.client_name}`
-              : `${pre.event_type} • Cliente a confirmar`
-            : 'Contrato';
-
-          return {
-            id: pre.id,
-            token: resolvedToken,
-            precontractId: pre.id,
-            contractId: contract?.id || null,
-            eventoId: contract?.event_id || pre?.event_id || null,
-            clienteNome,
-            eventoTitulo,
-            eventoTipo: pre.event_type || '',
-            dataEvento: pre.event_date || '',
-            localEvento: pre.location_name || '',
-            whatsapp: pre.client_phone || '',
-            statusRaw: contract?.status || pre?.status || '',
-            statusKey: resolvedStatus.key,
-            statusLabel: resolvedStatus.label,
-            statusTone: resolvedStatus.tone,
-            visualizado,
-            enviadoEm: pre.created_at || '',
-            assinadoEm: contract?.signed_at || '',
-            observacoes: pre.notes || '',
-            linkContrato: resolvedToken ? `/contrato/${resolvedToken}` : '',
-            pdfUrl: contract?.pdf_url || '',
-            docUrl: contract?.doc_url || '',
-          };
-        });
+        const merged = mergeContratos(precontracts, contracts);
 
         setContratos(merged);
+        contratosAdminCache = merged;
       } catch (e) {
         console.error('Erro ao carregar contratos:', e);
         setErro('Não foi possível carregar os contratos.');
       } finally {
         setCarregando(false);
       }
+    }
+
+    if (contratosAdminCache.length > 0) {
+      setContratos(contratosAdminCache);
+      setCarregando(false);
     }
 
     carregar();
@@ -168,6 +177,10 @@ supabase
   }, [contratos, busca, statusFiltro]);
 
   const resumo = useMemo(() => getContratosSummary(contratos), [contratos]);
+
+  useEffect(() => {
+    contratosAdminCache = contratos;
+  }, [contratos]);
 
   function handleNovoContrato() {
     router.push('/pre-contratos');

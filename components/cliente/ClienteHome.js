@@ -14,6 +14,11 @@ import { getYoutubeVideoId } from '../../lib/youtube/getYoutubeVideoId';
 import { buildWhatsAppUrl } from '../../lib/whatsapp/support-config';
 
 const REPERTORIO_DRAFT_LOCAL_STORAGE_KEY = 'repertorio_draft_local';
+const SUGGESTION_SONGS_CACHE_TTL_MS = 5 * 60 * 1000;
+let suggestionSongsCache = {
+  loadedAt: 0,
+  songs: [],
+};
 const ANTESALA_DURATION_OPTIONS = [
   { minutes: 30, label: '30 min' },
   { minutes: 60, label: '1h' },
@@ -3361,12 +3366,29 @@ function SugestoesTab({
 
   useEffect(() => {
     let isMounted = true;
+    const hasWarmCache =
+      Array.isArray(suggestionSongsCache.songs) &&
+      suggestionSongsCache.songs.length > 0;
+    const cacheAgeMs = Date.now() - Number(suggestionSongsCache.loadedAt || 0);
+    const isCacheFresh = hasWarmCache && cacheAgeMs < SUGGESTION_SONGS_CACHE_TTL_MS;
+
+    if (hasWarmCache) {
+      setSongs(suggestionSongsCache.songs);
+      setIsLoadingSongs(false);
+    }
+
+    if (isCacheFresh && loadAttempt === 0) {
+      return () => {
+        isMounted = false;
+      };
+    }
 
     async function loadSuggestionSongs() {
       try {
-        setIsLoadingSongs(true);
+        if (!hasWarmCache) {
+          setIsLoadingSongs(true);
+        }
         setSongsError('');
-        setSongs([]);
         const response = await fetch('/api/suggestions/songs', { cache: 'no-store' });
         let payload = null;
         try {
@@ -3389,11 +3411,14 @@ function SugestoesTab({
 
         if (isMounted) {
           setSongs(catalogSongs);
+          suggestionSongsCache = {
+            loadedAt: Date.now(),
+            songs: catalogSongs,
+          };
         }
       } catch (error) {
         console.error('[SUGESTOES] não foi possível carregar catálogo editorial:', error);
         if (isMounted) {
-          setSongs([]);
           setSongsError(
             'Não conseguimos carregar as sugestões agora. Tente novamente em instantes.'
           );

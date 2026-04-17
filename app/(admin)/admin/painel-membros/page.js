@@ -5,6 +5,18 @@ import { supabase } from '@/lib/supabase';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import Link from 'next/link';
 
+const MEMBER_PROFILES_SELECT_FIELDS = 'id, name, email, role';
+const ESCALAS_RECENTES_SELECT_FIELDS = `
+  id,
+  created_at,
+  status,
+  confirmada,
+  confirmed,
+  evento:eventos(nome, data),
+  membro:profiles(name, email)
+`;
+const ESCALAS_RECENTES_FALLBACK_SELECT_FIELDS = 'id, created_at, status, confirmada, confirmed';
+
 function UserIcon({ className }) {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
@@ -51,7 +63,7 @@ function PainelMembrosContent() {
     try {
       const { data: membrosData, error: membrosError } = await supabase
         .from('profiles')
-        .select('*')
+        .select(MEMBER_PROFILES_SELECT_FIELDS)
         .eq('role', 'member')
         .order('name');
 
@@ -61,11 +73,7 @@ function PainelMembrosContent() {
 
       const { data: escalasData, error: escalasError } = await supabase
         .from('escalas')
-        .select(`
-          *,
-          evento:eventos(nome, data),
-          membro:profiles(name, email)
-        `)
+        .select(ESCALAS_RECENTES_SELECT_FIELDS)
         .order('created_at', { ascending: false })
         .limit(10);
 
@@ -73,7 +81,7 @@ function PainelMembrosContent() {
         console.error('Erro ao buscar escalas com JOIN:', escalasError);
         const { data: escalasSimples } = await supabase
           .from('escalas')
-          .select('*')
+          .select(ESCALAS_RECENTES_FALLBACK_SELECT_FIELDS)
           .order('created_at', { ascending: false })
           .limit(10);
 

@@ -1,5 +1,6 @@
 'use client';
 
+import { memo, useMemo } from 'react';
 import Link from 'next/link';
 import AdminSectionTitle from '../admin/AdminSectionTitle';
 import { normalizeTimeStrict } from '@/lib/time/normalize-time';
@@ -140,26 +141,33 @@ function EventMetaPill({ children, tone = 'default' }) {
   );
 }
 
-export default function DashboardUpcomingEvents({
+function DashboardUpcomingEvents({
   events = [],
   contracts = [],
   precontracts = [],
 }) {
-  const contractsByEventId = buildContractsByEventId(precontracts, contracts);
+  const contractsByEventId = useMemo(
+    () => buildContractsByEventId(precontracts, contracts),
+    [precontracts, contracts]
+  );
 
-  const upcomingEvents = [...events]
-    .filter((ev) => isUpcomingEvent(ev.event_date))
-    .sort((a, b) => {
-      const aDate = a.event_date
-        ? new Date(`${a.event_date}T${normalizeTimeStrict(a.event_time) || '00:00'}`).getTime()
-        : 0;
-      const bDate = b.event_date
-        ? new Date(`${b.event_date}T${normalizeTimeStrict(b.event_time) || '00:00'}`).getTime()
-        : 0;
+  const upcomingEvents = useMemo(
+    () =>
+      [...events]
+        .filter((ev) => isUpcomingEvent(ev.event_date))
+        .sort((a, b) => {
+          const aDate = a.event_date
+            ? new Date(`${a.event_date}T${normalizeTimeStrict(a.event_time) || '00:00'}`).getTime()
+            : 0;
+          const bDate = b.event_date
+            ? new Date(`${b.event_date}T${normalizeTimeStrict(b.event_time) || '00:00'}`).getTime()
+            : 0;
 
-      return aDate - bDate;
-    })
-    .slice(0, 6);
+          return aDate - bDate;
+        })
+        .slice(0, 6),
+    [events]
+  );
 
   return (
     <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-5 shadow-[0_12px_32px_rgba(17,24,39,0.05)] md:p-6">
@@ -346,3 +354,5 @@ export default function DashboardUpcomingEvents({
     </section>
   );
 }
+
+export default memo(DashboardUpcomingEvents);

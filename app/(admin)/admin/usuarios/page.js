@@ -14,6 +14,8 @@ const AREAS_SISTEMA = [
   { key: 'repertorios', label: 'Repertórios' },
   { key: 'automacoes', label: 'Automações' },
 ];
+const USERS_LIST_LIMIT = 200;
+const USERS_SELECT_FIELDS = 'id, created_at, name, email, role, permissions';
 
 function PencilIcon({ className }) {
   return (
@@ -77,8 +79,9 @@ function GestaoUsuariosContent() {
     try {
       const { data, error: err } = await supabase
         .from('profiles')
-        .select('*')
-        .order('created_at', { ascending: false });
+        .select(USERS_SELECT_FIELDS)
+        .order('created_at', { ascending: false })
+        .limit(USERS_LIST_LIMIT);
 
       if (err) throw err;
       setUsuarios(data || []);

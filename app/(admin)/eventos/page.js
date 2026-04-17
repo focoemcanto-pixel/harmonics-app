@@ -315,7 +315,8 @@ export default function EventosPage() {
   async function carregarContatos() {
     const { data, error } = await supabase
       .from('contacts')
-      .select('id, name, email, phone');
+      .select('id, name, email, phone')
+      .order('name', { ascending: true });
 
     if (!error) setContatos(data || []);
   }
@@ -324,16 +325,19 @@ export default function EventosPage() {
     async function carregar() {
       setCarregando(true);
       try {
-        await Promise.all([
+        await Promise.allSettled([
           carregarEventos(),
-          carregarPricing(),
-          carregarContatos(),
           carregarPrecontracts(),
           carregarContracts(),
         ]);
+        setCarregando(false);
+
+        Promise.allSettled([
+          carregarPricing(),
+          carregarContatos(),
+        ]);
       } catch (error) {
         console.error('[EVENTOS] Falha inesperada ao carregar dados iniciais:', error);
-      } finally {
         setCarregando(false);
       }
     }

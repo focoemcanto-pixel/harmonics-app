@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import AdminSummaryCard from '@/components/admin/AdminSummaryCard';
 import AutomationBackLink from '@/components/automacoes/AutomationBackLink';
+import { cachedPromise, invalidateCache, readCachedValue } from '@/lib/client/light-cache';
 
 const VARIAVEIS = [
   '{nome_empresa}',
@@ -34,6 +35,7 @@ const FORM_INICIAL = {
   body: '',
   is_active: true,
 };
+const TEMPLATES_CACHE_KEY = 'automation:templates';
 
 const MOCK_VARS = {
   '{cliente_nome}': 'Ana',
@@ -112,8 +114,8 @@ function RecipientBadge({ recipientType }) {
 }
 
 export default function TemplatesPageClient() {
-  const [templates, setTemplates] = useState([]);
-  const [carregando, setCarregando] = useState(true);
+  const [templates, setTemplates] = useState(() => readCachedValue(TEMPLATES_CACHE_KEY)?.templates || []);
+  const [carregando, setCarregando] = useState(() => !readCachedValue(TEMPLATES_CACHE_KEY));
   const [erro, setErro] = useState(null);
   const [editandoId, setEditandoId] = useState(null);
   const [modalAberto, setModalAberto] = useState(false);
@@ -125,17 +127,24 @@ export default function TemplatesPageClient() {
   const [previewVars, setPreviewVars] = useState(MOCK_VARS);
   const [previewRendered, setPreviewRendered] = useState('');
 
-  const carregarTemplates = useCallback(async () => {
+  const carregarTemplates = useCallback(async ({ force = false } = {}) => {
     try {
-      setCarregando(true);
-      setErro(null);
-
-      const response = await fetch('/api/automation/templates');
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Erro ao carregar templates');
+      if (!readCachedValue(TEMPLATES_CACHE_KEY) || force) {
+        setCarregando(true);
       }
+      setErro(null);
+      const data = await cachedPromise(
+        TEMPLATES_CACHE_KEY,
+        async () => {
+          const response = await fetch('/api/automation/templates');
+          const payload = await response.json();
+          if (!response.ok) {
+            throw new Error(payload.error || 'Erro ao carregar templates');
+          }
+          return payload;
+        },
+        { ttlMs: 60_000, force }
+      );
 
       setTemplates(data.templates || []);
     } catch (error) {
@@ -202,7 +211,8 @@ export default function TemplatesPageClient() {
         throw new Error(data.error || 'Erro ao salvar template');
       }
 
-      await carregarTemplates();
+      invalidateCache(TEMPLATES_CACHE_KEY);
+      await carregarTemplates({ force: true });
       fecharModal();
     } catch (error) {
       console.error('Erro ao salvar template:', error);
@@ -224,7 +234,8 @@ export default function TemplatesPageClient() {
         throw new Error('Erro ao atualizar status');
       }
 
-      await carregarTemplates();
+      invalidateCache(TEMPLATES_CACHE_KEY);
+      await carregarTemplates({ force: true });
     } catch (error) {
       console.error('Erro ao atualizar status:', error);
       alert(error.message);

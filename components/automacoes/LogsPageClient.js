@@ -4,8 +4,11 @@ import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import AdminSummaryCard from '@/components/admin/AdminSummaryCard';
 import AutomationBackLink from '@/components/automacoes/AutomationBackLink';
+import { cachedPromise, invalidateCache, readCachedValue } from '@/lib/client/light-cache';
 
 const MESSAGE_PREVIEW_LENGTH = 120;
+const PAGE_SIZE = 50;
+const LOGS_CACHE_TTL_MS = 30_000;
 const VALID_STATUS_FILTERS = new Set(['sent', 'failed', 'skipped']);
 
 function normalizeStatusParam(rawStatus) {
@@ -452,6 +455,7 @@ export default function LogsPageClient() {
 
   const [logs, setLogs] = useState([]);
   const [carregando, setCarregando] = useState(true);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [erro, setErro] = useState(null);
   const [logSelecionado, setLogSelecionado] = useState(null);
   const [selectedIds, setSelectedIds] = useState([]);
@@ -462,31 +466,47 @@ export default function LogsPageClient() {
   const [filtroStatus, setFiltroStatus] = useState(() => normalizeStatusParam(searchParams.get('status')));
   const [filtroRecipient, setFiltroRecipient] = useState(() => searchParams.get('recipient') || '');
   const [filtroSource, setFiltroSource] = useState(() => searchParams.get('source') || '');
+  const [debouncedRecipient, setDebouncedRecipient] = useState(() => searchParams.get('recipient') || '');
 
   // Sincronizar filtros quando os query params mudarem (ex: navegação via browser)
   useEffect(() => {
     setFiltroStatus(normalizeStatusParam(searchParams.get('status')));
     setFiltroRecipient(searchParams.get('recipient') || '');
     setFiltroSource(searchParams.get('source') || '');
+    setDebouncedRecipient(searchParams.get('recipient') || '');
   }, [searchParams]);
 
-  const carregarLogs = useCallback(async () => {
-    try {
-      setCarregando(true);
-      setErro(null);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedRecipient(filtroRecipient), 350);
+    return () => clearTimeout(timer);
+  }, [filtroRecipient]);
 
+  const carregarLogs = useCallback(async ({ force = false } = {}) => {
+    try {
       const params = new URLSearchParams();
       if (filtroStatus) params.set('status', filtroStatus);
-      if (filtroRecipient) params.set('recipient', filtroRecipient);
+      if (debouncedRecipient) params.set('recipient', debouncedRecipient);
       if (filtroSource) params.set('source', filtroSource);
+      const query = params.toString();
+      const cacheKey = `automation:logs:${query || 'all'}`;
 
-      const response = await fetch(`/api/automation/logs?${params.toString()}`);
-      const data = await response.json();
+      const cached = readCachedValue(cacheKey);
+      setCarregando(!cached);
+      setErro(null);
+      setVisibleCount(PAGE_SIZE);
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Erro ao carregar logs');
-      }
-
+      const data = await cachedPromise(
+        cacheKey,
+        async () => {
+          const response = await fetch(`/api/automation/logs?${query}`);
+          const payload = await response.json();
+          if (!response.ok) {
+            throw new Error(payload.error || 'Erro ao carregar logs');
+          }
+          return payload;
+        },
+        { ttlMs: LOGS_CACHE_TTL_MS, force }
+      );
       setLogs(data.logs || []);
     } catch (error) {
       console.error('Erro ao carregar logs:', error);
@@ -494,7 +514,7 @@ export default function LogsPageClient() {
     } finally {
       setCarregando(false);
     }
-  }, [filtroStatus, filtroRecipient, filtroSource]);
+  }, [filtroStatus, debouncedRecipient, filtroSource]);
 
   useEffect(() => {
     carregarLogs();
@@ -558,7 +578,8 @@ export default function LogsPageClient() {
       }
 
       setSelectedIds([]);
-      carregarLogs();
+      invalidateCache('automation:logs');
+      carregarLogs({ force: true });
     } catch (error) {
       console.error('Erro ao processar reenvios em lote:', error);
       setBulkToast({ message: 'Erro ao processar reenvios em lote', type: 'error' });
@@ -667,10 +688,15 @@ export default function LogsPageClient() {
 
       {/* Loading */}
       {carregando && (
-        <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-12 text-center shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
-          <div className="mx-auto flex max-w-xs flex-col items-center gap-3">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-violet-200 border-t-violet-600" />
-            <p className="text-[14px] font-semibold text-[#64748b]">Carregando logs...</p>
+        <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-6 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
+          <div className="space-y-3 animate-pulse">
+            {Array.from({ length: 5 }).map((_, index) => (
+              <div key={index} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="h-3 w-20 rounded bg-slate-200" />
+                <div className="mt-3 h-4 w-48 rounded bg-slate-200" />
+                <div className="mt-2 h-3 w-full rounded bg-slate-200" />
+              </div>
+            ))}
           </div>
         </section>
       )}
@@ -681,7 +707,7 @@ export default function LogsPageClient() {
           <div className="mb-2 text-[32px]">⚠️</div>
           <p className="text-[15px] font-bold text-red-700">{erro}</p>
           <button
-            onClick={carregarLogs}
+            onClick={() => carregarLogs({ force: true })}
             className="mt-4 rounded-full border border-red-300 px-5 py-2 text-[13px] font-bold text-red-700 transition hover:bg-red-100"
           >
             Tentar novamente
@@ -778,17 +804,31 @@ export default function LogsPageClient() {
                 : 0,
             }));
             logsWithSeverity.sort((a, b) => b.severityRank - a.severityRank);
-            return logsWithSeverity.map(({ log }) => (
+            const visibleLogs = logsWithSeverity.slice(0, visibleCount);
+            return visibleLogs.map(({ log }) => (
               <LogCard
                 key={log.id}
                 log={log}
                 onVerDetalhes={setLogSelecionado}
-                onRetrySuccess={carregarLogs}
+                onRetrySuccess={() => {
+                  invalidateCache('automation:logs');
+                  carregarLogs({ force: true });
+                }}
                 isSelected={selectedIds.includes(log.id)}
                 onToggle={handleToggle}
               />
             ));
           })()}
+          {logs.length > visibleCount && (
+            <div className="flex justify-center pt-2">
+              <button
+                onClick={() => setVisibleCount((prev) => prev + PAGE_SIZE)}
+                className="rounded-full border border-slate-300 px-4 py-2 text-[13px] font-bold text-slate-700 hover:bg-slate-50"
+              >
+                Carregar mais ({Math.min(PAGE_SIZE, logs.length - visibleCount)} de {logs.length - visibleCount})
+              </button>
+            </div>
+          )}
         </section>
       )}
 
@@ -799,7 +839,8 @@ export default function LogsPageClient() {
           onClose={() => setLogSelecionado(null)}
           onRetrySuccess={() => {
             setLogSelecionado(null);
-            carregarLogs();
+            invalidateCache('automation:logs');
+            carregarLogs({ force: true });
           }}
         />
       )}

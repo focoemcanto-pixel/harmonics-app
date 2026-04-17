@@ -2,6 +2,10 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import { cachedPromise, invalidateCache, readCachedValue } from '@/lib/client/light-cache';
+
+const DASHBOARD_CACHE_KEY = 'automation:dashboard';
+const DASHBOARD_TTL_MS = 45_000;
 
 function getHealthStatus(systemState, summary, alerts) {
   const failedToday = summary.failed_today ?? 0;
@@ -200,27 +204,40 @@ function SetupCtas({ onboarding }) {
 }
 
 export default function AutomacoesPageClient() {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState(() => readCachedValue(DASHBOARD_CACHE_KEY) ?? null);
+  const [loading, setLoading] = useState(() => !readCachedValue(DASHBOARD_CACHE_KEY));
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [loadingId, setLoadingId] = useState(null);
 
-  const fetchDashboard = useCallback(async () => {
-    setLoading(true);
+  const fetchDashboard = useCallback(async ({ force = false, silent = false } = {}) => {
+    if (silent) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
     setError(null);
     try {
-      const res = await fetch('/api/automation/dashboard');
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Erro ao carregar dashboard');
+      const json = await cachedPromise(
+        DASHBOARD_CACHE_KEY,
+        async () => {
+          const res = await fetch('/api/automation/dashboard');
+          const payload = await res.json();
+          if (!res.ok) throw new Error(payload.error || 'Erro ao carregar dashboard');
+          return payload;
+        },
+        { ttlMs: DASHBOARD_TTL_MS, force }
+      );
       setData(json);
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
-  useEffect(() => { fetchDashboard(); }, [fetchDashboard]);
+  useEffect(() => { fetchDashboard({ silent: Boolean(readCachedValue(DASHBOARD_CACHE_KEY)) }); }, [fetchDashboard]);
 
   async function handleRetry(logId) {
     if (loadingId) return;
@@ -233,7 +250,8 @@ export default function AutomacoesPageClient() {
       });
       const payload = await res.json();
       if (!res.ok) throw new Error(payload?.error || 'Erro ao tentar novamente');
-      await fetchDashboard();
+      invalidateCache(DASHBOARD_CACHE_KEY);
+      await fetchDashboard({ force: true, silent: true });
     } finally {
       setLoadingId(null);
     }
@@ -253,8 +271,15 @@ export default function AutomacoesPageClient() {
             <div className="text-[12px] font-black uppercase tracking-[0.14em] text-violet-600">Automação</div>
             <h1 className="mt-1 text-[28px] font-black tracking-[-0.03em] text-[#0f172a]">Central de Automação</h1>
           </div>
-          <button onClick={fetchDashboard} disabled={loading} className="rounded-[14px] border border-[#dbe3ef] px-4 py-2 text-[13px] font-semibold">
-            {loading ? 'Atualizando…' : '↻ Atualizar'}
+          <button
+            onClick={() => {
+              invalidateCache(DASHBOARD_CACHE_KEY);
+              fetchDashboard({ force: true, silent: Boolean(data) });
+            }}
+            disabled={loading || refreshing}
+            className="rounded-[14px] border border-[#dbe3ef] px-4 py-2 text-[13px] font-semibold"
+          >
+            {loading || refreshing ? 'Atualizando…' : '↻ Atualizar'}
           </button>
         </div>
       </section>
@@ -263,14 +288,25 @@ export default function AutomacoesPageClient() {
       {!loading && !error && health && <HealthIndicator health={health} />}
       {!loading && !error && <SetupCtas onboarding={data?.onboarding} />}
 
-      <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
-        <SummaryCard label="Regras ativas" value={summary.active_rules} color="violet" />
-        <SummaryCard label="Templates ativos" value={summary.active_templates} color="violet" />
-        <SummaryCard label="Canais ativos" value={summary.active_channels} color="violet" />
-        <SummaryCard label="Envios hoje" value={summary.sent_today} color="green" />
-        <SummaryCard label="Falhas hoje" value={summary.failed_today} color={summary.failed_today > 0 ? 'red' : 'slate'} />
-        <SummaryCard label="Skipped hoje" value={summary.skipped_today} color={summary.skipped_today > 0 ? 'amber' : 'slate'} />
-      </section>
+      {loading && !data ? (
+        <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+          {Array.from({ length: 6 }).map((_, index) => (
+            <div key={index} className="rounded-[20px] border border-slate-200 bg-slate-50 p-5 animate-pulse">
+              <div className="h-3 w-24 rounded bg-slate-200" />
+              <div className="mt-4 h-8 w-14 rounded bg-slate-200" />
+            </div>
+          ))}
+        </section>
+      ) : (
+        <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+          <SummaryCard label="Regras ativas" value={summary.active_rules} color="violet" />
+          <SummaryCard label="Templates ativos" value={summary.active_templates} color="violet" />
+          <SummaryCard label="Canais ativos" value={summary.active_channels} color="violet" />
+          <SummaryCard label="Envios hoje" value={summary.sent_today} color="green" />
+          <SummaryCard label="Falhas hoje" value={summary.failed_today} color={summary.failed_today > 0 ? 'red' : 'slate'} />
+          <SummaryCard label="Skipped hoje" value={summary.skipped_today} color={summary.skipped_today > 0 ? 'amber' : 'slate'} />
+        </section>
+      )}
 
       {!loading && !error && <CronStatusCard cronStatus={data?.cron_status} />}
 

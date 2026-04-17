@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import AutomationBackLink from '@/components/automacoes/AutomationBackLink';
+import { cachedPromise, invalidateCache, readCachedValue } from '@/lib/client/light-cache';
 
 const EVENT_TYPES = [
   { value: 'invite_member', label: 'Convite de escala (membro)' },
@@ -30,6 +31,9 @@ const RECIPIENT_TYPES = [
   { value: 'admin', label: 'Admin' },
   { value: 'financial', label: 'Financeiro' },
 ];
+const RULES_CACHE_KEY = 'automation:rules';
+const TEMPLATES_CACHE_KEY = 'automation:templates';
+const CHANNELS_CACHE_KEY = 'automation:channels';
 
 const QUICK_SECTIONS = [
   {
@@ -403,10 +407,12 @@ function ToggleField({ label, value, onChange, tone = 'violet' }) {
 }
 
 export default function RegrasPageClient() {
-  const [regras, setRegras] = useState([]);
-  const [templates, setTemplates] = useState([]);
-  const [canais, setCanais] = useState([]);
-  const [carregando, setCarregando] = useState(true);
+  const [regras, setRegras] = useState(() => readCachedValue(RULES_CACHE_KEY)?.rules || []);
+  const [templates, setTemplates] = useState(() => readCachedValue(TEMPLATES_CACHE_KEY)?.templates || []);
+  const [canais, setCanais] = useState(() => readCachedValue(CHANNELS_CACHE_KEY)?.channels || []);
+  const [carregando, setCarregando] = useState(
+    () => !readCachedValue(RULES_CACHE_KEY) && !readCachedValue(TEMPLATES_CACHE_KEY) && !readCachedValue(CHANNELS_CACHE_KEY)
+  );
   const [erro, setErro] = useState(null);
   const [visao, setVisao] = useState('quick');
 
@@ -421,24 +427,50 @@ export default function RegrasPageClient() {
   const [manualForm, setManualForm] = useState(MANUAL_FORM);
   const [enviandoManual, setEnviandoManual] = useState(false);
 
-  const carregarDados = useCallback(async () => {
+  const carregarDados = useCallback(async ({ force = false } = {}) => {
     try {
-      setCarregando(true);
+      if (
+        !readCachedValue(RULES_CACHE_KEY)
+        || !readCachedValue(TEMPLATES_CACHE_KEY)
+        || !readCachedValue(CHANNELS_CACHE_KEY)
+        || force
+      ) {
+        setCarregando(true);
+      }
       setErro(null);
 
-      const [resRegras, resTemplates, resCanais] = await Promise.all([
-        fetch('/api/automation/rules'),
-        fetch('/api/automation/templates'),
-        fetch('/api/automation/channels'),
-      ]);
-
       const [dataRegras, dataTemplates, dataCanais] = await Promise.all([
-        resRegras.json(),
-        resTemplates.json(),
-        resCanais.json(),
+        cachedPromise(
+          RULES_CACHE_KEY,
+          async () => {
+            const res = await fetch('/api/automation/rules');
+            const payload = await res.json();
+            if (!res.ok) throw new Error(payload.error || 'Erro ao carregar regras');
+            return payload;
+          },
+          { ttlMs: 45_000, force }
+        ),
+        cachedPromise(
+          TEMPLATES_CACHE_KEY,
+          async () => {
+            const res = await fetch('/api/automation/templates');
+            const payload = await res.json();
+            if (!res.ok) throw new Error(payload.error || 'Erro ao carregar templates');
+            return payload;
+          },
+          { ttlMs: 60_000, force }
+        ),
+        cachedPromise(
+          CHANNELS_CACHE_KEY,
+          async () => {
+            const res = await fetch('/api/automation/channels');
+            const payload = await res.json();
+            if (!res.ok) throw new Error(payload.error || 'Erro ao carregar canais');
+            return payload;
+          },
+          { ttlMs: 60_000, force }
+        ),
       ]);
-
-      if (!resRegras.ok) throw new Error(dataRegras.error || 'Erro ao carregar regras');
 
       setRegras(dataRegras.rules || []);
       setTemplates(dataTemplates.templates || []);
@@ -588,7 +620,8 @@ export default function RegrasPageClient() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Erro ao salvar regra rápida');
 
-      await carregarDados();
+      invalidateCache(RULES_CACHE_KEY);
+      await carregarDados({ force: true });
       fecharModal();
     } catch (error) {
       console.error('Erro ao salvar regra rápida:', error);
@@ -632,7 +665,8 @@ export default function RegrasPageClient() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Erro ao salvar regra avançada');
 
-      await carregarDados();
+      invalidateCache(RULES_CACHE_KEY);
+      await carregarDados({ force: true });
       fecharModal();
     } catch (error) {
       console.error('Erro ao salvar regra avançada:', error);
@@ -658,7 +692,8 @@ export default function RegrasPageClient() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Erro ao desativar regra');
 
-      await carregarDados();
+      invalidateCache(RULES_CACHE_KEY);
+      await carregarDados({ force: true });
       fecharModal();
     } catch (error) {
       alert(error.message);
@@ -680,7 +715,8 @@ export default function RegrasPageClient() {
         throw new Error(data.error || 'Erro ao atualizar status');
       }
 
-      await carregarDados();
+      invalidateCache(RULES_CACHE_KEY);
+      await carregarDados({ force: true });
     } catch (error) {
       console.error('Erro ao alternar status:', error);
       alert(error.message);

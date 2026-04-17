@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import AdminSummaryCard from '@/components/admin/AdminSummaryCard';
 import AutomationBackLink from '@/components/automacoes/AutomationBackLink';
+import { cachedPromise, invalidateCache, readCachedValue } from '@/lib/client/light-cache';
 
 const FORM_INICIAL = {
   name: '',
@@ -15,6 +16,7 @@ const FORM_INICIAL = {
 };
 
 const PROVIDERS = [{ value: 'wasender', label: 'WaSender' }];
+const CHANNELS_CACHE_KEY = 'automation:channels';
 
 function formatarData(isoString) {
   if (!isoString) return '-';
@@ -44,8 +46,8 @@ function validateForm(form, isEdit = false) {
 }
 
 export default function CanaisPageClient() {
-  const [canais, setCanais] = useState([]);
-  const [carregando, setCarregando] = useState(true);
+  const [canais, setCanais] = useState(() => readCachedValue(CHANNELS_CACHE_KEY)?.channels || []);
+  const [carregando, setCarregando] = useState(() => !readCachedValue(CHANNELS_CACHE_KEY));
   const [erro, setErro] = useState(null);
   const [editandoId, setEditandoId] = useState(null);
   const [modalAberto, setModalAberto] = useState(false);
@@ -57,13 +59,22 @@ export default function CanaisPageClient() {
   const [enviandoTeste, setEnviandoTeste] = useState(false);
   const [toastTest, setToastTest] = useState(null);
 
-  const carregarCanais = useCallback(async () => {
+  const carregarCanais = useCallback(async ({ force = false } = {}) => {
     try {
-      setCarregando(true);
+      if (!readCachedValue(CHANNELS_CACHE_KEY) || force) {
+        setCarregando(true);
+      }
       setErro(null);
-      const response = await fetch('/api/automation/channels');
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Erro ao carregar canais');
+      const data = await cachedPromise(
+        CHANNELS_CACHE_KEY,
+        async () => {
+          const response = await fetch('/api/automation/channels');
+          const payload = await response.json();
+          if (!response.ok) throw new Error(payload.error || 'Erro ao carregar canais');
+          return payload;
+        },
+        { ttlMs: 60_000, force }
+      );
       setCanais(data.channels || []);
     } catch (error) {
       setErro(error.message);
@@ -129,7 +140,8 @@ export default function CanaisPageClient() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Erro ao salvar canal');
 
-      await carregarCanais();
+      invalidateCache(CHANNELS_CACHE_KEY);
+      await carregarCanais({ force: true });
       fecharModal();
     } catch (error) {
       alert(error.message);
@@ -173,7 +185,8 @@ export default function CanaisPageClient() {
       alert(data.error || 'Erro ao atualizar status');
       return;
     }
-    await carregarCanais();
+    invalidateCache(CHANNELS_CACHE_KEY);
+    await carregarCanais({ force: true });
   }
 
   async function definirPadrao(canalId) {
@@ -187,7 +200,8 @@ export default function CanaisPageClient() {
       alert(data.error || 'Erro ao definir padrão');
       return;
     }
-    await carregarCanais();
+    invalidateCache(CHANNELS_CACHE_KEY);
+    await carregarCanais({ force: true });
   }
 
   async function excluirCanal(canalId) {
@@ -200,7 +214,8 @@ export default function CanaisPageClient() {
       alert(data.error || 'Erro ao excluir canal');
       return;
     }
-    await carregarCanais();
+    invalidateCache(CHANNELS_CACHE_KEY);
+    await carregarCanais({ force: true });
   }
 
   const total = canais.length;

@@ -82,7 +82,7 @@ const DESKTOP_TABS = [
 ];
 const ADMIN_LIST_LIMIT = 100;
 const EVENTS_SELECT_FIELDS =
-  'id, created_at, client_name, client_phone, event_type, event_date, event_time, duration_min, location_name, location_address, formation, instruments, has_sound, reception_hours, has_transport, agreed_amount, paid_amount, open_amount, payment_status, status';
+  'id, created_at, client_name, event_type, event_date, event_time, duration_min, location_name, formation, instruments, has_sound, reception_hours, whatsapp_name, whatsapp_phone, agreed_amount, paid_amount, open_amount, payment_status, status';
 const PRECONTRACTS_SELECT_FIELDS =
   'id, created_at, event_id, client_name, event_date, event_time, status, public_token';
 const CONTRACTS_SELECT_FIELDS =
@@ -96,6 +96,16 @@ let eventosAdminCache = {
   pricingId: null,
   pricing: null,
 };
+
+function logLoadError(scope, error) {
+  console.error(`Erro ao carregar ${scope}:`, {
+    message: error?.message,
+    details: error?.details,
+    hint: error?.hint,
+    code: error?.code,
+    full: error,
+  });
+}
 
 function getContractStatus(ev, contractsByEventId) {
   const contract = contractsByEventId.get(String(ev.id));
@@ -234,7 +244,7 @@ export default function EventosPage() {
       setEventos(sanitized);
       eventosAdminCache.eventos = sanitized;
     } catch (error) {
-      console.error('Erro ao carregar eventos:', error);
+      logLoadError('eventos', error);
       alert('Erro ao carregar eventos. Tente novamente mais tarde.');
     }
   }
@@ -320,19 +330,23 @@ export default function EventosPage() {
         eventosAdminCache.pricing = data;
       }
     } catch (error) {
-      console.error('Erro ao carregar pricing:', error);
+      logLoadError('pricing', error);
     }
   }
 
   async function carregarContatos() {
-    const { data, error } = await supabase
-      .from('contacts')
-      .select('id, name, email, phone')
-      .order('name', { ascending: true });
+    try {
+      const { data, error } = await supabase
+        .from('contacts')
+        .select('id, name, email, phone')
+        .order('name', { ascending: true });
 
-    if (!error) {
+      if (error) throw error;
+
       setContatos(data || []);
       eventosAdminCache.contatos = data || [];
+    } catch (error) {
+      logLoadError('contatos', error);
     }
   }
 
@@ -403,7 +417,7 @@ export default function EventosPage() {
       setPrecontracts(sanitized);
       eventosAdminCache.precontracts = sanitized;
     } catch (error) {
-      console.error('Erro ao carregar precontracts:', error);
+      logLoadError('precontracts', error);
     }
   }
 
@@ -420,7 +434,7 @@ export default function EventosPage() {
       setContracts(sanitized);
       eventosAdminCache.contracts = sanitized;
     } catch (error) {
-      console.error('Erro ao carregar contracts:', error);
+      logLoadError('contracts', error);
     }
   }
 

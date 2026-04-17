@@ -31,7 +31,6 @@ const AUTOMATION_LOGS_FALLBACK_SELECT_FIELDS = [
   'rule_id',
   'template_id',
   'error_message',
-  'metadata',
   'sent_at',
   'created_at',
 ].join(', ');

@@ -10,7 +10,6 @@ const CLIENT_EVENT_SELECT_FIELDS = [
   'observations',
   'has_ante_room',
   'has_antesala',
-  'before_room_minutes',
   'antesala_requested_by_client',
   'antesala_request_status',
   'antesala_price_increment',
@@ -705,7 +704,7 @@ export default async function ClienteRepertorioPage({ params }) {
           false
       ),
       antesalaDurationMinutes:
-        Number(event?.antesala_duration_minutes ?? event?.before_room_minutes ?? 0) || null,
+        Number(event?.antesala_duration_minutes ?? 0) || null,
       antesalaRequestedByClient: Boolean(event?.antesala_requested_by_client),
       antesalaRequestStatus: String(event?.antesala_request_status || ''),
       antesalaPriceIncrement: Number(event?.antesala_price_increment || 0),
@@ -725,14 +724,14 @@ export default async function ClienteRepertorioPage({ params }) {
           artistas: initialLists.antessala?.artistas || '',
           observacao: config?.ante_room_notes || initialLists.antessala?.observacao || '',
           durationMinutes:
-            Number(event?.antesala_duration_minutes ?? event?.before_room_minutes ?? 30) || 30,
+            Number(event?.antesala_duration_minutes ?? 30) || 30,
           styleTags: initialLists.antessala?.styleTags || [],
           preferredArtistsEnabled: Boolean(initialLists.antessala?.preferredArtistsEnabled),
           referenceEnabled: Boolean(initialLists.antessala?.referenceEnabled),
           references: initialLists.antessala?.references || [],
           requestQuoteOpened: false,
           quoteMinutes:
-            Number(event?.antesala_duration_minutes ?? event?.before_room_minutes ?? 0) || null,
+            Number(event?.antesala_duration_minutes ?? 0) || null,
           quotePriceIncrement: Number(event?.antesala_price_increment || 0) || 0,
           requestedByClient: Boolean(event?.antesala_requested_by_client),
         },

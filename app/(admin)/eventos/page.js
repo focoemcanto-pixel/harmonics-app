@@ -82,7 +82,7 @@ const DESKTOP_TABS = [
 ];
 const ADMIN_LIST_LIMIT = 100;
 const EVENTS_SELECT_FIELDS =
-  'id, created_at, client_name, client_email, client_phone, event_type, event_date, event_time, duration_min, location_name, location_address, formation, instruments, has_sound, reception_hours, has_transport, agreed_amount, paid_amount, open_amount, payment_status, status';
+  'id, created_at, client_name, client_phone, event_type, event_date, event_time, duration_min, location_name, location_address, formation, instruments, has_sound, reception_hours, has_transport, agreed_amount, paid_amount, open_amount, payment_status, status';
 const PRECONTRACTS_SELECT_FIELDS =
   'id, created_at, event_id, client_name, event_date, event_time, status, public_token';
 const CONTRACTS_SELECT_FIELDS =

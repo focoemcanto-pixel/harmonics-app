@@ -19,7 +19,7 @@ const DASHBOARD_EVENTS_SELECT =
 const DASHBOARD_PRECONTRACTS_SELECT =
   'id, created_at, event_id, event_date, status, client_name, notes, public_token';
 const DASHBOARD_CONTRACTS_SELECT =
-  'id, created_at, event_id, precontract_id, event_date, status, client_name, notes, public_token, raw_payload';
+  'id, created_at, event_id, precontract_id, event_date, status, client_name, public_token, raw_payload';
 const DASHBOARD_EVENT_MUSICIANS_SELECT = 'id, created_at, status';
 const DASHBOARD_REPERTOIRE_CONFIG_SELECT = 'id, created_at, event_id, status, is_locked, submitted_at';
 const DASHBOARD_ADJUSTMENT_REQUESTS_SELECT = 'id, created_at, precontract_id, status';

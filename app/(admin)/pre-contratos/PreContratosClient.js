@@ -39,6 +39,7 @@ const STATUS_OPTIONS = [
 ];
 const ADJUSTMENT_REQUEST_MARKER = '--- SOLICITAÇÃO DE AJUSTE DO CLIENTE ---';
 const IS_DEV = process.env.NODE_ENV !== 'production';
+const ADMIN_LIST_LIMIT = 120;
 const PRECONTRACT_SELECT_FIELDS = [
   'id',
   'created_at',
@@ -518,22 +519,33 @@ export default function PreContratosClient() {
 
   const [form, setForm] = useState(getInitialForm());
 
-  async function carregarPreContratos() {
+async function carregarPreContratos() {
     const { data, error } = await supabase
       .from('precontracts')
       .select(PRECONTRACT_SELECT_FIELDS)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(ADMIN_LIST_LIMIT);
 
     if (error) throw error;
-    setItems(
-      (data || []).map((item) => sanitizeTimeFields(item))
-    );
+    const sanitizedItems = (data || []).map((item) => sanitizeTimeFields(item));
+    setItems(sanitizedItems);
+    return sanitizedItems;
   }
 
-  async function carregarAdjustmentRequests() {
+  async function carregarAdjustmentRequests(precontracts = []) {
+    const precontractIds = (precontracts || [])
+      .map((item) => item?.id)
+      .filter((id) => id !== null && id !== undefined);
+
+    if (precontractIds.length === 0) {
+      setAdjustmentRequestsByPrecontract(new Map());
+      return;
+    }
+
     const { data, error } = await supabase
   .from('contract_adjustment_requests')
   .select('id, precontract_id, status, request_message, created_at, resolved_at')
+  .in('precontract_id', precontractIds)
   .order('created_at', { ascending: false });
 
     if (error) {
@@ -567,8 +579,8 @@ export default function PreContratosClient() {
     async function carregar() {
       try {
         setCarregando(true);
-        await Promise.all([carregarPreContratos(), carregarEventos()]);
-        carregarAdjustmentRequests();
+        const [loadedPrecontracts] = await Promise.all([carregarPreContratos(), carregarEventos()]);
+        carregarAdjustmentRequests(loadedPrecontracts);
       } catch (error) {
         console.error('Erro ao carregar pré-contratos:', error);
         showToast?.(`Erro ao carregar pré-contratos: ${error?.message || 'erro desconhecido'}`, 'error');

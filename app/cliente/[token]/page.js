@@ -3,6 +3,77 @@ import { createClient } from '@supabase/supabase-js';
 import ClienteHome from '../../../components/cliente/ClienteHome';
 import { resolveSupportWhatsAppConfig } from '../../../lib/whatsapp/support-config';
 
+const IS_DEV = process.env.NODE_ENV !== 'production';
+const CLIENT_EVENT_SELECT_FIELDS = [
+  'id',
+  'event_date',
+  'formation',
+  'observations',
+  'agreed_amount',
+  'paid_amount',
+  'signal_due_date',
+  'balance_due_date',
+  'card_due_date',
+  'total_price',
+  'amount',
+  'amount_paid',
+  'has_ante_room',
+  'has_antesala',
+  'has_antessala',
+  'before_room_minutes',
+  'antesala_requested_by_client',
+  'antesala_request_status',
+  'antesala_price_increment',
+  'antesala_duration_minutes',
+].join(', ');
+const CLIENT_REPERTOIRE_CONFIG_SELECT_FIELDS = [
+  'id',
+  'event_id',
+  'status',
+  'is_locked',
+  'submitted_at',
+  'has_ante_room',
+  'ante_room_style',
+  'ante_room_notes',
+  'exit_song',
+  'exit_reference',
+  'exit_notes',
+  'has_reception',
+  'reception_duration',
+  'reception_genres',
+  'reception_artists',
+  'reception_notes',
+  'desired_songs',
+  'general_notes',
+  'client_public_token',
+  'repertoire_pdf_url',
+  'pdf_url',
+  'exit_reference_title',
+  'exit_reference_channel',
+  'exit_reference_thumbnail',
+  'exit_reference_video_id',
+].join(', ');
+const CLIENT_REPERTOIRE_ITEMS_SELECT_FIELDS = [
+  'id',
+  'event_id',
+  'section',
+  'item_order',
+  'label',
+  'who_enters',
+  'moment',
+  'song_name',
+  'reference_link',
+  'notes',
+  'genres',
+  'artists',
+  'reference_title',
+  'reference_channel',
+  'reference_thumbnail',
+  'reference_video_id',
+  'suggestion_song_id',
+  'suggestion_song:suggestion_songs(id, title, artist, youtube_url, youtube_id, thumbnail_url)',
+].join(', ');
+
 function getAdminSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRole = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -659,19 +730,19 @@ export default async function ClienteTokenPage({ params }) {
     ] = await Promise.all([
       supabase
         .from('events')
-        .select('*')
+        .select(CLIENT_EVENT_SELECT_FIELDS)
         .eq('id', eventId)
         .maybeSingle(),
 
       supabase
         .from('repertoire_config')
-        .select('*')
+        .select(CLIENT_REPERTOIRE_CONFIG_SELECT_FIELDS)
         .eq('event_id', eventId)
         .maybeSingle(),
 
       supabase
         .from('repertoire_items')
-        .select('*, suggestion_song:suggestion_songs(id, title, artist, youtube_url, youtube_id, thumbnail_url)')
+        .select(CLIENT_REPERTOIRE_ITEMS_SELECT_FIELDS)
         .eq('event_id', eventId)
         .order('item_order', { ascending: true }),
 
@@ -753,11 +824,13 @@ export default async function ClienteTokenPage({ params }) {
   const configClientToken = String(config?.client_public_token || '').trim();
   const clientToken = configClientToken || token;
 
-  console.log('[CLIENTE PAGE] URL PDF contrato:', contract?.pdf_url || '(vazio)');
-  console.log(
-    '[CLIENTE PAGE] URL PDF repertório:',
-    config?.repertoire_pdf_url || config?.pdf_url || '(vazio)'
-  );
+  if (IS_DEV) {
+    console.log('[CLIENTE PAGE] URL PDF contrato:', contract?.pdf_url || '(vazio)');
+    console.log(
+      '[CLIENTE PAGE] URL PDF repertório:',
+      config?.repertoire_pdf_url || config?.pdf_url || '(vazio)'
+    );
+  }
 
   const eventDate = parseLocalDate(event.event_date);
   const now = startOfDay(new Date());
@@ -778,12 +851,14 @@ export default async function ClienteTokenPage({ params }) {
     ? `/api/cliente/repertorio/pdf/${repertorioPdfToken}`
     : null;
 
-  console.log('[CLIENTE PAGE] token da rota do cliente:', token || '(vazio)');
-  console.log('[CLIENTE PAGE] token usado na URL do PDF:', repertorioPdfToken || '(vazio)');
-  console.log(
-    '[CLIENTE PAGE] tokens da rota e PDF são idênticos?',
-    String(token || '') === String(repertorioPdfToken || '')
-  );
+  if (IS_DEV) {
+    console.log('[CLIENTE PAGE] token da rota do cliente:', token || '(vazio)');
+    console.log('[CLIENTE PAGE] token usado na URL do PDF:', repertorioPdfToken || '(vazio)');
+    console.log(
+      '[CLIENTE PAGE] tokens da rota e PDF são idênticos?',
+      String(token || '') === String(repertorioPdfToken || '')
+    );
+  }
 
   const supportConfig = resolveSupportWhatsAppConfig();
   const paymentHistory = payments.map((entry) => ({

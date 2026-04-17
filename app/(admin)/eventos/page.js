@@ -87,7 +87,7 @@ const PRECONTRACTS_SELECT_FIELDS =
   'id, created_at, event_id, client_name, event_date, event_time, status, public_token';
 const CONTRACTS_SELECT_FIELDS =
   'id, created_at, precontract_id, event_id, status, signed_at, pdf_url, doc_url, public_token';
-const PRICING_SELECT_FIELDS = 'id, slug, formation_prices, reception_prices, sound_price, transport_price';
+const PRICING_SELECT_FIELDS = '*';
 let eventosAdminCache = {
   eventos: [],
   precontracts: [],

@@ -24,7 +24,6 @@ const REPERTOIRE_CONFIG_SELECT = [
   'id',
   'event_id',
   'repertoire_pdf_url',
-  'pdf_url',
   'has_ante_room',
   'ante_room_style',
   'ante_room_notes',

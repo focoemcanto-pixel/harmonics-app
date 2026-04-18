@@ -39,6 +39,8 @@ import { normalizeTimeStrict, isValidTime, sanitizeTimeFields } from '@/lib/time
 import {
   normalizeFormation,
   getDefaultPricing,
+  buildCanonicalFormationPrices,
+  hydratePricingFromCanonical,
   getAutomaticFormationPrice,
   getAutomaticReceptionPrice,
   getPaymentStatus,
@@ -321,13 +323,14 @@ export default function EventosPage() {
       if (error && error.code !== 'PGRST116') throw error;
 
       if (data) {
+        const normalizedPricing = hydratePricingFromCanonical(data);
         setPricingId(data.id);
         setPricing((prev) => ({
           ...prev,
-          ...data,
+          ...normalizedPricing,
         }));
         eventosAdminCache.pricingId = data.id;
-        eventosAdminCache.pricing = data;
+        eventosAdminCache.pricing = normalizedPricing;
       }
     } catch (error) {
       logLoadError('pricing', error);
@@ -642,7 +645,10 @@ export default function EventosPage() {
       setSalvando(true);
 
       const payload = {
-        ...pricing,
+        ...Object.fromEntries(
+          Object.entries(pricing).filter(([key]) => !key.startsWith('price_'))
+        ),
+        formation_prices: buildCanonicalFormationPrices(pricing),
         slug: 'default',
       };
 

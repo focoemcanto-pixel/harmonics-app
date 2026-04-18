@@ -17,8 +17,8 @@ const CLIENT_EVENT_SELECT_FIELDS = [
   'total_price',
   'amount',
   'amount_paid',
-  'has_ante_room',
   'has_antesala',
+  'antesala_enabled',
   'antesala_requested_by_client',
   'antesala_request_status',
   'antesala_price_increment',
@@ -45,7 +45,6 @@ const CLIENT_REPERTOIRE_CONFIG_SELECT_FIELDS = [
   'general_notes',
   'client_public_token',
   'repertoire_pdf_url',
-  'pdf_url',
   'exit_reference_title',
   'exit_reference_channel',
   'exit_reference_thumbnail',
@@ -826,7 +825,7 @@ export default async function ClienteTokenPage({ params }) {
     console.log('[CLIENTE PAGE] URL PDF contrato:', contract?.pdf_url || '(vazio)');
     console.log(
       '[CLIENTE PAGE] URL PDF repertório:',
-      config?.repertoire_pdf_url || config?.pdf_url || '(vazio)'
+      config?.repertoire_pdf_url || '(vazio)'
     );
   }
 
@@ -915,7 +914,7 @@ export default async function ClienteTokenPage({ params }) {
       temAntessala: Boolean(
         config?.has_ante_room ??
           event?.has_antesala ??
-          event?.has_ante_room ??
+          event?.antesala_enabled ??
           false
       ),
       antesalaDurationMinutes:

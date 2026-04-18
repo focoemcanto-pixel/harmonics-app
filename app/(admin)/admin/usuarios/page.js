@@ -65,9 +65,6 @@ function GestaoUsuariosContent() {
     name: '',
     role: 'member',
   });
-  const [permissoes, setPermissoes] = useState({
-    acesso_total: true,
-  });
 
   useEffect(() => {
     carregarUsuarios();
@@ -110,7 +107,6 @@ function GestaoUsuariosContent() {
           email: novoUsuario.email,
           name: novoUsuario.name,
           role: novoUsuario.role,
-          permissions: novoUsuario.role === 'admin' ? permissoes : null,
         }),
       });
 
@@ -119,7 +115,6 @@ function GestaoUsuariosContent() {
 
       setSuccess('Usuário cadastrado com sucesso! Um e-mail de confirmação foi enviado.');
       setNovoUsuario({ email: '', name: '', role: 'member' });
-      setPermissoes({ acesso_total: true });
       await carregarUsuarios();
     } catch (e) {
       setError('Erro ao cadastrar usuário: ' + (e.message || 'Erro desconhecido'));
@@ -205,7 +200,7 @@ function GestaoUsuariosContent() {
             Gestão de Usuários
           </h1>
           <p className="text-slate-600 mt-1">
-            Cadastre novos administradores e membros, configure permissões granulares.
+            Cadastre novos administradores e membros com papéis de acesso padronizados.
           </p>
         </div>
 

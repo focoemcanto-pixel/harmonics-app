@@ -4,7 +4,7 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin';
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { email, name, role, permissions } = body;
+    const { email, name, role } = body;
 
     if (!email || !name || !role) {
       return NextResponse.json(
@@ -55,20 +55,6 @@ export async function POST(request) {
         { error: profileError.message },
         { status: 500 }
       );
-    }
-
-    // Save granular permissions if provided
-    if (role === 'admin' && permissions && !permissions.acesso_total) {
-      const { error: permError } = await supabase
-        .from('user_permissions')
-        .insert({
-          user_id: userId,
-          permissions,
-        });
-
-      if (permError) {
-        console.error('Erro ao salvar permissões:', permError);
-      }
     }
 
     return NextResponse.json({ ok: true, userId });

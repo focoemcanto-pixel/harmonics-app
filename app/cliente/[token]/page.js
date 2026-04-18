@@ -6,8 +6,13 @@ import { resolveSupportWhatsAppConfig } from '../../../lib/whatsapp/support-conf
 const IS_DEV = process.env.NODE_ENV !== 'production';
 const CLIENT_EVENT_SELECT_FIELDS = [
   'id',
+  'client_name',
   'event_date',
+  'event_time',
+  'location_name',
   'formation',
+  'instruments',
+  'status',
   'observations',
   'agreed_amount',
   'paid_amount',

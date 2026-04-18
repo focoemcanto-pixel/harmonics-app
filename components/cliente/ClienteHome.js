@@ -1830,7 +1830,7 @@ async function saveRepertorio(mode = 'draft') {
         included: querAntessala === true,
         durationMinutes: Number(antessala.durationMinutes || 0) || null,
         requestedByClient: Boolean(antessala.requestedByClient),
-        requestStatus: antessala.requestedByClient ? 'pending_admin_validation' : null,
+        requestStatus: antessala.requestedByClient ? 'pending' : null,
         priceIncrement: Number(antessala.quotePriceIncrement || 0) || 0,
       },
     };

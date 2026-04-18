@@ -40,6 +40,7 @@ const STATUS_OPTIONS = [
 const ADJUSTMENT_REQUEST_MARKER = '--- SOLICITAÇÃO DE AJUSTE DO CLIENTE ---';
 const IS_DEV = process.env.NODE_ENV !== 'production';
 const ADMIN_LIST_LIMIT = 120;
+const PRECONTRATOS_CACHE_TTL_MS = 60 * 1000;
 const PRECONTRACT_SELECT_FIELDS = [
   'id',
   'created_at',
@@ -68,6 +69,7 @@ const PRECONTRACT_SELECT_FIELDS = [
   'generated_link',
 ].join(', ');
 let preContratosCache = {
+  updatedAt: 0,
   items: [],
   eventos: [],
   adjustmentRequestsByPrecontract: new Map(),
@@ -524,7 +526,7 @@ export default function PreContratosClient() {
 
   const [form, setForm] = useState(getInitialForm());
 
-async function carregarPreContratos() {
+  async function carregarPreContratos() {
     const { data, error } = await supabase
       .from('precontracts')
       .select(PRECONTRACT_SELECT_FIELDS)
@@ -535,6 +537,7 @@ async function carregarPreContratos() {
     const sanitizedItems = (data || []).map((item) => sanitizeTimeFields(item));
     setItems(sanitizedItems);
     preContratosCache.items = sanitizedItems;
+    preContratosCache.updatedAt = Date.now();
     return sanitizedItems;
   }
 
@@ -568,6 +571,7 @@ async function carregarPreContratos() {
     }
     setAdjustmentRequestsByPrecontract(nextMap);
     preContratosCache.adjustmentRequestsByPrecontract = nextMap;
+    preContratosCache.updatedAt = Date.now();
   }
 
   async function carregarEventos() {
@@ -577,20 +581,24 @@ async function carregarPreContratos() {
       .order('event_date', { ascending: true });
 
     if (error) throw error;
-    setEventos(
-      (data || []).map((item) => sanitizeTimeFields(item))
-    );
-    preContratosCache.eventos = (data || []).map((item) => sanitizeTimeFields(item));
+    const sanitizedEvents = (data || []).map((item) => sanitizeTimeFields(item));
+    setEventos(sanitizedEvents);
+    preContratosCache.eventos = sanitizedEvents;
+    preContratosCache.updatedAt = Date.now();
   }
 
   useEffect(() => {
     async function carregar() {
       try {
-        if ((preContratosCache.items || []).length === 0) {
+        const hasFreshCache =
+          (preContratosCache.items || []).length > 0 &&
+          Date.now() - Number(preContratosCache.updatedAt || 0) < PRECONTRATOS_CACHE_TTL_MS;
+
+        if (!hasFreshCache) {
           setCarregando(true);
+          const [loadedPrecontracts] = await Promise.all([carregarPreContratos(), carregarEventos()]);
+          await carregarAdjustmentRequests(loadedPrecontracts);
         }
-        const [loadedPrecontracts] = await Promise.all([carregarPreContratos(), carregarEventos()]);
-        await carregarAdjustmentRequests(loadedPrecontracts);
       } catch (error) {
         console.error('Erro ao carregar pré-contratos:', error);
         showToast?.(`Erro ao carregar pré-contratos: ${error?.message || 'erro desconhecido'}`, 'error');

@@ -17,6 +17,7 @@ const REPERTOIRE_ITEMS_SELECT_FIELDS =
 const REPERTOIRE_TOKENS_SELECT_FIELDS = 'id, event_id, token, created_at';
 const PRECONTRACTS_SELECT_FIELDS = 'id, created_at, event_id, status, public_token';
 const CONTRACTS_SELECT_FIELDS = 'id, created_at, event_id, precontract_id, status';
+const REPERTORIOS_CACHE_TTL_MS = 60 * 1000;
 let repertoriosAdminCache = null;
 
 function normalizeStatus(value) {
@@ -191,7 +192,6 @@ export default function RepertoriosPage() {
         .select(REPERTOIRE_CONFIG_SELECT_FIELDS)
         .order('created_at', { ascending: false })
         .limit(ADMIN_LIST_LIMIT),
-      supabase.from('repertoire_items').select(REPERTOIRE_ITEMS_SELECT_FIELDS),
       supabase
         .from('repertoire_tokens')
         .select(REPERTOIRE_TOKENS_SELECT_FIELDS)
@@ -234,6 +234,7 @@ export default function RepertoriosPage() {
     setPrecontracts(precontractsRes.data || []);
     setContracts(contractsRes.data || []);
     repertoriosAdminCache = {
+      updatedAt: Date.now(),
       events: eventsRes.data || [],
       configs: configsRes.data || [],
       items: itemsRes.data || [],
@@ -246,10 +247,14 @@ export default function RepertoriosPage() {
   useEffect(() => {
     async function init() {
       try {
-        if (!repertoriosAdminCache) {
+        const hasFreshCache =
+          repertoriosAdminCache &&
+          Date.now() - Number(repertoriosAdminCache.updatedAt || 0) < REPERTORIOS_CACHE_TTL_MS;
+
+        if (!hasFreshCache) {
           setCarregando(true);
+          await carregarTudo();
         }
-        await carregarTudo();
       } catch (error) {
         console.error('Erro ao carregar repertórios:', error);
         setFeedback({

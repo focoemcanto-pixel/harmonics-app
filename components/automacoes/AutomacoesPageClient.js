@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { cachedPromise, invalidateCache, readCachedValue } from '@/lib/client/light-cache';
+import { reportError } from '@/lib/observability/client-log';
 
 const DASHBOARD_CACHE_KEY = 'automation:dashboard';
 const DASHBOARD_TTL_MS = 45_000;
@@ -230,6 +231,7 @@ export default function AutomacoesPageClient() {
       );
       setData(json);
     } catch (err) {
+      reportError('automacoes.dashboard', err);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -252,6 +254,9 @@ export default function AutomacoesPageClient() {
       if (!res.ok) throw new Error(payload?.error || 'Erro ao tentar novamente');
       invalidateCache(DASHBOARD_CACHE_KEY);
       await fetchDashboard({ force: true, silent: true });
+    } catch (err) {
+      reportError('automacoes.retry', err, { logId });
+      setError(err?.message || 'Não foi possível reenviar agora.');
     } finally {
       setLoadingId(null);
     }
@@ -284,7 +289,20 @@ export default function AutomacoesPageClient() {
         </div>
       </section>
 
-      {error && <div className="rounded-[20px] border border-red-200 bg-red-50 px-5 py-4 text-red-700">❌ {error}</div>}
+      {error && (
+        <div className="rounded-[20px] border border-red-200 bg-red-50 px-5 py-4 text-red-700">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <span>❌ {error}</span>
+            <button
+              type="button"
+              onClick={() => fetchDashboard({ force: true, silent: Boolean(data) })}
+              className="rounded-xl border border-red-300 bg-white px-3 py-1.5 text-[12px] font-black text-red-700 hover:bg-red-50"
+            >
+              Tentar novamente
+            </button>
+          </div>
+        </div>
+      )}
       {!loading && !error && health && <HealthIndicator health={health} />}
       {!loading && !error && <SetupCtas onboarding={data?.onboarding} />}
 
@@ -312,7 +330,13 @@ export default function AutomacoesPageClient() {
 
       <section className="rounded-[24px] border border-[#dbe3ef] bg-white p-5 shadow-[0_4px_14px_rgba(17,24,39,0.04)]">
         <h2 className="mb-3 text-[13px] font-black uppercase tracking-[0.1em] text-[#94a3b8]">Alertas rápidos</h2>
-        {alerts.length === 0 ? <div className="text-sm text-emerald-700">✅ Sem alertas críticos no momento.</div> : (
+        {loading && !data ? (
+          <div className="space-y-2">
+            {Array.from({ length: 2 }).map((_, index) => (
+              <div key={`alert-skeleton-${index}`} className="h-16 animate-pulse rounded-[14px] bg-slate-100" />
+            ))}
+          </div>
+        ) : alerts.length === 0 ? <div className="text-sm text-emerald-700">✅ Sem alertas críticos no momento.</div> : (
           <div className="space-y-2">{alerts.map((alert, i) => <AlertItem key={i} alert={alert} />)}</div>
         )}
       </section>
@@ -323,7 +347,13 @@ export default function AutomacoesPageClient() {
           <Link href="/automacoes/logs" className="text-[13px] font-bold text-violet-600">Ver todos os logs →</Link>
         </div>
         <div className="rounded-[24px] border border-[#dbe3ef] bg-white p-5 shadow-[0_4px_14px_rgba(17,24,39,0.04)]">
-          {failures.length === 0 ? (
+          {loading && !data ? (
+            <div className="space-y-2">
+              {Array.from({ length: 2 }).map((_, index) => (
+                <div key={`failure-skeleton-${index}`} className="h-20 animate-pulse rounded-[14px] bg-slate-100" />
+              ))}
+            </div>
+          ) : failures.length === 0 ? (
             <EmptyStateFalhas systemState={systemState} />
           ) : (
             <div className="space-y-2">

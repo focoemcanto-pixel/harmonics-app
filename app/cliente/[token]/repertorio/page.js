@@ -61,6 +61,28 @@ const CLIENT_REPERTOIRE_ITEMS_SELECT_FIELDS = [
   'suggestion_song_id',
   'suggestion_song:suggestion_songs(id, title, artist, youtube_url, youtube_id, thumbnail_url)',
 ].join(', ');
+const CLIENT_PRICING_SELECT_FIELDS = [
+  'id',
+  'created_at',
+  'reception_duo_1h',
+  'reception_duo_2h',
+  'reception_duo_3h',
+  'reception_trio_1h',
+  'reception_trio_2h',
+  'reception_trio_3h',
+  'reception_quarteto_1h',
+  'reception_quarteto_2h',
+  'reception_quarteto_3h',
+  'reception_quinteto_1h',
+  'reception_quinteto_2h',
+  'reception_quinteto_3h',
+  'reception_sexteto_1h',
+  'reception_sexteto_2h',
+  'reception_sexteto_3h',
+  'reception_septeto_1h',
+  'reception_septeto_2h',
+  'reception_septeto_3h',
+].join(', ');
 
 function getAdminSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -554,7 +576,7 @@ export default async function ClienteRepertorioPage({ params }) {
 
       supabase
         .from('pricing_settings')
-        .select('*')
+        .select(CLIENT_PRICING_SELECT_FIELDS)
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle(),

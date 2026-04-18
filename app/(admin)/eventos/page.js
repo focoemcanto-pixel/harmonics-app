@@ -90,7 +90,9 @@ const PRECONTRACTS_SELECT_FIELDS =
 const CONTRACTS_SELECT_FIELDS =
   'id, created_at, precontract_id, event_id, status, signed_at, pdf_url, doc_url, public_token';
 const PRICING_SELECT_FIELDS = '*';
+const EVENTOS_CACHE_TTL_MS = 60 * 1000;
 let eventosAdminCache = {
+  updatedAt: 0,
   eventos: [],
   precontracts: [],
   contracts: [],
@@ -245,6 +247,7 @@ export default function EventosPage() {
       const sanitized = (data || []).map((item) => sanitizeTimeFields(item));
       setEventos(sanitized);
       eventosAdminCache.eventos = sanitized;
+      eventosAdminCache.updatedAt = Date.now();
     } catch (error) {
       logLoadError('eventos', error);
       alert('Erro ao carregar eventos. Tente novamente mais tarde.');
@@ -331,6 +334,7 @@ export default function EventosPage() {
         }));
         eventosAdminCache.pricingId = data.id;
         eventosAdminCache.pricing = normalizedPricing;
+        eventosAdminCache.updatedAt = Date.now();
       }
     } catch (error) {
       logLoadError('pricing', error);
@@ -348,6 +352,7 @@ export default function EventosPage() {
 
       setContatos(data || []);
       eventosAdminCache.contatos = data || [];
+      eventosAdminCache.updatedAt = Date.now();
     } catch (error) {
       logLoadError('contatos', error);
     }
@@ -355,24 +360,28 @@ export default function EventosPage() {
 
   useEffect(() => {
     async function carregar() {
-      if ((eventosAdminCache.eventos || []).length === 0) {
-        setCarregando(true);
-      }
-      try {
-        await Promise.allSettled([
-          carregarEventos(),
-          carregarPrecontracts(),
-          carregarContracts(),
-        ]);
-        setCarregando(false);
+      const hasFreshCache =
+        (eventosAdminCache.eventos || []).length > 0 &&
+        Date.now() - Number(eventosAdminCache.updatedAt || 0) < EVENTOS_CACHE_TTL_MS;
 
-        Promise.allSettled([
-          carregarPricing(),
-          carregarContatos(),
-        ]);
-      } catch (error) {
-        console.error('[EVENTOS] Falha inesperada ao carregar dados iniciais:', error);
-        setCarregando(false);
+      if (!hasFreshCache) {
+        setCarregando(true);
+        try {
+          await Promise.allSettled([
+            carregarEventos(),
+            carregarPrecontracts(),
+            carregarContracts(),
+          ]);
+          setCarregando(false);
+
+          Promise.allSettled([
+            carregarPricing(),
+            carregarContatos(),
+          ]);
+        } catch (error) {
+          console.error('[EVENTOS] Falha inesperada ao carregar dados iniciais:', error);
+          setCarregando(false);
+        }
       }
     }
 
@@ -419,6 +428,7 @@ export default function EventosPage() {
       const sanitized = (data || []).map((item) => sanitizeTimeFields(item));
       setPrecontracts(sanitized);
       eventosAdminCache.precontracts = sanitized;
+      eventosAdminCache.updatedAt = Date.now();
     } catch (error) {
       logLoadError('precontracts', error);
     }
@@ -436,6 +446,7 @@ export default function EventosPage() {
       const sanitized = (data || []).map((item) => sanitizeTimeFields(item));
       setContracts(sanitized);
       eventosAdminCache.contracts = sanitized;
+      eventosAdminCache.updatedAt = Date.now();
     } catch (error) {
       logLoadError('contracts', error);
     }

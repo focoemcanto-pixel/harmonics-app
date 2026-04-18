@@ -330,6 +330,7 @@ function mapItemsToInitialState(items) {
     .slice(0, 5)
     .map((item) => ({
       title: item.song_name || item.reference_title || '',
+      referencia: item.reference_link || '',
       link: item.reference_link || '',
       reference_title: item.reference_title || '',
       reference_channel: item.reference_channel || '',

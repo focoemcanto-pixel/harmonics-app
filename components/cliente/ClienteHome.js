@@ -1528,7 +1528,9 @@ const [generalNotes, setGeneralNotes] = useState(initialState.generalNotes || ''
   }, [cortejo, cerimonia, saida, renderedRepertorioItems]);
 
   function normalizeReferenceFields(reference = {}) {
-    const referenceLink = String(reference.referencia || '').trim();
+    const referenceLink = String(
+      reference.referencia || reference.link || reference.reference_link || ''
+    ).trim();
     const referenceVideoId = getYoutubeVideoId(referenceLink);
 
     if (!referenceLink) {

@@ -688,18 +688,6 @@ export default async function ClienteRepertorioPage({ params }) {
 
   const initialLists = mapItemsToInitialState(items);
   if (IS_DEV) {
-    if (
-      config?.last_saved_at &&
-      (initialLists?.meta?.usedFallbackCortejo || initialLists?.meta?.usedFallbackCerimonia)
-    ) {
-      console.error('[LOAD][MISSING_EXPECTED_SECTIONS_AFTER_SAVE]', {
-        lastSavedAt: config?.last_saved_at,
-        usedFallbackCortejo: Boolean(initialLists?.meta?.usedFallbackCortejo),
-        usedFallbackCerimonia: Boolean(initialLists?.meta?.usedFallbackCerimonia),
-        itemCountFromDb: items.length,
-      });
-    }
-
     console.log('[LOAD][INITIAL_STATE]', {
       cortejo: initialLists.cortejo,
       cerimonia: initialLists.cerimonia,

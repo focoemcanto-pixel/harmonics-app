@@ -613,6 +613,15 @@ export default async function ClienteRepertorioPage({ params }) {
 
   const config = configResp?.data || null;
   const items = Array.isArray(itemsResp?.data) ? itemsResp.data : [];
+  if (IS_DEV) {
+    const cortejoFromDb = items.filter((item) => item.section === 'cortejo');
+    const cerimoniaFromDb = items.filter((item) => item.section === 'cerimonia');
+    const saidaFromDb = items.filter((item) => item.section === 'saida');
+    console.log('[LOAD][ITEMS_FROM_DB]', items);
+    console.log('[LOAD][CORTEJO_FROM_DB]', cortejoFromDb);
+    console.log('[LOAD][CERIMONIA_FROM_DB]', cerimoniaFromDb);
+    console.log('[LOAD][SAIDA_FROM_DB]', saidaFromDb);
+  }
   const precontract = precontractsResp?.data || null;
   const contract = contractsResp?.data || null;
   const pricing = pricingResp?.data || {};
@@ -670,6 +679,21 @@ export default async function ClienteRepertorioPage({ params }) {
   }
 
   const initialLists = mapItemsToInitialState(items);
+  if (IS_DEV) {
+    console.log('[LOAD][INITIAL_STATE]', {
+      cortejo: initialLists.cortejo,
+      cerimonia: initialLists.cerimonia,
+      saida: {
+        musica: config?.exit_song || '',
+        referencia: config?.exit_reference || '',
+        observacao: config?.exit_notes || '',
+        reference_title: config?.exit_reference_title || '',
+        reference_channel: config?.exit_reference_channel || '',
+        reference_thumbnail: config?.exit_reference_thumbnail || '',
+        reference_video_id: config?.exit_reference_video_id || '',
+      },
+    });
+  }
   const repertorioPdfToken = clientToken;
   const repertorioPdfUrl = repertorioPdfToken
     ? `/api/cliente/repertorio/pdf/${repertorioPdfToken}`

@@ -421,6 +421,7 @@ export async function POST(request) {
     console.log('[API REPERTORIO] payload config recebido:', config);
     console.log('[API REPERTORIO] payload itens recebido (normalizado):', incomingItems);
     console.log('[API REPERTORIO] quantidade de itens por seção (payload):', countItemsBySection(incomingItems));
+    console.log('[API][ITEMS_RECEIVED]', incomingItems);
 
     const status = mode === 'final' ? 'ENVIADO' : 'RASCUNHO';
     const isLocked = mode === 'final';
@@ -599,6 +600,7 @@ export async function POST(request) {
     }
 
     const itemsWithCatalogLink = await attachCatalogSongIds(supabase, itemsToPersist);
+    console.log('[API][ITEMS_TO_SAVE]', itemsWithCatalogLink);
 
     console.log('[API REPERTORIO] itens existentes por seção (antes de salvar):', existingBySection);
     console.log('[API REPERTORIO] itens recebidos por seção:', incomingBySection);
@@ -616,6 +618,10 @@ export async function POST(request) {
     if (deleteItemsError) {
       throw deleteItemsError;
     }
+    console.log('[API][ITEMS_DELETED]', {
+      eventId,
+      deletedAllForEvent: true,
+    });
 
     if (itemsWithCatalogLink.length > 0) {
       const itemsPayload = itemsWithCatalogLink.map((item) => ({
@@ -647,6 +653,15 @@ export async function POST(request) {
       if (insertItemsError) {
         throw insertItemsError;
       }
+      console.log('[API][ITEMS_INSERT_RESULT]', {
+        eventId,
+        insertedCount: itemsPayload.length,
+      });
+    } else {
+      console.log('[API][ITEMS_INSERT_RESULT]', {
+        eventId,
+        insertedCount: 0,
+      });
     }
 
     if (mode === 'final') {

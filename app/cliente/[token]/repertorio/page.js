@@ -40,6 +40,7 @@ const CLIENT_REPERTOIRE_CONFIG_SELECT_FIELDS = [
   'reception_notes',
   'desired_songs',
   'general_notes',
+  'last_saved_at',
   'client_public_token',
   'repertoire_pdf_url',
   'exit_reference_title',
@@ -343,16 +344,19 @@ function mapItemsToInitialState(items) {
       .filter((item) => item.section === 'receptivo')
       .sort((a, b) => (a.item_order || 0) - (b.item_order || 0))[0] || null;
 
+  const usedFallbackCortejo = cortejo.length === 0;
+  const usedFallbackCerimonia = cerimonia.length === 0;
+
   return {
     cortejo:
-      cortejo.length > 0
+      !usedFallbackCortejo
         ? cortejo
         : [
             { label: 'Padrinhos', musica: '', referencia: '', observacao: '' },
             { label: 'Noiva', musica: '', referencia: '', observacao: '' },
           ],
     cerimonia:
-      cerimonia.length > 0
+      !usedFallbackCerimonia
         ? cerimonia
         : [{ label: 'Alianças', musica: '', referencia: '', observacao: '' }],
     antessala: {
@@ -370,6 +374,10 @@ function mapItemsToInitialState(items) {
       generos: receptivoItem?.genres || '',
       artistas: receptivoItem?.artists || '',
       observacao: receptivoItem?.notes || '',
+    },
+    meta: {
+      usedFallbackCortejo,
+      usedFallbackCerimonia,
     },
   };
 }

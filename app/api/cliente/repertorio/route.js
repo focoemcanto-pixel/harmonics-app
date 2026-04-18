@@ -136,6 +136,20 @@ function countItemsBySection(items = []) {
   }, {});
 }
 
+function hasUsefulSectionContent(item = {}) {
+  return Boolean(
+    normalizeText(item?.song_name) ||
+      normalizeText(item?.reference_link) ||
+      normalizeText(item?.reference_title) ||
+      normalizeText(item?.reference_channel) ||
+      normalizeText(item?.reference_thumbnail) ||
+      normalizeText(item?.reference_video_id) ||
+      normalizeText(item?.notes) ||
+      normalizeText(item?.genres) ||
+      normalizeText(item?.artists)
+  );
+}
+
 function buildEventAntesalaUpdatePayload({
   antesalaIncluded,
   antesalaDurationMinutes,
@@ -498,9 +512,37 @@ export async function POST(request) {
     }
 
     const antesalaIncluded = normalizeBool(antesalaFlow.included);
-    const antesalaRequestedByClient = normalizeBool(antesalaFlow.requestedByClient);
-    const antesalaDurationMinutes = Number(antesalaFlow.durationMinutes || 0) || null;
-    const antesalaPriceIncrement = Number(antesalaFlow.priceIncrement || 0) || 0;
+    const requestedByClientFromPayload = normalizeBool(antesalaFlow.requestedByClient);
+    const durationFromPayload = Number(antesalaFlow.durationMinutes || 0) || null;
+    const priceIncrementFromPayload = Number(antesalaFlow.priceIncrement || 0) || 0;
+
+    const { data: currentEventBeforeRoom, error: currentEventBeforeRoomError } = await supabase
+      .from('events')
+      .select(
+        'antesala_requested_by_client, antesala_request_status, antesala_duration_minutes, antesala_price_increment'
+      )
+      .eq('id', eventId)
+      .maybeSingle();
+
+    if (currentEventBeforeRoomError) throw currentEventBeforeRoomError;
+
+    const preservePendingBeforeRoomRequest =
+      !antesalaIncluded &&
+      !requestedByClientFromPayload &&
+      Boolean(currentEventBeforeRoom?.antesala_requested_by_client);
+    const antesalaRequestedByClient = preservePendingBeforeRoomRequest
+      ? true
+      : requestedByClientFromPayload;
+    const antesalaDurationMinutes =
+      durationFromPayload ||
+      (preservePendingBeforeRoomRequest
+        ? Number(currentEventBeforeRoom?.antesala_duration_minutes || 0) || null
+        : null);
+    const antesalaPriceIncrement =
+      priceIncrementFromPayload ||
+      (preservePendingBeforeRoomRequest
+        ? Number(currentEventBeforeRoom?.antesala_price_increment || 0) || 0
+        : 0);
     const antesalaRequestStatus = resolveAntesalaRequestStatus({
       antesalaIncluded,
       antesalaRequestedByClient,
@@ -599,12 +641,46 @@ export async function POST(request) {
       );
     }
 
+    const protectedSections = ['cortejo', 'cerimonia'];
+    const sectionsPreservedByInvalidPayload = [];
+
+    protectedSections.forEach((section) => {
+      const incomingSectionItems = incomingItems.filter(
+        (item) => String(item?.section || '').trim() === section
+      );
+      if (incomingSectionItems.length === 0) return;
+
+      const hasUsefulIncomingSectionItem = incomingSectionItems.some((item) =>
+        hasUsefulSectionContent(item)
+      );
+
+      if (hasUsefulIncomingSectionItem) return;
+
+      const existingSectionItems = (existingItems || []).filter(
+        (item) => String(item?.section || '').trim() === section
+      );
+
+      itemsToPersist = itemsToPersist.filter(
+        (item) => String(item?.section || '').trim() !== section
+      );
+
+      if (existingSectionItems.length > 0) {
+        itemsToPersist.push(...existingSectionItems);
+      }
+
+      sectionsPreservedByInvalidPayload.push(section);
+    });
+
     const itemsWithCatalogLink = await attachCatalogSongIds(supabase, itemsToPersist);
     console.log('[API][ITEMS_TO_SAVE]', itemsWithCatalogLink);
 
     console.log('[API REPERTORIO] itens existentes por seção (antes de salvar):', existingBySection);
     console.log('[API REPERTORIO] itens recebidos por seção:', incomingBySection);
     console.log('[API REPERTORIO] seções ausentes no payload.itens:', missingSectionsFromIncoming);
+    console.log(
+      '[API REPERTORIO] seções protegidas por payload sem conteúdo útil:',
+      sectionsPreservedByInvalidPayload
+    );
     console.log(
       '[API REPERTORIO] quantidade final de itens por seção (após preservação):',
       countItemsBySection(itemsWithCatalogLink)

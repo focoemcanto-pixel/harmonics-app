@@ -29,6 +29,17 @@ const CLIENT_EVENT_SELECT_FIELDS = [
   'antesala_price_increment',
   'antesala_duration_minutes',
 ].join(', ');
+const CLIENT_EVENT_SELECT_FIELDS_FALLBACK = [
+  'id',
+  'client_name',
+  'event_date',
+  'event_time',
+  'location_name',
+  'formation',
+  'instruments',
+  'status',
+  'observations',
+].join(', ');
 const CLIENT_REPERTOIRE_CONFIG_SELECT_FIELDS = [
   'id',
   'event_id',
@@ -674,12 +685,21 @@ function buildFallbackData(token = '') {
 export default async function ClienteTokenPage({ params }) {
   const { token } = await params;
   const supabase = getAdminSupabase();
+  const normalizedToken = String(token || '').trim();
+
+  console.log('[CLIENTE PAGE][TOKEN]', {
+    rawToken: token,
+    normalizedToken,
+  });
 
   if (!supabase) {
+    console.log('[CLIENTE PAGE][FALLBACK_TRIGGER]', {
+      reason: 'SUPABASE_CLIENT_MISSING',
+      normalizedToken,
+    });
     return <ClienteHome data={buildFallbackData(token)} />;
   }
 
-  const normalizedToken = String(token || '').trim();
   let precontract = null;
   let eventId = null;
 
@@ -696,6 +716,14 @@ export default async function ClienteTokenPage({ params }) {
       precontract = precontractData || null;
       eventId = precontractData?.event_id || null;
     }
+    console.log('[CLIENTE PAGE][PRECONTRACT]', {
+      error: precontractError || null,
+      precontract: precontractData || null,
+    });
+    console.log('[CLIENTE PAGE][EVENT_ID]', {
+      source: 'precontracts.public_token',
+      eventId,
+    });
   } catch (error) {
     console.error('[CLIENTE PAGE] Falha inesperada ao buscar precontract:', error);
   }
@@ -716,6 +744,11 @@ export default async function ClienteTokenPage({ params }) {
       } else {
         eventId = configByToken?.event_id || null;
       }
+      console.log('[CLIENTE PAGE][EVENT_ID]', {
+        source: 'repertoire_config.client_public_token',
+        eventId,
+        error: configByTokenError || null,
+      });
     } catch (error) {
       console.error(
         '[CLIENTE PAGE] Falha inesperada ao buscar repertoire_config por client_public_token:',
@@ -739,6 +772,11 @@ export default async function ClienteTokenPage({ params }) {
       } else {
         eventId = repertoireTokenRow?.event_id || null;
       }
+      console.log('[CLIENTE PAGE][EVENT_ID]', {
+        source: 'repertoire_tokens.token',
+        eventId,
+        error: repertoireTokenError || null,
+      });
     } catch (error) {
       console.error('[CLIENTE PAGE] Falha inesperada ao buscar repertoire_token:', error);
     }
@@ -757,6 +795,11 @@ export default async function ClienteTokenPage({ params }) {
       } else {
         precontract = precontractByEvent || null;
       }
+      console.log('[CLIENTE PAGE][PRECONTRACT]', {
+        source: 'precontracts.event_id',
+        error: precontractByEventError || null,
+        precontract: precontractByEvent || null,
+      });
     } catch (error) {
       console.error('[CLIENTE PAGE] Falha inesperada ao buscar precontract por event_id:', error);
     }
@@ -793,6 +836,10 @@ export default async function ClienteTokenPage({ params }) {
 
   if (!eventId) {
     console.error('[CLIENTE PAGE] Evento não encontrado para token informado:', token);
+    console.log('[CLIENTE PAGE][FALLBACK_TRIGGER]', {
+      reason: 'EVENT_ID_NOT_FOUND',
+      normalizedToken,
+    });
     return <ClienteHome data={buildFallbackData(token)} />;
   }
 
@@ -877,6 +924,37 @@ export default async function ClienteTokenPage({ params }) {
     console.error('[CLIENTE PAGE] Falha inesperada ao carregar dados principais:', error);
   }
 
+  console.log('[CLIENTE PAGE][EVENT_RESP]', {
+    eventId,
+    error: eventResp?.error || null,
+    data: eventResp?.data || null,
+  });
+
+  if (eventResp?.error) {
+    console.log('[CLIENTE PAGE][EVENT_RESP]', {
+      retry: 'fallback_select_fields',
+      eventId,
+      fields: CLIENT_EVENT_SELECT_FIELDS_FALLBACK,
+    });
+    const fallbackEventResp = await supabase
+      .from('events')
+      .select(CLIENT_EVENT_SELECT_FIELDS_FALLBACK)
+      .eq('id', eventId)
+      .maybeSingle();
+
+    console.log('[CLIENTE PAGE][EVENT_RESP]', {
+      retry: 'fallback_select_fields_result',
+      error: fallbackEventResp?.error || null,
+      data: fallbackEventResp?.data || null,
+    });
+
+    if (!fallbackEventResp?.error && fallbackEventResp?.data) {
+      eventResp = {
+        ...fallbackEventResp,
+      };
+    }
+  }
+
   if (eventResp?.error) console.error('[CLIENTE PAGE] Erro em events:', eventResp.error);
   if (configResp?.error) console.error('[CLIENTE PAGE] Erro em repertoire_config:', configResp.error);
   if (itemsResp?.error) console.error('[CLIENTE PAGE] Erro em repertoire_items:', itemsResp.error);
@@ -903,8 +981,19 @@ export default async function ClienteTokenPage({ params }) {
   const pricing = pricingResp?.data || {};
   const latestAdjustmentRequest = adjustmentResp?.data || null;
 
+  console.log('[CLIENTE PAGE][EVENT_DATA]', {
+    eventId,
+    event,
+  });
+
   if (!event) {
     console.error('[CLIENTE PAGE] Evento ausente após consultas, renderizando fallback.');
+    console.log('[CLIENTE PAGE][FALLBACK_TRIGGER]', {
+      reason: 'EVENT_NULL_AFTER_QUERIES',
+      eventRespError: eventResp?.error || null,
+      eventRespData: eventResp?.data || null,
+      eventId,
+    });
     return <ClienteHome data={buildFallbackData(token)} />;
   }
 
@@ -1071,6 +1160,18 @@ export default async function ClienteTokenPage({ params }) {
       historico: paymentHistory,
     },
   };
+
+  console.log('[CLIENTE PAGE][FINAL_DATA]', {
+    token: data.token,
+    clienteNome: data.clienteNome,
+    dataEvento: data.dataEvento,
+    horarioEvento: data.horarioEvento,
+    localEvento: data.localEvento,
+    formacao: data.formacao,
+    instrumentos: data.instrumentos,
+    statusEvento: data.statusEvento,
+    fullData: data,
+  });
 
   return <ClienteHome data={data} />;
 }

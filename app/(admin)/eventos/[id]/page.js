@@ -23,6 +23,22 @@ function formatMoney(value) {
   }).format(Number(value || 0));
 }
 
+function normalizeAntesalaStatus(status) {
+  const value = String(status || '').trim().toLowerCase();
+  if (value === 'pending_admin_validation') return 'pending';
+  if (value === 'included') return 'approved';
+  if (value === 'approved' || value === 'rejected' || value === 'pending') return value;
+  return '';
+}
+
+function getAntesalaStatusLabel(status) {
+  const normalized = normalizeAntesalaStatus(status);
+  if (normalized === 'pending') return 'Solicitada • aguardando confirmação';
+  if (normalized === 'approved') return 'Aprovada';
+  if (normalized === 'rejected') return 'Rejeitada';
+  return 'Aguardando validação';
+}
+
 function InfoItem({ label, value, full = false }) {
   return (
     <div className={full ? 'md:col-span-2 min-w-0' : 'min-w-0'}>
@@ -60,6 +76,7 @@ export default function EventoDetalhePage() {
   const [evento, setEvento] = useState(null);
   const [carregando, setCarregando] = useState(true);
   const [excluindo, setExcluindo] = useState(false);
+  const [processandoAntesala, setProcessandoAntesala] = useState('');
   const [activeTab, setActiveTab] = useState('resumo');
 
   useEffect(() => {
@@ -108,6 +125,44 @@ export default function EventoDetalhePage() {
       alert('Erro ao excluir evento.');
     } finally {
       setExcluindo(false);
+    }
+  }
+
+  async function responderSolicitacaoAntesala(nextStatus) {
+    if (!evento?.id || (nextStatus !== 'approved' && nextStatus !== 'rejected')) return;
+
+    try {
+      setProcessandoAntesala(nextStatus);
+
+      const payload =
+        nextStatus === 'approved'
+          ? {
+              antesala_request_status: 'approved',
+              antesala_requested_by_client: false,
+              has_antesala: true,
+              antesala_enabled: true,
+            }
+          : {
+              antesala_request_status: 'rejected',
+              antesala_requested_by_client: false,
+              has_antesala: false,
+              antesala_enabled: false,
+            };
+
+      const { data, error } = await supabase
+        .from('events')
+        .update(payload)
+        .eq('id', evento.id)
+        .select('*')
+        .single();
+
+      if (error) throw error;
+      setEvento(data || null);
+    } catch (error) {
+      console.error('Erro ao responder solicitação de antesala:', error);
+      alert('Não foi possível atualizar a solicitação de antesala.');
+    } finally {
+      setProcessandoAntesala('');
     }
   }
 
@@ -199,11 +254,28 @@ export default function EventoDetalhePage() {
                       Antesala solicitada
                     </p>
                     <p className="text-sm text-amber-700">
-                      {String(evento?.antesala_request_status || '').toLowerCase() ===
-                      'pending_admin_validation'
-                        ? 'Aguardando validação'
-                        : evento?.antesala_request_status || 'Aguardando validação'}
+                      {getAntesalaStatusLabel(evento?.antesala_request_status)}
                     </p>
+                    {normalizeAntesalaStatus(evento?.antesala_request_status) === 'pending' ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => responderSolicitacaoAntesala('approved')}
+                          disabled={processandoAntesala !== ''}
+                          className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-black text-white disabled:opacity-60"
+                        >
+                          {processandoAntesala === 'approved' ? 'Aprovando...' : 'Aprovar antesala'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => responderSolicitacaoAntesala('rejected')}
+                          disabled={processandoAntesala !== ''}
+                          className="rounded-xl border border-red-300 bg-white px-3 py-2 text-xs font-black text-red-700 disabled:opacity-60"
+                        >
+                          {processandoAntesala === 'rejected' ? 'Rejeitando...' : 'Rejeitar'}
+                        </button>
+                      </div>
+                    ) : null}
                   </section>
                 ) : null}
               </section>

@@ -153,6 +153,12 @@ function buildEventAntesalaUpdatePayload({
   };
 }
 
+function resolveAntesalaRequestStatus({ antesalaIncluded, antesalaRequestedByClient }) {
+  if (antesalaRequestedByClient) return 'pending';
+  if (antesalaIncluded) return 'approved';
+  return null;
+}
+
 async function findSuggestionSongIdForItem(supabase, item) {
   const title = normalizeText(item?.song_name);
   if (!title) return null;
@@ -494,11 +500,10 @@ export async function POST(request) {
     const antesalaRequestedByClient = normalizeBool(antesalaFlow.requestedByClient);
     const antesalaDurationMinutes = Number(antesalaFlow.durationMinutes || 0) || null;
     const antesalaPriceIncrement = Number(antesalaFlow.priceIncrement || 0) || 0;
-    const antesalaRequestStatus = antesalaRequestedByClient
-      ? 'pending_admin_validation'
-      : antesalaIncluded
-      ? 'included'
-      : null;
+    const antesalaRequestStatus = resolveAntesalaRequestStatus({
+      antesalaIncluded,
+      antesalaRequestedByClient,
+    });
 
     const primaryEventPayload = buildEventAntesalaUpdatePayload({
       antesalaIncluded,

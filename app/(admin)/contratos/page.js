@@ -22,6 +22,7 @@ const PRECONTRACTS_SELECT_FIELDS =
   'id, created_at, event_id, client_name, event_type, event_date, location_name, client_phone, status, notes, public_token';
 const CONTRACTS_SELECT_FIELDS =
   'id, created_at, precontract_id, event_id, status, signed_at, pdf_url, doc_url, public_token';
+const CONTRATOS_CACHE_TTL_MS = 60 * 1000;
 let contratosAdminCache = [];
 
 function formatDateBR(value) {
@@ -124,35 +125,40 @@ export default function ContratosPage() {
   useEffect(() => {
     async function carregar() {
       try {
-        if (contratosAdminCache.length === 0) {
+        const hasFreshCache =
+          Array.isArray(contratosAdminCache) &&
+          contratosAdminCache.length > 0 &&
+          Date.now() - Number(contratosAdminCache.updatedAt || 0) < CONTRATOS_CACHE_TTL_MS;
+
+        if (!hasFreshCache) {
           setCarregando(true);
+          setErro('');
+
+          const [{ data: precontracts, error: preErr }, { data: contracts, error: conErr }] =
+            await Promise.all([
+              supabase
+                .from('precontracts')
+                .select(PRECONTRACTS_SELECT_FIELDS)
+                .neq('status', 'cancelled')
+                .order('created_at', { ascending: false })
+                .limit(ADMIN_LIST_LIMIT),
+
+              supabase
+                .from('contracts')
+                .select(CONTRACTS_SELECT_FIELDS)
+                .neq('status', 'cancelled')
+                .order('created_at', { ascending: false })
+                .limit(ADMIN_LIST_LIMIT),
+            ]);
+
+          if (preErr) throw preErr;
+          if (conErr) throw conErr;
+
+          const merged = mergeContratos(precontracts, contracts);
+
+          setContratos(merged);
+          contratosAdminCache = Object.assign(merged, { updatedAt: Date.now() });
         }
-        setErro('');
-
-        const [{ data: precontracts, error: preErr }, { data: contracts, error: conErr }] =
-          await Promise.all([
-            supabase
-  .from('precontracts')
-  .select(PRECONTRACTS_SELECT_FIELDS)
-  .neq('status', 'cancelled')
-  .order('created_at', { ascending: false })
-  .limit(ADMIN_LIST_LIMIT),
-
-supabase
-  .from('contracts')
-  .select(CONTRACTS_SELECT_FIELDS)
-  .neq('status', 'cancelled')
-  .order('created_at', { ascending: false })
-  .limit(ADMIN_LIST_LIMIT),
-          ]);
-
-        if (preErr) throw preErr;
-        if (conErr) throw conErr;
-
-        const merged = mergeContratos(precontracts, contracts);
-
-        setContratos(merged);
-        contratosAdminCache = merged;
       } catch (e) {
         console.error('Erro ao carregar contratos:', e);
         setErro('Não foi possível carregar os contratos.');
@@ -179,7 +185,7 @@ supabase
   const resumo = useMemo(() => getContratosSummary(contratos), [contratos]);
 
   useEffect(() => {
-    contratosAdminCache = contratos;
+    contratosAdminCache = Object.assign([...contratos], { updatedAt: Date.now() });
   }, [contratos]);
 
   function handleNovoContrato() {

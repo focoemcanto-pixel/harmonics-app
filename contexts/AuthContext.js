@@ -42,19 +42,20 @@ export function AuthProvider({ children }) {
       console.error('Erro ao carregar perfil:', error);
       setUser(user);
       setProfile(null);
-      setAuthError(error?.message || 'Erro ao carregar perfil');
+      // Falha de perfil não deve bloquear a liberação da sessão
     }
   }, []);
 
-  const applySessionState = useCallback(async (session) => {
+  const applySessionState = useCallback((session) => {
     if (session?.user) {
-      await loadProfile(session.user);
-      return;
+      setUser(session.user);
+      return session.user;
     }
 
     setUser(null);
     setProfile(null);
-  }, [loadProfile]);
+    return null;
+  }, []);
 
   const runSessionFlow = useCallback((session, source = 'unknown', options = {}) => {
     const { markLoading = false, force = false } = options;
@@ -77,12 +78,18 @@ export function AuthProvider({ children }) {
 
         setAuthError(null);
         if (markLoading) setLoading(true);
-        await applySessionState(session);
+        const sessionUser = applySessionState(session);
         if (!isMountedRef.current) return;
         lastSessionFingerprintRef.current = sessionFingerprint;
         bootstrapResolvedRef.current = true;
         setInitialized(true);
         setLoading(false);
+
+        if (sessionUser) {
+          loadProfile(sessionUser).catch((error) => {
+            console.warn('[Auth] perfil indisponível no bootstrap, liberando app sem perfil:', error);
+          });
+        }
       })
       .catch((error) => {
         if (!isMountedRef.current) return;
@@ -94,11 +101,19 @@ export function AuthProvider({ children }) {
       });
 
     return sessionFlowRef.current;
-  }, [applySessionState]);
+  }, [applySessionState, loadProfile]);
 
   useEffect(() => {
     let active = true;
     isMountedRef.current = true;
+
+    const bootstrapWatchdog = setTimeout(() => {
+      if (!active || bootstrapResolvedRef.current) return;
+      console.warn('[Auth] bootstrap excedeu tempo limite, liberando interface');
+      bootstrapResolvedRef.current = true;
+      setInitialized(true);
+      setLoading(false);
+    }, 8000);
 
     if (!supabase) {
       const errorMessage = 'Supabase client indisponível no browser';
@@ -106,7 +121,11 @@ export function AuthProvider({ children }) {
       setAuthError(errorMessage);
       setLoading(false);
       setInitialized(true);
-      return undefined;
+      clearTimeout(bootstrapWatchdog);
+      return () => {
+        active = false;
+        isMountedRef.current = false;
+      };
     }
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -146,6 +165,7 @@ export function AuthProvider({ children }) {
     return () => {
       active = false;
       isMountedRef.current = false;
+      clearTimeout(bootstrapWatchdog);
       subscription.unsubscribe();
     };
   }, [runSessionFlow]);

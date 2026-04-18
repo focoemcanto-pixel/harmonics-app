@@ -140,100 +140,16 @@ function buildEventAntesalaUpdatePayload({
   antesalaIncluded,
   antesalaDurationMinutes,
   antesalaRequestedByClient,
-  beforeRoomStatus,
+  antesalaRequestStatus,
   antesalaPriceIncrement,
-  useLegacyDurationColumn = false,
 }) {
-  const payload = {
-    has_antesala: antesalaIncluded,
-    antesala_requested_by_client: antesalaRequestedByClient,
-    antesala_request_status: beforeRoomStatus,
-    antesala_price_increment: antesalaPriceIncrement,
-  };
-
-  if (useLegacyDurationColumn) {
-    payload.before_room_minutes = antesalaDurationMinutes;
-  } else {
-    payload.antesala_duration_minutes = antesalaDurationMinutes;
-  }
-
-  return payload;
-}
-
-function extractMissingColumnName(error) {
-  const combined = [error?.message, error?.details, error?.hint]
-    .filter(Boolean)
-    .join(' | ');
-
-  const patterns = [
-    /column ["']?([a-zA-Z0-9_]+)["']? does not exist/i,
-    /could not find the ['"]([a-zA-Z0-9_]+)['"] column/i,
-    /unknown column ["']?([a-zA-Z0-9_]+)["']?/i,
-  ];
-
-  for (const pattern of patterns) {
-    const match = combined.match(pattern);
-    if (match?.[1]) return match[1];
-  }
-
-  return null;
-}
-
-async function updateEventWithMissingColumnFallback({ supabase, eventId, payload }) {
-  const safePayload = { ...payload };
-  const removedColumns = [];
-  const maxAttempts = 6;
-
-  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    const { error } = await supabase
-      .from('events')
-      .update(safePayload)
-      .eq('id', eventId);
-
-    if (!error) {
-      if (removedColumns.length > 0) {
-        console.warn(
-          '[API REPERTORIO] update events concluído com fallback de colunas ausentes:',
-          {
-            eventId,
-            removedColumns,
-            attempts: attempt,
-          }
-        );
-      }
-      return { error: null, removedColumns };
-    }
-
-    const missingColumn = extractMissingColumnName(error);
-    const lowerMessage = String(error?.message || '').toLowerCase();
-    const lowerDetails = String(error?.details || '').toLowerCase();
-    const isMissingColumnError =
-      String(error?.code || '').toLowerCase() === '42703' ||
-      lowerMessage.includes('does not exist') ||
-      lowerMessage.includes('could not find the') ||
-      lowerDetails.includes('schema cache');
-    const shouldRetry =
-      isMissingColumnError &&
-      missingColumn &&
-      Object.hasOwn(safePayload, missingColumn);
-
-    if (!shouldRetry) {
-      return { error, removedColumns };
-    }
-
-    delete safePayload[missingColumn];
-    removedColumns.push(missingColumn);
-
-    console.warn('[API REPERTORIO] Coluna ausente em events detectada; removendo do payload', {
-      eventId,
-      missingColumn,
-      attempt,
-    });
-  }
-
   return {
-    error: { message: 'Falha ao atualizar evento após múltiplos fallbacks de colunas ausentes.' },
-    removedColumns,
+    has_antesala: antesalaIncluded,
+    antesala_enabled: antesalaIncluded,
+    antesala_requested_by_client: antesalaRequestedByClient,
+    antesala_request_status: antesalaRequestStatus,
+    antesala_price_increment: antesalaPriceIncrement,
+    antesala_duration_minutes: antesalaDurationMinutes,
   };
 }
 
@@ -578,7 +494,7 @@ export async function POST(request) {
     const antesalaRequestedByClient = normalizeBool(antesalaFlow.requestedByClient);
     const antesalaDurationMinutes = Number(antesalaFlow.durationMinutes || 0) || null;
     const antesalaPriceIncrement = Number(antesalaFlow.priceIncrement || 0) || 0;
-    const beforeRoomStatus = antesalaRequestedByClient
+    const antesalaRequestStatus = antesalaRequestedByClient
       ? 'pending_admin_validation'
       : antesalaIncluded
       ? 'included'
@@ -588,34 +504,14 @@ export async function POST(request) {
       antesalaIncluded,
       antesalaDurationMinutes,
       antesalaRequestedByClient,
-      beforeRoomStatus,
+      antesalaRequestStatus,
       antesalaPriceIncrement,
     });
 
-    let { error: updateEventError } = await updateEventWithMissingColumnFallback({
-      supabase,
-      eventId,
-      payload: primaryEventPayload,
-    });
-
-    const missingDurationColumn =
-      updateEventError &&
-      String(updateEventError.message || '').includes("'antesala_duration_minutes' column");
-
-    if (missingDurationColumn) {
-      ({ error: updateEventError } = await updateEventWithMissingColumnFallback({
-        supabase,
-        eventId,
-        payload: buildEventAntesalaUpdatePayload({
-          antesalaIncluded,
-          antesalaDurationMinutes,
-          antesalaRequestedByClient,
-          beforeRoomStatus,
-          antesalaPriceIncrement,
-          useLegacyDurationColumn: true,
-        }),
-      }));
-    }
+    const { error: updateEventError } = await supabase
+      .from('events')
+      .update(primaryEventPayload)
+      .eq('id', eventId);
 
     if (updateEventError) throw updateEventError;
 
@@ -634,7 +530,7 @@ export async function POST(request) {
         await Promise.all([
           supabase
             .from('repertoire_config')
-            .select('event_id, repertoire_pdf_url, pdf_url')
+            .select('event_id, repertoire_pdf_url')
             .eq('event_id', eventId)
             .maybeSingle(),
           supabase
@@ -650,7 +546,7 @@ export async function POST(request) {
       console.log('[API REPERTORIO] URL PDF contrato (somente leitura):', contractRow?.pdf_url || '(vazio)');
       console.log(
         '[API REPERTORIO] URL PDF repertório salvo:',
-        persistedConfig?.repertoire_pdf_url || persistedConfig?.pdf_url || '(vazio)'
+        persistedConfig?.repertoire_pdf_url || '(vazio)'
       );
     }
 

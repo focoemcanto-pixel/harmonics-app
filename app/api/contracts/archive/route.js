@@ -1,33 +1,14 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 
-function isMissingUpdatedAtColumn(error) {
-  const message = String(error?.message || '').toLowerCase();
-  return (
-    message.includes('updated_at') &&
-    (message.includes('column') ||
-      message.includes('does not exist') ||
-      message.includes('schema cache'))
-  );
-}
-
 async function updateStatusById(supabase, table, id, status) {
-  let { error } = await supabase
+  const { error } = await supabase
     .from(table)
     .update({
       status,
       updated_at: new Date().toISOString(),
     })
     .eq('id', id);
-
-  if (error && isMissingUpdatedAtColumn(error)) {
-    const retry = await supabase
-      .from(table)
-      .update({ status })
-      .eq('id', id);
-
-    error = retry.error || null;
-  }
 
   if (error) {
     throw new Error(`[${table}] ${error.message}`);

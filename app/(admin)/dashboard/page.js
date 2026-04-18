@@ -8,6 +8,7 @@ import DashboardPrimaryKpis from '@/components/dashboard/DashboardPrimaryKpis';
 import DashboardSecondaryKpis from '@/components/dashboard/DashboardSecondaryKpis';
 import { supabase } from '@/lib/supabase';
 import { buildDashboardSummary } from '@/lib/dashboard/dashboard-summary';
+import { logWarn, reportError } from '@/lib/observability/client-log';
 
 const DashboardRevenueChart = dynamic(() => import('@/components/dashboard/DashboardRevenueChart'));
 const DashboardFinanceBreakdown = dynamic(() => import('@/components/dashboard/DashboardFinanceBreakdown'));
@@ -568,8 +569,11 @@ export default function DashboardPage() {
   const [erro, setErro] = useState('');
   const [mobileSection, setMobileSection] = useState('overview');
   const [activities, setActivities] = useState([]);
+  const [activitiesLoading, setActivitiesLoading] = useState(true);
+  const [partialDataWarning, setPartialDataWarning] = useState('');
   const [secondaryReady, setSecondaryReady] = useState(false);
   const [heavyReady, setHeavyReady] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   // Gerar insights com useMemo (performance)
   const insights = useMemo(() => {
@@ -604,6 +608,7 @@ export default function DashboardPage() {
     try {
       setCarregando(true);
       setErro('');
+      setPartialDataWarning('');
       setSecondaryReady(false);
       setHeavyReady(false);
 
@@ -648,9 +653,19 @@ export default function DashboardPage() {
       const precontractsRes =
         primaryResults[2].status === 'fulfilled' ? primaryResults[2].value : { data: [], error: null };
 
-      if (eventsRes.error) console.warn('[dashboard] events falhou:', eventsRes.error);
-      if (contractsRes.error) console.warn('[dashboard] contracts falhou:', contractsRes.error);
-      if (precontractsRes.error) console.warn('[dashboard] precontracts falhou:', precontractsRes.error);
+      const failedPrimaryBlocks = [];
+      if (eventsRes.error) {
+        failedPrimaryBlocks.push('eventos');
+        logWarn('dashboard', 'events falhou', eventsRes.error);
+      }
+      if (contractsRes.error) {
+        failedPrimaryBlocks.push('contratos');
+        logWarn('dashboard', 'contracts falhou', contractsRes.error);
+      }
+      if (precontractsRes.error) {
+        failedPrimaryBlocks.push('pré-contratos');
+        logWarn('dashboard', 'precontracts falhou', precontractsRes.error);
+      }
 
       const eventsData = Array.isArray(eventsRes.data) ? eventsRes.data : [];
       const contractsData = Array.isArray(contractsRes.data) ? contractsRes.data : [];
@@ -685,9 +700,24 @@ export default function DashboardPage() {
       const adjustmentRequestsRes =
         heavyResults[2].status === 'fulfilled' ? heavyResults[2].value : { data: [], error: null };
 
-      if (eventMusiciansRes.error) console.warn('[dashboard] event_musicians falhou:', eventMusiciansRes.error);
-      if (repertoireConfigsRes.error) console.warn('[dashboard] repertoire_config falhou:', repertoireConfigsRes.error);
-      if (adjustmentRequestsRes.error) console.warn('[dashboard] contract_adjustment_requests falhou:', adjustmentRequestsRes.error);
+      const failedHeavyBlocks = [];
+      if (eventMusiciansRes.error) {
+        failedHeavyBlocks.push('escalas');
+        logWarn('dashboard', 'event_musicians falhou', eventMusiciansRes.error);
+      }
+      if (repertoireConfigsRes.error) {
+        failedHeavyBlocks.push('repertórios');
+        logWarn('dashboard', 'repertoire_config falhou', repertoireConfigsRes.error);
+      }
+      if (adjustmentRequestsRes.error) {
+        failedHeavyBlocks.push('ajustes');
+        logWarn('dashboard', 'contract_adjustment_requests falhou', adjustmentRequestsRes.error);
+      }
+      if (failedPrimaryBlocks.length > 0 || failedHeavyBlocks.length > 0) {
+        setPartialDataWarning(
+          `Alguns blocos foram carregados parcialmente (${[...failedPrimaryBlocks, ...failedHeavyBlocks].join(', ')}).`
+        );
+      }
 
       const eventMusiciansData = Array.isArray(eventMusiciansRes.data) ? eventMusiciansRes.data : [];
       const repertoireConfigsData = Array.isArray(repertoireConfigsRes.data) ? repertoireConfigsRes.data : [];
@@ -718,7 +748,7 @@ export default function DashboardPage() {
         summary: nextSummary,
       };
     } catch (error) {
-      console.error('Erro ao carregar dashboard:', error);
+      reportError('dashboard.load', error);
       setErro(error?.message || 'Não foi possível carregar o dashboard.');
       setEvents([]);
       setContracts([]);
@@ -733,18 +763,19 @@ export default function DashboardPage() {
 
   carregarDashboard();
   fetchRecentActivity();
-}, []);
+}, [reloadKey]);
   async function fetchRecentActivity() {
   try {
+    setActivitiesLoading(true);
     let res = await fetch('/api/automation/logs?limit=6&sort=desc');
 
     if (res.status === 404) {
-      console.warn('Rota /api/automation/logs não existe, tentando alternativa');
+      logWarn('dashboard', 'Rota /api/automation/logs não existe, tentando alternativa');
       res = await fetch('/api/logs/automation?limit=6');
     }
 
     if (!res.ok) {
-      console.warn('Não foi possível carregar logs agora, exibindo vazio');
+      logWarn('dashboard', 'Não foi possível carregar logs agora, exibindo vazio');
       setActivities([]);
       return;
     }
@@ -801,8 +832,10 @@ export default function DashboardPage() {
 
     setActivities(sorted);
   } catch (error) {
-    console.error('Erro ao buscar atividades:', error);
+    reportError('dashboard.activities', error);
     setActivities([]);
+  } finally {
+    setActivitiesLoading(false);
   }
 }
 
@@ -943,7 +976,21 @@ export default function DashboardPage() {
 
           {erro ? (
             <div className="rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-[14px] font-semibold text-red-700">
-              {erro}
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <span>{erro}</span>
+                <button
+                  type="button"
+                  onClick={() => setReloadKey((current) => current + 1)}
+                  className="rounded-xl border border-red-300 bg-white px-3 py-1.5 text-[12px] font-black text-red-700 hover:bg-red-50"
+                >
+                  Recarregar dashboard
+                </button>
+              </div>
+            </div>
+          ) : null}
+          {partialDataWarning ? (
+            <div className="rounded-[18px] border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] font-semibold text-amber-800">
+              {partialDataWarning}
             </div>
           ) : null}
 
@@ -1200,9 +1247,19 @@ export default function DashboardPage() {
             </div>
 
             <div className="space-y-3">
-              {activities.length === 0 ? (
+              {activitiesLoading ? (
+                Array.from({ length: MAX_DISPLAYED_ACTIVITIES }).map((_, index) => (
+                  <div key={`activity-loading-${index}`} className="flex items-start gap-3 animate-pulse">
+                    <div className="h-10 w-10 rounded-lg bg-slate-200" />
+                    <div className="flex-1 space-y-2">
+                      <div className="h-4 w-40 rounded bg-slate-200" />
+                      <div className="h-3 w-full max-w-[260px] rounded bg-slate-100" />
+                    </div>
+                  </div>
+                ))
+              ) : activities.length === 0 ? (
                 <p className="text-sm text-slate-500 text-center py-6">
-                  Nenhuma atividade recente
+                  Sem atividade recente no momento. Novos envios e alertas aparecerão aqui.
                 </p>
               ) : (
                 activities.slice(0, MAX_DISPLAYED_ACTIVITIES).map(activity => (

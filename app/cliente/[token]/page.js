@@ -679,22 +679,87 @@ export default async function ClienteTokenPage({ params }) {
     return <ClienteHome data={buildFallbackData(token)} />;
   }
 
+  const normalizedToken = String(token || '').trim();
   let precontract = null;
+  let eventId = null;
 
   try {
     const { data: precontractData, error: precontractError } = await supabase
       .from('precontracts')
       .select('id, public_token, event_id, reception_hours, has_sound, has_transport')
-      .eq('public_token', token)
+      .eq('public_token', normalizedToken)
       .maybeSingle();
 
     if (precontractError) {
       console.error('[CLIENTE PAGE] Erro ao buscar precontract:', precontractError);
     } else {
       precontract = precontractData || null;
+      eventId = precontractData?.event_id || null;
     }
   } catch (error) {
     console.error('[CLIENTE PAGE] Falha inesperada ao buscar precontract:', error);
+  }
+
+  if (!eventId) {
+    try {
+      const { data: configByToken, error: configByTokenError } = await supabase
+        .from('repertoire_config')
+        .select('event_id, client_public_token')
+        .eq('client_public_token', normalizedToken)
+        .maybeSingle();
+
+      if (configByTokenError) {
+        console.error(
+          '[CLIENTE PAGE] Erro ao buscar repertoire_config por client_public_token:',
+          configByTokenError
+        );
+      } else {
+        eventId = configByToken?.event_id || null;
+      }
+    } catch (error) {
+      console.error(
+        '[CLIENTE PAGE] Falha inesperada ao buscar repertoire_config por client_public_token:',
+        error
+      );
+    }
+  }
+
+  if (!eventId) {
+    try {
+      const { data: repertoireTokenRow, error: repertoireTokenError } = await supabase
+        .from('repertoire_tokens')
+        .select('id, token, event_id, status, expires_at')
+        .eq('token', normalizedToken)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (repertoireTokenError) {
+        console.error('[CLIENTE PAGE] Erro ao buscar repertoire_token:', repertoireTokenError);
+      } else {
+        eventId = repertoireTokenRow?.event_id || null;
+      }
+    } catch (error) {
+      console.error('[CLIENTE PAGE] Falha inesperada ao buscar repertoire_token:', error);
+    }
+  }
+
+  if (!precontract?.id && eventId) {
+    try {
+      const { data: precontractByEvent, error: precontractByEventError } = await supabase
+        .from('precontracts')
+        .select('id, public_token, event_id, reception_hours, has_sound, has_transport')
+        .eq('event_id', eventId)
+        .maybeSingle();
+
+      if (precontractByEventError) {
+        console.error('[CLIENTE PAGE] Erro ao buscar precontract por event_id:', precontractByEventError);
+      } else {
+        precontract = precontractByEvent || null;
+      }
+    } catch (error) {
+      console.error('[CLIENTE PAGE] Falha inesperada ao buscar precontract por event_id:', error);
+    }
   }
 
   if (precontract?.id) {
@@ -726,7 +791,6 @@ export default async function ClienteTokenPage({ params }) {
     }
   }
 
-  const eventId = precontract?.event_id;
   if (!eventId) {
     console.error('[CLIENTE PAGE] Evento não encontrado para token informado:', token);
     return <ClienteHome data={buildFallbackData(token)} />;
@@ -740,6 +804,16 @@ export default async function ClienteTokenPage({ params }) {
   let paymentsResp = { data: [], error: null };
   let pricingResp = { data: null, error: null };
   let adjustmentResp = { data: null, error: null };
+
+  const adjustmentQuery = precontract?.id
+    ? supabase
+        .from('contract_adjustment_requests')
+        .select('id, status, request_message, created_at, resolved_at')
+        .eq('precontract_id', precontract.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+    : Promise.resolve({ data: null, error: null });
 
   try {
     [
@@ -797,13 +871,7 @@ export default async function ClienteTokenPage({ params }) {
         .limit(1)
         .maybeSingle(),
 
-      supabase
-        .from('contract_adjustment_requests')
-        .select('id, status, request_message, created_at, resolved_at')
-        .eq('precontract_id', precontract.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle(),
+      adjustmentQuery,
     ]);
   } catch (error) {
     console.error('[CLIENTE PAGE] Falha inesperada ao carregar dados principais:', error);

@@ -1821,13 +1821,14 @@ function buildConfigPayload() {
 async function saveRepertorio(mode = 'draft') {
   try {
     setSavingMode(mode);
+    const builtItemsPayload = buildItemsPayload();
     const payload = {
       token: data.repertorio?.repertoireToken || data.token,
       repertoireToken: data.repertorio?.repertoireToken || '',
       clientToken: data.token || '',
       mode,
       config: buildConfigPayload(),
-      items: buildItemsPayload(),
+      items: builtItemsPayload,
       antesalaFlow: {
         included: querAntessala === true,
         durationMinutes: Number(antessala.durationMinutes || 0) || null,
@@ -1844,10 +1845,16 @@ async function saveRepertorio(mode = 'draft') {
     }, {});
     const expectedSections = ['antessala', 'cortejo', 'cerimonia', 'receptivo', 'saida'];
     const missingSections = expectedSections.filter((section) => !payloadItemsBySection[section]);
+    const cortejoPayload = builtItemsPayload.filter((item) => item.section === 'cortejo');
+    const cerimoniaPayload = builtItemsPayload.filter((item) => item.section === 'cerimonia');
+    const saidaPayload = builtItemsPayload.filter((item) => item.section === 'saida');
 
     console.log('[REPERTORIO_DRAFT] payload final enviado para persistência:', payload);
     console.log('[REPERTORIO_DRAFT] quantidade de itens por seção:', payloadItemsBySection);
     console.log('[REPERTORIO_DRAFT] seções ausentes no payload.itens:', missingSections);
+    console.log('[SAVE][CORTEJO_PAYLOAD]', cortejoPayload);
+    console.log('[SAVE][CERIMONIA_PAYLOAD]', cerimoniaPayload);
+    console.log('[SAVE][SAIDA_PAYLOAD]', saidaPayload);
 
     console.log('[CLIENTE REPERTORIO] token URL (/cliente/[token]):', data.token);
     console.log('[CLIENTE REPERTORIO] token enviado no payload.token:', payload.token);

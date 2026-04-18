@@ -40,6 +40,7 @@ const CLIENT_REPERTOIRE_CONFIG_SELECT_FIELDS = [
   'reception_notes',
   'desired_songs',
   'general_notes',
+  'last_saved_at',
   'client_public_token',
   'repertoire_pdf_url',
   'exit_reference_title',
@@ -343,16 +344,19 @@ function mapItemsToInitialState(items) {
       .filter((item) => item.section === 'receptivo')
       .sort((a, b) => (a.item_order || 0) - (b.item_order || 0))[0] || null;
 
+  const usedFallbackCortejo = cortejo.length === 0;
+  const usedFallbackCerimonia = cerimonia.length === 0;
+
   return {
     cortejo:
-      cortejo.length > 0
+      !usedFallbackCortejo
         ? cortejo
         : [
             { label: 'Padrinhos', musica: '', referencia: '', observacao: '' },
             { label: 'Noiva', musica: '', referencia: '', observacao: '' },
           ],
     cerimonia:
-      cerimonia.length > 0
+      !usedFallbackCerimonia
         ? cerimonia
         : [{ label: 'Alianças', musica: '', referencia: '', observacao: '' }],
     antessala: {
@@ -370,6 +374,10 @@ function mapItemsToInitialState(items) {
       generos: receptivoItem?.genres || '',
       artistas: receptivoItem?.artists || '',
       observacao: receptivoItem?.notes || '',
+    },
+    meta: {
+      usedFallbackCortejo,
+      usedFallbackCerimonia,
     },
   };
 }
@@ -613,6 +621,15 @@ export default async function ClienteRepertorioPage({ params }) {
 
   const config = configResp?.data || null;
   const items = Array.isArray(itemsResp?.data) ? itemsResp.data : [];
+  if (IS_DEV) {
+    const cortejoFromDb = items.filter((item) => item.section === 'cortejo');
+    const cerimoniaFromDb = items.filter((item) => item.section === 'cerimonia');
+    const saidaFromDb = items.filter((item) => item.section === 'saida');
+    console.log('[LOAD][ITEMS_FROM_DB]', items);
+    console.log('[LOAD][CORTEJO_FROM_DB]', cortejoFromDb);
+    console.log('[LOAD][CERIMONIA_FROM_DB]', cerimoniaFromDb);
+    console.log('[LOAD][SAIDA_FROM_DB]', saidaFromDb);
+  }
   const precontract = precontractsResp?.data || null;
   const contract = contractsResp?.data || null;
   const pricing = pricingResp?.data || {};
@@ -670,6 +687,33 @@ export default async function ClienteRepertorioPage({ params }) {
   }
 
   const initialLists = mapItemsToInitialState(items);
+  if (IS_DEV) {
+    if (
+      config?.last_saved_at &&
+      (initialLists?.meta?.usedFallbackCortejo || initialLists?.meta?.usedFallbackCerimonia)
+    ) {
+      console.error('[LOAD][MISSING_EXPECTED_SECTIONS_AFTER_SAVE]', {
+        lastSavedAt: config?.last_saved_at,
+        usedFallbackCortejo: Boolean(initialLists?.meta?.usedFallbackCortejo),
+        usedFallbackCerimonia: Boolean(initialLists?.meta?.usedFallbackCerimonia),
+        itemCountFromDb: items.length,
+      });
+    }
+
+    console.log('[LOAD][INITIAL_STATE]', {
+      cortejo: initialLists.cortejo,
+      cerimonia: initialLists.cerimonia,
+      saida: {
+        musica: config?.exit_song || '',
+        referencia: config?.exit_reference || '',
+        observacao: config?.exit_notes || '',
+        reference_title: config?.exit_reference_title || '',
+        reference_channel: config?.exit_reference_channel || '',
+        reference_thumbnail: config?.exit_reference_thumbnail || '',
+        reference_video_id: config?.exit_reference_video_id || '',
+      },
+    });
+  }
   const repertorioPdfToken = clientToken;
   const repertorioPdfUrl = repertorioPdfToken
     ? `/api/cliente/repertorio/pdf/${repertorioPdfToken}`

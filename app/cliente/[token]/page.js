@@ -321,17 +321,8 @@ function mapItemsToInitialState(items) {
       .sort((a, b) => (a.item_order || 0) - (b.item_order || 0))[0] || null;
 
   return {
-    cortejo:
-      cortejo.length > 0
-        ? cortejo
-        : [
-            { label: 'Padrinhos', musica: '', referencia: '', observacao: '' },
-            { label: 'Noiva', musica: '', referencia: '', observacao: '' },
-          ],
-    cerimonia:
-      cerimonia.length > 0
-        ? cerimonia
-        : [{ label: 'Alianças', musica: '', referencia: '', observacao: '' }],
+    cortejo: cortejo.length > 0 ? cortejo : [],
+    cerimonia: cerimonia.length > 0 ? cerimonia : [],
     antessala: {
       estilo: antessalaMainItem?.song_name || '',
       generos: antessalaMainItem?.genres || '',

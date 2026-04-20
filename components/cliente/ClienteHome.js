@@ -275,6 +275,60 @@ function hasUsefulListItem(item = {}) {
   );
 }
 
+function hasUsefulMusicalItem(item = {}) {
+  return Boolean(
+    hasFilledField(item?.musica) ||
+      hasFilledField(item?.referencia) ||
+      hasFilledField(item?.observacao) ||
+      hasFilledField(item?.reference_title) ||
+      hasFilledField(item?.reference_channel) ||
+      hasFilledField(item?.reference_thumbnail) ||
+      hasFilledField(item?.reference_video_id)
+  );
+}
+
+function filterUsefulMusicalItems(list = []) {
+  return (Array.isArray(list) ? list : []).filter((item) => hasUsefulMusicalItem(item));
+}
+
+function pickTraceItem(list = []) {
+  const item = filterUsefulMusicalItems(list)[0];
+  if (!item) return null;
+  return {
+    label: String(item?.label || '').trim(),
+    musica: String(item?.musica || '').trim(),
+    referencia: String(item?.referencia || '').trim(),
+    observacao: String(item?.observacao || '').trim(),
+    reference_video_id: String(item?.reference_video_id || '').trim(),
+  };
+}
+
+function pickTracePayloadItem(items = [], section = '') {
+  const item = (Array.isArray(items) ? items : []).find(
+    (entry) =>
+      String(entry?.section || '').trim() === section &&
+      hasUsefulMusicalItem({
+        musica: entry?.song_name,
+        referencia: entry?.reference_link,
+        observacao: entry?.notes,
+        reference_title: entry?.reference_title,
+        reference_channel: entry?.reference_channel,
+        reference_thumbnail: entry?.reference_thumbnail,
+        reference_video_id: entry?.reference_video_id,
+      })
+  );
+  if (!item) return null;
+  return {
+    section: String(item?.section || '').trim(),
+    item_order: Number(item?.item_order ?? 0),
+    label: String(item?.label || '').trim(),
+    song_name: String(item?.song_name || '').trim(),
+    reference_link: String(item?.reference_link || '').trim(),
+    notes: String(item?.notes || '').trim(),
+    reference_video_id: String(item?.reference_video_id || '').trim(),
+  };
+}
+
 function hasUsefulAntesalaState(state = {}) {
   return Boolean(
     hasFilledField(state?.estilo) ||
@@ -1185,7 +1239,7 @@ function RepertorioTab({ data, selectedSongs, onSaved, onReviewRequested }) {
           ...item,
           referenceMeta: toReferenceMeta(item),
         }))
-        .filter((item) => hasUsefulListItem(item))
+        .filter((item) => hasUsefulMusicalItem(item))
     : null;
   const initialCerimonia = Array.isArray(initialState.cerimonia)
     ? initialState.cerimonia
@@ -1193,7 +1247,7 @@ function RepertorioTab({ data, selectedSongs, onSaved, onReviewRequested }) {
           ...item,
           referenceMeta: toReferenceMeta(item),
         }))
-        .filter((item) => hasUsefulListItem(item))
+        .filter((item) => hasUsefulMusicalItem(item))
     : null;
   const initialSaida = initialState.saida
     ? {
@@ -1345,14 +1399,19 @@ const [generalNotes, setGeneralNotes] = useState(initialState.generalNotes || ''
     generalNotes,
   ]);
 
+  useEffect(() => {
+    console.log('[TRACE][CORTEJO][FINAL_STATE]', pickTraceItem(cortejo));
+    console.log('[TRACE][CERIMONIA][FINAL_STATE]', pickTraceItem(cerimonia));
+  }, [cortejo, cerimonia]);
+
   const applyLocalDraft = useCallback((parsed) => {
     debugClientHome('[CLIENT_HOME][LOCAL_DRAFT]', parsed);
     const currentSnapshot = repertorioStateRef.current || {};
-    const parsedCortejo = Array.isArray(parsed?.cortejo) ? parsed.cortejo : [];
-    const parsedCerimonia = Array.isArray(parsed?.cerimonia) ? parsed.cerimonia : [];
+    const parsedCortejo = filterUsefulMusicalItems(parsed?.cortejo);
+    const parsedCerimonia = filterUsefulMusicalItems(parsed?.cerimonia);
     const parsedAntesala = { ...getDefaultAntesalaState(), ...(parsed?.antessala || {}) };
-    const shouldUseDraftCortejo = parsedCortejo.some((item) => hasUsefulListItem(item));
-    const shouldUseDraftCerimonia = parsedCerimonia.some((item) => hasUsefulListItem(item));
+    const shouldUseDraftCortejo = parsedCortejo.length > 0;
+    const shouldUseDraftCerimonia = parsedCerimonia.length > 0;
     const shouldUseDraftAntesala = hasUsefulAntesalaState(parsedAntesala);
 
     const restoredState = {
@@ -1431,11 +1490,11 @@ const [generalNotes, setGeneralNotes] = useState(initialState.generalNotes || ''
 
       if (savedDraftRaw) {
         const parsed = JSON.parse(savedDraftRaw);
-        const parsedCortejo = Array.isArray(parsed?.cortejo) ? parsed.cortejo : [];
-        const parsedCerimonia = Array.isArray(parsed?.cerimonia) ? parsed.cerimonia : [];
+        const parsedCortejo = filterUsefulMusicalItems(parsed?.cortejo);
+        const parsedCerimonia = filterUsefulMusicalItems(parsed?.cerimonia);
         const parsedAntesala = { ...getDefaultAntesalaState(), ...(parsed?.antessala || {}) };
-        const hasUsefulDraftCortejo = parsedCortejo.some((item) => hasUsefulListItem(item));
-        const hasUsefulDraftCerimonia = parsedCerimonia.some((item) => hasUsefulListItem(item));
+        const hasUsefulDraftCortejo = parsedCortejo.length > 0;
+        const hasUsefulDraftCerimonia = parsedCerimonia.length > 0;
         const hasUsefulDraftAntesala = hasUsefulAntesalaState(parsedAntesala);
         const shouldHydrateFromLocalDraft =
           !hasBackendRepertorio ||
@@ -1616,8 +1675,7 @@ const [generalNotes, setGeneralNotes] = useState(initialState.generalNotes || ''
   }, [selectedSongs, setAntessalaWithLog, setCerimoniaWithLog, setCortejoWithLog]);
 
   const renderedRepertorioItems = useMemo(() => {
-    const cortejoItems = cortejo
-      .filter((item) => item?.musica || item?.referencia)
+    const cortejoItems = filterUsefulMusicalItems(cortejo)
       .map((item, index) => ({
         key: `cortejo-${index}`,
         section: 'Cortejo',
@@ -1627,8 +1685,7 @@ const [generalNotes, setGeneralNotes] = useState(initialState.generalNotes || ''
         notes: item?.observacao || '',
       }));
 
-    const cerimoniaItems = cerimonia
-      .filter((item) => item?.musica || item?.referencia)
+    const cerimoniaItems = filterUsefulMusicalItems(cerimonia)
       .map((item, index) => ({
         key: `cerimonia-${index}`,
         section: 'Cerimônia',
@@ -1726,6 +1783,8 @@ const [generalNotes, setGeneralNotes] = useState(initialState.generalNotes || ''
   const progresso = Math.round((step / visibleSteps.length) * 100);
 function buildItemsPayload() {
   const items = [];
+  const usefulCortejo = filterUsefulMusicalItems(cortejo);
+  const usefulCerimonia = filterUsefulMusicalItems(cerimonia);
 
   if (querAntessala === true) {
     items.push({
@@ -1772,7 +1831,7 @@ function buildItemsPayload() {
     });
   }
 
-  cortejo.forEach((item, index) => {
+  usefulCortejo.forEach((item, index) => {
     const referenceFields = normalizeReferenceFields(item);
 
     items.push({
@@ -1795,7 +1854,7 @@ function buildItemsPayload() {
     });
   });
 
-  cerimonia.forEach((item, index) => {
+  usefulCerimonia.forEach((item, index) => {
     const referenceFields = normalizeReferenceFields(item);
 
     items.push({
@@ -1957,7 +2016,11 @@ function buildConfigPayload() {
 async function saveRepertorio(mode = 'draft') {
   try {
     setSavingMode(mode);
+    console.log('[TRACE][CORTEJO][STATE_BEFORE_SAVE]', pickTraceItem(cortejo));
+    console.log('[TRACE][CERIMONIA][STATE_BEFORE_SAVE]', pickTraceItem(cerimonia));
     const builtItemsPayload = buildItemsPayload();
+    console.log('[TRACE][CORTEJO][PAYLOAD]', pickTracePayloadItem(builtItemsPayload, 'cortejo'));
+    console.log('[TRACE][CERIMONIA][PAYLOAD]', pickTracePayloadItem(builtItemsPayload, 'cerimonia'));
     const payload = {
       token: data.repertorio?.repertoireToken || data.token,
       repertoireToken: data.repertorio?.repertoireToken || '',
@@ -1973,6 +2036,8 @@ async function saveRepertorio(mode = 'draft') {
         priceIncrement: Number(antessala.quotePriceIncrement || 0) || 0,
       },
     };
+    console.log('[TRACE][CORTEJO][POST_BODY]', pickTracePayloadItem(payload.items, 'cortejo'));
+    console.log('[TRACE][CERIMONIA][POST_BODY]', pickTracePayloadItem(payload.items, 'cerimonia'));
 
     const payloadItemsBySection = payload.items.reduce((acc, item) => {
       const key = String(item?.section || 'sem_secao');
@@ -2119,7 +2184,9 @@ async function handleRequestReview() {
   }
 
   function renderResumoCortejo() {
-    if (!cortejo.length) {
+    const usefulCortejo = filterUsefulMusicalItems(cortejo);
+
+    if (!usefulCortejo.length) {
       return (
         <EmptyStateCard
   title="Nenhuma entrada adicionada"
@@ -2130,7 +2197,7 @@ async function handleRequestReview() {
 
     return (
       <div className="space-y-3">
-        {cortejo.map((item, index) => (
+        {usefulCortejo.map((item, index) => (
           <div
             key={`${item.label}-${index}`}
             className="rounded-[18px] border border-[#eadfd6] bg-white px-4 py-4"
@@ -2718,7 +2785,7 @@ async function handleRequestReview() {
           <SectionCard>
             <div className="mb-4 text-[18px] font-black text-[#241a14]">Resumo geral</div>
             <div className="space-y-3">
-             <RowInfo
+              <RowInfo
   icon="🎶"
   label="Antessala"
   value={
@@ -2731,8 +2798,8 @@ async function handleRequestReview() {
       : 'Não definido'
   }
 />
-              <RowInfo icon="💒" label="Entradas no cortejo" value={String(cortejo.length)} />
-              <RowInfo icon="⛪" label="Momentos da cerimônia" value={String(cerimonia.length)} />
+              <RowInfo icon="💒" label="Entradas no cortejo" value={String(filterUsefulMusicalItems(cortejo).length)} />
+              <RowInfo icon="⛪" label="Momentos da cerimônia" value={String(filterUsefulMusicalItems(cerimonia).length)} />
               <RowInfo icon="🎉" label="Música da saída" value={saida.musica || 'Não definida'} />
               <RowInfo icon="🎤" label="Receptivo" value={temReceptivo ? 'Incluído' : 'Não incluído'} />
               <RowInfo icon="✨" label="Músicas no repertório" value={String(renderedRepertorioItems.length)} />

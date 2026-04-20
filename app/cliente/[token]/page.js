@@ -242,6 +242,35 @@ function normalizeRepertoireSection(section) {
     .replace(/[\u0300-\u036f]/g, '');
 }
 
+function hasUsefulTraceItem(item = {}) {
+  return Boolean(
+    String(item?.song_name || item?.musica || '').trim() ||
+      String(item?.reference_link || item?.referencia || '').trim() ||
+      String(item?.notes || item?.observacao || '').trim() ||
+      String(item?.reference_title || '').trim() ||
+      String(item?.reference_channel || '').trim() ||
+      String(item?.reference_thumbnail || '').trim() ||
+      String(item?.reference_video_id || '').trim()
+  );
+}
+
+function pickTraceItemBySection(items = [], section = '') {
+  const item = (Array.isArray(items) ? items : []).find((entry) => {
+    const entrySection = normalizeRepertoireSection(entry?.section || section);
+    return entrySection === section && hasUsefulTraceItem(entry);
+  });
+  if (!item) return null;
+  return {
+    section,
+    item_order: Number(item?.item_order ?? 0),
+    label: String(item?.label || '').trim(),
+    song_name: String(item?.song_name || item?.musica || '').trim(),
+    reference_link: String(item?.reference_link || item?.referencia || '').trim(),
+    notes: String(item?.notes || item?.observacao || '').trim(),
+    reference_video_id: String(item?.reference_video_id || '').trim(),
+  };
+}
+
 function resolveAntesalaRequestFromEvent(event) {
   const status = String(event?.antesala_request_status || '')
     .trim()
@@ -320,7 +349,7 @@ function mapItemsToInitialState(items) {
       .filter((item) => normalizeRepertoireSection(item.section) === 'receptivo')
       .sort((a, b) => (a.item_order || 0) - (b.item_order || 0))[0] || null;
 
-  return {
+  const mappedState = {
     cortejo: cortejo.length > 0 ? cortejo : [],
     cerimonia: cerimonia.length > 0 ? cerimonia : [],
     antessala: {
@@ -340,6 +369,11 @@ function mapItemsToInitialState(items) {
       observacao: receptivoItem?.notes || '',
     },
   };
+
+  console.log('[TRACE][CORTEJO][INITIAL_STATE]', pickTraceItemBySection(mappedState.cortejo, 'cortejo'));
+  console.log('[TRACE][CERIMONIA][INITIAL_STATE]', pickTraceItemBySection(mappedState.cerimonia, 'cerimonia'));
+
+  return mappedState;
 }
 
 function formatCurrencyBRL(value) {
@@ -1068,6 +1102,8 @@ export default async function ClienteTokenPage({ params }) {
     console.log('[CLIENTE PAGE][LOAD][ITEMS_FROM_DB]', items);
     console.log('[CLIENTE PAGE][LOAD][CORTEJO_FROM_DB]', cortejoFromDb);
     console.log('[CLIENTE PAGE][LOAD][CERIMONIA_FROM_DB]', cerimoniaFromDb);
+    console.log('[TRACE][CORTEJO][DB_LOAD]', pickTraceItemBySection(cortejoFromDb, 'cortejo'));
+    console.log('[TRACE][CERIMONIA][DB_LOAD]', pickTraceItemBySection(cerimoniaFromDb, 'cerimonia'));
     console.log('[CLIENTE PAGE][LOAD][INITIAL_LISTS]', {
       cortejo: initialLists.cortejo,
       cerimonia: initialLists.cerimonia,
@@ -1219,6 +1255,14 @@ export default async function ClienteTokenPage({ params }) {
       cerimonia: data?.repertorio?.initialState?.cerimonia,
       fullInitialState: data?.repertorio?.initialState,
     });
+    console.log(
+      '[TRACE][CORTEJO][INITIAL_STATE]',
+      pickTraceItemBySection(data?.repertorio?.initialState?.cortejo, 'cortejo')
+    );
+    console.log(
+      '[TRACE][CERIMONIA][INITIAL_STATE]',
+      pickTraceItemBySection(data?.repertorio?.initialState?.cerimonia, 'cerimonia')
+    );
   }
 
   console.log('[CLIENTE PAGE][FINAL_DATA]', {

@@ -150,6 +150,24 @@ function hasUsefulSectionContent(item = {}) {
   );
 }
 
+function pickTraceSectionItem(items = [], section = '') {
+  const item = (Array.isArray(items) ? items : []).find(
+    (entry) =>
+      String(entry?.section || '').trim() === section &&
+      hasUsefulSectionContent(entry)
+  );
+  if (!item) return null;
+  return {
+    section: String(item?.section || '').trim(),
+    item_order: Number(item?.item_order ?? 0),
+    label: String(item?.label || '').trim(),
+    song_name: String(item?.song_name || '').trim(),
+    reference_link: String(item?.reference_link || '').trim(),
+    notes: String(item?.notes || '').trim(),
+    reference_video_id: String(item?.reference_video_id || '').trim(),
+  };
+}
+
 function buildEventAntesalaUpdatePayload({
   antesalaIncluded,
   antesalaDurationMinutes,
@@ -436,6 +454,8 @@ export async function POST(request) {
     console.log('[API REPERTORIO] payload itens recebido (normalizado):', incomingItems);
     console.log('[API REPERTORIO] quantidade de itens por seção (payload):', countItemsBySection(incomingItems));
     console.log('[API][ITEMS_RECEIVED]', incomingItems);
+    console.log('[TRACE][CORTEJO][API_INCOMING]', pickTraceSectionItem(incomingItems, 'cortejo'));
+    console.log('[TRACE][CERIMONIA][API_INCOMING]', pickTraceSectionItem(incomingItems, 'cerimonia'));
 
     const status = mode === 'final' ? 'ENVIADO' : 'RASCUNHO';
     const isLocked = mode === 'final';
@@ -680,6 +700,8 @@ export async function POST(request) {
     });
 
     const itemsWithCatalogLink = await attachCatalogSongIds(supabase, itemsToPersist);
+    console.log('[TRACE][CORTEJO][API_TO_SAVE]', pickTraceSectionItem(itemsWithCatalogLink, 'cortejo'));
+    console.log('[TRACE][CERIMONIA][API_TO_SAVE]', pickTraceSectionItem(itemsWithCatalogLink, 'cerimonia'));
     console.log('[API][ITEMS_TO_SAVE]', itemsWithCatalogLink);
 
     console.log('[API REPERTORIO] itens existentes por seção (antes de salvar):', existingBySection);
@@ -737,6 +759,8 @@ export async function POST(request) {
       if (insertItemsError) {
         throw insertItemsError;
       }
+      console.log('[TRACE][CORTEJO][DB_INSERT]', pickTraceSectionItem(itemsPayload, 'cortejo'));
+      console.log('[TRACE][CERIMONIA][DB_INSERT]', pickTraceSectionItem(itemsPayload, 'cerimonia'));
       console.log('[API][ITEMS_INSERT_RESULT]', {
         eventId,
         insertedCount: itemsPayload.length,

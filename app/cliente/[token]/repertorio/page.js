@@ -381,17 +381,8 @@ function mapItemsToInitialState(items) {
   const usedFallbackCerimonia = cerimonia.length === 0;
 
   return {
-    cortejo:
-      !usedFallbackCortejo
-        ? cortejo
-        : [
-            { label: 'Padrinhos', musica: '', referencia: '', observacao: '' },
-            { label: 'Noiva', musica: '', referencia: '', observacao: '' },
-          ],
-    cerimonia:
-      !usedFallbackCerimonia
-        ? cerimonia
-        : [{ label: 'Alianças', musica: '', referencia: '', observacao: '' }],
+    cortejo: !usedFallbackCortejo ? cortejo : [],
+    cerimonia: !usedFallbackCerimonia ? cerimonia : [],
     antessala: {
       estilo: antessalaMainItem?.song_name || '',
       generos: antessalaMainItem?.genres || '',

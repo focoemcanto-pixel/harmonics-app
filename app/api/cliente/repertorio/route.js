@@ -547,6 +547,14 @@ export async function POST(request) {
       antesalaIncluded,
       antesalaRequestedByClient,
     });
+    const shouldNotifyBeforeRoomRequest =
+      antesalaRequestedByClient &&
+      !(
+        Boolean(currentEventBeforeRoom?.antesala_requested_by_client) &&
+        String(currentEventBeforeRoom?.antesala_request_status || '')
+          .trim()
+          .toLowerCase() === 'pending'
+      );
 
     const primaryEventPayload = buildEventAntesalaUpdatePayload({
       antesalaIncluded,
@@ -782,7 +790,7 @@ export async function POST(request) {
       }
     }
 
-    if (antesalaRequestedByClient) {
+    if (shouldNotifyBeforeRoomRequest) {
       const { data: eventRow, error: eventBeforeRoomError } = await supabase
         .from('events')
         .select('client_name, event_date, formation')
@@ -790,6 +798,10 @@ export async function POST(request) {
         .maybeSingle();
 
       if (eventBeforeRoomError) throw eventBeforeRoomError;
+
+      const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_BASE_URL || '';
+      const adminEventPath = `/eventos/${eventId}`;
+      const adminEventUrl = appBaseUrl ? `${appBaseUrl}${adminEventPath}` : adminEventPath;
 
       const beforeRoomAlert = [
         'Novo pedido de antesala',
@@ -801,9 +813,12 @@ export async function POST(request) {
         '',
         'Solicitou:',
         `Antesala - ${formatDurationLabel(antesalaDurationMinutes)}`,
+        adminEventUrl ? `Abrir evento: ${adminEventUrl}` : null,
         '',
         'Aguardando validação.',
-      ].join('\n');
+      ]
+        .filter(Boolean)
+        .join('\n');
 
       try {
         await sendAdminWhatsAppAlert(beforeRoomAlert);

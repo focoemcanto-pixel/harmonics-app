@@ -14,6 +14,9 @@ import { getYoutubeVideoId } from '../../lib/youtube/getYoutubeVideoId';
 import { buildWhatsAppUrl } from '../../lib/whatsapp/support-config';
 
 const REPERTORIO_DRAFT_LOCAL_STORAGE_KEY = 'repertorio_draft_local';
+const CLIENT_HOME_DEBUG =
+  process.env.NODE_ENV !== 'production' &&
+  process.env.NEXT_PUBLIC_DEBUG_CLIENT_HOME === '1';
 const SUGGESTION_SONGS_CACHE_TTL_MS = 5 * 60 * 1000;
 let suggestionSongsCache = {
   loadedAt: 0,
@@ -155,6 +158,10 @@ function hasInitialRepertorioFromBackend(initialState = {}) {
       hasFilledField(initialState.antessala.generos) ||
       hasFilledField(initialState.antessala.artistas) ||
       hasFilledField(initialState.antessala.observacao) ||
+      Boolean(initialState.antessala.requestedByClient) ||
+      hasFilledField(initialState.antessala.requestStatus) ||
+      Number(initialState.antessala.quoteMinutes || 0) > 0 ||
+      Number(initialState.antessala.quotePriceIncrement || 0) > 0 ||
       (Array.isArray(initialState.antessala.styleTags) &&
         initialState.antessala.styleTags.length > 0) ||
       (Array.isArray(initialState.antessala.references) &&
@@ -239,6 +246,46 @@ function buildRepertorioSnapshot({
     desiredSongs,
     generalNotes,
   };
+}
+
+function debugClientHome(...args) {
+  if (!CLIENT_HOME_DEBUG) return;
+  console.log(...args);
+}
+
+function getRepertorioDraftStorageKey(token = '') {
+  const normalizedToken = String(token || '').trim() || 'sem_token';
+  return `${REPERTORIO_DRAFT_LOCAL_STORAGE_KEY}:${normalizedToken}`;
+}
+
+function hasUsefulListItem(item = {}) {
+  return Boolean(
+    hasFilledField(item?.label) ||
+      hasFilledField(item?.musica) ||
+      hasFilledField(item?.referencia) ||
+      hasFilledField(item?.observacao) ||
+      hasFilledField(item?.reference_title) ||
+      hasFilledField(item?.reference_channel) ||
+      hasFilledField(item?.reference_thumbnail) ||
+      hasFilledField(item?.reference_video_id)
+  );
+}
+
+function hasUsefulAntesalaState(state = {}) {
+  return Boolean(
+    hasFilledField(state?.estilo) ||
+      hasFilledField(state?.generos) ||
+      hasFilledField(state?.artistas) ||
+      hasFilledField(state?.observacao) ||
+      Number(state?.durationMinutes || 0) > 0 ||
+      Number(state?.quoteMinutes || 0) > 0 ||
+      Number(state?.quotePriceIncrement || 0) > 0 ||
+      Boolean(state?.requestedByClient) ||
+      hasFilledField(state?.requestStatus) ||
+      (Array.isArray(state?.styleTags) && state.styleTags.length > 0) ||
+      (Array.isArray(state?.references) &&
+        state.references.some((item) => hasUsefulListItem(item)))
+  );
 }
 
 function applySuggestionToRepertorioState(state, suggestionItem = {}) {
@@ -1115,6 +1162,18 @@ function RepertorioTab({ data, selectedSongs, onSaved, onReviewRequested }) {
   const [step, setStep] = useState(1);
 
   const initialState = data?.repertorio?.initialState || {};
+  const draftStorageKey = useMemo(
+    () => getRepertorioDraftStorageKey(data?.token || ''),
+    [data?.token]
+  );
+  useEffect(() => {
+    debugClientHome('[CLIENT_HOME][SERVER_DATA]', {
+      repertorioStatus: data?.repertorio?.status || '',
+      repertorioLocked: Boolean(data?.repertorio?.isLocked),
+      token: data?.token || '',
+      hasBackendRepertorio: hasInitialRepertorioFromBackend(data?.repertorio?.initialState || {}),
+    });
+  }, [data]);
   const hasBackendRepertorio = hasInitialRepertorioFromBackend(initialState);
   const initialCortejo = Array.isArray(initialState.cortejo)
     ? initialState.cortejo.map((item) => ({
@@ -1246,6 +1305,53 @@ const [generalNotes, setGeneralNotes] = useState(initialState.generalNotes || ''
   );
   const appliedSuggestionKeysRef = useRef(new Set());
 
+  const setCortejoWithLog = useCallback((nextValueOrUpdater, reason = 'unknown') => {
+    setCortejo((prev) => {
+      const nextValue =
+        typeof nextValueOrUpdater === 'function'
+          ? nextValueOrUpdater(prev)
+          : nextValueOrUpdater;
+      debugClientHome('[CLIENT_HOME][SET_CORTEJO]', {
+        reason,
+        prevCount: Array.isArray(prev) ? prev.length : 0,
+        nextCount: Array.isArray(nextValue) ? nextValue.length : 0,
+      });
+      return nextValue;
+    });
+  }, []);
+
+  const setCerimoniaWithLog = useCallback((nextValueOrUpdater, reason = 'unknown') => {
+    setCerimonia((prev) => {
+      const nextValue =
+        typeof nextValueOrUpdater === 'function'
+          ? nextValueOrUpdater(prev)
+          : nextValueOrUpdater;
+      debugClientHome('[CLIENT_HOME][SET_CERIMONIA]', {
+        reason,
+        prevCount: Array.isArray(prev) ? prev.length : 0,
+        nextCount: Array.isArray(nextValue) ? nextValue.length : 0,
+      });
+      return nextValue;
+    });
+  }, []);
+
+  const setAntessalaWithLog = useCallback((nextValueOrUpdater, reason = 'unknown') => {
+    setAntessala((prev) => {
+      const nextValue =
+        typeof nextValueOrUpdater === 'function'
+          ? nextValueOrUpdater(prev)
+          : nextValueOrUpdater;
+      debugClientHome('[CLIENT_HOME][SET_ANTESALA]', {
+        reason,
+        prevRequestedByClient: Boolean(prev?.requestedByClient),
+        nextRequestedByClient: Boolean(nextValue?.requestedByClient),
+        prevRequestStatus: String(prev?.requestStatus || ''),
+        nextRequestStatus: String(nextValue?.requestStatus || ''),
+      });
+      return nextValue;
+    });
+  }, []);
+
   useEffect(() => {
     repertorioStateRef.current = buildRepertorioSnapshot({
       querAntessala,
@@ -1271,13 +1377,32 @@ const [generalNotes, setGeneralNotes] = useState(initialState.generalNotes || ''
   ]);
 
   const applyLocalDraft = useCallback((parsed) => {
+    debugClientHome('[CLIENT_HOME][LOCAL_DRAFT]', parsed);
+    const currentSnapshot = repertorioStateRef.current || {};
+    const parsedCortejo = Array.isArray(parsed?.cortejo) ? parsed.cortejo : [];
+    const parsedCerimonia = Array.isArray(parsed?.cerimonia) ? parsed.cerimonia : [];
+    const parsedAntesala = { ...getDefaultAntesalaState(), ...(parsed?.antessala || {}) };
+    const shouldUseDraftCortejo = parsedCortejo.some((item) => hasUsefulListItem(item));
+    const shouldUseDraftCerimonia = parsedCerimonia.some((item) => hasUsefulListItem(item));
+    const shouldUseDraftAntesala = hasUsefulAntesalaState(parsedAntesala);
+
     const restoredState = {
-      querAntessala: parsed?.querAntessala ?? null,
+      querAntessala: parsed?.querAntessala ?? currentSnapshot.querAntessala ?? null,
       temReceptivo: parsed?.temReceptivo ?? !!data.repertorio.temReceptivo,
-      cortejo: Array.isArray(parsed?.cortejo) ? parsed.cortejo : [],
-      cerimonia: Array.isArray(parsed?.cerimonia) ? parsed.cerimonia : [],
+      cortejo:
+        shouldUseDraftCortejo || !hasBackendRepertorio
+          ? parsedCortejo
+          : Array.isArray(currentSnapshot.cortejo)
+          ? currentSnapshot.cortejo
+          : [],
+      cerimonia:
+        shouldUseDraftCerimonia || !hasBackendRepertorio
+          ? parsedCerimonia
+          : Array.isArray(currentSnapshot.cerimonia)
+          ? currentSnapshot.cerimonia
+          : [],
       saida:
-        parsed?.saida || {
+        parsed?.saida || currentSnapshot?.saida || {
           musica: '',
           referencia: '',
           observacao: '',
@@ -1288,9 +1413,11 @@ const [generalNotes, setGeneralNotes] = useState(initialState.generalNotes || ''
           reference_video_id: '',
         },
       antessala:
-        { ...getDefaultAntesalaState(), ...(parsed?.antessala || {}) },
+        shouldUseDraftAntesala || !hasBackendRepertorio
+          ? parsedAntesala
+          : { ...getDefaultAntesalaState(), ...(currentSnapshot?.antessala || {}) },
       receptivo:
-        parsed?.receptivo || {
+        parsed?.receptivo || currentSnapshot?.receptivo || {
           duracao: '1h',
           generos: '',
           artistas: '',
@@ -1300,33 +1427,38 @@ const [generalNotes, setGeneralNotes] = useState(initialState.generalNotes || ''
       generalNotes: parsed?.generalNotes || '',
     };
 
-    console.log('[REPERTORIO_AUTOSAVE] estados restaurados no draft local:', restoredState);
+    debugClientHome('[REPERTORIO_AUTOSAVE] estados restaurados no draft local:', restoredState);
 
     setQuerAntessala(restoredState.querAntessala);
     setTemReceptivo(restoredState.temReceptivo);
-    setCortejo(restoredState.cortejo);
-    setCerimonia(restoredState.cerimonia);
+    setCortejoWithLog(restoredState.cortejo, 'applyLocalDraft');
+    setCerimoniaWithLog(restoredState.cerimonia, 'applyLocalDraft');
     setSaida(
       restoredState.saida
     );
-    setAntessala(
-      restoredState.antessala
-    );
+    setAntessalaWithLog(restoredState.antessala, 'applyLocalDraft');
     setReceptivo(
       restoredState.receptivo
     );
     setDesiredSongs(restoredState.desiredSongs);
     setGeneralNotes(restoredState.generalNotes);
-  }, [data.repertorio.temReceptivo]);
+  }, [
+    data.repertorio.temReceptivo,
+    hasBackendRepertorio,
+    setAntessalaWithLog,
+    setCerimoniaWithLog,
+    setCortejoWithLog,
+  ]);
 
   useEffect(() => {
     let hasSavedLocalDraft = false;
 
     try {
-      const savedDraftRaw = localStorage.getItem(REPERTORIO_DRAFT_LOCAL_STORAGE_KEY);
+      const savedDraftRaw = localStorage.getItem(draftStorageKey);
       hasSavedLocalDraft = !!savedDraftRaw;
       hadLocalDraftOnHydrationRef.current = hasSavedLocalDraft;
-      console.log('[REPERTORIO_AUTOSAVE] conteúdo lido do localStorage:', savedDraftRaw);
+      debugClientHome('[REPERTORIO_AUTOSAVE] conteúdo lido do localStorage:', savedDraftRaw);
+      debugClientHome('[CLIENT_HOME][LOCAL_DRAFT]', savedDraftRaw);
 
       if (!hasBackendRepertorio && savedDraftRaw) {
         const parsed = JSON.parse(savedDraftRaw);
@@ -1342,7 +1474,7 @@ const [generalNotes, setGeneralNotes] = useState(initialState.generalNotes || ''
       setDraftHydrated(true);
       setAutosaveReady(true);
     }
-  }, [applyLocalDraft, hasBackendRepertorio]);
+  }, [applyLocalDraft, draftStorageKey, hasBackendRepertorio]);
 
   useEffect(() => {
     if (!draftHydrated) return;
@@ -1352,12 +1484,12 @@ const [generalNotes, setGeneralNotes] = useState(initialState.generalNotes || ''
       return;
     }
 
-    const savedDraftRaw = localStorage.getItem(REPERTORIO_DRAFT_LOCAL_STORAGE_KEY);
+    const savedDraftRaw = localStorage.getItem(draftStorageKey);
     setShowLocalDraftBanner(!!savedDraftRaw);
-  }, [hasBackendRepertorio, draftHydrated]);
+  }, [draftStorageKey, hasBackendRepertorio, draftHydrated]);
 
   function handleRestoreLocalDraft() {
-    const savedDraftRaw = localStorage.getItem(REPERTORIO_DRAFT_LOCAL_STORAGE_KEY);
+    const savedDraftRaw = localStorage.getItem(draftStorageKey);
     if (!savedDraftRaw) {
       setShowLocalDraftBanner(false);
       return;
@@ -1375,7 +1507,7 @@ const [generalNotes, setGeneralNotes] = useState(initialState.generalNotes || ''
   }
 
   function handleDiscardLocalDraft() {
-    localStorage.removeItem(REPERTORIO_DRAFT_LOCAL_STORAGE_KEY);
+    localStorage.removeItem(draftStorageKey);
     setShowLocalDraftBanner(false);
     showToast('Rascunho local descartado.', 'default');
   }
@@ -1398,20 +1530,17 @@ const [generalNotes, setGeneralNotes] = useState(initialState.generalNotes || ''
       generalNotes,
     };
 
-    localStorage.setItem(
-      REPERTORIO_DRAFT_LOCAL_STORAGE_KEY,
-      JSON.stringify(draftPayload)
-    );
+    localStorage.setItem(draftStorageKey, JSON.stringify(draftPayload));
 
     if (!firstAutosaveLoggedRef.current) {
       firstAutosaveLoggedRef.current = true;
-      console.log('[REPERTORIO_AUTOSAVE] primeiro save no localStorage:', draftPayload);
+      debugClientHome('[REPERTORIO_AUTOSAVE] primeiro save no localStorage:', draftPayload);
 
       if (
         hadLocalDraftOnHydrationRef.current &&
         !hasInitialRepertorioFromBackend(draftPayload)
       ) {
-        console.warn(
+        debugClientHome(
           '[REPERTORIO_AUTOSAVE] possível sobrescrita precoce detectada: existia draft local e o primeiro save está vazio.'
         );
       }
@@ -1427,6 +1556,7 @@ const [generalNotes, setGeneralNotes] = useState(initialState.generalNotes || ''
     receptivo,
     desiredSongs,
     generalNotes,
+    draftStorageKey,
   ]);
 
   useEffect(() => {
@@ -1440,6 +1570,10 @@ const [generalNotes, setGeneralNotes] = useState(initialState.generalNotes || ''
     if (pendingSuggestions.length === 0) return;
 
     let nextSnapshot = repertorioStateRef.current;
+    debugClientHome(
+      '[CLIENT_HOME][STATE_BEFORE_MERGE]',
+      nextSnapshot
+    );
 
     pendingSuggestions.forEach((item) => {
       const songLike = {
@@ -1472,12 +1606,16 @@ const [generalNotes, setGeneralNotes] = useState(initialState.generalNotes || ''
 
     setQuerAntessala(nextSnapshot.querAntessala);
     setTemReceptivo(nextSnapshot.temReceptivo);
-    setAntessala(nextSnapshot.antessala);
-    setCortejo(nextSnapshot.cortejo);
-    setCerimonia(nextSnapshot.cerimonia);
+    debugClientHome(
+      '[CLIENT_HOME][STATE_AFTER_MERGE]',
+      nextSnapshot
+    );
+    setAntessalaWithLog(nextSnapshot.antessala, 'selectedSongsMerge');
+    setCortejoWithLog(nextSnapshot.cortejo, 'selectedSongsMerge');
+    setCerimoniaWithLog(nextSnapshot.cerimonia, 'selectedSongsMerge');
     setSaida(nextSnapshot.saida);
     setReceptivo(nextSnapshot.receptivo);
-  }, [selectedSongs]);
+  }, [selectedSongs, setAntessalaWithLog, setCerimoniaWithLog, setCortejoWithLog]);
 
   const renderedRepertorioItems = useMemo(() => {
     const cortejoItems = cortejo
@@ -1888,7 +2026,7 @@ async function saveRepertorio(mode = 'draft') {
       'success'
     );
 
-    localStorage.removeItem(REPERTORIO_DRAFT_LOCAL_STORAGE_KEY);
+    localStorage.removeItem(draftStorageKey);
 
     onSaved?.({
       mode,
@@ -1949,7 +2087,7 @@ async function handleRequestReview() {
   }
 
   function addCortejo(label = '') {
-    setCortejo([
+    setCortejoWithLog([
       ...cortejo,
       {
         label,
@@ -1966,7 +2104,7 @@ async function handleRequestReview() {
   }
 
   function addCerimonia(label = '') {
-    setCerimonia([
+    setCerimoniaWithLog([
       ...cerimonia,
       {
         label,
@@ -2130,7 +2268,7 @@ async function handleRequestReview() {
             type="button"
             onClick={() => {
               setQuerAntessala(true);
-              setAntessala((prev) => ({ ...prev, requestedByClient: false }));
+              setAntessalaWithLog((prev) => ({ ...prev, requestedByClient: false }), 'disableAntesalaRequest');
             }}
             className={classNames(
               'flex-1 rounded-[18px] border px-4 py-4 text-[15px] font-black transition',
@@ -2167,7 +2305,7 @@ async function handleRequestReview() {
                   <button
                     key={option.minutes}
                     type="button"
-                    onClick={() => setAntessala({ ...antessala, durationMinutes: option.minutes })}
+                    onClick={() => setAntessalaWithLog({ ...antessala, durationMinutes: option.minutes }, 'setDurationMinutes')}
                     className={classNames(
                       'rounded-[14px] border px-3 py-3 text-[14px] font-black',
                       Number(antessala.durationMinutes || 0) === option.minutes
@@ -2191,12 +2329,12 @@ async function handleRequestReview() {
                       key={style}
                       type="button"
                       onClick={() =>
-                        setAntessala((prev) => ({
+                        setAntessalaWithLog((prev) => ({
                           ...prev,
                           styleTags: selected
                             ? prev.styleTags.filter((item) => item !== style)
                             : [...(prev.styleTags || []), style],
-                        }))
+                        }), 'toggleAntesalaStyleTag')
                       }
                       className={classNames(
                         'rounded-full border px-3 py-2 text-[12px] font-bold',
@@ -2211,7 +2349,7 @@ async function handleRequestReview() {
             </div>
 
             <label className="flex items-center gap-2 text-[14px] font-semibold text-[#6f5d51]">
-              <input type="checkbox" checked={!!antessala.preferredArtistsEnabled} onChange={(e) => setAntessala({ ...antessala, preferredArtistsEnabled: e.target.checked })} />
+              <input type="checkbox" checked={!!antessala.preferredArtistsEnabled} onChange={(e) => setAntessalaWithLog({ ...antessala, preferredArtistsEnabled: e.target.checked }, 'togglePreferredArtists')} />
               Quero indicar artistas preferenciais
             </label>
             {antessala.preferredArtistsEnabled ? (
@@ -2219,12 +2357,12 @@ async function handleRequestReview() {
                 label="Artistas preferenciais"
                 placeholder="Ex.: Djavan, Jorge Vercilo, Marisa Monte"
                 value={antessala.artistas || ''}
-                onChange={(e) => setAntessala({ ...antessala, artistas: e.target.value })}
+                onChange={(e) => setAntessalaWithLog({ ...antessala, artistas: e.target.value }, 'setPreferredArtists')}
               />
             ) : null}
 
             <label className="flex items-center gap-2 text-[14px] font-semibold text-[#6f5d51]">
-              <input type="checkbox" checked={!!antessala.referenceEnabled} onChange={(e) => setAntessala({ ...antessala, referenceEnabled: e.target.checked })} />
+              <input type="checkbox" checked={!!antessala.referenceEnabled} onChange={(e) => setAntessalaWithLog({ ...antessala, referenceEnabled: e.target.checked }, 'toggleReferenceEnabled')} />
               Quero adicionar referências específicas
             </label>
             {antessala.referenceEnabled ? (
@@ -2236,21 +2374,21 @@ async function handleRequestReview() {
                     referenceValue={reference?.referencia || ''}
                     selectedReference={reference?.referenceMeta || null}
                     onSearchValueChange={(value) =>
-                      setAntessala((prev) => {
+                      setAntessalaWithLog((prev) => {
                         const next = [...(prev.references || [])];
                         next[index] = { ...(next[index] || {}), title: value };
                         return { ...prev, references: next };
                       })
                     }
                     onReferenceValueChange={(e) =>
-                      setAntessala((prev) => {
+                      setAntessalaWithLog((prev) => {
                         const next = [...(prev.references || [])];
                         next[index] = { ...(next[index] || {}), referencia: e.target.value };
                         return { ...prev, references: next };
                       })
                     }
                     onSelectResult={(result) =>
-                      setAntessala((prev) => {
+                      setAntessalaWithLog((prev) => {
                         const next = [...(prev.references || [])];
                         next[index] = {
                           referencia: result.url,
@@ -2270,7 +2408,7 @@ async function handleRequestReview() {
                       })
                     }
                     onClearReference={() =>
-                      setAntessala((prev) => {
+                      setAntessalaWithLog((prev) => {
                         const next = [...(prev.references || [])];
                         next[index] = {};
                         return { ...prev, references: next };
@@ -2281,7 +2419,7 @@ async function handleRequestReview() {
                 {(antessala.references || []).length < 5 ? (
                   <button
                     type="button"
-                    onClick={() => setAntessala((prev) => ({ ...prev, references: [...(prev.references || []), {}] }))}
+                    onClick={() => setAntessalaWithLog((prev) => ({ ...prev, references: [...(prev.references || []), {}] }), 'addAntesalaReference')}
                     className="rounded-[14px] border border-dashed border-[#d9c8f7] px-3 py-2 text-[12px] font-bold text-violet-700"
                   >
                     + Adicionar referência
@@ -2300,7 +2438,7 @@ async function handleRequestReview() {
             {!antessala.requestedByClient ? (
               <button
                 type="button"
-                onClick={() => setAntessala((prev) => ({ ...prev, requestQuoteOpened: !prev.requestQuoteOpened }))}
+                onClick={() => setAntessalaWithLog((prev) => ({ ...prev, requestQuoteOpened: !prev.requestQuoteOpened }), 'toggleAntesalaQuote')}
                 className="w-full rounded-[16px] border border-[#d9c8f7] bg-[#fcfbff] px-4 py-3 text-[14px] font-black text-violet-700"
               >
                 Orçar antesala
@@ -2315,14 +2453,14 @@ async function handleRequestReview() {
                       key={option.minutes}
                       type="button"
                       onClick={() =>
-                        setAntessala((prev) => ({
+                        setAntessalaWithLog((prev) => ({
                           ...prev,
                           quoteMinutes: option.minutes,
                           quotePriceIncrement: option.price,
                           requestedByClient: true,
                           requestQuoteOpened: false,
                           durationMinutes: option.minutes,
-                        }))
+                        }), 'requestAntesalaQuoteOption')
                       }
                       className="flex w-full items-center justify-between rounded-[14px] border border-[#eadfd6] bg-white px-3 py-3 text-left text-[13px] font-bold text-[#241a14]"
                     >
@@ -2380,10 +2518,10 @@ async function handleRequestReview() {
                 title="Entrada"
                 subtitle="Personalize música, referência e observações"
                 item={item}
-                onChange={(value) => updateListItem(cortejo, setCortejo, index, value)}
-                onMoveUp={() => moveItem(cortejo, setCortejo, index, -1)}
-                onMoveDown={() => moveItem(cortejo, setCortejo, index, 1)}
-                onRemove={() => removeItem(cortejo, setCortejo, index)}
+                onChange={(value) => updateListItem(cortejo, setCortejoWithLog, index, value)}
+                onMoveUp={() => moveItem(cortejo, setCortejoWithLog, index, -1)}
+                onMoveDown={() => moveItem(cortejo, setCortejoWithLog, index, 1)}
+                onRemove={() => removeItem(cortejo, setCortejoWithLog, index)}
               />
             ))}
           </div>
@@ -2423,10 +2561,10 @@ async function handleRequestReview() {
                 title="Momento"
                 subtitle="Escolha a música e detalhe a referência"
                 item={item}
-                onChange={(value) => updateListItem(cerimonia, setCerimonia, index, value)}
-                onMoveUp={() => moveItem(cerimonia, setCerimonia, index, -1)}
-                onMoveDown={() => moveItem(cerimonia, setCerimonia, index, 1)}
-                onRemove={() => removeItem(cerimonia, setCerimonia, index)}
+                onChange={(value) => updateListItem(cerimonia, setCerimoniaWithLog, index, value)}
+                onMoveUp={() => moveItem(cerimonia, setCerimoniaWithLog, index, -1)}
+                onMoveDown={() => moveItem(cerimonia, setCerimoniaWithLog, index, 1)}
+                onRemove={() => removeItem(cerimonia, setCerimoniaWithLog, index)}
               />
             ))}
           </div>

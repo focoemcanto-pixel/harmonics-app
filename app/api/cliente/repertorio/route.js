@@ -600,6 +600,12 @@ export async function POST(request) {
     if (upsertConfigError) {
       throw upsertConfigError;
     }
+    console.log('[API][CONFIG_UPSERT_OK]', {
+      eventId,
+      mode,
+      status,
+      locked: isLocked,
+    });
 
     if (mode === 'final') {
       const [{ data: persistedConfig, error: persistedConfigError }, { data: contractRow, error: contractError }] =
@@ -759,6 +765,7 @@ export async function POST(request) {
       if (insertItemsError) {
         throw insertItemsError;
       }
+      console.log('[API][DB_INSERT_COUNT]', itemsPayload.length);
       console.log('[TRACE][CORTEJO][DB_INSERT]', pickTraceSectionItem(itemsPayload, 'cortejo'));
       console.log('[TRACE][CERIMONIA][DB_INSERT]', pickTraceSectionItem(itemsPayload, 'cerimonia'));
       console.log('[API][ITEMS_INSERT_RESULT]', {
@@ -766,6 +773,7 @@ export async function POST(request) {
         insertedCount: itemsPayload.length,
       });
     } else {
+      console.log('[API][DB_INSERT_COUNT]', 0);
       console.log('[API][ITEMS_INSERT_RESULT]', {
         eventId,
         insertedCount: 0,
@@ -851,13 +859,18 @@ export async function POST(request) {
       }
     }
 
-    return NextResponse.json({
+    const responsePayload = {
       ok: true,
       eventId,
       status,
       savedItems: itemsWithCatalogLink.length,
       locked: isLocked,
-    });
+    };
+    console.log('[API][SAVE_RESULT] response ok', true);
+    console.log('[API][SAVE_RESULT] savedItems', responsePayload.savedItems);
+    console.log('[API][SAVE_RESULT] status', responsePayload.status);
+    console.log('[API][SAVE_RESULT] locked', responsePayload.locked);
+    return NextResponse.json(responsePayload);
   } catch (error) {
     console.error('Erro ao salvar repertório do cliente:', error);
 

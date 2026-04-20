@@ -39,6 +39,16 @@ function getAntesalaStatusLabel(status) {
   return 'Aguardando validação';
 }
 
+function resolvePaymentStatusFromTotals({ agreedAmount, paidAmount }) {
+  const agreed = Number(agreedAmount || 0);
+  const paid = Number(paidAmount || 0);
+  const open = Math.max(0, agreed - paid);
+
+  if (open <= 0) return 'Pago';
+  if (paid > 0) return 'Parcial';
+  return 'Pendente';
+}
+
 function InfoItem({ label, value, full = false }) {
   return (
     <div className={full ? 'md:col-span-2 min-w-0' : 'min-w-0'}>
@@ -136,14 +146,31 @@ export default function EventoDetalhePage() {
 
       const payload =
         nextStatus === 'approved'
-          ? {
-              antesala_request_status: 'approved',
-              antesala_requested_by_client: false,
-              has_antesala: true,
-              antesala_enabled: true,
-              antesala_duration_minutes: Number(evento?.antesala_duration_minutes || 0) || null,
-              antesala_price_increment: Number(evento?.antesala_price_increment || 0) || 0,
-            }
+          ? (() => {
+              const currentAgreedAmount = Number(evento?.agreed_amount || 0);
+              const currentPaidAmount = Number(evento?.paid_amount || 0);
+              const increment = Number(evento?.antesala_price_increment || 0) || 0;
+              const shouldApplyIncrement = !Boolean(evento?.has_antesala) && increment > 0;
+              const nextAgreedAmount = shouldApplyIncrement
+                ? currentAgreedAmount + increment
+                : currentAgreedAmount;
+              const nextOpenAmount = Math.max(0, nextAgreedAmount - currentPaidAmount);
+
+              return {
+                antesala_request_status: 'approved',
+                antesala_requested_by_client: false,
+                has_antesala: true,
+                antesala_enabled: true,
+                antesala_duration_minutes: Number(evento?.antesala_duration_minutes || 0) || null,
+                antesala_price_increment: increment,
+                agreed_amount: nextAgreedAmount,
+                open_amount: nextOpenAmount,
+                payment_status: resolvePaymentStatusFromTotals({
+                  agreedAmount: nextAgreedAmount,
+                  paidAmount: currentPaidAmount,
+                }),
+              };
+            })()
           : {
               antesala_request_status: 'rejected',
               antesala_requested_by_client: false,

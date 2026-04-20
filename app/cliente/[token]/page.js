@@ -1066,6 +1066,24 @@ export default async function ClienteTokenPage({ params }) {
   }
 
   const initialLists = mapItemsToInitialState(items);
+  if (IS_DEV) {
+    const cortejoFromDb = items.filter(
+      (item) => normalizeRepertoireSection(item.section) === 'cortejo'
+    );
+    const cerimoniaFromDb = items.filter(
+      (item) => normalizeRepertoireSection(item.section) === 'cerimonia'
+    );
+
+    console.log('[CLIENTE PAGE][LOAD][ITEMS_FROM_DB]', items);
+    console.log('[CLIENTE PAGE][LOAD][CORTEJO_FROM_DB]', cortejoFromDb);
+    console.log('[CLIENTE PAGE][LOAD][CERIMONIA_FROM_DB]', cerimoniaFromDb);
+    console.log('[CLIENTE PAGE][LOAD][INITIAL_LISTS]', {
+      cortejo: initialLists.cortejo,
+      cerimonia: initialLists.cerimonia,
+      antessala: initialLists.antessala,
+      receptivo: initialLists.receptivo,
+    });
+  }
   const antesalaRequest = resolveAntesalaRequestFromEvent(event);
 
   const repertorioTokenValue = repertoireToken?.token || token;
@@ -1203,6 +1221,14 @@ export default async function ClienteTokenPage({ params }) {
       historico: paymentHistory,
     },
   };
+
+  if (IS_DEV) {
+    console.log('[CLIENTE PAGE][LOAD][INITIAL_STATE]', {
+      cortejo: data?.repertorio?.initialState?.cortejo,
+      cerimonia: data?.repertorio?.initialState?.cerimonia,
+      fullInitialState: data?.repertorio?.initialState,
+    });
+  }
 
   console.log('[CLIENTE PAGE][FINAL_DATA]', {
     token: data.token,

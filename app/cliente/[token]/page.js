@@ -66,26 +66,7 @@ const CLIENT_REPERTOIRE_CONFIG_SELECT_FIELDS = [
   'exit_reference_thumbnail',
   'exit_reference_video_id',
 ].join(', ');
-const CLIENT_REPERTOIRE_ITEMS_SELECT_FIELDS = [
-  'id',
-  'event_id',
-  'section',
-  'item_order',
-  'label',
-  'who_enters',
-  'moment',
-  'song_name',
-  'reference_link',
-  'notes',
-  'genres',
-  'artists',
-  'reference_title',
-  'reference_channel',
-  'reference_thumbnail',
-  'reference_video_id',
-  'suggestion_song_id',
-  'suggestion_song:suggestion_songs(id, title, artist, youtube_url, youtube_id, thumbnail_url)',
-].join(', ');
+const CLIENT_REPERTOIRE_ITEMS_SELECT_FIELDS = '*';
 const CLIENT_PRICING_SELECT_FIELDS = [
   'id',
   'created_at',

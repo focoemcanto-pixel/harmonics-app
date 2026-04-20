@@ -145,8 +145,12 @@ function hasFilledField(value) {
 }
 
 function hasInitialRepertorioFromBackend(initialState = {}) {
-  const hasCortejo = Array.isArray(initialState.cortejo) && initialState.cortejo.length > 0;
-  const hasCerimonia = Array.isArray(initialState.cerimonia) && initialState.cerimonia.length > 0;
+  const hasCortejo =
+    Array.isArray(initialState.cortejo) &&
+    initialState.cortejo.some((item) => hasUsefulListItem(item));
+  const hasCerimonia =
+    Array.isArray(initialState.cerimonia) &&
+    initialState.cerimonia.some((item) => hasUsefulListItem(item));
   const hasSaida =
     !!initialState.saida &&
     (hasFilledField(initialState.saida.musica) ||
@@ -1176,16 +1180,20 @@ function RepertorioTab({ data, selectedSongs, onSaved, onReviewRequested }) {
   }, [data]);
   const hasBackendRepertorio = hasInitialRepertorioFromBackend(initialState);
   const initialCortejo = Array.isArray(initialState.cortejo)
-    ? initialState.cortejo.map((item) => ({
-        ...item,
-        referenceMeta: toReferenceMeta(item),
-      }))
+    ? initialState.cortejo
+        .map((item) => ({
+          ...item,
+          referenceMeta: toReferenceMeta(item),
+        }))
+        .filter((item) => hasUsefulListItem(item))
     : null;
   const initialCerimonia = Array.isArray(initialState.cerimonia)
-    ? initialState.cerimonia.map((item) => ({
-        ...item,
-        referenceMeta: toReferenceMeta(item),
-      }))
+    ? initialState.cerimonia
+        .map((item) => ({
+          ...item,
+          referenceMeta: toReferenceMeta(item),
+        }))
+        .filter((item) => hasUsefulListItem(item))
     : null;
   const initialSaida = initialState.saida
     ? {
@@ -1217,7 +1225,7 @@ const [antessala, setAntessala] = useState(
 );
 
 const [cortejo, setCortejo] = useState(
-  initialCortejo || [
+  initialCortejo?.length ? initialCortejo : [
     {
       label: 'Padrinhos',
       musica: '',
@@ -1244,7 +1252,7 @@ const [cortejo, setCortejo] = useState(
 );
 
 const [cerimonia, setCerimonia] = useState(
-  initialCerimonia || [
+  initialCerimonia?.length ? initialCerimonia : [
     {
       label: 'Alianças',
       musica: '',

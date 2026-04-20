@@ -235,11 +235,21 @@ function computeEtapasPreenchidas(config, items) {
 }
 
 function normalizeRepertoireSection(section) {
-  return String(section || '')
+  const normalized = String(section || '')
     .trim()
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '');
+
+  const normalizedWithoutSpaces = normalized.replace(/\s+/g, '');
+
+  if (normalizedWithoutSpaces === 'cortejo') return 'cortejo';
+  if (normalizedWithoutSpaces === 'cerimonia') return 'cerimonia';
+  if (normalizedWithoutSpaces === 'saida') return 'saida';
+  if (normalizedWithoutSpaces === 'antesala' || normalizedWithoutSpaces === 'antessala') return 'antesala';
+  if (normalizedWithoutSpaces === 'receptivo') return 'receptivo';
+
+  return '';
 }
 
 function hasUsefulTraceItem(item = {}) {
@@ -298,6 +308,17 @@ function resolveAntesalaRequestFromEvent(event) {
 
 function mapItemsToInitialState(items) {
   const safeItems = Array.isArray(items) ? items : [];
+  const classifiedItems = safeItems.map((item, index) => ({
+    index,
+    section_raw: item?.section ?? null,
+    section_normalized: normalizeRepertoireSection(item?.section),
+    item_order: Number(item?.item_order ?? 0),
+    label: String(item?.label || item?.who_enters || item?.moment || '').trim(),
+    song_name: String(item?.song_name || item?.suggestion_song?.title || '').trim(),
+    reference_link: String(item?.reference_link || item?.suggestion_song?.youtube_url || '').trim(),
+    notes: String(item?.notes || '').trim(),
+    useful: hasUsefulTraceItem(item),
+  }));
 
   const cortejo = safeItems
     .filter((item) => normalizeRepertoireSection(item.section) === 'cortejo')
@@ -328,7 +349,7 @@ function mapItemsToInitialState(items) {
     }));
 
   const antessalaItems = safeItems
-    .filter((item) => normalizeRepertoireSection(item.section) === 'antessala')
+    .filter((item) => normalizeRepertoireSection(item.section) === 'antesala')
     .sort((a, b) => (a.item_order || 0) - (b.item_order || 0));
   const antessalaMainItem =
     antessalaItems.find((item) => (item.item_order || 0) < 100) || antessalaItems[0] || null;
@@ -369,6 +390,19 @@ function mapItemsToInitialState(items) {
       observacao: receptivoItem?.notes || '',
     },
   };
+
+  console.log(
+    '[MAP][CORTEJO_ITEMS]',
+    classifiedItems.filter((item) => item.section_normalized === 'cortejo')
+  );
+  console.log(
+    '[MAP][CERIMONIA_ITEMS]',
+    classifiedItems.filter((item) => item.section_normalized === 'cerimonia')
+  );
+  console.log(
+    '[MAP][UNKNOWN_OR_EMPTY_SECTION_ITEMS]',
+    classifiedItems.filter((item) => !item.section_normalized)
+  );
 
   console.log('[TRACE][CORTEJO][INITIAL_STATE]', pickTraceItemBySection(mappedState.cortejo, 'cortejo'));
   console.log('[TRACE][CERIMONIA][INITIAL_STATE]', pickTraceItemBySection(mappedState.cerimonia, 'cerimonia'));
@@ -1112,7 +1146,19 @@ export default async function ClienteTokenPage({ params }) {
   const configClientToken = String(config?.client_public_token || '').trim();
   const clientToken = configClientToken || token;
 
-  console.log('[DB_LOAD][RAW_ITEMS]', itemsResp?.data || []);
+  console.log(
+    '[DB_LOAD][RAW_ITEMS]',
+    (Array.isArray(itemsResp?.data) ? itemsResp.data : []).map((item, index) => ({
+      index,
+      id: item?.id || null,
+      section_raw: item?.section ?? null,
+      section_normalized: normalizeRepertoireSection(item?.section),
+      item_order: Number(item?.item_order ?? 0),
+      label: String(item?.label || item?.who_enters || item?.moment || '').trim(),
+      song_name: String(item?.song_name || '').trim(),
+      useful: hasUsefulTraceItem(item),
+    }))
+  );
   console.log('[DB_LOAD][ITEMS_FROM_DB]', items);
   console.log('[DB_LOAD][TOTAL_ITEMS_WITHOUT_USEFUL_FILTER]', items.length);
 

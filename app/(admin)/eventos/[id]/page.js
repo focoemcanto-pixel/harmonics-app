@@ -141,6 +141,8 @@ export default function EventoDetalhePage() {
               antesala_requested_by_client: false,
               has_antesala: true,
               antesala_enabled: true,
+              antesala_duration_minutes: Number(evento?.antesala_duration_minutes || 0) || null,
+              antesala_price_increment: Number(evento?.antesala_price_increment || 0) || 0,
             }
           : {
               antesala_request_status: 'rejected',

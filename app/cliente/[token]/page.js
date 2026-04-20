@@ -392,7 +392,7 @@ function normalizePaymentStatus(status = '') {
 }
 
 function buildFinancialData({ event, precontract, payments = [] }) {
-  const totalAmount = pickFirstPositiveNumber([
+  const baseTotalAmount = pickFirstPositiveNumber([
     event?.agreed_amount,
     precontract?.agreed_amount,
     event?.total_price,
@@ -401,6 +401,14 @@ function buildFinancialData({ event, precontract, payments = [] }) {
       toPositiveNumber(precontract?.add_sound) +
       toPositiveNumber(precontract?.add_transport),
   ]);
+  const hasApprovedAntesala = Boolean(
+    event?.has_antesala ??
+      event?.antesala_enabled ??
+      false
+  );
+  const beforeRoomIncrement =
+    hasApprovedAntesala ? toPositiveNumber(event?.antesala_price_increment) : 0;
+  const totalAmount = baseTotalAmount + beforeRoomIncrement;
 
   const normalizedPayments = (Array.isArray(payments) ? payments : []).map((entry) => {
     const normalizedStatus = normalizePaymentStatus(entry?.status);

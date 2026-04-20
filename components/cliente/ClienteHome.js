@@ -1224,48 +1224,9 @@ const [antessala, setAntessala] = useState(
   }
 );
 
-const [cortejo, setCortejo] = useState(
-  initialCortejo?.length ? initialCortejo : [
-    {
-      label: 'Padrinhos',
-      musica: '',
-      referencia: '',
-      observacao: '',
-      referenceMeta: null,
-      reference_title: '',
-      reference_channel: '',
-      reference_thumbnail: '',
-      reference_video_id: '',
-    },
-    {
-      label: 'Noiva',
-      musica: '',
-      referencia: '',
-      observacao: '',
-      referenceMeta: null,
-      reference_title: '',
-      reference_channel: '',
-      reference_thumbnail: '',
-      reference_video_id: '',
-    },
-  ]
-);
+const [cortejo, setCortejo] = useState(initialCortejo?.length ? initialCortejo : []);
 
-const [cerimonia, setCerimonia] = useState(
-  initialCerimonia?.length ? initialCerimonia : [
-    {
-      label: 'Alianças',
-      musica: '',
-      referencia: '',
-      observacao: '',
-      referenceMeta: null,
-      reference_title: '',
-      reference_channel: '',
-      reference_thumbnail: '',
-      reference_video_id: '',
-    },
-  ]
-);
+const [cerimonia, setCerimonia] = useState(initialCerimonia?.length ? initialCerimonia : []);
 
 const [saida, setSaida] = useState(
   initialSaida || {

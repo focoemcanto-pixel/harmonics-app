@@ -917,6 +917,7 @@ export default async function ClienteTokenPage({ params }) {
   let paymentsResp = { data: [], error: null };
   let pricingResp = { data: null, error: null };
   let adjustmentResp = { data: null, error: null };
+  let routeTokenResp = { data: null, error: null };
 
   const adjustmentQuery = precontract?.id
     ? supabase
@@ -929,6 +930,14 @@ export default async function ClienteTokenPage({ params }) {
     : Promise.resolve({ data: null, error: null });
 
   try {
+    routeTokenResp = await supabase
+      .from('repertoire_tokens')
+      .select('id, token, event_id, status, created_at, expires_at')
+      .eq('token', normalizedToken)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
     [
       eventResp,
       configResp,
@@ -1028,6 +1037,9 @@ export default async function ClienteTokenPage({ params }) {
   if (repertoireTokenResp?.error) {
     console.error('[CLIENTE PAGE] Erro em repertoire_tokens:', repertoireTokenResp.error);
   }
+  if (routeTokenResp?.error) {
+    console.error('[CLIENTE PAGE] Erro em repertoire_tokens por token da rota:', routeTokenResp.error);
+  }
   if (paymentsResp?.error) console.error('[CLIENTE PAGE] Erro em payments:', paymentsResp.error);
   if (pricingResp?.error) {
     console.error('[CLIENTE PAGE] Erro em pricing_settings:', pricingResp.error);
@@ -1038,11 +1050,12 @@ export default async function ClienteTokenPage({ params }) {
 
   const event = eventResp?.data || null;
   const config = configResp?.data || null;
-  const items = Array.isArray(itemsResp?.data) ? itemsResp.data : [];
+  let items = Array.isArray(itemsResp?.data) ? itemsResp.data : [];
   const contract = contractsResp?.data || null;
   const hasContractedReception = deriveHasContractedReception(config, event, precontract);
   const contractedReceptionHours = deriveContractedReceptionHours(config, event, precontract);
   const repertoireToken = repertoireTokenResp?.data || null;
+  const routeToken = routeTokenResp?.data || null;
   const payments = Array.isArray(paymentsResp?.data) ? paymentsResp.data : [];
   const pricing = pricingResp?.data || {};
   const latestAdjustmentRequest = adjustmentResp?.data || null;
@@ -1051,6 +1064,34 @@ export default async function ClienteTokenPage({ params }) {
     eventId,
     event,
   });
+  console.log('[DB_LOAD][EVENT_ID]', eventId);
+  console.log('[DB_LOAD][REPERTOIRE_TOKEN]', {
+    routeToken: routeToken?.token || null,
+    routeTokenId: routeToken?.id || null,
+    routeTokenEventId: routeToken?.event_id || null,
+    latestEventToken: repertoireToken?.token || null,
+    latestEventTokenId: repertoireToken?.id || null,
+  });
+
+  if (items.length === 0) {
+    const tokenIds = Array.from(
+      new Set([routeToken?.id, repertoireToken?.id].filter(Boolean))
+    );
+
+    if (tokenIds.length > 0) {
+      const fallbackItemsResp = await supabase
+        .from('repertoire_items')
+        .select(CLIENT_REPERTOIRE_ITEMS_SELECT_FIELDS)
+        .in('repertoire_token_id', tokenIds)
+        .order('item_order', { ascending: true });
+
+      if (fallbackItemsResp?.error) {
+        console.error('[CLIENTE PAGE] Erro no fallback de repertoire_items por repertoire_token_id:', fallbackItemsResp.error);
+      } else {
+        items = Array.isArray(fallbackItemsResp?.data) ? fallbackItemsResp.data : [];
+      }
+    }
+  }
 
   if (!event) {
     console.error('[CLIENTE PAGE] Evento ausente após consultas, renderizando fallback.');
@@ -1070,6 +1111,10 @@ export default async function ClienteTokenPage({ params }) {
 
   const configClientToken = String(config?.client_public_token || '').trim();
   const clientToken = configClientToken || token;
+
+  console.log('[DB_LOAD][RAW_ITEMS]', itemsResp?.data || []);
+  console.log('[DB_LOAD][ITEMS_FROM_DB]', items);
+  console.log('[DB_LOAD][TOTAL_ITEMS_WITHOUT_USEFUL_FILTER]', items.length);
 
   if (IS_DEV) {
     console.log('[CLIENTE PAGE] URL PDF contrato:', contract?.pdf_url || '(vazio)');

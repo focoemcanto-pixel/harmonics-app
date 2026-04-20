@@ -1098,12 +1098,22 @@ export default async function ClienteTokenPage({ params }) {
     const cerimoniaFromDb = items.filter(
       (item) => normalizeRepertoireSection(item.section) === 'cerimonia'
     );
+    const usefulCortejoFromDbCount = cortejoFromDb.filter((item) =>
+      hasUsefulTraceItem(item)
+    ).length;
+    const usefulCerimoniaFromDbCount = cerimoniaFromDb.filter((item) =>
+      hasUsefulTraceItem(item)
+    ).length;
 
     console.log('[CLIENTE PAGE][LOAD][ITEMS_FROM_DB]', items);
     console.log('[CLIENTE PAGE][LOAD][CORTEJO_FROM_DB]', cortejoFromDb);
     console.log('[CLIENTE PAGE][LOAD][CERIMONIA_FROM_DB]', cerimoniaFromDb);
     console.log('[TRACE][CORTEJO][DB_LOAD]', pickTraceItemBySection(cortejoFromDb, 'cortejo'));
     console.log('[TRACE][CERIMONIA][DB_LOAD]', pickTraceItemBySection(cerimoniaFromDb, 'cerimonia'));
+    console.log('[DB_LOAD][USEFUL_ITEMS_COUNT]', {
+      cortejo: usefulCortejoFromDbCount,
+      cerimonia: usefulCerimoniaFromDbCount,
+    });
     console.log('[CLIENTE PAGE][LOAD][INITIAL_LISTS]', {
       cortejo: initialLists.cortejo,
       cerimonia: initialLists.cerimonia,
@@ -1250,6 +1260,12 @@ export default async function ClienteTokenPage({ params }) {
   };
 
   if (IS_DEV) {
+    const usefulInitialCortejoCount = (
+      data?.repertorio?.initialState?.cortejo || []
+    ).filter((item) => hasUsefulTraceItem(item)).length;
+    const usefulInitialCerimoniaCount = (
+      data?.repertorio?.initialState?.cerimonia || []
+    ).filter((item) => hasUsefulTraceItem(item)).length;
     console.log('[CLIENTE PAGE][LOAD][INITIAL_STATE]', {
       cortejo: data?.repertorio?.initialState?.cortejo,
       cerimonia: data?.repertorio?.initialState?.cerimonia,
@@ -1263,6 +1279,10 @@ export default async function ClienteTokenPage({ params }) {
       '[TRACE][CERIMONIA][INITIAL_STATE]',
       pickTraceItemBySection(data?.repertorio?.initialState?.cerimonia, 'cerimonia')
     );
+    console.log('[INITIAL_STATE][USEFUL_ITEMS_COUNT]', {
+      cortejo: usefulInitialCortejoCount,
+      cerimonia: usefulInitialCerimoniaCount,
+    });
   }
 
   console.log('[CLIENTE PAGE][FINAL_DATA]', {

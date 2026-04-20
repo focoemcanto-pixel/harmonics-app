@@ -17,6 +17,9 @@ const REPERTORIO_DRAFT_LOCAL_STORAGE_KEY = 'repertorio_draft_local';
 const CLIENT_HOME_DEBUG =
   process.env.NODE_ENV !== 'production' &&
   process.env.NEXT_PUBLIC_DEBUG_CLIENT_HOME === '1';
+const DISABLE_REPERTOIRE_ALERT_DEBUG =
+  process.env.NODE_ENV !== 'production' &&
+  process.env.NEXT_PUBLIC_DISABLE_REPERTOIRE_ALERT_DEBUG === '1';
 const SUGGESTION_SONGS_CACHE_TTL_MS = 5 * 60 * 1000;
 let suggestionSongsCache = {
   loadedAt: 0,
@@ -2077,6 +2080,10 @@ async function saveRepertorio(mode = 'draft') {
     });
 
     const result = await response.json();
+    console.log('[CLIENT][SAVE_RESPONSE]', {
+      httpStatus: response.status,
+      body: result,
+    });
 
     if (!response.ok || !result?.ok) {
       throw new Error(result?.error || 'Não foi possível salvar o repertório.');
@@ -4701,6 +4708,12 @@ export default function ClienteHome({ data, initialTab = 'inicio' }) {
 
   useEffect(() => {
     if (!shouldShowRepertoire15DaysAlert || !panelData?.token) return;
+    if (DISABLE_REPERTOIRE_ALERT_DEBUG) {
+      console.log(
+        '[CLIENTE HOME][DEBUG] Automação /api/cliente/alertas/repertorio-pendente desabilitada por NEXT_PUBLIC_DISABLE_REPERTOIRE_ALERT_DEBUG=1.'
+      );
+      return;
+    }
 
     fetch('/api/cliente/alertas/repertorio-pendente', {
       method: 'POST',

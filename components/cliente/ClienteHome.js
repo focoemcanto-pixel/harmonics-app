@@ -2039,6 +2039,28 @@ async function saveRepertorio(mode = 'draft') {
         priceIncrement: Number(antessala.quotePriceIncrement || 0) || 0,
       },
     };
+    if (mode === 'draft') {
+      console.log('[ANTESALA][CLIENT_STATE_BEFORE_SAVE]', {
+        querAntessala,
+        requestedByClient: Boolean(antessala?.requestedByClient),
+        requestStatus: String(antessala?.requestStatus || ''),
+        durationMinutes: Number(antessala?.durationMinutes || 0) || null,
+        quoteMinutes: Number(antessala?.quoteMinutes || 0) || null,
+        quotePriceIncrement: Number(antessala?.quotePriceIncrement || 0) || 0,
+        included: querAntessala === true,
+        priceIncrement: Number(antessala?.quotePriceIncrement || 0) || 0,
+      });
+      console.log('[ANTESALA][POST_BODY]', {
+        querAntessala,
+        requestedByClient: Boolean(payload?.antesalaFlow?.requestedByClient),
+        requestStatus: String(payload?.antesalaFlow?.requestStatus || ''),
+        durationMinutes: Number(payload?.antesalaFlow?.durationMinutes || 0) || null,
+        quoteMinutes: Number(antessala?.quoteMinutes || 0) || null,
+        quotePriceIncrement: Number(antessala?.quotePriceIncrement || 0) || 0,
+        included: Boolean(payload?.antesalaFlow?.included),
+        priceIncrement: Number(payload?.antesalaFlow?.priceIncrement || 0) || 0,
+      });
+    }
     console.log('[TRACE][CORTEJO][POST_BODY]', pickTracePayloadItem(payload.items, 'cortejo'));
     console.log('[TRACE][CERIMONIA][POST_BODY]', pickTracePayloadItem(payload.items, 'cerimonia'));
 

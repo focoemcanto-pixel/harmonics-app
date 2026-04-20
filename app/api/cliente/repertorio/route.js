@@ -362,6 +362,29 @@ export async function POST(request) {
     const config = body?.config || {};
     const rawItems = body?.items || [];
     const antesalaFlow = body?.antesalaFlow || {};
+    console.log('[ANTESALA][API_BODY]', {
+      querAntessala: body?.querAntessala ?? config?.has_ante_room ?? null,
+      requestedByClient: Boolean(antesalaFlow?.requestedByClient),
+      requestStatus: String(antesalaFlow?.requestStatus || ''),
+      durationMinutes: Number(antesalaFlow?.durationMinutes || 0) || null,
+      quoteMinutes:
+        Number(
+          body?.antessala?.quoteMinutes ??
+            body?.initialState?.antessala?.quoteMinutes ??
+            0
+        ) || null,
+      quotePriceIncrement:
+        Number(
+          body?.antessala?.quotePriceIncrement ??
+            body?.initialState?.antessala?.quotePriceIncrement ??
+            0
+        ) || 0,
+      included: Boolean(antesalaFlow?.included),
+      priceIncrement: Number(antesalaFlow?.priceIncrement || 0) || 0,
+      has_ante_room: config?.has_ante_room ?? null,
+      ante_room_style: config?.ante_room_style ?? '',
+      ante_room_notes: config?.ante_room_notes ?? '',
+    });
 
     if (!token) {
       return NextResponse.json(
@@ -583,13 +606,35 @@ export async function POST(request) {
       antesalaRequestStatus,
       antesalaPriceIncrement,
     });
+    console.log('[ANTESALA][EVENT_UPDATE_PAYLOAD]', {
+      eventId,
+      ...primaryEventPayload,
+    });
 
-    const { error: updateEventError } = await supabase
+    const { data: updatedEvent, error: updateEventError } = await supabase
       .from('events')
       .update(primaryEventPayload)
-      .eq('id', eventId);
+      .eq('id', eventId)
+      .select(
+        [
+          'id',
+          'has_antesala',
+          'antesala_enabled',
+          'antesala_requested_by_client',
+          'antesala_request_status',
+          'antesala_duration_minutes',
+          'antesala_price_increment',
+        ].join(', ')
+      )
+      .maybeSingle();
 
     if (updateEventError) throw updateEventError;
+    console.log('[ANTESALA][EVENT_UPDATE_RESULT]', {
+      ...(updatedEvent || {}),
+      has_ante_room: configPayload?.has_ante_room ?? null,
+      ante_room_style: configPayload?.ante_room_style ?? '',
+      ante_room_notes: configPayload?.ante_room_notes ?? '',
+    });
 
     const { error: upsertConfigError } = await supabase
       .from('repertoire_config')

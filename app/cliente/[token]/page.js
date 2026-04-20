@@ -234,11 +234,44 @@ function computeEtapasPreenchidas(config, items) {
   return total;
 }
 
+function normalizeRepertoireSection(section) {
+  return String(section || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
+function resolveAntesalaRequestFromEvent(event) {
+  const status = String(event?.antesala_request_status || '')
+    .trim()
+    .toLowerCase();
+
+  if (status === 'pending') {
+    return {
+      requestedByClient: true,
+      status: 'pending',
+    };
+  }
+
+  if (status === 'approved' || status === 'rejected') {
+    return {
+      requestedByClient: false,
+      status,
+    };
+  }
+
+  return {
+    requestedByClient: Boolean(event?.antesala_requested_by_client),
+    status: String(event?.antesala_request_status || ''),
+  };
+}
+
 function mapItemsToInitialState(items) {
   const safeItems = Array.isArray(items) ? items : [];
 
   const cortejo = safeItems
-    .filter((item) => item.section === 'cortejo')
+    .filter((item) => normalizeRepertoireSection(item.section) === 'cortejo')
     .sort((a, b) => (a.item_order || 0) - (b.item_order || 0))
     .map((item) => ({
       label: item.label || item.who_enters || '',
@@ -252,7 +285,7 @@ function mapItemsToInitialState(items) {
     }));
 
   const cerimonia = safeItems
-    .filter((item) => item.section === 'cerimonia')
+    .filter((item) => normalizeRepertoireSection(item.section) === 'cerimonia')
     .sort((a, b) => (a.item_order || 0) - (b.item_order || 0))
     .map((item) => ({
       label: item.label || item.moment || '',
@@ -266,7 +299,7 @@ function mapItemsToInitialState(items) {
     }));
 
   const antessalaItems = safeItems
-    .filter((item) => item.section === 'antessala')
+    .filter((item) => normalizeRepertoireSection(item.section) === 'antessala')
     .sort((a, b) => (a.item_order || 0) - (b.item_order || 0));
   const antessalaMainItem =
     antessalaItems.find((item) => (item.item_order || 0) < 100) || antessalaItems[0] || null;
@@ -284,7 +317,7 @@ function mapItemsToInitialState(items) {
 
   const receptivoItem =
     safeItems
-      .filter((item) => item.section === 'receptivo')
+      .filter((item) => normalizeRepertoireSection(item.section) === 'receptivo')
       .sort((a, b) => (a.item_order || 0) - (b.item_order || 0))[0] || null;
 
   return {
@@ -1025,6 +1058,7 @@ export default async function ClienteTokenPage({ params }) {
   }
 
   const initialLists = mapItemsToInitialState(items);
+  const antesalaRequest = resolveAntesalaRequestFromEvent(event);
 
   const repertorioTokenValue = repertoireToken?.token || token;
   const repertorioPdfToken = clientToken;
@@ -1103,8 +1137,8 @@ export default async function ClienteTokenPage({ params }) {
       ),
       antesalaDurationMinutes:
         Number(event?.antesala_duration_minutes ?? 0) || null,
-      antesalaRequestedByClient: Boolean(event?.antesala_requested_by_client),
-      antesalaRequestStatus: String(event?.antesala_request_status || ''),
+      antesalaRequestedByClient: antesalaRequest.requestedByClient,
+      antesalaRequestStatus: antesalaRequest.status,
       antesalaPriceIncrement: Number(event?.antesala_price_increment || 0),
       antesalaQuoteOptions: buildAntesalaQuoteOptions(event?.formation, pricing),
       temReceptivo: Boolean(hasContractedReception),
@@ -1131,7 +1165,8 @@ export default async function ClienteTokenPage({ params }) {
           quoteMinutes:
             Number(event?.antesala_duration_minutes ?? 0) || null,
           quotePriceIncrement: Number(event?.antesala_price_increment || 0) || 0,
-          requestedByClient: Boolean(event?.antesala_requested_by_client),
+          requestedByClient: antesalaRequest.requestedByClient,
+          requestStatus: antesalaRequest.status,
         },
         cortejo: initialLists.cortejo,
         cerimonia: initialLists.cerimonia,

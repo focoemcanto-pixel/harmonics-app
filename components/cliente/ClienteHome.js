@@ -1460,10 +1460,39 @@ const [generalNotes, setGeneralNotes] = useState(initialState.generalNotes || ''
       debugClientHome('[REPERTORIO_AUTOSAVE] conteúdo lido do localStorage:', savedDraftRaw);
       debugClientHome('[CLIENT_HOME][LOCAL_DRAFT]', savedDraftRaw);
 
-      if (!hasBackendRepertorio && savedDraftRaw) {
+      if (savedDraftRaw) {
         const parsed = JSON.parse(savedDraftRaw);
-        applyLocalDraft(parsed);
-        setShowLocalDraftBanner(false);
+        const parsedCortejo = Array.isArray(parsed?.cortejo) ? parsed.cortejo : [];
+        const parsedCerimonia = Array.isArray(parsed?.cerimonia) ? parsed.cerimonia : [];
+        const parsedAntesala = { ...getDefaultAntesalaState(), ...(parsed?.antessala || {}) };
+        const hasUsefulDraftCortejo = parsedCortejo.some((item) => hasUsefulListItem(item));
+        const hasUsefulDraftCerimonia = parsedCerimonia.some((item) => hasUsefulListItem(item));
+        const hasUsefulDraftAntesala = hasUsefulAntesalaState(parsedAntesala);
+        const shouldHydrateFromLocalDraft =
+          !hasBackendRepertorio ||
+          hasUsefulDraftCortejo ||
+          hasUsefulDraftCerimonia ||
+          hasUsefulDraftAntesala;
+
+        debugClientHome('[CLIENT_HOME][STATE_BEFORE_MERGE]', repertorioStateRef.current || {});
+        debugClientHome('[CLIENT_HOME][LOCAL_DRAFT_DECISION]', {
+          hasBackendRepertorio,
+          hasUsefulDraftCortejo,
+          hasUsefulDraftCerimonia,
+          hasUsefulDraftAntesala,
+          shouldHydrateFromLocalDraft,
+        });
+
+        if (shouldHydrateFromLocalDraft) {
+          applyLocalDraft(parsed);
+          setShowLocalDraftBanner(false);
+          debugClientHome('[CLIENT_HOME][STATE_AFTER_MERGE]', {
+            ...repertorioStateRef.current,
+            ...(parsed || {}),
+          });
+        } else {
+          setShowLocalDraftBanner(!hasBackendRepertorio && hasSavedLocalDraft);
+        }
       } else {
         setShowLocalDraftBanner(!hasBackendRepertorio && hasSavedLocalDraft);
       }

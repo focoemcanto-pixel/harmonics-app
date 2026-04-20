@@ -1079,6 +1079,17 @@ export default async function ClienteTokenPage({ params }) {
     eventId,
     event,
   });
+  console.log('[ANTESALA][DB_EVENT_FIELDS]', {
+    has_antesala: event?.has_antesala ?? null,
+    antesala_enabled: event?.antesala_enabled ?? null,
+    antesala_requested_by_client: event?.antesala_requested_by_client ?? null,
+    antesala_request_status: event?.antesala_request_status ?? '',
+    antesala_duration_minutes: event?.antesala_duration_minutes ?? null,
+    antesala_price_increment: event?.antesala_price_increment ?? null,
+    has_ante_room: config?.has_ante_room ?? null,
+    ante_room_style: config?.ante_room_style ?? '',
+    ante_room_notes: config?.ante_room_notes ?? '',
+  });
   console.log('[DB_LOAD][EVENT_ID]', eventId);
   console.log('[DB_LOAD][REPERTOIRE_TOKEN]', {
     routeToken: routeToken?.token || null,
@@ -1330,6 +1341,29 @@ export default async function ClienteTokenPage({ params }) {
       historico: paymentHistory,
     },
   };
+
+  console.log('[ANTESALA][INITIAL_STATE_FROM_DB]', {
+    has_antesala: event?.has_antesala ?? null,
+    antesala_enabled: event?.antesala_enabled ?? null,
+    antesala_requested_by_client: event?.antesala_requested_by_client ?? null,
+    antesala_request_status: event?.antesala_request_status ?? '',
+    antesala_duration_minutes: event?.antesala_duration_minutes ?? null,
+    antesala_price_increment: event?.antesala_price_increment ?? null,
+    has_ante_room: config?.has_ante_room ?? null,
+    ante_room_style: config?.ante_room_style ?? '',
+    ante_room_notes: config?.ante_room_notes ?? '',
+    querAntessala: data?.repertorio?.initialState?.querAntessala ?? null,
+    requestedByClient:
+      data?.repertorio?.initialState?.antessala?.requestedByClient ?? false,
+    requestStatus: data?.repertorio?.initialState?.antessala?.requestStatus ?? '',
+    durationMinutes:
+      data?.repertorio?.initialState?.antessala?.durationMinutes ?? null,
+    quoteMinutes: data?.repertorio?.initialState?.antessala?.quoteMinutes ?? null,
+    quotePriceIncrement:
+      data?.repertorio?.initialState?.antessala?.quotePriceIncrement ?? 0,
+    included: data?.repertorio?.temAntessala ?? false,
+    priceIncrement: data?.repertorio?.antesalaPriceIncrement ?? 0,
+  });
 
   if (IS_DEV) {
     const usefulInitialCortejoCount = (

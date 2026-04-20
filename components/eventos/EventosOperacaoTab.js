@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import AdminSectionTitle from '../admin/AdminSectionTitle';
 import Pill from '../admin/AdminPill';
 import OperacaoContractInline from './OperacaoContractInline';
@@ -313,6 +314,38 @@ export default function EventosOperacaoTab({
                       Pagamento atualizado com sucesso.
                     </div>
                   )}
+
+                  {String(ev?.antesala_request_status || '').trim().toLowerCase() === 'pending' &&
+                  Boolean(ev?.antesala_requested_by_client) ? (
+                    <div className="mb-4 rounded-[16px] border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] text-amber-900">
+                      <div className="text-[11px] font-black uppercase tracking-[0.08em] text-amber-700">
+                        Solicitação de antesala pendente
+                      </div>
+                      <div className="mt-2 font-semibold">
+                        Cliente: {ev.client_name || 'Cliente'}
+                      </div>
+                      <div className="mt-1">
+                        Data do evento: {formatDateBR(ev.event_date)}
+                      </div>
+                      <div className="mt-1">
+                        Duração:{' '}
+                        {ev?.antesala_duration_minutes
+                          ? `${ev.antesala_duration_minutes} min`
+                          : 'Não informada'}
+                      </div>
+                      <div className="mt-1">
+                        Acréscimo: {formatMoney(Number(ev?.antesala_price_increment || 0))}
+                      </div>
+                      <div className="mt-3">
+                        <Link
+                          href={`/eventos/${ev.id}`}
+                          className="inline-flex rounded-full border border-amber-300 bg-white px-3 py-2 text-[12px] font-black text-amber-800 hover:bg-amber-100"
+                        >
+                          Abrir evento
+                        </Link>
+                      </div>
+                    </div>
+                  ) : null}
 
                   <div className="rounded-[22px] bg-white/70 p-4 backdrop-blur md:p-5">
                     <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">

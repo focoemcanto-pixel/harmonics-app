@@ -88,7 +88,6 @@ function ContractPreviewModal({ item, open, onClose }) {
   }
 
   const previewHtmlUrl = `/api/contracts/preview-html/${item.token}`;
-  const previewPdfUrl = `/api/contracts/preview/${item.token}`;
 
   return (
     <div className="fixed inset-0 z-[140] bg-black/45 backdrop-blur-[3px]">
@@ -120,15 +119,6 @@ function ContractPreviewModal({ item, open, onClose }) {
             </div>
 
             <div className="flex flex-wrap gap-3">
-              <a
-                href={previewPdfUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3 text-[13px] font-black text-[#0f172a]"
-              >
-                Prévia PDF
-              </a>
-
               {item.linkContrato ? (
                 <Link
                   href={item.linkContrato}
@@ -371,16 +361,6 @@ export default function ContractCard({ item, onCopyLink, onDeleteContract }) {
             </a>
           ) : null}
 
-          {item.docUrl ? (
-            <a
-              href={item.docUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3 text-[14px] font-black text-[#0f172a]"
-            >
-              Documento
-            </a>
-          ) : null}
         </div>
       </div>
 

@@ -308,6 +308,13 @@ export default function MembroPage() {
       .eq('id', session.user.id)
       .maybeSingle();
 
+    console.info('[MEMBER_PANEL][ROLE_DETECTION]', {
+      userId: session?.user?.id || null,
+      email: sessionEmail,
+      role: profile?.role || null,
+      profileError: profileError?.message || null,
+    });
+
     // Se for admin, permitir acesso direto
     if (!profileError && profile?.role === 'admin') {
       setMember({
@@ -368,29 +375,21 @@ export default function MembroPage() {
       // ✅ SE FOR ADMIN: Buscar TODOS os dados (sem filtro)
       if (currentMember.isAdmin) {
         const [
-          invitesResp,
+          eventsResp,
           precontractsResp,
           contractsResp,
           repertoireConfigsResp,
           repertoireItemsResp,
         ] = await Promise.all([
           supabase
-            .from('invites')
+            .from('events')
             .select(`
               id,
-              event_id,
-              contact_id,
-              suggested_role_name,
-              message,
-              status,
-              sent_at,
-              responded_at,
               created_at,
-              events (*),
-              contacts (id, name, email)
+              *
             `)
-            .neq('status', 'removed')
-            .order('created_at', { ascending: false }),
+            .order('event_date', { ascending: true })
+            .order('event_time', { ascending: true }),
 
           supabase
             .from('precontracts')
@@ -410,17 +409,42 @@ export default function MembroPage() {
             .order('item_order', { ascending: true }),
         ]);
 
-        if (invitesResp.error) throw invitesResp.error;
+        if (eventsResp.error) throw eventsResp.error;
         if (precontractsResp.error) throw precontractsResp.error;
         if (contractsResp.error) throw contractsResp.error;
         if (repertoireConfigsResp.error) throw repertoireConfigsResp.error;
         if (repertoireItemsResp.error) throw repertoireItemsResp.error;
 
-        setInvites(Array.isArray(invitesResp.data) ? invitesResp.data : []);
+        const adminEvents = Array.isArray(eventsResp.data) ? eventsResp.data : [];
+        const adminInvites = adminEvents.map((event) => ({
+          id: `admin-event-${event.id}`,
+          event_id: event.id,
+          contact_id: currentMember.id,
+          suggested_role_name: '',
+          message: '',
+          status: 'confirmed',
+          sent_at: event?.created_at || null,
+          responded_at: event?.created_at || null,
+          created_at: event?.created_at || null,
+          events: event,
+        }));
+
+        console.info('[MEMBER_PANEL][ADMIN_BYPASS]', {
+          memberId: currentMember.id,
+          totalEvents: adminEvents.length,
+        });
+
+        setInvites(adminInvites);
         setPrecontracts(Array.isArray(precontractsResp.data) ? precontractsResp.data : []);
         setContracts(Array.isArray(contractsResp.data) ? contractsResp.data : []);
         setRepertoireConfigs(Array.isArray(repertoireConfigsResp.data) ? repertoireConfigsResp.data : []);
         setRepertoireItems(Array.isArray(repertoireItemsResp.data) ? repertoireItemsResp.data : []);
+        console.info('[MEMBER_PANEL][EVENTS_RESULT]', {
+          memberId: currentMember.id,
+          isAdmin: true,
+          total: adminInvites.length,
+          source: 'events',
+        });
         return;
       }
 
@@ -479,6 +503,12 @@ export default function MembroPage() {
       setContracts(Array.isArray(contractsResp.data) ? contractsResp.data : []);
       setRepertoireConfigs(Array.isArray(repertoireConfigsResp.data) ? repertoireConfigsResp.data : []);
       setRepertoireItems(Array.isArray(repertoireItemsResp.data) ? repertoireItemsResp.data : []);
+      console.info('[MEMBER_PANEL][EVENTS_RESULT]', {
+        memberId: currentMember.id,
+        isAdmin: false,
+        total: Array.isArray(invitesResp.data) ? invitesResp.data.length : 0,
+        source: 'invites',
+      });
     } catch (e) {
       console.error('Erro ao carregar painel do membro:', e);
       setError(e?.message || 'Não foi possível carregar seu painel.');
@@ -617,6 +647,17 @@ export default function MembroPage() {
   }, [confirmados]);
 
   const desktopMeta = getDesktopTabMeta(activeTab);
+
+  useEffect(() => {
+    if (!member?.id) return;
+    console.info('[MEMBER_PANEL][COUNTS_RESULT]', {
+      memberId: member.id,
+      isAdmin: Boolean(member?.isAdmin),
+      pendentes: resumo?.pendentes || 0,
+      confirmados: resumo?.confirmados || 0,
+      repertorios: resumo?.repertorios || 0,
+    });
+  }, [member?.id, member?.isAdmin, resumo?.pendentes, resumo?.confirmados, resumo?.repertorios]);
 
   async function handleGoogleLogin() {
     try {

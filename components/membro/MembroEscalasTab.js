@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { normalizeTimeStrict } from '@/lib/time/normalize-time';
 import {
   addHoursToTime,
@@ -458,20 +458,10 @@ export default function MembroEscalasTab({
   onOpenMaps,
   onOpenScale,
 }) {
-  const baseMonth = useMemo(() => {
-    const nearest = sortByEventDateAsc(confirmados).find((item) => {
-      const days = getDaysDiff(item?.eventDate);
-      return typeof days === 'number' && days >= -31;
-    });
-
-    const base = nearest?.eventDate
-      ? new Date(`${nearest.eventDate}T12:00:00`)
-      : new Date();
-
-    return new Date(base.getFullYear(), base.getMonth(), 1);
-  }, [confirmados]);
-
-  const [currentMonth, setCurrentMonth] = useState(baseMonth);
+  const nowReference = useMemo(() => new Date(), []);
+  const [currentMonth, setCurrentMonth] = useState(
+    () => new Date(nowReference.getFullYear(), nowReference.getMonth(), 1)
+  );
   const [pickerOpen, setPickerOpen] = useState(false);
 
   const monthItems = useMemo(() => {
@@ -508,22 +498,79 @@ export default function MembroEscalasTab({
     return label.charAt(0).toUpperCase() + label.slice(1);
   }, [currentMonth]);
 
+  useEffect(() => {
+    console.info('[MEMBER_CALENDAR][NOW_REFERENCE]', {
+      iso: nowReference.toISOString(),
+      year: nowReference.getFullYear(),
+      month: nowReference.getMonth() + 1,
+      day: nowReference.getDate(),
+    });
+  }, [nowReference]);
+
+  useEffect(() => {
+    console.info('[MEMBER_CALENDAR][INITIAL_MONTH_STATE]', {
+      currentMonthIso: currentMonth.toISOString(),
+      source: 'current_local_date',
+    });
+    // Executa apenas na primeira carga para registrar estado inicial.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    console.info('[MEMBER_CALENDAR][EVENTS_MONTH_RESULT]', {
+      currentMonthIso: currentMonth.toISOString(),
+      totalEventsInMonth: monthItems.length,
+      todayEvents: hojeDoMes.length,
+      upcomingEvents: proximosDoMes.length,
+      doneEvents: concluidosDoMes.length,
+    });
+  }, [concluidosDoMes.length, currentMonth, hojeDoMes.length, monthItems.length, proximosDoMes.length]);
+
   function goPrevMonth() {
-    setCurrentMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+    setCurrentMonth((prev) => {
+      const next = new Date(prev.getFullYear(), prev.getMonth() - 1, 1);
+      console.info('[MEMBER_CALENDAR][MONTH_NAVIGATION]', {
+        action: 'prev',
+        from: prev.toISOString(),
+        to: next.toISOString(),
+      });
+      return next;
+    });
   }
 
   function goNextMonth() {
-    setCurrentMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+    setCurrentMonth((prev) => {
+      const next = new Date(prev.getFullYear(), prev.getMonth() + 1, 1);
+      console.info('[MEMBER_CALENDAR][MONTH_NAVIGATION]', {
+        action: 'next',
+        from: prev.toISOString(),
+        to: next.toISOString(),
+      });
+      return next;
+    });
   }
 
   function applyMonth(year, month) {
-    setCurrentMonth(new Date(year, month - 1, 1));
+    const next = new Date(year, month - 1, 1);
+    console.info('[MEMBER_CALENDAR][MONTH_NAVIGATION]', {
+      action: 'picker_month',
+      from: currentMonth.toISOString(),
+      to: next.toISOString(),
+    });
+    setCurrentMonth(next);
   }
 
   function applyDate(dateValue) {
     const date = new Date(`${dateValue}T12:00:00`);
     if (Number.isNaN(date.getTime())) return;
-    setCurrentMonth(new Date(date.getFullYear(), date.getMonth(), 1));
+    const next = new Date(date.getFullYear(), date.getMonth(), 1);
+    console.info('[MEMBER_CALENDAR][MONTH_NAVIGATION]', {
+      action: 'picker_date',
+      from: currentMonth.toISOString(),
+      to: next.toISOString(),
+      selectedDate: dateValue,
+    });
+    setCurrentMonth(next);
   }
 
   function handleOpenDetails(item) {

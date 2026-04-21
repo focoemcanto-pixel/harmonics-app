@@ -8,6 +8,10 @@ import AdminSectionTitle from '@/components/admin/AdminSectionTitle';
 import AdminSummaryCard from '@/components/admin/AdminSummaryCard';
 import { supabase } from '@/lib/supabase';
 import { formatDateBR, formatPhoneDisplay } from '@/lib/eventos/eventos-format';
+import DeleteConfirmModal from '@/components/ui/DeleteConfirmModal';
+import BulkActionBar from '@/components/ui/BulkActionBar';
+import { useMultiSelect } from '@/hooks/useMultiSelect';
+import { useBulkDelete } from '@/hooks/useBulkDelete';
 
 function normalizeInviteStatus(status) {
   const s = String(status || '').trim().toLowerCase();
@@ -104,6 +108,9 @@ export default function ConvitesPage() {
   const [busca, setBusca] = useState('');
   const [statusFiltro, setStatusFiltro] = useState('todos');
   const [somenteProximos, setSomenteProximos] = useState(false);
+  const [deleteDialog, setDeleteDialog] = useState({ open: false, inviteId: null });
+  const { selectedIds, selectedSet, clear, toggle, toggleAll } = useMultiSelect();
+  const { loading: deleting, run: runBulkDelete } = useBulkDelete();
 
   async function carregarTudo() {
     const [convitesRes, eventsRes, contactsRes] = await Promise.all([
@@ -223,6 +230,32 @@ export default function ConvitesPage() {
     return { total, pendentes, confirmados, recusados };
   }, [convitesEnriquecidos]);
 
+  async function deleteSelectedInvites(ids) {
+    const result = await runBulkDelete({
+      endpoint: '/api/invites/delete-many',
+      idsKey: 'inviteIds',
+      ids,
+    });
+
+    if (!result?.ok) {
+      setFeedback({ type: 'error', title: 'Erro ao excluir convites', message: result?.error || 'Tente novamente.' });
+      return;
+    }
+
+    const deletedIds = (result.success || []).map((item) => String(item.inviteId));
+    setConvites((prev) => prev.filter((item) => !deletedIds.includes(String(item.id))));
+    clear();
+
+    const failedCount = (result.failed || []).length;
+    setFeedback({
+      type: failedCount ? 'info' : 'success',
+      title: failedCount ? 'Exclusão parcial' : 'Convites excluídos',
+      message: failedCount
+        ? `${deletedIds.length} convites excluídos e ${failedCount} com falha.`
+        : `${deletedIds.length} convites excluídos com sucesso.`,
+    });
+  }
+
   if (carregando) {
     return (
       <AdminShell pageTitle="Convites" activeItem="convites">
@@ -333,6 +366,14 @@ export default function ConvitesPage() {
                   >
                     <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                       <div className="min-w-0">
+                        <label className="inline-flex items-center gap-2 text-[12px] font-black text-[#0f172a]">
+                          <input
+                            type="checkbox"
+                            checked={selectedSet.has(String(item.id))}
+                            onChange={() => toggle(item.id)}
+                          />
+                          Selecionar
+                        </label>
                         <div className="text-[20px] font-black tracking-[-0.03em] text-[#0f172a]">
                           {item.event.client_name || 'Evento sem cliente'}
                         </div>
@@ -415,6 +456,13 @@ export default function ConvitesPage() {
                       >
                         Ir para eventos
                       </Link>
+                      <button
+                        type="button"
+                        onClick={() => setDeleteDialog({ open: true, inviteId: item.id })}
+                        className="rounded-[16px] border border-red-200 bg-red-50 px-4 py-3 text-[14px] font-black text-red-700"
+                      >
+                        Excluir convite
+                      </button>
                     </div>
                   </div>
                 );
@@ -422,7 +470,38 @@ export default function ConvitesPage() {
             )}
           </div>
         </section>
+        {convitesFiltrados.length > 0 ? (
+          <label className="inline-flex items-center gap-2 text-[12px] font-black text-[#0f172a]">
+            <input
+              type="checkbox"
+              onChange={() => toggleAll(convitesFiltrados.map((item) => item.id))}
+            />
+            Selecionar convites filtrados
+          </label>
+        ) : null}
       </div>
+      <BulkActionBar
+        selectedCount={selectedIds.length}
+        label="convites"
+        deleting={deleting}
+        onClear={clear}
+        onDelete={() => setDeleteDialog({ open: true, inviteId: null })}
+      />
+      <DeleteConfirmModal
+        open={deleteDialog.open}
+        loading={deleting}
+        title={
+          deleteDialog.inviteId
+            ? 'Excluir este convite selecionado?'
+            : `Excluir ${selectedIds.length} convites selecionados?`
+        }
+        description="Somente os convites escolhidos serão removidos."
+        onCancel={() => setDeleteDialog({ open: false, inviteId: null })}
+        onConfirm={() =>
+          deleteSelectedInvites(deleteDialog.inviteId ? [deleteDialog.inviteId] : selectedIds)
+            .finally(() => setDeleteDialog({ open: false, inviteId: null }))
+        }
+      />
     </AdminShell>
   );
 }

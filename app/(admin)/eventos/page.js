@@ -969,9 +969,14 @@ export default function EventosPage() {
 
     setBulkDeleting(true);
     try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
       const response = await fetch('/api/events/bulk-delete', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
         body: JSON.stringify({ eventIds: targetIds }),
       });
       const result = await response.json();
@@ -1052,9 +1057,14 @@ export default function EventosPage() {
     console.info('[EVENT_DELETE][REQUEST_PAYLOAD]', { eventId: id });
     setExcluindoEventoId(id);
     try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
       const response = await fetch(`/api/events/${id}`, {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
       });
       const result = await response.json();
       console.info('[EVENT_DELETE][DEPENDENCY_CHECK]', {

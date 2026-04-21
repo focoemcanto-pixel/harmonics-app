@@ -16,6 +16,11 @@ import { getContratosSummary } from '@/lib/contratos/contratos-summary';
 import ContratosResumoTab from '@/components/contratos/ContratosResumoTab';
 import ContratosListaTab from '@/components/contratos/ContratosListaTab';
 import ContratosFiltrosTab from '@/components/contratos/ContratosFiltrosTab';
+import DeleteConfirmModal from '@/components/ui/DeleteConfirmModal';
+import BulkActionBar from '@/components/ui/BulkActionBar';
+import { useMultiSelect } from '@/hooks/useMultiSelect';
+import { useBulkDelete } from '@/hooks/useBulkDelete';
+import { useAppToast } from '@/components/ui/ToastProvider';
 
 const ADMIN_LIST_LIMIT = 100;
 const PRECONTRACTS_SELECT_FIELDS =
@@ -59,6 +64,7 @@ function getResolvedToken(precontract, contract) {
 
 export default function ContratosPage() {
   const router = useRouter();
+  const toast = useAppToast();
 
   const [mobileTab, setMobileTab] = useState('resumo');
   const [busca, setBusca] = useState('');
@@ -67,6 +73,9 @@ export default function ContratosPage() {
   const [erro, setErro] = useState('');
   const [contratos, setContratos] = useState([]);
   const [exportando, setExportando] = useState(false);
+  const [deleteDialog, setDeleteDialog] = useState({ open: false, item: null });
+  const { selectedIds, selectedSet, clear, toggle, toggleAll } = useMultiSelect();
+  const { loading: deletingMany, run: runBulkDelete } = useBulkDelete();
 
   const mobileTabs = [
     { key: 'resumo', label: 'Resumo' },
@@ -194,7 +203,7 @@ export default function ContratosPage() {
 
   async function onCopyLink(link) {
     if (!link) {
-      alert('Este contrato ainda não possui link público.');
+      toast.warning('Este contrato ainda não possui link público.');
       return;
     }
 
@@ -205,53 +214,68 @@ export default function ContratosPage() {
         token: String(link).split('/').filter(Boolean).pop() || null,
       });
       await navigator.clipboard.writeText(full);
-      alert('Link copiado com sucesso.');
+      toast.success('Link copiado com sucesso.');
     } catch (error) {
       console.error(error);
-      alert('Não foi possível copiar o link.');
+      toast.error('Não foi possível copiar o link.');
     }
   }
 
-  async function onDeleteContract(item) {
+  function onDeleteContract(item) {
+    if (!item?.precontractId) return;
+    setDeleteDialog({ open: true, item });
+  }
+
+  async function confirmDeleteContract() {
+    const item = deleteDialog.item;
     if (!item?.precontractId) return;
 
-    const confirmed = window.confirm('Tem certeza que deseja excluir este contrato?');
-    if (!confirmed) return;
-
     try {
-      console.info('[CONTRATOS_ADMIN] solicitando exclusão', {
-        precontractId: item.precontractId,
-        contractId: item.contractId || null,
+      const result = await runBulkDelete({
+        endpoint: '/api/contracts/delete-many',
+        idsKey: 'precontractIds',
+        ids: [item.precontractId],
       });
 
-      const response = await fetch('/api/contracts/archive', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          precontractId: item.precontractId,
-          contractId: item.contractId,
-        }),
-      });
-
-      const payload = await response.json();
-      if (!response.ok || !payload?.ok) {
-        throw new Error(payload?.error || 'Falha ao arquivar contrato.');
+      if (!result?.ok) {
+        throw new Error(result?.error || 'Falha ao excluir contrato.');
       }
 
       setContratos((prev) =>
         prev.filter((entry) => String(entry.precontractId) !== String(item.precontractId))
       );
-      console.info('[CONTRATOS_ADMIN] exclusão concluída', {
-        precontractId: item.precontractId,
-        contractId: item.contractId || null,
-      });
-      alert('Contrato removido com sucesso.');
+      toast.success('Contrato removido com sucesso.');
     } catch (error) {
       console.error('Erro ao remover contrato:', error);
-      alert('Não foi possível remover o contrato.');
+      toast.error('Não foi possível remover o contrato.');
+    } finally {
+      setDeleteDialog({ open: false, item: null });
     }
+  }
+
+  async function onDeleteManyContracts() {
+    const result = await runBulkDelete({
+      endpoint: '/api/contracts/delete-many',
+      idsKey: 'precontractIds',
+      ids: selectedIds,
+    });
+
+    if (!result?.ok) {
+      toast.error(result?.error || 'Erro ao excluir contratos selecionados.');
+      return;
+    }
+
+    const deleted = (result.success || []).map((item) => String(item.precontractId));
+    const failed = result.failed || [];
+    setContratos((prev) => prev.filter((item) => !deleted.includes(String(item.precontractId))));
+    clear();
+
+    if (failed.length > 0) {
+      toast.warning(`${deleted.length} contratos excluídos e ${failed.length} com falha.`);
+      return;
+    }
+
+    toast.success(`${deleted.length} contratos excluídos com sucesso.`);
   }
 
   function handleExportar() {
@@ -313,7 +337,7 @@ export default function ContratosPage() {
       URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Erro ao exportar contratos:', error);
-      alert('Não foi possível exportar os contratos.');
+      toast.error('Não foi possível exportar os contratos.');
     } finally {
       setExportando(false);
     }
@@ -388,6 +412,9 @@ export default function ContratosPage() {
             erro={erro}
             onCopyLink={onCopyLink}
             onDeleteContract={onDeleteContract}
+            selectedSet={selectedSet}
+            onToggleSelect={toggle}
+            onToggleAll={() => toggleAll(contratosFiltrados.map((item) => item.precontractId))}
           />
         </div>
 
@@ -415,6 +442,9 @@ export default function ContratosPage() {
               erro={erro}
               onCopyLink={onCopyLink}
               onDeleteContract={onDeleteContract}
+              selectedSet={selectedSet}
+              onToggleSelect={toggle}
+              onToggleAll={() => toggleAll(contratosFiltrados.map((item) => item.precontractId))}
             />
           )}
 
@@ -428,6 +458,22 @@ export default function ContratosPage() {
           )}
         </div>
       </div>
+      <BulkActionBar
+        selectedCount={selectedIds.length}
+        label="contratos"
+        deleting={deletingMany}
+        onClear={clear}
+        onDelete={onDeleteManyContracts}
+      />
+      <DeleteConfirmModal
+        open={deleteDialog.open}
+        loading={deletingMany}
+        title={`Excluir contrato de ${deleteDialog.item?.clienteNome || 'cliente'}?`}
+        description="O contrato selecionado será removido sem apagar o evento."
+        confirmLabel="Excluir contrato"
+        onCancel={() => setDeleteDialog({ open: false, item: null })}
+        onConfirm={confirmDeleteContract}
+      />
     </AdminShell>
   );
 }

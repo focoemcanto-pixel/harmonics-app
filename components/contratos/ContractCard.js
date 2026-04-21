@@ -169,7 +169,7 @@ function ContractPreviewModal({ item, open, onClose }) {
   );
 }
 
-export default function ContractCard({ item, onCopyLink, onDeleteContract }) {
+export default function ContractCard({ item, onCopyLink, onDeleteContract, selected, onToggleSelect }) {
   const cardTone = buildContractTone(item.statusTone);
   const [previewOpen, setPreviewOpen] = useState(false);
 
@@ -178,18 +178,12 @@ export default function ContractCard({ item, onCopyLink, onDeleteContract }) {
 
   function handleOpenPreview() {
     if (!hasToken) {
-      alert('Este contrato ainda não possui token público válido.');
       return;
     }
     setPreviewOpen(true);
   }
 
   function handleCopyLink() {
-    if (!hasLink) {
-      alert('Este contrato ainda não possui link público.');
-      return;
-    }
-
     onCopyLink?.(item.linkContrato);
   }
 
@@ -200,6 +194,14 @@ export default function ContractCard({ item, onCopyLink, onDeleteContract }) {
       >
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div className="min-w-0">
+            <label className="inline-flex items-center gap-2 text-[12px] font-black text-[#0f172a]">
+              <input
+                type="checkbox"
+                checked={!!selected}
+                onChange={() => onToggleSelect?.(item.precontractId)}
+              />
+              Selecionar
+            </label>
             <div className="text-[22px] font-black tracking-[-0.03em] text-[#0f172a]">
               {item.clienteNome}
             </div>

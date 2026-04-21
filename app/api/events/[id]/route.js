@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { deleteEventCascade } from '@/lib/events/delete-event-cascade';
+import { requireAdminFromRequest } from '@/lib/api/require-admin';
 
-export async function DELETE(_request, { params }) {
+export async function DELETE(request, { params }) {
   const supabase = getSupabaseAdmin();
   const routeParams = await params;
   const eventId = String(routeParams?.id || '').trim();
@@ -10,6 +11,11 @@ export async function DELETE(_request, { params }) {
   console.info('[EVENT_DELETE_API][INPUT]', { eventId });
 
   try {
+    const auth = await requireAdminFromRequest({ supabase, request, logPrefix: '[EVENT_DELETE_API]' });
+    if (!auth.ok) {
+      return NextResponse.json({ ok: false, error: auth.error }, { status: auth.status || 401 });
+    }
+
     const result = await deleteEventCascade({
       supabase,
       eventId,

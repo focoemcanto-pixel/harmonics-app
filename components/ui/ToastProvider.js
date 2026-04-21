@@ -13,6 +13,29 @@ export function useToast() {
   return useContext(ToastContext);
 }
 
+export function useAppToast() {
+  const context = useToast() || {};
+  const showToast = context.showToast || (() => {});
+
+  const notify = (message, type = 'default') => {
+    if (type === 'error') {
+      console.info('[UI][ACTION_ERROR_TOAST]', { message });
+    } else {
+      console.info('[UI][ACTION_SUCCESS_TOAST]', { message, type });
+    }
+    showToast(message, type);
+  };
+
+  return {
+    showToast,
+    notify,
+    success: (message) => notify(message, 'success'),
+    error: (message) => notify(message, 'error'),
+    warning: (message) => notify(message, 'warning'),
+    info: (message) => notify(message, 'info'),
+  };
+}
+
 export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([]);
   const [mounted, setMounted] = useState(false);

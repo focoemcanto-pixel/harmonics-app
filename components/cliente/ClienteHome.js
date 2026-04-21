@@ -2160,7 +2160,8 @@ async function handleRequestReview() {
 
   const reviewToken = data.repertorio?.repertoireToken || data.token;
   if (!reviewToken) {
-    alert('Erro ao solicitar revisão');
+    console.info('[UI][ACTION_ERROR_TOAST]', { source: 'cliente.review', reason: 'missing-token' });
+    showToast('Erro ao solicitar revisão', 'error');
     return;
   }
 
@@ -2173,9 +2174,11 @@ async function handleRequestReview() {
     if (!res.ok || !result?.ok) throw new Error(result?.error || 'Erro ao solicitar revisão');
 
     onReviewRequested?.(result);
-    alert('Pedido de revisão enviado com sucesso!');
+    console.info('[UI][ACTION_SUCCESS_TOAST]', { source: 'cliente.review' });
+    showToast('Pedido de revisão enviado com sucesso!', 'success');
   } catch {
-    alert('Erro ao solicitar revisão');
+    console.info('[UI][ACTION_ERROR_TOAST]', { source: 'cliente.review' });
+    showToast('Erro ao solicitar revisão', 'error');
   }
 }
 
@@ -2922,7 +2925,8 @@ async function handleRequestReview() {
               onClick={(event) => {
                 if (!data.repertorio.pdfUrl) {
                   event.preventDefault();
-                  alert('PDF do repertório ainda não disponível.');
+                  console.info('[UI][ACTION_ERROR_TOAST]', { source: 'cliente.repertorio.pdf' });
+                  showToast('PDF do repertório ainda não disponível.', 'warning');
                   return;
                 }
                 console.log(

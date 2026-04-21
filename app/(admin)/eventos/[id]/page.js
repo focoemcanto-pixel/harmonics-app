@@ -8,6 +8,8 @@ import AdminShell from '@/components/admin/AdminShell';
 import AdminPageHero from '@/components/admin/AdminPageHero';
 import AdminSegmentTabs from '@/components/admin/AdminSegmentTabs';
 import EventoEscalaTab from '@/components/eventos/EventoEscalaTab';
+import { useAppToast } from '@/components/ui/ToastProvider';
+import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
 
 function formatDateBR(value) {
   if (!value) return '-';
@@ -88,6 +90,8 @@ export default function EventoDetalhePage() {
   const [excluindo, setExcluindo] = useState(false);
   const [processandoAntesala, setProcessandoAntesala] = useState('');
   const [activeTab, setActiveTab] = useState('resumo');
+  const toast = useAppToast();
+  const confirm = useConfirm();
 
   useEffect(() => {
     const tab = searchParams.get('tab');
@@ -123,16 +127,28 @@ export default function EventoDetalhePage() {
 
   async function excluirEvento() {
     if (!evento?.id) return;
-    if (!confirm('Tem certeza que deseja excluir este evento?')) return;
+    console.info('[UI][NATIVE_CONFIRM_FOUND]', {
+      context: 'admin-evento-detalhe.excluirEvento',
+      message: 'Tem certeza que deseja excluir este evento?',
+    });
+    const confirmed = await confirm?.({
+      title: 'Excluir evento',
+      description: 'Essa ação remove o evento permanentemente.',
+      confirmText: 'Excluir evento',
+      cancelText: 'Cancelar',
+      tone: 'destructive',
+    });
+    if (!confirmed) return;
 
     try {
       setExcluindo(true);
       const { error } = await supabase.from('events').delete().eq('id', evento.id);
       if (error) throw error;
+      toast.success('Evento excluído com sucesso.');
       router.push('/eventos');
     } catch (error) {
       console.error('Erro ao excluir evento:', error);
-      alert('Erro ao excluir evento.');
+      toast.error('Erro ao excluir evento.');
     } finally {
       setExcluindo(false);
     }
@@ -189,7 +205,7 @@ export default function EventoDetalhePage() {
       setEvento(data || null);
     } catch (error) {
       console.error('Erro ao responder solicitação de antesala:', error);
-      alert('Não foi possível atualizar a solicitação de antesala.');
+      toast.error('Não foi possível atualizar a solicitação de antesala.');
     } finally {
       setProcessandoAntesala('');
     }

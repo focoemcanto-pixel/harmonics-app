@@ -124,6 +124,7 @@ function AdminEventCard({
   onOpenContract,
   onCopyContractLink,
   gerandoContrato = false,
+  excluindo = false,
   flat = false,
 }) {
   const phoneDigits = String(whatsappNumero || '').replace(/\D/g, '');
@@ -291,9 +292,10 @@ function AdminEventCard({
           <button
             type="button"
             onClick={onDelete}
-            className="rounded-[16px] bg-red-600 px-4 py-3 text-[14px] font-black text-white"
+            disabled={excluindo}
+            className="rounded-[16px] bg-red-600 px-4 py-3 text-[14px] font-black text-white disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Excluir
+            {excluindo ? 'Excluindo...' : 'Excluir'}
           </button>
         </div>
       </div>
@@ -328,6 +330,7 @@ function areEventCardPropsEqual(prev, next) {
     prev.contractTone === next.contractTone &&
     prev.contractLink === next.contractLink &&
     prev.gerandoContrato === next.gerandoContrato &&
+    prev.excluindo === next.excluindo &&
     prev.flat === next.flat
   );
 }

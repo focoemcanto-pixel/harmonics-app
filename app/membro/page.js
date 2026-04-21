@@ -12,6 +12,7 @@ import MiniPlayerBar from '../../components/membro/MiniPlayerBar';
 import MembroEscalaModal from '../../components/membro/MembroEscalaModal';
 import MembroRepertorioResumoModal from '../../components/membro/MembroRepertorioResumoModal';
 import { buildMemberDashboardData } from '../../lib/membro/membro-invites';
+import { useAppToast } from '../../components/ui/ToastProvider';
 
 const DESKTOP_TABS = [
   { key: 'home', label: 'Início', icon: '🏠' },
@@ -267,6 +268,7 @@ export default function MembroPage() {
   const [error, setError] = useState('');
 
   const [showWelcomeSplash, setShowWelcomeSplash] = useState(false);
+  const toast = useAppToast();
   const [welcomeVisible, setWelcomeVisible] = useState(false);
   const [lastWelcomedMemberId, setLastWelcomedMemberId] = useState(null);
 
@@ -771,11 +773,15 @@ export default function MembroPage() {
       await loadDashboardData(member);
 
       if (nextStatus === 'confirmed') {
+        toast.success('Convite aceito com sucesso.');
         setActiveTab('escalas');
+      } else {
+        toast.info('Convite recusado com sucesso.');
       }
     } catch (e) {
       console.error('Erro ao responder convite:', e);
       setError(e?.message || 'Não foi possível responder o convite.');
+      toast.error(e?.message || 'Não foi possível responder o convite.');
     } finally {
       setLoadingKey('');
     }

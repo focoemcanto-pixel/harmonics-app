@@ -16,6 +16,17 @@ const AREAS_SISTEMA = [
 ];
 const USERS_LIST_LIMIT = 200;
 const USERS_SELECT_FIELDS = 'id, created_at, name, email, role';
+const CANONICAL_ROLES = new Set(['admin', 'member']);
+
+function normalizeRoleValue(value) {
+  const role = String(value || '').trim().toLowerCase();
+
+  if (role === 'administrador') return 'admin';
+  if (role === 'membro') return 'member';
+  if (CANONICAL_ROLES.has(role)) return role;
+
+  return 'member';
+}
 
 function PencilIcon({ className }) {
   return (
@@ -56,6 +67,7 @@ function GestaoUsuariosContent() {
   const [success, setSuccess] = useState('');
   const [editingId, setEditingId] = useState(null);
   const [editingRole, setEditingRole] = useState('member');
+  const [permissoes, setPermissoes] = useState({ acesso_total: true });
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [editForm, setEditForm] = useState({ name: '' });
@@ -81,8 +93,14 @@ function GestaoUsuariosContent() {
         .limit(USERS_LIST_LIMIT);
 
       if (err) throw err;
+      console.info('[ADMIN_USERS][LIST_QUERY_RESULT]', {
+        count: Array.isArray(data) ? data.length : 0,
+      });
       setUsuarios(data || []);
     } catch (e) {
+      console.error('[ADMIN_USERS][LIST_QUERY_ERROR]', {
+        message: e?.message || 'Erro desconhecido',
+      });
       setError('Erro ao carregar usuários: ' + (e.message || 'Erro desconhecido'));
     } finally {
       setLoading(false);
@@ -100,23 +118,44 @@ function GestaoUsuariosContent() {
     setSuccess('');
 
     try {
+      const normalizedRole = normalizeRoleValue(novoUsuario.role);
+      console.info('[ADMIN_USERS][CREATE_SUBMIT]', {
+        email: novoUsuario.email,
+        name: novoUsuario.name,
+        requestedRole: novoUsuario.role,
+      });
+      console.info('[ADMIN_USERS][NORMALIZED_ROLE]', {
+        requestedRole: novoUsuario.role,
+        normalizedRole,
+      });
+
       const response = await fetch('/api/admin/usuarios', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: novoUsuario.email,
           name: novoUsuario.name,
-          role: novoUsuario.role,
+          role: normalizedRole,
         }),
       });
 
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Erro ao cadastrar usuário');
+      console.info('[ADMIN_USERS][CREATE_RESULT]', {
+        ok: true,
+        userId: result?.userId || null,
+      });
 
       setSuccess('Usuário cadastrado com sucesso! Um e-mail de confirmação foi enviado.');
       setNovoUsuario({ email: '', name: '', role: 'member' });
+      setPermissoes({ acesso_total: true });
       await carregarUsuarios();
+      console.info('[ADMIN_USERS][POST_CREATE_REFRESH]', { ok: true });
     } catch (e) {
+      console.error('[ADMIN_USERS][CREATE_RESULT]', {
+        ok: false,
+        message: e?.message || 'Erro desconhecido',
+      });
       setError('Erro ao cadastrar usuário: ' + (e.message || 'Erro desconhecido'));
     } finally {
       setSaving(false);

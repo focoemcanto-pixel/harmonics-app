@@ -2,6 +2,7 @@
 
 import { Input, Select } from '../admin/AdminFormPrimitives';
 import { getContactTypeLabel, resolveContactType } from '@/lib/contatos/contact-type';
+import BulkActionBar from '@/components/ui/BulkActionBar';
 
 function TypeBadge({ contato }) {
   const type = resolveContactType(contato);
@@ -47,7 +48,7 @@ function EmptyState({ segment }) {
   );
 }
 
-function ContatoCard({ contato, iniciarEdicao, excluirContato, allowSelection, checked, onToggle }) {
+function ContatoCard({ contato, iniciarEdicao, excluirContato, checked, onToggle }) {
   const ativo = contato.is_active !== false;
 
   return (
@@ -55,14 +56,13 @@ function ContatoCard({ contato, iniciarEdicao, excluirContato, allowSelection, c
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           <div className="flex items-start gap-3">
-            {allowSelection ? (
-              <input
-                type="checkbox"
-                checked={checked}
-                onChange={() => onToggle(contato.id)}
-                className="mt-1 h-5 w-5 rounded border-[#cbd5e1] text-violet-600"
-              />
-            ) : null}
+            <input
+              type="checkbox"
+              checked={checked}
+              onChange={() => onToggle(contato.id)}
+              className="mt-1 h-5 w-5 rounded border-[#cbd5e1] text-violet-600"
+              aria-label={`Selecionar contato ${contato.name || ''}`}
+            />
 
             <div>
               <div className="text-[22px] font-black tracking-[-0.03em] text-[#0f172a]">{contato.name || 'Sem nome'}</div>
@@ -131,10 +131,8 @@ export default function ContatosListaTab({
   onToggleSelect,
   onSelectAllFiltered,
   onClearSelection,
-  onBulkDeleteClients,
+  onBulkDelete,
 }) {
-  const onlyClientsSegment = segment === 'clients';
-
   const tabs = [
     { key: 'members', label: 'Membros' },
     { key: 'clients', label: 'Clientes' },
@@ -199,34 +197,15 @@ export default function ContatosListaTab({
         </div>
       </div>
 
-      {onlyClientsSegment && selectedIds.size > 0 ? (
-        <div className="rounded-3xl border border-amber-200 bg-amber-50 px-5 py-4 shadow-sm">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <p className="text-sm font-bold text-amber-900">{selectedIds.size} cliente(s) selecionado(s)</p>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={onSelectAllFiltered}
-                className="rounded-xl border border-amber-300 bg-white px-3 py-2 text-xs font-black text-amber-800"
-              >
-                Selecionar todos filtrados
-              </button>
-              <button
-                type="button"
-                onClick={onClearSelection}
-                className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-black text-slate-700"
-              >
-                Limpar seleção
-              </button>
-              <button
-                type="button"
-                onClick={onBulkDeleteClients}
-                className="rounded-xl bg-red-600 px-3 py-2 text-xs font-black text-white"
-              >
-                Excluir clientes selecionados
-              </button>
-            </div>
-          </div>
+      {contatosFiltrados.length > 0 ? (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={onSelectAllFiltered}
+            className="rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-black text-violet-800"
+          >
+            Selecionar todos filtrados
+          </button>
         </div>
       ) : null}
 
@@ -235,14 +214,12 @@ export default function ContatosListaTab({
       ) : (
         <div className="space-y-4">
           {contatosFiltrados.map((contato) => {
-            const canSelect = onlyClientsSegment && resolveContactType(contato) === 'client';
             return (
               <ContatoCard
                 key={contato.id}
                 contato={contato}
                 iniciarEdicao={iniciarEdicao}
                 excluirContato={excluirContato}
-                allowSelection={canSelect}
                 checked={selectedIds.has(String(contato.id))}
                 onToggle={onToggleSelect}
               />
@@ -250,6 +227,12 @@ export default function ContatosListaTab({
           })}
         </div>
       )}
+      <BulkActionBar
+        selectedCount={selectedIds.size}
+        label={segment === 'clients' ? 'Clientes' : segment === 'members' ? 'Membros' : 'Contatos filtrados'}
+        onClear={onClearSelection}
+        onDelete={onBulkDelete}
+      />
     </section>
   );
 }

@@ -18,7 +18,7 @@ import { resolveContactType, isClientType, isMemberType } from '@/lib/contatos/c
 
 import ContatosFormularioTab from '@/components/contatos/ContatosFormularioTab';
 import ContatosListaTab from '@/components/contatos/ContatosListaTab';
-import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
+import DeleteConfirmModal from '@/components/ui/DeleteConfirmModal';
 import { useAppToast } from '@/components/ui/ToastProvider';
 
 function getInitialForm() {
@@ -42,6 +42,7 @@ const CONTACTS_SELECT_FIELDS =
 let contatosCache = [];
 
 export default function ContatosPage() {
+  const toast = useAppToast();
   const [contatos, setContatos] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
@@ -58,9 +59,14 @@ export default function ContatosPage() {
 
   const [desktopTab, setDesktopTab] = useState('lista');
   const [mobileTab, setMobileTab] = useState('lista');
-  const [selectedClientIds, setSelectedClientIds] = useState(new Set());
-  const { confirm } = useConfirm() || {};
-  const toast = useAppToast();
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [deleteDialog, setDeleteDialog] = useState({
+    open: false,
+    ids: [],
+    mode: 'single',
+    state: 'idle',
+    message: '',
+  });
 
   const desktopFormRef = useRef(null);
   const mobileFormRef = useRef(null);
@@ -223,34 +229,6 @@ export default function ContatosPage() {
     }
   }
 
-  async function excluirContato(id) {
-    if (salvando) return;
-    const confirmed = await confirm?.({ title: 'Excluir contato?', description: 'Esta ação removerá o contato de forma permanente.', confirmText: 'Excluir contato', cancelText: 'Cancelar', tone: 'destructive' });
-    if (!confirmed) return;
-
-    try {
-      setSalvando(true);
-      setErrorMessage('');
-
-      const { error } = await supabase
-        .from('contacts')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
-
-      if (editandoId === id) cancelarEdicao();
-
-      await carregarContatos({ background: true });
-      toast.success('Contato excluído com sucesso.');
-    } catch (error) {
-      console.error('Erro ao excluir contato:', error);
-      setErrorMessage(error?.message || 'Erro ao excluir contato');
-    } finally {
-      setSalvando(false);
-    }
-  }
-
   const uniqueTags = useMemo(() => getUniqueTags(contatos), [contatos]);
 
   const contatosFiltrados = useMemo(() => {
@@ -288,13 +266,13 @@ export default function ContatosPage() {
     return { total, membrosAtivos, clientes, novosContatos };
   }, [contatos]);
 
-  const contatosClientesFiltrados = useMemo(
-    () => contatosFiltrados.filter((item) => isClientType(item)),
+  const filteredIds = useMemo(
+    () => contatosFiltrados.map((item) => String(item.id)),
     [contatosFiltrados]
   );
 
-  const handleToggleSelectClient = useCallback((id) => {
-    setSelectedClientIds((prev) => {
+  const handleToggleSelect = useCallback((id) => {
+    setSelectedIds((prev) => {
       const next = new Set(prev);
       const key = String(id);
       if (next.has(key)) {
@@ -306,46 +284,81 @@ export default function ContatosPage() {
     });
   }, []);
 
-  const handleSelectAllFilteredClients = useCallback(() => {
-    setSelectedClientIds(new Set(contatosClientesFiltrados.map((item) => String(item.id))));
-  }, [contatosClientesFiltrados]);
+  const handleSelectAllFiltered = useCallback(() => {
+    setSelectedIds(new Set(filteredIds));
+  }, [filteredIds]);
 
   const handleClearSelection = useCallback(() => {
-    setSelectedClientIds(new Set());
+    setSelectedIds(new Set());
   }, []);
 
-  async function excluirClientesSelecionados() {
-    if (salvando || segment !== 'clients') return;
-    const ids = Array.from(selectedClientIds);
-    if (!ids.length) return;
-
-    const confirmed = await confirm?.({
-      title: `Excluir ${ids.length} cliente(s)?`,
-      description: 'Essa ação é irreversível e removerá permanentemente os contatos selecionados.',
-      confirmText: 'Excluir selecionados',
-      cancelText: 'Cancelar',
-      tone: 'destructive',
+  function abrirDialogoExclusao(ids, mode) {
+    const normalizedIds = Array.from(new Set((ids || []).map((id) => String(id)).filter(Boolean)));
+    if (!normalizedIds.length) return;
+    setDeleteDialog({
+      open: true,
+      ids: normalizedIds,
+      mode,
+      state: 'confirming',
+      message: '',
     });
+  }
 
-    if (!confirmed) return;
+  function fecharDialogoExclusao() {
+    if (deleteDialog.state === 'deleting') return;
+    setDeleteDialog({ open: false, ids: [], mode: 'single', state: 'idle', message: '' });
+  }
+
+  function excluirContato(id) {
+    if (salvando) return;
+    abrirDialogoExclusao([id], 'single');
+  }
+
+  async function excluirContatosSelecionados() {
+    if (salvando) return;
+    const ids = Array.from(selectedIds);
+    if (!ids.length) return;
+    abrirDialogoExclusao(ids, 'bulk');
+  }
+
+  async function confirmarExclusao() {
+    const ids = deleteDialog.ids;
+    if (!ids.length || salvando) return;
 
     try {
       setSalvando(true);
       setErrorMessage('');
+      setDeleteDialog((prev) => ({ ...prev, state: 'deleting', message: '' }));
 
-      const { error } = await supabase
-        .from('contacts')
-        .delete()
-        .in('id', ids);
+      const query = supabase.from('contacts').delete();
+      const { error } =
+        ids.length === 1 ? await query.eq('id', ids[0]) : await query.in('id', ids);
 
       if (error) throw error;
 
-      setSelectedClientIds(new Set());
+      if (editandoId && ids.includes(String(editandoId))) cancelarEdicao();
+      setContatos((prev) => prev.filter((item) => !ids.includes(String(item.id))));
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        ids.forEach((id) => next.delete(String(id)));
+        return next;
+      });
+      setDeleteDialog((prev) => ({ ...prev, state: 'success' }));
+      toast.success(
+        ids.length === 1
+          ? 'Contato excluído com sucesso.'
+          : `${ids.length} contatos excluídos com sucesso.`
+      );
       await carregarContatos({ background: true });
-      toast.success('Clientes selecionados excluídos com sucesso.');
+      setDeleteDialog({ open: false, ids: [], mode: 'single', state: 'idle', message: '' });
     } catch (error) {
-      console.error('Erro ao excluir clientes em massa:', error);
-      setErrorMessage(error?.message || 'Erro ao excluir clientes selecionados');
+      const reason =
+        error?.message ||
+        'Não foi possível excluir o contato devido a vínculos operacionais ativos.';
+      console.error('Erro ao excluir contato(s):', error);
+      setDeleteDialog((prev) => ({ ...prev, state: 'error', message: reason }));
+      setErrorMessage(reason);
+      toast.error(reason);
     } finally {
       setSalvando(false);
     }
@@ -357,7 +370,7 @@ export default function ContatosPage() {
   ];
 
   useEffect(() => {
-    setSelectedClientIds(new Set());
+    setSelectedIds(new Set());
   }, [segment, busca, activeFilter, sortMode, typeFilter]);
 
   const mobileActions = (
@@ -463,11 +476,11 @@ export default function ContatosPage() {
               setSortMode={setSortMode}
               iniciarEdicao={iniciarEdicao}
               excluirContato={excluirContato}
-              selectedIds={selectedClientIds}
-              onToggleSelect={handleToggleSelectClient}
-              onSelectAllFiltered={handleSelectAllFilteredClients}
+              selectedIds={selectedIds}
+              onToggleSelect={handleToggleSelect}
+              onSelectAllFiltered={handleSelectAllFiltered}
               onClearSelection={handleClearSelection}
-              onBulkDeleteClients={excluirClientesSelecionados}
+              onBulkDelete={excluirContatosSelecionados}
             />
           )}
 
@@ -507,11 +520,11 @@ export default function ContatosPage() {
               setSortMode={setSortMode}
               iniciarEdicao={iniciarEdicao}
               excluirContato={excluirContato}
-              selectedIds={selectedClientIds}
-              onToggleSelect={handleToggleSelectClient}
-              onSelectAllFiltered={handleSelectAllFilteredClients}
+              selectedIds={selectedIds}
+              onToggleSelect={handleToggleSelect}
+              onSelectAllFiltered={handleSelectAllFiltered}
               onClearSelection={handleClearSelection}
-              onBulkDeleteClients={excluirClientesSelecionados}
+              onBulkDelete={excluirContatosSelecionados}
             />
           )}
 
@@ -531,6 +544,22 @@ export default function ContatosPage() {
           )}
         </div>
       </div>
+      <DeleteConfirmModal
+        open={deleteDialog.open}
+        title={
+          deleteDialog.mode === 'bulk'
+            ? `Excluir ${deleteDialog.ids.length} contatos selecionados?`
+            : 'Excluir contato?'
+        }
+        description={
+          deleteDialog.mode === 'bulk'
+            ? 'Esta ação removerá os contatos selecionados. A ação é definitiva.'
+            : 'Esta ação removerá este contato do sistema. Se houver vínculos operacionais ativos, a exclusão poderá ser bloqueada.'
+        }
+        loading={deleteDialog.state === 'deleting'}
+        onCancel={fecharDialogoExclusao}
+        onConfirm={confirmarExclusao}
+      />
     </AdminShell>
   );
 }

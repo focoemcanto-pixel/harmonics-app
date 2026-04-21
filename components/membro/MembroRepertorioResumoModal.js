@@ -90,7 +90,23 @@ function isReceptivoGenericRow(row) {
   return !title || (!hasReference && !hasNotes && !hasMeta && orderLabel.toLowerCase() === 'receptivo');
 }
 
-function RepertorioLinha({ row, index }) {
+function isDescriptiveOnlySectionRow(row) {
+  const section = normalizeSection(row?.section);
+  if (!['antessala', 'receptivo'].includes(section)) return false;
+
+  const title = String(row?.song_name || row?.musica || '').trim();
+  const normalizedTitle = normalizeSection(title);
+  const normalizedLabel = normalizeSection(row?.label || row?.momento || '');
+  const hasReference = Boolean(String(row?.referencia || '').trim());
+  const hasAnteRoomType = normalizeSection(row?.tipo) === 'ante_room';
+
+  if (hasAnteRoomType) return true;
+  if (!title && !hasReference) return true;
+
+  return !hasReference && (normalizedTitle === section || normalizedLabel === section);
+}
+
+function RepertorioLinha({ row, index, displayNumber }) {
   const orderLabel = getOrderLabel(row, index);
   const title = getMainTitle(row, index);
   const secondary = getSecondaryText(row);
@@ -107,7 +123,7 @@ function RepertorioLinha({ row, index }) {
       <div className="rounded-[18px] border border-white/10 bg-[#1e1535] px-4 py-4">
         <div className="flex items-start gap-3">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-violet-300/15 bg-violet-400/10 text-[12px] font-black text-violet-100">
-            {String(index + 1).padStart(2, '0')}
+            {String(displayNumber || index + 1).padStart(2, '0')}
           </div>
 
           <div className="min-w-0 flex-1">
@@ -191,8 +207,6 @@ export default function MembroRepertorioResumoModal({
 
   const repertorioData = useMemo(() => {
     const rawInput = extractOrderedRepertorio(item);
-    console.log('[MEMBER_REPERTOIRE][RAW_INPUT]', rawInput);
-
     const groupedSections = rawInput.reduce((acc, row) => {
       const section = normalizeSection(row?.section);
       if (!SECTION_ORDER.includes(section)) return acc;
@@ -201,20 +215,33 @@ export default function MembroRepertorioResumoModal({
       return acc;
     }, {});
 
-    console.log('[MEMBER_REPERTOIRE][GROUPED_SECTIONS]', groupedSections);
-
-    const orderedSections = SECTION_ORDER.map((section) => ({
+    const rawSectionsInput = SECTION_ORDER.map((section) => ({
       key: section,
       label: getSectionLabel(section),
-      items: (groupedSections[section] || []).filter((row) => !isReceptivoGenericRow(row)),
+      items: groupedSections[section] || [],
     }));
-
-    console.log('[MEMBER_REPERTOIRE][ORDERED_SECTIONS]', orderedSections);
+    console.log('[MEMBER_REPERTOIRE][RAW_SECTIONS_INPUT]', rawSectionsInput);
 
     const receptivoConfig = item?.repertoireConfig || {};
     const receptivoReferences = (groupedSections.receptivo || [])
       .map((row) => String(row?.referencia || '').trim())
       .filter(Boolean);
+    const antessalaRows = groupedSections.antessala || [];
+    const antessalaDescriptiveRows = antessalaRows.filter((row) => isDescriptiveOnlySectionRow(row));
+    const antessalaReferences = antessalaDescriptiveRows
+      .map((row) => String(row?.referencia || '').trim())
+      .filter(Boolean);
+    const antessalaObservacoes = antessalaDescriptiveRows
+      .map((row) => String(row?.observacao || '').trim())
+      .filter(Boolean);
+
+    const antessalaBlock = {
+      estilo: antessalaDescriptiveRows
+        .map((row) => String(row?.musica || row?.song_name || '').trim())
+        .find(Boolean) || '',
+      observacao: antessalaObservacoes.join(' · '),
+      references: Array.from(new Set(antessalaReferences)),
+    };
     const receptivoBlock = {
       duracao: String(receptivoConfig?.reception_duration || '').trim(),
       generos: String(receptivoConfig?.reception_genres || '').trim(),
@@ -223,10 +250,55 @@ export default function MembroRepertorioResumoModal({
       references: Array.from(new Set(receptivoReferences)),
     };
 
-    console.log('[MEMBER_REPERTOIRE][RECEPTIVO_BLOCK]', receptivoBlock);
+    const descriptiveBlocks = {
+      antessala: antessalaBlock,
+      receptivo: receptivoBlock,
+    };
+    console.log('[MEMBER_REPERTOIRE][DESCRIPTIVE_BLOCKS]', descriptiveBlocks);
+
+    const orderedSections = SECTION_ORDER.map((section) => {
+      const rows = groupedSections[section] || [];
+      const items = rows.filter((row) => !isReceptivoGenericRow(row) && !isDescriptiveOnlySectionRow(row));
+      return {
+        key: section,
+        label: getSectionLabel(section),
+        items,
+      };
+    });
+
+    const musicalItemsBeforeNumbering = orderedSections.flatMap((section) =>
+      section.items.map((row) => ({ section: section.key, row }))
+    );
+    console.log('[MEMBER_REPERTOIRE][MUSICAL_ITEMS_BEFORE_NUMBERING]', musicalItemsBeforeNumbering);
+
+    const globalNumberingResult = musicalItemsBeforeNumbering.map((itemRow, index) => ({
+      ...itemRow,
+      globalNumber: index + 1,
+    }));
+    console.log('[MEMBER_REPERTOIRE][GLOBAL_NUMBERING_RESULT]', globalNumberingResult);
+
+    const numberingMap = new Map(
+      globalNumberingResult.map(({ section, row, globalNumber }, index) => [
+        `${section}-${row?.ordem || row?.item_order || index}-${row?.musica || row?.song_name || index}`,
+        globalNumber,
+      ])
+    );
+
+    const finalRenderModel = orderedSections.map((section) => ({
+      ...section,
+      items: section.items.map((row, index) => ({
+        row,
+        displayNumber:
+          numberingMap.get(
+            `${section.key}-${row?.ordem || row?.item_order || index}-${row?.musica || row?.song_name || index}`
+          ) || null,
+      })),
+    }));
+    console.log('[MEMBER_REPERTOIRE][FINAL_RENDER_MODEL]', finalRenderModel);
 
     return {
-      orderedSections,
+      orderedSections: finalRenderModel,
+      antessalaBlock,
       receptivoBlock,
     };
   }, [item]);
@@ -238,6 +310,10 @@ export default function MembroRepertorioResumoModal({
   const hasRepertorio =
     repertorio.length > 0 ||
     Boolean(
+      repertorioData?.antessalaBlock?.estilo ||
+      repertorioData?.antessalaBlock?.observacao ||
+      (Array.isArray(repertorioData?.antessalaBlock?.references) &&
+        repertorioData.antessalaBlock.references.length > 0) ||
       repertorioData?.receptivoBlock?.duracao ||
       repertorioData?.receptivoBlock?.generos ||
       repertorioData?.receptivoBlock?.artistas ||
@@ -291,7 +367,14 @@ export default function MembroRepertorioResumoModal({
             {hasRepertorio ? (
               <div className="space-y-3">
                 {repertorioData.orderedSections.map((section) => {
+                  const isAntessala = section.key === 'antessala';
                   const isReceptivo = section.key === 'receptivo';
+                  const hasAntessalaConfig = Boolean(
+                    repertorioData?.antessalaBlock?.estilo ||
+                    repertorioData?.antessalaBlock?.observacao ||
+                    (Array.isArray(repertorioData?.antessalaBlock?.references) &&
+                      repertorioData.antessalaBlock.references.length > 0)
+                  );
                   const hasReceptivoConfig = Boolean(
                     repertorioData?.receptivoBlock?.duracao ||
                     repertorioData?.receptivoBlock?.generos ||
@@ -300,7 +383,10 @@ export default function MembroRepertorioResumoModal({
                     (Array.isArray(repertorioData?.receptivoBlock?.references) &&
                       repertorioData.receptivoBlock.references.length > 0)
                   );
-                  const shouldRender = section.items.length > 0 || (isReceptivo && hasReceptivoConfig);
+                  const shouldRender =
+                    section.items.length > 0 ||
+                    (isAntessala && hasAntessalaConfig) ||
+                    (isReceptivo && hasReceptivoConfig);
                   if (!shouldRender) return null;
 
                   return (
@@ -309,15 +395,40 @@ export default function MembroRepertorioResumoModal({
                         {section.label}
                       </div>
 
+                      {isAntessala && hasAntessalaConfig ? (
+                        <div className="rounded-[18px] border border-white/10 bg-[#1e1535] px-4 py-4">
+                          <div className="space-y-2 text-[14px] text-white/80">
+                            {repertorioData?.antessalaBlock?.estilo ? (
+                              <div><span className="font-black text-white">Estilo:</span> {repertorioData.antessalaBlock.estilo}</div>
+                            ) : null}
+                            {repertorioData?.antessalaBlock?.observacao ? (
+                              <div><span className="font-black text-white">Observações:</span> {repertorioData.antessalaBlock.observacao}</div>
+                            ) : null}
+                            {Array.isArray(repertorioData?.antessalaBlock?.references) &&
+                            repertorioData.antessalaBlock.references.length > 0 ? (
+                              <div>
+                                <div className="font-black text-white">Referências:</div>
+                                <ul className="mt-1 list-disc space-y-1 pl-5 text-[13px] text-violet-100/85">
+                                  {repertorioData.antessalaBlock.references.map((ref) => (
+                                    <li key={ref}>{ref}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
+                      ) : null}
+
                       {isReceptivo && hasReceptivoConfig ? (
                         <ReceptivoBloco receptivo={repertorioData.receptivoBlock} />
                       ) : null}
 
-                      {section.items.map((row, index) => (
+                      {section.items.map(({ row, displayNumber }, index) => (
                         <RepertorioLinha
                           key={`${section.key}-${row?.ordem || row?.item_order || index}-${row?.musica || row?.song_name || index}`}
                           row={row}
                           index={index}
+                          displayNumber={displayNumber}
                         />
                       ))}
                     </div>

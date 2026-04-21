@@ -12,6 +12,16 @@ function normalizeSection(value) {
     .trim();
 }
 
+function resolveTrackUrl(row) {
+  const referenceLink = String(row?.referencia || row?.reference_link || '').trim();
+  if (referenceLink) return referenceLink;
+
+  const referenceVideoId = String(row?.reference_video_id || '').trim();
+  if (!referenceVideoId) return '';
+
+  return `https://www.youtube.com/watch?v=${referenceVideoId}`;
+}
+
 function extractOrderedRepertorio(item) {
   if (!item) return [];
 
@@ -207,20 +217,14 @@ export default function MembroRepertorioResumoModal({
 
   const repertorioData = useMemo(() => {
     const rawInput = extractOrderedRepertorio(item);
+    console.log('[MEMBER_REPERTOIRE][RAW_SOURCE]', rawInput);
     const groupedSections = rawInput.reduce((acc, row) => {
       const section = normalizeSection(row?.section);
-      if (!SECTION_ORDER.includes(section)) return acc;
-      if (!acc[section]) acc[section] = [];
-      acc[section].push(row);
+      const safeSection = SECTION_ORDER.includes(section) ? section : 'cerimonia';
+      if (!acc[safeSection]) acc[safeSection] = [];
+      acc[safeSection].push(row);
       return acc;
     }, {});
-
-    const rawSectionsInput = SECTION_ORDER.map((section) => ({
-      key: section,
-      label: getSectionLabel(section),
-      items: groupedSections[section] || [],
-    }));
-    console.log('[MEMBER_REPERTOIRE][RAW_SECTIONS_INPUT]', rawSectionsInput);
 
     const receptivoConfig = item?.repertoireConfig || {};
     const receptivoReferences = (groupedSections.receptivo || [])
@@ -254,7 +258,6 @@ export default function MembroRepertorioResumoModal({
       antessala: antessalaBlock,
       receptivo: receptivoBlock,
     };
-    console.log('[MEMBER_REPERTOIRE][DESCRIPTIVE_BLOCKS]', descriptiveBlocks);
 
     const orderedSections = SECTION_ORDER.map((section) => {
       const rows = groupedSections[section] || [];
@@ -269,13 +272,11 @@ export default function MembroRepertorioResumoModal({
     const musicalItemsBeforeNumbering = orderedSections.flatMap((section) =>
       section.items.map((row) => ({ section: section.key, row }))
     );
-    console.log('[MEMBER_REPERTOIRE][MUSICAL_ITEMS_BEFORE_NUMBERING]', musicalItemsBeforeNumbering);
 
     const globalNumberingResult = musicalItemsBeforeNumbering.map((itemRow, index) => ({
       ...itemRow,
       globalNumber: index + 1,
     }));
-    console.log('[MEMBER_REPERTOIRE][GLOBAL_NUMBERING_RESULT]', globalNumberingResult);
 
     const numberingMap = new Map(
       globalNumberingResult.map(({ section, row, globalNumber }, index) => [
@@ -294,21 +295,37 @@ export default function MembroRepertorioResumoModal({
           ) || null,
       })),
     }));
-    console.log('[MEMBER_REPERTOIRE][FINAL_RENDER_MODEL]', finalRenderModel);
+    console.log('[MEMBER_REPERTOIRE][RENDER_MODEL]', {
+      orderedSections: finalRenderModel,
+      descriptiveBlocks,
+    });
 
     return {
+      rawInput,
       orderedSections: finalRenderModel,
       antessalaBlock,
       receptivoBlock,
     };
   }, [item]);
 
-  const repertorio = repertorioData.orderedSections.flatMap((section) => section.items);
+  const playableTracks = repertorioData.rawInput
+    .filter((row) => Boolean(resolveTrackUrl(row)))
+    .map((row, index) => ({
+      title: row?.musica || row?.song_name || `Faixa ${index + 1}`,
+      section: row?.section || '',
+      item_order: row?.ordem ?? row?.item_order ?? index + 1,
+      url: resolveTrackUrl(row),
+    }));
+  console.log('[MEMBER_REPERTOIRE][PLAYABLE_TRACKS]', playableTracks);
 
   const hasPdf = !!item?.repertorioPdfUrl;
-  const hasPlayer = repertorio.some((row) => !!row?.referencia);
+  const hasPlayer = playableTracks.length > 0;
+  console.log('[MEMBER_REPERTOIRE][HAS_PLAYABLE_TRACKS]', {
+    hasPlayer,
+    count: playableTracks.length,
+  });
   const hasRepertorio =
-    repertorio.length > 0 ||
+    repertorioData.rawInput.length > 0 ||
     Boolean(
       repertorioData?.antessalaBlock?.estilo ||
       repertorioData?.antessalaBlock?.observacao ||

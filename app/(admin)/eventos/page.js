@@ -13,6 +13,8 @@ import AdminSegmentTabs from '@/components/admin/AdminSegmentTabs';
 import AdminEventCard from '@/components/admin/AdminEventCard';
 import { Field, Input, Select } from '@/components/admin/AdminFormPrimitives';
 import Pill from '@/components/admin/AdminPill';
+import { useAppToast } from '@/components/ui/ToastProvider';
+import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
 import EventosOperacaoTab from '@/components/eventos/EventosOperacaoTab';
 import EventosResumoTab from '@/components/eventos/EventosResumoTab';
 import EventosPricingTab from '@/components/eventos/EventosPricingTab';
@@ -220,7 +222,10 @@ export default function EventosPage() {
   const [ultimoPagamentoAtualizadoId, setUltimoPagamentoAtualizadoId] = useState(null);
   const [contratoAbertoId, setContratoAbertoId] = useState(null);
   const [gerandoContratoId, setGerandoContratoId] = useState(null);
+  const [excluindoEventoId, setExcluindoEventoId] = useState(null);
   const [feedback, setFeedback] = useState(null);
+  const toast = useAppToast();
+  const confirm = useConfirm();
 
   const [viewMode, setViewMode] = useState('Mês atual');
   const [monthFilter, setMonthFilter] = useState('all');
@@ -250,7 +255,7 @@ export default function EventosPage() {
       eventosAdminCache.updatedAt = Date.now();
     } catch (error) {
       logLoadError('eventos', error);
-      alert('Erro ao carregar eventos. Tente novamente mais tarde.');
+      toast.error('Erro ao carregar eventos. Tente novamente mais tarde.');
     }
   }
 
@@ -258,7 +263,7 @@ export default function EventosPage() {
     const valor = Number(valorPagamento || 0);
 
     if (!valor && tipo === 'parcial') {
-      alert('Informe um valor');
+      toast.warning('Informe um valor');
       return;
     }
 
@@ -286,7 +291,7 @@ export default function EventosPage() {
 
     if (error) {
       setSalvandoPagamentoId(null);
-      alert('Erro ao salvar pagamento');
+      toast.error('Erro ao salvar pagamento');
       return;
     }
 
@@ -648,7 +653,7 @@ export default function EventosPage() {
 
   async function salvarPricing() {
     if (!pricingId) {
-      alert('Erro: Configuração de preços não carregada.');
+      toast.error('Erro: Configuração de preços não carregada.');
       return;
     }
 
@@ -670,10 +675,10 @@ export default function EventosPage() {
 
       if (error) throw error;
 
-      alert('Configuração de preços salva com sucesso.');
+      toast.success('Configuração de preços salva com sucesso.');
     } catch (error) {
       console.error('Erro ao salvar pricing:', error);
-      alert('Erro ao salvar configuração de preços. Tente novamente.');
+      toast.error('Erro ao salvar configuração de preços. Tente novamente.');
     } finally {
       setSalvando(false);
     }
@@ -681,27 +686,27 @@ export default function EventosPage() {
 
   async function salvarEvento() {
     if (!form.client_name.trim()) {
-      alert('Informe o contratante / cliente.');
+      toast.warning('Informe o contratante / cliente.');
       return;
     }
 
     if (!form.event_date) {
-      alert('Informe a data do evento.');
+      toast.warning('Informe a data do evento.');
       return;
     }
 
     if (!form.event_time) {
-      alert('Informe a hora do evento.');
+      toast.warning('Informe a hora do evento.');
       return;
     }
 
     if (!isValidTime(form.event_time)) {
-      alert('Informe um horário válido no formato HH:mm.');
+      toast.warning('Informe um horário válido no formato HH:mm.');
       return;
     }
 
     if (!form.location_name.trim()) {
-      alert('Informe o local do evento.');
+      toast.warning('Informe o local do evento.');
       return;
     }
 
@@ -765,9 +770,10 @@ export default function EventosPage() {
       cancelarEdicao();
       await carregarEventos();
       setMobileTab('lista');
+      toast.success(editandoId ? 'Evento atualizado com sucesso.' : 'Evento criado com sucesso.');
     } catch (error) {
       console.error('Erro ao salvar evento:', error);
-      alert('Erro ao salvar evento. Tente novamente.');
+      toast.error('Erro ao salvar evento. Tente novamente.');
     } finally {
       setSalvando(false);
     }
@@ -781,9 +787,22 @@ export default function EventosPage() {
   }
 
   async function excluirEvento(id) {
-    if (!confirm('Tem certeza que deseja excluir este evento?')) return;
+    console.info('[UI][NATIVE_CONFIRM_FOUND]', {
+      context: 'admin-eventos.excluirEvento',
+      message: 'Tem certeza que deseja excluir este evento?',
+    });
+
+    const confirmed = await confirm?.({
+      title: 'Excluir evento',
+      description: 'Essa ação remove o evento e não poderá ser desfeita.',
+      confirmText: 'Excluir evento',
+      cancelText: 'Cancelar',
+      tone: 'destructive',
+    });
+    if (!confirmed) return;
 
     try {
+      setExcluindoEventoId(id);
       const { error } = await supabase.from('events').delete().eq('id', id);
 
       if (error) throw error;
@@ -793,9 +812,12 @@ export default function EventosPage() {
       }
 
       await carregarEventos();
+      toast.success('Evento excluído com sucesso.');
     } catch (error) {
       console.error('Erro ao excluir evento:', error);
-      alert('Erro ao excluir evento. Tente novamente.');
+      toast.error('Erro ao excluir evento. Tente novamente.');
+    } finally {
+      setExcluindoEventoId(null);
     }
   }
 
@@ -806,7 +828,7 @@ export default function EventosPage() {
       .eq('id', evento.id);
 
     if (error) {
-      alert('Não foi possível confirmar o evento.');
+      toast.error('Não foi possível confirmar o evento.');
       return;
     }
 
@@ -815,6 +837,7 @@ export default function EventosPage() {
         item.id === evento.id ? { ...item, status: 'Confirmado' } : item
       )
     );
+    toast.success('Evento confirmado com sucesso.');
   }
 
   const availableMonthOptions = useMemo(() => {
@@ -1156,6 +1179,7 @@ export default function EventosPage() {
   onOpenContract={() => abrirContratoRapido(ev)}
   onCopyContractLink={() => copiarLinkContrato(ev)}
   gerandoContrato={gerandoContratoId === ev.id}
+  excluindo={excluindoEventoId === ev.id}
 />
               );
             })

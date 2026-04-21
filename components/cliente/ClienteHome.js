@@ -1378,6 +1378,9 @@ const [generalNotes, setGeneralNotes] = useState(initialState.generalNotes || ''
         typeof nextValueOrUpdater === 'function'
           ? nextValueOrUpdater(prev)
           : nextValueOrUpdater;
+      if (Boolean(nextValue?.requestedByClient)) {
+        setQuerAntessala(true);
+      }
       debugClientHome('[CLIENT_HOME][SET_ANTESALA]', {
         reason,
         prevRequestedByClient: Boolean(prev?.requestedByClient),
@@ -2037,16 +2040,21 @@ async function saveRepertorio(mode = 'draft') {
     console.log('[TRACE][CORTEJO][PAYLOAD]', pickTracePayloadItem(builtItemsPayload, 'cortejo'));
     console.log('[TRACE][CERIMONIA][PAYLOAD]', pickTracePayloadItem(builtItemsPayload, 'cerimonia'));
     const antesalaRequestedByClient = Boolean(antessala?.requestedByClient);
+    const normalizedQuerAntessala = antesalaRequestedByClient ? true : querAntessala;
+    const configPayload = buildConfigPayload();
+    if (antesalaRequestedByClient) {
+      configPayload.has_ante_room = true;
+    }
 
     const payload = {
       token: data.repertorio?.repertoireToken || data.token,
       repertoireToken: data.repertorio?.repertoireToken || '',
       clientToken: data.token || '',
       mode,
-      config: buildConfigPayload(),
+      config: configPayload,
       items: builtItemsPayload,
       antesalaFlow: {
-        included: !antesalaRequestedByClient && querAntessala === true,
+        included: normalizedQuerAntessala === true || Boolean(antessala?.requestedByClient),
         durationMinutes: Number(antessala.durationMinutes || 0) || null,
         requestedByClient: Boolean(antessala.requestedByClient),
         requestStatus: Boolean(antessala.requestedByClient) ? 'pending' : null,

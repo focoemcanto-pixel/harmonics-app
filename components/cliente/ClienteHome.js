@@ -2081,6 +2081,13 @@ async function saveRepertorio(mode = 'draft') {
     const saidaPayload = builtItemsPayload.filter((item) => item.section === 'saida');
 
     console.log('[REPERTORIO_DRAFT] payload final enviado para persistência:', payload);
+    console.log('[SUGESTOES][PERSIST_PAYLOAD]', {
+      mode,
+      token: payload.token,
+      selectedSongsCount: selectedSongs.length,
+      itemsCount: builtItemsPayload.length,
+      suggestedItemsCount: builtItemsPayload.filter((item) => Number(item?.item_order) >= 1000).length,
+    });
     console.log('[REPERTORIO_DRAFT] quantidade de itens por seção:', payloadItemsBySection);
     console.log('[REPERTORIO_DRAFT] seções ausentes no payload.itens:', missingSections);
     console.log('[SAVE][CORTEJO_PAYLOAD]', cortejoPayload);
@@ -2110,6 +2117,13 @@ async function saveRepertorio(mode = 'draft') {
     console.log('[CLIENT][SAVE_RESPONSE]', {
       httpStatus: response.status,
       body: result,
+    });
+    console.log('[SUGESTOES][PERSIST_RESULT]', {
+      ok: response.ok && Boolean(result?.ok),
+      httpStatus: response.status,
+      status: result?.status || null,
+      locked: result?.locked === true,
+      message: result?.error || null,
     });
 
     if (!response.ok || !result?.ok) {
@@ -3529,6 +3543,8 @@ function SugestoesTab({
   setSelectedSongs,
   favoriteSongIds,
   setFavoriteSongIds,
+  repertorioStatus = '',
+  repertorioLocked = false,
 }) {
   const safeSelectedSongs = useMemo(
     () => (Array.isArray(selectedSongs) ? selectedSongs : []),
@@ -3701,7 +3717,28 @@ const moments = [
     }
   }
 
+  const repertorioTravado = useMemo(
+    () => isRepertorioTravado(repertorioStatus, repertorioLocked),
+    [repertorioStatus, repertorioLocked]
+  );
+
   function markAdded(songId, payload) {
+    console.log('[SUGESTOES][ADD_ATTEMPT]', { songId, payload });
+    console.log('[SUGESTOES][LOCK_STATE]', {
+      status: repertorioStatus,
+      isLocked: Boolean(repertorioLocked),
+      travado: repertorioTravado,
+    });
+
+    if (repertorioTravado) {
+      console.log('[SUGESTOES][BLOCKED_ADD]', {
+        songId,
+        reason: 'repertorio_locked',
+      });
+      showToast('Solicite revisão do repertório para realizar essa ação.', 'error');
+      return;
+    }
+
     const alreadyExists = safeSelectedSongs.some((item) => item.songId === songId);
 
     if (alreadyExists) {
@@ -4856,6 +4893,8 @@ export default function ClienteHome({ data, initialTab = 'inicio' }) {
               setSelectedSongs={setSelectedSongs}
               favoriteSongIds={favoriteSongIds}
               setFavoriteSongIds={setFavoriteSongIds}
+              repertorioStatus={panelData?.repertorio?.status || ''}
+              repertorioLocked={Boolean(panelData?.repertorio?.isLocked)}
             />
           )}
 

@@ -56,17 +56,60 @@ function normalizeMethodLabel(value) {
     .replace(/\b\w/g, (match) => match.toUpperCase());
 }
 
+function resolveAppBaseUrl(request) {
+  const configured =
+    process.env.NEXT_PUBLIC_APP_URL || process.env.APP_BASE_URL || process.env.APP_URL || '';
+  if (configured) return configured.replace(/\/$/, '');
+
+  const origin = request?.nextUrl?.origin || '';
+  return origin.replace(/\/$/, '');
+}
+
+async function readRequestPayload(request) {
+  const contentType = request.headers.get('content-type') || '';
+
+  if (contentType.includes('multipart/form-data')) {
+    const formData = await request.formData();
+    return {
+      token: normalizeText(formData.get('token')),
+      amount: parseAmount(formData.get('amount')),
+      paymentDate: normalizeText(formData.get('paymentDate')),
+      notes: normalizeText(formData.get('notes')),
+      paymentMethod: normalizeText(formData.get('paymentMethod')) || 'pix',
+      proofFile: formData.get('proofFile'),
+      proofFileName: normalizeText(formData.get('proofFileName')),
+    };
+  }
+
+  const body = await request.json();
+  return {
+    token: normalizeText(body?.token),
+    amount: parseAmount(body?.amount),
+    paymentDate: normalizeText(body?.paymentDate),
+    notes: normalizeText(body?.notes),
+    paymentMethod: normalizeText(body?.paymentMethod) || 'pix',
+    proofFile: null,
+    proofFileName: normalizeText(body?.proofFileName),
+  };
+}
+
 export async function POST(request) {
   try {
     const supabase = getAdminSupabase();
-    const body = await request.json();
+    const payload = await readRequestPayload(request);
+    const { token, amount, paymentDate, notes, paymentMethod } = payload;
+    const proofFile = payload.proofFile instanceof File ? payload.proofFile : null;
+    const proofFileName = normalizeText(proofFile?.name || payload.proofFileName);
 
-    const token = normalizeText(body?.token);
-    const amount = parseAmount(body?.amount);
-    const paymentDate = normalizeText(body?.paymentDate);
-    const notes = normalizeText(body?.notes);
-    const paymentMethod = normalizeText(body?.paymentMethod) || 'pix';
-    const proofFileName = normalizeText(body?.proofFileName);
+    console.log('[PAYMENT_PROOF][UPLOAD_INPUT]', {
+      hasToken: Boolean(token),
+      amount,
+      paymentDate,
+      paymentMethod,
+      proofFileName,
+      proofFileSize: proofFile?.size || 0,
+      proofFileType: proofFile?.type || null,
+    });
 
     if (!token || !amount || !paymentDate) {
       return NextResponse.json(
@@ -106,6 +149,34 @@ export async function POST(request) {
     const nextOpenAmount = Math.max(totalAmount - nextPaidAmount, 0);
     const paymentStatus = nextOpenAmount <= 0 && totalAmount > 0 ? 'Pago' : 'Parcial';
 
+    let proofFileUrl = null;
+    if (proofFile) {
+      const bucketName = process.env.SUPABASE_PAYMENT_PROOFS_BUCKET || 'payment-proofs';
+      const extension = (proofFile.name?.split('.').pop() || 'bin').toLowerCase();
+      const objectPath = `event-${eventId}/${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2)}.${extension}`;
+      const arrayBuffer = await proofFile.arrayBuffer();
+
+      const { error: uploadError } = await supabase.storage
+        .from(bucketName)
+        .upload(objectPath, arrayBuffer, {
+          contentType: proofFile.type || 'application/octet-stream',
+          upsert: false,
+        });
+
+      if (uploadError) throw uploadError;
+
+      const { data: publicData } = supabase.storage.from(bucketName).getPublicUrl(objectPath);
+      proofFileUrl = publicData?.publicUrl || null;
+    }
+
+    console.log('[PAYMENT_PROOF][UPLOAD_RESULT]', {
+      eventId,
+      proofFileName,
+      proofFileUrl,
+    });
+
     const noteWithAttachment = [notes, proofFileName ? `Arquivo: ${proofFileName}` : null]
       .filter(Boolean)
       .join(' | ');
@@ -117,24 +188,40 @@ export async function POST(request) {
         amount,
         payment_date: paymentDate,
         payment_method: paymentMethod,
-        status: 'pending',
+        status: 'em_analise',
         notes: noteWithAttachment || null,
+        proof_file_url: proofFileUrl,
       })
-      .select('id, amount, payment_date, payment_method, status, notes, proof_file_url')
+      .select('id, amount, payment_date, payment_method, status, notes, proof_file_url, created_at')
       .single();
 
     if (paymentInsertError) throw paymentInsertError;
 
+    const paymentUpdatePayload = {
+      paid_amount: nextPaidAmount,
+      open_amount: nextOpenAmount,
+      payment_status: paymentStatus,
+    };
+    console.log('[PAYMENT_PROOF][PAYMENT_UPDATE_PAYLOAD]', {
+      eventId,
+      payload: paymentUpdatePayload,
+    });
+
     const { error: updateEventError } = await supabase
       .from('events')
-      .update({
-        paid_amount: nextPaidAmount,
-        open_amount: nextOpenAmount,
-        payment_status: paymentStatus,
-      })
+      .update(paymentUpdatePayload)
       .eq('id', eventId);
 
     if (updateEventError) throw updateEventError;
+    console.log('[PAYMENT_PROOF][PAYMENT_UPDATE_RESULT]', {
+      eventId,
+      ok: true,
+    });
+
+    const appBaseUrl = resolveAppBaseUrl(request);
+    const adminPaymentsLink = appBaseUrl
+      ? `${appBaseUrl}/pagamentos?evento=${eventId}&historico=${insertedPayment.id}`
+      : `/pagamentos?evento=${eventId}&historico=${insertedPayment.id}`;
 
     const alertMessage = [
       `💰 Novo pagamento informado por ${eventRow.client_name || 'Cliente'}`,
@@ -145,6 +232,8 @@ export async function POST(request) {
       eventRow.location_name ? `📍 Local: ${eventRow.location_name}` : null,
       paymentMethod ? `Forma de pagamento: ${normalizeMethodLabel(paymentMethod)}` : null,
       notes ? `Obs: ${notes}` : null,
+      proofFileUrl ? `Comprovante: ${proofFileUrl}` : null,
+      `Abrir no app: ${adminPaymentsLink}`,
     ]
       .filter(Boolean)
       .join('\n');

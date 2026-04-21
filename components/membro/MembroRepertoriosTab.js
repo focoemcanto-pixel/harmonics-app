@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { formatDateBR, formatTimeShort } from '../../lib/membro/membro-invites';
 import { normalizeTimeStrict } from '@/lib/time/normalize-time';
 
@@ -156,18 +156,10 @@ export default function MembroRepertoriosTab({
   repertorios = [],
   onOpenRepertoire,
 }) {
-  const initialMonthRef = useMemo(() => {
-    const ordered = sortByEventDateAsc(repertorios);
-    const firstItem = ordered[0];
-
-    const base = firstItem?.eventDate
-      ? new Date(`${firstItem.eventDate}T12:00:00`)
-      : new Date();
-
-    return new Date(base.getFullYear(), base.getMonth(), 1);
-  }, [repertorios]);
-
-  const [currentMonth, setCurrentMonth] = useState(initialMonthRef);
+  const nowReference = useMemo(() => new Date(), []);
+  const [currentMonth, setCurrentMonth] = useState(
+    () => new Date(nowReference.getFullYear(), nowReference.getMonth(), 1)
+  );
 
   const monthItems = useMemo(() => {
     return sortByEventDateAsc(repertorios).filter((item) =>
@@ -190,6 +182,33 @@ export default function MembroRepertoriosTab({
   const monthLabel = useMemo(() => {
     return getMonthLabel(currentMonth);
   }, [currentMonth]);
+
+  useEffect(() => {
+    console.info('[MEMBER_REPERTOIRES][NOW_REFERENCE]', {
+      iso: nowReference.toISOString(),
+      year: nowReference.getFullYear(),
+      month: nowReference.getMonth() + 1,
+      day: nowReference.getDate(),
+    });
+  }, [nowReference]);
+
+  useEffect(() => {
+    console.info('[MEMBER_REPERTOIRES][INITIAL_MONTH_STATE]', {
+      currentMonthIso: currentMonth.toISOString(),
+      source: 'current_local_date',
+    });
+    // Executa apenas na primeira carga para registrar estado inicial.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    console.info('[MEMBER_REPERTOIRES][MONTH_EVENTS_RESULT]', {
+      currentMonthIso: currentMonth.toISOString(),
+      totalEventsInMonth: monthItems.length,
+      availableEvents: disponiveis.length,
+      pendingEvents: pendentes.length,
+    });
+  }, [currentMonth, disponiveis.length, monthItems.length, pendentes.length]);
 
   function goPrevMonth() {
     setCurrentMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));

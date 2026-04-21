@@ -1354,7 +1354,8 @@ export default async function ClienteTokenPage({ params }) {
         : '—',
     status: String(entry.status || '').trim().toUpperCase() || 'EM_ANALISE',
     note: entry.notes || '',
-    fileName: entry.proof_file_url || '',
+    fileName: '',
+    proofUrl: entry.proof_file_url || '',
   }));
 
   console.log('[CLIENTE PAGE][FINANCE_SUMMARY_INPUT]', {

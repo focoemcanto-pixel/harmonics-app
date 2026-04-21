@@ -4228,6 +4228,17 @@ function PaymentTimelineItem({
 }
 
 function PaymentHistoryItem({ item }) {
+  const statusKey = String(item?.status || '')
+    .trim()
+    .toUpperCase();
+  const isConfirmed = ['CONFIRMADO', 'APROVADO', 'PAGO'].includes(statusKey);
+  const hasProof = Boolean(item?.proofUrl || item?.fileName);
+  const proofStatusLabel = hasProof
+    ? isConfirmed
+      ? 'Comprovante validado'
+      : 'Arquivo enviado para análise'
+    : null;
+
   return (
     <div className="rounded-[20px] border border-[#eadfd6] bg-white p-4">
       <div className="flex items-start justify-between gap-3">
@@ -4253,9 +4264,23 @@ function PaymentHistoryItem({ item }) {
         </div>
       ) : null}
 
-      {item.fileName ? (
+      {proofStatusLabel ? (
         <div className="mt-3 rounded-[14px] bg-[#faf7f3] px-3 py-2 text-[12px] font-bold text-[#6f5d51]">
-          📎 {item.fileName}
+          📎 {proofStatusLabel}
+          {item.proofUrl ? (
+            <>
+              {' '}
+              ·{' '}
+              <a
+                href={item.proofUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-violet-700 underline"
+              >
+                Ver comprovante
+              </a>
+            </>
+          ) : null}
         </div>
       ) : null}
     </div>
@@ -4496,7 +4521,8 @@ function FinanceiroTab({ data, paymentHistory, setPaymentHistory, onPaymentRegis
         amount: `R$ ${paymentValue}`,
         status: 'EM_ANALISE',
         note: paymentNote || 'Aguardando conferência da equipe.',
-        fileName: paymentFile?.name || result?.payment?.proof_file_url || 'comprovante-anexado',
+        fileName: paymentFile?.name || 'comprovante-anexado',
+        proofUrl: result?.payment?.proof_file_url || '',
       };
 
       setPaymentHistory((prev) => [novoItem, ...prev]);

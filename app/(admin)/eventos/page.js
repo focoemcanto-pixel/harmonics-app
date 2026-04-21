@@ -278,7 +278,6 @@ export default function EventosPage() {
     eventId: null,
     eventName: '',
   });
-  const [excluindoEventoId, setExcluindoEventoId] = useState(null);
 
   const [viewMode, setViewMode] = useState('Mês atual');
   const [monthFilter, setMonthFilter] = useState('all');

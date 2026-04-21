@@ -34,6 +34,7 @@ function normalizeEntryStatus(status) {
   const raw = String(status || '').trim().toLowerCase();
   if (raw === 'confirmed' || raw === 'confirmado') return 'Confirmado';
   if (raw === 'cancelled' || raw === 'cancelado') return 'Cancelado';
+  if (raw === 'em_analise' || raw === 'analysis' || raw === 'analyzing') return 'Em análise';
   if (raw === 'pending' || raw === 'pendente') return 'Pendente';
   return status || 'Pendente';
 }
@@ -50,6 +51,7 @@ function getEntryTone(status) {
   const s = String(status || '').trim().toLowerCase();
   if (s === 'confirmado') return 'emerald';
   if (s === 'cancelado') return 'red';
+  if (s === 'em análise') return 'blue';
   if (s === 'pendente') return 'amber';
   return 'slate';
 }
@@ -143,6 +145,7 @@ function PagamentosPageContent() {
   const [statusFiltro, setStatusFiltro] = useState('todos');
   const [somentePendentes, setSomentePendentes] = useState(false);
   const [historicoAbertoId, setHistoricoAbertoId] = useState(null);
+  const [proofPreviewUrl, setProofPreviewUrl] = useState('');
 
   async function carregarTudo() {
     const [eventsRes, paymentsRes] = await Promise.all([
@@ -182,6 +185,34 @@ function PagamentosPageContent() {
 
     init();
   }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const evento = params.get('evento');
+    const historico = params.get('historico');
+    if (evento) {
+      setHistoricoAbertoId(String(evento));
+    }
+    if (historico) {
+      const target = payments.find((entry) => String(entry.id) === String(historico));
+      if (target?.proof_file_url) {
+        setProofPreviewUrl(target.proof_file_url);
+      }
+    }
+  }, [payments]);
+
+  useEffect(() => {
+    for (const entry of payments) {
+      if (entry?.proof_file_url) {
+        console.log('[ADMIN_PAYMENTS][PROOF_URL]', {
+          paymentId: entry.id,
+          eventId: entry.event_id,
+          proofFileUrl: entry.proof_file_url,
+        });
+      }
+    }
+  }, [payments]);
 
   const paymentsByEventId = useMemo(() => {
     const map = new Map();
@@ -570,14 +601,13 @@ function PagamentosPageContent() {
                                       </PaymentPill>
 
                                       {entry.proof_file_url ? (
-                                        <a
-                                          href={entry.proof_file_url}
-                                          target="_blank"
-                                          rel="noreferrer"
+                                        <button
+                                          type="button"
+                                          onClick={() => setProofPreviewUrl(entry.proof_file_url)}
                                           className="rounded-full border border-[#dbe3ef] bg-white px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-[#0f172a]"
                                         >
-                                          Comprovante
-                                        </a>
+                                          Ver comprovante
+                                        </button>
                                       ) : null}
                                     </div>
                                   </div>
@@ -595,6 +625,38 @@ function PagamentosPageContent() {
           </div>
         </section>
       </div>
+
+      {proofPreviewUrl ? (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/55 p-4">
+          <div className="w-full max-w-4xl rounded-[20px] bg-white p-3 shadow-2xl">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div className="text-sm font-black text-[#0f172a]">Preview do comprovante</div>
+              <div className="flex items-center gap-2">
+                <a
+                  href={proofPreviewUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-[12px] border border-[#dbe3ef] px-3 py-2 text-xs font-black text-[#0f172a]"
+                >
+                  Abrir em nova aba
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setProofPreviewUrl('')}
+                  className="rounded-[12px] border border-[#dbe3ef] px-3 py-2 text-xs font-black text-[#0f172a]"
+                >
+                  Fechar
+                </button>
+              </div>
+            </div>
+            <iframe
+              src={proofPreviewUrl}
+              title="Preview do comprovante"
+              className="h-[70vh] w-full rounded-[14px] border border-[#e2e8f0]"
+            />
+          </div>
+        </div>
+      ) : null}
     </AdminShell>
   );
 }

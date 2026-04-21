@@ -4468,17 +4468,19 @@ function FinanceiroTab({ data, paymentHistory, setPaymentHistory, onPaymentRegis
 
     try {
       setIsSubmittingPayment(true);
+      const formData = new FormData();
+      formData.append('token', data.token || '');
+      formData.append('amount', paymentValue);
+      formData.append('paymentDate', paymentDate);
+      formData.append('notes', paymentNote || '');
+      formData.append('paymentMethod', paymentMethod || 'pix');
+      if (paymentFile) {
+        formData.append('proofFile', paymentFile);
+      }
+
       const response = await fetch('/api/cliente/pagamentos', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          token: data.token,
-          amount: paymentValue,
-          paymentDate,
-          notes: paymentNote,
-          paymentMethod,
-          proofFileName: paymentFile?.name || '',
-        }),
+        body: formData,
       });
 
       const result = await response.json();
@@ -4494,7 +4496,7 @@ function FinanceiroTab({ data, paymentHistory, setPaymentHistory, onPaymentRegis
         amount: `R$ ${paymentValue}`,
         status: 'EM_ANALISE',
         note: paymentNote || 'Aguardando conferência da equipe.',
-        fileName: paymentFile?.name || 'comprovante-anexado',
+        fileName: paymentFile?.name || result?.payment?.proof_file_url || 'comprovante-anexado',
       };
 
       setPaymentHistory((prev) => [novoItem, ...prev]);

@@ -838,8 +838,28 @@ export default function MembroPage() {
   }
 
   async function handleOpenScale(item) {
+    console.info('[MEMBER_SCALE][OPEN_CLICK]', {
+      eventId: item?.eventId || null,
+      eventTitle: item?.clientName || null,
+    });
+
+    setScaleModalEvent(item || null);
+    setScaleModalMusicians([]);
+    setScaleModalOpen(true);
+
     try {
       setError('');
+      if (!item?.eventId) {
+        console.info('[MEMBER_SCALE][RAW_DATA]', {
+          eventId: null,
+          rows: [],
+        });
+        console.info('[MEMBER_SCALE][HAS_SCALE]', {
+          eventId: null,
+          hasScale: false,
+        });
+        return;
+      }
 
       const { data, error: scaleError } = await supabase
         .from('event_musicians')
@@ -860,6 +880,10 @@ export default function MembroPage() {
         .eq('event_id', item.eventId);
 
       if (scaleError) throw scaleError;
+      console.info('[MEMBER_SCALE][RAW_DATA]', {
+        eventId: item.eventId,
+        rows: Array.isArray(data) ? data : [],
+      });
 
       const musicians = (Array.isArray(data) ? data : []).map((row) => {
         const contact = Array.isArray(row?.contacts)
@@ -878,11 +902,16 @@ export default function MembroPage() {
         };
       });
 
-      setScaleModalEvent(item);
+      console.info('[MEMBER_SCALE][HAS_SCALE]', {
+        eventId: item.eventId,
+        hasScale: musicians.length > 0,
+      });
+
+      setScaleModalEvent(item || null);
       setScaleModalMusicians(musicians);
-      setScaleModalOpen(true);
     } catch (e) {
       console.error('Erro ao abrir escala:', e);
+      setScaleModalMusicians([]);
       setError(e?.message || 'Não foi possível carregar a escala do evento.');
     }
   }

@@ -81,6 +81,8 @@ export default function MembroEscalaModal({
   musicians = [],
   onClose,
 }) {
+  const hasScale = Array.isArray(musicians) && musicians.length > 0;
+
   useEffect(() => {
     if (!open || typeof document === 'undefined') return;
 
@@ -98,6 +100,13 @@ export default function MembroEscalaModal({
       document.body.style.touchAction = previousBodyTouchAction;
     };
   }, [open]);
+
+  useEffect(() => {
+    if (!open || hasScale) return;
+    console.info('[MEMBER_SCALE][EMPTY_STATE_RENDER]', {
+      eventTitle: eventTitle || null,
+    });
+  }, [open, hasScale, eventTitle]);
 
   if (!open) return null;
 
@@ -141,9 +150,14 @@ export default function MembroEscalaModal({
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">
-            {musicians.length === 0 ? (
-              <div className="rounded-[16px] border border-dashed border-white/10 bg-white/5 px-4 py-5 text-center text-[14px] font-semibold text-white/55">
-                Nenhum membro escalado neste evento.
+            {!hasScale ? (
+              <div className="rounded-[16px] border border-dashed border-white/10 bg-white/5 px-4 py-5 text-center">
+                <div className="text-[14px] font-semibold text-white/70">
+                  Sem escala montada até o momento.
+                </div>
+                <div className="mt-1 text-[12px] font-medium text-white/50">
+                  A escala deste evento ainda não foi definida pela administração.
+                </div>
               </div>
             ) : (
               <div className="space-y-2">

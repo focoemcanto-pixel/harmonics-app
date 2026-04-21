@@ -41,6 +41,7 @@ const REPERTOIRE_ITEMS_SELECT = [
   'moment',
   'who_enters',
   'reference_link',
+  'reference_video_id',
   'notes',
   'type',
   'label',
@@ -48,6 +49,16 @@ const REPERTOIRE_ITEMS_SELECT = [
   'genres',
   'artists',
 ].join(', ');
+
+function resolveTrackUrl(row) {
+  const referenceLink = String(row?.referencia || row?.reference_link || '').trim();
+  if (referenceLink) return referenceLink;
+
+  const referenceVideoId = String(row?.reference_video_id || '').trim();
+  if (!referenceVideoId) return '';
+
+  return `https://www.youtube.com/watch?v=${referenceVideoId}`;
+}
 
 function getDesktopTabMeta(activeTab) {
   if (activeTab === 'home') {
@@ -774,7 +785,7 @@ export default function MembroPage() {
     if (!Array.isArray(item?.repertorioItems)) return [];
 
     return item.repertorioItems
-      .filter((row) => !!(row?.referencia || row?.reference_link))
+      .filter((row) => Boolean(resolveTrackUrl(row)))
       .sort((a, b) => Number(a?.ordem ?? a?.item_order ?? 0) - Number(b?.ordem ?? b?.item_order ?? 0))
       .map((row, index) => ({
         title: row?.musica || row?.song_name || `Faixa ${index + 1}`,
@@ -785,7 +796,7 @@ export default function MembroPage() {
           row?.section ||
           '',
         notes: row?.observacao || row?.notes || '',
-        url: row?.referencia || row?.reference_link || '',
+        url: resolveTrackUrl(row),
         order: row?.ordem ?? row?.item_order ?? index + 1,
       }));
   }
@@ -793,8 +804,26 @@ export default function MembroPage() {
   function openRepertoire(item, options = {}) {
     if (!item) return;
 
+    console.log('[MEMBER_PLAYER][OPEN_REQUEST]', {
+      eventId: item?.eventId || null,
+      eventTitle: item?.clientName || 'Repertório',
+      source: options?.source || 'unknown',
+    });
+
     const playlist = buildPlaylistFromRow(item);
-    if (!playlist.length) return;
+    console.log('[MEMBER_PLAYER][PLAYLIST_RESULT]', {
+      eventId: item?.eventId || null,
+      playlistSize: playlist.length,
+      sample: playlist.slice(0, 3),
+    });
+    if (!playlist.length) {
+      console.log('[MEMBER_PLAYER][OPEN_BLOCKED_REASON]', {
+        reason: 'EMPTY_PLAYLIST',
+        eventId: item?.eventId || null,
+        eventTitle: item?.clientName || 'Repertório',
+      });
+      return;
+    }
 
     setPlayerPlaylist(playlist);
     setPlayerIndex(0);
@@ -1211,7 +1240,7 @@ export default function MembroPage() {
         }}
         onOpenPlayer={(item) => {
           setRepertorioResumoOpen(false);
-          openRepertoire(item, { autoplay: true });
+          openRepertoire(item, { autoplay: true, source: 'repertoire_summary_modal' });
         }}
         onGoToRepertorios={() => {
           setRepertorioResumoOpen(false);

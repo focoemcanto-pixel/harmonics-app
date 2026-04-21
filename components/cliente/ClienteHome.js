@@ -1996,7 +1996,7 @@ function buildItemsPayload() {
 function buildConfigPayload() {
   const exitReferenceFields = normalizeReferenceFields(saida);
   const antesalaRequestedByClient = Boolean(antessala?.requestedByClient);
-  const antesalaIncluded = querAntessala === true || antesalaRequestedByClient;
+  const antesalaIncluded = !antesalaRequestedByClient && querAntessala === true;
   const mergedGenres =
     antessala.generos ||
     (Array.isArray(antessala.styleTags) ? antessala.styleTags.join(', ') : '');
@@ -2069,7 +2069,7 @@ async function saveRepertorio(mode = 'draft') {
         durationMinutes: Number(antessala?.durationMinutes || 0) || null,
         quoteMinutes: Number(antessala?.quoteMinutes || 0) || null,
         quotePriceIncrement: Number(antessala?.quotePriceIncrement || 0) || 0,
-        included: querAntessala === true || Boolean(antessala?.requestedByClient),
+        included: !Boolean(antessala?.requestedByClient) && querAntessala === true,
         priceIncrement: Number(antessala?.quotePriceIncrement || 0) || 0,
       });
       console.log('[ANTESALA][POST_BODY]', {
@@ -2557,7 +2557,7 @@ async function handleRequestReview() {
                 onClick={() => setAntessalaWithLog((prev) => ({ ...prev, requestQuoteOpened: !prev.requestQuoteOpened }), 'toggleAntesalaQuote')}
                 className="w-full rounded-[16px] border border-[#d9c8f7] bg-[#fcfbff] px-4 py-3 text-[14px] font-black text-violet-700"
               >
-                Orçar antesala
+                Solicitar orçamento de antesala
               </button>
             ) : null}
             {antessala.requestQuoteOpened ? (
@@ -2574,6 +2574,7 @@ async function handleRequestReview() {
                           quoteMinutes: option.minutes,
                           quotePriceIncrement: option.price,
                           requestedByClient: true,
+                          requestStatus: 'pending',
                           requestQuoteOpened: false,
                           durationMinutes: option.minutes,
                         }), 'requestAntesalaQuoteOption')

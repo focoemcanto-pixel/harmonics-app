@@ -13,6 +13,7 @@ import {
   formatMoney,
   formatDateBR,
 } from '@/lib/eventos/eventos-format';
+import { resolveProofPreviewFromStoredUrl } from '@/lib/payments/payment-proof-storage';
 
 function normalizePaymentStatus(status, paidAmount, openAmount, agreedAmount) {
   const raw = String(status || '').trim().toLowerCase();
@@ -127,6 +128,18 @@ function formatPaymentMethod(method) {
     .replace(/\b\w/g, (m) => m.toUpperCase());
 }
 
+function resolvePreviewDetails(proofReference) {
+  const preview = resolveProofPreviewFromStoredUrl(proofReference, {
+    supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+  });
+
+  console.log('[PAYMENT_PROOF][PREVIEW_BUCKET]', preview.bucket);
+  console.log('[PAYMENT_PROOF][PREVIEW_PATH]', preview.path);
+  console.log('[PAYMENT_PROOF][PREVIEW_URL]', preview.url);
+
+  return preview.url;
+}
+
 export default function PagamentosPage() {
   return (
     <ProtectedRoute requiredRole="admin">
@@ -197,7 +210,7 @@ function PagamentosPageContent() {
     if (historico) {
       const target = payments.find((entry) => String(entry.id) === String(historico));
       if (target?.proof_file_url) {
-        setProofPreviewUrl(target.proof_file_url);
+        setProofPreviewUrl(resolvePreviewDetails(target.proof_file_url));
       }
     }
   }, [payments]);
@@ -603,7 +616,9 @@ function PagamentosPageContent() {
                                       {entry.proof_file_url ? (
                                         <button
                                           type="button"
-                                          onClick={() => setProofPreviewUrl(entry.proof_file_url)}
+                                          onClick={() =>
+                                            setProofPreviewUrl(resolvePreviewDetails(entry.proof_file_url))
+                                          }
                                           className="rounded-full border border-[#dbe3ef] bg-white px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-[#0f172a]"
                                         >
                                           Ver comprovante

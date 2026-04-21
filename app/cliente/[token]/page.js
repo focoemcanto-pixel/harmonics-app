@@ -457,16 +457,69 @@ function normalizePaymentStatus(status = '') {
   return raw ? raw.toUpperCase() : '';
 }
 
-function buildFinancialData({ event, precontract, payments = [] }) {
-  const baseTotalAmount = pickFirstPositiveNumber([
-    event?.agreed_amount,
-    precontract?.agreed_amount,
-    event?.total_price,
-    event?.amount,
-    toPositiveNumber(precontract?.base_amount) +
-      toPositiveNumber(precontract?.add_sound) +
-      toPositiveNumber(precontract?.add_transport),
+function buildFinancialData({ event, precontract, contract, payments = [] }) {
+  const contractRawPayload = contract?.raw_payload || {};
+  const contractSnapshotAmount = pickFirstPositiveNumber([
+    contractRawPayload?.precontract_snapshot?.agreed_amount,
+    contractRawPayload?.event_snapshot?.agreed_amount,
+    contractRawPayload?.agreed_amount,
+    contractRawPayload?.client_form?.agreed_amount,
   ]);
+
+  if (contractSnapshotAmount > 0) {
+    console.log('[CLIENTE PAGE][FINANCE_CONTRACT_VALUE_FALLBACK]', {
+      contractId: contract?.id || null,
+      source: 'contracts.raw_payload snapshot/agreed_amount',
+      value: contractSnapshotAmount,
+    });
+  }
+
+  const precontractComposedAmount =
+    toPositiveNumber(precontract?.base_amount) +
+    toPositiveNumber(precontract?.add_sound) +
+    toPositiveNumber(precontract?.add_transport);
+
+  const totalValueCandidates = [
+    {
+      source: 'events.agreed_amount',
+      value: event?.agreed_amount,
+    },
+    {
+      source: 'events.total_price',
+      value: event?.total_price,
+    },
+    {
+      source: 'events.amount',
+      value: event?.amount,
+    },
+    {
+      source: 'precontracts.agreed_amount',
+      value: precontract?.agreed_amount,
+    },
+    {
+      source: 'contracts.raw_payload snapshot/agreed_amount',
+      value: contractSnapshotAmount,
+    },
+    {
+      source: 'precontracts.base_amount+add_sound+add_transport',
+      value: precontractComposedAmount,
+    },
+  ];
+
+  const totalValueResolution = totalValueCandidates.find(
+    (candidate) => toPositiveNumber(candidate.value) > 0
+  ) || { source: 'none', value: 0 };
+
+  console.log('[CLIENTE PAGE][FINANCE_VALUE_SOURCE]', {
+    selectedSource: totalValueResolution.source,
+    selectedValue: toPositiveNumber(totalValueResolution.value),
+    candidates: totalValueCandidates.map((candidate) => ({
+      source: candidate.source,
+      value: toPositiveNumber(candidate.value),
+    })),
+  });
+
+  const baseTotalAmount = toPositiveNumber(totalValueResolution.value);
   const hasApprovedAntesala = Boolean(
     event?.has_antesala ??
       event?.antesala_enabled ??
@@ -1017,7 +1070,7 @@ export default async function ClienteTokenPage({ params }) {
 
       supabase
         .from('contracts')
-        .select('id, event_id, precontract_id, pdf_url, doc_url, signed_at')
+        .select('id, event_id, precontract_id, pdf_url, doc_url, signed_at, raw_payload')
         .eq('event_id', eventId)
         .maybeSingle(),
 
@@ -1334,6 +1387,7 @@ export default async function ClienteTokenPage({ params }) {
   const financialData = buildFinancialData({
     event,
     precontract,
+    contract,
     payments,
   });
   console.log('[CLIENTE PAGE][FINANCE_SUMMARY_OUTPUT]', financialData?.resumo || null);

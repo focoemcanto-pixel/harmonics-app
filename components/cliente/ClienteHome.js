@@ -2025,6 +2025,9 @@ async function saveRepertorio(mode = 'draft') {
     const builtItemsPayload = buildItemsPayload();
     console.log('[TRACE][CORTEJO][PAYLOAD]', pickTracePayloadItem(builtItemsPayload, 'cortejo'));
     console.log('[TRACE][CERIMONIA][PAYLOAD]', pickTracePayloadItem(builtItemsPayload, 'cerimonia'));
+    const antesalaRequestedByClient = Boolean(antessala?.requestedByClient);
+    const antesalaIncluded = !antesalaRequestedByClient && querAntessala === true;
+
     const payload = {
       token: data.repertorio?.repertoireToken || data.token,
       repertoireToken: data.repertorio?.repertoireToken || '',

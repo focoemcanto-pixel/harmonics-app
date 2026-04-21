@@ -1981,7 +1981,8 @@ function buildItemsPayload() {
 
 function buildConfigPayload() {
   const exitReferenceFields = normalizeReferenceFields(saida);
-  const antesalaIncluded = querAntessala === true;
+  const antesalaRequestedByClient = Boolean(antessala?.requestedByClient);
+  const antesalaIncluded = !antesalaRequestedByClient && querAntessala === true;
   const mergedGenres =
     antessala.generos ||
     (Array.isArray(antessala.styleTags) ? antessala.styleTags.join(', ') : '');
@@ -2024,6 +2025,9 @@ async function saveRepertorio(mode = 'draft') {
     const builtItemsPayload = buildItemsPayload();
     console.log('[TRACE][CORTEJO][PAYLOAD]', pickTracePayloadItem(builtItemsPayload, 'cortejo'));
     console.log('[TRACE][CERIMONIA][PAYLOAD]', pickTracePayloadItem(builtItemsPayload, 'cerimonia'));
+    const antesalaRequestedByClient = Boolean(antessala?.requestedByClient);
+    const antesalaIncluded = !antesalaRequestedByClient && querAntessala === true;
+
     const payload = {
       token: data.repertorio?.repertoireToken || data.token,
       repertoireToken: data.repertorio?.repertoireToken || '',
@@ -2032,10 +2036,10 @@ async function saveRepertorio(mode = 'draft') {
       config: buildConfigPayload(),
       items: builtItemsPayload,
       antesalaFlow: {
-        included: querAntessala === true,
+        included: antesalaIncluded,
         durationMinutes: Number(antessala.durationMinutes || 0) || null,
-        requestedByClient: Boolean(antessala.requestedByClient),
-        requestStatus: antessala.requestedByClient ? 'pending' : null,
+        requestedByClient: antesalaRequestedByClient,
+        requestStatus: antesalaRequestedByClient ? 'pending' : null,
         priceIncrement: Number(antessala.quotePriceIncrement || 0) || 0,
       },
     };
@@ -2047,7 +2051,7 @@ async function saveRepertorio(mode = 'draft') {
         durationMinutes: Number(antessala?.durationMinutes || 0) || null,
         quoteMinutes: Number(antessala?.quoteMinutes || 0) || null,
         quotePriceIncrement: Number(antessala?.quotePriceIncrement || 0) || 0,
-        included: querAntessala === true,
+        included: antesalaIncluded,
         priceIncrement: Number(antessala?.quotePriceIncrement || 0) || 0,
       });
       console.log('[ANTESALA][POST_BODY]', {

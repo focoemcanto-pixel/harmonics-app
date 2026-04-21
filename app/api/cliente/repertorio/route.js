@@ -554,8 +554,11 @@ export async function POST(request) {
       configPayload.repertoire_pdf_url = `/api/cliente/repertorio/pdf/${tokenRow.token}`;
     }
 
-    const antesalaIncluded = normalizeBool(antesalaFlow.included);
     const requestedByClientFromPayload = normalizeBool(antesalaFlow.requestedByClient);
+    const antesalaIncludedFromPayload = normalizeBool(antesalaFlow.included);
+    const antesalaIncluded = requestedByClientFromPayload
+      ? false
+      : antesalaIncludedFromPayload;
     const durationFromPayload = Number(antesalaFlow.durationMinutes || 0) || null;
     const priceIncrementFromPayload = Number(antesalaFlow.priceIncrement || 0) || 0;
 

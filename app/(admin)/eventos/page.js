@@ -91,6 +91,8 @@ const CONTRACTS_SELECT_FIELDS =
   'id, created_at, precontract_id, event_id, status, signed_at, pdf_url, doc_url, public_token';
 const PRICING_SELECT_FIELDS = '*';
 const EVENTOS_CACHE_TTL_MS = 60 * 1000;
+const EVENTOS_LIST_TITLE = 'Eventos';
+const EVENTOS_LIST_SUBTITLE = 'Pesquise, filtre e acompanhe sua operação.';
 let eventosAdminCache = {
   updatedAt: 0,
   eventos: [],
@@ -234,6 +236,14 @@ export default function EventosPage() {
   const [form, setForm] = useState(getInitialForm());
   const [mobileTab, setMobileTab] = useState('resumo');
   const [desktopTab, setDesktopTab] = useState('visao');
+
+  useEffect(() => {
+    console.info('[EVENTOS][TITLE_SOURCE]', {
+      source: 'EVENTOS_LIST_TITLE constant',
+      title: EVENTOS_LIST_TITLE,
+      subtitle: EVENTOS_LIST_SUBTITLE,
+    });
+  }, []);
 
   async function carregarEventos() {
     try {
@@ -781,21 +791,71 @@ export default function EventosPage() {
   }
 
   async function excluirEvento(id) {
+    console.info('[EVENTOS][DELETE_CLICK]', { eventId: id });
+
     if (!confirm('Tem certeza que deseja excluir este evento?')) return;
 
     try {
-      const { error } = await supabase.from('events').delete().eq('id', id);
+      console.info('[EVENTOS][DELETE_REQUEST]', { eventId: id, strategy: 'hard_delete' });
+      const { data, error } = await supabase
+        .from('events')
+        .delete()
+        .eq('id', id)
+        .select('id')
+        .maybeSingle();
 
       if (error) throw error;
+      if (!data?.id) {
+        throw new Error('Nenhuma linha foi removida ao excluir o evento.');
+      }
 
       if (editandoId === id) {
         cancelarEdicao();
       }
 
-      await carregarEventos();
+      setEventos((prev) => prev.filter((item) => String(item.id) !== String(id)));
+      setPrecontracts((prev) =>
+        prev.filter((item) => String(item.event_id) !== String(id))
+      );
+      setContracts((prev) =>
+        prev.filter((item) => String(item.event_id) !== String(id))
+      );
+      eventosAdminCache.eventos = (eventosAdminCache.eventos || []).filter(
+        (item) => String(item.id) !== String(id)
+      );
+      eventosAdminCache.precontracts = (eventosAdminCache.precontracts || []).filter(
+        (item) => String(item.event_id) !== String(id)
+      );
+      eventosAdminCache.contracts = (eventosAdminCache.contracts || []).filter(
+        (item) => String(item.event_id) !== String(id)
+      );
+      eventosAdminCache.updatedAt = Date.now();
+
+      console.info('[EVENTOS][DELETE_RESULT]', { eventId: id, deleted: data.id });
+      console.info('[EVENTOS][DELETE_UI_REMOVE]', { eventId: id });
+      setFeedback({
+        type: 'success',
+        title: 'Evento excluído',
+        message: 'O evento foi removido com sucesso.',
+      });
+
+      void carregarEventos();
     } catch (error) {
-      console.error('Erro ao excluir evento:', error);
-      alert('Erro ao excluir evento. Tente novamente.');
+      console.error('[EVENTOS][DELETE_ERROR]', {
+        eventId: id,
+        message: error?.message,
+        details: error?.details,
+        hint: error?.hint,
+        code: error?.code,
+        full: error,
+      });
+      setFeedback({
+        type: 'error',
+        title: 'Erro ao excluir evento',
+        message:
+          error?.message ||
+          'Não foi possível excluir o evento agora. Verifique dependências e tente novamente.',
+      });
     }
   }
 
@@ -1068,8 +1128,8 @@ export default function EventosPage() {
     return (
       <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_26px_rgba(17,24,39,0.04)] md:p-6">
         <AdminSectionTitle
-          title="Eventos TESTE 999"
-          subtitle="Pesquise, filtre e acompanhe sua operação."
+          title={EVENTOS_LIST_TITLE}
+          subtitle={EVENTOS_LIST_SUBTITLE}
         />
 
         <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">

@@ -39,6 +39,27 @@ const CLIENT_EVENT_SELECT_FIELDS_FALLBACK = [
   'instruments',
   'status',
   'observations',
+  'agreed_amount',
+  'open_amount',
+  'paid_amount',
+  'payment_status',
+  'total_price',
+  'amount',
+  'amount_paid',
+  'has_antesala',
+  'antesala_enabled',
+  'antesala_price_increment',
+].join(', ');
+const CLIENT_EVENT_SELECT_FIELDS_MINIMAL_FALLBACK = [
+  'id',
+  'client_name',
+  'event_date',
+  'event_time',
+  'location_name',
+  'formation',
+  'instruments',
+  'status',
+  'observations',
 ].join(', ');
 const CLIENT_REPERTOIRE_CONFIG_SELECT_FIELDS = [
   'id',
@@ -414,6 +435,11 @@ function toPositiveNumber(value) {
   return Number.isFinite(n) && n > 0 ? n : 0;
 }
 
+function toNonNegativeNumber(value) {
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
 function pickFirstPositiveNumber(candidates = []) {
   for (const value of candidates) {
     const n = toPositiveNumber(value);
@@ -470,11 +496,19 @@ function buildFinancialData({ event, precontract, payments = [] }) {
     confirmedPaidFromPayments
   );
 
-  const rawSaldo = totalAmount - paidAmount;
+  const openAmountFromEvent = toNonNegativeNumber(event?.open_amount);
+  const rawSaldo = openAmountFromEvent ?? totalAmount - paidAmount;
   const saldoAmount = Math.max(rawSaldo, 0);
+  const normalizedEventPaymentStatus = normalizePaymentStatus(event?.payment_status);
 
   let financialStatus = 'Consulte a equipe';
-  if (totalAmount > 0) {
+  if (normalizedEventPaymentStatus === 'PAGO') {
+    financialStatus = 'Pago';
+  } else if (normalizedEventPaymentStatus === 'PENDENTE') {
+    financialStatus = 'Pagamento pendente';
+  } else if (normalizedEventPaymentStatus === 'EM_ANALISE') {
+    financialStatus = 'Em análise';
+  } else if (totalAmount > 0) {
     if (paidAmount <= 0) financialStatus = 'Pagamento pendente';
     else if (rawSaldo <= 0) financialStatus = 'Pago';
     else financialStatus = 'Parcialmente pago';
@@ -1042,6 +1076,29 @@ export default async function ClienteTokenPage({ params }) {
       eventResp = {
         ...fallbackEventResp,
       };
+    } else {
+      console.log('[CLIENTE PAGE][EVENT_RESP]', {
+        retry: 'minimal_fallback_select_fields',
+        eventId,
+        fields: CLIENT_EVENT_SELECT_FIELDS_MINIMAL_FALLBACK,
+      });
+      const minimalFallbackEventResp = await supabase
+        .from('events')
+        .select(CLIENT_EVENT_SELECT_FIELDS_MINIMAL_FALLBACK)
+        .eq('id', eventId)
+        .maybeSingle();
+
+      console.log('[CLIENTE PAGE][EVENT_RESP]', {
+        retry: 'minimal_fallback_select_fields_result',
+        error: minimalFallbackEventResp?.error || null,
+        data: minimalFallbackEventResp?.data || null,
+      });
+
+      if (!minimalFallbackEventResp?.error && minimalFallbackEventResp?.data) {
+        eventResp = {
+          ...minimalFallbackEventResp,
+        };
+      }
     }
   }
 
@@ -1078,6 +1135,16 @@ export default async function ClienteTokenPage({ params }) {
   console.log('[CLIENTE PAGE][EVENT_DATA]', {
     eventId,
     event,
+  });
+  console.log('[CLIENTE PAGE][FINANCE_EVENT_FIELDS]', {
+    eventId,
+    agreed_amount: event?.agreed_amount ?? null,
+    open_amount: event?.open_amount ?? null,
+    paid_amount: event?.paid_amount ?? null,
+    amount_paid: event?.amount_paid ?? null,
+    payment_status: event?.payment_status ?? '',
+    total_price: event?.total_price ?? null,
+    amount: event?.amount ?? null,
   });
   console.log('[ANTESALA][DB_EVENT_FIELDS]', {
     has_antesala: event?.has_antesala ?? null,
@@ -1237,11 +1304,39 @@ export default async function ClienteTokenPage({ params }) {
     fileName: entry.proof_file_url || '',
   }));
 
+  console.log('[CLIENTE PAGE][FINANCE_SUMMARY_INPUT]', {
+    eventId,
+    event: {
+      agreed_amount: event?.agreed_amount ?? null,
+      open_amount: event?.open_amount ?? null,
+      paid_amount: event?.paid_amount ?? null,
+      amount_paid: event?.amount_paid ?? null,
+      payment_status: event?.payment_status ?? '',
+      total_price: event?.total_price ?? null,
+      amount: event?.amount ?? null,
+      signal_due_date: event?.signal_due_date ?? null,
+      balance_due_date: event?.balance_due_date ?? null,
+      card_due_date: event?.card_due_date ?? null,
+    },
+    precontract: {
+      agreed_amount: precontract?.agreed_amount ?? null,
+      base_amount: precontract?.base_amount ?? null,
+      add_sound: precontract?.add_sound ?? null,
+      add_transport: precontract?.add_transport ?? null,
+      signal_due_date: precontract?.signal_due_date ?? null,
+      balance_due_date: precontract?.balance_due_date ?? null,
+      card_due_date: precontract?.card_due_date ?? null,
+      payment_card: precontract?.payment_card ?? null,
+    },
+    paymentsCount: payments.length,
+  });
+
   const financialData = buildFinancialData({
     event,
     precontract,
     payments,
   });
+  console.log('[CLIENTE PAGE][FINANCE_SUMMARY_OUTPUT]', financialData?.resumo || null);
 
   const data = {
     token: clientToken,

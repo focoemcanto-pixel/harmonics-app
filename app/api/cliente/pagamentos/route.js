@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { sendAdminWhatsAppAlert } from '@/lib/whatsapp/send-admin-alert';
+import { resolvePaymentProofBucketName } from '@/lib/payments/payment-proof-storage';
 
 function getAdminSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -151,12 +152,15 @@ export async function POST(request) {
 
     let proofFileUrl = null;
     if (proofFile) {
-      const bucketName = process.env.SUPABASE_PAYMENT_PROOFS_BUCKET || 'payment-proofs';
+      const bucketName = resolvePaymentProofBucketName();
       const extension = (proofFile.name?.split('.').pop() || 'bin').toLowerCase();
       const objectPath = `event-${eventId}/${Date.now()}-${Math.random()
         .toString(36)
         .slice(2)}.${extension}`;
       const arrayBuffer = await proofFile.arrayBuffer();
+
+      console.log('[PAYMENT_PROOF][UPLOAD_BUCKET]', bucketName);
+      console.log('[PAYMENT_PROOF][UPLOAD_PATH]', objectPath);
 
       const { error: uploadError } = await supabase.storage
         .from(bucketName)
@@ -169,6 +173,7 @@ export async function POST(request) {
 
       const { data: publicData } = supabase.storage.from(bucketName).getPublicUrl(objectPath);
       proofFileUrl = publicData?.publicUrl || null;
+      console.log('[PAYMENT_PROOF][STORED_PROOF_URL]', proofFileUrl);
     }
 
     console.log('[PAYMENT_PROOF][UPLOAD_RESULT]', {

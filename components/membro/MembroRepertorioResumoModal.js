@@ -2,6 +2,16 @@
 
 import { useEffect, useMemo } from 'react';
 
+const SECTION_ORDER = ['antessala', 'cortejo', 'cerimonia', 'saida', 'receptivo'];
+
+function normalizeSection(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
 function extractOrderedRepertorio(item) {
   if (!item) return [];
 
@@ -31,9 +41,8 @@ function extractOrderedRepertorio(item) {
   }));
 }
 
-function getSectionLabel(row) {
-  const section = String(row?.section || '').toLowerCase();
-
+function getSectionLabel(sectionValue) {
+  const section = normalizeSection(sectionValue);
   if (section === 'antessala') return '🎶 Antessala';
   if (section === 'cortejo') return '🚶 Cortejo';
   if (section === 'cerimonia') return '⛪ Cerimônia';
@@ -44,7 +53,7 @@ function getSectionLabel(row) {
 }
 
 function getOrderLabel(row, index) {
-  const section = String(row?.section || '').toLowerCase();
+  const section = normalizeSection(row?.section);
 
   if (section === 'cortejo') return `Entrada ${index + 1}`;
   if (section === 'cerimonia') return row?.label || row?.momento || `Momento ${index + 1}`;
@@ -70,20 +79,31 @@ function getSecondaryText(row) {
   return row?.quemEntra || row?.momento || row?.tipo || '';
 }
 
-function RepertorioLinha({ row, index, showSection }) {
-  const sectionLabel = getSectionLabel(row);
+function isReceptivoGenericRow(row) {
+  if (normalizeSection(row?.section) !== 'receptivo') return false;
+  const title = String(row?.musica || row?.song_name || row?.label || row?.momento || '').trim();
+  const orderLabel = String(row?.label || row?.momento || '').trim();
+  const hasReference = Boolean(row?.referencia);
+  const hasNotes = Boolean(row?.observacao);
+  const hasMeta = Boolean(row?.genres || row?.artists);
+
+  return !title || (!hasReference && !hasNotes && !hasMeta && orderLabel.toLowerCase() === 'receptivo');
+}
+
+function RepertorioLinha({ row, index }) {
   const orderLabel = getOrderLabel(row, index);
   const title = getMainTitle(row, index);
   const secondary = getSecondaryText(row);
+  const normalizedSecondary = String(secondary || '').trim().toLowerCase();
+  const normalizedOrder = String(orderLabel || '').trim().toLowerCase();
+  const normalizedTitle = String(title || '').trim().toLowerCase();
+  const showSecondary =
+    normalizedSecondary &&
+    normalizedSecondary !== normalizedOrder &&
+    normalizedSecondary !== normalizedTitle;
 
   return (
     <div className="space-y-2">
-      {showSection && sectionLabel ? (
-        <div className="px-1 pt-2 text-[13px] font-black uppercase tracking-[0.08em] text-violet-300">
-          {sectionLabel}
-        </div>
-      ) : null}
-
       <div className="rounded-[18px] border border-white/10 bg-[#1e1535] px-4 py-4">
         <div className="flex items-start gap-3">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-violet-300/15 bg-violet-400/10 text-[12px] font-black text-violet-100">
@@ -99,7 +119,7 @@ function RepertorioLinha({ row, index, showSection }) {
               {title}
             </div>
 
-            {secondary && secondary !== orderLabel ? (
+            {showSecondary ? (
               <div className="mt-1 text-[12px] font-semibold uppercase tracking-[0.08em] text-violet-200/70">
                 {secondary}
               </div>
@@ -113,6 +133,31 @@ function RepertorioLinha({ row, index, showSection }) {
             ) : null}
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function ReceptivoBloco({ receptivo }) {
+  if (!receptivo) return null;
+
+  return (
+    <div className="rounded-[18px] border border-white/10 bg-[#1e1535] px-4 py-4">
+      <div className="space-y-2 text-[14px] text-white/80">
+        {receptivo?.duracao ? <div><span className="font-black text-white">Duração:</span> {receptivo.duracao}</div> : null}
+        {receptivo?.generos ? <div><span className="font-black text-white">Gêneros:</span> {receptivo.generos}</div> : null}
+        {receptivo?.artistas ? <div><span className="font-black text-white">Artistas:</span> {receptivo.artistas}</div> : null}
+        {receptivo?.observacao ? <div><span className="font-black text-white">Observações:</span> {receptivo.observacao}</div> : null}
+        {Array.isArray(receptivo?.references) && receptivo.references.length > 0 ? (
+          <div>
+            <div className="font-black text-white">Referências:</div>
+            <ul className="mt-1 list-disc space-y-1 pl-5 text-[13px] text-violet-100/85">
+              {receptivo.references.map((ref) => (
+                <li key={ref}>{ref}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -144,11 +189,62 @@ export default function MembroRepertorioResumoModal({
     };
   }, [open]);
 
-  const repertorio = useMemo(() => extractOrderedRepertorio(item), [item]);
+  const repertorioData = useMemo(() => {
+    const rawInput = extractOrderedRepertorio(item);
+    console.log('[MEMBER_REPERTOIRE][RAW_INPUT]', rawInput);
+
+    const groupedSections = rawInput.reduce((acc, row) => {
+      const section = normalizeSection(row?.section);
+      if (!SECTION_ORDER.includes(section)) return acc;
+      if (!acc[section]) acc[section] = [];
+      acc[section].push(row);
+      return acc;
+    }, {});
+
+    console.log('[MEMBER_REPERTOIRE][GROUPED_SECTIONS]', groupedSections);
+
+    const orderedSections = SECTION_ORDER.map((section) => ({
+      key: section,
+      label: getSectionLabel(section),
+      items: (groupedSections[section] || []).filter((row) => !isReceptivoGenericRow(row)),
+    }));
+
+    console.log('[MEMBER_REPERTOIRE][ORDERED_SECTIONS]', orderedSections);
+
+    const receptivoConfig = item?.repertoireConfig || {};
+    const receptivoReferences = (groupedSections.receptivo || [])
+      .map((row) => String(row?.referencia || '').trim())
+      .filter(Boolean);
+    const receptivoBlock = {
+      duracao: String(receptivoConfig?.reception_duration || '').trim(),
+      generos: String(receptivoConfig?.reception_genres || '').trim(),
+      artistas: String(receptivoConfig?.reception_artists || '').trim(),
+      observacao: String(receptivoConfig?.reception_notes || '').trim(),
+      references: Array.from(new Set(receptivoReferences)),
+    };
+
+    console.log('[MEMBER_REPERTOIRE][RECEPTIVO_BLOCK]', receptivoBlock);
+
+    return {
+      orderedSections,
+      receptivoBlock,
+    };
+  }, [item]);
+
+  const repertorio = repertorioData.orderedSections.flatMap((section) => section.items);
 
   const hasPdf = !!item?.repertorioPdfUrl;
   const hasPlayer = repertorio.some((row) => !!row?.referencia);
-  const hasRepertorio = repertorio.length > 0;
+  const hasRepertorio =
+    repertorio.length > 0 ||
+    Boolean(
+      repertorioData?.receptivoBlock?.duracao ||
+      repertorioData?.receptivoBlock?.generos ||
+      repertorioData?.receptivoBlock?.artistas ||
+      repertorioData?.receptivoBlock?.observacao ||
+      (Array.isArray(repertorioData?.receptivoBlock?.references) &&
+        repertorioData.receptivoBlock.references.length > 0)
+    );
 
   if (!open || !item) return null;
 
@@ -194,18 +290,37 @@ export default function MembroRepertorioResumoModal({
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">
             {hasRepertorio ? (
               <div className="space-y-3">
-                {repertorio.map((row, index) => {
-                  const prevSection =
-                    index > 0 ? String(repertorio[index - 1]?.section || '') : '';
-                  const currentSection = String(row?.section || '');
+                {repertorioData.orderedSections.map((section) => {
+                  const isReceptivo = section.key === 'receptivo';
+                  const hasReceptivoConfig = Boolean(
+                    repertorioData?.receptivoBlock?.duracao ||
+                    repertorioData?.receptivoBlock?.generos ||
+                    repertorioData?.receptivoBlock?.artistas ||
+                    repertorioData?.receptivoBlock?.observacao ||
+                    (Array.isArray(repertorioData?.receptivoBlock?.references) &&
+                      repertorioData.receptivoBlock.references.length > 0)
+                  );
+                  const shouldRender = section.items.length > 0 || (isReceptivo && hasReceptivoConfig);
+                  if (!shouldRender) return null;
 
                   return (
-                    <RepertorioLinha
-                      key={`${row?.ordem || row?.item_order || index}-${row?.musica || row?.song_name || index}`}
-                      row={row}
-                      index={index}
-                      showSection={currentSection !== prevSection}
-                    />
+                    <div key={section.key} className="space-y-2">
+                      <div className="px-1 pt-2 text-[13px] font-black uppercase tracking-[0.08em] text-violet-300">
+                        {section.label}
+                      </div>
+
+                      {isReceptivo && hasReceptivoConfig ? (
+                        <ReceptivoBloco receptivo={repertorioData.receptivoBlock} />
+                      ) : null}
+
+                      {section.items.map((row, index) => (
+                        <RepertorioLinha
+                          key={`${section.key}-${row?.ordem || row?.item_order || index}-${row?.musica || row?.song_name || index}`}
+                          row={row}
+                          index={index}
+                        />
+                      ))}
+                    </div>
                   );
                 })}
               </div>

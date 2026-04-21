@@ -1310,6 +1310,17 @@ const [receptivo, setReceptivo] = useState({
 const [desiredSongs, setDesiredSongs] = useState(initialState.desiredSongs || '');
 const [generalNotes, setGeneralNotes] = useState(initialState.generalNotes || '');
 
+  const normalizedAntesalaRequestStatus = String(antessala?.requestStatus || '')
+    .trim()
+    .toLowerCase();
+  const isAntesalaPending =
+    Boolean(antessala?.requestedByClient) &&
+    normalizedAntesalaRequestStatus === 'pending';
+  const isAntesalaApproved =
+    !isAntesalaPending &&
+    (normalizedAntesalaRequestStatus === 'approved' ||
+      (querAntessala === true && !Boolean(antessala?.requestedByClient)));
+
   const [showLocalDraftBanner, setShowLocalDraftBanner] = useState(false);
   const [savingMode, setSavingMode] = useState('');
   const [draftHydrated, setDraftHydrated] = useState(false);
@@ -1367,6 +1378,9 @@ const [generalNotes, setGeneralNotes] = useState(initialState.generalNotes || ''
         typeof nextValueOrUpdater === 'function'
           ? nextValueOrUpdater(prev)
           : nextValueOrUpdater;
+      if (Boolean(nextValue?.requestedByClient)) {
+        setQuerAntessala(true);
+      }
       debugClientHome('[CLIENT_HOME][SET_ANTESALA]', {
         reason,
         prevRequestedByClient: Boolean(prev?.requestedByClient),
@@ -2026,17 +2040,21 @@ async function saveRepertorio(mode = 'draft') {
     console.log('[TRACE][CORTEJO][PAYLOAD]', pickTracePayloadItem(builtItemsPayload, 'cortejo'));
     console.log('[TRACE][CERIMONIA][PAYLOAD]', pickTracePayloadItem(builtItemsPayload, 'cerimonia'));
     const antesalaRequestedByClient = Boolean(antessala?.requestedByClient);
-    const antesalaIncluded = !antesalaRequestedByClient && querAntessala === true;
+    const normalizedQuerAntessala = antesalaRequestedByClient ? true : querAntessala;
+    const configPayload = buildConfigPayload();
+    if (antesalaRequestedByClient) {
+      configPayload.has_ante_room = true;
+    }
 
     const payload = {
       token: data.repertorio?.repertoireToken || data.token,
       repertoireToken: data.repertorio?.repertoireToken || '',
       clientToken: data.token || '',
       mode,
-      config: buildConfigPayload(),
+      config: configPayload,
       items: builtItemsPayload,
       antesalaFlow: {
-        included: querAntessala === true || Boolean(antessala?.requestedByClient),
+        included: normalizedQuerAntessala === true || Boolean(antessala?.requestedByClient),
         durationMinutes: Number(antessala.durationMinutes || 0) || null,
         requestedByClient: Boolean(antessala.requestedByClient),
         requestStatus: Boolean(antessala.requestedByClient) ? 'pending' : null,
@@ -2572,13 +2590,13 @@ async function handleRequestReview() {
           </div>
         ) : null}
 
-        {antessala.requestedByClient ? (
+        {isAntesalaPending ? (
           <div className="mt-4 rounded-[16px] border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] font-bold text-amber-700">
             Antesala solicitada • aguardando confirmação
           </div>
         ) : null}
 
-        {querAntessala === true ? (
+        {isAntesalaApproved ? (
           <div className="mt-4 rounded-[16px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-[13px] font-bold text-emerald-700">
             Antesala incluída • {ANTESALA_DURATION_OPTIONS.find((item) => item.minutes === Number(antessala.durationMinutes || 30))?.label || '30 min'}
           </div>
@@ -2822,10 +2840,10 @@ async function handleRequestReview() {
   icon="🎶"
   label="Antessala"
   value={
-    querAntessala === true
-      ? `Incluída • ${ANTESALA_DURATION_OPTIONS.find((item) => item.minutes === Number(antessala.durationMinutes || 30))?.label || '30 min'}`
-      : antessala.requestedByClient
+    isAntesalaPending
       ? 'Solicitada • aguardando confirmação'
+      : isAntesalaApproved
+      ? `Incluída • ${ANTESALA_DURATION_OPTIONS.find((item) => item.minutes === Number(antessala.durationMinutes || 30))?.label || '30 min'}`
       : querAntessala === false
       ? 'Sem antesala'
       : 'Não definido'

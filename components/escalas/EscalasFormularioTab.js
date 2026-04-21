@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import AdminSectionTitle from '../admin/AdminSectionTitle';
 import { Field, Input, Select, Textarea } from '../admin/AdminFormPrimitives';
+import { useAppToast } from '../ui/ToastProvider';
 
 export default function EscalasFormularioTab({
   escalaSelecionada,
@@ -12,6 +13,7 @@ export default function EscalasFormularioTab({
   onCancel,
   salvando = false,
 }) {
+  const toast = useAppToast();
   const [form, setForm] = useState({
     event_id: '',
     musician_id: '',
@@ -43,15 +45,15 @@ export default function EscalasFormularioTab({
   function handleSubmit(e) {
     e.preventDefault();
     if (!form.event_id) {
-      alert('Selecione um evento');
+      toast.warning('Selecione um evento');
       return;
     }
     if (!form.musician_id) {
-      alert('Selecione um músico');
+      toast.warning('Selecione um músico');
       return;
     }
     if (!form.role.trim()) {
-      alert('Informe a função/instrumento');
+      toast.warning('Informe a função/instrumento');
       return;
     }
     onSave(form);

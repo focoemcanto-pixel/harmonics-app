@@ -7,6 +7,7 @@ import SugestaoCard from '@/components/sugestoes/SugestaoCard';
 import SugestoesFilters from '@/components/sugestoes/SugestoesFilters';
 import ReferenceSearchInput from '@/components/repertorio/ReferenceSearchInput';
 import { getYoutubeVideoId } from '@/lib/youtube/getYoutubeVideoId';
+import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
 
 function classNames(...classes) {
   return classes.filter(Boolean).join(' ');
@@ -1599,6 +1600,7 @@ const [savingMoment, setSavingMoment] = useState(false);
   const [automaticCollections, setAutomaticCollections] = useState([]);
   const [loading, setLoading] = useState(true);
   const [savingSong, setSavingSong] = useState(false);
+  const { confirm } = useConfirm() || {};
   const [enrichingCatalog, setEnrichingCatalog] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -1906,9 +1908,13 @@ const [savingMoment, setSavingMoment] = useState(false);
   }
 
   async function handleDelete(song) {
-    const confirmed = window.confirm(
-      `Excluir "${song?.title || 'esta música'}"? Essa ação não poderá ser desfeita.`
-    );
+    const confirmed = await confirm?.({
+      title: 'Excluir música?',
+      description: `Excluir "${song?.title || 'esta música'}"? Essa ação não poderá ser desfeita.`,
+      confirmText: 'Excluir música',
+      cancelText: 'Cancelar',
+      tone: 'destructive',
+    });
 
     if (!confirmed) return;
 

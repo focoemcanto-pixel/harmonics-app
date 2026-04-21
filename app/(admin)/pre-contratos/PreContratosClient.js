@@ -9,6 +9,7 @@ import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
 import Badge from '@/components/ui/Badge';
 import { useToast } from '@/components/ui/ToastProvider';
+import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
 import { supabase } from '@/lib/supabase';
 import { normalizeTimeStrict, isValidTime, sanitizeTimeFields } from '@/lib/time/normalize-time';
 
@@ -503,6 +504,7 @@ function PreviewContractModal({ open, item, onClose }) {
 export default function PreContratosClient() {
   const searchParams = useSearchParams();
   const { showToast } = useToast() || {};
+  const { confirm } = useConfirm() || {};
   const [items, setItems] = useState([]);
   const [eventos, setEventos] = useState([]);
 
@@ -936,9 +938,12 @@ export default function PreContratosClient() {
       setAdjustmentRequestsByPrecontract(nextRequestsMap);
       preContratosCache.adjustmentRequestsByPrecontract = nextRequestsMap;
 
-      const shouldCreateNew = window.confirm(
-        'Ajuste confirmado com sucesso. Deseja registrar um novo ajuste?'
-      );
+      const shouldCreateNew = await confirm?.({
+        title: 'Registrar novo ajuste?',
+        description: 'Ajuste confirmado com sucesso. Deseja registrar um novo ajuste agora?',
+        confirmText: 'Sim, registrar',
+        cancelText: 'Agora não',
+      });
       if (shouldCreateNew) {
         handleFormChange('adjustment_request', '');
       }
@@ -953,7 +958,8 @@ export default function PreContratosClient() {
   }
 
   async function excluirPreContrato(id) {
-    if (!confirm('Excluir este pré-contrato?')) return;
+    const confirmed = await confirm?.({ title: 'Excluir pré-contrato?', description: 'Esta ação removerá o pré-contrato e não poderá ser desfeita.', confirmText: 'Excluir pré-contrato', cancelText: 'Cancelar', tone: 'destructive' });
+    if (!confirmed) return;
 
     try {
       const { error } = await supabase
@@ -968,6 +974,7 @@ export default function PreContratosClient() {
       }
 
       setItems((prev) => prev.filter((entry) => String(entry.id) !== String(id)));
+      showToast?.('Pré-contrato excluído com sucesso.', 'success');
     } catch (error) {
       console.error('Erro ao excluir pré-contrato:', error);
       showToast?.('Erro ao excluir pré-contrato.', 'error');

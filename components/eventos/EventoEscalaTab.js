@@ -6,6 +6,7 @@ import { supabase } from '../../lib/supabase';
 import { diffEscala } from '../../lib/escalas/escalas-sync';
 import { splitCsvLike, normalizeText } from '../../lib/templates-escala/templates-escala-match';
 import { matchTemplatesForEvent } from '../../lib/scale/template-matcher';
+import { useAppToast } from '@/components/ui/ToastProvider';
 import {
   filterOperationalTeamContacts,
   getRoleInstrumentTagsFromEvent,
@@ -436,6 +437,7 @@ export default function EventoEscalaTab({ eventId }) {
   const [busca, setBusca] = useState('');
   const [editando, setEditando] = useState(false);
   const [enviandoConvites, setEnviandoConvites] = useState(false);
+  const toast = useAppToast();
 
   const buscaRef = useRef(null);
 
@@ -1074,7 +1076,7 @@ async function salvarEscala() {
     );
   } catch (e) {
     console.error('[automation][step] salvar_escala_failed', e);
-    alert(e?.message || 'Erro ao salvar escala.');
+    toast.error(e?.message || 'Erro ao salvar escala.');
   } finally {
     setSalvando(false);
   }
@@ -1121,7 +1123,7 @@ async function salvarEEnviarConvites() {
 
   } catch (e) {
     console.error(e);
-    alert(e?.message || 'Erro ao enviar convites');
+    toast.error(e?.message || 'Erro ao enviar convites');
   } finally {
     setSalvando(false);
     setEnviandoConvites(false);

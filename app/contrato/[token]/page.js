@@ -9,6 +9,7 @@ import Input from '../../../components/ui/Input';
 import Badge from '../../../components/ui/Badge';
 import { useGoogleMapsReady } from '../../../hooks/useGoogleMapsReady';
 import { normalizeTimeStrict, isValidTime, sanitizeTimeFields } from '../../../lib/time/normalize-time';
+import { useAppToast } from '../../../components/ui/ToastProvider';
 
 function formatMoney(value) {
   return new Intl.NumberFormat('pt-BR', {
@@ -464,6 +465,7 @@ async function upsertEventFromSignature({
 }
 
 export default function ContratoPublicoPage() {
+  const toast = useAppToast();
   const params = useParams();
   const token = useMemo(() => {
     if (Array.isArray(params?.token)) {
@@ -510,7 +512,7 @@ const mapsLoaded = useGoogleMapsReady();
 
   function abrirPreviewContrato() {
     if (!token) {
-      alert('Token do contrato não encontrado.');
+      toast.error('Token do contrato não encontrado.');
       return;
     }
 
@@ -1003,7 +1005,7 @@ const contratoFinalizado =
 
     if (Object.keys(errors).length > 0) {
       const firstMessage = Object.values(errors)[0];
-      alert(firstMessage);
+      toast.error(firstMessage);
       return false;
     }
 
@@ -1095,12 +1097,12 @@ const contratoFinalizado =
     if (!validateMainFields()) return;
 
     if (!form.adjustment_request.trim()) {
-      alert('Descreva o ajuste que deseja solicitar.');
+      toast.warning('Descreva o ajuste que deseja solicitar.');
       return;
     }
 
     if (!precontract?.id) {
-      alert('Pré-contrato não encontrado.');
+      toast.error('Pré-contrato não encontrado.');
       return;
     }
 
@@ -1209,10 +1211,10 @@ const contratoFinalizado =
       if (createAdjustmentError) throw createAdjustmentError;
       setPendingAdjustmentRequest(createdAdjustment || null);
 
-      alert('Seu ajuste foi enviado com sucesso.');
+      toast.success('Seu ajuste foi enviado com sucesso.');
     } catch (error) {
       console.error('Erro ao solicitar ajuste:', error);
-      alert(`Erro ao solicitar ajuste: ${error?.message || 'erro desconhecido'}`);
+      toast.error(`Erro ao solicitar ajuste: ${error?.message || 'erro desconhecido'}`);
     } finally {
       setSolicitandoAjuste(false);
     }
@@ -1220,34 +1222,34 @@ const contratoFinalizado =
 
   async function assinarContrato() {
    if (hasPendingAdjustment) {
-      alert('Sua solicitação de ajuste está em análise. Assim que for concluída, a assinatura será liberada.');
+      toast.info('Sua solicitação de ajuste está em análise. Assim que for concluída, a assinatura será liberada.');
       return;
     }
 
     if (!validateMainFields()) return;
 
     if (!form.signer_name.trim()) {
-      alert('Digite seu nome na assinatura.');
+      toast.warning('Digite seu nome na assinatura.');
       return;
     }
 
     if (!form.signer_cpf.trim()) {
-      alert('Digite o CPF da assinatura.');
+      toast.warning('Digite o CPF da assinatura.');
       return;
     }
 
     if (!isValidCpf(form.signer_cpf)) {
-      alert('CPF da assinatura inválido.');
+      toast.warning('CPF da assinatura inválido.');
       return;
     }
 
     if (!form.accepted_terms) {
-      alert('Você precisa aceitar os termos para continuar.');
+      toast.warning('Você precisa aceitar os termos para continuar.');
       return;
     }
 
     if (!precontract?.id) {
-      alert('Pré-contrato não encontrado.');
+      toast.error('Pré-contrato não encontrado.');
       return;
     }
 
@@ -1430,7 +1432,7 @@ if (contractSignedError) throw contractSignedError;
       setEnviado(true);
     } catch (error) {
       console.error('Erro ao assinar contrato:', error);
-      alert(`Erro ao assinar: ${error?.message || 'erro desconhecido'}`);
+      toast.error(`Erro ao assinar: ${error?.message || 'erro desconhecido'}`);
     } finally {
       setSalvando(false);
     }

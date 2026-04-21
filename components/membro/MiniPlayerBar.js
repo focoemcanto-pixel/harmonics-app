@@ -61,12 +61,29 @@ export default function MiniPlayerBar({
   const playerRef = useRef(null);
   const playerHostRef = useRef(null);
   const currentVideoIdRef = useRef('');
+  const didReportModalOpenRef = useRef(false);
 
   const videoId = extractYoutubeId(currentTrack?.url || '');
   const thumbnailUrl = useMemo(() => {
     if (!videoId) return '';
     return `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
   }, [videoId]);
+
+  useEffect(() => {
+    if (!expanded || didReportModalOpenRef.current) return;
+    didReportModalOpenRef.current = true;
+    console.log('[MEMBER_PLAYER][MODAL_OPEN]', {
+      track: currentTrack?.title || '',
+      videoId,
+      playing: isPlaying,
+    });
+  }, [expanded, currentTrack?.title, videoId, isPlaying]);
+
+  useEffect(() => {
+    if (!expanded) {
+      didReportModalOpenRef.current = false;
+    }
+  }, [expanded]);
 
   useEffect(() => {
     if (!videoId) return;
@@ -78,10 +95,17 @@ export default function MiniPlayerBar({
       if (!YT || cancelled || !playerHostRef.current) return;
 
       if (!playerRef.current) {
+        console.log('[MEMBER_PLAYER][INITIAL_STATE]', {
+          playing: isPlaying,
+          paused: !isPlaying,
+          autoplay: false,
+          muted: false,
+          videoId,
+        });
         playerRef.current = new YT.Player(playerHostRef.current, {
           videoId,
           playerVars: {
-            autoplay: 1,
+            autoplay: 0,
             controls: 0,
             rel: 0,
             modestbranding: 1,
@@ -89,13 +113,17 @@ export default function MiniPlayerBar({
           events: {
             onReady: (event) => {
               currentVideoIdRef.current = videoId;
-              event.target.playVideo();
-              onPlayerStateChange?.(true);
+              console.log('[MEMBER_PLAYER][ON_READY]', {
+                videoId,
+                playerState: event?.target?.getPlayerState?.(),
+              });
+              onPlayerStateChange?.(false);
             },
             onStateChange: (event) => {
               const state = event?.data;
 
               if (state === window.YT.PlayerState.PLAYING) {
+                console.log('[MEMBER_PLAYER][ON_PLAY]', { videoId, state });
                 onPlayerStateChange?.(true);
               }
 
@@ -103,6 +131,7 @@ export default function MiniPlayerBar({
                 state === window.YT.PlayerState.PAUSED ||
                 state === window.YT.PlayerState.ENDED
               ) {
+                console.log('[MEMBER_PLAYER][ON_PAUSE]', { videoId, state });
                 onPlayerStateChange?.(false);
               }
             },
@@ -131,6 +160,15 @@ export default function MiniPlayerBar({
       cancelled = true;
     };
   }, [videoId, isPlaying, onPlayerStateChange]);
+
+  function handlePrimaryButtonClick() {
+    console.log('[MEMBER_PLAYER][PRIMARY_BUTTON_CLICK]', {
+      currentStatePlaying: isPlaying,
+      nextStatePlaying: !isPlaying,
+      videoId,
+    });
+    onTogglePlay?.();
+  }
 
   if (!currentTrack) return null;
 
@@ -179,7 +217,7 @@ export default function MiniPlayerBar({
                         <div className="absolute inset-0 flex items-center justify-center">
                           <button
                             type="button"
-                            onClick={onTogglePlay}
+                            onClick={handlePrimaryButtonClick}
                             className="flex h-20 w-20 items-center justify-center rounded-full bg-white/15 text-[28px] font-black text-white backdrop-blur"
                           >
                             {isPlaying ? '❚❚' : '▶'}
@@ -226,7 +264,7 @@ export default function MiniPlayerBar({
 
                       <button
                         type="button"
-                        onClick={onTogglePlay}
+                        onClick={handlePrimaryButtonClick}
                         className="rounded-[18px] border border-white/10 bg-white/10 px-4 py-4 text-[14px] font-black text-white"
                       >
                         {isPlaying ? 'Pause' : 'Play'}

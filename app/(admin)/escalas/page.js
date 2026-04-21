@@ -8,6 +8,10 @@ import AdminPageHero from '@/components/admin/AdminPageHero';
 import AdminSegmentTabs from '@/components/admin/AdminSegmentTabs';
 import { normalizeTimeStrict } from '@/lib/time/normalize-time';
 import { isOperationalTeamContact } from '@/lib/escalas/team-contacts';
+import DeleteConfirmModal from '@/components/ui/DeleteConfirmModal';
+import BulkActionBar from '@/components/ui/BulkActionBar';
+import { useMultiSelect } from '@/hooks/useMultiSelect';
+import { useBulkDelete } from '@/hooks/useBulkDelete';
 
 function formatDateBR(value) {
   if (!value) return '-';
@@ -233,7 +237,7 @@ function getEventScaleStatus(card) {
   };
 }
 
-function EventScaleCard({ card }) {
+function EventScaleCard({ card, selected, onToggleSelect, onRequestDelete }) {
   const statusMeta = getEventScaleStatus(card);
   const dangerSoon = card.isUpcomingRisk;
   const progressText =
@@ -271,6 +275,17 @@ function EventScaleCard({ card }) {
         </div>
 
         <div className="flex flex-wrap gap-2 xl:max-w-[320px] xl:justify-end">
+          <label className="inline-flex items-center gap-2 text-[12px] font-black text-[#0f172a]">
+            <input type="checkbox" checked={!!selected} onChange={() => onToggleSelect?.(card.eventId)} />
+            Selecionar
+          </label>
+          <button
+            type="button"
+            onClick={() => onRequestDelete?.(card.eventId)}
+            className="rounded-[12px] border border-red-200 bg-red-50 px-3 py-2 text-[12px] font-black text-red-700"
+          >
+            Excluir escala
+          </button>
           <Pill>{progressText}</Pill>
           {card.pendentes > 0 ? <Pill tone="amber">{card.pendentes} pendente(s)</Pill> : null}
           {card.recusados > 0 ? <Pill tone="red">{card.recusados} recusa(s)</Pill> : null}
@@ -399,6 +414,9 @@ export default function EscalasPage() {
   const [eventos, setEventos] = useState([]);
   const [escalas, setEscalas] = useState([]);
   const [invites, setInvites] = useState([]);
+  const [deleteDialog, setDeleteDialog] = useState({ open: false, eventId: null });
+  const { selectedIds, selectedSet, clear, toggle, toggleAll } = useMultiSelect();
+  const { loading: deleting, run: runBulkDelete } = useBulkDelete();
   const loadingRef = useRef(false);
 
   const mobileTabs = [
@@ -677,7 +695,13 @@ export default function EscalasPage() {
     return (
       <div className="space-y-4">
         {cards.map((card) => (
-          <EventScaleCard key={card.eventId} card={card} />
+          <EventScaleCard
+            key={card.eventId}
+            card={card}
+            selected={selectedSet.has(String(card.eventId))}
+            onToggleSelect={toggle}
+            onRequestDelete={(eventId) => setDeleteDialog({ open: true, eventId })}
+          />
         ))}
       </div>
     );
@@ -846,6 +870,15 @@ export default function EscalasPage() {
             {erro}
           </div>
         ) : null}
+        {filteredCards.length > 0 ? (
+          <label className="inline-flex items-center gap-2 text-[12px] font-black text-[#0f172a]">
+            <input
+              type="checkbox"
+              onChange={() => toggleAll(filteredCards.map((item) => item.eventId))}
+            />
+            Selecionar escalas filtradas
+          </label>
+        ) : null}
 
         <div className="hidden md:block">
           <div className="rounded-[24px] border border-[#dbe3ef] bg-white p-2 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
@@ -1002,6 +1035,39 @@ export default function EscalasPage() {
           {mobileTab === 'convites' && renderConvites()}
         </div>
       </div>
+      <BulkActionBar
+        selectedCount={selectedIds.length}
+        label="escalas"
+        deleting={deleting}
+        onClear={clear}
+        onDelete={() => setDeleteDialog({ open: true, eventId: null })}
+      />
+      <DeleteConfirmModal
+        open={deleteDialog.open}
+        loading={deleting}
+        title={
+          deleteDialog.eventId
+            ? 'Excluir esta escala operacional?'
+            : `Excluir ${selectedIds.length} escalas selecionadas?`
+        }
+        description="Serão removidos os vínculos operacionais da escala e convites relacionados."
+        onCancel={() => setDeleteDialog({ open: false, eventId: null })}
+        onConfirm={async () => {
+          const targetIds = deleteDialog.eventId ? [deleteDialog.eventId] : selectedIds;
+          const result = await runBulkDelete({
+            endpoint: '/api/scales/delete-many',
+            idsKey: 'eventIds',
+            ids: targetIds,
+          });
+          if (result?.ok) {
+            const deleted = (result.success || []).map((item) => String(item.eventId));
+            setEscalas((prev) => prev.filter((item) => !deleted.includes(String(item.event_id))));
+            setInvites((prev) => prev.filter((item) => !deleted.includes(String(item.event_id))));
+            clear();
+          }
+          setDeleteDialog({ open: false, eventId: null });
+        }}
+      />
     </AdminShell>
   );
-} 
+}

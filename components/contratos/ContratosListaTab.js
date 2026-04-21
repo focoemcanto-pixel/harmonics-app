@@ -14,6 +14,9 @@ export default function ContratosListaTab({
   erro,
   onCopyLink,
   onDeleteContract,
+  selectedSet,
+  onToggleSelect,
+  onToggleAll,
 }) {
   return (
     <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_26px_rgba(17,24,39,0.04)] md:p-6">
@@ -53,6 +56,12 @@ export default function ContratosListaTab({
       ) : null}
 
       <div className="space-y-4">
+        {contratosFiltrados.length > 0 ? (
+          <label className="inline-flex items-center gap-2 text-[12px] font-black text-[#0f172a]">
+            <input type="checkbox" onChange={onToggleAll} />
+            Selecionar contratos filtrados
+          </label>
+        ) : null}
         {!carregando && contratosFiltrados.length === 0 ? (
           <div className="rounded-[20px] bg-[#f8fafc] px-4 py-5 text-[14px] font-semibold text-[#64748b]">
             Nenhum contrato encontrado.
@@ -66,6 +75,8 @@ export default function ContratosListaTab({
                 item={item}
                 onCopyLink={onCopyLink}
                 onDeleteContract={onDeleteContract}
+                selected={selectedSet?.has(String(item.precontractId))}
+                onToggleSelect={onToggleSelect}
               />
             ))
           : null}

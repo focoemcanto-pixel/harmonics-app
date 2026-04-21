@@ -1310,6 +1310,17 @@ const [receptivo, setReceptivo] = useState({
 const [desiredSongs, setDesiredSongs] = useState(initialState.desiredSongs || '');
 const [generalNotes, setGeneralNotes] = useState(initialState.generalNotes || '');
 
+  const normalizedAntesalaRequestStatus = String(antessala?.requestStatus || '')
+    .trim()
+    .toLowerCase();
+  const isAntesalaPending =
+    Boolean(antessala?.requestedByClient) &&
+    normalizedAntesalaRequestStatus === 'pending';
+  const isAntesalaApproved =
+    !isAntesalaPending &&
+    (normalizedAntesalaRequestStatus === 'approved' ||
+      (querAntessala === true && !Boolean(antessala?.requestedByClient)));
+
   const [showLocalDraftBanner, setShowLocalDraftBanner] = useState(false);
   const [savingMode, setSavingMode] = useState('');
   const [draftHydrated, setDraftHydrated] = useState(false);
@@ -1982,7 +1993,7 @@ function buildItemsPayload() {
 function buildConfigPayload() {
   const exitReferenceFields = normalizeReferenceFields(saida);
   const antesalaRequestedByClient = Boolean(antessala?.requestedByClient);
-  const antesalaIncluded = querAntessala === true || antesalaRequestedByClient;
+  const antesalaIncluded = !antesalaRequestedByClient && querAntessala === true;
   const mergedGenres =
     antessala.generos ||
     (Array.isArray(antessala.styleTags) ? antessala.styleTags.join(', ') : '');
@@ -2026,7 +2037,6 @@ async function saveRepertorio(mode = 'draft') {
     console.log('[TRACE][CORTEJO][PAYLOAD]', pickTracePayloadItem(builtItemsPayload, 'cortejo'));
     console.log('[TRACE][CERIMONIA][PAYLOAD]', pickTracePayloadItem(builtItemsPayload, 'cerimonia'));
     const antesalaRequestedByClient = Boolean(antessala?.requestedByClient);
-    const antesalaIncluded = !antesalaRequestedByClient && querAntessala === true;
 
     const payload = {
       token: data.repertorio?.repertoireToken || data.token,
@@ -2036,7 +2046,7 @@ async function saveRepertorio(mode = 'draft') {
       config: buildConfigPayload(),
       items: builtItemsPayload,
       antesalaFlow: {
-        included: querAntessala === true || Boolean(antessala?.requestedByClient),
+        included: !antesalaRequestedByClient && querAntessala === true,
         durationMinutes: Number(antessala.durationMinutes || 0) || null,
         requestedByClient: Boolean(antessala.requestedByClient),
         requestStatus: Boolean(antessala.requestedByClient) ? 'pending' : null,
@@ -2051,7 +2061,7 @@ async function saveRepertorio(mode = 'draft') {
         durationMinutes: Number(antessala?.durationMinutes || 0) || null,
         quoteMinutes: Number(antessala?.quoteMinutes || 0) || null,
         quotePriceIncrement: Number(antessala?.quotePriceIncrement || 0) || 0,
-        included: querAntessala === true || Boolean(antessala?.requestedByClient),
+        included: !Boolean(antessala?.requestedByClient) && querAntessala === true,
         priceIncrement: Number(antessala?.quotePriceIncrement || 0) || 0,
       });
       console.log('[ANTESALA][POST_BODY]', {
@@ -2539,7 +2549,7 @@ async function handleRequestReview() {
                 onClick={() => setAntessalaWithLog((prev) => ({ ...prev, requestQuoteOpened: !prev.requestQuoteOpened }), 'toggleAntesalaQuote')}
                 className="w-full rounded-[16px] border border-[#d9c8f7] bg-[#fcfbff] px-4 py-3 text-[14px] font-black text-violet-700"
               >
-                Orçar antesala
+                Solicitar orçamento de antesala
               </button>
             ) : null}
             {antessala.requestQuoteOpened ? (
@@ -2556,6 +2566,7 @@ async function handleRequestReview() {
                           quoteMinutes: option.minutes,
                           quotePriceIncrement: option.price,
                           requestedByClient: true,
+                          requestStatus: 'pending',
                           requestQuoteOpened: false,
                           durationMinutes: option.minutes,
                         }), 'requestAntesalaQuoteOption')
@@ -2572,13 +2583,13 @@ async function handleRequestReview() {
           </div>
         ) : null}
 
-        {antessala.requestedByClient ? (
+        {isAntesalaPending ? (
           <div className="mt-4 rounded-[16px] border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] font-bold text-amber-700">
             Antesala solicitada • aguardando confirmação
           </div>
         ) : null}
 
-        {querAntessala === true ? (
+        {isAntesalaApproved ? (
           <div className="mt-4 rounded-[16px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-[13px] font-bold text-emerald-700">
             Antesala incluída • {ANTESALA_DURATION_OPTIONS.find((item) => item.minutes === Number(antessala.durationMinutes || 30))?.label || '30 min'}
           </div>
@@ -2822,10 +2833,10 @@ async function handleRequestReview() {
   icon="🎶"
   label="Antessala"
   value={
-    querAntessala === true
-      ? `Incluída • ${ANTESALA_DURATION_OPTIONS.find((item) => item.minutes === Number(antessala.durationMinutes || 30))?.label || '30 min'}`
-      : antessala.requestedByClient
+    isAntesalaPending
       ? 'Solicitada • aguardando confirmação'
+      : isAntesalaApproved
+      ? `Incluída • ${ANTESALA_DURATION_OPTIONS.find((item) => item.minutes === Number(antessala.durationMinutes || 30))?.label || '30 min'}`
       : querAntessala === false
       ? 'Sem antesala'
       : 'Não definido'

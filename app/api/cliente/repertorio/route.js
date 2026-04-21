@@ -185,8 +185,7 @@ function buildEventAntesalaUpdatePayload({
   };
 }
 
-function resolveAntesalaRequestStatus({ antesalaIncluded, antesalaRequestedByClient }) {
-  if (antesalaRequestedByClient) return 'pending';
+function resolveAntesalaRequestStatus({ antesalaIncluded }) {
   if (antesalaIncluded) return 'approved';
   return null;
 }
@@ -280,14 +279,6 @@ function buildRepertoireSummary(items = []) {
   const hasSaida = items.some((item) => item.section === 'saida');
 
   return `Cortejo: ${cortejo} | Cerimônia: ${cerimonia} | Saída: ${hasSaida ? 'sim' : 'não'}`;
-}
-
-function formatDurationLabel(minutes) {
-  const value = Number(minutes || 0);
-  if (!value) return 'Não definido';
-  if (value === 30) return '30 min';
-  if (value % 60 === 0) return `${value / 60}h`;
-  return `${value} min`;
 }
 
 async function findLatestRepertoireTokenByEvent(supabase, eventId) {
@@ -554,53 +545,15 @@ export async function POST(request) {
       configPayload.repertoire_pdf_url = `/api/cliente/repertorio/pdf/${tokenRow.token}`;
     }
 
-    const requestedByClientFromPayload = normalizeBool(antesalaFlow.requestedByClient);
     const antesalaIncludedFromPayload = normalizeBool(antesalaFlow.included);
-    const antesalaIncluded = requestedByClientFromPayload
-      ? false
-      : antesalaIncludedFromPayload;
+    const antesalaIncluded = antesalaIncludedFromPayload;
     const durationFromPayload = Number(antesalaFlow.durationMinutes || 0) || null;
-    const priceIncrementFromPayload = Number(antesalaFlow.priceIncrement || 0) || 0;
-
-    const { data: currentEventBeforeRoom, error: currentEventBeforeRoomError } = await supabase
-      .from('events')
-      .select(
-        'antesala_requested_by_client, antesala_request_status, antesala_duration_minutes, antesala_price_increment'
-      )
-      .eq('id', eventId)
-      .maybeSingle();
-
-    if (currentEventBeforeRoomError) throw currentEventBeforeRoomError;
-
-    const preservePendingBeforeRoomRequest =
-      !antesalaIncluded &&
-      !requestedByClientFromPayload &&
-      Boolean(currentEventBeforeRoom?.antesala_requested_by_client);
-    const antesalaRequestedByClient = preservePendingBeforeRoomRequest
-      ? true
-      : requestedByClientFromPayload;
-    const antesalaDurationMinutes =
-      durationFromPayload ||
-      (preservePendingBeforeRoomRequest
-        ? Number(currentEventBeforeRoom?.antesala_duration_minutes || 0) || null
-        : null);
-    const antesalaPriceIncrement =
-      priceIncrementFromPayload ||
-      (preservePendingBeforeRoomRequest
-        ? Number(currentEventBeforeRoom?.antesala_price_increment || 0) || 0
-        : 0);
+    const antesalaRequestedByClient = false;
+    const antesalaDurationMinutes = antesalaIncluded ? durationFromPayload : null;
+    const antesalaPriceIncrement = 0;
     const antesalaRequestStatus = resolveAntesalaRequestStatus({
       antesalaIncluded,
-      antesalaRequestedByClient,
     });
-    const shouldNotifyBeforeRoomRequest =
-      antesalaRequestedByClient &&
-      !(
-        Boolean(currentEventBeforeRoom?.antesala_requested_by_client) &&
-        String(currentEventBeforeRoom?.antesala_request_status || '')
-          .trim()
-          .toLowerCase() === 'pending'
-      );
 
     const primaryEventPayload = buildEventAntesalaUpdatePayload({
       antesalaIncluded,
@@ -867,43 +820,6 @@ export async function POST(request) {
         await sendAdminWhatsAppAlert(alertMessage);
       } catch (whatsappError) {
         console.error('[API REPERTORIO] Não foi possível enviar alerta WhatsApp para admin:', whatsappError);
-      }
-    }
-
-    if (shouldNotifyBeforeRoomRequest) {
-      const { data: eventRow, error: eventBeforeRoomError } = await supabase
-        .from('events')
-        .select('client_name, event_date, formation')
-        .eq('id', eventId)
-        .maybeSingle();
-
-      if (eventBeforeRoomError) throw eventBeforeRoomError;
-
-      const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_BASE_URL || '';
-      const adminEventPath = `/eventos/${eventId}`;
-      const adminEventUrl = appBaseUrl ? `${appBaseUrl}${adminEventPath}` : adminEventPath;
-
-      const beforeRoomAlert = [
-        'Novo pedido de antesala',
-        '',
-        `Evento: CLIENT_REQUEST_ANTESALA`,
-        `Cliente: ${eventRow?.client_name || 'Cliente'}`,
-        `Evento: ${formatDateBR(eventRow?.event_date)}`,
-        `Formação: ${eventRow?.formation || 'Não definida'}`,
-        '',
-        'Solicitou:',
-        `Antesala - ${formatDurationLabel(antesalaDurationMinutes)}`,
-        adminEventUrl ? `Abrir evento: ${adminEventUrl}` : null,
-        '',
-        'Aguardando validação.',
-      ]
-        .filter(Boolean)
-        .join('\n');
-
-      try {
-        await sendAdminWhatsAppAlert(beforeRoomAlert);
-      } catch (whatsappError) {
-        console.error('[API REPERTORIO] Não foi possível enviar alerta de solicitação de antesala:', whatsappError);
       }
     }
 

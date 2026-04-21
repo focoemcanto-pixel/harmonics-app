@@ -1,6 +1,18 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 
+const CANONICAL_ROLES = new Set(['admin', 'member']);
+
+function normalizeRoleValue(value) {
+  const role = String(value || '').trim().toLowerCase();
+
+  if (role === 'administrador') return 'admin';
+  if (role === 'membro') return 'member';
+  if (CANONICAL_ROLES.has(role)) return role;
+
+  return 'member';
+}
+
 export async function POST(request) {
   try {
     const body = await request.json();
@@ -13,6 +25,17 @@ export async function POST(request) {
       );
     }
 
+    const normalizedRole = normalizeRoleValue(role);
+    console.info('[ADMIN_USERS][CREATE_SUBMIT]', {
+      email,
+      name,
+      requestedRole: role,
+    });
+    console.info('[ADMIN_USERS][NORMALIZED_ROLE]', {
+      requestedRole: role,
+      normalizedRole,
+    });
+
     const supabase = getSupabaseAdmin();
 
     // Create user via Admin API (server-side only)
@@ -21,7 +44,11 @@ export async function POST(request) {
       email_confirm: true,
       user_metadata: {
         name,
-        role,
+        role: normalizedRole,
+        access_type: normalizedRole,
+        profile_type: normalizedRole,
+        user_type: normalizedRole,
+        is_admin: normalizedRole === 'admin',
       },
     });
 
@@ -47,7 +74,7 @@ export async function POST(request) {
         id: userId,
         email,
         name,
-        role,
+        role: normalizedRole,
       });
 
     if (profileError) {
@@ -57,8 +84,17 @@ export async function POST(request) {
       );
     }
 
+    console.info('[ADMIN_USERS][CREATE_RESULT]', {
+      ok: true,
+      userId,
+      role: normalizedRole,
+    });
     return NextResponse.json({ ok: true, userId });
   } catch (error) {
+    console.error('[ADMIN_USERS][CREATE_RESULT]', {
+      ok: false,
+      message: error?.message || 'Erro interno do servidor',
+    });
     console.error('Erro ao criar usuário:', error);
     return NextResponse.json(
       { error: error?.message || 'Erro interno do servidor' },

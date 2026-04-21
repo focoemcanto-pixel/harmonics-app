@@ -14,7 +14,6 @@ import AdminEventCard from '@/components/admin/AdminEventCard';
 import { Field, Input, Select } from '@/components/admin/AdminFormPrimitives';
 import Pill from '@/components/admin/AdminPill';
 import { useAppToast } from '@/components/ui/ToastProvider';
-import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
 import EventosOperacaoTab from '@/components/eventos/EventosOperacaoTab';
 import EventosResumoTab from '@/components/eventos/EventosResumoTab';
 import EventosPricingTab from '@/components/eventos/EventosPricingTab';
@@ -255,8 +254,54 @@ function DeleteEventDialog({
   );
 }
 
+function BulkDeleteDialog({
+  open,
+  quantity,
+  loading = false,
+  onCancel,
+  onConfirm,
+}) {
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#020617]/45 px-4">
+      <div className="w-full max-w-xl rounded-[24px] border border-[#e2e8f0] bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.24)]">
+        <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#ef4444]">
+          Exclusão em massa
+        </p>
+        <h3 className="mt-2 text-[24px] font-black text-[#0f172a]">
+          Excluir {quantity} evento(s) selecionado(s)?
+        </h3>
+        <p className="mt-2 text-[14px] text-[#475569]">
+          Esta ação remove os eventos e seus vínculos operacionais (contratos, pré-contratos,
+          pagamentos, convites, escala e repertório). É uma ação definitiva.
+        </p>
+        <div className="mt-6 flex flex-wrap justify-end gap-3">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={loading}
+            className="rounded-[14px] border border-[#dbe3ef] bg-white px-4 py-2 text-[13px] font-black text-[#0f172a]"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={loading}
+            className="rounded-[14px] bg-red-600 px-4 py-2 text-[13px] font-black text-white disabled:cursor-not-allowed disabled:opacity-70"
+          >
+            {loading ? 'Excluindo eventos...' : 'Confirmar exclusão em massa'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function EventosPage() {
   const router = useRouter();
+  const toast = useAppToast();
   const [eventos, setEventos] = useState([]);
   const [editandoId, setEditandoId] = useState(null);
   const [salvando, setSalvando] = useState(false);
@@ -273,6 +318,9 @@ export default function EventosPage() {
   const [gerandoContratoId, setGerandoContratoId] = useState(null);
   const [excluindoEventoId, setExcluindoEventoId] = useState(null);
   const [feedback, setFeedback] = useState(null);
+  const [selectedEventIds, setSelectedEventIds] = useState([]);
+  const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const [deleteDialog, setDeleteDialog] = useState({
     open: false,
     eventId: null,
@@ -473,6 +521,11 @@ export default function EventosPage() {
       setMonthFilter('all');
     }
   }, [viewMode, monthFilter]);
+
+  useEffect(() => {
+    const existingIds = new Set(eventos.map((ev) => String(ev.id)));
+    setSelectedEventIds((prev) => prev.filter((id) => existingIds.has(String(id))));
+  }, [eventos]);
 
   function handleFormChange(field, value) {
     setForm((prev) => ({
@@ -866,6 +919,133 @@ export default function EventosPage() {
     });
   }
 
+  function toggleEventoSelecionado(eventId, checked) {
+    const normalizedId = String(eventId || '').trim();
+    if (!normalizedId) return;
+
+    setSelectedEventIds((prev) => {
+      const set = new Set(prev.map((id) => String(id)));
+      if (checked) set.add(normalizedId);
+      else set.delete(normalizedId);
+      return Array.from(set);
+    });
+  }
+
+  function toggleSelecionarTodosVisiveis(checked) {
+    setSelectedEventIds((prev) => {
+      const set = new Set(prev.map((id) => String(id)));
+      for (const eventId of visibleEventIds) {
+        if (checked) set.add(String(eventId));
+        else set.delete(String(eventId));
+      }
+      return Array.from(set);
+    });
+  }
+
+  function limparSelecaoEventos() {
+    setSelectedEventIds([]);
+  }
+
+  function abrirConfirmacaoExclusaoEmMassa() {
+    if (selectedEventIds.length === 0) return;
+    console.info('[EVENT_BULK_DELETE][OPEN_CONFIRM]', {
+      selectedCount: selectedEventIds.length,
+      selectedIds: selectedEventIds,
+    });
+    setBulkDeleteDialogOpen(true);
+  }
+
+  async function confirmarExclusaoEmMassa() {
+    if (selectedEventIds.length === 0) {
+      setBulkDeleteDialogOpen(false);
+      return;
+    }
+
+    const targetIds = [...selectedEventIds];
+    console.info('[EVENT_BULK_DELETE][REQUEST_START]', {
+      selectedCount: targetIds.length,
+      eventIds: targetIds,
+    });
+
+    setBulkDeleting(true);
+    try {
+      const response = await fetch('/api/events/bulk-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventIds: targetIds }),
+      });
+      const result = await response.json();
+
+      if (!response.ok || !result?.ok) {
+        throw new Error(result?.error || 'Não foi possível excluir os eventos selecionados.');
+      }
+
+      const deletedIds = (result.success || []).map((item) => String(item.eventId || ''));
+      const failedItems = Array.isArray(result.failed) ? result.failed : [];
+      const failedIds = failedItems.map((item) => String(item.eventId || '')).filter(Boolean);
+
+      for (const item of result.success || []) {
+        console.info('[EVENT_BULK_DELETE][ITEM_SUCCESS]', {
+          eventId: item?.eventId,
+          eventName: item?.eventName || null,
+        });
+      }
+
+      for (const item of failedItems) {
+        console.error('[EVENT_BULK_DELETE][ITEM_ERROR]', {
+          eventId: item?.eventId,
+          error: item?.error || 'delete_failed',
+        });
+      }
+
+      if (deletedIds.length > 0) {
+        setEventos((prev) => prev.filter((item) => !deletedIds.includes(String(item.id))));
+      }
+
+      await Promise.allSettled([carregarEventos(), carregarPrecontracts(), carregarContracts()]);
+      console.info('[EVENT_BULK_DELETE][POST_RELOAD]', {
+        deletedCount: deletedIds.length,
+        failedCount: failedIds.length,
+      });
+
+      if (failedIds.length > 0) {
+        setSelectedEventIds(failedIds);
+        setFeedback({
+          type: deletedIds.length > 0 ? 'info' : 'error',
+          title: deletedIds.length > 0 ? 'Exclusão parcial concluída' : 'Falha na exclusão em massa',
+          message: `${deletedIds.length} evento(s) excluído(s) e ${failedIds.length} com falha. Revise os logs técnicos e tente novamente.`,
+        });
+      } else {
+        limparSelecaoEventos();
+        setFeedback({
+          type: 'success',
+          title: 'Exclusão em massa concluída',
+          message: `${deletedIds.length} evento(s) foram excluídos com sucesso.`,
+        });
+      }
+
+      console.info('[EVENT_BULK_DELETE][SUMMARY]', {
+        requested: result?.requested || targetIds.length,
+        deletedCount: deletedIds.length,
+        failedCount: failedIds.length,
+        failedIds,
+      });
+    } catch (error) {
+      console.error('[EVENT_BULK_DELETE][SUMMARY]', {
+        requested: targetIds.length,
+        error: error?.message,
+      });
+      setFeedback({
+        type: 'error',
+        title: 'Erro na exclusão em massa',
+        message: error?.message || 'Não foi possível concluir a exclusão em massa.',
+      });
+    } finally {
+      setBulkDeleting(false);
+      setBulkDeleteDialogOpen(false);
+    }
+  }
+
   async function excluirEvento(id) {
     console.info('[EVENT_DELETE][CONFIRMED]', { eventId: id });
     console.info('[EVENT_DELETE][REQUEST_START]', { eventId: id });
@@ -1047,6 +1227,24 @@ export default function EventosPage() {
 
     return lista;
   }, [eventos, viewMode, monthFilter, sortMode, busca]);
+
+  const selectedEventIdsSet = useMemo(
+    () => new Set(selectedEventIds.map((id) => String(id))),
+    [selectedEventIds]
+  );
+
+  const visibleEventIds = useMemo(
+    () => eventosFiltrados.map((ev) => String(ev.id)),
+    [eventosFiltrados]
+  );
+
+  const selectedVisibleCount = useMemo(
+    () => visibleEventIds.filter((id) => selectedEventIdsSet.has(id)).length,
+    [visibleEventIds, selectedEventIdsSet]
+  );
+
+  const allVisibleSelected =
+    visibleEventIds.length > 0 && selectedVisibleCount === visibleEventIds.length;
 
   const contractsByEventId = useMemo(() => {
     const map = new Map();
@@ -1264,6 +1462,41 @@ export default function EventosPage() {
           </Select>
         </div>
 
+        <div className="mb-5 flex flex-col gap-3 rounded-[20px] border border-[#dbe3ef] bg-[#f8fafc] p-4 md:flex-row md:items-center md:justify-between">
+          <label className="inline-flex items-center gap-3 text-[13px] font-black text-[#334155]">
+            <input
+              type="checkbox"
+              checked={allVisibleSelected}
+              onChange={(event) => toggleSelecionarTodosVisiveis(event.target.checked)}
+              className="h-4 w-4 rounded border-[#cbd5e1] text-violet-600 focus:ring-violet-500"
+            />
+            Selecionar todos os visíveis ({eventosFiltrados.length})
+          </label>
+
+          {selectedEventIds.length > 0 ? (
+            <div className="flex flex-wrap items-center gap-2 md:justify-end">
+              <span className="rounded-[14px] bg-white px-3 py-2 text-[12px] font-black text-[#334155]">
+                {selectedEventIds.length} selecionado(s)
+              </span>
+              <button
+                type="button"
+                onClick={limparSelecaoEventos}
+                className="rounded-[14px] border border-[#dbe3ef] bg-white px-3 py-2 text-[12px] font-black text-[#0f172a]"
+              >
+                Limpar seleção
+              </button>
+              <button
+                type="button"
+                onClick={abrirConfirmacaoExclusaoEmMassa}
+                disabled={bulkDeleting}
+                className="rounded-[14px] bg-red-600 px-3 py-2 text-[12px] font-black text-white shadow-[0_10px_22px_rgba(220,38,38,0.22)] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Excluir selecionados
+              </button>
+            </div>
+          ) : null}
+        </div>
+
         <div className="space-y-4">
           {eventosFiltrados.length === 0 ? (
             <div className="rounded-[20px] bg-[#f8fafc] px-4 py-5 text-[14px] font-semibold text-[#64748b]">
@@ -1316,6 +1549,9 @@ export default function EventosPage() {
   onCopyContractLink={() => copiarLinkContrato(ev)}
   gerandoContrato={gerandoContratoId === ev.id}
   excluindo={excluindoEventoId === ev.id}
+  selectable
+  selected={selectedEventIdsSet.has(String(ev.id))}
+  onToggleSelect={(checked) => toggleEventoSelecionado(ev.id, checked)}
 />
               );
             })
@@ -1362,6 +1598,13 @@ export default function EventosPage() {
           }
           onCancel={cancelarSolicitacaoExclusao}
           onConfirm={() => excluirEvento(deleteDialog.eventId)}
+        />
+        <BulkDeleteDialog
+          open={bulkDeleteDialogOpen}
+          quantity={selectedEventIds.length}
+          loading={bulkDeleting}
+          onCancel={() => setBulkDeleteDialogOpen(false)}
+          onConfirm={confirmarExclusaoEmMassa}
         />
         <AdminPageHero
           badge="Harmonics Admin"

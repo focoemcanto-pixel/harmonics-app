@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 
 export default function ProtectedRoute({ children, requiredRole = null }) {
-  const { user, profile, loading, initialized, authError } = useAuth();
+  const { user, profile, loading, initialized, authError, profileResolved } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const redirectingRef = useRef(false);
@@ -21,6 +21,14 @@ export default function ProtectedRoute({ children, requiredRole = null }) {
       console.info('[ProtectedRoute] bloqueado: sem sessão', { pathname });
       redirectingRef.current = true;
       router.replace('/login');
+      return;
+    }
+
+    if (requiredRole && !profileResolved) {
+      console.info('[ProtectedRoute] aguardando perfil para validação de role', {
+        pathname,
+        requiredRole,
+      });
       return;
     }
 
@@ -40,7 +48,7 @@ export default function ProtectedRoute({ children, requiredRole = null }) {
       role: currentRole,
       requiredRole,
     });
-  }, [initialized, loading, user, profile, requiredRole, router, pathname]);
+  }, [initialized, loading, user, profile, requiredRole, router, pathname, profileResolved]);
 
   useEffect(() => {
     if (!loading) {
@@ -48,7 +56,7 @@ export default function ProtectedRoute({ children, requiredRole = null }) {
     }
   }, [loading]);
 
-  if (!initialized || loading) {
+  if (!initialized || loading || (requiredRole && user && !profileResolved)) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <div className="text-center">
@@ -72,7 +80,7 @@ export default function ProtectedRoute({ children, requiredRole = null }) {
     );
   }
 
-  if (!user || (requiredRole && profile?.role !== requiredRole)) {
+  if (!user || (requiredRole && profileResolved && profile?.role !== requiredRole)) {
     return null;
   }
 

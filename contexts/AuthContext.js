@@ -11,6 +11,7 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [initialized, setInitialized] = useState(false);
   const [authError, setAuthError] = useState(null);
+  const [profileResolved, setProfileResolved] = useState(false);
   const sessionFlowRef = useRef(Promise.resolve());
   const isMountedRef = useRef(false);
   const bootstrapResolvedRef = useRef(false);
@@ -33,6 +34,7 @@ export function AuthProvider({ children }) {
 
       setUser(user);
       setProfile(data);
+      setProfileResolved(true);
       setAuthError(null);
       console.info('[Auth] perfil resolvido', {
         userId: user?.id || null,
@@ -42,6 +44,7 @@ export function AuthProvider({ children }) {
       console.error('Erro ao carregar perfil:', error);
       setUser(user);
       setProfile(null);
+      setProfileResolved(true);
       // Falha de perfil não deve bloquear a liberação da sessão
     }
   }, []);
@@ -49,11 +52,13 @@ export function AuthProvider({ children }) {
   const applySessionState = useCallback((session) => {
     if (session?.user) {
       setUser(session.user);
+      setProfileResolved(false);
       return session.user;
     }
 
     setUser(null);
     setProfile(null);
+    setProfileResolved(true);
     return null;
   }, []);
 
@@ -88,6 +93,7 @@ export function AuthProvider({ children }) {
         if (sessionUser) {
           loadProfile(sessionUser).catch((error) => {
             console.warn('[Auth] perfil indisponível no bootstrap, liberando app sem perfil:', error);
+            setProfileResolved(true);
           });
         }
       })
@@ -221,6 +227,7 @@ export function AuthProvider({ children }) {
     user,
     profile,
     role: profile?.role || null,
+    profileResolved,
     loading,
     initialized,
     authError,

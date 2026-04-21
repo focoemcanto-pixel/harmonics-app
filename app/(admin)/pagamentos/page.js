@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import AdminShell from '@/components/admin/AdminShell';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import AdminPageHero from '@/components/admin/AdminPageHero';
@@ -133,11 +134,18 @@ function resolvePreviewDetails(proofReference) {
     supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
   });
 
-  console.log('[PAYMENT_PROOF][PREVIEW_BUCKET]', preview.bucket);
-  console.log('[PAYMENT_PROOF][PREVIEW_PATH]', preview.path);
-  console.log('[PAYMENT_PROOF][PREVIEW_URL]', preview.url);
+  console.log('[ADMIN_PAYMENT_PROOF][PREVIEW_URL]', {
+    bucket: preview.bucket,
+    path: preview.path,
+    url: preview.url,
+  });
 
   return preview.url;
+}
+
+function isRejectedStatus(status) {
+  const raw = String(status || '').trim().toLowerCase();
+  return ['rejected', 'rejeitado', 'cancelado', 'cancelled', 'canceled'].includes(raw);
 }
 
 export default function PagamentosPage() {
@@ -149,6 +157,7 @@ export default function PagamentosPage() {
 }
 
 function PagamentosPageContent() {
+  const searchParams = useSearchParams();
   const [events, setEvents] = useState([]);
   const [payments, setPayments] = useState([]);
   const [carregando, setCarregando] = useState(true);
@@ -158,7 +167,9 @@ function PagamentosPageContent() {
   const [statusFiltro, setStatusFiltro] = useState('todos');
   const [somentePendentes, setSomentePendentes] = useState(false);
   const [historicoAbertoId, setHistoricoAbertoId] = useState(null);
+  const [historicoSelecionadoId, setHistoricoSelecionadoId] = useState(null);
   const [proofPreviewUrl, setProofPreviewUrl] = useState('');
+  const [processingAction, setProcessingAction] = useState('');
 
   async function carregarTudo() {
     const [eventsRes, paymentsRes] = await Promise.all([
@@ -200,20 +211,18 @@ function PagamentosPageContent() {
   }, []);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const params = new URLSearchParams(window.location.search);
-    const evento = params.get('evento');
-    const historico = params.get('historico');
-    if (evento) {
-      setHistoricoAbertoId(String(evento));
-    }
+    const historico = searchParams.get('historico');
     if (historico) {
       const target = payments.find((entry) => String(entry.id) === String(historico));
+      if (target?.event_id) {
+        setHistoricoAbertoId(String(target.event_id));
+      }
+      setHistoricoSelecionadoId(String(historico));
       if (target?.proof_file_url) {
         setProofPreviewUrl(resolvePreviewDetails(target.proof_file_url));
       }
     }
-  }, [payments]);
+  }, [payments, searchParams]);
 
   useEffect(() => {
     for (const entry of payments) {
@@ -226,6 +235,113 @@ function PagamentosPageContent() {
       }
     }
   }, [payments]);
+
+  const entrySelecionado = useMemo(() => {
+    if (!historicoSelecionadoId) return null;
+    return payments.find((entry) => String(entry.id) === String(historicoSelecionadoId)) || null;
+  }, [historicoSelecionadoId, payments]);
+  const entrySelecionadoPreviewUrl = useMemo(() => {
+    if (!entrySelecionado?.proof_file_url) return '';
+    return resolvePreviewDetails(entrySelecionado.proof_file_url);
+  }, [entrySelecionado]);
+
+  async function atualizarResumoEvento(eventId) {
+    const eventRef = String(eventId || '');
+    if (!eventRef) return;
+
+    const [eventRes, paymentsRes] = await Promise.all([
+      supabase.from('events').select('id, agreed_amount').eq('id', eventRef).single(),
+      supabase.from('payments').select('amount, status').eq('event_id', eventRef),
+    ]);
+
+    if (eventRes.error) throw eventRes.error;
+    if (paymentsRes.error) throw paymentsRes.error;
+
+    const agreedAmount = toNumber(eventRes.data?.agreed_amount);
+    const paidAmount = (paymentsRes.data || []).reduce((acc, item) => {
+      if (isRejectedStatus(item?.status)) return acc;
+      return acc + toNumber(item?.amount);
+    }, 0);
+    const openAmount = Math.max(agreedAmount - paidAmount, 0);
+    const paymentStatus = openAmount <= 0 && agreedAmount > 0 ? 'Pago' : paidAmount > 0 ? 'Parcial' : 'Pendente';
+
+    const { error: updateError } = await supabase
+      .from('events')
+      .update({
+        paid_amount: paidAmount,
+        open_amount: openAmount,
+        payment_status: paymentStatus,
+      })
+      .eq('id', eventRef);
+
+    if (updateError) throw updateError;
+  }
+
+  async function atualizarStatusComprovante(entry, nextStatus) {
+    if (!entry?.id || !nextStatus) return;
+
+    try {
+      setProcessingAction(`${entry.id}:${nextStatus}`);
+      const { data, error } = await supabase
+        .from('payments')
+        .update({
+          status: nextStatus,
+          notes: [entry.notes, `Decisão admin (${new Date().toISOString()}): ${nextStatus}`]
+            .filter(Boolean)
+            .join(' | '),
+        })
+        .eq('id', entry.id)
+        .select('id, event_id, status')
+        .single();
+
+      if (error) throw error;
+
+      await atualizarResumoEvento(entry.event_id);
+      await carregarTudo();
+
+      const logPayload = {
+        paymentId: entry.id,
+        eventId: entry.event_id,
+        status: data?.status || nextStatus,
+        ok: true,
+      };
+
+      if (nextStatus === 'confirmado') {
+        console.log('[ADMIN_PAYMENT_PROOF][APPROVE_RESULT]', logPayload);
+      } else {
+        console.log('[ADMIN_PAYMENT_PROOF][REJECT_RESULT]', logPayload);
+      }
+
+      setFeedback({
+        type: 'success',
+        title: 'Comprovante atualizado',
+        message:
+          nextStatus === 'confirmado'
+            ? 'Comprovante aprovado e financeiro atualizado.'
+            : 'Comprovante rejeitado e financeiro atualizado.',
+      });
+    } catch (error) {
+      const logPayload = {
+        paymentId: entry?.id || null,
+        eventId: entry?.event_id || null,
+        status: nextStatus,
+        ok: false,
+        error: error?.message || String(error),
+      };
+      if (nextStatus === 'confirmado') {
+        console.error('[ADMIN_PAYMENT_PROOF][APPROVE_RESULT]', logPayload);
+      } else {
+        console.error('[ADMIN_PAYMENT_PROOF][REJECT_RESULT]', logPayload);
+      }
+      setFeedback({
+        type: 'error',
+        title: 'Falha ao atualizar comprovante',
+        message: 'Não foi possível salvar a decisão no momento.',
+      });
+    } finally {
+      setProcessingAction('');
+    }
+  }
 
   const paymentsByEventId = useMemo(() => {
     const map = new Map();
@@ -624,6 +740,14 @@ function PagamentosPageContent() {
                                           Ver comprovante
                                         </button>
                                       ) : null}
+
+                                      <button
+                                        type="button"
+                                        onClick={() => setHistoricoSelecionadoId(String(entry.id))}
+                                        className="rounded-full border border-[#dbe3ef] bg-white px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-[#0f172a]"
+                                      >
+                                        Validar comprovante
+                                      </button>
                                     </div>
                                   </div>
                                 </div>
@@ -669,6 +793,74 @@ function PagamentosPageContent() {
               title="Preview do comprovante"
               className="h-[70vh] w-full rounded-[14px] border border-[#e2e8f0]"
             />
+          </div>
+        </div>
+      ) : null}
+
+      {entrySelecionado ? (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/55 p-4">
+          <div className="w-full max-w-2xl rounded-[20px] bg-white p-5 shadow-2xl">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <div className="text-sm font-black uppercase tracking-[0.08em] text-[#64748b]">
+                  Lançamento #{entrySelecionado.id}
+                </div>
+                <div className="text-lg font-black text-[#0f172a]">Validação de comprovante</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setHistoricoSelecionadoId(null)}
+                className="rounded-[12px] border border-[#dbe3ef] px-3 py-2 text-xs font-black text-[#0f172a]"
+              >
+                Fechar
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 text-[14px] text-[#334155] md:grid-cols-2">
+              <div><strong>Valor:</strong> {formatMoney(entrySelecionado.amount)}</div>
+              <div><strong>Data:</strong> {entrySelecionado.payment_date ? formatDateBR(entrySelecionado.payment_date) : '-'}</div>
+              <div><strong>Forma:</strong> {formatPaymentMethod(entrySelecionado.payment_method)}</div>
+              <div><strong>Status:</strong> {normalizeEntryStatus(entrySelecionado.status)}</div>
+            </div>
+            <div className="mt-3 text-[14px] text-[#334155]">
+              <strong>Observação:</strong> {entrySelecionado.notes || '-'}
+            </div>
+
+            {entrySelecionadoPreviewUrl ? (
+              <div className="mt-4">
+                <div className="mb-2 text-xs font-black uppercase tracking-[0.08em] text-[#64748b]">
+                  Preview do comprovante
+                </div>
+                <iframe
+                  src={entrySelecionadoPreviewUrl}
+                  title={`Comprovante ${entrySelecionado.id}`}
+                  className="h-[320px] w-full rounded-[14px] border border-[#e2e8f0]"
+                />
+              </div>
+            ) : (
+              <div className="mt-4 rounded-[14px] border border-[#e2e8f0] bg-[#f8fafc] px-4 py-3 text-sm text-[#64748b]">
+                Nenhum comprovante anexado.
+              </div>
+            )}
+
+            <div className="mt-5 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => atualizarStatusComprovante(entrySelecionado, 'confirmado')}
+                disabled={Boolean(processingAction)}
+                className="rounded-[14px] bg-emerald-600 px-4 py-3 text-sm font-black text-white disabled:opacity-50"
+              >
+                {processingAction === `${entrySelecionado.id}:confirmado` ? 'Aprovando...' : 'Aprovar comprovante'}
+              </button>
+              <button
+                type="button"
+                onClick={() => atualizarStatusComprovante(entrySelecionado, 'cancelado')}
+                disabled={Boolean(processingAction)}
+                className="rounded-[14px] bg-red-600 px-4 py-3 text-sm font-black text-white disabled:opacity-50"
+              >
+                {processingAction === `${entrySelecionado.id}:cancelado` ? 'Rejeitando...' : 'Rejeitar comprovante'}
+              </button>
+            </div>
           </div>
         </div>
       ) : null}

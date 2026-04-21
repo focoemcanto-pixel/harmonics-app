@@ -225,8 +225,8 @@ export async function POST(request) {
 
     const appBaseUrl = resolveAppBaseUrl(request);
     const adminPaymentsLink = appBaseUrl
-      ? `${appBaseUrl}/pagamentos?evento=${eventId}&historico=${insertedPayment.id}`
-      : `/pagamentos?evento=${eventId}&historico=${insertedPayment.id}`;
+      ? `${appBaseUrl}/a/pagamento/${insertedPayment.id}`
+      : `/a/pagamento/${insertedPayment.id}`;
 
     const alertMessage = [
       `💰 Novo pagamento informado por ${eventRow.client_name || 'Cliente'}`,

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
@@ -14,6 +14,8 @@ export default function LoginPage() {
   const [accessHistory, setAccessHistory] = useState([]);
   const { signIn, user, profile } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const nextTarget = searchParams.get('next') || '/dashboard';
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -25,9 +27,9 @@ export default function LoginPage() {
   // Redirecionamento controlado pela página
   useEffect(() => {
     if (user && profile?.role === 'admin') {
-      router.push('/dashboard');
+      router.push(nextTarget);
     }
-  }, [user, profile, router]);
+  }, [user, profile, router, nextTarget]);
 
   async function handleSubmit(e) {
     e.preventDefault();

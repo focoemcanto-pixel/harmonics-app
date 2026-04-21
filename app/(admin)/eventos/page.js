@@ -208,6 +208,53 @@ function FeedbackBanner({ feedback, onClose }) {
   );
 }
 
+function DeleteEventDialog({
+  open,
+  eventName,
+  loading = false,
+  onCancel,
+  onConfirm,
+}) {
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#020617]/45 px-4">
+      <div className="w-full max-w-lg rounded-[24px] border border-[#e2e8f0] bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.24)]">
+        <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#ef4444]">
+          Confirmar exclusão
+        </p>
+        <h3 className="mt-2 text-[24px] font-black text-[#0f172a]">
+          Excluir este evento?
+        </h3>
+        <p className="mt-2 text-[14px] text-[#475569]">
+          {eventName
+            ? `Você está prestes a excluir “${eventName}”.`
+            : 'Você está prestes a excluir este evento.'}{' '}
+          Essa ação é definitiva e será bloqueada caso existam vínculos operacionais.
+        </p>
+        <div className="mt-6 flex flex-wrap justify-end gap-3">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={loading}
+            className="rounded-[14px] border border-[#dbe3ef] bg-white px-4 py-2 text-[13px] font-black text-[#0f172a]"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={loading}
+            className="rounded-[14px] bg-red-600 px-4 py-2 text-[13px] font-black text-white"
+          >
+            {loading ? 'Excluindo...' : 'Excluir evento'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function EventosPage() {
   const router = useRouter();
   const [eventos, setEventos] = useState([]);
@@ -226,8 +273,12 @@ export default function EventosPage() {
   const [gerandoContratoId, setGerandoContratoId] = useState(null);
   const [excluindoEventoId, setExcluindoEventoId] = useState(null);
   const [feedback, setFeedback] = useState(null);
-  const toast = useAppToast();
-  const confirm = useConfirm();
+  const [deleteDialog, setDeleteDialog] = useState({
+    open: false,
+    eventId: null,
+    eventName: '',
+  });
+  const [excluindoEventoId, setExcluindoEventoId] = useState(null);
 
   const [viewMode, setViewMode] = useState('Mês atual');
   const [monthFilter, setMonthFilter] = useState('all');
@@ -796,58 +847,93 @@ export default function EventosPage() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
+  function solicitarExclusaoEvento(evento) {
+    console.info('[EVENT_DELETE][CLICK]', {
+      eventId: evento?.id,
+      eventName: evento?.client_name || null,
+    });
+    setDeleteDialog({
+      open: true,
+      eventId: evento?.id || null,
+      eventName: evento?.client_name || '',
+    });
+  }
+
+  function cancelarSolicitacaoExclusao() {
+    setDeleteDialog({
+      open: false,
+      eventId: null,
+      eventName: '',
+    });
+  }
+
   async function excluirEvento(id) {
-    console.info('[EVENTOS][DELETE_CLICK]', { eventId: id });
-
-    if (!confirm('Tem certeza que deseja excluir este evento?')) return;
-
+    console.info('[EVENT_DELETE][CONFIRMED]', { eventId: id });
+    console.info('[EVENT_DELETE][REQUEST_START]', { eventId: id });
+    console.info('[EVENT_DELETE][REQUEST_PAYLOAD]', { eventId: id });
+    setExcluindoEventoId(id);
     try {
-      console.info('[EVENTOS][DELETE_REQUEST]', { eventId: id, strategy: 'hard_delete' });
-      const { data, error } = await supabase
-        .from('events')
-        .delete()
-        .eq('id', id)
-        .select('id')
-        .maybeSingle();
+      const response = await fetch(`/api/events/${id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const result = await response.json();
+      console.info('[EVENT_DELETE][DEPENDENCY_CHECK]', {
+        eventId: id,
+        dependencies: result?.dependencies || [],
+      });
 
-      if (error) throw error;
-      if (!data?.id) {
-        throw new Error('Nenhuma linha foi removida ao excluir o evento.');
+      if (!response.ok || !result?.ok) {
+        console.error('[EVENT_DELETE][DB_DELETE_ERROR]', {
+          eventId: id,
+          status: response.status,
+          message: result?.error,
+          dependencies: result?.dependencies || [],
+        });
+        const dependencyMessage = Array.isArray(result?.dependencies) && result.dependencies.length
+          ? `Vínculos pendentes: ${result.dependencies
+              .map((dep) => dep?.message || dep?.table)
+              .filter(Boolean)
+              .join(' | ')}`
+          : '';
+        setFeedback({
+          type: 'error',
+          title: 'Erro ao excluir evento',
+          message:
+            result?.error ||
+            dependencyMessage ||
+            'Não foi possível excluir o evento agora. Verifique dependências e tente novamente.',
+        });
+        return;
       }
+
+      console.info('[EVENT_DELETE][DB_DELETE_RESULT]', {
+        eventId: id,
+        deletedId: result?.deletedId || null,
+      });
 
       if (editandoId === id) {
         cancelarEdicao();
       }
 
-      setEventos((prev) => prev.filter((item) => String(item.id) !== String(id)));
-      setPrecontracts((prev) =>
-        prev.filter((item) => String(item.event_id) !== String(id))
-      );
-      setContracts((prev) =>
-        prev.filter((item) => String(item.event_id) !== String(id))
-      );
-      eventosAdminCache.eventos = (eventosAdminCache.eventos || []).filter(
-        (item) => String(item.id) !== String(id)
-      );
-      eventosAdminCache.precontracts = (eventosAdminCache.precontracts || []).filter(
-        (item) => String(item.event_id) !== String(id)
-      );
-      eventosAdminCache.contracts = (eventosAdminCache.contracts || []).filter(
-        (item) => String(item.event_id) !== String(id)
-      );
-      eventosAdminCache.updatedAt = Date.now();
+      console.info('[EVENT_DELETE][POST_DELETE_RELOAD]', {
+        eventId: id,
+        action: 'start_reload',
+      });
+      await carregarEventos();
+      await Promise.allSettled([carregarPrecontracts(), carregarContracts()]);
+      console.info('[EVENT_DELETE][POST_DELETE_RELOAD]', {
+        eventId: id,
+        action: 'finish_reload',
+      });
 
-      console.info('[EVENTOS][DELETE_RESULT]', { eventId: id, deleted: data.id });
-      console.info('[EVENTOS][DELETE_UI_REMOVE]', { eventId: id });
       setFeedback({
         type: 'success',
         title: 'Evento excluído',
         message: 'O evento foi removido com sucesso.',
       });
-
-      void carregarEventos();
     } catch (error) {
-      console.error('[EVENTOS][DELETE_ERROR]', {
+      console.error('[EVENT_DELETE][DB_DELETE_ERROR]', {
         eventId: id,
         message: error?.message,
         details: error?.details,
@@ -861,6 +947,13 @@ export default function EventosPage() {
         message:
           error?.message ||
           'Não foi possível excluir o evento agora. Verifique dependências e tente novamente.',
+      });
+    } finally {
+      setExcluindoEventoId(null);
+      cancelarSolicitacaoExclusao();
+      console.info('[EVENT_DELETE][FINAL_UI_STATE]', {
+        eventId: id,
+        totalEventosState: eventos.length,
       });
     }
   }
@@ -1218,7 +1311,7 @@ export default function EventosPage() {
   contractTone={contractInfo?.tone || 'default'}
   contractLink={contractInfo?.link || ''}
   onEdit={() => iniciarEdicao(ev)}
-  onDelete={() => excluirEvento(ev.id)}
+  onDelete={() => solicitarExclusaoEvento(ev)}
   onOpenEscala={() => abrirEscala(ev)}
   onOpenContract={() => abrirContratoRapido(ev)}
   onCopyContractLink={() => copiarLinkContrato(ev)}
@@ -1260,6 +1353,17 @@ export default function EventosPage() {
     onClose={() => setFeedback(null)}
   />
 ) : null}
+
+        <DeleteEventDialog
+          open={deleteDialog.open}
+          eventName={deleteDialog.eventName}
+          loading={
+            !!excluindoEventoId &&
+            String(excluindoEventoId) === String(deleteDialog.eventId)
+          }
+          onCancel={cancelarSolicitacaoExclusao}
+          onConfirm={() => excluirEvento(deleteDialog.eventId)}
+        />
         <AdminPageHero
           badge="Harmonics Admin"
           title="Eventos"

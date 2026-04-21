@@ -794,10 +794,21 @@ export default function MembroPage() {
     setPlayerPlaylist(playlist);
     setPlayerIndex(0);
     setPlayerEventTitle(item?.clientName || 'Repertório');
-    setIsPlaying(true);
+    setIsPlaying(false);
+    console.log('[MEMBER_PLAYER][INITIAL_STATE]', {
+      playing: false,
+      paused: true,
+      autoplay: false,
+      eventTitle: item?.clientName || 'Repertório',
+      playlistSize: playlist.length,
+    });
 
     if (options.autoplay !== false) {
       setPlayerExpanded(true);
+      console.log('[MEMBER_PLAYER][MODAL_OPEN]', {
+        eventTitle: item?.clientName || 'Repertório',
+        autoplayRequested: options.autoplay ?? true,
+      });
     }
   }
 

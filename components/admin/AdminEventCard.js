@@ -126,6 +126,9 @@ function AdminEventCard({
   gerandoContrato = false,
   excluindo = false,
   flat = false,
+  selectable = false,
+  selected = false,
+  onToggleSelect,
 }) {
   const phoneDigits = String(whatsappNumero || '').replace(/\D/g, '');
   const whatsappHref = phoneDigits
@@ -147,6 +150,22 @@ function AdminEventCard({
       }
     >
       <div className={flat ? 'space-y-4' : ''}>
+        {selectable ? (
+          <div className="mb-2 flex items-center justify-end">
+            <label className="inline-flex items-center gap-2 rounded-[12px] border border-[#dbe3ef] bg-white/90 px-3 py-2 text-[12px] font-black text-[#334155]">
+              <input
+                type="checkbox"
+                checked={selected}
+                onChange={(event) => {
+                  event.stopPropagation();
+                  onToggleSelect?.(event.target.checked);
+                }}
+                className="h-4 w-4 rounded border-[#cbd5e1] text-violet-600 focus:ring-violet-500"
+              />
+              Selecionar
+            </label>
+          </div>
+        ) : null}
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div className="min-w-0">
             <div className="text-[20px] font-black tracking-[-0.03em] text-[#0f172a]">
@@ -331,7 +350,10 @@ function areEventCardPropsEqual(prev, next) {
     prev.contractLink === next.contractLink &&
     prev.gerandoContrato === next.gerandoContrato &&
     prev.excluindo === next.excluindo &&
-    prev.flat === next.flat
+    prev.flat === next.flat &&
+    prev.selectable === next.selectable &&
+    prev.selected === next.selected &&
+    prev.onToggleSelect === next.onToggleSelect
   );
 }
 

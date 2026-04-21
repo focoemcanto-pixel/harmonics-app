@@ -27,6 +27,11 @@ const REPERTOIRE_CONFIG_SELECT = [
   'has_ante_room',
   'ante_room_style',
   'ante_room_notes',
+  'has_reception',
+  'reception_duration',
+  'reception_genres',
+  'reception_artists',
+  'reception_notes',
 ].join(', ');
 const REPERTOIRE_ITEMS_SELECT = [
   'id',

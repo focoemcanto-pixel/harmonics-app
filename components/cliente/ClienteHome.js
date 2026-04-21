@@ -1982,7 +1982,7 @@ function buildItemsPayload() {
 function buildConfigPayload() {
   const exitReferenceFields = normalizeReferenceFields(saida);
   const antesalaRequestedByClient = Boolean(antessala?.requestedByClient);
-  const antesalaIncluded = !antesalaRequestedByClient && querAntessala === true;
+  const antesalaIncluded = querAntessala === true || antesalaRequestedByClient;
   const mergedGenres =
     antessala.generos ||
     (Array.isArray(antessala.styleTags) ? antessala.styleTags.join(', ') : '');
@@ -2036,10 +2036,10 @@ async function saveRepertorio(mode = 'draft') {
       config: buildConfigPayload(),
       items: builtItemsPayload,
       antesalaFlow: {
-        included: antesalaIncluded,
+        included: querAntessala === true || Boolean(antessala?.requestedByClient),
         durationMinutes: Number(antessala.durationMinutes || 0) || null,
-        requestedByClient: antesalaRequestedByClient,
-        requestStatus: antesalaRequestedByClient ? 'pending' : null,
+        requestedByClient: Boolean(antessala.requestedByClient),
+        requestStatus: Boolean(antessala.requestedByClient) ? 'pending' : null,
         priceIncrement: Number(antessala.quotePriceIncrement || 0) || 0,
       },
     };
@@ -2051,7 +2051,7 @@ async function saveRepertorio(mode = 'draft') {
         durationMinutes: Number(antessala?.durationMinutes || 0) || null,
         quoteMinutes: Number(antessala?.quoteMinutes || 0) || null,
         quotePriceIncrement: Number(antessala?.quotePriceIncrement || 0) || 0,
-        included: antesalaIncluded,
+        included: querAntessala === true || Boolean(antessala?.requestedByClient),
         priceIncrement: Number(antessala?.quotePriceIncrement || 0) || 0,
       });
       console.log('[ANTESALA][POST_BODY]', {

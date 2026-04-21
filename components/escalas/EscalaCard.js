@@ -91,11 +91,7 @@ export default function EscalaCard({ escala, onEdit, onDelete, onChangeStatus, o
 
         <button
           type="button"
-          onClick={() => {
-            if (confirm('Tem certeza que deseja deletar esta escala?')) {
-              onDelete(escala.id);
-            }
-          }}
+          onClick={() => onDelete(escala.id)}
           className="rounded-[16px] bg-red-600 px-4 py-2 text-[13px] font-black text-white transition hover:bg-red-700"
         >
           Deletar

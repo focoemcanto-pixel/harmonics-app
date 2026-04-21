@@ -18,6 +18,8 @@ import { resolveContactType, isClientType, isMemberType } from '@/lib/contatos/c
 
 import ContatosFormularioTab from '@/components/contatos/ContatosFormularioTab';
 import ContatosListaTab from '@/components/contatos/ContatosListaTab';
+import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
+import { useAppToast } from '@/components/ui/ToastProvider';
 
 function getInitialForm() {
   return {
@@ -57,6 +59,8 @@ export default function ContatosPage() {
   const [desktopTab, setDesktopTab] = useState('lista');
   const [mobileTab, setMobileTab] = useState('lista');
   const [selectedClientIds, setSelectedClientIds] = useState(new Set());
+  const { confirm } = useConfirm() || {};
+  const toast = useAppToast();
 
   const desktopFormRef = useRef(null);
   const mobileFormRef = useRef(null);
@@ -221,7 +225,8 @@ export default function ContatosPage() {
 
   async function excluirContato(id) {
     if (salvando) return;
-    if (!confirm('Tem certeza que deseja excluir este contato?')) return;
+    const confirmed = await confirm?.({ title: 'Excluir contato?', description: 'Esta ação removerá o contato de forma permanente.', confirmText: 'Excluir contato', cancelText: 'Cancelar', tone: 'destructive' });
+    if (!confirmed) return;
 
     try {
       setSalvando(true);
@@ -237,6 +242,7 @@ export default function ContatosPage() {
       if (editandoId === id) cancelarEdicao();
 
       await carregarContatos({ background: true });
+      toast.success('Contato excluído com sucesso.');
     } catch (error) {
       console.error('Erro ao excluir contato:', error);
       setErrorMessage(error?.message || 'Erro ao excluir contato');
@@ -313,9 +319,13 @@ export default function ContatosPage() {
     const ids = Array.from(selectedClientIds);
     if (!ids.length) return;
 
-    const confirmed = confirm(
-      `Você está prestes a excluir ${ids.length} cliente(s). Essa ação não poderá ser desfeita. Deseja continuar?`
-    );
+    const confirmed = await confirm?.({
+      title: `Excluir ${ids.length} cliente(s)?`,
+      description: 'Essa ação é irreversível e removerá permanentemente os contatos selecionados.',
+      confirmText: 'Excluir selecionados',
+      cancelText: 'Cancelar',
+      tone: 'destructive',
+    });
 
     if (!confirmed) return;
 
@@ -332,6 +342,7 @@ export default function ContatosPage() {
 
       setSelectedClientIds(new Set());
       await carregarContatos({ background: true });
+      toast.success('Clientes selecionados excluídos com sucesso.');
     } catch (error) {
       console.error('Erro ao excluir clientes em massa:', error);
       setErrorMessage(error?.message || 'Erro ao excluir clientes selecionados');

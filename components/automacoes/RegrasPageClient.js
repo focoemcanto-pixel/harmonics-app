@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import AutomationBackLink from '@/components/automacoes/AutomationBackLink';
 import { cachedPromise, invalidateCache, readCachedValue } from '@/lib/client/light-cache';
+import { useAppToast } from '@/components/ui/ToastProvider';
 
 const EVENT_TYPES = [
   { value: 'invite_member', label: 'Convite de escala (membro)' },
@@ -426,6 +427,7 @@ export default function RegrasPageClient() {
   const [manualModalAberto, setManualModalAberto] = useState(false);
   const [manualForm, setManualForm] = useState(MANUAL_FORM);
   const [enviandoManual, setEnviandoManual] = useState(false);
+  const toast = useAppToast();
 
   const carregarDados = useCallback(async ({ force = false } = {}) => {
     try {
@@ -579,7 +581,7 @@ export default function RegrasPageClient() {
   async function salvarQuick() {
     const preset = QUICK_PRESETS.find((item) => item.id === quickForm.presetId);
     if (!preset) {
-      alert('Selecione um preset de regra rápida.');
+      toast.warning('Selecione um preset de regra rápida.');
       return;
     }
 
@@ -625,7 +627,7 @@ export default function RegrasPageClient() {
       fecharModal();
     } catch (error) {
       console.error('Erro ao salvar regra rápida:', error);
-      alert(error.message);
+      toast.error(error.message || 'Não foi possível concluir a ação');
     } finally {
       setSalvando(false);
     }
@@ -633,7 +635,7 @@ export default function RegrasPageClient() {
 
   async function salvarAvancado() {
     if (!advancedForm.key || !advancedForm.name || !advancedForm.event_type || !advancedForm.recipient_type) {
-      alert('Preencha os campos obrigatórios: Key, Nome, Tipo de Evento e Destinatário');
+      toast.warning('Preencha os campos obrigatórios: Key, Nome, Tipo de Evento e Destinatário');
       return;
     }
 
@@ -670,7 +672,7 @@ export default function RegrasPageClient() {
       fecharModal();
     } catch (error) {
       console.error('Erro ao salvar regra avançada:', error);
-      alert(error.message);
+      toast.error(error.message || 'Não foi possível concluir a ação');
     } finally {
       setSalvando(false);
     }
@@ -696,7 +698,7 @@ export default function RegrasPageClient() {
       await carregarDados({ force: true });
       fecharModal();
     } catch (error) {
-      alert(error.message);
+      toast.error(error.message || 'Não foi possível concluir a ação');
     } finally {
       setSalvando(false);
     }
@@ -719,7 +721,7 @@ export default function RegrasPageClient() {
       await carregarDados({ force: true });
     } catch (error) {
       console.error('Erro ao alternar status:', error);
-      alert(error.message);
+      toast.error(error.message || 'Não foi possível concluir a ação');
     }
   }
 
@@ -730,7 +732,7 @@ export default function RegrasPageClient() {
 
   async function enviarManualAgora() {
     if (!manualForm.eventType || !manualForm.entityId) {
-      alert('Para enviar agora, informe o gatilho e o ID da entidade.');
+      toast.warning('Para enviar agora, informe o gatilho e o ID da entidade.');
       return;
     }
 
@@ -749,11 +751,11 @@ export default function RegrasPageClient() {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Erro ao disparar envio manual');
-      alert(`Envio manual processado. Sent: ${data.sent ?? 0}, skipped: ${data.skipped ?? 0}`);
+      toast.success(`Envio manual processado. Enviados: ${data.sent ?? 0}, ignorados: ${data.skipped ?? 0}`);
       setManualModalAberto(false);
       setManualForm(MANUAL_FORM);
     } catch (error) {
-      alert(error.message);
+      toast.error(error.message || 'Não foi possível concluir a ação');
     } finally {
       setEnviandoManual(false);
     }

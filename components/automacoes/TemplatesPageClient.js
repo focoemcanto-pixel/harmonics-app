@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import AdminSummaryCard from '@/components/admin/AdminSummaryCard';
 import AutomationBackLink from '@/components/automacoes/AutomationBackLink';
 import { cachedPromise, invalidateCache, readCachedValue } from '@/lib/client/light-cache';
+import { useAppToast } from '@/components/ui/ToastProvider';
 
 const VARIAVEIS = [
   '{nome_empresa}',
@@ -126,6 +127,7 @@ export default function TemplatesPageClient() {
   const [templateParaTestar, setTemplateParaTestar] = useState(null);
   const [previewVars, setPreviewVars] = useState(MOCK_VARS);
   const [previewRendered, setPreviewRendered] = useState('');
+  const toast = useAppToast();
 
   const carregarTemplates = useCallback(async ({ force = false } = {}) => {
     try {
@@ -186,7 +188,7 @@ export default function TemplatesPageClient() {
 
   async function salvarTemplate() {
     if (!form.name || !form.key || !form.body || !form.recipient_type) {
-      alert('Preencha todos os campos obrigatórios: Nome, Chave, Mensagem e Destinatário.');
+      toast.warning('Preencha todos os campos obrigatórios: Nome, Chave, Mensagem e Destinatário.');
       return;
     }
 
@@ -216,7 +218,7 @@ export default function TemplatesPageClient() {
       fecharModal();
     } catch (error) {
       console.error('Erro ao salvar template:', error);
-      alert(error.message);
+      toast.error(error.message || 'Não foi possível concluir a ação');
     } finally {
       setSalvando(false);
     }
@@ -238,7 +240,7 @@ export default function TemplatesPageClient() {
       await carregarTemplates({ force: true });
     } catch (error) {
       console.error('Erro ao atualizar status:', error);
-      alert(error.message);
+      toast.error(error.message || 'Não foi possível concluir a ação');
     }
   }
 

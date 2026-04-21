@@ -9,6 +9,8 @@ import AdminSegmentTabs from '@/components/admin/AdminSegmentTabs';
 import TemplatesEscalaListaTab from '@/components/templates-escala/TemplatesEscalaListaTab';
 import TemplatesEscalaFormularioTab from '@/components/templates-escala/TemplatesEscalaFormularioTab';
 import { filterOperationalTeamContacts } from '@/lib/escalas/team-contacts';
+import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
+import { useAppToast } from '@/components/ui/ToastProvider';
 
 function getInitialForm() {
   return {
@@ -55,6 +57,8 @@ export default function TemplatesEscalaPage() {
 
   const [desktopTab, setDesktopTab] = useState('lista');
   const [mobileTab, setMobileTab] = useState('lista');
+  const { confirm } = useConfirm() || {};
+  const toast = useAppToast();
 
   async function carregarTudo() {
     try {
@@ -84,7 +88,7 @@ export default function TemplatesEscalaPage() {
       setContatos(filterOperationalTeamContacts(contatosResp.data || []));
     } catch (error) {
       console.error('Erro ao carregar templates de escala:', error);
-      alert(`Erro ao carregar templates: ${error?.message}`);
+      toast.error(`Erro ao carregar templates: ${error?.message || 'erro desconhecido'}`);
     } finally {
       setCarregando(false);
     }
@@ -187,17 +191,17 @@ export default function TemplatesEscalaPage() {
 
   async function salvarTemplate() {
     if (!form.name.trim()) {
-      alert('Informe o nome do template.');
+      toast.warning('Informe o nome do template.');
       return;
     }
 
     if (!form.formation.trim()) {
-      alert('Informe a formação.');
+      toast.warning('Informe a formação.');
       return;
     }
 
     if (itens.length === 0) {
-      alert('Adicione pelo menos um membro ao template.');
+      toast.warning('Adicione pelo menos um membro ao template.');
       return;
     }
 
@@ -205,7 +209,7 @@ export default function TemplatesEscalaPage() {
       (item) => !String(item.role || item.tag || '').trim()
     );
     if (itensSemFuncao.length > 0) {
-      alert('Todos os membros base precisam ter função/instrumento definido.');
+      toast.warning('Todos os membros base precisam ter função/instrumento definido.');
       return;
     }
 
@@ -266,16 +270,24 @@ export default function TemplatesEscalaPage() {
       await carregarTudo();
       setDesktopTab('lista');
       setMobileTab('lista');
+      toast.success(editandoId ? 'Template atualizado com sucesso.' : 'Template criado com sucesso.');
     } catch (error) {
       console.error('Erro ao salvar template:', error);
-      alert(`Erro ao salvar template: ${error?.message}`);
+      toast.error(`Erro ao salvar template: ${error?.message || 'erro desconhecido'}`);
     } finally {
       setSalvando(false);
     }
   }
 
   async function excluirTemplate(id) {
-    if (!confirm('Tem certeza que deseja excluir este template?')) return;
+    const confirmed = await confirm?.({
+      title: 'Excluir template?',
+      description: 'Esta ação removerá o template e não poderá ser desfeita.',
+      confirmText: 'Excluir template',
+      cancelText: 'Cancelar',
+      tone: 'destructive',
+    });
+    if (!confirmed) return;
 
     try {
       const { error } = await supabase
@@ -288,9 +300,10 @@ export default function TemplatesEscalaPage() {
       if (editandoId === id) cancelarEdicao();
 
       await carregarTudo();
+      toast.success('Template excluído com sucesso.');
     } catch (error) {
       console.error('Erro ao excluir template:', error);
-      alert(`Erro ao excluir template: ${error?.message}`);
+      toast.error(`Erro ao excluir template: ${error?.message || 'erro desconhecido'}`);
     }
   }
 
@@ -302,9 +315,10 @@ export default function TemplatesEscalaPage() {
         .eq('id', template.id);
       if (error) throw error;
       await carregarTudo();
+      toast.success('Status do template atualizado.');
     } catch (error) {
       console.error('Erro ao atualizar status do template:', error);
-      alert(`Erro ao atualizar status: ${error?.message}`);
+      toast.error(`Erro ao atualizar status: ${error?.message || 'erro desconhecido'}`);
     }
   }
 

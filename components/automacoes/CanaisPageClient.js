@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from 'react';
 import AdminSummaryCard from '@/components/admin/AdminSummaryCard';
 import AutomationBackLink from '@/components/automacoes/AutomationBackLink';
 import { cachedPromise, invalidateCache, readCachedValue } from '@/lib/client/light-cache';
+import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
+import { useAppToast } from '@/components/ui/ToastProvider';
 
 const FORM_INICIAL = {
   name: '',
@@ -58,6 +60,8 @@ export default function CanaisPageClient() {
   const [telefoneTest, setTelefoneTest] = useState('');
   const [enviandoTeste, setEnviandoTeste] = useState(false);
   const [toastTest, setToastTest] = useState(null);
+  const { confirm } = useConfirm() || {};
+  const toast = useAppToast();
 
   const carregarCanais = useCallback(async ({ force = false } = {}) => {
     try {
@@ -116,12 +120,12 @@ export default function CanaisPageClient() {
   async function salvarCanal() {
     const missing = validateForm(form, Boolean(editandoId));
     if (missing.length) {
-      alert(`Preencha os campos obrigatórios: ${missing.join(', ')}`);
+      toast.warning(`Preencha os campos obrigatórios: ${missing.join(', ')}`);
       return;
     }
 
     if (form.is_default && canais.some((c) => c.is_default && c.id !== editandoId)) {
-      const confirmou = window.confirm('Este canal será o novo padrão. Deseja continuar?');
+      const confirmou = await confirm?.({ title: 'Definir canal padrão?', description: 'Este canal substituirá o padrão atual para envios automáticos.', confirmText: 'Definir como padrão', cancelText: 'Cancelar' });
       if (!confirmou) return;
     }
 
@@ -143,8 +147,9 @@ export default function CanaisPageClient() {
       invalidateCache(CHANNELS_CACHE_KEY);
       await carregarCanais({ force: true });
       fecharModal();
+      toast.success(editandoId ? 'Canal atualizado com sucesso.' : 'Canal criado com sucesso.');
     } catch (error) {
-      alert(error.message);
+      toast.error(error.message || 'Não foi possível concluir a ação');
     } finally {
       setSalvando(false);
     }
@@ -153,7 +158,7 @@ export default function CanaisPageClient() {
   async function testarConexao() {
     const missing = validateForm(form, Boolean(editandoId));
     if (missing.length) {
-      alert(`Preencha os campos obrigatórios antes do teste: ${missing.join(', ')}`);
+      toast.warning(`Preencha os campos obrigatórios antes do teste: ${missing.join(', ')}`);
       return;
     }
 
@@ -166,9 +171,9 @@ export default function CanaisPageClient() {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Falha no teste de conexão');
-      alert(`Conexão OK (${data.status})`);
+      toast.success(`Conexão OK (${data.status})`);
     } catch (error) {
-      alert(error.message);
+      toast.error(error.message || 'Não foi possível concluir a ação');
     } finally {
       setTestandoConexao(false);
     }
@@ -182,11 +187,12 @@ export default function CanaisPageClient() {
     });
     if (!response.ok) {
       const data = await response.json();
-      alert(data.error || 'Erro ao atualizar status');
+      toast.error(data.error || 'Erro ao atualizar status');
       return;
     }
     invalidateCache(CHANNELS_CACHE_KEY);
     await carregarCanais({ force: true });
+    toast.success('Status do canal atualizado.');
   }
 
   async function definirPadrao(canalId) {
@@ -197,25 +203,27 @@ export default function CanaisPageClient() {
     });
     if (!response.ok) {
       const data = await response.json();
-      alert(data.error || 'Erro ao definir padrão');
+      toast.error(data.error || 'Erro ao definir padrão');
       return;
     }
     invalidateCache(CHANNELS_CACHE_KEY);
     await carregarCanais({ force: true });
+    toast.success('Canal padrão atualizado com sucesso.');
   }
 
   async function excluirCanal(canalId) {
-    const confirmou = window.confirm('Deseja realmente excluir este canal?');
+    const confirmou = await confirm?.({ title: 'Excluir canal?', description: 'Esta ação removerá o canal e não poderá ser desfeita.', confirmText: 'Excluir canal', cancelText: 'Cancelar', tone: 'destructive' });
     if (!confirmou) return;
 
     const response = await fetch(`/api/automation/channels/${canalId}`, { method: 'DELETE' });
     if (!response.ok) {
       const data = await response.json();
-      alert(data.error || 'Erro ao excluir canal');
+      toast.error(data.error || 'Erro ao excluir canal');
       return;
     }
     invalidateCache(CHANNELS_CACHE_KEY);
     await carregarCanais({ force: true });
+    toast.success('Canal excluído com sucesso.');
   }
 
   const total = canais.length;

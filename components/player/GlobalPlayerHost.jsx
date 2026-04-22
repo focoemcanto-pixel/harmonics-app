@@ -192,7 +192,9 @@ export default function GlobalPlayerHost() {
 
   return (
     <div className="hidden" aria-hidden="true">
-      <div ref={fallbackHostRef} />
+      <div ref={fallbackHostRef}>
+        <div ref={mountNodeRef} />
+      </div>
     </div>
   );
 }

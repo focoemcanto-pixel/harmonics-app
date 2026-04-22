@@ -183,54 +183,6 @@ function hasInitialRepertorioFromBackend(initialState = {}) {
   return hasCortejo || hasCerimonia || hasSaida || hasAntessala || hasReceptivo;
 }
 
-function getItemDestinationKey(item = {}) {
-  const section = normalizeSuggestionSection(item.section || '');
-  const moment = normalizeCompareText(item.moment || '');
-  return `${section}::${moment}`;
-}
-
-function areEquivalentRepertoireItems(existingItem = {}, candidateItem = {}) {
-  if (getItemDestinationKey(existingItem) !== getItemDestinationKey(candidateItem)) {
-    return false;
-  }
-
-  const existingVideoId = String(existingItem.reference_video_id || '').trim();
-  const candidateVideoId = String(candidateItem.reference_video_id || '').trim();
-  if (existingVideoId && candidateVideoId && existingVideoId === candidateVideoId) {
-    return true;
-  }
-
-  const existingReferenceLink = normalizeCompareText(existingItem.reference_link || '');
-  const candidateReferenceLink = normalizeCompareText(candidateItem.reference_link || '');
-  if (existingReferenceLink && candidateReferenceLink && existingReferenceLink === candidateReferenceLink) {
-    return true;
-  }
-
-  const existingSongName = normalizeCompareText(existingItem.song_name || '');
-  const candidateSongName = normalizeCompareText(candidateItem.song_name || '');
-  if (existingSongName && candidateSongName && existingSongName === candidateSongName) {
-    return true;
-  }
-
-  return false;
-}
-
-function mergeUniqueRepertoireItems(baseItems = [], incomingItems = []) {
-  const mergedItems = [...baseItems];
-
-  incomingItems.forEach((item) => {
-    const alreadyExists = mergedItems.some((existingItem) =>
-      areEquivalentRepertoireItems(existingItem, item)
-    );
-
-    if (!alreadyExists) {
-      mergedItems.push(item);
-    }
-  });
-
-  return mergedItems;
-}
-
 function buildRepertorioSnapshot({
   querAntessala,
   temReceptivo,
@@ -1216,7 +1168,13 @@ function MiniStep({
   );
 }
 
-function RepertorioTab({ data, selectedSongs, onSaved, onReviewRequested }) {
+function RepertorioTab({
+  data,
+  selectedSongs,
+  setSelectedSongs,
+  onSaved,
+  onReviewRequested,
+}) {
   const { showToast } = useToast();
   const statusNormalizado = String(data.repertorio.status || '').toUpperCase();
   const travado = isRepertorioTravado(statusNormalizado, data.repertorio.isLocked);
@@ -1342,6 +1300,11 @@ const [generalNotes, setGeneralNotes] = useState(initialState.generalNotes || ''
     })
   );
   const appliedSuggestionKeysRef = useRef(new Set());
+  const getSuggestionSelectionKey = useCallback((item = {}) => {
+    return `${item.songId}::${normalizeSuggestionSection(
+      item.section || item.targetSection
+    )}::${normalizeCompareText(item.who_enters || item.targetLabel || item.moment || '')}`;
+  }, []);
 
   const setCortejoWithLog = useCallback((nextValueOrUpdater, reason = 'unknown') => {
     setCortejo((prev) => {
@@ -1564,6 +1527,10 @@ const [generalNotes, setGeneralNotes] = useState(initialState.generalNotes || ''
 
         if (shouldHydrateFromLocalDraft) {
           applyLocalDraft(parsed);
+          console.log('[REPERTOIRE][STATE_AFTER_REHYDRATE]', {
+            source: 'local_draft',
+            parsed,
+          });
           setShowLocalDraftBanner(false);
           debugClientHome('[CLIENT_HOME][STATE_AFTER_MERGE]', {
             ...repertorioStateRef.current,
@@ -1671,13 +1638,14 @@ const [generalNotes, setGeneralNotes] = useState(initialState.generalNotes || ''
     if (!Array.isArray(selectedSongs) || selectedSongs.length === 0) return;
 
     const pendingSuggestions = selectedSongs.filter((item) => {
-      const key = `${item.songId}::${normalizeSuggestionSection(item.section || item.targetSection)}::${normalizeCompareText(item.who_enters || item.targetLabel || item.moment || '')}`;
+      const key = getSuggestionSelectionKey(item);
       return !appliedSuggestionKeysRef.current.has(key);
     });
 
     if (pendingSuggestions.length === 0) return;
 
     let nextSnapshot = repertorioStateRef.current;
+    console.log('[REPERTOIRE][SOURCE_OF_TRUTH_BEFORE_ADD]', nextSnapshot);
     debugClientHome(
       '[CLIENT_HOME][STATE_BEFORE_MERGE]',
       nextSnapshot
@@ -1697,7 +1665,12 @@ const [generalNotes, setGeneralNotes] = useState(initialState.generalNotes || ''
         notes: item.notes,
       };
       const suggestionPayload = buildSuggestionPayload(songLike, payloadLike);
-      const key = `${item.songId}::${normalizeSuggestionSection(item.section || item.targetSection)}::${normalizeCompareText(item.who_enters || item.targetLabel || item.moment || '')}`;
+      const key = getSuggestionSelectionKey(item);
+      console.log('[REPERTOIRE][SUGGESTION_ADD_INPUT]', {
+        item,
+        suggestionPayload,
+        key,
+      });
 
       debugClientHome('[SUGESTOES->REPERTORIO] destino escolhido:', payloadLike.section);
       debugClientHome('[SUGESTOES->REPERTORIO] item montado por buildSuggestionPayload:', suggestionPayload);
@@ -1709,6 +1682,7 @@ const [generalNotes, setGeneralNotes] = useState(initialState.generalNotes || ''
       });
 
       debugClientHome('[SUGESTOES->REPERTORIO] estado do repertório depois da inserção:', nextSnapshot);
+      console.log('[REPERTOIRE][STATE_AFTER_ADD]', nextSnapshot);
       appliedSuggestionKeysRef.current.add(key);
     });
 
@@ -1723,7 +1697,13 @@ const [generalNotes, setGeneralNotes] = useState(initialState.generalNotes || ''
     setCerimoniaWithLog(nextSnapshot.cerimonia, 'selectedSongsMerge');
     setSaida(nextSnapshot.saida);
     setReceptivo(nextSnapshot.receptivo);
-  }, [selectedSongs, setAntessalaWithLog, setCerimoniaWithLog, setCortejoWithLog]);
+  }, [
+    getSuggestionSelectionKey,
+    selectedSongs,
+    setAntessalaWithLog,
+    setCerimoniaWithLog,
+    setCortejoWithLog,
+  ]);
 
   const renderedRepertorioItems = useMemo(() => {
     const cortejoItems = filterUsefulMusicalItems(cortejo)
@@ -1968,62 +1948,6 @@ function buildItemsPayload() {
     });
   }
 
-  const suggestedItems = selectedSongs.map((item, index) => {
-    const section = normalizeSuggestionSection(item.section || item.targetSection);
-    const isSaida = section === 'saida';
-    const isCerimonia = section === 'cerimonia';
-    const isReceptivo = section === 'receptivo';
-    const isAntessala = section === 'antessala';
-    const normalizedMoment = String(item.moment || '').trim();
-    const fallbackMoment = isSaida
-      ? 'Saída'
-      : isCerimonia
-      ? 'Cerimônia'
-      : isAntessala
-      ? 'Antessala'
-      : isReceptivo
-      ? 'Receptivo'
-      : 'Entrada';
-    const moment = normalizedMoment || fallbackMoment;
-
-    return {
-      section,
-      item_order: isSaida ? 0 : 1000 + index,
-      who_enters: isSaida
-        ? 'Saída dos noivos'
-        : String(item.who_enters || item.targetLabel || '').trim(),
-      moment,
-      song_name: String(item.song_name || item.title || '').trim(),
-      reference_link: String(item.reference_link || '').trim(),
-      reference_title: String(item.reference_title || '').trim(),
-      reference_channel: String(item.reference_channel || '').trim(),
-      reference_thumbnail: String(item.reference_thumbnail || '').trim(),
-      reference_video_id: String(item.reference_video_id || '').trim(),
-      notes: String(item.notes || '').trim(),
-      type: isSaida
-        ? 'saida'
-        : isCerimonia
-        ? 'cerimonia'
-        : isAntessala
-        ? 'ante_room'
-        : isReceptivo
-        ? 'reception'
-        : 'entrada',
-      group_name: '',
-      label: isSaida
-        ? 'Saída dos noivos'
-        : String(item.targetLabel || item.who_enters || '').trim(),
-      genres: String(item.genre || '').trim(),
-      artists: String(item.artist || '').trim(),
-    };
-  });
-
-  if (suggestedItems.length > 0) {
-    debugClientHome('[SUGESTOES->REPERTORIO] payload de sugestões mapeado:', suggestedItems);
-    const mergedItems = mergeUniqueRepertoireItems(items, suggestedItems);
-    items.splice(0, items.length, ...mergedItems);
-  }
-
   return items;
 }
 
@@ -2126,6 +2050,7 @@ async function saveRepertorio(mode = 'draft') {
     const saidaPayload = builtItemsPayload.filter((item) => item.section === 'saida');
 
     debugClientHome('[REPERTORIO_DRAFT] payload final enviado para persistência:', payload);
+    console.log('[REPERTOIRE][SAVE_PAYLOAD]', payload);
     debugClientHome('[SUGESTOES][PERSIST_PAYLOAD]', {
       mode,
       token: payload.token,
@@ -2241,8 +2166,53 @@ async function handleRequestReview() {
     setter(clone);
   }
 
-  function removeItem(list, setter, index) {
-    setter(list.filter((_, i) => i !== index));
+  function removeMatchingSuggestionFromSelection(removedItem = {}, sectionKey = '') {
+    if (typeof setSelectedSongs !== 'function') return;
+
+    setSelectedSongs((prev) => {
+      const safePrev = Array.isArray(prev) ? prev : [];
+      const removedLabel = normalizeCompareText(removedItem?.label || '');
+      const removedSongName = normalizeCompareText(removedItem?.musica || '');
+      const removedVideoId = String(removedItem?.reference_video_id || '').trim();
+
+      return safePrev.filter((entry) => {
+        const sameSection =
+          normalizeSuggestionSection(entry.section || entry.targetSection) === sectionKey;
+        if (!sameSection) return true;
+
+        const sameLabel =
+          normalizeCompareText(entry.who_enters || entry.targetLabel || '') === removedLabel;
+        const sameSongName =
+          normalizeCompareText(entry.song_name || entry.title || '') === removedSongName;
+        const entryVideoId = String(entry.reference_video_id || '').trim();
+        const sameVideoId = removedVideoId && entryVideoId && removedVideoId === entryVideoId;
+
+        return !(sameLabel && (sameSongName || sameVideoId));
+      });
+    });
+  }
+
+  function removeItem(list, setter, index, sectionKey = '') {
+    const safeList = Array.isArray(list) ? list : [];
+    const removedItem = safeList[index] || null;
+    console.log('[REPERTOIRE][DELETE_INPUT]', {
+      section: sectionKey,
+      index,
+      removedItem,
+      sourceOfTruthBeforeDelete: repertorioStateRef.current || {},
+    });
+
+    setter(safeList.filter((_, i) => i !== index));
+
+    if (removedItem && sectionKey) {
+      removeMatchingSuggestionFromSelection(removedItem, sectionKey);
+    }
+
+    console.log('[REPERTOIRE][STATE_AFTER_DELETE]', {
+      section: sectionKey,
+      index,
+      removedItem,
+    });
   }
 
   function addCortejo(label = '') {
@@ -2657,7 +2627,7 @@ async function handleRequestReview() {
                 onChange={(value) => updateListItem(cortejo, setCortejoWithLog, index, value)}
                 onMoveUp={() => moveItem(cortejo, setCortejoWithLog, index, -1)}
                 onMoveDown={() => moveItem(cortejo, setCortejoWithLog, index, 1)}
-                onRemove={() => removeItem(cortejo, setCortejoWithLog, index)}
+                onRemove={() => removeItem(cortejo, setCortejoWithLog, index, 'cortejo')}
               />
             ))}
           </div>
@@ -2700,7 +2670,7 @@ async function handleRequestReview() {
                 onChange={(value) => updateListItem(cerimonia, setCerimoniaWithLog, index, value)}
                 onMoveUp={() => moveItem(cerimonia, setCerimoniaWithLog, index, -1)}
                 onMoveDown={() => moveItem(cerimonia, setCerimoniaWithLog, index, 1)}
-                onRemove={() => removeItem(cerimonia, setCerimoniaWithLog, index)}
+                onRemove={() => removeItem(cerimonia, setCerimoniaWithLog, index, 'cerimonia')}
               />
             ))}
           </div>
@@ -4958,6 +4928,7 @@ export default function ClienteHome({ data, initialTab = 'inicio' }) {
             <RepertorioTab
               data={panelData}
               selectedSongs={selectedSongs}
+              setSelectedSongs={setSelectedSongs}
               onSaved={handleRepertorioSaved}
               onReviewRequested={handleReviewRequested}
             />

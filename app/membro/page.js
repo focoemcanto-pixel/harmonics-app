@@ -326,13 +326,6 @@ export default function MembroPage() {
       .eq('id', session.user.id)
       .maybeSingle();
 
-    console.info('[MEMBER_PANEL][ROLE_DETECTION]', {
-      userId: session?.user?.id || null,
-      email: sessionEmail,
-      role: profile?.role || null,
-      profileError: profileError?.message || null,
-    });
-
     // Se for admin, permitir acesso direto
     if (!profileError && profile?.role === 'admin') {
       setMember({
@@ -401,11 +394,7 @@ export default function MembroPage() {
         ] = await Promise.all([
           supabase
             .from('events')
-            .select(`
-              id,
-              created_at,
-              *
-            `)
+            .select('*')
             .order('event_date', { ascending: true })
             .order('event_time', { ascending: true }),
 
@@ -447,22 +436,11 @@ export default function MembroPage() {
           events: event,
         }));
 
-        console.info('[MEMBER_PANEL][ADMIN_BYPASS]', {
-          memberId: currentMember.id,
-          totalEvents: adminEvents.length,
-        });
-
         setInvites(adminInvites);
         setPrecontracts(Array.isArray(precontractsResp.data) ? precontractsResp.data : []);
         setContracts(Array.isArray(contractsResp.data) ? contractsResp.data : []);
         setRepertoireConfigs(Array.isArray(repertoireConfigsResp.data) ? repertoireConfigsResp.data : []);
         setRepertoireItems(Array.isArray(repertoireItemsResp.data) ? repertoireItemsResp.data : []);
-        console.info('[MEMBER_PANEL][EVENTS_RESULT]', {
-          memberId: currentMember.id,
-          isAdmin: true,
-          total: adminInvites.length,
-          source: 'events',
-        });
         return;
       }
 
@@ -521,12 +499,6 @@ export default function MembroPage() {
       setContracts(Array.isArray(contractsResp.data) ? contractsResp.data : []);
       setRepertoireConfigs(Array.isArray(repertoireConfigsResp.data) ? repertoireConfigsResp.data : []);
       setRepertoireItems(Array.isArray(repertoireItemsResp.data) ? repertoireItemsResp.data : []);
-      console.info('[MEMBER_PANEL][EVENTS_RESULT]', {
-        memberId: currentMember.id,
-        isAdmin: false,
-        total: Array.isArray(invitesResp.data) ? invitesResp.data.length : 0,
-        source: 'invites',
-      });
     } catch (e) {
       console.error('Erro ao carregar painel do membro:', e);
       setError(e?.message || 'Não foi possível carregar seu painel.');
@@ -592,6 +564,8 @@ export default function MembroPage() {
       setInvites([]);
       setPrecontracts([]);
       setContracts([]);
+      setRepertoireConfigs([]);
+      setRepertoireItems([]);
       setSessionChecked(true);
       setLoggingIn(false);
     });
@@ -605,7 +579,7 @@ export default function MembroPage() {
   useEffect(() => {
     if (!member?.id) return;
     loadDashboardData(member);
-  }, [member?.id]);
+  }, [member]);
 
   useEffect(() => {
     if (!member?.id) return;
@@ -644,16 +618,18 @@ export default function MembroPage() {
     });
   }, [invites, contracts, precontracts, repertoireConfigs, repertoireItems]);
 
-  const confirmados = Array.isArray(dashboard?.confirmados) ? dashboard.confirmados : [];
-  const pendentes = Array.isArray(dashboard?.pendentes) ? dashboard.pendentes : [];
-  const proximosConfirmados = Array.isArray(dashboard?.proximosConfirmados)
-    ? dashboard.proximosConfirmados
-    : [];
-  const resumo = dashboard?.resumo || {
-    pendentes: 0,
-    confirmados: 0,
-    repertorios: 0,
-  };
+  const { confirmados, pendentes, proximosConfirmados, resumo } = useMemo(() => ({
+    confirmados: Array.isArray(dashboard?.confirmados) ? dashboard.confirmados : [],
+    pendentes: Array.isArray(dashboard?.pendentes) ? dashboard.pendentes : [],
+    proximosConfirmados: Array.isArray(dashboard?.proximosConfirmados)
+      ? dashboard.proximosConfirmados
+      : [],
+    resumo: dashboard?.resumo || {
+      pendentes: 0,
+      confirmados: 0,
+      repertorios: 0,
+    },
+  }), [dashboard]);
 
   const repertorios = useMemo(() => {
     return confirmados.filter(
@@ -665,17 +641,6 @@ export default function MembroPage() {
   }, [confirmados]);
 
   const desktopMeta = getDesktopTabMeta(activeTab);
-
-  useEffect(() => {
-    if (!member?.id) return;
-    console.info('[MEMBER_PANEL][COUNTS_RESULT]', {
-      memberId: member.id,
-      isAdmin: Boolean(member?.isAdmin),
-      pendentes: resumo?.pendentes || 0,
-      confirmados: resumo?.confirmados || 0,
-      repertorios: resumo?.repertorios || 0,
-    });
-  }, [member?.id, member?.isAdmin, resumo?.pendentes, resumo?.confirmados, resumo?.repertorios]);
 
   async function handleGoogleLogin() {
     try {
@@ -810,24 +775,9 @@ export default function MembroPage() {
   function openRepertoire(item, options = {}) {
     if (!item) return;
 
-    console.log('[MEMBER_PLAYER][OPEN_REQUEST]', {
-      eventId: item?.eventId || null,
-      eventTitle: item?.clientName || 'Repertório',
-      source: options?.source || 'unknown',
-    });
-
     const playlist = buildPlaylistFromRow(item);
-    console.log('[MEMBER_PLAYER][PLAYLIST_RESULT]', {
-      eventId: item?.eventId || null,
-      playlistSize: playlist.length,
-      sample: playlist.slice(0, 3),
-    });
     if (!playlist.length) {
-      console.log('[MEMBER_PLAYER][OPEN_BLOCKED_REASON]', {
-        reason: 'EMPTY_PLAYLIST',
-        eventId: item?.eventId || null,
-        eventTitle: item?.clientName || 'Repertório',
-      });
+      toast.info('Este repertório não possui faixas com referência de áudio.');
       return;
     }
 
@@ -835,20 +785,9 @@ export default function MembroPage() {
     setPlayerIndex(0);
     setPlayerEventTitle(item?.clientName || 'Repertório');
     setIsPlaying(false);
-    console.log('[MEMBER_PLAYER][INITIAL_STATE]', {
-      playing: false,
-      paused: true,
-      autoplay: false,
-      eventTitle: item?.clientName || 'Repertório',
-      playlistSize: playlist.length,
-    });
 
     if (options.autoplay !== false) {
       setPlayerExpanded(true);
-      console.log('[MEMBER_PLAYER][MODAL_OPEN]', {
-        eventTitle: item?.clientName || 'Repertório',
-        autoplayRequested: options.autoplay ?? true,
-      });
     }
   }
 
@@ -863,8 +802,9 @@ export default function MembroPage() {
   }
 
   function openMaps(item) {
-    if (!item?.locationName || typeof window === 'undefined') return;
-    const query = encodeURIComponent(item.locationName);
+    const locationName = String(item?.locationName || '').trim();
+    if (!locationName || typeof window === 'undefined') return;
+    const query = encodeURIComponent(locationName);
     window.open(
       `https://www.google.com/maps/search/?api=1&query=${query}`,
       '_blank',
@@ -873,11 +813,6 @@ export default function MembroPage() {
   }
 
   async function handleOpenScale(item) {
-    console.info('[MEMBER_SCALE][OPEN_CLICK]', {
-      eventId: item?.eventId || null,
-      eventTitle: item?.clientName || null,
-    });
-
     setScaleModalEvent(item || null);
     setScaleModalMusicians([]);
     setScaleModalOpen(true);
@@ -885,14 +820,6 @@ export default function MembroPage() {
     try {
       setError('');
       if (!item?.eventId) {
-        console.info('[MEMBER_SCALE][RAW_DATA]', {
-          eventId: null,
-          rows: [],
-        });
-        console.info('[MEMBER_SCALE][HAS_SCALE]', {
-          eventId: null,
-          hasScale: false,
-        });
         return;
       }
 
@@ -915,11 +842,6 @@ export default function MembroPage() {
         .eq('event_id', item.eventId);
 
       if (scaleError) throw scaleError;
-      console.info('[MEMBER_SCALE][RAW_DATA]', {
-        eventId: item.eventId,
-        rows: Array.isArray(data) ? data : [],
-      });
-
       const musicians = (Array.isArray(data) ? data : []).map((row) => {
         const contact = Array.isArray(row?.contacts)
           ? row.contacts[0] || null
@@ -937,11 +859,6 @@ export default function MembroPage() {
         };
       });
 
-      console.info('[MEMBER_SCALE][HAS_SCALE]', {
-        eventId: item.eventId,
-        hasScale: musicians.length > 0,
-      });
-
       setScaleModalEvent(item || null);
       setScaleModalMusicians(musicians);
     } catch (e) {
@@ -955,27 +872,6 @@ export default function MembroPage() {
     if (!item) return;
     setRepertorioResumoItem(item);
     setRepertorioResumoOpen(true);
-  }
-
-  async function handleMarkDone(item) {
-    try {
-      setError('');
-
-      const nextDone = !item?.isDone;
-      const nextStatus = nextDone ? 'done' : 'confirmed';
-
-      const { error: updateError } = await supabase
-        .from('events')
-        .update({ status: nextStatus })
-        .eq('id', item.eventId);
-
-      if (updateError) throw updateError;
-
-      await loadDashboardData(member);
-    } catch (e) {
-      console.error('Erro ao marcar evento:', e);
-      setError(e?.message || 'Não foi possível atualizar o status do evento.');
-    }
   }
 
   function handlePrevTrack() {

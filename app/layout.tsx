@@ -38,6 +38,8 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const shouldLoadMaps = Boolean(GOOGLE_MAPS_KEY);
+
   return (
     <html
       lang="en"
@@ -47,7 +49,11 @@ export default function RootLayout({
         <ToastProvider>
           <ConfirmDialogProvider>{children}</ConfirmDialogProvider>
         </ToastProvider>
-        <GoogleMapsScriptClient apiKey={GOOGLE_MAPS_KEY} />
+
+        {/* Load Google Maps only if API key exists */}
+        {shouldLoadMaps && (
+          <GoogleMapsScriptClient apiKey={GOOGLE_MAPS_KEY} />
+        )}
       </body>
     </html>
   );

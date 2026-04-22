@@ -11,7 +11,7 @@ export async function POST(request) {
     if (!auth.ok) return NextResponse.json(auth, { status: auth.status || 401 });
 
     const body = await request.json().catch(() => ({}));
-    console.log('[ESCALAS_DELETE][BODY]', body);
+    console.log('[ESCALAS_DELETE][BULK_PAYLOAD]', body);
 
     const directEventIds = [
       ...(Array.isArray(body?.eventIds) ? body.eventIds : []),
@@ -44,7 +44,7 @@ export async function POST(request) {
 
     console.info('[SCALES_DELETE_MANY][DELETE][TABLE]', { table: 'event_musicians, invites' });
     console.info('[SCALES_DELETE_MANY][DELETE][IDS]', { eventIds });
-    console.log('[ESCALAS_DELETE][MATCH_QUERY]', {
+    console.log('[ESCALAS_DELETE][BULK_MATCH_QUERY]', {
       table: ['event_musicians', 'invites'],
       column: 'event_id',
       eventIds,
@@ -60,7 +60,7 @@ export async function POST(request) {
     }
 
     const result = await deleteScalesCascade({ supabase, eventIds });
-    console.log('[ESCALAS_DELETE][RESULT]', result);
+    console.log('[ESCALAS_DELETE][BULK_RESULT]', result);
 
     console.info('[SCALES_DELETE_MANY][DELETE][RESULT]', {
       requested: result.requested,
@@ -80,6 +80,21 @@ export async function POST(request) {
           ...result,
         },
         { status: 404 }
+      );
+    }
+
+    if (Array.isArray(result.failed) && result.failed.length > 0) {
+      return NextResponse.json(
+        {
+          ok: false,
+          success: false,
+          affected: result.affected,
+          ids: result.deletedEventIds || [],
+          failed: result.failed,
+          message: `Falha parcial ao excluir escalas. ${result.failed.length} item(ns) não puderam ser removidos.`,
+          ...result,
+        },
+        { status: 409 }
       );
     }
 

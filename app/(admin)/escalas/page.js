@@ -512,6 +512,7 @@ export default function EscalasPage() {
 
   const eventCards = useMemo(() => {
     const escalasByEventId = new Map();
+    const invitesByEventId = new Map();
 
     escalas.forEach((item) => {
       const key = String(item.event_id);
@@ -521,8 +522,20 @@ export default function EscalasPage() {
       escalasByEventId.get(key).push(item);
     });
 
+    invites.forEach((item) => {
+      const key = String(item.event_id);
+      if (!invitesByEventId.has(key)) {
+        invitesByEventId.set(key, []);
+      }
+      invitesByEventId.get(key).push(item);
+    });
+
     const cards = eventos
       .filter((event) => !isPastEvent(event.event_date))
+      .filter((event) => {
+        const key = String(event.id);
+        return (escalasByEventId.get(key) || []).length > 0 || (invitesByEventId.get(key) || []).length > 0;
+      })
       .map((event) => {
         const items = escalasByEventId.get(String(event.id)) || [];
         const instrumentosEsperados = splitCsvLike(event.instruments || event.formation);
@@ -591,7 +604,7 @@ export default function EscalasPage() {
       const bDate = b.eventDate ? new Date(`${b.eventDate}T${normalizeTimeStrict(b.eventTime) || '00:00'}`).getTime() : 0;
       return aDate - bDate;
     });
-  }, [eventos, escalas]);
+  }, [eventos, escalas, invites]);
 
   const filteredCards = useMemo(() => {
     const termo = normalizeText(busca);
@@ -1057,19 +1070,27 @@ export default function EscalasPage() {
         onConfirm={async () => {
           const targetIds = deleteDialog.eventId ? [deleteDialog.eventId] : selectedIds;
           const payload = { eventIds: targetIds };
-          console.log('[ESCALAS_DELETE][SELECTED_IDS]', selectedIds);
-          console.log('[ESCALAS_DELETE][PAYLOAD]', payload);
+          const isSingleDelete = Boolean(deleteDialog.eventId);
+          if (isSingleDelete) {
+            console.log('[ESCALAS_DELETE][SINGLE_PAYLOAD]', payload);
+          } else {
+            console.log('[ESCALAS_DELETE][BULK_PAYLOAD]', payload);
+          }
 
           try {
             const res = await runBulkDelete({
-              endpoint: '/api/scales/delete-many',
+              endpoint: isSingleDelete ? '/api/scales/delete' : '/api/scales/delete-many',
               idsKey: 'eventIds',
               ids: targetIds,
             });
-            console.log('[DELETE_RESULT]', res);
+            if (isSingleDelete) {
+              console.log('[ESCALAS_DELETE][SINGLE_RESULT]', res);
+            } else {
+              console.log('[ESCALAS_DELETE][BULK_RESULT]', res);
+            }
 
             if (!res?.success || Number(res?.affected || 0) === 0) {
-              toast.error(res?.message || res?.error || 'Nenhuma escala foi excluída');
+              toast.error(res?.message || res?.error || 'Nenhuma escala foi excluída.');
               return;
             }
 
@@ -1078,11 +1099,12 @@ export default function EscalasPage() {
             setEscalas((prev) => prev.filter((item) => !deleted.includes(String(item.event_id))));
             setInvites((prev) => prev.filter((item) => !deleted.includes(String(item.event_id))));
             clear();
-            toast.success(res.message || `${res.affected} escala(s) excluída(s)`);
+            toast.success(res.message || `${res.affected} escala(s) excluída(s).`);
           } catch (error) {
             toast.error(error?.message || 'Erro ao excluir escalas.');
+          } finally {
+            setDeleteDialog({ open: false, eventId: null });
           }
-          setDeleteDialog({ open: false, eventId: null });
         }}
       />
     </AdminShell>

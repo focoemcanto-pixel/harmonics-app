@@ -115,6 +115,131 @@ function resolveTrackUrl(row) {
   return `https://www.youtube.com/watch?v=${referenceVideoId}`;
 }
 
+function normalizeBucketKey(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+const SECTION_ORDER = {
+  antesala: 1,
+  cortejo: 2,
+  cerimonia: 3,
+  saida_dos_noivos: 4,
+  receptivo: 5,
+  referencia: 6,
+};
+
+const MOMENT_ORDER = {
+  // Cortejo
+  pais_noivo: 10,
+  pais_noiva: 20,
+  padrinhos: 30,
+  daminhas: 40,
+  noivo: 50,
+  noiva: 60,
+  florista: 70,
+  celebrante: 80,
+  // Cerimônia
+  aliancas: 110,
+  assinaturas: 120,
+  comunhao: 130,
+  louvor: 140,
+  homilia: 150,
+  // Saída
+  cumprimento: 210,
+  saida: 220,
+  // Receptivo
+  recepcao: 310,
+  jantar: 320,
+  festa: 330,
+};
+
+function resolveSectionFromItem(row = {}) {
+  const section = normalizeBucketKey(row?.section || row?.tipo || row?.type || '');
+  const moment = normalizeBucketKey(row?.momento || row?.moment || '');
+  const whoEnters = normalizeBucketKey(row?.quemEntra || row?.who_enters || '');
+  const label = normalizeBucketKey(row?.label || '');
+
+  const probe = [section, moment, whoEnters, label].filter(Boolean).join(' ');
+
+  if (probe.includes('antesala') || probe.includes('antessala') || probe.includes('ante room')) {
+    return 'antesala';
+  }
+
+  if (probe.includes('cortejo') || probe.includes('entrada')) {
+    return 'cortejo';
+  }
+
+  if (probe.includes('cerimonia')) {
+    return 'cerimonia';
+  }
+
+  if (
+    probe.includes('saida dos noivos') ||
+    probe.includes('saida') ||
+    probe.includes('recessional')
+  ) {
+    return 'saida_dos_noivos';
+  }
+
+  if (probe.includes('receptivo') || probe.includes('recepcao') || probe.includes('coquetel')) {
+    return 'receptivo';
+  }
+
+  return 'referencia';
+}
+
+function toMomentKey(value) {
+  const normalized = normalizeBucketKey(value).replace(/[^a-z0-9]+/g, '_');
+  return normalized.replace(/^_+|_+$/g, '');
+}
+
+function getMomentOrder(row = {}) {
+  const candidates = [
+    row?.momento,
+    row?.moment,
+    row?.quemEntra,
+    row?.who_enters,
+    row?.label,
+  ];
+
+  for (const value of candidates) {
+    const key = toMomentKey(value);
+    if (key && MOMENT_ORDER[key] != null) {
+      return MOMENT_ORDER[key];
+    }
+  }
+
+  return 999;
+}
+
+function getDisplayLabel(row = {}, sectionKey) {
+  if (sectionKey === 'antesala') return 'ANTESALA';
+
+  const whoEnters = String(row?.quemEntra || row?.who_enters || '').trim();
+  const moment = String(row?.momento || row?.moment || '').trim();
+  const label = String(row?.label || '').trim();
+
+  if (whoEnters) return whoEnters.toUpperCase();
+  if (moment) return moment.toUpperCase();
+
+  if (label) {
+    const normalized = normalizeBucketKey(label);
+    if (!normalized.startsWith('referencia')) {
+      return label.toUpperCase();
+    }
+  }
+
+  if (sectionKey === 'cortejo') return 'CORTEJO';
+  if (sectionKey === 'cerimonia') return 'CERIMÔNIA';
+  if (sectionKey === 'saida_dos_noivos') return 'SAÍDA DOS NOIVOS';
+  if (sectionKey === 'receptivo') return 'RECEPTIVO';
+  return 'REFERÊNCIAS';
+}
+
 function getDesktopTabMeta(activeTab) {
   if (activeTab === 'home') {
     return {
@@ -813,6 +938,15 @@ export default function MembroPage() {
     });
   }, [member?.id, member?.isAdmin, resumo, confirmados, proximosConfirmados.length]);
 
+  useEffect(() => {
+    console.log('[MEMBRO_PLAYER][PLAYBACK_STATE]', {
+      isPlaying,
+      currentIndex: playerIndex,
+      currentTrack: currentTrack?.title || '',
+      playlistSize: playerPlaylist.length,
+    });
+  }, [isPlaying, playerIndex, currentTrack?.title, playerPlaylist.length]);
+
   const desktopMeta = getDesktopTabMeta(activeTab);
 
   async function handleGoogleLogin() {
@@ -927,23 +1061,67 @@ export default function MembroPage() {
 
   function buildPlaylistFromRow(item) {
     if (!Array.isArray(item?.repertorioItems)) return [];
+    const rawItems = item.repertorioItems;
+    console.log('[MEMBRO_PLAYER][RAW_ITEMS]', rawItems);
 
-    return item.repertorioItems
+    const orderInput = rawItems.map((row) => ({
+      song: row?.musica || row?.song_name || '',
+      section: row?.section || row?.tipo || row?.type || '',
+      moment: row?.momento || row?.moment || '',
+      whoEnters: row?.quemEntra || row?.who_enters || '',
+      itemOrder: row?.item_order ?? row?.ordem ?? null,
+      label: row?.label || '',
+    }));
+    console.log('[MEMBRO_PLAYER][ORDER_INPUT]', orderInput);
+
+    const labelInput = rawItems.map((row) => ({
+      song: row?.musica || row?.song_name || '',
+      section: row?.section || '',
+      moment: row?.momento || row?.moment || '',
+      whoEnters: row?.quemEntra || row?.who_enters || '',
+      label: row?.label || '',
+    }));
+    console.log('[MEMBRO_PLAYER][LABEL_INPUT]', labelInput);
+
+    const orderedRows = rawItems
       .filter((row) => Boolean(resolveTrackUrl(row)))
-      .sort((a, b) => Number(a?.ordem ?? a?.item_order ?? 0) - Number(b?.ordem ?? b?.item_order ?? 0))
-      .map((row, index) => ({
+      .map((row, index) => {
+        const sectionKey = resolveSectionFromItem(row);
+        const sectionOrder = SECTION_ORDER[sectionKey] ?? 99;
+        const momentOrder = getMomentOrder(row);
+        const itemOrder = Number(row?.item_order ?? row?.ordem ?? index + 1);
+
+        return {
+          row,
+          index,
+          sectionKey,
+          sectionOrder,
+          momentOrder,
+          itemOrder,
+        };
+      })
+      .sort((a, b) => {
+        if (a.sectionOrder !== b.sectionOrder) return a.sectionOrder - b.sectionOrder;
+        if (a.momentOrder !== b.momentOrder) return a.momentOrder - b.momentOrder;
+        if (a.itemOrder !== b.itemOrder) return a.itemOrder - b.itemOrder;
+        return a.index - b.index;
+      });
+
+    const playlist = orderedRows.map((entry, index) => {
+      const row = entry.row;
+      return {
         title: row?.musica || row?.song_name || `Faixa ${index + 1}`,
-        subtitle:
-          row?.quemEntra ||
-          row?.momento ||
-          row?.label ||
-          row?.section ||
-          '',
+        subtitle: getDisplayLabel(row, entry.sectionKey),
         notes: row?.observacao || row?.notes || '',
         videoId: String(row?.reference_video_id || '').trim(),
         url: resolveTrackUrl(row),
         order: row?.ordem ?? row?.item_order ?? index + 1,
-      }));
+        sectionKey: entry.sectionKey,
+      };
+    });
+
+    console.log('[MEMBRO_PLAYER][FINAL_PLAYLIST]', playlist);
+    return playlist;
   }
 
   function openRepertoire(item, options = {}) {
@@ -958,7 +1136,7 @@ export default function MembroPage() {
     setPlayerPlaylist(playlist);
     setPlayerIndex(0);
     setPlayerEventTitle(item?.clientName || 'Repertório');
-    setIsPlaying(false);
+    setIsPlaying(Boolean(options.autoplay !== false));
 
     if (options.autoplay !== false) {
       setPlayerExpanded(true);
@@ -1049,23 +1227,44 @@ export default function MembroPage() {
   }
 
   function handlePrevTrack() {
+    const wasPlaying = isPlaying;
     setPlayerIndex((prev) => {
       if (playerPlaylist.length === 0) return 0;
       return (prev - 1 + playerPlaylist.length) % playerPlaylist.length;
     });
-    setIsPlaying(true);
+    setIsPlaying(wasPlaying);
+    console.log('[MEMBRO_PLAYER][TRACK_CHANGE]', {
+      action: 'prev',
+      wasPlaying,
+      total: playerPlaylist.length,
+    });
   }
 
   function handleTogglePlaying() {
-    setIsPlaying((prev) => !prev);
+    setIsPlaying((prev) => {
+      const next = !prev;
+      console.log('[MEMBRO_PLAYER][PLAYBACK_STATE]', {
+        action: 'toggle',
+        previous: prev,
+        next,
+      });
+      return next;
+    });
   }
 
-  function handleNextTrack() {
+  function handleNextTrack(reason = 'manual') {
+    const wasPlaying = isPlaying;
     setPlayerIndex((prev) => {
       if (playerPlaylist.length === 0) return 0;
       return (prev + 1) % playerPlaylist.length;
     });
-    setIsPlaying(true);
+    setIsPlaying(wasPlaying);
+    console.log('[MEMBRO_PLAYER][TRACK_CHANGE]', {
+      action: 'next',
+      reason,
+      wasPlaying,
+      total: playerPlaylist.length,
+    });
   }
 
   if (!sessionChecked) {
@@ -1344,10 +1543,18 @@ export default function MembroPage() {
         onPrev={handlePrevTrack}
         onTogglePlay={handleTogglePlaying}
         onSelectTrack={(index) => {
+          const wasPlaying = isPlaying;
           setPlayerIndex(index);
-          setIsPlaying(true);
+          setIsPlaying(wasPlaying);
+          console.log('[MEMBRO_PLAYER][TRACK_CHANGE]', {
+            action: 'select',
+            targetIndex: index,
+            wasPlaying,
+            total: playerPlaylist.length,
+          });
         }}
         onPlayerStateChange={(playing) => setIsPlaying(playing)}
+        onTrackEnd={() => handleNextTrack('auto_end')}
       />
 
       {showWelcomeSplash ? (

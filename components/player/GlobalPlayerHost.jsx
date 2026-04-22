@@ -50,6 +50,7 @@ export default function GlobalPlayerHost() {
   const fallbackHostRef = useRef(null);
   const mountNodeRef = useRef(null);
   const currentVideoIdRef = useRef('');
+  const createdInstancesRef = useRef(0);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -77,6 +78,9 @@ export default function GlobalPlayerHost() {
     return () => {
       console.log('[PLAYER_UNMOUNT]', 'GlobalPlayerHost unmounted');
       playerRef?.destroy?.();
+      if (typeof window !== 'undefined') {
+        window.__harmonicsGlobalPlayerInstance = null;
+      }
     };
   }, [playerRef]);
 
@@ -105,6 +109,13 @@ export default function GlobalPlayerHost() {
       if (!YT || cancelled || !mountNodeRef.current) return;
 
       if (!playerRef) {
+        const existingInstance = window.__harmonicsGlobalPlayerInstance;
+        if (existingInstance && existingInstance !== playerRef) {
+          existingInstance?.stopVideo?.();
+          existingInstance?.destroy?.();
+          window.__harmonicsGlobalPlayerInstance = null;
+        }
+
         const instance = new YT.Player(mountNodeRef.current, {
           videoId,
           playerVars: {
@@ -117,7 +128,10 @@ export default function GlobalPlayerHost() {
             onReady: (event) => {
               currentVideoIdRef.current = videoId;
               console.log('[PLAYER_INSTANCE]', event?.target || null);
+              createdInstancesRef.current += 1;
+              console.log('[PLAYER][INSTANCE_COUNT]', createdInstancesRef.current);
               setPlayerRef(event?.target || null);
+              window.__harmonicsGlobalPlayerInstance = event?.target || null;
               if (isPlaying) {
                 event?.target?.playVideo?.();
               }
@@ -138,6 +152,7 @@ export default function GlobalPlayerHost() {
         });
 
         setPlayerRef(instance);
+        window.__harmonicsGlobalPlayerInstance = instance;
         return;
       }
 

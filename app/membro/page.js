@@ -471,6 +471,7 @@ export default function MembroPage() {
       currentTrackIndex: playerIndex,
       playlist: playerPlaylist,
       currentTrack,
+      currentTime,
     },
     actions: {
       play,
@@ -493,6 +494,7 @@ export default function MembroPage() {
   const [repertoireConfigs, setRepertoireConfigs] = useState([]);
   const [repertoireItems, setRepertoireItems] = useState([]);
   const [isModalRenderTargetReady, setIsModalRenderTargetReady] = useState(false);
+  const [isMiniRenderTargetReady, setIsMiniRenderTargetReady] = useState(false);
 
  async function resolveMemberFromSession() {
   try {
@@ -984,9 +986,43 @@ export default function MembroPage() {
   ]);
 
   useEffect(() => {
-    console.log('[GLOBAL_PLAYER][MODAL_OPEN]', isPlayerModalOpen);
-    console.log('[GLOBAL_PLAYER][MINI_VISIBLE]', isMiniPlayerVisible);
-  }, [isPlayerModalOpen, isMiniPlayerVisible]);
+    console.log('[PLAYER][MODAL_OPEN]', isPlayerModalOpen);
+    console.log('[PLAYER][MINIBAR_VISIBLE]', isMiniPlayerVisible);
+    console.log('[PLAYER][IS_PLAYING]', isPlaying);
+    console.log('[PLAYER][CURRENT_TIME]', currentTime);
+    console.log('[PLAYER][CURRENT_TRACK]', currentTrack?.title || '');
+  }, [isPlayerModalOpen, isMiniPlayerVisible, isPlaying, currentTime, currentTrack?.title]);
+
+  useEffect(() => {
+    if (isPlayerModalOpen && isModalRenderTargetReady) {
+      const modalNode = document.querySelector('[data-player-modal-host="true"]');
+      if (modalNode) {
+        setRenderTarget(modalNode, 'modal_large');
+      }
+    } else if (!isPlayerModalOpen && isMiniPlayerVisible && isMiniRenderTargetReady) {
+      const miniNode = document.querySelector('[data-player-mini-host="true"]');
+      if (miniNode) {
+        setRenderTarget(miniNode, 'mini_bar');
+      }
+    }
+
+    console.log('[PLAYER][VIEW_SWITCH_SYNC]', {
+      modalOpen: isPlayerModalOpen,
+      miniVisible: isMiniPlayerVisible,
+      currentTrack: currentTrack?.title || '',
+      currentTime,
+      isPlaying,
+    });
+  }, [
+    isPlayerModalOpen,
+    isMiniPlayerVisible,
+    isModalRenderTargetReady,
+    isMiniRenderTargetReady,
+    setRenderTarget,
+    currentTrack?.title,
+    currentTime,
+    isPlaying,
+  ]);
 
   const desktopMeta = getDesktopTabMeta(activeTab);
 
@@ -1176,6 +1212,8 @@ export default function MembroPage() {
     replacePlaylist(playlist, { autoplay: options.autoplay !== false, startIndex: 0 });
     setPlayerEventTitle(item?.clientName || 'Repertório');
     setIsMiniPlayerVisible(Boolean(options.autoplay !== false));
+    console.log('[PLAYER][CURRENT_TRACK]', playlist[0]?.title || '');
+    console.log('[PLAYER][IS_PLAYING]', options.autoplay !== false);
 
     if (options.autoplay !== false) {
       setIsPlayerModalOpen(true);
@@ -1191,7 +1229,13 @@ export default function MembroPage() {
     });
     setIsPlayerModalOpen(false);
     setIsMiniPlayerVisible(true);
-    setRenderTarget(null, 'mini_hidden');
+    console.log('[PLAYER][MODAL_OPEN]', false);
+    console.log('[PLAYER][MINIBAR_VISIBLE]', true);
+    console.log('[PLAYER][VIEW_SWITCH_SYNC]', {
+      to: 'mini',
+      currentTrack: currentTrack?.title || '',
+      isPlaying,
+    });
   }
 
   function handleClosePlayerSession() {
@@ -1292,6 +1336,8 @@ export default function MembroPage() {
 
   function handlePrevTrack() {
     prev();
+    play();
+    console.log('[PLAYER][NEXT_TRACK_AUTOPLAY]', { direction: 'prev', autoPlay: true });
     console.log('[MEMBRO_PLAYER][TRACK_CHANGE]', {
       action: 'prev',
       wasPlaying: isPlaying,
@@ -1320,6 +1366,8 @@ export default function MembroPage() {
 
   function handleNextTrack(reason = 'manual') {
     next();
+    play();
+    console.log('[PLAYER][NEXT_TRACK_AUTOPLAY]', { direction: 'next', reason, autoPlay: true });
     console.log('[MEMBRO_PLAYER][TRACK_CHANGE]', {
       action: 'next',
       reason,
@@ -1593,6 +1641,8 @@ export default function MembroPage() {
         onClose={handleMinimizePlayer}
         onSelectTrack={(index) => {
           setTrack(index);
+          play();
+          console.log('[PLAYER][NEXT_TRACK_AUTOPLAY]', { direction: 'select', autoPlay: true, targetIndex: index });
           console.log('[MEMBRO_PLAYER][TRACK_CHANGE]', {
             action: 'select',
             targetIndex: index,
@@ -1605,7 +1655,9 @@ export default function MembroPage() {
         playerContainerActive={isModalRenderTargetReady}
         onPlayerContainerReady={(node) => {
           setIsModalRenderTargetReady(Boolean(node));
-          setRenderTarget(node, node ? 'modal_large' : 'hidden_fallback');
+          if (node && isPlayerModalOpen) {
+            setRenderTarget(node, 'modal_large');
+          }
         }}
       />
 
@@ -1628,6 +1680,12 @@ export default function MembroPage() {
         onNext={handleNextTrack}
         onPrev={handlePrevTrack}
         onTogglePlay={handleTogglePlaying}
+        onPlayerContainerReady={(node) => {
+          setIsMiniRenderTargetReady(Boolean(node));
+          if (node && !isPlayerModalOpen && isMiniPlayerVisible) {
+            setRenderTarget(node, 'mini_bar');
+          }
+        }}
       />
 
       {showWelcomeSplash ? (

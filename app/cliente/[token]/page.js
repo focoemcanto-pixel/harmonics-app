@@ -719,6 +719,7 @@ function sanitizeResolvedAdjustmentFromObservations(observations, latestAdjustme
   const normalizedObservation = rawObservation.toLowerCase();
   const normalizedRequest = rawRequest.toLowerCase();
   const prefixedRequest = `solicitação de ajuste: ${normalizedRequest}`;
+  const blockMarker = '--- solicitação de ajuste do cliente ---';
 
   if (
     normalizedObservation === normalizedRequest ||
@@ -727,7 +728,19 @@ function sanitizeResolvedAdjustmentFromObservations(observations, latestAdjustme
     return '';
   }
 
-  return rawObservation;
+  const cleanedLines = rawObservation
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .filter((line) => {
+      const normalizedLine = line.toLowerCase();
+      if (normalizedLine === blockMarker) return false;
+      if (normalizedLine === normalizedRequest) return false;
+      if (normalizedLine === prefixedRequest) return false;
+      return true;
+    });
+
+  return cleanedLines.join('\n').trim();
 }
 
 function toNumber(value) {

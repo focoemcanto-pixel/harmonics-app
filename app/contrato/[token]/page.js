@@ -597,6 +597,58 @@ const mapsLoaded = useGoogleMapsReady();
 
       const saved = contractData?.raw_payload?.client_form || {};
 
+      let latestAdjustment = null;
+      try {
+        const { data: latestAdjustmentData, error: adjustmentError } = await supabase
+          .from('contract_adjustment_requests')
+          .select('id, precontract_id, status, request_message, created_at, resolved_at, resolved_note')
+          .eq('precontract_id', safePreData.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (adjustmentError) {
+          console.warn('[CONTRACT_PUBLIC_UI] falha não fatal ao buscar ajuste pendente', {
+            token,
+            precontractId: safePreData.id,
+            message: adjustmentError.message,
+          });
+          setPendingAdjustmentRequest(null);
+        } else {
+          latestAdjustment = latestAdjustmentData || null;
+          setPendingAdjustmentRequest(latestAdjustment);
+        }
+      } catch (error) {
+        console.warn('[CONTRACT_PUBLIC_UI] erro não fatal ao buscar ajuste pendente', {
+          token,
+          precontractId: safePreData.id,
+          message: error?.message,
+        });
+        setPendingAdjustmentRequest(null);
+      }
+
+      const latestAdjustmentStatus = String(latestAdjustment?.status || '').trim().toLowerCase();
+      const rawSavedAdjustment = String(saved.adjustment_request || '');
+      const pendingAdjustmentMessage = String(latestAdjustment?.request_message || '');
+
+      const textareaInitialValue = latestAdjustmentStatus === 'pending'
+        ? pendingAdjustmentMessage || rawSavedAdjustment
+        : rawSavedAdjustment;
+
+      const effectiveAdjustmentValue =
+        latestAdjustmentStatus === 'resolved' ||
+        latestAdjustmentStatus === 'corrected' ||
+        latestAdjustmentStatus === 'released' ||
+        latestAdjustmentStatus === 'liberado'
+          ? ''
+          : textareaInitialValue;
+
+      console.log('[CONTRACT_ADJUST][RAW_STATUS]', latestAdjustmentStatus || '(empty)');
+      console.log('[CONTRACT_ADJUST][RAW_TEXT_SOURCE]', {
+        pendingRequestMessage: pendingAdjustmentMessage,
+        savedClientFormValue: rawSavedAdjustment,
+      });
+      console.log('[CONTRACT_ADJUST][TEXTAREA_INITIAL_VALUE]', effectiveAdjustmentValue);
+
       setForm({
         full_name: saved.full_name || safePreData.client_name || '',
         marital_status: saved.marital_status || '',
@@ -619,10 +671,7 @@ const mapsLoaded = useGoogleMapsReady();
         event_location_address:
           saved.event_location_address || safePreData.location_address || '',
 
-       adjustment_request:
-  String(pendingAdjustmentRequest?.status || '').toLowerCase() === 'resolved'
-    ? ''
-    : saved.adjustment_request || '',
+        adjustment_request: effectiveAdjustmentValue,
 
         signer_name: saved.signer_name || '',
         signer_cpf: saved.signer_cpf ? maskCpf(saved.signer_cpf) : '',
@@ -636,33 +685,6 @@ const mapsLoaded = useGoogleMapsReady();
 
       if (saved.address_street) setClientAddressStatus('selected');
       if (saved.event_location_address) setEventAddressStatus('selected');
-
-      try {
-        const { data: latestAdjustment, error: adjustmentError } = await supabase
-  .from('contract_adjustment_requests')
-  .select('id, precontract_id, status, request_message, created_at, resolved_at, resolved_note')
-  .eq('precontract_id', safePreData.id)
-  .order('created_at', { ascending: false })
-  .limit(1)
-  .maybeSingle();
-        if (adjustmentError) {
-          console.warn('[CONTRACT_PUBLIC_UI] falha não fatal ao buscar ajuste pendente', {
-            token,
-            precontractId: safePreData.id,
-            message: adjustmentError.message,
-          });
-          setPendingAdjustmentRequest(null);
-        } else {
-          setPendingAdjustmentRequest(latestAdjustment || null);
-        }
-      } catch (error) {
-        console.warn('[CONTRACT_PUBLIC_UI] erro não fatal ao buscar ajuste pendente', {
-          token,
-          precontractId: safePreData.id,
-          message: error?.message,
-        });
-        setPendingAdjustmentRequest(null);
-      }
 
       if (!safePreData.public_token) {
         try {
@@ -1391,7 +1413,6 @@ if (!generateRes.ok || !generateJson?.ok) {
         `Horário do evento: ${normalizeTimeStrict(form.event_time) || '-'}`,
         `Local do evento: ${form.event_location_name || '-'}`,
         `Endereço do evento: ${form.event_location_address || '-'}`,
-        `Solicitação de ajuste: ${form.adjustment_request || '-'}`,
         `Assinatura: ${form.signer_name || '-'}`,
         `CPF da assinatura: ${form.signer_cpf || '-'}`,
       ]

@@ -342,8 +342,10 @@ export async function POST(request) {
       });
     }
 
-    if (!context.contract?.id && !context.precontract?.id) {
-      throw new Error('Nenhum contexto válido encontrado para gerar o contrato.');
+    if (!context.contract?.id) {
+      throw new Error(
+        'Não foi possível finalizar a geração do contrato: contract.id é obrigatório para persistir doc_url/pdf_url em contracts. Crie/associe o contrato e tente novamente.'
+      );
     }
 
     const contractName = getContractName(context);

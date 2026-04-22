@@ -52,6 +52,27 @@ export default function GlobalPlayerHost() {
   const currentVideoIdRef = useRef('');
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!mountNodeRef.current) {
+      const node = document.createElement('div');
+      node.setAttribute('data-global-player-mount', 'true');
+      mountNodeRef.current = node;
+    }
+    const node = mountNodeRef.current;
+
+    if (fallbackHostRef.current) {
+      fallbackHostRef.current.appendChild(node);
+    }
+
+    return () => {
+      if (node.parentNode) {
+        node.parentNode.removeChild(node);
+      }
+      mountNodeRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
     console.log('[PLAYER_MOUNT]', 'GlobalPlayerHost mounted');
     return () => {
       console.log('[PLAYER_UNMOUNT]', 'GlobalPlayerHost unmounted');

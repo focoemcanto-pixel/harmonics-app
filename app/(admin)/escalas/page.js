@@ -1056,6 +1056,10 @@ export default function EscalasPage() {
         onCancel={() => setDeleteDialog({ open: false, eventId: null })}
         onConfirm={async () => {
           const targetIds = deleteDialog.eventId ? [deleteDialog.eventId] : selectedIds;
+          const payload = { eventIds: targetIds };
+          console.log('[ESCALAS_DELETE][SELECTED_IDS]', selectedIds);
+          console.log('[ESCALAS_DELETE][PAYLOAD]', payload);
+
           try {
             const res = await runBulkDelete({
               endpoint: '/api/scales/delete-many',
@@ -1063,16 +1067,18 @@ export default function EscalasPage() {
               ids: targetIds,
             });
             console.log('[DELETE_RESULT]', res);
-            if (!res?.success) {
-              toast.error(res?.message || 'Erro na operação');
+
+            if (!res?.success || Number(res?.affected || 0) === 0) {
+              toast.error(res?.message || res?.error || 'Nenhuma escala foi excluída');
               return;
             }
 
             const deleted = (res.ids || []).map((id) => String(id));
+            setEventos((prev) => prev.filter((item) => !deleted.includes(String(item.id))));
             setEscalas((prev) => prev.filter((item) => !deleted.includes(String(item.event_id))));
             setInvites((prev) => prev.filter((item) => !deleted.includes(String(item.event_id))));
             clear();
-            toast.success(res.message || `${res.affected || 0} itens processados`);
+            toast.success(res.message || `${res.affected} escala(s) excluída(s)`);
           } catch (error) {
             toast.error(error?.message || 'Erro ao excluir escalas.');
           }

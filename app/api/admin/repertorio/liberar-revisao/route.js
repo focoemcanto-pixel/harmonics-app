@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { executeAutomationEvent } from '@/lib/automation/execute-automation-event';
 
 export async function POST(request) {
   try {
@@ -34,6 +35,17 @@ export async function POST(request) {
         { status: 404 }
       );
     }
+
+    console.log('[AUTOMATION][REPERTOIRE_REVIEW_RELEASED]', { eventId });
+    await executeAutomationEvent({
+      eventType: 'repertoire_review_released_client',
+      entityId: eventId,
+    }).catch((automationError) => {
+      console.error('[AUTOMATION][REPERTOIRE_REVIEW_RELEASED] Falha no disparo automático', {
+        eventId,
+        error: automationError?.message || 'erro desconhecido',
+      });
+    });
 
     return NextResponse.json({
       ok: true,

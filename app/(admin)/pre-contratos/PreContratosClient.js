@@ -954,6 +954,24 @@ export default function PreContratosClient() {
         handleFormChange('adjustment_request', '');
       }
 
+      console.log('[AUTOMATION][CONTRACT_REVIEW_RELEASED]', {
+        precontractId: editandoId,
+        adjustmentRequestId: pending.id,
+      });
+      fetch('/api/automation/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          eventType: 'contract_review_released_client',
+          entityId: editandoId,
+        }),
+      }).catch((automationError) => {
+        console.error('[AUTOMATION][CONTRACT_REVIEW_RELEASED] Falha no disparo automático', {
+          precontractId: editandoId,
+          error: automationError?.message || 'erro desconhecido',
+        });
+      });
+
       showToast?.('Ajuste marcado como resolvido. A assinatura foi liberada novamente.', 'success');
     } catch (error) {
       console.error('Erro ao confirmar ajuste:', error);

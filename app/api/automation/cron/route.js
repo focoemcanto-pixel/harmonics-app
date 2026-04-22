@@ -10,6 +10,7 @@ const SCHEDULED_EVENT_TYPES = [
   'payment_pending_2_days_client',
   'post_event_review_request_client',
   'schedule_pending_15_days_admin',
+  'event_day_confirmation_client',
 ];
 
 export async function GET(request) {
@@ -52,7 +53,8 @@ export async function GET(request) {
 
       for (const rule of rules) {
         const hasPostEventDelay = eventType === 'post_event_review_request_client' && rule.delay_hours != null;
-        if (rule.days_before == null && rule.days_after == null && !hasPostEventDelay) {
+        const hasEventDaySmartSchedule = eventType === 'event_day_confirmation_client';
+        if (rule.days_before == null && rule.days_after == null && !hasPostEventDelay && !hasEventDaySmartSchedule) {
           console.log(`[CRON] Regra "${rule.name}" (${rule.id}) sem timing por data — pulando`);
           continue;
         }

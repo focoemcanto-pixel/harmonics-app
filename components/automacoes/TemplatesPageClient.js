@@ -26,6 +26,12 @@ const VARIAVEIS = [
   '{link_escala}',
   '{link_review}',
   '{review_link}',
+  '{client_panel_link}',
+  '{contract_link}',
+  '{event_time}',
+  '{event_date}',
+  '{event_name}',
+  '{event_location}',
 ];
 
 const FORM_INICIAL = {
@@ -58,6 +64,12 @@ const MOCK_VARS = {
   '{link_escala}': 'https://harmonics.app/escala/demo',
   '{link_review}': 'https://harmonics.app/review/demo',
   '{review_link}': 'https://harmonics.app/review/demo',
+  '{client_panel_link}': 'https://harmonics.app/cliente/token-demo',
+  '{contract_link}': 'https://harmonics.app/contrato/token-demo',
+  '{event_time}': '17:00',
+  '{event_date}': '20/09/2026',
+  '{event_name}': 'Casamento Ana & Lucas',
+  '{event_location}': 'Espaço Villa Verde',
 };
 
 function renderTemplatePreview(body, vars) {

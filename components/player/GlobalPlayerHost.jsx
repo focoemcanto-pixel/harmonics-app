@@ -50,6 +50,9 @@ export default function GlobalPlayerHost() {
   const mountNodeRef = useRef(null);
   const currentVideoIdRef = useRef('');
   const createdInstancesRef = useRef(0);
+  const pendingTrackChangeRef = useRef(false);
+  const shouldResumeAfterTrackChangeRef = useRef(false);
+  const previousTrackSnapshotRef = useRef({ index: 0, videoId: '' });
 
   useEffect(() => {
     console.log('[PLAYER_MOUNT]', 'GlobalPlayerHost mounted');
@@ -117,19 +120,42 @@ export default function GlobalPlayerHost() {
             onStateChange: (event) => {
               const state = event?.data;
               if (state === window.YT.PlayerState.PLAYING) {
+                pendingTrackChangeRef.current = false;
+                shouldResumeAfterTrackChangeRef.current = false;
                 setIsPlaying(true);
                 console.log('[AUDIO_PLAYER][IS_PLAYING]', true);
+                console.log('[PLAYER][IS_PLAYING_AFTER_CHANGE]', {
+                  isPlaying: true,
+                  reason: 'onStateChange:PLAYING',
+                });
               }
               if (state === window.YT.PlayerState.PAUSED) {
+                if (pendingTrackChangeRef.current && shouldResumeAfterTrackChangeRef.current) {
+                  console.log('[PLAYER][IS_PLAYING_AFTER_CHANGE]', {
+                    isPlaying: true,
+                    ignoredPauseEvent: true,
+                    reason: 'track_change_while_should_continue_playing',
+                  });
+                  return;
+                }
+
                 setIsPlaying(false);
                 console.log('[AUDIO_PLAYER][IS_PLAYING]', false);
+                console.log('[PLAYER][IS_PLAYING_AFTER_CHANGE]', {
+                  isPlaying: false,
+                  reason: 'onStateChange:PAUSED',
+                });
+              }
+              if (state === window.YT.PlayerState.CUED) {
+                pendingTrackChangeRef.current = false;
+                shouldResumeAfterTrackChangeRef.current = false;
               }
               if (state === window.YT.PlayerState.ENDED) {
                 console.log('[AUDIO_PLAYER][TRACK_END]', {
                   index: currentTrackIndex,
                   title: currentTrack?.title || '',
                 });
-                next();
+                next({ reason: 'track_ended', forcePlay: true });
               }
             },
           },
@@ -141,12 +167,36 @@ export default function GlobalPlayerHost() {
       }
 
       if (currentVideoIdRef.current !== videoId) {
+        const shouldContinuePlaying = isPlaying;
+        const previousTrack = previousTrackSnapshotRef.current;
+        console.log('[PLAYER][TRACK_BEFORE_CHANGE]', {
+          source: 'videoId_effect',
+          previousTrackIndex: previousTrack.index,
+          previousVideoId: previousTrack.videoId,
+          isPlayingBeforeChange: shouldContinuePlaying,
+        });
+
         currentVideoIdRef.current = videoId;
+        pendingTrackChangeRef.current = true;
+        shouldResumeAfterTrackChangeRef.current = shouldContinuePlaying;
+
         if (isPlaying) {
           playerRef.loadVideoById?.(videoId);
         } else {
           playerRef.cueVideoById?.(videoId);
         }
+
+        console.log('[PLAYER][TRACK_AFTER_CHANGE]', {
+          source: 'videoId_effect',
+          currentTrackIndex,
+          nextVideoId: videoId,
+        });
+        console.log('[PLAYER][IS_PLAYING_AFTER_CHANGE]', {
+          isPlaying: shouldContinuePlaying,
+          reason: 'post_video_change_intent',
+        });
+
+        previousTrackSnapshotRef.current = { index: currentTrackIndex, videoId };
         return;
       }
 
@@ -176,6 +226,7 @@ export default function GlobalPlayerHost() {
       index: currentTrackIndex,
       videoId,
     });
+    previousTrackSnapshotRef.current = { index: currentTrackIndex, videoId };
   }, [videoId, isPlaying, currentTrackIndex, playerRef, currentTrack]);
 
   return (

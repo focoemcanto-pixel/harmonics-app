@@ -63,10 +63,14 @@ export default function MiniPlayerBar({
   const currentVideoIdRef = useRef('');
   const didReportModalOpenRef = useRef(false);
 
-  const videoId = extractYoutubeId(currentTrack?.url || '');
+  const videoId = String(currentTrack?.videoId || '').trim() || extractYoutubeId(currentTrack?.url || '');
   const thumbnailUrl = useMemo(() => {
     if (!videoId) return '';
     return `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+  }, [videoId]);
+  const modalEmbedUrl = useMemo(() => {
+    if (!videoId) return '';
+    return `https://www.youtube.com/embed/${videoId}?autoplay=1&modestbranding=1&rel=0`;
   }, [videoId]);
 
   useEffect(() => {
@@ -206,27 +210,29 @@ export default function MiniPlayerBar({
               <div className="grid flex-1 grid-cols-1 overflow-hidden md:grid-cols-[1.1fr_0.9fr]">
                 <div className="border-b border-white/10 p-5 md:border-b-0 md:border-r md:p-6">
                   <div className="overflow-hidden rounded-[26px] border border-white/10 bg-black/20">
-                    {thumbnailUrl ? (
+                    {modalEmbedUrl ? (
+                      <div className="aspect-video w-full">
+                        <iframe
+                          key={videoId}
+                          src={modalEmbedUrl}
+                          title={currentTrack?.title || 'Player do repertório'}
+                          frameBorder="0"
+                          allow="autoplay; encrypted-media; picture-in-picture"
+                          allowFullScreen
+                          className="h-full w-full"
+                        />
+                      </div>
+                    ) : thumbnailUrl ? (
                       <div className="relative aspect-video w-full overflow-hidden">
                         <img
                           src={thumbnailUrl}
                           alt={currentTrack?.title || 'Thumbnail'}
                           className="h-full w-full object-cover"
                         />
-                        <div className="absolute inset-0 bg-black/45" />
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <button
-                            type="button"
-                            onClick={handlePrimaryButtonClick}
-                            className="flex h-20 w-20 items-center justify-center rounded-full bg-white/15 text-[28px] font-black text-white backdrop-blur"
-                          >
-                            {isPlaying ? '❚❚' : '▶'}
-                          </button>
-                        </div>
                       </div>
                     ) : (
                       <div className="flex aspect-video items-center justify-center px-5 text-center text-[15px] font-semibold text-white/60">
-                        Nenhuma faixa disponível para tocar neste repertório.
+                        Sem vídeo disponível para esta faixa.
                       </div>
                     )}
                   </div>

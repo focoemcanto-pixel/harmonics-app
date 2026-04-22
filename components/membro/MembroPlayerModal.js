@@ -14,8 +14,6 @@ export default function MembroPlayerModal({
   onPrev,
   onNext,
   onTogglePlay,
-  onPlayerContainerReady,
-  playerContainerActive,
 }) {
   const currentTrack = playlist[currentIndex] || null;
   const videoId = String(currentTrack?.videoId || '').trim() || extractYoutubeId(currentTrack?.url || '');
@@ -80,7 +78,7 @@ export default function MembroPlayerModal({
 
                 <div className="mt-5 overflow-hidden rounded-[18px] border border-white/10 bg-black/45">
                   <div className="relative aspect-video w-full">
-                    {!playerContainerActive && thumbnailUrl ? (
+                    {thumbnailUrl ? (
                       <img
                         src={thumbnailUrl}
                         alt={currentTrack?.title || 'Thumbnail da faixa'}
@@ -88,23 +86,12 @@ export default function MembroPlayerModal({
                       />
                     ) : null}
 
-                    {!playerContainerActive ? (
-                      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(124,58,237,0.32),rgba(6,8,16,0.88))]" />
-                    ) : null}
-
-                    {!playerContainerActive ? (
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="rounded-full border border-white/20 bg-black/40 px-4 py-2 text-[11px] font-black uppercase tracking-[0.08em] text-white/80">
-                          Carregando vídeo premium...
-                        </div>
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(124,58,237,0.28),rgba(6,8,16,0.92))]" />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="rounded-full border border-white/20 bg-black/45 px-4 py-2 text-[11px] font-black uppercase tracking-[0.08em] text-white/85">
+                        Áudio premium em reprodução
                       </div>
-                    ) : null}
-
-                    <div
-                      ref={onPlayerContainerReady}
-                      data-player-modal-host="true"
-                      className="relative z-[1] aspect-video w-full"
-                    />
+                    </div>
                   </div>
                 </div>
 
@@ -151,9 +138,7 @@ export default function MembroPlayerModal({
                     Como funciona
                   </div>
                   <div className="mt-2 text-[14px] leading-6 text-white/65">
-                    {playerContainerActive
-                      ? 'Este modal é a visualização principal da instância global do player.'
-                      : 'Preparando player global...'}
+                    Player global único ativo para modal e minibar, com continuidade total.
                   </div>
                 </div>
               </div>

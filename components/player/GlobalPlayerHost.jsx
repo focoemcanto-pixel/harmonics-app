@@ -43,35 +43,13 @@ function ensureYouTubeAPI() {
 
 export default function GlobalPlayerHost() {
   const {
-    state: { videoId, isPlaying, playerRef, currentTrackIndex, renderTarget, renderTargetName, currentTrack },
+    state: { videoId, isPlaying, playerRef, currentTrackIndex, currentTrack },
     actions: { setPlayerRef, setIsPlaying, setCurrentTime, next },
   } = useGlobalPlayer();
 
-  const fallbackHostRef = useRef(null);
   const mountNodeRef = useRef(null);
   const currentVideoIdRef = useRef('');
   const createdInstancesRef = useRef(0);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    if (!mountNodeRef.current) {
-      const node = document.createElement('div');
-      node.setAttribute('data-global-player-mount', 'true');
-      mountNodeRef.current = node;
-    }
-    const node = mountNodeRef.current;
-
-    if (fallbackHostRef.current) {
-      fallbackHostRef.current.appendChild(node);
-    }
-
-    return () => {
-      if (node.parentNode) {
-        node.parentNode.removeChild(node);
-      }
-      mountNodeRef.current = null;
-    };
-  }, []);
 
   useEffect(() => {
     console.log('[PLAYER_MOUNT]', 'GlobalPlayerHost mounted');
@@ -127,9 +105,9 @@ export default function GlobalPlayerHost() {
           events: {
             onReady: (event) => {
               currentVideoIdRef.current = videoId;
-              console.log('[PLAYER_INSTANCE]', event?.target || null);
+              console.log('[AUDIO_PLAYER][GLOBAL_INSTANCE]', event?.target || null);
               createdInstancesRef.current += 1;
-              console.log('[PLAYER][INSTANCE_COUNT]', createdInstancesRef.current);
+              console.log('[AUDIO_PLAYER][GLOBAL_INSTANCE]', { instanceCount: createdInstancesRef.current });
               setPlayerRef(event?.target || null);
               window.__harmonicsGlobalPlayerInstance = event?.target || null;
               if (isPlaying) {
@@ -140,11 +118,17 @@ export default function GlobalPlayerHost() {
               const state = event?.data;
               if (state === window.YT.PlayerState.PLAYING) {
                 setIsPlaying(true);
+                console.log('[AUDIO_PLAYER][IS_PLAYING]', true);
               }
               if (state === window.YT.PlayerState.PAUSED) {
                 setIsPlaying(false);
+                console.log('[AUDIO_PLAYER][IS_PLAYING]', false);
               }
               if (state === window.YT.PlayerState.ENDED) {
+                console.log('[AUDIO_PLAYER][TRACK_END]', {
+                  index: currentTrackIndex,
+                  title: currentTrack?.title || '',
+                });
                 next();
               }
             },
@@ -178,38 +162,25 @@ export default function GlobalPlayerHost() {
     return () => {
       cancelled = true;
     };
-  }, [videoId, isPlaying, playerRef, setIsPlaying, setPlayerRef, next]);
+  }, [videoId, isPlaying, playerRef, setIsPlaying, setPlayerRef, next, currentTrack?.title, currentTrackIndex]);
 
   useEffect(() => {
-    console.log('[GLOBAL_PLAYER][INSTANCE]', {
+    console.log('[AUDIO_PLAYER][GLOBAL_INSTANCE]', {
       videoId,
       isPlaying,
       currentTrackIndex,
       hasInstance: Boolean(playerRef),
     });
-    console.log('[GLOBAL_PLAYER][TRACK_STATE]', {
+    console.log('[AUDIO_PLAYER][CURRENT_TRACK]', {
       title: currentTrack?.title || '',
       index: currentTrackIndex,
       videoId,
     });
   }, [videoId, isPlaying, currentTrackIndex, playerRef, currentTrack]);
 
-  useEffect(() => {
-    const target = renderTarget || fallbackHostRef.current;
-    if (!target || !mountNodeRef.current) return;
-    target.appendChild(mountNodeRef.current);
-    console.log('[GLOBAL_PLAYER][HOST_CONTAINER]', {
-      target: renderTargetName,
-      usingFallback: !renderTarget,
-    });
-    console.log('[GLOBAL_PLAYER][RENDER_TARGET]', renderTargetName);
-  }, [renderTarget, renderTargetName]);
-
   return (
     <div className="hidden" aria-hidden="true">
-      <div ref={fallbackHostRef}>
-        <div ref={mountNodeRef} />
-      </div>
+      <div ref={mountNodeRef} />
     </div>
   );
 }

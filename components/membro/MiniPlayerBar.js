@@ -13,7 +13,6 @@ export default function MiniPlayerBar({
   onNext,
   onPrev,
   onTogglePlay,
-  onPlayerContainerReady,
 }) {
   const videoId = String(currentTrack?.videoId || '').trim() || extractYoutubeId(currentTrack?.url || '');
   const thumbnailUrl = useMemo(() => {
@@ -31,13 +30,6 @@ export default function MiniPlayerBar({
         </div>
 
         <div className="flex items-center gap-3 px-4 py-3">
-          <div
-            ref={onPlayerContainerReady}
-            data-player-mini-host="true"
-            className="h-[1px] w-[1px] overflow-hidden opacity-0 pointer-events-none"
-            aria-hidden="true"
-          />
-
           <button
             type="button"
             onClick={onExpand}

@@ -29,7 +29,7 @@ export function useBulkDelete() {
       const payload = await response.json().catch(() => ({}));
 
       if (!response.ok || !payload?.ok) {
-        throw new Error(payload?.error || 'Falha ao processar exclusão.');
+        throw new Error(payload?.message || payload?.error || 'Falha ao processar exclusão.');
       }
 
       return payload;

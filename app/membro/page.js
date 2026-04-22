@@ -386,17 +386,20 @@ export default function MembroPage() {
       // ✅ SE FOR ADMIN: Buscar TODOS os dados (sem filtro)
       if (currentMember.isAdmin) {
         const [
-          eventsResp,
+          scalesResp,
+          invitesResp,
           precontractsResp,
           contractsResp,
           repertoireConfigsResp,
           repertoireItemsResp,
         ] = await Promise.all([
           supabase
-            .from('events')
-            .select('*')
-            .order('event_date', { ascending: true })
-            .order('event_time', { ascending: true }),
+            .from('event_musicians')
+            .select('event_id'),
+          supabase
+            .from('invites')
+            .select('event_id')
+            .neq('status', 'removed'),
 
           supabase
             .from('precontracts')
@@ -416,12 +419,35 @@ export default function MembroPage() {
             .order('item_order', { ascending: true }),
         ]);
 
-        if (eventsResp.error) throw eventsResp.error;
+        if (scalesResp.error) throw scalesResp.error;
+        if (invitesResp.error) throw invitesResp.error;
         if (precontractsResp.error) throw precontractsResp.error;
         if (contractsResp.error) throw contractsResp.error;
         if (repertoireConfigsResp.error) throw repertoireConfigsResp.error;
         if (repertoireItemsResp.error) throw repertoireItemsResp.error;
 
+        const operationalEventIds = Array.from(
+          new Set(
+            [...(scalesResp.data || []), ...(invitesResp.data || [])]
+              .map((item) => String(item?.event_id || '').trim())
+              .filter(Boolean)
+          )
+        );
+        const eventsResp =
+          operationalEventIds.length > 0
+            ? await supabase
+                .from('events')
+                .select(`
+                  id,
+                  created_at,
+                  *
+                `)
+                .in('id', operationalEventIds)
+                .order('event_date', { ascending: true })
+                .order('event_time', { ascending: true })
+            : { data: [], error: null };
+
+        if (eventsResp.error) throw eventsResp.error;
         const adminEvents = Array.isArray(eventsResp.data) ? eventsResp.data : [];
         const adminInvites = adminEvents.map((event) => ({
           id: `admin-event-${event.id}`,
@@ -435,6 +461,12 @@ export default function MembroPage() {
           created_at: event?.created_at || null,
           events: event,
         }));
+
+        console.info('[MEMBER_PANEL][ADMIN_BYPASS]', {
+          memberId: currentMember.id,
+          totalEvents: adminEvents.length,
+          sourceEventIds: operationalEventIds.length,
+        });
 
         setInvites(adminInvites);
         setPrecontracts(Array.isArray(precontractsResp.data) ? precontractsResp.data : []);

@@ -212,6 +212,61 @@ function buildRepertorioSnapshot({
   };
 }
 
+function buildUnifiedRepertorioItems({ cortejo = [], cerimonia = [], saida = {} }) {
+  const cortejoItems = (Array.isArray(cortejo) ? cortejo : [])
+    .filter((item) => hasUsefulMusicalItem(item))
+    .map((item, index) => ({
+      id: String(item?.id || `cortejo-${index}`),
+      section: 'cortejo',
+      moment: String(item?.label || 'Entrada').trim(),
+      song_name: String(item?.musica || '').trim(),
+      reference_link: String(item?.referencia || '').trim(),
+      notes: String(item?.observacao || '').trim(),
+      source: item?.source === 'suggestion' ? 'suggestion' : 'manual',
+      reference_title: String(item?.reference_title || '').trim(),
+      reference_channel: String(item?.reference_channel || '').trim(),
+      reference_thumbnail: String(item?.reference_thumbnail || '').trim(),
+      reference_video_id: String(item?.reference_video_id || '').trim(),
+    }));
+
+  const cerimoniaItems = (Array.isArray(cerimonia) ? cerimonia : [])
+    .filter((item) => hasUsefulMusicalItem(item))
+    .map((item, index) => ({
+      id: String(item?.id || `cerimonia-${index}`),
+      section: 'cerimonia',
+      moment: String(item?.label || 'Cerimônia').trim(),
+      song_name: String(item?.musica || '').trim(),
+      reference_link: String(item?.referencia || '').trim(),
+      notes: String(item?.observacao || '').trim(),
+      source: item?.source === 'suggestion' ? 'suggestion' : 'manual',
+      reference_title: String(item?.reference_title || '').trim(),
+      reference_channel: String(item?.reference_channel || '').trim(),
+      reference_thumbnail: String(item?.reference_thumbnail || '').trim(),
+      reference_video_id: String(item?.reference_video_id || '').trim(),
+    }));
+
+  const saidaItems =
+    saida?.musica || saida?.referencia || saida?.observacao
+      ? [
+          {
+            id: String(saida?.id || 'saida-0'),
+            section: 'saida',
+            moment: 'Saída dos noivos',
+            song_name: String(saida?.musica || '').trim(),
+            reference_link: String(saida?.referencia || '').trim(),
+            notes: String(saida?.observacao || '').trim(),
+            source: saida?.source === 'suggestion' ? 'suggestion' : 'manual',
+            reference_title: String(saida?.reference_title || '').trim(),
+            reference_channel: String(saida?.reference_channel || '').trim(),
+            reference_thumbnail: String(saida?.reference_thumbnail || '').trim(),
+            reference_video_id: String(saida?.reference_video_id || '').trim(),
+          },
+        ]
+      : [];
+
+  return [...cortejoItems, ...cerimoniaItems, ...saidaItems];
+}
+
 function debugClientHome(...args) {
   if (!CLIENT_HOME_DEBUG) return;
   console.log(...args);
@@ -412,6 +467,7 @@ function applySuggestionToRepertorioState(state, suggestionItem = {}) {
 
     if (!alreadyExists) {
       nextState.cortejo.push({
+        id: `cortejo-suggestion-${Date.now()}-${nextState.cortejo.length}`,
         label,
         musica: songName,
         referencia: referenceLink,
@@ -421,6 +477,7 @@ function applySuggestionToRepertorioState(state, suggestionItem = {}) {
         reference_channel: suggestionItem.reference_channel || '',
         reference_thumbnail: suggestionItem.reference_thumbnail || '',
         reference_video_id: suggestionItem.reference_video_id || '',
+        source: 'suggestion',
       });
     }
   } else if (section === 'cerimonia') {
@@ -436,6 +493,7 @@ function applySuggestionToRepertorioState(state, suggestionItem = {}) {
 
     if (!alreadyExists) {
       nextState.cerimonia.push({
+        id: `cerimonia-suggestion-${Date.now()}-${nextState.cerimonia.length}`,
         label,
         musica: songName,
         referencia: referenceLink,
@@ -445,11 +503,13 @@ function applySuggestionToRepertorioState(state, suggestionItem = {}) {
         reference_channel: suggestionItem.reference_channel || '',
         reference_thumbnail: suggestionItem.reference_thumbnail || '',
         reference_video_id: suggestionItem.reference_video_id || '',
+        source: 'suggestion',
       });
     }
   } else if (section === 'saida') {
     nextState.saida = {
       ...nextState.saida,
+      id: nextState.saida.id || 'saida-0',
       musica: songName || nextState.saida.musica || '',
       referencia: referenceLink || nextState.saida.referencia || '',
       observacao: notes || nextState.saida.observacao || '',
@@ -462,6 +522,7 @@ function applySuggestionToRepertorioState(state, suggestionItem = {}) {
         suggestionItem.reference_thumbnail || nextState.saida.reference_thumbnail || '',
       reference_video_id:
         suggestionItem.reference_video_id || nextState.saida.reference_video_id || '',
+      source: 'suggestion',
     };
   } else if (section === 'antessala') {
     nextState.querAntessala = true;
@@ -1241,6 +1302,8 @@ function RepertorioTab({
   setSelectedSongs,
   onSaved,
   onReviewRequested,
+  persistedState,
+  onPersistState,
 }) {
   const { showToast } = useToast();
   const statusNormalizado = String(data.repertorio.status || '').toUpperCase();
@@ -1270,6 +1333,7 @@ function RepertorioTab({
       token: data?.token || '',
       hasBackendRepertorio: hasInitialRepertorioFromBackend(data?.repertorio?.initialState || {}),
     });
+    console.log('[REPERTORIO][RELOAD]', data?.repertorio?.initialState || {});
   }, [data]);
   const hasBackendRepertorio = hasInitialRepertorioFromBackend(initialState);
   const initialCortejo = Array.isArray(initialState.cortejo)
@@ -1294,16 +1358,21 @@ function RepertorioTab({
         referenceMeta: toReferenceMeta(initialState.saida),
       }
     : null;
+  const restoredState =
+    persistedState && typeof persistedState === 'object' ? persistedState : null;
 
 const [querAntessala, setQuerAntessala] = useState(
-  initialState.querAntessala ?? null
+  restoredState?.querAntessala ?? initialState.querAntessala ?? null
 );
 
-const [temReceptivo, setTemReceptivo] = useState(!!data.repertorio.temReceptivo);
+const [temReceptivo, setTemReceptivo] = useState(
+  restoredState?.temReceptivo ?? !!data.repertorio.temReceptivo
+);
 
 const [antessala, setAntessala] = useState(
   {
     ...getDefaultAntesalaState(),
+    ...(restoredState?.antessala || {}),
     ...(initialState.antessala || {}),
     durationMinutes:
       Number(initialState?.antessala?.durationMinutes || data?.repertorio?.antesalaDurationMinutes || 30) || 30,
@@ -1330,12 +1399,24 @@ const [antessala, setAntessala] = useState(
     });
   }, [data?.repertorio?.antesalaDurationMinutes, initialState.antessala, initialState.querAntessala]);
 
-const [cortejo, setCortejo] = useState(initialCortejo?.length ? initialCortejo : []);
+const [cortejo, setCortejo] = useState(
+  Array.isArray(restoredState?.cortejo)
+    ? restoredState.cortejo
+    : initialCortejo?.length
+    ? initialCortejo
+    : []
+);
 
-const [cerimonia, setCerimonia] = useState(initialCerimonia?.length ? initialCerimonia : []);
+const [cerimonia, setCerimonia] = useState(
+  Array.isArray(restoredState?.cerimonia)
+    ? restoredState.cerimonia
+    : initialCerimonia?.length
+    ? initialCerimonia
+    : []
+);
 
 const [saida, setSaida] = useState(
-  initialSaida || {
+  restoredState?.saida || initialSaida || {
     musica: '',
     referencia: '',
     observacao: '',
@@ -1348,6 +1429,7 @@ const [saida, setSaida] = useState(
 );
 
 const [receptivo, setReceptivo] = useState({
+  ...(restoredState?.receptivo || {}),
   ...(initialState.receptivo || {}),
   duracao: receptivoDuracaoTravada
     ? receptivoDuracaoLabel
@@ -1356,8 +1438,12 @@ const [receptivo, setReceptivo] = useState({
   artistas: initialState?.receptivo?.artistas || '',
   observacao: initialState?.receptivo?.observacao || '',
 });
-const [desiredSongs, setDesiredSongs] = useState(initialState.desiredSongs || '');
-const [generalNotes, setGeneralNotes] = useState(initialState.generalNotes || '');
+const [desiredSongs, setDesiredSongs] = useState(
+  restoredState?.desiredSongs ?? (initialState.desiredSongs || '')
+);
+const [generalNotes, setGeneralNotes] = useState(
+  restoredState?.generalNotes ?? (initialState.generalNotes || '')
+);
 
   const isAntesalaApproved = querAntessala === true;
   const isAntesalaPending =
@@ -1438,7 +1524,7 @@ const [generalNotes, setGeneralNotes] = useState(initialState.generalNotes || ''
   }, []);
 
   useEffect(() => {
-    repertorioStateRef.current = buildRepertorioSnapshot({
+    const nextSnapshot = buildRepertorioSnapshot({
       querAntessala,
       temReceptivo,
       antessala,
@@ -1449,6 +1535,9 @@ const [generalNotes, setGeneralNotes] = useState(initialState.generalNotes || ''
       desiredSongs,
       generalNotes,
     });
+    repertorioStateRef.current = nextSnapshot;
+    onPersistState?.(nextSnapshot);
+    console.log('[REPERTORIO][STATE_AFTER_UPDATE]', nextSnapshot);
   }, [
     querAntessala,
     temReceptivo,
@@ -1459,6 +1548,7 @@ const [generalNotes, setGeneralNotes] = useState(initialState.generalNotes || ''
     receptivo,
     desiredSongs,
     generalNotes,
+    onPersistState,
   ]);
 
   useEffect(() => {
@@ -1603,6 +1693,7 @@ const [generalNotes, setGeneralNotes] = useState(initialState.generalNotes || ''
 
       if (savedDraftRaw) {
         const parsed = JSON.parse(savedDraftRaw);
+        console.log('[REPERTORIO][RELOAD]', parsed);
         const parsedCortejo = filterUsefulMusicalItems(parsed?.cortejo);
         const parsedCerimonia = filterUsefulMusicalItems(parsed?.cerimonia);
         const parsedAntesalaRaw =
@@ -1923,8 +2014,10 @@ const [generalNotes, setGeneralNotes] = useState(initialState.generalNotes || ''
   const progresso = Math.round((step / visibleSteps.length) * 100);
 function buildItemsPayload() {
   const items = [];
-  const usefulCortejo = filterUsefulMusicalItems(cortejo);
-  const usefulCerimonia = filterUsefulMusicalItems(cerimonia);
+  const repertorioItems = buildUnifiedRepertorioItems({ cortejo, cerimonia, saida });
+  const cortejoItems = repertorioItems.filter((item) => item.section === 'cortejo');
+  const cerimoniaItems = repertorioItems.filter((item) => item.section === 'cerimonia');
+  const saidaItem = repertorioItems.find((item) => item.section === 'saida') || null;
 
   if (querAntessala === true) {
     items.push({
@@ -1971,72 +2064,75 @@ function buildItemsPayload() {
     });
   }
 
-  usefulCortejo.forEach((item, index) => {
+  cortejoItems.forEach((item, index) => {
     const referenceFields = normalizeReferenceFields(item);
 
     items.push({
       section: 'cortejo',
       item_order: index,
-      who_enters: item.label || '',
+      who_enters: item.moment || '',
       moment: 'Entrada',
-      song_name: item.musica || '',
+      song_name: item.song_name || '',
       reference_link: referenceFields.reference_link,
-      reference_title: referenceFields.reference_title,
-      reference_channel: referenceFields.reference_channel,
-      reference_thumbnail: referenceFields.reference_thumbnail,
-      reference_video_id: referenceFields.reference_video_id,
-      notes: item.observacao || '',
+      reference_title: item.reference_title || referenceFields.reference_title,
+      reference_channel: item.reference_channel || referenceFields.reference_channel,
+      reference_thumbnail: item.reference_thumbnail || referenceFields.reference_thumbnail,
+      reference_video_id: item.reference_video_id || referenceFields.reference_video_id,
+      notes: item.notes || '',
       type: 'entrada',
       group_name: '',
-      label: item.label || '',
+      label: item.moment || '',
       genres: '',
       artists: '',
+      source: item.source || 'manual',
     });
   });
 
-  usefulCerimonia.forEach((item, index) => {
+  cerimoniaItems.forEach((item, index) => {
     const referenceFields = normalizeReferenceFields(item);
 
     items.push({
       section: 'cerimonia',
       item_order: index,
       who_enters: '',
-      moment: item.label || 'Cerimônia',
-      song_name: item.musica || '',
+      moment: item.moment || 'Cerimônia',
+      song_name: item.song_name || '',
       reference_link: referenceFields.reference_link,
-      reference_title: referenceFields.reference_title,
-      reference_channel: referenceFields.reference_channel,
-      reference_thumbnail: referenceFields.reference_thumbnail,
-      reference_video_id: referenceFields.reference_video_id,
-      notes: item.observacao || '',
+      reference_title: item.reference_title || referenceFields.reference_title,
+      reference_channel: item.reference_channel || referenceFields.reference_channel,
+      reference_thumbnail: item.reference_thumbnail || referenceFields.reference_thumbnail,
+      reference_video_id: item.reference_video_id || referenceFields.reference_video_id,
+      notes: item.notes || '',
       type: 'cerimonia',
       group_name: '',
-      label: item.label || '',
+      label: item.moment || '',
       genres: '',
       artists: '',
+      source: item.source || 'manual',
     });
   });
 
-  if (saida.musica || saida.referencia || saida.observacao) {
-    const exitReferenceFields = normalizeReferenceFields(saida);
+  if (saidaItem) {
+    const exitReferenceFields = normalizeReferenceFields(saidaItem);
 
     items.push({
       section: 'saida',
       item_order: 0,
       who_enters: 'Saída dos noivos',
       moment: 'Saída',
-      song_name: saida.musica || '',
+      song_name: saidaItem.song_name || '',
       reference_link: exitReferenceFields.reference_link,
-      reference_title: exitReferenceFields.reference_title,
-      reference_channel: exitReferenceFields.reference_channel,
-      reference_thumbnail: exitReferenceFields.reference_thumbnail,
-      reference_video_id: exitReferenceFields.reference_video_id,
-      notes: saida.observacao || '',
+      reference_title: saidaItem.reference_title || exitReferenceFields.reference_title,
+      reference_channel: saidaItem.reference_channel || exitReferenceFields.reference_channel,
+      reference_thumbnail: saidaItem.reference_thumbnail || exitReferenceFields.reference_thumbnail,
+      reference_video_id: saidaItem.reference_video_id || exitReferenceFields.reference_video_id,
+      notes: saidaItem.notes || '',
       type: 'saida',
       group_name: '',
       label: 'Saída dos noivos',
       genres: '',
       artists: '',
+      source: saidaItem.source || 'manual',
     });
   }
 
@@ -2261,8 +2357,13 @@ async function handleRequestReview() {
   }
 }
 
-  function updateListItem(list, setter, index, value) {
-    setter(list.map((item, i) => (i === index ? value : item)));
+  function updateListItem(list, setter, index, value, section = '') {
+    console.log('[REPERTORIO][MANUAL_INPUT]', {
+      section,
+      index,
+      value,
+    });
+    setter(list.map((item, i) => (i === index ? { ...value, source: value?.source || 'manual' } : item)));
   }
 
   function moveItem(list, setter, index, dir) {
@@ -2328,6 +2429,7 @@ async function handleRequestReview() {
     setCortejoWithLog([
       ...cortejo,
       {
+        id: `cortejo-manual-${Date.now()}-${cortejo.length}`,
         label,
         musica: '',
         referencia: '',
@@ -2337,6 +2439,7 @@ async function handleRequestReview() {
         reference_channel: '',
         reference_thumbnail: '',
         reference_video_id: '',
+        source: 'manual',
       },
     ]);
   }
@@ -2345,6 +2448,7 @@ async function handleRequestReview() {
     setCerimoniaWithLog([
       ...cerimonia,
       {
+        id: `cerimonia-manual-${Date.now()}-${cerimonia.length}`,
         label,
         musica: '',
         referencia: '',
@@ -2354,6 +2458,7 @@ async function handleRequestReview() {
         reference_channel: '',
         reference_thumbnail: '',
         reference_video_id: '',
+        source: 'manual',
       },
     ]);
   }
@@ -2733,7 +2838,7 @@ async function handleRequestReview() {
                 title="Entrada"
                 subtitle="Personalize música, referência e observações"
                 item={item}
-                onChange={(value) => updateListItem(cortejo, setCortejoWithLog, index, value)}
+                onChange={(value) => updateListItem(cortejo, setCortejoWithLog, index, value, 'cortejo')}
                 onMoveUp={() => moveItem(cortejo, setCortejoWithLog, index, -1)}
                 onMoveDown={() => moveItem(cortejo, setCortejoWithLog, index, 1)}
                 onRemove={() => removeItem(cortejo, setCortejoWithLog, index, 'cortejo')}
@@ -2776,7 +2881,7 @@ async function handleRequestReview() {
                 title="Momento"
                 subtitle="Escolha a música e detalhe a referência"
                 item={item}
-                onChange={(value) => updateListItem(cerimonia, setCerimoniaWithLog, index, value)}
+                onChange={(value) => updateListItem(cerimonia, setCerimoniaWithLog, index, value, 'cerimonia')}
                 onMoveUp={() => moveItem(cerimonia, setCerimoniaWithLog, index, -1)}
                 onMoveDown={() => moveItem(cerimonia, setCerimoniaWithLog, index, 1)}
                 onRemove={() => removeItem(cerimonia, setCerimoniaWithLog, index, 'cerimonia')}
@@ -2806,13 +2911,21 @@ async function handleRequestReview() {
               label="Música da saída"
               placeholder="Ex: Signed, Sealed, Delivered"
               value={saida.musica}
-              onChange={(e) => setSaida({ ...saida, musica: e.target.value })}
+              onChange={(e) => {
+                const nextSaida = { ...saida, musica: e.target.value, source: 'manual' };
+                console.log('[REPERTORIO][MANUAL_INPUT]', { section: 'saida', value: nextSaida });
+                setSaida(nextSaida);
+              }}
             />
             <ReferenceSearchInput
               searchValue={saida.musica || ''}
               referenceValue={saida.referencia || ''}
               selectedReference={saida.referenceMeta || null}
-              onSearchValueChange={(value) => setSaida({ ...saida, musica: value })}
+              onSearchValueChange={(value) => {
+                const nextSaida = { ...saida, musica: value, source: 'manual' };
+                console.log('[REPERTORIO][MANUAL_INPUT]', { section: 'saida', value: nextSaida });
+                setSaida(nextSaida);
+              }}
               onReferenceValueChange={(e) =>
                 setSaida({
                   ...saida,
@@ -2822,6 +2935,7 @@ async function handleRequestReview() {
                   reference_channel: '',
                   reference_thumbnail: '',
                   reference_video_id: '',
+                  source: 'manual',
                 })
               }
               onSelectResult={(result) =>
@@ -2850,6 +2964,7 @@ async function handleRequestReview() {
                   reference_channel: '',
                   reference_thumbnail: '',
                   reference_video_id: '',
+                  source: 'manual',
                 })
               }
             />
@@ -2857,7 +2972,11 @@ async function handleRequestReview() {
               label="Observações"
               placeholder="Algo especial para esse momento?"
               value={saida.observacao}
-              onChange={(e) => setSaida({ ...saida, observacao: e.target.value })}
+              onChange={(e) => {
+                const nextSaida = { ...saida, observacao: e.target.value, source: 'manual' };
+                console.log('[REPERTORIO][MANUAL_INPUT]', { section: 'saida', value: nextSaida });
+                setSaida(nextSaida);
+              }}
               textarea
               rows={3}
             />
@@ -4834,6 +4953,7 @@ export default function ClienteHome({ data, initialTab = 'inicio' }) {
     data?.financeiro?.historico || []
   );
   const [dismissedRepertoireAlert, setDismissedRepertoireAlert] = useState(false);
+  const [repertorioDraftState, setRepertorioDraftState] = useState(null);
 
   const handleRepertorioSaved = useCallback(
     ({ mode, result }) => {
@@ -5040,6 +5160,8 @@ export default function ClienteHome({ data, initialTab = 'inicio' }) {
               setSelectedSongs={setSelectedSongs}
               onSaved={handleRepertorioSaved}
               onReviewRequested={handleReviewRequested}
+              persistedState={repertorioDraftState}
+              onPersistState={setRepertorioDraftState}
             />
           )}
 

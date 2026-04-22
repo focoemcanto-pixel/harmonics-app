@@ -1,17 +1,19 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { deleteEventCascade } from '@/lib/events/delete-event-cascade';
-import { requireAdminFromRequest } from '@/lib/api/require-admin';
+import { requireAdmin } from '@/lib/api/require-admin';
 
 export async function DELETE(request, { params }) {
   const supabase = getSupabaseAdmin();
   const routeParams = await params;
   const eventId = String(routeParams?.id || '').trim();
 
-  console.info('[EVENT_DELETE_API][DELETE_BULK][PAYLOAD]', { eventId, mode: 'single' });
+  console.info('[EVENT_DELETE_API][DELETE][START]', { mode: 'single' });
+  console.info('[EVENT_DELETE_API][DELETE][TABLE]', { table: 'events (+ dependências)' });
+  console.info('[EVENT_DELETE_API][DELETE][IDS]', { eventIds: [eventId] });
 
   try {
-    const auth = await requireAdminFromRequest({ supabase, request, logPrefix: '[EVENT_DELETE_API]' });
+    const auth = await requireAdmin({ supabase, request, logPrefix: '[EVENT_DELETE_API]' });
     if (!auth.ok) {
       return NextResponse.json({ ok: false, error: auth.error }, { status: auth.status || 401 });
     }
@@ -29,7 +31,7 @@ export async function DELETE(request, { params }) {
       );
     }
 
-    console.info('[EVENT_DELETE_API][DELETE_BULK][RESULT]', {
+    console.info('[EVENT_DELETE_API][DELETE][RESULT]', {
       requested: 1,
       success: result?.deletedId ? 1 : 0,
       failed: result?.deletedId ? 0 : 1,
@@ -37,11 +39,14 @@ export async function DELETE(request, { params }) {
 
     return NextResponse.json({
       ok: true,
+      success: true,
+      deleted: result?.deletedId ? 1 : 0,
+      failed: result?.deletedId ? 0 : 1,
       deletedId: result.deletedId,
       cleanup: result.cleanup,
     });
   } catch (error) {
-    console.error('[EVENT_DELETE_API][DELETE_BULK][ERROR]', {
+    console.error('[EVENT_DELETE_API][DELETE][ERROR]', {
       eventId,
       message: error?.message,
       details: error?.details,

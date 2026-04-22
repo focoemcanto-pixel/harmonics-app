@@ -1,19 +1,20 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { requireAdminFromRequest } from '@/lib/api/require-admin';
+import { requireAdmin } from '@/lib/api/require-admin';
 import { deleteContractsCascade } from '@/lib/contracts/delete-contracts-cascade';
 
 export async function POST(request) {
   const supabase = getSupabaseAdmin();
 
   try {
-    const auth = await requireAdminFromRequest({ supabase, request, logPrefix: '[CONTRACT_DELETE_MANY]' });
+    const auth = await requireAdmin({ supabase, request, logPrefix: '[CONTRACT_DELETE_MANY]' });
     if (!auth.ok) return NextResponse.json(auth, { status: auth.status || 401 });
 
     const body = await request.json().catch(() => ({}));
     const precontractIds = Array.isArray(body?.precontractIds) ? body.precontractIds : [];
 
-    console.info('[CONTRACT_DELETE_MANY][DELETE_BULK][PAYLOAD]', { requestedCount: precontractIds.length });
+    console.info('[CONTRACT_DELETE_MANY][DELETE][TABLE]', { table: 'precontracts, contracts' });
+    console.info('[CONTRACT_DELETE_MANY][DELETE][IDS]', { precontractIds });
 
     if (precontractIds.length === 0) {
       return NextResponse.json({ ok: false, error: 'Selecione ao menos um contrato.' }, { status: 400 });
@@ -21,15 +22,15 @@ export async function POST(request) {
 
     const result = await deleteContractsCascade({ supabase, precontractIds });
 
-    console.info('[CONTRACT_DELETE_MANY][DELETE_BULK][RESULT]', {
+    console.info('[CONTRACT_DELETE_MANY][DELETE][RESULT]', {
       requested: result.requested,
       success: result.success.length,
       failed: result.failed.length,
     });
 
-    return NextResponse.json({ ok: true, ...result });
+    return NextResponse.json({ ok: true, ...result, success: true, deleted: result.success.length, failedCount: result.failed.length });
   } catch (error) {
-    console.error('[CONTRACT_DELETE_MANY][DELETE_BULK][ERROR]', {
+    console.error('[CONTRACT_DELETE_MANY][DELETE][ERROR]', {
       message: error?.message,
       code: error?.code,
       details: error?.details,

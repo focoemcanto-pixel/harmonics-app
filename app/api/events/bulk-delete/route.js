@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { deleteEventsCascade } from '@/lib/events/delete-event-cascade';
-import { requireAdminFromRequest } from '@/lib/api/require-admin';
+import { requireAdmin } from '@/lib/api/require-admin';
 
 export async function POST(request) {
   const supabase = getSupabaseAdmin();
 
   try {
-    const auth = await requireAdminFromRequest({ supabase, request, logPrefix: '[EVENT_BULK_DELETE_API]' });
+    const auth = await requireAdmin({ supabase, request, logPrefix: '[EVENT_BULK_DELETE_API]' });
     if (!auth.ok) {
       return NextResponse.json({ ok: false, error: auth.error }, { status: auth.status || 401 });
     }
@@ -15,9 +15,8 @@ export async function POST(request) {
     const body = await request.json().catch(() => ({}));
     const eventIds = Array.isArray(body?.eventIds) ? body.eventIds : [];
 
-    console.info('[EVENT_BULK_DELETE_API][DELETE_BULK][PAYLOAD]', {
-      requestedCount: eventIds.length,
-    });
+    console.info('[EVENT_BULK_DELETE_API][DELETE][TABLE]', { table: 'events (+ dependências)' });
+    console.info('[EVENT_BULK_DELETE_API][DELETE][IDS]', { eventIds });
 
     if (eventIds.length === 0) {
       return NextResponse.json(
@@ -32,7 +31,7 @@ export async function POST(request) {
       logPrefix: '[EVENT_BULK_DELETE_API]',
     });
 
-    console.info('[EVENT_BULK_DELETE_API][DELETE_BULK][RESULT]', {
+    console.info('[EVENT_BULK_DELETE_API][DELETE][RESULT]', {
       requested: summary.requested,
       success: summary.success.length,
       failed: summary.failed.length,
@@ -41,9 +40,12 @@ export async function POST(request) {
     return NextResponse.json({
       ok: true,
       ...summary,
+      success: true,
+      deleted: summary.success.length,
+      failedCount: summary.failed.length,
     });
   } catch (error) {
-    console.error('[EVENT_BULK_DELETE_API][DELETE_BULK][ERROR]', {
+    console.error('[EVENT_BULK_DELETE_API][DELETE][ERROR]', {
       message: error?.message,
       details: error?.details,
       hint: error?.hint,

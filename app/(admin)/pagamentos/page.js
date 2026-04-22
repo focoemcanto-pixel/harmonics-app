@@ -152,6 +152,31 @@ function isRejectedStatus(status) {
   return ['rejected', 'rejeitado', 'cancelado', 'cancelled', 'canceled'].includes(raw);
 }
 
+function isPendingValidationStatus(status) {
+  const raw = String(status || '').trim().toLowerCase();
+  return [
+    'em_analise',
+    'em análise',
+    'analysis',
+    'analyzing',
+    'pending_admin_validation',
+    'admin_review',
+    'pending_confirmation',
+    'aguardando_validacao',
+    'aguardando validação',
+    'pendente_validacao',
+  ].includes(raw);
+}
+
+function buildFinancialGroupingKey(event) {
+  return [
+    String(event.client_name || '').trim().toLowerCase(),
+    String(event.event_date || '').trim(),
+    String(event.location_name || '').trim().toLowerCase(),
+    String(event.event_type || '').trim().toLowerCase(),
+  ].join('::');
+}
+
 export default function PagamentosPage() {
   return (
     <ProtectedRoute requiredRole="admin">
@@ -170,6 +195,7 @@ function PagamentosPageContent() {
   const [busca, setBusca] = useState('');
   const [statusFiltro, setStatusFiltro] = useState('todos');
   const [somentePendentes, setSomentePendentes] = useState(false);
+  const [somenteAguardandoValidacao, setSomenteAguardandoValidacao] = useState(false);
   const [historicoAbertoId, setHistoricoAbertoId] = useState(null);
   const [historicoSelecionadoId, setHistoricoSelecionadoId] = useState(null);
   const [proofPreviewUrl, setProofPreviewUrl] = useState('');
@@ -198,6 +224,11 @@ function PagamentosPageContent() {
     if (eventsRes.error) throw eventsRes.error;
     if (paymentsRes.error) throw paymentsRes.error;
 
+    console.log('[PAYMENTS_PAGE][RAW_ROWS]', {
+      events: eventsRes.data || [],
+      payments: paymentsRes.data || [],
+    });
+
     setEvents(eventsRes.data || []);
     setPayments(paymentsRes.data || []);
   }
@@ -221,20 +252,6 @@ function PagamentosPageContent() {
 
     init();
   }, []);
-
-  useEffect(() => {
-    const historico = searchParams.get('historico');
-    if (historico) {
-      const target = payments.find((entry) => String(entry.id) === String(historico));
-      if (target?.event_id) {
-        setHistoricoAbertoId(String(target.event_id));
-      }
-      setHistoricoSelecionadoId(String(historico));
-      if (target?.proof_file_url) {
-        setProofPreviewUrl(resolvePreviewDetails(target.proof_file_url));
-      }
-    }
-  }, [payments, searchParams]);
 
   useEffect(() => {
     for (const entry of payments) {
@@ -501,7 +518,7 @@ function PagamentosPageContent() {
   }, [payments]);
 
   const pagamentos = useMemo(() => {
-    return events.map((ev) => {
+    const inputRows = events.map((ev) => {
       const bruto = toNumber(ev.agreed_amount);
       const quitado = toNumber(ev.paid_amount);
       const aberto = toNumber(ev.open_amount);
@@ -538,7 +555,148 @@ function PagamentosPageContent() {
         ultimoPagamento,
       };
     });
+    console.log('[PAYMENTS_PAGE][GROUPING_INPUT]', inputRows);
+
+    const grouped = new Map();
+
+    for (const row of inputRows) {
+      const key = buildFinancialGroupingKey(row);
+      const existing = grouped.get(key);
+
+      if (!existing) {
+        grouped.set(key, {
+          id: `group:${key}`,
+          groupKey: key,
+          sourceEventIds: [row.id],
+          primaryEventId: row.id,
+          client_name: row.client_name,
+          event_date: row.event_date,
+          location_name: row.location_name,
+          event_type: row.event_type,
+          formation: row.formation,
+          updated_at: row.updated_at,
+          bruto: row.bruto,
+          quitadoReferencia: row.quitado,
+          abertoReferencia: row.aberto,
+          custos: row.custos,
+          liquido: row.liquido,
+          paymentStatusReferencia: row.paymentStatus,
+          paymentEntries: [...row.paymentEntries],
+        });
+        continue;
+      }
+
+      const shouldReplacePrimary =
+        new Date(row.updated_at || 0).getTime() > new Date(existing.updated_at || 0).getTime();
+
+      existing.sourceEventIds.push(row.id);
+      existing.updated_at = shouldReplacePrimary ? row.updated_at : existing.updated_at;
+      existing.primaryEventId = shouldReplacePrimary ? row.id : existing.primaryEventId;
+      existing.bruto = Math.max(existing.bruto, row.bruto);
+      existing.quitadoReferencia = Math.max(existing.quitadoReferencia, row.quitado);
+      existing.abertoReferencia = Math.max(existing.abertoReferencia, row.aberto);
+      existing.custos = Math.max(existing.custos, row.custos);
+      existing.liquido = Math.max(existing.liquido, row.liquido);
+      existing.paymentStatusReferencia =
+        existing.paymentStatusReferencia === 'Pendente' || row.paymentStatus === 'Pendente'
+          ? 'Pendente'
+          : existing.paymentStatusReferencia === 'Parcial' || row.paymentStatus === 'Parcial'
+            ? 'Parcial'
+            : 'Pago';
+      existing.paymentEntries.push(...row.paymentEntries);
+    }
+
+    const groupedRows = Array.from(grouped.values()).map((groupRow) => {
+      const entriesById = new Map();
+      for (const entry of groupRow.paymentEntries) {
+        entriesById.set(String(entry.id), entry);
+      }
+      const paymentEntries = Array.from(entriesById.values()).sort((a, b) => {
+        const aDate = a.payment_date ? new Date(a.payment_date).getTime() : 0;
+        const bDate = b.payment_date ? new Date(b.payment_date).getTime() : 0;
+        return bDate - aDate;
+      });
+
+      const totalHistorico = paymentEntries.reduce((acc, item) => acc + toNumber(item.amount), 0);
+      const quitadoPorHistorico = paymentEntries.reduce((acc, entry) => {
+        if (isRejectedStatus(entry?.status) || isPendingValidationStatus(entry?.status)) return acc;
+        return acc + toNumber(entry?.amount);
+      }, 0);
+      const quitado = Math.max(groupRow.quitadoReferencia, quitadoPorHistorico);
+      const bruto = groupRow.bruto;
+      const aberto = bruto > 0 ? Math.max(bruto - quitado, 0) : groupRow.abertoReferencia;
+      const paymentStatus = normalizePaymentStatus(
+        groupRow.paymentStatusReferencia,
+        quitado,
+        aberto,
+        bruto
+      );
+      const pendenciasValidacao = paymentEntries.filter((entry) =>
+        isPendingValidationStatus(entry?.status)
+      );
+      const ultimoPagamento = paymentEntries[0] || null;
+
+      return {
+        ...groupRow,
+        paymentEntries,
+        quitado,
+        aberto,
+        totalHistorico,
+        paymentStatus,
+        pendenciasValidacaoCount: pendenciasValidacao.length,
+        pendenciaMaisAntiga: pendenciasValidacao
+          .slice()
+          .sort((a, b) => new Date(a.created_at || a.payment_date || 0) - new Date(b.created_at || b.payment_date || 0))[0] || null,
+        ultimoPagamento,
+      };
+    });
+
+    groupedRows.sort((a, b) => {
+      if (a.pendenciasValidacaoCount !== b.pendenciasValidacaoCount) {
+        return b.pendenciasValidacaoCount - a.pendenciasValidacaoCount;
+      }
+      return new Date(a.event_date || 0) - new Date(b.event_date || 0);
+    });
+
+    console.log('[PAYMENTS_PAGE][GROUPING_RESULT]', groupedRows);
+    return groupedRows;
   }, [events, paymentsByEventId]);
+
+  useEffect(() => {
+    const filtro = searchParams.get('filtro');
+    if (filtro === 'validacao') {
+      setSomenteAguardandoValidacao(true);
+    }
+
+    const eventId = searchParams.get('eventId');
+    if (!eventId) return;
+
+    const foundByEvent = pagamentos.find((item) =>
+      item.sourceEventIds.some((id) => String(id) === String(eventId))
+    );
+    if (foundByEvent?.id) {
+      setHistoricoAbertoId(String(foundByEvent.id));
+    }
+  }, [searchParams, pagamentos]);
+
+  useEffect(() => {
+    const historico = searchParams.get('historico');
+    if (historico) {
+      const target = payments.find((entry) => String(entry.id) === String(historico));
+      if (target?.event_id) {
+        const foundByEvent = pagamentos.find((item) =>
+          item.sourceEventIds.some((id) => String(id) === String(target.event_id))
+        );
+        if (foundByEvent?.id) {
+          setHistoricoAbertoId(String(foundByEvent.id));
+        }
+      }
+      setHistoricoSelecionadoId(String(historico));
+      if (target?.proof_file_url) {
+        setProofPreviewUrl(resolvePreviewDetails(target.proof_file_url));
+      }
+    }
+  }, [pagamentos, payments, searchParams]);
 
   const pagamentosFiltrados = useMemo(() => {
     const termo = busca.trim().toLowerCase();
@@ -560,10 +718,11 @@ function PagamentosPageContent() {
         String(item.paymentStatus).toLowerCase() === statusFiltro;
 
       const matchPendentes = !somentePendentes || item.aberto > 0;
+      const matchValidacao = !somenteAguardandoValidacao || item.pendenciasValidacaoCount > 0;
 
-      return matchBusca && matchStatus && matchPendentes;
+      return matchBusca && matchStatus && matchPendentes && matchValidacao;
     });
-  }, [pagamentos, busca, statusFiltro, somentePendentes]);
+  }, [pagamentos, busca, statusFiltro, somentePendentes, somenteAguardandoValidacao]);
 
   const resumo = useMemo(() => {
     const totalBruto = pagamentos.reduce((acc, item) => acc + item.bruto, 0);
@@ -578,6 +737,10 @@ function PagamentosPageContent() {
     const pagos = pagamentos.filter((item) => item.paymentStatus === 'Pago').length;
     const parciais = pagamentos.filter((item) => item.paymentStatus === 'Parcial').length;
     const pendentes = pagamentos.filter((item) => item.paymentStatus === 'Pendente').length;
+    const aguardandoValidacao = pagamentos.reduce(
+      (acc, item) => acc + item.pendenciasValidacaoCount,
+      0
+    );
 
     return {
       totalBruto,
@@ -588,6 +751,7 @@ function PagamentosPageContent() {
       pagos,
       parciais,
       pendentes,
+      aguardandoValidacao,
     };
   }, [pagamentos]);
 
@@ -670,6 +834,12 @@ function PagamentosPageContent() {
             value={String(resumo.pendentes)}
             helper="Sem quitação"
           />
+          <AdminSummaryCard
+            label="Comprovantes em validação"
+            value={String(resumo.aguardandoValidacao)}
+            helper="Aguardando conferência"
+            tone="warning"
+          />
         </div>
 
         <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-6 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
@@ -708,6 +878,20 @@ function PagamentosPageContent() {
             >
               {somentePendentes ? 'Mostrando apenas pendentes' : 'Filtrar apenas pendentes'}
             </button>
+
+            <button
+              type="button"
+              onClick={() => setSomenteAguardandoValidacao((prev) => !prev)}
+              className={`rounded-[18px] px-4 py-3 text-[14px] font-black transition ${
+                somenteAguardandoValidacao
+                  ? 'bg-amber-500 text-white shadow-[0_12px_28px_rgba(245,158,11,0.18)]'
+                  : 'border border-[#dbe3ef] bg-white text-[#0f172a]'
+              }`}
+            >
+              {somenteAguardandoValidacao
+                ? 'Somente aguardando validação'
+                : 'Pendências de comprovante'}
+            </button>
           </div>
 
           <div className="mt-6 space-y-4">
@@ -718,7 +902,7 @@ function PagamentosPageContent() {
             ) : (
               pagamentosFiltrados.map((item) => {
                 const tone = getPaymentTone(item.paymentStatus);
-                const historicoAberto = historicoAbertoId === item.id;
+                const historicoAberto = String(historicoAbertoId) === String(item.id);
 
                 return (
                   <div
@@ -749,6 +933,14 @@ function PagamentosPageContent() {
                               ? `${item.paymentEntries.length} lançamento(s)`
                               : 'Sem histórico'}
                           </PaymentPill>
+
+                          {item.pendenciasValidacaoCount > 0 ? (
+                            <PaymentPill tone="amber">
+                              {item.pendenciasValidacaoCount === 1
+                                ? '1 comprovante aguardando validação'
+                                : `${item.pendenciasValidacaoCount} lançamentos em análise`}
+                            </PaymentPill>
+                          ) : null}
                         </div>
 
                         <div className="mt-4 text-[13px] font-semibold leading-6 text-[#64748b]">
@@ -768,6 +960,12 @@ function PagamentosPageContent() {
                               ? new Date(item.updated_at).toLocaleDateString('pt-BR')
                               : '-'}
                           </div>
+                          {item.pendenciaMaisAntiga?.payment_date ? (
+                            <div>
+                              <strong>Pendência mais antiga:</strong>{' '}
+                              {formatDateBR(item.pendenciaMaisAntiga.payment_date)}
+                            </div>
+                          ) : null}
                         </div>
                       </div>
 
@@ -802,7 +1000,9 @@ function PagamentosPageContent() {
                       <button
                         type="button"
                         onClick={() =>
-                          setHistoricoAbertoId((prev) => (prev === item.id ? null : item.id))
+                          setHistoricoAbertoId((prev) =>
+                            String(prev) === String(item.id) ? null : String(item.id)
+                          )
                         }
                         className="rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3 text-[14px] font-black text-[#0f172a]"
                       >
@@ -817,11 +1017,24 @@ function PagamentosPageContent() {
                       </Link>
 
                       <Link
-                        href={`/eventos/${item.id}`}
+                        href={`/eventos/${item.primaryEventId}`}
                         className="rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3 text-[14px] font-black text-[#0f172a]"
                       >
                         Ver detalhe
                       </Link>
+
+                      {item.pendenciaMaisAntiga ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setHistoricoAbertoId(String(item.id));
+                            setHistoricoSelecionadoId(String(item.pendenciaMaisAntiga.id));
+                          }}
+                          className="rounded-[16px] bg-amber-500 px-4 py-3 text-[14px] font-black text-white"
+                        >
+                          Validar pagamento
+                        </button>
+                      ) : null}
                     </div>
 
                     {historicoAberto ? (

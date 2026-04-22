@@ -29,8 +29,8 @@ export default function MembroPlayerModal({
   return (
     <div className="fixed inset-0 z-[150] bg-black/70 backdrop-blur-[4px]">
       <div className="flex min-h-screen items-end justify-center md:items-center md:p-6">
-        <div className="flex h-[92vh] w-full flex-col overflow-hidden rounded-t-[30px] border border-white/10 bg-[#0b1020] text-white shadow-[0_24px_80px_rgba(0,0,0,0.45)] md:h-auto md:max-h-[92vh] md:max-w-5xl md:rounded-[30px]">
-          <div className="border-b border-white/10 px-5 py-4 md:px-6">
+        <div className="flex h-[92vh] w-full min-h-0 flex-col overflow-hidden rounded-t-[30px] border border-white/10 bg-[#0b1020] text-white shadow-[0_24px_80px_rgba(0,0,0,0.45)] md:h-auto md:max-h-[92vh] md:max-w-5xl md:rounded-[30px]">
+          <div className="shrink-0 border-b border-white/10 px-5 py-4 md:px-6">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
                 <div className="text-[12px] font-black uppercase tracking-[0.12em] text-fuchsia-200/70">
@@ -54,8 +54,8 @@ export default function MembroPlayerModal({
             </div>
           </div>
 
-          <div className="grid flex-1 grid-cols-1 overflow-hidden md:grid-cols-[1.05fr_0.95fr]">
-            <div className="border-b border-white/10 p-5 md:border-b-0 md:border-r md:p-6">
+          <div className="grid flex-1 min-h-0 grid-cols-1 overflow-y-auto md:grid-cols-[1.05fr_0.95fr] md:overflow-hidden">
+            <div className="min-h-0 border-b border-white/10 p-5 md:overflow-y-auto md:border-b-0 md:border-r md:p-6">
               <div className="rounded-[26px] border border-white/10 bg-[linear-gradient(180deg,rgba(124,58,237,0.16),rgba(255,255,255,0.03))] p-5 shadow-[0_14px_34px_rgba(15,23,42,0.16)]">
                 <div className="text-[12px] font-black uppercase tracking-[0.08em] text-white/50">
                   Tocando agora
@@ -159,7 +159,7 @@ export default function MembroPlayerModal({
               </div>
             </div>
 
-            <div className="min-h-0 overflow-y-auto p-5 md:p-6">
+            <div className="min-h-0 p-5 md:overflow-y-auto md:p-6">
               <div className="flex items-center justify-between gap-3">
                 <div className="text-[13px] font-black uppercase tracking-[0.08em] text-white/50">
                   Faixas do repertório

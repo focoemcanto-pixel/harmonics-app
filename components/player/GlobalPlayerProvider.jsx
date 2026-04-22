@@ -12,8 +12,6 @@ export function GlobalPlayerProvider({ children }) {
   const [currentTime, setCurrentTime] = useState(0);
   const [volume, setVolume] = useState(100);
   const [playerRef, setPlayerRef] = useState(null);
-  const [renderTarget, setRenderTarget] = useState(null);
-  const [renderTargetName, setRenderTargetName] = useState('hidden_fallback');
 
   const currentTrack = playlist[currentTrackIndex] || null;
   const videoId = String(currentTrack?.videoId || '').trim() || extractYoutubeId(currentTrack?.url || '');
@@ -43,11 +41,13 @@ export function GlobalPlayerProvider({ children }) {
 
   const play = useCallback(() => {
     setIsPlaying(true);
+    console.log('[AUDIO_PLAYER][IS_PLAYING]', true);
     playerRef?.playVideo?.();
   }, [playerRef]);
 
   const pause = useCallback(() => {
     setIsPlaying(false);
+    console.log('[AUDIO_PLAYER][IS_PLAYING]', false);
     playerRef?.pauseVideo?.();
   }, [playerRef]);
 
@@ -66,13 +66,19 @@ export function GlobalPlayerProvider({ children }) {
     setPlaylist(normalizedPlaylist);
     setCurrentTrackIndex(nextIndex);
     setCurrentTime(0);
+    console.log('[AUDIO_PLAYER][GLOBAL_INSTANCE]', {
+      playlistSize: normalizedPlaylist.length,
+      startIndex: nextIndex,
+    });
 
     if (options.autoplay === false) {
       setIsPlaying(false);
+      console.log('[AUDIO_PLAYER][IS_PLAYING]', false);
       return;
     }
 
     setIsPlaying(normalizedPlaylist.length > 0);
+    console.log('[AUDIO_PLAYER][IS_PLAYING]', normalizedPlaylist.length > 0);
   }, []);
 
   const closeSession = useCallback(() => {
@@ -90,10 +96,8 @@ export function GlobalPlayerProvider({ children }) {
     playlist,
     volume,
     playerRef,
-    renderTarget,
-    renderTargetName,
     currentTrack,
-  }), [isPlaying, currentTrackIndex, currentTime, videoId, playlist, volume, playerRef, renderTarget, renderTargetName, currentTrack]);
+  }), [isPlaying, currentTrackIndex, currentTime, videoId, playlist, volume, playerRef, currentTrack]);
 
   const actions = useMemo(() => ({
     play,
@@ -105,10 +109,6 @@ export function GlobalPlayerProvider({ children }) {
     setVolume,
     setCurrentTime,
     setPlayerRef,
-    setRenderTarget: (target, targetName = 'unknown') => {
-      setRenderTarget(target || null);
-      setRenderTargetName(target ? targetName : 'hidden_fallback');
-    },
     setIsPlaying,
     replacePlaylist,
     closeSession,

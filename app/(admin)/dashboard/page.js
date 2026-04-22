@@ -8,6 +8,7 @@ import DashboardPrimaryKpis from '@/components/dashboard/DashboardPrimaryKpis';
 import DashboardSecondaryKpis from '@/components/dashboard/DashboardSecondaryKpis';
 import { supabase } from '@/lib/supabase';
 import { buildDashboardSummary } from '@/lib/dashboard/dashboard-summary';
+import { resolveGrossFromEvents } from '@/lib/finance/gross-total';
 import { logWarn, reportError } from '@/lib/observability/client-log';
 
 const DashboardRevenueChart = dynamic(() => import('@/components/dashboard/DashboardRevenueChart'));
@@ -17,6 +18,8 @@ const DashboardUpcomingEvents = dynamic(() => import('@/components/dashboard/Das
 
 const DASHBOARD_EVENTS_SELECT =
   'id, created_at, event_date, status, client_name, agreed_amount, paid_amount, open_amount, profit_amount';
+const DASHBOARD_MONTHLY_FINANCE_SELECT =
+  'id, event_date, status, client_name, location_name, event_type, agreed_amount, paid_amount, open_amount, profit_amount';
 const DASHBOARD_PRECONTRACTS_SELECT =
   'id, created_at, event_id, event_date, status, client_name, notes, public_token';
 const DASHBOARD_CONTRACTS_SELECT =
@@ -825,13 +828,46 @@ export default function DashboardPage() {
       setRepertoireConfigs(repertoireConfigsData);
       setHeavyReady(true);
 
+      const monthStart = new Date();
+      monthStart.setDate(1);
+      monthStart.setHours(0, 0, 0, 0);
+      const nextMonthStart = new Date(monthStart);
+      nextMonthStart.setMonth(nextMonthStart.getMonth() + 1);
+      const monthStartIso = monthStart.toISOString().slice(0, 10);
+      const nextMonthStartIso = nextMonthStart.toISOString().slice(0, 10);
+
+      const monthlyFinanceRes = await supabase
+        .from('events')
+        .select(DASHBOARD_MONTHLY_FINANCE_SELECT)
+        .gte('event_date', monthStartIso)
+        .lt('event_date', nextMonthStartIso);
+
+      const monthlyFinanceEvents = Array.isArray(monthlyFinanceRes.data)
+        ? monthlyFinanceRes.data
+        : [];
+      const dashboardGross = resolveGrossFromEvents(monthlyFinanceEvents, {
+        referenceDate: monthStart,
+        restrictToMonth: false,
+      });
+
+      console.log('[DASHBOARD_FINANCE][BRUTO_INPUT]', {
+        monthStart: monthStartIso,
+        nextMonthStart: nextMonthStartIso,
+        eventCount: monthlyFinanceEvents.length,
+      });
+      console.log('[DASHBOARD_FINANCE][BRUTO_RESULT]', dashboardGross);
+      console.log('[FINANCE_COMPARE][EVENT_IDS_DASHBOARD]', dashboardGross.eventIds);
+
       const nextSummary = buildDashboardSummary(
         eventsData,
         contractsData,
         precontractsData,
         eventMusiciansData,
         repertoireConfigsData,
-        adjustmentRequestsData
+        adjustmentRequestsData,
+        {
+          monthlyFinanceEvents,
+        }
       );
       setSummary(nextSummary);
       dashboardMemoryCache = {

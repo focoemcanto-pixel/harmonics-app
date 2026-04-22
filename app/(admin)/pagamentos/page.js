@@ -19,6 +19,7 @@ import {
   formatDateBR,
 } from '@/lib/eventos/eventos-format';
 import { resolveProofPreviewFromStoredUrl } from '@/lib/payments/payment-proof-storage';
+import { buildFinancialGroupingKey, resolveGrossFromEvents } from '@/lib/finance/gross-total';
 
 function normalizePaymentStatus(status, paidAmount, openAmount, agreedAmount) {
   const raw = String(status || '').trim().toLowerCase();
@@ -166,15 +167,6 @@ function isPendingValidationStatus(status) {
     'aguardando validação',
     'pendente_validacao',
   ].includes(raw);
-}
-
-function buildFinancialGroupingKey(event) {
-  return [
-    String(event.client_name || '').trim().toLowerCase(),
-    String(event.event_date || '').trim(),
-    String(event.location_name || '').trim().toLowerCase(),
-    String(event.event_type || '').trim().toLowerCase(),
-  ].join('::');
 }
 
 export default function PagamentosPage() {
@@ -725,7 +717,11 @@ function PagamentosPageContent() {
   }, [pagamentos, busca, statusFiltro, somentePendentes, somenteAguardandoValidacao]);
 
   const resumo = useMemo(() => {
-    const totalBruto = pagamentos.reduce((acc, item) => acc + item.bruto, 0);
+    const grossMonth = resolveGrossFromEvents(events, {
+      referenceDate: new Date(),
+      restrictToMonth: true,
+    });
+    const totalBruto = grossMonth.total;
     const totalQuitado = pagamentos.reduce((acc, item) => acc + item.quitado, 0);
     const totalAberto = pagamentos.reduce((acc, item) => acc + item.aberto, 0);
     const totalLiquido = pagamentos.reduce((acc, item) => acc + item.liquido, 0);
@@ -742,6 +738,14 @@ function PagamentosPageContent() {
       0
     );
 
+    console.log('[PAYMENTS_PAGE][BRUTO_INPUT]', {
+      eventCount: events.length,
+      groupedRows: pagamentos.length,
+      referenceMonth: new Date().toISOString().slice(0, 7),
+    });
+    console.log('[PAYMENTS_PAGE][BRUTO_RESULT]', grossMonth);
+    console.log('[FINANCE_COMPARE][EVENT_IDS_PAYMENTS]', grossMonth.eventIds);
+
     return {
       totalBruto,
       totalQuitado,
@@ -753,7 +757,7 @@ function PagamentosPageContent() {
       pendentes,
       aguardandoValidacao,
     };
-  }, [pagamentos]);
+  }, [events, pagamentos]);
 
   if (carregando) {
     return (
@@ -783,9 +787,9 @@ function PagamentosPageContent() {
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <AdminSummaryCard
-            label="Bruto total"
+            label="Bruto do mês"
             value={formatMoney(resumo.totalBruto)}
-            helper="Valor total negociado"
+            helper="Regra oficial compartilhada com o Dashboard"
             size="highlight"
           />
           <AdminSummaryCard

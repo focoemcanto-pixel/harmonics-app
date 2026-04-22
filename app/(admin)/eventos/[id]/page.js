@@ -142,8 +142,18 @@ export default function EventoDetalhePage() {
 
     try {
       setExcluindo(true);
-      const { error } = await supabase.from('events').delete().eq('id', evento.id);
-      if (error) throw error;
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+      const response = await fetch(`/api/events/${evento.id}`, {
+        method: 'DELETE',
+        headers: {
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload?.ok) {
+        throw new Error(payload?.error || 'Erro ao excluir evento.');
+      }
       toast.success('Evento excluído com sucesso.');
       router.push('/eventos');
     } catch (error) {

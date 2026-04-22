@@ -10,6 +10,7 @@ import { normalizeTimeStrict } from '@/lib/time/normalize-time';
 import { isOperationalTeamContact } from '@/lib/escalas/team-contacts';
 import DeleteConfirmModal from '@/components/ui/DeleteConfirmModal';
 import BulkActionBar from '@/components/ui/BulkActionBar';
+import { useAppToast } from '@/components/ui/ToastProvider';
 import { useMultiSelect } from '@/hooks/useMultiSelect';
 import { useBulkDelete } from '@/hooks/useBulkDelete';
 
@@ -406,6 +407,7 @@ function InviteCard({ invite }) {
 }
 
 export default function EscalasPage() {
+  const toast = useAppToast();
   const [desktopTab, setDesktopTab] = useState('visao');
   const [mobileTab, setMobileTab] = useState('resumo');
   const [busca, setBusca] = useState('');
@@ -1054,16 +1056,27 @@ export default function EscalasPage() {
         onCancel={() => setDeleteDialog({ open: false, eventId: null })}
         onConfirm={async () => {
           const targetIds = deleteDialog.eventId ? [deleteDialog.eventId] : selectedIds;
-          const result = await runBulkDelete({
-            endpoint: '/api/scales/delete-many',
-            idsKey: 'eventIds',
-            ids: targetIds,
-          });
-          if (result?.ok) {
+          try {
+            const result = await runBulkDelete({
+              endpoint: '/api/scales/delete-many',
+              idsKey: 'eventIds',
+              ids: targetIds,
+            });
+            if (!result?.ok) throw new Error(result?.error || 'Erro ao excluir escalas.');
+
             const deleted = (result.success || []).map((item) => String(item.eventId));
+            const failedCount = (result.failed || []).length;
             setEscalas((prev) => prev.filter((item) => !deleted.includes(String(item.event_id))));
             setInvites((prev) => prev.filter((item) => !deleted.includes(String(item.event_id))));
             clear();
+
+            if (failedCount > 0) {
+              toast.warning(`${deleted.length} escalas excluídas e ${failedCount} com falha.`);
+            } else {
+              toast.success(`${deleted.length} escalas excluídas com sucesso.`);
+            }
+          } catch (error) {
+            toast.error(error?.message || 'Erro ao excluir escalas.');
           }
           setDeleteDialog({ open: false, eventId: null });
         }}

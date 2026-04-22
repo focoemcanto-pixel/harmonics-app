@@ -13,6 +13,61 @@ function normalizeRoleValue(value) {
   return 'member';
 }
 
+function normalizeEmailValue(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function normalizeNameValue(value) {
+  return String(value || '').trim();
+}
+
+function isDuplicateAuthUserError(error) {
+  const message = String(error?.message || '').toLowerCase();
+  return message.includes('already been registered') || message.includes('already registered');
+}
+
+function isProfileDuplicateError(error) {
+  const message = String(error?.message || '').toLowerCase();
+  const code = String(error?.code || '').toLowerCase();
+
+  return (
+    message.includes('duplicate key value') ||
+    message.includes('profiles_pkey') ||
+    message.includes('profiles_email_key') ||
+    code === '23505'
+  );
+}
+
+async function findAuthUserByEmail(supabase, email) {
+  let page = 1;
+  const perPage = 1000;
+
+  while (page <= 20) {
+    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage });
+
+    if (error) {
+      return { user: null, error };
+    }
+
+    const users = data?.users || [];
+    const match = users.find(
+      (candidate) => normalizeEmailValue(candidate?.email) === normalizeEmailValue(email)
+    );
+
+    if (match) {
+      return { user: match, error: null };
+    }
+
+    if (users.length < perPage) {
+      break;
+    }
+
+    page += 1;
+  }
+
+  return { user: null, error: null };
+}
+
 export async function POST(request) {
   try {
     const body = await request.json();
@@ -26,24 +81,26 @@ export async function POST(request) {
     }
 
     const normalizedRole = normalizeRoleValue(role);
-    console.info('[ADMIN_USERS][CREATE_SUBMIT]', {
-      email,
-      name,
-      requestedRole: role,
-    });
-    console.info('[ADMIN_USERS][NORMALIZED_ROLE]', {
+    const normalizedEmail = normalizeEmailValue(email);
+    const normalizedName = normalizeNameValue(name);
+
+    console.info('[ADMIN_USERS][CREATE_START]', {
+      email: normalizedEmail,
+      name: normalizedName,
       requestedRole: role,
       normalizedRole,
     });
 
     const supabase = getSupabaseAdmin();
 
-    // Create user via Admin API (server-side only)
+    let userId = null;
+    let authUserExisted = false;
+
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-      email,
+      email: normalizedEmail,
       email_confirm: true,
       user_metadata: {
-        name,
+        name: normalizedName,
         role: normalizedRole,
         access_type: normalizedRole,
         profile_type: normalizedRole,
@@ -53,13 +110,49 @@ export async function POST(request) {
     });
 
     if (authError) {
-      return NextResponse.json(
-        { error: authError.message },
-        { status: 400 }
+      console.info('[ADMIN_USERS][AUTH_CREATE_RESULT]', {
+        ok: false,
+        message: authError.message,
+        code: authError.code || null,
+      });
+
+      if (!isDuplicateAuthUserError(authError)) {
+        return NextResponse.json(
+          { error: authError.message || 'Erro ao criar usuário no Auth.' },
+          { status: 400 }
+        );
+      }
+
+      const { user: existingUser, error: lookupError } = await findAuthUserByEmail(
+        supabase,
+        normalizedEmail
       );
+
+      if (lookupError) {
+        return NextResponse.json(
+          { error: lookupError.message || 'Erro ao localizar usuário existente no Auth.' },
+          { status: 500 }
+        );
+      }
+
+      if (!existingUser?.id) {
+        return NextResponse.json(
+          { error: 'Já existe um usuário cadastrado com este email.' },
+          { status: 409 }
+        );
+      }
+
+      authUserExisted = true;
+      userId = existingUser.id;
+    } else {
+      userId = authData?.user?.id || null;
+      console.info('[ADMIN_USERS][AUTH_CREATE_RESULT]', {
+        ok: true,
+        created: true,
+        userId,
+      });
     }
 
-    const userId = authData?.user?.id;
     if (!userId) {
       return NextResponse.json(
         { error: 'ID de usuário não retornado.' },
@@ -67,35 +160,81 @@ export async function POST(request) {
       );
     }
 
-    // Create profile
-    const { error: profileError } = await supabase
+    const { data: existingProfile, error: existingProfileError } = await supabase
       .from('profiles')
-      .insert({
-        id: userId,
-        email,
-        name,
-        role: normalizedRole,
-      });
+      .select('id, email, role, name')
+      .eq('id', userId)
+      .maybeSingle();
 
-    if (profileError) {
+    if (existingProfileError) {
       return NextResponse.json(
-        { error: profileError.message },
+        { error: existingProfileError.message || 'Erro ao verificar perfil existente.' },
         { status: 500 }
       );
     }
 
-    console.info('[ADMIN_USERS][CREATE_RESULT]', {
+    console.info('[ADMIN_USERS][PROFILE_BEFORE_SYNC]', {
+      userId,
+      profileExists: !!existingProfile,
+      existingRole: existingProfile?.role || null,
+      existingEmail: existingProfile?.email || null,
+    });
+
+    const profileSyncAction = existingProfile ? 'update_existing_profile' : 'upsert_profile';
+    console.info('[ADMIN_USERS][PROFILE_SYNC_ACTION]', {
+      userId,
+      action: profileSyncAction,
+      authUserExisted,
+    });
+
+    const { data: syncedProfile, error: profileSyncError } = await supabase
+      .from('profiles')
+      .upsert(
+        {
+          id: userId,
+          email: normalizedEmail,
+          name: normalizedName,
+          role: normalizedRole,
+        },
+        { onConflict: 'id' }
+      )
+      .select('id, email, role, name')
+      .single();
+
+    if (profileSyncError) {
+      console.info('[ADMIN_USERS][PROFILE_SYNC_RESULT]', {
+        ok: false,
+        userId,
+        message: profileSyncError.message,
+        code: profileSyncError.code || null,
+      });
+
+      if (isProfileDuplicateError(profileSyncError)) {
+        return NextResponse.json(
+          { error: 'Este usuário já possui perfil configurado.' },
+          { status: 409 }
+        );
+      }
+
+      return NextResponse.json(
+        { error: profileSyncError.message || 'Erro ao sincronizar perfil do usuário.' },
+        { status: 500 }
+      );
+    }
+
+    console.info('[ADMIN_USERS][PROFILE_SYNC_RESULT]', {
       ok: true,
       userId,
-      role: normalizedRole,
+      profileRole: syncedProfile?.role || normalizedRole,
+      authUserExisted,
     });
-    return NextResponse.json({ ok: true, userId });
+
+    return NextResponse.json({ ok: true, userId, authUserExisted });
   } catch (error) {
-    console.error('[ADMIN_USERS][CREATE_RESULT]', {
-      ok: false,
+    console.error('[ADMIN_USERS][CREATE_ERROR]', {
       message: error?.message || 'Erro interno do servidor',
+      stack: error?.stack || null,
     });
-    console.error('Erro ao criar usuário:', error);
     return NextResponse.json(
       { error: error?.message || 'Erro interno do servidor' },
       { status: 500 }

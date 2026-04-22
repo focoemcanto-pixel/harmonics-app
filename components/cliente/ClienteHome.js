@@ -1418,8 +1418,8 @@ const [generalNotes, setGeneralNotes] = useState(initialState.generalNotes || ''
   ]);
 
   useEffect(() => {
-    console.log('[TRACE][CORTEJO][FINAL_STATE]', pickTraceItem(cortejo));
-    console.log('[TRACE][CERIMONIA][FINAL_STATE]', pickTraceItem(cerimonia));
+    debugClientHome('[TRACE][CORTEJO][FINAL_STATE]', pickTraceItem(cortejo));
+    debugClientHome('[TRACE][CERIMONIA][FINAL_STATE]', pickTraceItem(cerimonia));
   }, [cortejo, cerimonia]);
 
   const applyLocalDraft = useCallback((parsed) => {
@@ -1625,7 +1625,7 @@ const [generalNotes, setGeneralNotes] = useState(initialState.generalNotes || ''
 
   useEffect(() => {
     if (!autosaveReady) {
-      console.log('[REPERTORIO_AUTOSAVE] proteção de hidratação ativa: autosave bloqueado antes da hidratação inicial.');
+      debugClientHome('[REPERTORIO_AUTOSAVE] proteção de hidratação ativa: autosave bloqueado antes da hidratação inicial.');
       return;
     }
 
@@ -1702,16 +1702,16 @@ const [generalNotes, setGeneralNotes] = useState(initialState.generalNotes || ''
       const suggestionPayload = buildSuggestionPayload(songLike, payloadLike);
       const key = `${item.songId}::${normalizeSuggestionSection(item.section || item.targetSection)}::${normalizeCompareText(item.who_enters || item.targetLabel || item.moment || '')}`;
 
-      console.log('[SUGESTOES->REPERTORIO] destino escolhido:', payloadLike.section);
-      console.log('[SUGESTOES->REPERTORIO] item montado por buildSuggestionPayload:', suggestionPayload);
-      console.log('[SUGESTOES->REPERTORIO] estado do repertório antes da inserção:', nextSnapshot);
+      debugClientHome('[SUGESTOES->REPERTORIO] destino escolhido:', payloadLike.section);
+      debugClientHome('[SUGESTOES->REPERTORIO] item montado por buildSuggestionPayload:', suggestionPayload);
+      debugClientHome('[SUGESTOES->REPERTORIO] estado do repertório antes da inserção:', nextSnapshot);
 
       nextSnapshot = applySuggestionToRepertorioState(nextSnapshot, {
         ...item,
         ...suggestionPayload,
       });
 
-      console.log('[SUGESTOES->REPERTORIO] estado do repertório depois da inserção:', nextSnapshot);
+      debugClientHome('[SUGESTOES->REPERTORIO] estado do repertório depois da inserção:', nextSnapshot);
       appliedSuggestionKeysRef.current.add(key);
     });
 
@@ -1766,7 +1766,7 @@ const [generalNotes, setGeneralNotes] = useState(initialState.generalNotes || ''
   }, [cortejo, cerimonia, saida]);
 
   useEffect(() => {
-    console.log('[SUGESTOES->REPERTORIO][RENDER] fonte visual atual da aba Repertório:', {
+    debugClientHome('[SUGESTOES->REPERTORIO][RENDER] fonte visual atual da aba Repertório:', {
       cortejo,
       cerimonia,
       saida,
@@ -2022,7 +2022,7 @@ function buildItemsPayload() {
   });
 
   if (suggestedItems.length > 0) {
-    console.log('[SUGESTOES->REPERTORIO] payload de sugestões mapeado:', suggestedItems);
+    debugClientHome('[SUGESTOES->REPERTORIO] payload de sugestões mapeado:', suggestedItems);
     const mergedItems = mergeUniqueRepertoireItems(items, suggestedItems);
     items.splice(0, items.length, ...mergedItems);
   }
@@ -2070,11 +2070,11 @@ function buildConfigPayload() {
 async function saveRepertorio(mode = 'draft') {
   try {
     setSavingMode(mode);
-    console.log('[TRACE][CORTEJO][STATE_BEFORE_SAVE]', pickTraceItem(cortejo));
-    console.log('[TRACE][CERIMONIA][STATE_BEFORE_SAVE]', pickTraceItem(cerimonia));
+    debugClientHome('[TRACE][CORTEJO][STATE_BEFORE_SAVE]', pickTraceItem(cortejo));
+    debugClientHome('[TRACE][CERIMONIA][STATE_BEFORE_SAVE]', pickTraceItem(cerimonia));
     const builtItemsPayload = buildItemsPayload();
-    console.log('[TRACE][CORTEJO][PAYLOAD]', pickTracePayloadItem(builtItemsPayload, 'cortejo'));
-    console.log('[TRACE][CERIMONIA][PAYLOAD]', pickTracePayloadItem(builtItemsPayload, 'cerimonia'));
+    debugClientHome('[TRACE][CORTEJO][PAYLOAD]', pickTracePayloadItem(builtItemsPayload, 'cortejo'));
+    debugClientHome('[TRACE][CERIMONIA][PAYLOAD]', pickTracePayloadItem(builtItemsPayload, 'cerimonia'));
     const configPayload = buildConfigPayload();
 
     const payload = {
@@ -2093,7 +2093,7 @@ async function saveRepertorio(mode = 'draft') {
       },
     };
     if (mode === 'draft') {
-      console.log('[ANTESALA][CLIENT_STATE_BEFORE_SAVE]', {
+      debugClientHome('[ANTESALA][CLIENT_STATE_BEFORE_SAVE]', {
         querAntessala,
         requestedByClient: false,
         requestStatus: String(antessala?.requestStatus || ''),
@@ -2103,7 +2103,7 @@ async function saveRepertorio(mode = 'draft') {
         included: querAntessala === true,
         priceIncrement: 0,
       });
-      console.log('[ANTESALA][POST_BODY]', {
+      debugClientHome('[ANTESALA][POST_BODY]', {
         querAntessala,
         requestedByClient: false,
         requestStatus: String(payload?.antesalaFlow?.requestStatus || ''),
@@ -2114,8 +2114,8 @@ async function saveRepertorio(mode = 'draft') {
         priceIncrement: 0,
       });
     }
-    console.log('[TRACE][CORTEJO][POST_BODY]', pickTracePayloadItem(payload.items, 'cortejo'));
-    console.log('[TRACE][CERIMONIA][POST_BODY]', pickTracePayloadItem(payload.items, 'cerimonia'));
+    debugClientHome('[TRACE][CORTEJO][POST_BODY]', pickTracePayloadItem(payload.items, 'cortejo'));
+    debugClientHome('[TRACE][CERIMONIA][POST_BODY]', pickTracePayloadItem(payload.items, 'cerimonia'));
 
     const payloadItemsBySection = payload.items.reduce((acc, item) => {
       const key = String(item?.section || 'sem_secao');
@@ -2128,27 +2128,27 @@ async function saveRepertorio(mode = 'draft') {
     const cerimoniaPayload = builtItemsPayload.filter((item) => item.section === 'cerimonia');
     const saidaPayload = builtItemsPayload.filter((item) => item.section === 'saida');
 
-    console.log('[REPERTORIO_DRAFT] payload final enviado para persistência:', payload);
-    console.log('[SUGESTOES][PERSIST_PAYLOAD]', {
+    debugClientHome('[REPERTORIO_DRAFT] payload final enviado para persistência:', payload);
+    debugClientHome('[SUGESTOES][PERSIST_PAYLOAD]', {
       mode,
       token: payload.token,
       selectedSongsCount: selectedSongs.length,
       itemsCount: builtItemsPayload.length,
       suggestedItemsCount: builtItemsPayload.filter((item) => Number(item?.item_order) >= 1000).length,
     });
-    console.log('[REPERTORIO_DRAFT] quantidade de itens por seção:', payloadItemsBySection);
-    console.log('[REPERTORIO_DRAFT] seções ausentes no payload.itens:', missingSections);
-    console.log('[SAVE][CORTEJO_PAYLOAD]', cortejoPayload);
-    console.log('[SAVE][CERIMONIA_PAYLOAD]', cerimoniaPayload);
-    console.log('[SAVE][SAIDA_PAYLOAD]', saidaPayload);
+    debugClientHome('[REPERTORIO_DRAFT] quantidade de itens por seção:', payloadItemsBySection);
+    debugClientHome('[REPERTORIO_DRAFT] seções ausentes no payload.itens:', missingSections);
+    debugClientHome('[SAVE][CORTEJO_PAYLOAD]', cortejoPayload);
+    debugClientHome('[SAVE][CERIMONIA_PAYLOAD]', cerimoniaPayload);
+    debugClientHome('[SAVE][SAIDA_PAYLOAD]', saidaPayload);
 
-    console.log('[CLIENTE REPERTORIO] token URL (/cliente/[token]):', data.token);
-    console.log('[CLIENTE REPERTORIO] token enviado no payload.token:', payload.token);
-    console.log(
+    debugClientHome('[CLIENTE REPERTORIO] token URL (/cliente/[token]):', data.token);
+    debugClientHome('[CLIENTE REPERTORIO] token enviado no payload.token:', payload.token);
+    debugClientHome(
       '[CLIENTE REPERTORIO] repertoireToken enviado explicitamente:',
       payload.repertoireToken || '(vazio)'
     );
-    console.log(
+    debugClientHome(
       '[CLIENTE REPERTORIO] clientToken enviado explicitamente:',
       payload.clientToken || '(vazio)'
     );
@@ -2162,11 +2162,11 @@ async function saveRepertorio(mode = 'draft') {
     });
 
     const result = await response.json();
-    console.log('[CLIENT][SAVE_RESPONSE]', {
+    debugClientHome('[CLIENT][SAVE_RESPONSE]', {
       httpStatus: response.status,
       body: result,
     });
-    console.log('[SUGESTOES][PERSIST_RESULT]', {
+    debugClientHome('[SUGESTOES][PERSIST_RESULT]', {
       ok: response.ok && Boolean(result?.ok),
       httpStatus: response.status,
       status: result?.status || null,
@@ -2977,7 +2977,7 @@ async function handleRequestReview() {
                   showToast('PDF do repertório ainda não disponível.', 'warning');
                   return;
                 }
-                console.log(
+                debugClientHome(
                   '[CLIENTE REPERTORIO UI] URL usada no botão Baixar PDF:',
                   data.repertorio.pdfUrl || '(vazio)'
                 );
@@ -3775,15 +3775,15 @@ const moments = [
   );
 
   function markAdded(songId, payload) {
-    console.log('[SUGESTOES][ADD_ATTEMPT]', { songId, payload });
-    console.log('[SUGESTOES][LOCK_STATE]', {
+    debugClientHome('[SUGESTOES][ADD_ATTEMPT]', { songId, payload });
+    debugClientHome('[SUGESTOES][LOCK_STATE]', {
       status: repertorioStatus,
       isLocked: Boolean(repertorioLocked),
       travado: repertorioTravado,
     });
 
     if (repertorioTravado) {
-      console.log('[SUGESTOES][BLOCKED_ADD]', {
+      debugClientHome('[SUGESTOES][BLOCKED_ADD]', {
         songId,
         reason: 'repertorio_locked',
       });
@@ -3801,11 +3801,11 @@ const moments = [
     const song = hydratedSongs.find((item) => item.id === songId);
     const suggestionPayload = buildSuggestionPayload(song, payload);
 
-    console.log('[SUGESTOES] sugestão selecionada:', song);
-    console.log('[SUGESTOES] momento escolhido:', payload);
-    console.log('[SUGESTOES] payload criado:', suggestionPayload);
+    debugClientHome('[SUGESTOES] sugestão selecionada:', song);
+    debugClientHome('[SUGESTOES] momento escolhido:', payload);
+    debugClientHome('[SUGESTOES] payload criado:', suggestionPayload);
     setSelectedSongs((prev) => {
-      console.log('[SUGESTOES] repertório antes da inserção:', prev);
+      debugClientHome('[SUGESTOES] repertório antes da inserção:', prev);
       const next = [
         ...prev,
         {
@@ -3821,7 +3821,7 @@ const moments = [
           ...suggestionPayload,
         },
       ];
-      console.log('[SUGESTOES] repertório depois da inserção:', next);
+      debugClientHome('[SUGESTOES] repertório depois da inserção:', next);
       return next;
     });
 
@@ -3905,7 +3905,7 @@ const gospelEntranceSongs = hydratedSongs.filter(
 );
 
    function handleAddConfirm(payload) {
-    console.log('[SUGESTOES] confirmação de adição recebida:', payload);
+    debugClientHome('[SUGESTOES] confirmação de adição recebida:', payload);
     if (sheetSong) {
       markAdded(sheetSong.id, payload);
     }
@@ -4828,7 +4828,7 @@ export default function ClienteHome({ data, initialTab = 'inicio' }) {
   useEffect(() => {
     if (!shouldShowRepertoire15DaysAlert || !panelData?.token) return;
     if (DISABLE_REPERTOIRE_ALERT_DEBUG) {
-      console.log(
+      debugClientHome(
         '[CLIENTE HOME][DEBUG] Automação /api/cliente/alertas/repertorio-pendente desabilitada por NEXT_PUBLIC_DISABLE_REPERTOIRE_ALERT_DEBUG=1.'
       );
       return;

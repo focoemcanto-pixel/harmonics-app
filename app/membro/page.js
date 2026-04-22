@@ -495,6 +495,7 @@ export default function MembroPage() {
   const [repertoireItems, setRepertoireItems] = useState([]);
   const [isModalRenderTargetReady, setIsModalRenderTargetReady] = useState(false);
   const [isMiniRenderTargetReady, setIsMiniRenderTargetReady] = useState(false);
+  const shouldResumeAfterMinimizeRef = useRef(false);
 
  async function resolveMemberFromSession() {
   try {
@@ -986,6 +987,40 @@ export default function MembroPage() {
   ]);
 
   useEffect(() => {
+    if (!isMiniPlayerVisible) return;
+    console.log('[PLAYER_MINI][VISIBLE]', {
+      visible: isMiniPlayerVisible,
+      modalOpen: isPlayerModalOpen,
+    });
+    console.log('[PLAYER_MINI][STATE]', {
+      isPlaying,
+      currentTrack: currentTrack?.title || '',
+      currentTrackIndex: playerIndex,
+      currentTime,
+    });
+  }, [isMiniPlayerVisible, isPlayerModalOpen, isPlaying, currentTrack?.title, playerIndex, currentTime]);
+
+  useEffect(() => {
+    if (!shouldResumeAfterMinimizeRef.current) return;
+    if (isPlayerModalOpen) return;
+    if (!isMiniPlayerVisible || !isMiniRenderTargetReady) return;
+
+    play();
+    shouldResumeAfterMinimizeRef.current = false;
+
+    console.log('[PLAYER_GLOBAL][IS_PLAYING_AFTER_MINIMIZE]', true);
+    console.log('[PLAYER_GLOBAL][CURRENT_TIME_AFTER_MINIMIZE]', currentTime);
+    console.log('[PLAYER_GLOBAL][CURRENT_TRACK_AFTER_MINIMIZE]', currentTrack?.title || '');
+  }, [
+    isPlayerModalOpen,
+    isMiniPlayerVisible,
+    isMiniRenderTargetReady,
+    play,
+    currentTime,
+    currentTrack?.title,
+  ]);
+
+  useEffect(() => {
     console.log('[PLAYER][MODAL_OPEN]', isPlayerModalOpen);
     console.log('[PLAYER][MINIBAR_VISIBLE]', isMiniPlayerVisible);
     console.log('[PLAYER][IS_PLAYING]', isPlaying);
@@ -1222,6 +1257,13 @@ export default function MembroPage() {
   }
 
   function handleMinimizePlayer() {
+    shouldResumeAfterMinimizeRef.current = Boolean(isPlaying);
+    console.log('[PLAYER_MODAL][CLOSE_TO_MINI]', {
+      wasPlaying: isPlaying,
+      currentTrack: currentTrack?.title || '',
+      currentTrackIndex: playerIndex,
+      currentTime,
+    });
     console.log('[MEMBRO_PLAYER][MINIMIZE_CLICK]', {
       isPlaying,
       currentTrack: currentTrack?.title || '',

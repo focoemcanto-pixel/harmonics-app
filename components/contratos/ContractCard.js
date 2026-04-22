@@ -39,12 +39,6 @@ function ContractPreviewModal({ item, open, onClose }) {
     };
   }, [open]);
 
-  useEffect(() => {
-    if (open) {
-      setLoading(true);
-    }
-  }, [open, item?.token]);
-
   if (!open) return null;
 
   const hasToken = !!String(item?.token || '').trim();
@@ -366,11 +360,13 @@ export default function ContractCard({ item, onCopyLink, onDeleteContract, selec
         </div>
       </div>
 
-      <ContractPreviewModal
-        item={item}
-        open={previewOpen}
-        onClose={() => setPreviewOpen(false)}
-      />
+      {previewOpen ? (
+        <ContractPreviewModal
+          item={item}
+          open={previewOpen}
+          onClose={() => setPreviewOpen(false)}
+        />
+      ) : null}
     </>
   );
 }

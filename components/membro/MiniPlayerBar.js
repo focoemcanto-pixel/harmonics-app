@@ -43,15 +43,16 @@ function ensureYouTubeAPI() {
 }
 
 export default function MiniPlayerBar({
-  expanded = false,
+  isPlayerModalOpen = false,
+  isMiniPlayerVisible = false,
   currentTrack,
   eventTitle,
   playlist = [],
   currentIndex = 0,
   isPlaying,
   onExpand,
-  onCollapse,
-  onClose,
+  onMinimize,
+  onCloseSession,
   onNext,
   onPrev,
   onTogglePlay,
@@ -75,20 +76,20 @@ export default function MiniPlayerBar({
   }, [videoId, isPlaying]);
 
   useEffect(() => {
-    if (!expanded || didReportModalOpenRef.current) return;
+    if (!isPlayerModalOpen || didReportModalOpenRef.current) return;
     didReportModalOpenRef.current = true;
     console.log('[MEMBER_PLAYER][MODAL_OPEN]', {
       track: currentTrack?.title || '',
       videoId,
       playing: isPlaying,
     });
-  }, [expanded, currentTrack?.title, videoId, isPlaying]);
+  }, [isPlayerModalOpen, currentTrack?.title, videoId, isPlaying]);
 
   useEffect(() => {
-    if (!expanded) {
+    if (!isPlayerModalOpen) {
       didReportModalOpenRef.current = false;
     }
-  }, [expanded]);
+  }, [isPlayerModalOpen]);
 
   useEffect(() => {
     if (!videoId) return;
@@ -193,7 +194,7 @@ export default function MiniPlayerBar({
         <div ref={playerHostRef} />
       </div>
 
-      {expanded ? (
+      {isPlayerModalOpen ? (
         <div className="fixed inset-0 z-[150] bg-black/70 backdrop-blur-[4px]">
           <div className="flex min-h-screen items-end justify-center md:items-center md:p-6">
             <div className="flex h-[92vh] w-full flex-col overflow-hidden rounded-t-[30px] border border-white/10 bg-[#0b1020] text-white shadow-[0_24px_80px_rgba(0,0,0,0.45)] md:h-auto md:max-h-[92vh] md:max-w-5xl md:rounded-[30px]">
@@ -208,13 +209,23 @@ export default function MiniPlayerBar({
                     </h3>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={onCollapse}
-                    className="rounded-[16px] border border-white/10 bg-white/10 px-4 py-3 text-[14px] font-black text-white"
-                  >
-                    Fechar
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={onMinimize}
+                      className="rounded-[16px] border border-white/10 bg-white/10 px-4 py-3 text-[14px] font-black text-white"
+                    >
+                      Minimizar
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={onCloseSession}
+                      className="rounded-[16px] border border-white/10 bg-white/10 px-4 py-3 text-[14px] font-black text-white"
+                    >
+                      Fechar
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -381,7 +392,8 @@ export default function MiniPlayerBar({
         </div>
       ) : null}
 
-      <div className="fixed inset-x-0 bottom-[84px] z-[140] px-3 pb-2 md:bottom-4 md:px-6">
+      {isMiniPlayerVisible ? (
+        <div className="fixed inset-x-0 bottom-[84px] z-[140] px-3 pb-2 md:bottom-4 md:px-6">
         <div className="mx-auto max-w-4xl overflow-hidden rounded-[26px] border border-white/10 bg-[linear-gradient(135deg,rgba(10,14,30,0.96),rgba(29,20,58,0.96))] text-white shadow-[0_18px_60px_rgba(0,0,0,0.45)] backdrop-blur-xl">
           <div className="h-[3px] w-full bg-white/5">
             <div className="h-full w-1/3 bg-[linear-gradient(90deg,#7c3aed,#d946ef)]" />
@@ -460,7 +472,7 @@ export default function MiniPlayerBar({
 
               <button
                 type="button"
-                onClick={onClose}
+                onClick={onCloseSession}
                 className="rounded-[14px] border border-white/10 bg-white/10 px-4 py-3 text-[12px] font-black"
               >
                 Fechar
@@ -468,7 +480,8 @@ export default function MiniPlayerBar({
             </div>
           </div>
         </div>
-      </div>
+        </div>
+      ) : null}
     </>
   );
 }

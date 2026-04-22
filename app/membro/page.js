@@ -459,7 +459,8 @@ export default function MembroPage() {
   const [activeTab, setActiveTab] = useState('home');
   const [loadingKey, setLoadingKey] = useState('');
 
-  const [playerExpanded, setPlayerExpanded] = useState(false);
+  const [isPlayerModalOpen, setIsPlayerModalOpen] = useState(false);
+  const [isMiniPlayerVisible, setIsMiniPlayerVisible] = useState(false);
   const [playerPlaylist, setPlayerPlaylist] = useState([]);
   const [playerIndex, setPlayerIndex] = useState(0);
   const [playerEventTitle, setPlayerEventTitle] = useState('');
@@ -947,6 +948,24 @@ export default function MembroPage() {
     });
   }, [isPlaying, playerIndex, currentTrack?.title, playerPlaylist.length]);
 
+  useEffect(() => {
+    console.log('[MEMBRO_PLAYER][MINI_PLAYER_STATE]', {
+      isMiniPlayerVisible,
+      isPlayerModalOpen,
+      isPlaying,
+      currentTrack: currentTrack?.title || '',
+      currentTrackIndex: playerIndex,
+      playlistSize: playerPlaylist.length,
+    });
+  }, [
+    isMiniPlayerVisible,
+    isPlayerModalOpen,
+    isPlaying,
+    currentTrack?.title,
+    playerIndex,
+    playerPlaylist.length,
+  ]);
+
   const desktopMeta = getDesktopTabMeta(activeTab);
 
   async function handleGoogleLogin() {
@@ -991,7 +1010,8 @@ export default function MembroPage() {
       setPlayerPlaylist([]);
       setPlayerIndex(0);
       setPlayerEventTitle('');
-      setPlayerExpanded(false);
+      setIsPlayerModalOpen(false);
+      setIsMiniPlayerVisible(false);
       setIsPlaying(false);
       setScaleModalOpen(false);
       setScaleModalEvent(null);
@@ -1137,10 +1157,36 @@ export default function MembroPage() {
     setPlayerIndex(0);
     setPlayerEventTitle(item?.clientName || 'Repertório');
     setIsPlaying(Boolean(options.autoplay !== false));
+    setIsMiniPlayerVisible(Boolean(options.autoplay !== false));
 
     if (options.autoplay !== false) {
-      setPlayerExpanded(true);
+      setIsPlayerModalOpen(true);
+      setIsMiniPlayerVisible(false);
     }
+  }
+
+  function handleMinimizePlayer() {
+    console.log('[MEMBRO_PLAYER][MINIMIZE_CLICK]', {
+      isPlaying,
+      currentTrack: currentTrack?.title || '',
+      currentTrackIndex: playerIndex,
+    });
+    setIsPlayerModalOpen(false);
+    setIsMiniPlayerVisible(true);
+  }
+
+  function handleClosePlayerSession() {
+    console.log('[MEMBRO_PLAYER][CLOSE_CLICK]', {
+      isPlaying,
+      currentTrack: currentTrack?.title || '',
+      currentTrackIndex: playerIndex,
+    });
+    setIsPlayerModalOpen(false);
+    setIsMiniPlayerVisible(false);
+    setPlayerPlaylist([]);
+    setPlayerIndex(0);
+    setPlayerEventTitle('');
+    setIsPlaying(false);
   }
 
   function openPdf(item) {
@@ -1524,21 +1570,25 @@ export default function MembroPage() {
       />
 
       <MiniPlayerBar
-        expanded={playerExpanded}
+        isPlayerModalOpen={isPlayerModalOpen}
+        isMiniPlayerVisible={isMiniPlayerVisible}
         currentTrack={currentTrack}
         eventTitle={playerEventTitle}
         playlist={playerPlaylist}
         currentIndex={playerIndex}
         isPlaying={isPlaying}
-        onExpand={() => setPlayerExpanded(true)}
-        onCollapse={() => setPlayerExpanded(false)}
-        onClose={() => {
-          setPlayerExpanded(false);
-          setPlayerPlaylist([]);
-          setPlayerIndex(0);
-          setPlayerEventTitle('');
-          setIsPlaying(false);
+        onExpand={() => {
+          setIsPlayerModalOpen(true);
+          setIsMiniPlayerVisible(false);
+          console.log('[MEMBRO_PLAYER][MODAL_REOPEN_STATE]', {
+            isPlaying,
+            currentTrack: currentTrack?.title || '',
+            currentTrackIndex: playerIndex,
+            playlistSize: playerPlaylist.length,
+          });
         }}
+        onMinimize={handleMinimizePlayer}
+        onCloseSession={handleClosePlayerSession}
         onNext={handleNextTrack}
         onPrev={handlePrevTrack}
         onTogglePlay={handleTogglePlaying}

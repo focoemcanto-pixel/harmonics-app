@@ -593,19 +593,16 @@ function RepertorioCard({ data }) {
   });
 
   const deadline = getRepertorioDeadline(data.dataEvento);
-  const [showLateModal, setShowLateModal] = useState(false);
+  const [lateModalDismissed, setLateModalDismissed] = useState(false);
+  const lateModalStorageKey = `cliente_repertorio_late_modal_${data.token}`;
+  const hasLateModalBeenShown =
+    typeof window !== 'undefined' && sessionStorage.getItem(lateModalStorageKey) === '1';
+  const showLateModal = uiState === 'atrasado' && !lateModalDismissed && !hasLateModalBeenShown;
 
   useEffect(() => {
-    if (uiState !== 'atrasado') return;
-
-    const key = `cliente_repertorio_late_modal_${data.token}`;
-    const alreadyShown = sessionStorage.getItem(key);
-
-    if (!alreadyShown) {
-      setShowLateModal(true);
-      sessionStorage.setItem(key, '1');
-    }
-  }, [uiState, data.token]);
+    if (!showLateModal || typeof window === 'undefined') return;
+    sessionStorage.setItem(lateModalStorageKey, '1');
+  }, [showLateModal, lateModalStorageKey]);
 
   const stateMeta = useMemo(() => {
     const isAwaitingReview =
@@ -806,7 +803,7 @@ function RepertorioCard({ data }) {
 
               <button
                 type="button"
-                onClick={() => setShowLateModal(false)}
+                onClick={() => setLateModalDismissed(true)}
                 className="flex w-full items-center justify-center rounded-[18px] border border-[#eadfd6] bg-white px-4 py-4 text-center text-[15px] font-black text-[#241a14]"
               >
                 Depois
@@ -3520,18 +3517,10 @@ function PlayerModal({ current, onClose, onFav, onAdd }) {
   );
 }
 
-function AddSongSheet({ music, onClose, onConfirm }) {
+function AddSongSheetInner({ music, onClose, onConfirm }) {
   const [section, setSection] = useState('Cortejo');
   const [label, setLabel] = useState('');
   const [notes, setNotes] = useState('');
-
-  useEffect(() => {
-    if (!music) {
-      setSection('Cortejo');
-      setLabel('');
-      setNotes('');
-    }
-  }, [music]);
 
   if (!music) return null;
 
@@ -3607,6 +3596,21 @@ function AddSongSheet({ music, onClose, onConfirm }) {
         </div>
       </div>
     </div>
+  );
+}
+
+function AddSongSheet({ music, onClose, onConfirm }) {
+  if (!music) return null;
+
+  const musicKey = [music.id, music.title, music.artist].filter(Boolean).join('::') || 'music';
+
+  return (
+    <AddSongSheetInner
+      key={musicKey}
+      music={music}
+      onClose={onClose}
+      onConfirm={onConfirm}
+    />
   );
 }
 

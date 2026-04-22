@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import AdminSectionTitle from '../admin/AdminSectionTitle';
 import { Field, Input, Select, Textarea } from '../admin/AdminFormPrimitives';
 import { useAppToast } from '../ui/ToastProvider';
@@ -13,34 +13,37 @@ export default function EscalasFormularioTab({
   onCancel,
   salvando = false,
 }) {
+  const formKey = escalaSelecionada?.id ? `edit-${escalaSelecionada.id}` : 'new';
+
+  return (
+    <EscalasFormularioTabInner
+      key={formKey}
+      escalaSelecionada={escalaSelecionada}
+      eventos={eventos}
+      contatos={contatos}
+      onSave={onSave}
+      onCancel={onCancel}
+      salvando={salvando}
+    />
+  );
+}
+
+function EscalasFormularioTabInner({
+  escalaSelecionada,
+  eventos,
+  contatos,
+  onSave,
+  onCancel,
+  salvando = false,
+}) {
   const toast = useAppToast();
   const [form, setForm] = useState({
-    event_id: '',
-    musician_id: '',
-    role: '',
-    status: 'pending',
-    notes: '',
+    event_id: escalaSelecionada?.event_id || '',
+    musician_id: escalaSelecionada?.musician_id || '',
+    role: escalaSelecionada?.role || '',
+    status: escalaSelecionada?.status || 'pending',
+    notes: escalaSelecionada?.notes || '',
   });
-
-  useEffect(() => {
-    if (escalaSelecionada) {
-      setForm({
-        event_id: escalaSelecionada.event_id || '',
-        musician_id: escalaSelecionada.musician_id || '',
-        role: escalaSelecionada.role || '',
-        status: escalaSelecionada.status || 'pending',
-        notes: escalaSelecionada.notes || '',
-      });
-    } else {
-      setForm({
-        event_id: '',
-        musician_id: '',
-        role: '',
-        status: 'pending',
-        notes: '',
-      });
-    }
-  }, [escalaSelecionada]);
 
   function handleSubmit(e) {
     e.preventDefault();

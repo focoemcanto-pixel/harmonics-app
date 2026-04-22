@@ -1,5 +1,8 @@
 'use client';
 
+import { useMemo } from 'react';
+import { extractYoutubeId } from '../../lib/membro/membro-invites';
+
 export default function MembroPlayerModal({
   open,
   eventTitle,
@@ -14,9 +17,14 @@ export default function MembroPlayerModal({
   onPlayerContainerReady,
   playerContainerActive,
 }) {
-  if (!open) return null;
-
   const currentTrack = playlist[currentIndex] || null;
+  const videoId = String(currentTrack?.videoId || '').trim() || extractYoutubeId(currentTrack?.url || '');
+  const thumbnailUrl = useMemo(() => {
+    if (!videoId) return '';
+    return `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
+  }, [videoId]);
+  
+  if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-[150] bg-black/70 backdrop-blur-[4px]">
@@ -71,10 +79,33 @@ export default function MembroPlayerModal({
                 ) : null}
 
                 <div className="mt-5 overflow-hidden rounded-[18px] border border-white/10 bg-black/45">
-                  <div
-                    ref={onPlayerContainerReady}
-                    className="aspect-video w-full"
-                  />
+                  <div className="relative aspect-video w-full">
+                    {!playerContainerActive && thumbnailUrl ? (
+                      <img
+                        src={thumbnailUrl}
+                        alt={currentTrack?.title || 'Thumbnail da faixa'}
+                        className="absolute inset-0 h-full w-full object-cover"
+                      />
+                    ) : null}
+
+                    {!playerContainerActive ? (
+                      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(124,58,237,0.32),rgba(6,8,16,0.88))]" />
+                    ) : null}
+
+                    {!playerContainerActive ? (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="rounded-full border border-white/20 bg-black/40 px-4 py-2 text-[11px] font-black uppercase tracking-[0.08em] text-white/80">
+                          Carregando vídeo premium...
+                        </div>
+                      </div>
+                    ) : null}
+
+                    <div
+                      ref={onPlayerContainerReady}
+                      data-player-modal-host="true"
+                      className="relative z-[1] aspect-video w-full"
+                    />
+                  </div>
                 </div>
 
                 <div className="mt-5 grid grid-cols-4 gap-3">

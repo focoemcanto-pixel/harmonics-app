@@ -1453,8 +1453,8 @@ const [generalNotes, setGeneralNotes] = useState(initialState.generalNotes || ''
       ]),
       referenceMeta:
         parsedSaida?.referenceMeta ||
-        currentSaida.referenceMeta ||
         toReferenceMeta(parsedSaida) ||
+        currentSaida.referenceMeta ||
         null,
     };
     const currentReceptivo = currentSnapshot?.receptivo || {

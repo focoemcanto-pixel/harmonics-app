@@ -538,7 +538,6 @@ const quickActionColorClasses = {
   amber: 'bg-amber-50 text-amber-600 hover:bg-amber-100 border-amber-200',
   purple: 'bg-purple-50 text-purple-600 hover:bg-purple-100 border-purple-200',
   green: 'bg-green-50 text-green-600 hover:bg-green-100 border-green-200',
-  indigo: 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border-indigo-200',
 };
 
 function QuickActionCard({ action, className = '' }) {
@@ -562,7 +561,6 @@ export default function DashboardPage() {
   const [events, setEvents] = useState([]);
   const [contracts, setContracts] = useState([]);
   const [precontracts, setPrecontracts] = useState([]);
-  const [eventMusicians, setEventMusicians] = useState([]);
   const [repertoireConfigs, setRepertoireConfigs] = useState([]);
   const [summary, setSummary] = useState(null);
   const [carregando, setCarregando] = useState(true);
@@ -620,7 +618,6 @@ export default function DashboardPage() {
         setEvents(dashboardMemoryCache.events);
         setContracts(dashboardMemoryCache.contracts);
         setPrecontracts(dashboardMemoryCache.precontracts);
-        setEventMusicians(dashboardMemoryCache.eventMusicians);
         setRepertoireConfigs(dashboardMemoryCache.repertoireConfigs);
         setSummary(dashboardMemoryCache.summary);
         setSecondaryReady(true);
@@ -725,7 +722,6 @@ export default function DashboardPage() {
         ? adjustmentRequestsRes.data
         : [];
 
-      setEventMusicians(eventMusiciansData);
       setRepertoireConfigs(repertoireConfigsData);
       setHeavyReady(true);
 
@@ -753,7 +749,6 @@ export default function DashboardPage() {
       setEvents([]);
       setContracts([]);
       setPrecontracts([]);
-      setEventMusicians([]);
       setRepertoireConfigs([]);
       setSummary(buildDashboardSummary([], [], [], [], [], []));
     } finally {
@@ -770,7 +765,6 @@ export default function DashboardPage() {
     let res = await fetch('/api/automation/logs?limit=6&sort=desc');
 
     if (res.status === 404) {
-      logWarn('dashboard', 'Rota /api/automation/logs não existe, tentando alternativa');
       res = await fetch('/api/logs/automation?limit=6');
     }
 

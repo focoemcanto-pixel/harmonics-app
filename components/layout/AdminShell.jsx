@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AdminSidebar from '../admin/AdminSidebar';
 import AdminMobileTopbar from '../admin/AdminMobileTopbar';
@@ -20,6 +20,8 @@ const MORE_ITEMS = [
   { label: 'Usuários', href: '/admin/usuarios', icon: '👥', helper: 'Gestão de usuários' },
 ];
 
+const MOBILE_NAV_ALLOWED_ITEMS = new Set(['dashboard', 'eventos', 'contatos', 'contratos', 'mais']);
+
 function getInitials(name) {
   if (!name) return '?';
   return name
@@ -30,7 +32,7 @@ function getInitials(name) {
     .toUpperCase();
 }
 
-function MobileMoreSheet({ open, onClose, onNavigate }) {
+const MobileMoreSheet = memo(function MobileMoreSheet({ open, onClose, onNavigate }) {
   const { signOut, profile } = useAuth();
 
   useEffect(() => {
@@ -43,6 +45,19 @@ function MobileMoreSheet({ open, onClose, onNavigate }) {
       document.body.style.overflow = '';
     };
   }, [open]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+
+    function handleEscape(event) {
+      if (event.key === 'Escape') onClose?.();
+    }
+
+    window.addEventListener('keydown', handleEscape);
+    return () => {
+      window.removeEventListener('keydown', handleEscape);
+    };
+  }, [open, onClose]);
 
   if (!open) return null;
 
@@ -57,6 +72,8 @@ function MobileMoreSheet({ open, onClose, onNavigate }) {
 
   return (
     <div
+      role="dialog"
+      aria-modal="true"
       className="fixed inset-0 z-[120] bg-black/50 backdrop-blur-[3px] md:hidden"
       onClick={handleBackdropClick}
     >
@@ -142,7 +159,7 @@ function MobileMoreSheet({ open, onClose, onNavigate }) {
       </div>
     </div>
   );
-}
+});
 
 export default function AdminShell({
   pageTitle,
@@ -154,20 +171,23 @@ export default function AdminShell({
   const router = useRouter();
   const [moreOpen, setMoreOpen] = useState(false);
 
-  const mobileActiveItem = useMemo(() => {
-    const allowed = ['dashboard', 'eventos', 'contatos', 'contratos', 'mais'];
-    if (allowed.includes(activeItem)) return activeItem;
+  const mobileActiveItem = (() => {
+    if (MOBILE_NAV_ALLOWED_ITEMS.has(activeItem)) return activeItem;
     return 'mais';
-  }, [activeItem]);
+  })();
 
-  function handleMoreNavigate(href) {
+  const handleMoreNavigate = useCallback((href) => {
     setMoreOpen(false);
     router.push(href);
-  }
+  }, [router]);
 
-  function handleOpenMore() {
+  const handleOpenMore = useCallback(() => {
     setMoreOpen(true);
-  }
+  }, []);
+
+  const handleCloseMore = useCallback(() => {
+    setMoreOpen(false);
+  }, []);
 
   return (
     <div className="min-h-screen bg-[#f4f6fa] text-[#111827]">
@@ -196,7 +216,7 @@ export default function AdminShell({
 
         <MobileMoreSheet
           open={moreOpen}
-          onClose={() => setMoreOpen(false)}
+          onClose={handleCloseMore}
           onNavigate={handleMoreNavigate}
         />
       </div>

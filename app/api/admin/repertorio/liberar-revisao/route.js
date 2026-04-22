@@ -5,6 +5,7 @@ import { executeAutomationEvent } from '@/lib/automation/execute-automation-even
 export async function POST(request) {
   try {
     const body = await request.json().catch(() => ({}));
+    console.log('[ANTESALA_REOPEN][REVIEW_RELEASED_PAYLOAD]', body || {});
     const eventId = String(body?.eventId || '').trim();
 
     if (!eventId) {

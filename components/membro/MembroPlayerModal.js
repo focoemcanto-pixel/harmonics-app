@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { extractYoutubeId } from '../../lib/membro/membro-invites';
 
 export default function MembroPlayerModal({
@@ -15,20 +15,65 @@ export default function MembroPlayerModal({
   onNext,
   onTogglePlay,
 }) {
+  const bodyRef = useRef(null);
+  const playlistContainerRef = useRef(null);
+  const primaryPanelRef = useRef(null);
+
   const currentTrack = playlist[currentIndex] || null;
   const videoId = String(currentTrack?.videoId || '').trim() || extractYoutubeId(currentTrack?.url || '');
   const thumbnailUrl = useMemo(() => {
     if (!videoId) return '';
     return `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
   }, [videoId]);
+
+  useEffect(() => {
+    if (!open || typeof window === 'undefined') return;
+
+    const bodyStyle = bodyRef.current ? window.getComputedStyle(bodyRef.current) : null;
+    const playlistStyle = playlistContainerRef.current
+      ? window.getComputedStyle(playlistContainerRef.current)
+      : null;
+    const primaryStyle = primaryPanelRef.current ? window.getComputedStyle(primaryPanelRef.current) : null;
+
+    console.log('[PLAYER_MODAL][MOBILE_LAYOUT_ACTIVE]', {
+      width: window.innerWidth,
+      isDesktopGrid: window.innerWidth >= 1024,
+      bodyDisplay: bodyStyle?.display,
+      bodyGridColumns: bodyStyle?.gridTemplateColumns,
+      bodyFlexDirection: bodyStyle?.flexDirection,
+    });
+
+    console.log('[PLAYER_MODAL][BODY_STRUCTURE]', {
+      bodyOverflowY: bodyStyle?.overflowY,
+      bodyOverflowX: bodyStyle?.overflowX,
+      bodyPosition: bodyStyle?.position,
+      bodyHeight: bodyStyle?.height,
+    });
+
+    console.log('[PLAYER_MODAL][PLAYLIST_CONTAINER_STYLE]', {
+      position: playlistStyle?.position,
+      zIndex: playlistStyle?.zIndex,
+      overflowY: playlistStyle?.overflowY,
+      minHeight: playlistStyle?.minHeight,
+      width: playlistStyle?.width,
+    });
+
+    console.log('[PLAYER_MODAL][PRIMARY_PANEL_STYLE]', {
+      position: primaryStyle?.position,
+      zIndex: primaryStyle?.zIndex,
+      overflowY: primaryStyle?.overflowY,
+      minHeight: primaryStyle?.minHeight,
+      width: primaryStyle?.width,
+    });
+  }, [open]);
   
   if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-[150] bg-black/70 backdrop-blur-[4px]">
-      <div className="flex min-h-[100dvh] items-end justify-center md:min-h-screen md:items-center md:p-6">
-        <div className="flex h-[92dvh] w-full min-h-0 flex-col overflow-hidden rounded-t-[30px] border border-white/10 bg-[#0b1020] text-white shadow-[0_24px_80px_rgba(0,0,0,0.45)] md:h-auto md:max-h-[92vh] md:max-w-5xl md:rounded-[30px]">
-          <div className="shrink-0 border-b border-white/10 px-5 py-4 md:px-6">
+      <div className="flex min-h-[100dvh] items-end justify-center lg:min-h-screen lg:items-center lg:p-6">
+        <div className="flex h-[92dvh] w-full min-h-0 flex-col overflow-hidden rounded-t-[30px] border border-white/10 bg-[#0b1020] text-white shadow-[0_24px_80px_rgba(0,0,0,0.45)] lg:h-auto lg:max-h-[92vh] lg:max-w-5xl lg:rounded-[30px]">
+          <div className="shrink-0 border-b border-white/10 px-5 py-4 lg:px-6">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
                 <div className="text-[12px] font-black uppercase tracking-[0.12em] text-fuchsia-200/70">
@@ -52,15 +97,22 @@ export default function MembroPlayerModal({
             </div>
           </div>
 
-          <div className="flex flex-1 min-h-0 flex-col overflow-y-auto md:grid md:grid-cols-[1.05fr_0.95fr] md:overflow-hidden">
-            <div className="min-h-0 border-b border-white/10 p-5 md:overflow-y-auto md:border-b-0 md:border-r md:p-6">
+          {/* Mobile: coluna única em fluxo real. Desktop: layout em duas colunas somente a partir de lg. */}
+          <div
+            ref={bodyRef}
+            className="flex flex-1 min-h-0 min-w-0 flex-col overflow-y-auto lg:grid lg:grid-cols-[1.05fr_0.95fr] lg:overflow-hidden"
+          >
+            <div
+              ref={primaryPanelRef}
+              className="min-h-0 min-w-0 border-b border-white/10 p-5 lg:overflow-y-auto lg:border-b-0 lg:border-r lg:p-6"
+            >
               <div className="flex min-h-0 flex-col gap-5">
                 <div className="rounded-[26px] border border-white/10 bg-[linear-gradient(180deg,rgba(124,58,237,0.16),rgba(255,255,255,0.03))] p-5 shadow-[0_14px_34px_rgba(15,23,42,0.16)]">
                   <div className="text-[12px] font-black uppercase tracking-[0.08em] text-white/50">
                     Tocando agora
                   </div>
 
-                  <div className="mt-3 text-[24px] font-black tracking-[-0.04em] text-white md:text-[28px]">
+                  <div className="mt-3 text-[24px] font-black tracking-[-0.04em] text-white lg:text-[28px]">
                     {currentTrack?.title || 'Nenhuma faixa'}
                   </div>
 
@@ -97,11 +149,11 @@ export default function MembroPlayerModal({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                   <button
                     type="button"
                     onClick={onPrev}
-                    className="min-w-0 rounded-[18px] border border-white/10 bg-white/10 px-3 py-4 text-[13px] font-black text-white md:px-4 md:text-[14px]"
+                    className="min-w-0 rounded-[18px] border border-white/10 bg-white/10 px-3 py-4 text-[13px] font-black text-white lg:px-4 lg:text-[14px]"
                   >
                     Anterior
                   </button>
@@ -109,7 +161,7 @@ export default function MembroPlayerModal({
                   <button
                     type="button"
                     onClick={onTogglePlay}
-                    className="min-w-0 rounded-[18px] border border-white/10 bg-white/10 px-3 py-4 text-[13px] font-black text-white md:px-4 md:text-[14px]"
+                    className="min-w-0 rounded-[18px] border border-white/10 bg-white/10 px-3 py-4 text-[13px] font-black text-white lg:px-4 lg:text-[14px]"
                   >
                     {isPlaying ? 'Pause' : 'Play'}
                   </button>
@@ -121,7 +173,7 @@ export default function MembroPlayerModal({
                       window.open(currentTrack.url, '_blank', 'noopener,noreferrer')
                     }
                     disabled={!currentTrack?.url}
-                    className="min-w-0 rounded-[18px] bg-gradient-to-r from-violet-500 to-fuchsia-500 px-3 py-4 text-[13px] font-black text-white disabled:opacity-50 md:px-4 md:text-[14px]"
+                    className="min-w-0 rounded-[18px] bg-gradient-to-r from-violet-500 to-fuchsia-500 px-3 py-4 text-[13px] font-black text-white disabled:opacity-50 lg:px-4 lg:text-[14px]"
                   >
                     YouTube
                   </button>
@@ -129,7 +181,7 @@ export default function MembroPlayerModal({
                   <button
                     type="button"
                     onClick={onNext}
-                    className="min-w-0 rounded-[18px] border border-white/10 bg-white/10 px-3 py-4 text-[13px] font-black text-white md:px-4 md:text-[14px]"
+                    className="min-w-0 rounded-[18px] border border-white/10 bg-white/10 px-3 py-4 text-[13px] font-black text-white lg:px-4 lg:text-[14px]"
                   >
                     Próxima
                   </button>
@@ -146,7 +198,10 @@ export default function MembroPlayerModal({
               </div>
             </div>
 
-            <div className="min-h-0 p-5 md:overflow-y-auto md:p-6">
+            <div
+              ref={playlistContainerRef}
+              className="min-h-0 min-w-0 p-5 lg:overflow-y-auto lg:p-6"
+            >
               <div className="flex items-center justify-between gap-3">
                 <div className="text-[13px] font-black uppercase tracking-[0.08em] text-white/50">
                   Faixas do repertório

@@ -940,6 +940,7 @@ export default function MembroPage() {
           row?.section ||
           '',
         notes: row?.observacao || row?.notes || '',
+        videoId: String(row?.reference_video_id || '').trim(),
         url: resolveTrackUrl(row),
         order: row?.ordem ?? row?.item_order ?? index + 1,
       }));

@@ -3028,7 +3028,18 @@ async function handleRequestReview() {
 
 function extractYoutubeEmbedUrl(videoId) {
   if (!videoId) return '';
-  return `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0`;
+  return `https://www.youtube.com/embed/${videoId}?autoplay=1&modestbranding=1&rel=0`;
+}
+
+function getPlayerVideoId(item) {
+  if (!item) return '';
+
+  return (
+    String(item?.reference_video_id || '').trim() ||
+    String(item?.referenceVideoId || '').trim() ||
+    String(item?.youtubeId || '').trim() ||
+    getYoutubeVideoId(item?.reference_link || item?.url || '')
+  );
 }
 
 function SuggestionChipBar({ items, active, onChange }) {
@@ -3393,6 +3404,8 @@ function MiniMusicPlayer({ current, onClose, onExpand }) {
 function PlayerModal({ current, onClose, onFav, onAdd }) {
   if (!current) return null;
   const editorialBadges = current ? getEditorialBadges(current) : [];
+  const videoId = getPlayerVideoId(current);
+  const embedUrl = extractYoutubeEmbedUrl(videoId);
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-[rgba(20,14,12,0.52)] p-4 sm:items-center">
@@ -3445,13 +3458,20 @@ function PlayerModal({ current, onClose, onFav, onAdd }) {
         <div className="p-5">
           <div className="overflow-hidden rounded-[22px] bg-black shadow-[0_10px_24px_rgba(0,0,0,0.16)]">
             <div className="aspect-video w-full">
-              <iframe
-                title={current.title}
-                src={extractYoutubeEmbedUrl(current.youtubeId)}
-                className="h-full w-full"
-                allow="autoplay; encrypted-media; picture-in-picture"
-                allowFullScreen
-              />
+              {embedUrl ? (
+                <iframe
+                  key={videoId}
+                  title={current.title}
+                  src={embedUrl}
+                  className="h-full w-full"
+                  allow="autoplay; encrypted-media; picture-in-picture"
+                  allowFullScreen
+                />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center px-4 text-center text-[14px] font-semibold text-white/75">
+                  Sem vídeo disponível
+                </div>
+              )}
             </div>
           </div>
 

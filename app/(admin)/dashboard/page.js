@@ -24,6 +24,7 @@ const DASHBOARD_CONTRACTS_SELECT =
 const DASHBOARD_EVENT_MUSICIANS_SELECT = 'id, created_at, status';
 const DASHBOARD_REPERTOIRE_CONFIG_SELECT = 'id, created_at, event_id, status, is_locked, submitted_at';
 const DASHBOARD_ADJUSTMENT_REQUESTS_SELECT = 'id, created_at, precontract_id, status';
+const DASHBOARD_PAYMENTS_SELECT = 'id, event_id, status, payment_date, created_at';
 const DASHBOARD_FETCH_LIMIT = 50;
 const DASHBOARD_HEAVY_FETCH_LIMIT = 30;
 
@@ -122,6 +123,22 @@ function formatEventDate(value) {
   if (Number.isNaN(parsed.getTime())) return '--';
 
   return parsed.toLocaleDateString('pt-BR');
+}
+
+function isPendingPaymentValidationStatus(status) {
+  const raw = String(status || '').trim().toLowerCase();
+  return [
+    'em_analise',
+    'em análise',
+    'analysis',
+    'analyzing',
+    'pending_admin_validation',
+    'admin_review',
+    'pending_confirmation',
+    'aguardando_validacao',
+    'aguardando validação',
+    'pendente_validacao',
+  ].includes(raw);
 }
 
 function ActivityItem({ activity }) {
@@ -357,6 +374,51 @@ function ContractAdjustmentAlertCard({
   );
 }
 
+function PendingPaymentValidationAlertCard({
+  total,
+  urgentClientName,
+  urgentEventDate,
+  urgentEventId,
+}) {
+  const linkHref = urgentEventId
+    ? `/pagamentos?filtro=validacao&eventId=${encodeURIComponent(urgentEventId)}`
+    : '/pagamentos?filtro=validacao';
+  const title =
+    total === 1 ? '1 pagamento aguardando validação' : `${total} pagamentos aguardando validação`;
+  const urgentClientLabel = urgentClientName || 'Cliente não identificado';
+  const urgentEventLabel = formatEventDate(urgentEventDate);
+
+  return (
+    <Link
+      href={linkHref}
+      className="group block rounded-[24px] border-2 border-violet-300 bg-gradient-to-r from-violet-50 via-fuchsia-50 to-violet-100 p-5 shadow-[0_12px_28px_rgba(124,58,237,0.14)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_16px_32px_rgba(124,58,237,0.2)]"
+    >
+      <div className="flex items-start gap-4">
+        <div className="mt-0.5 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-violet-200/80 text-violet-800">
+          <AlertCircleIcon className="h-6 w-6" aria-hidden="true" />
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <p className="text-[11px] font-black uppercase tracking-[0.1em] text-violet-700">
+            Pagamentos aguardando validação
+          </p>
+          <h2 className="mt-1 text-lg font-black text-violet-950">{title}</h2>
+          <p className="mt-1 text-sm font-semibold text-violet-900/90">
+            Mais urgente: {urgentClientLabel}
+          </p>
+          <p className="mt-1 text-sm font-semibold text-violet-900/90">
+            Evento: {urgentEventLabel}
+          </p>
+        </div>
+
+        <div className="rounded-[14px] bg-white/90 px-3 py-2 text-[12px] font-black text-violet-800 transition-colors group-hover:bg-white">
+          Validar agora
+        </div>
+      </div>
+    </Link>
+  );
+}
+
 function CheckCircleIcon({ className, ...props }) {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} {...props}>
@@ -563,6 +625,12 @@ export default function DashboardPage() {
   const [precontracts, setPrecontracts] = useState([]);
   const [repertoireConfigs, setRepertoireConfigs] = useState([]);
   const [summary, setSummary] = useState(null);
+  const [pendingPaymentValidation, setPendingPaymentValidation] = useState({
+    total: 0,
+    urgentClientName: '',
+    urgentEventDate: '',
+    urgentEventId: '',
+  });
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
   const [mobileSection, setMobileSection] = useState('overview');
@@ -641,6 +709,11 @@ export default function DashboardPage() {
           .select(DASHBOARD_PRECONTRACTS_SELECT)
           .order('created_at', { ascending: false })
           .limit(DASHBOARD_FETCH_LIMIT),
+        supabase
+          .from('payments')
+          .select(DASHBOARD_PAYMENTS_SELECT)
+          .order('created_at', { ascending: false })
+          .limit(DASHBOARD_FETCH_LIMIT * 2),
       ]);
 
       const eventsRes =
@@ -649,6 +722,8 @@ export default function DashboardPage() {
         primaryResults[1].status === 'fulfilled' ? primaryResults[1].value : { data: [], error: null };
       const precontractsRes =
         primaryResults[2].status === 'fulfilled' ? primaryResults[2].value : { data: [], error: null };
+      const paymentsRes =
+        primaryResults[3].status === 'fulfilled' ? primaryResults[3].value : { data: [], error: null };
 
       const failedPrimaryBlocks = [];
       if (eventsRes.error) {
@@ -663,15 +738,40 @@ export default function DashboardPage() {
         failedPrimaryBlocks.push('pré-contratos');
         logWarn('dashboard', 'precontracts falhou', precontractsRes.error);
       }
+      if (paymentsRes.error) {
+        failedPrimaryBlocks.push('pagamentos');
+        logWarn('dashboard', 'payments falhou', paymentsRes.error);
+      }
 
       const eventsData = Array.isArray(eventsRes.data) ? eventsRes.data : [];
       const contractsData = Array.isArray(contractsRes.data) ? contractsRes.data : [];
       const precontractsData = Array.isArray(precontractsRes.data) ? precontractsRes.data : [];
+      const paymentsData = Array.isArray(paymentsRes.data) ? paymentsRes.data : [];
 
       setEvents(eventsData);
       setContracts(contractsData);
       setPrecontracts(precontractsData);
       setSecondaryReady(true);
+
+      const eventsById = new Map(eventsData.map((eventItem) => [String(eventItem.id), eventItem]));
+      const pendingValidationRows = paymentsData.filter((entry) =>
+        isPendingPaymentValidationStatus(entry?.status)
+      );
+      const urgentPending = pendingValidationRows
+        .slice()
+        .sort(
+          (a, b) =>
+            new Date(a.created_at || a.payment_date || 0).getTime() -
+            new Date(b.created_at || b.payment_date || 0).getTime()
+        )[0];
+      const urgentEvent = urgentPending ? eventsById.get(String(urgentPending.event_id)) : null;
+
+      setPendingPaymentValidation({
+        total: pendingValidationRows.length,
+        urgentClientName: urgentEvent?.client_name || '',
+        urgentEventDate: urgentEvent?.event_date || '',
+        urgentEventId: urgentEvent?.id || '',
+      });
 
       const heavyResults = await Promise.allSettled([
         supabase
@@ -751,6 +851,12 @@ export default function DashboardPage() {
       setPrecontracts([]);
       setRepertoireConfigs([]);
       setSummary(buildDashboardSummary([], [], [], [], [], []));
+      setPendingPaymentValidation({
+        total: 0,
+        urgentClientName: '',
+        urgentEventDate: '',
+        urgentEventId: '',
+      });
     } finally {
       setCarregando(false);
     }
@@ -1175,6 +1281,15 @@ export default function DashboardPage() {
                 urgentClientName={summary?.ajusteSolicitadoMaisUrgente?.clientName}
                 urgentEventDate={summary?.ajusteSolicitadoMaisUrgente?.eventDate}
                 urgentPrecontractId={summary?.ajusteSolicitadoMaisUrgente?.precontractId}
+              />
+            ) : null}
+
+            {pendingPaymentValidation.total > 0 ? (
+              <PendingPaymentValidationAlertCard
+                total={pendingPaymentValidation.total}
+                urgentClientName={pendingPaymentValidation.urgentClientName}
+                urgentEventDate={pendingPaymentValidation.urgentEventDate}
+                urgentEventId={pendingPaymentValidation.urgentEventId}
               />
             ) : null}
           </div>

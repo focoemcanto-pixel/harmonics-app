@@ -1,16 +1,16 @@
-/* eslint-disable @typescript-eslint/no-require-imports */
+/* eslint-disable @typescript-eslint/no-require-imports -- Node script runs in CommonJS mode */
 const fs = require('fs');
 const path = require('path');
 
 function removeSourceMaps(dir) {
   if (!fs.existsSync(dir)) return;
-  
+
   const files = fs.readdirSync(dir);
-  
-  files.forEach(file => {
+
+  files.forEach((file) => {
     const fullPath = path.join(dir, file);
     const stat = fs.statSync(fullPath);
-    
+
     if (stat.isDirectory()) {
       removeSourceMaps(fullPath);
     } else if (file.endsWith('.map')) {

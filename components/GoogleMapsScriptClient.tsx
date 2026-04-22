@@ -13,6 +13,13 @@ type Props = {
   apiKey: string;
 };
 
+declare global {
+  interface Window {
+    __GOOGLE_MAPS_LOADED__?: boolean;
+    __GOOGLE_MAPS_ERROR__?: boolean;
+  }
+}
+
 export default function GoogleMapsScriptClient({ apiKey }: Props) {
   if (!apiKey) return null;
 

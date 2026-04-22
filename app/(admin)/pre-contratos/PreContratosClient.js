@@ -220,7 +220,13 @@ function AlertCard({ tone = 'default', title, children }) {
 }
 
 function generateToken() {
-  return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+  const timestampPart = Date.now().toString(36);
+
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return `${timestampPart}${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`;
+  }
+
+  return `${timestampPart}${Math.random().toString(36).slice(2, 14)}`;
 }
 
 function buildContractLink(token) {
@@ -792,7 +798,7 @@ export default function PreContratosClient() {
         ? null
         : buildContractLink(finalToken);
 
-      console.log('[TIME AUDIT]', {
+      devLog('[TIME AUDIT]', {
         flow: 'pre-contrato',
         original: form.event_time,
         normalized: normalizeTimeStrict(form.event_time),
@@ -869,7 +875,7 @@ export default function PreContratosClient() {
         const next = [savedItem, ...prev.filter((entry) => entry.id !== savedItem.id)];
         return next.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
       });
-      console.info('[PRECONTRATOS] salvo com sucesso', {
+      devLog('[PRECONTRATOS] salvo com sucesso', {
         id: savedItem?.id,
         mode: editandoId ? 'update' : 'insert',
         public_token: savedItem?.public_token || '(vazio)',

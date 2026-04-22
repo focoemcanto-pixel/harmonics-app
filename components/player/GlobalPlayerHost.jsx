@@ -43,11 +43,12 @@ function ensureYouTubeAPI() {
 
 export default function GlobalPlayerHost() {
   const {
-    state: { videoId, isPlaying, playerRef, currentTrackIndex },
+    state: { videoId, isPlaying, playerRef, currentTrackIndex, renderTarget, renderTargetName, currentTrack },
     actions: { setPlayerRef, setIsPlaying, setCurrentTime, next },
   } = useGlobalPlayer();
 
-  const playerHostRef = useRef(null);
+  const fallbackHostRef = useRef(null);
+  const mountNodeRef = useRef(null);
   const currentVideoIdRef = useRef('');
 
   useEffect(() => {
@@ -80,10 +81,10 @@ export default function GlobalPlayerHost() {
 
     async function init() {
       const YT = await ensureYouTubeAPI();
-      if (!YT || cancelled || !playerHostRef.current) return;
+      if (!YT || cancelled || !mountNodeRef.current) return;
 
       if (!playerRef) {
-        const instance = new YT.Player(playerHostRef.current, {
+        const instance = new YT.Player(mountNodeRef.current, {
           videoId,
           playerVars: {
             autoplay: 0,
@@ -144,17 +145,35 @@ export default function GlobalPlayerHost() {
   }, [videoId, isPlaying, playerRef, setIsPlaying, setPlayerRef, next]);
 
   useEffect(() => {
-    console.log('[PLAYER_STATE]', {
+    console.log('[GLOBAL_PLAYER][INSTANCE]', {
       videoId,
       isPlaying,
       currentTrackIndex,
       hasInstance: Boolean(playerRef),
     });
-  }, [videoId, isPlaying, currentTrackIndex, playerRef]);
+    console.log('[GLOBAL_PLAYER][TRACK_STATE]', {
+      title: currentTrack?.title || '',
+      index: currentTrackIndex,
+      videoId,
+    });
+  }, [videoId, isPlaying, currentTrackIndex, playerRef, currentTrack]);
+
+  useEffect(() => {
+    const target = renderTarget || fallbackHostRef.current;
+    if (!target || !mountNodeRef.current) return;
+    target.appendChild(mountNodeRef.current);
+    console.log('[GLOBAL_PLAYER][HOST_CONTAINER]', {
+      target: renderTargetName,
+      usingFallback: !renderTarget,
+    });
+    console.log('[GLOBAL_PLAYER][RENDER_TARGET]', renderTargetName);
+  }, [renderTarget, renderTargetName]);
 
   return (
     <div className="hidden" aria-hidden="true">
-      <div ref={playerHostRef} />
+      <div ref={fallbackHostRef}>
+        <div ref={mountNodeRef} />
+      </div>
     </div>
   );
 }

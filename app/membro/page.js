@@ -478,6 +478,7 @@ export default function MembroPage() {
       next,
       prev,
       setTrack,
+      setRenderTarget,
       replacePlaylist,
       closeSession,
     },
@@ -491,6 +492,7 @@ export default function MembroPage() {
   const [repertorioResumoItem, setRepertorioResumoItem] = useState(null);
   const [repertoireConfigs, setRepertoireConfigs] = useState([]);
   const [repertoireItems, setRepertoireItems] = useState([]);
+  const [isModalRenderTargetReady, setIsModalRenderTargetReady] = useState(false);
 
  async function resolveMemberFromSession() {
   try {
@@ -981,6 +983,11 @@ export default function MembroPage() {
     playerPlaylist.length,
   ]);
 
+  useEffect(() => {
+    console.log('[GLOBAL_PLAYER][MODAL_OPEN]', isPlayerModalOpen);
+    console.log('[GLOBAL_PLAYER][MINI_VISIBLE]', isMiniPlayerVisible);
+  }, [isPlayerModalOpen, isMiniPlayerVisible]);
+
   const desktopMeta = getDesktopTabMeta(activeTab);
 
   async function handleGoogleLogin() {
@@ -1184,6 +1191,7 @@ export default function MembroPage() {
     });
     setIsPlayerModalOpen(false);
     setIsMiniPlayerVisible(true);
+    setRenderTarget(null, 'mini_hidden');
   }
 
   function handleClosePlayerSession() {
@@ -1195,6 +1203,7 @@ export default function MembroPage() {
     setIsPlayerModalOpen(false);
     setIsMiniPlayerVisible(false);
     setPlayerEventTitle('');
+    setRenderTarget(null, 'session_closed');
     closeSession();
   }
 
@@ -1593,6 +1602,11 @@ export default function MembroPage() {
         onPrev={handlePrevTrack}
         onNext={handleNextTrack}
         onTogglePlay={handleTogglePlaying}
+        playerContainerActive={isModalRenderTargetReady}
+        onPlayerContainerReady={(node) => {
+          setIsModalRenderTargetReady(Boolean(node));
+          setRenderTarget(node, node ? 'modal_large' : 'hidden_fallback');
+        }}
       />
 
       <MiniPlayerBar

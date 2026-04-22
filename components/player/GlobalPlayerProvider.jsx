@@ -12,6 +12,8 @@ export function GlobalPlayerProvider({ children }) {
   const [currentTime, setCurrentTime] = useState(0);
   const [volume, setVolume] = useState(100);
   const [playerRef, setPlayerRef] = useState(null);
+  const [renderTarget, setRenderTarget] = useState(null);
+  const [renderTargetName, setRenderTargetName] = useState('hidden_fallback');
 
   const currentTrack = playlist[currentTrackIndex] || null;
   const videoId = String(currentTrack?.videoId || '').trim() || extractYoutubeId(currentTrack?.url || '');
@@ -88,8 +90,10 @@ export function GlobalPlayerProvider({ children }) {
     playlist,
     volume,
     playerRef,
+    renderTarget,
+    renderTargetName,
     currentTrack,
-  }), [isPlaying, currentTrackIndex, currentTime, videoId, playlist, volume, playerRef, currentTrack]);
+  }), [isPlaying, currentTrackIndex, currentTime, videoId, playlist, volume, playerRef, renderTarget, renderTargetName, currentTrack]);
 
   const actions = useMemo(() => ({
     play,
@@ -101,6 +105,10 @@ export function GlobalPlayerProvider({ children }) {
     setVolume,
     setCurrentTime,
     setPlayerRef,
+    setRenderTarget: (target, targetName = 'unknown') => {
+      setRenderTarget(target || null);
+      setRenderTargetName(target ? targetName : 'hidden_fallback');
+    },
     setIsPlaying,
     replacePlaylist,
     closeSession,

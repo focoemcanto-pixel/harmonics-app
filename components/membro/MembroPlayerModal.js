@@ -11,6 +11,8 @@ export default function MembroPlayerModal({
   onPrev,
   onNext,
   onTogglePlay,
+  onPlayerContainerReady,
+  playerContainerActive,
 }) {
   if (!open) return null;
 
@@ -30,7 +32,7 @@ export default function MembroPlayerModal({
                   {eventTitle || 'Repertório'}
                 </h3>
                 <div className="mt-2 inline-flex rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-white/70">
-                  {isPlaying ? 'Reproduzindo no mini player' : 'Pausado no mini player'}
+                  {isPlaying ? 'Reproduzindo no player global' : 'Player global pausado'}
                 </div>
               </div>
 
@@ -67,6 +69,13 @@ export default function MembroPlayerModal({
                     {currentTrack.notes}
                   </div>
                 ) : null}
+
+                <div className="mt-5 overflow-hidden rounded-[18px] border border-white/10 bg-black/45">
+                  <div
+                    ref={onPlayerContainerReady}
+                    className="aspect-video w-full"
+                  />
+                </div>
 
                 <div className="mt-5 grid grid-cols-4 gap-3">
                   <button
@@ -111,7 +120,9 @@ export default function MembroPlayerModal({
                     Como funciona
                   </div>
                   <div className="mt-2 text-[14px] leading-6 text-white/65">
-                    A reprodução permanece no mini player inferior. Este painel é a visão expandida do repertório atual.
+                    {playerContainerActive
+                      ? 'Este modal é a visualização principal da instância global do player.'
+                      : 'Preparando player global...'}
                   </div>
                 </div>
               </div>

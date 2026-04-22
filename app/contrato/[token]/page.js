@@ -10,6 +10,16 @@ import Badge from '../../../components/ui/Badge';
 import { useGoogleMapsReady } from '../../../hooks/useGoogleMapsReady';
 import { normalizeTimeStrict, isValidTime, sanitizeTimeFields } from '../../../lib/time/normalize-time';
 import { useAppToast } from '../../../components/ui/ToastProvider';
+const IS_DEV = process.env.NODE_ENV !== 'production';
+
+function devLog(message, payload) {
+  if (!IS_DEV) return;
+  if (payload === undefined) {
+    console.info(message);
+    return;
+  }
+  console.info(message, payload);
+}
 
 function formatMoney(value) {
   return new Intl.NumberFormat('pt-BR', {
@@ -1021,7 +1031,7 @@ const contratoFinalizado =
 
     const assinaturaEm = new Date().toISOString();
 
-    console.log('[TIME AUDIT]', {
+    devLog('[TIME AUDIT]', {
       flow: 'assinatura-contrato',
       original: form.event_time,
       normalized: normalizeTimeStrict(form.event_time),
@@ -1318,7 +1328,10 @@ if (contentType.includes('application/json')) {
   generateJson = await generateRes.json();
 } else {
   rawResponse = await generateRes.text();
-  console.error('Resposta não-JSON em /api/contracts/generate:', rawResponse);
+  devLog('Resposta não-JSON em /api/contracts/generate', {
+    status: generateRes.status,
+    rawPreview: String(rawResponse || '').slice(0, 200),
+  });
   throw new Error(
     `A geração do contrato retornou uma resposta inválida. Status ${generateRes.status}.`
   );

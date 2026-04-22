@@ -1,5 +1,15 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
+const IS_DEV = process.env.NODE_ENV !== 'production';
+
+function devLog(message, payload) {
+  if (!IS_DEV) return;
+  if (payload === undefined) {
+    console.info(message);
+    return;
+  }
+  console.info(message, payload);
+}
 
 function extractTokenFromRequest(request, params) {
   const fromParams = Array.isArray(params?.token)
@@ -21,7 +31,7 @@ function extractTokenFromRequest(request, params) {
 export async function GET(request, { params }) {
   const token = extractTokenFromRequest(request, params);
 
-  console.info('[CONTRACT_PUBLIC_ROUTE] token recebido', {
+  devLog('[CONTRACT_PUBLIC_ROUTE] token recebido', {
     paramsToken: params?.token || null,
     requestUrl: request?.url || null,
     token,
@@ -37,7 +47,7 @@ export async function GET(request, { params }) {
   try {
     const supabase = getSupabaseAdmin();
 
-    console.info('[CONTRACT_PUBLIC_ROUTE] query precontracts', {
+    devLog('[CONTRACT_PUBLIC_ROUTE] query precontracts', {
       table: 'precontracts',
       where: { public_token: token },
     });
@@ -54,7 +64,7 @@ export async function GET(request, { params }) {
     let contract = null;
 
     if (!precontract) {
-      console.info('[CONTRACT_PUBLIC_ROUTE] query contracts', {
+      devLog('[CONTRACT_PUBLIC_ROUTE] query contracts', {
         table: 'contracts',
         where: { public_token: token },
       });
@@ -70,7 +80,7 @@ export async function GET(request, { params }) {
       contract = contractData?.[0] || null;
 
       if (contract?.precontract_id) {
-        console.info('[CONTRACT_PUBLIC_ROUTE] query precontracts por precontract_id', {
+        devLog('[CONTRACT_PUBLIC_ROUTE] query precontracts por precontract_id', {
           table: 'precontracts',
           where: { id: contract.precontract_id },
         });
@@ -99,7 +109,7 @@ export async function GET(request, { params }) {
     }
 
     if (!contract && precontract.id) {
-      console.info('[CONTRACT_PUBLIC_ROUTE] query contracts por precontract_id', {
+      devLog('[CONTRACT_PUBLIC_ROUTE] query contracts por precontract_id', {
         table: 'contracts',
         where: { precontract_id: precontract.id },
       });
@@ -122,7 +132,23 @@ export async function GET(request, { params }) {
         .eq('id', precontract.id);
     }
 
-    console.info('[CONTRACT_PUBLIC_ROUTE] resultado encontrado', {
+    if (contract?.id && !contract.public_token) {
+      const { error: contractTokenError } = await supabase
+        .from('contracts')
+        .update({ public_token: token })
+        .eq('id', contract.id);
+
+      if (contractTokenError) {
+        throw contractTokenError;
+      }
+
+      contract = {
+        ...contract,
+        public_token: token,
+      };
+    }
+
+    devLog('[CONTRACT_PUBLIC_ROUTE] resultado encontrado', {
       token,
       precontractId: precontract.id,
       contractId: contract?.id || null,

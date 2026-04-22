@@ -3,6 +3,16 @@ import { createClient } from '@supabase/supabase-js';
 import { buildContractTemplateData } from '../../../../lib/contracts/buildContractTemplateData';
 
 export const dynamic = 'force-dynamic';
+const IS_DEV = process.env.NODE_ENV !== 'production';
+
+function devLog(message, payload) {
+  if (!IS_DEV) return;
+  if (payload === undefined) {
+    console.info(message);
+    return;
+  }
+  console.info(message, payload);
+}
 
 function validateEnv() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -180,7 +190,7 @@ async function callContractService({
   const baseUrl = String(contractServiceUrl || '').trim().replace(/\/+$/, '');
   const endpoint = `${baseUrl}/api/contracts/generate`;
 
-  console.log('[/api/contracts/generate] chamando contract service', {
+  devLog('[/api/contracts/generate] chamando contract service', {
     endpoint,
     hasApiKey: Boolean(contractServiceApiKey),
   });
@@ -207,7 +217,7 @@ async function callContractService({
   let serviceJson = null;
   try {
     serviceJson = await response.json();
-  } catch (_error) {
+  } catch {
     throw new Error(
       `Contract service respondeu com payload inválido (status ${response.status}).`
     );
@@ -221,6 +231,28 @@ async function callContractService({
   }
 
   return serviceJson;
+}
+
+function normalizeGeneratedResult(serviceJson) {
+  const docUrl =
+    serviceJson?.docUrl ||
+    serviceJson?.doc_url ||
+    serviceJson?.data?.docUrl ||
+    serviceJson?.data?.doc_url ||
+    null;
+
+  const pdfUrl =
+    serviceJson?.pdfUrl ||
+    serviceJson?.pdf_url ||
+    serviceJson?.data?.pdfUrl ||
+    serviceJson?.data?.pdf_url ||
+    null;
+
+  return {
+    ...serviceJson,
+    docUrl,
+    pdfUrl,
+  };
 }
 
 export async function GET() {
@@ -253,7 +285,7 @@ export async function POST(request) {
       contractServiceApiKey,
     } = envCheck;
 
-    console.log('[/api/contracts/generate] env ok', {
+    devLog('[/api/contracts/generate] env ok', {
       templateId,
       rootFolderId,
       contractServiceUrl,
@@ -261,7 +293,18 @@ export async function POST(request) {
     });
 
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
-    const body = await request.json();
+    let body = {};
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: 'Payload inválido. Envie JSON válido no corpo da requisição.',
+        },
+        { status: 400 }
+      );
+    }
 
     const contractId = body?.contractId || null;
     const precontractId = body?.precontractId || null;
@@ -273,7 +316,7 @@ export async function POST(request) {
       supabase,
     });
 
-    console.log('[/api/contracts/generate] contexto resolvido', {
+    devLog('[/api/contracts/generate] contexto resolvido', {
       requestedContractId: contractId,
       requestedPrecontractId: precontractId,
       resolvedContractId: context.contract?.id || null,
@@ -309,7 +352,7 @@ export async function POST(request) {
       context.precontract?.event_date ||
       new Date().toISOString().slice(0, 10);
 
-    console.log('[/api/contracts/generate] enviando para Render', {
+    devLog('[/api/contracts/generate] enviando para Render', {
       contractId: context.contract?.id || null,
       precontractId: context.precontract?.id || null,
       templateId,
@@ -348,14 +391,20 @@ export async function POST(request) {
       );
     }
 
-    console.log('[/api/contracts/generate] resposta do Render recebida', {
+    generated = normalizeGeneratedResult(generated);
+
+    if (!generated.docUrl || !generated.pdfUrl) {
+      throw new Error('Contrato gerado sem links finais (docUrl/pdfUrl).');
+    }
+
+    devLog('[/api/contracts/generate] resposta do Render recebida', {
       hasDocUrl: Boolean(generated?.docUrl),
       hasPdfUrl: Boolean(generated?.pdfUrl),
       folderYear: generated?.folderYear || null,
       folderMonth: generated?.folderMonth || null,
     });
 
-    console.log('[/api/contracts/generate] persistência pós-geração', {
+    devLog('[/api/contracts/generate] persistência pós-geração', {
       hasContractId: Boolean(context.contract?.id),
       contractId: context.contract?.id || null,
       precontractId: context.precontract?.id || null,

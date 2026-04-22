@@ -20,6 +20,7 @@ import ContatosFormularioTab from '@/components/contatos/ContatosFormularioTab';
 import ContatosListaTab from '@/components/contatos/ContatosListaTab';
 import DeleteConfirmModal from '@/components/ui/DeleteConfirmModal';
 import { useAppToast } from '@/components/ui/ToastProvider';
+import { useBulkDelete } from '@/hooks/useBulkDelete';
 
 function getInitialForm() {
   return {
@@ -60,6 +61,8 @@ export default function ContatosPage() {
   const [desktopTab, setDesktopTab] = useState('lista');
   const [mobileTab, setMobileTab] = useState('lista');
   const [selectedIds, setSelectedIds] = useState(new Set());
+  const { loading: deletingMany, run: runBulkDelete } = useBulkDelete();
+
   const [deleteDialog, setDeleteDialog] = useState({
     open: false,
     ids: [],
@@ -305,7 +308,7 @@ export default function ContatosPage() {
   }
 
   function fecharDialogoExclusao() {
-    if (deleteDialog.state === 'deleting') return;
+    if (deleteDialog.state === 'deleting' || deletingMany) return;
     setDeleteDialog({ open: false, ids: [], mode: 'single', state: 'idle', message: '' });
   }
 
@@ -323,32 +326,44 @@ export default function ContatosPage() {
 
   async function confirmarExclusao() {
     const ids = deleteDialog.ids;
-    if (!ids.length || salvando) return;
+    if (!ids.length || salvando || deletingMany) return;
 
     try {
       setSalvando(true);
       setErrorMessage('');
       setDeleteDialog((prev) => ({ ...prev, state: 'deleting', message: '' }));
 
-      const query = supabase.from('contacts').delete();
-      const { error } =
-        ids.length === 1 ? await query.eq('id', ids[0]) : await query.in('id', ids);
+      const result = await runBulkDelete({
+        endpoint: '/api/contacts/delete-many',
+        idsKey: 'contactIds',
+        ids,
+      });
 
-      if (error) throw error;
+      if (!result?.ok) {
+        throw new Error(result?.error || 'Não foi possível excluir os contatos.');
+      }
 
-      if (editandoId && ids.includes(String(editandoId))) cancelarEdicao();
-      setContatos((prev) => prev.filter((item) => !ids.includes(String(item.id))));
+      const deletedIds = (result.success || []).map((item) => String(item.contactId));
+      const failedCount = (result.failed || []).length;
+
+      if (editandoId && deletedIds.includes(String(editandoId))) cancelarEdicao();
+      setContatos((prev) => prev.filter((item) => !deletedIds.includes(String(item.id))));
       setSelectedIds((prev) => {
         const next = new Set(prev);
-        ids.forEach((id) => next.delete(String(id)));
+        deletedIds.forEach((id) => next.delete(String(id)));
         return next;
       });
       setDeleteDialog((prev) => ({ ...prev, state: 'success' }));
-      toast.success(
-        ids.length === 1
-          ? 'Contato excluído com sucesso.'
-          : `${ids.length} contatos excluídos com sucesso.`
-      );
+
+      if (failedCount > 0) {
+        toast.warning(`${deletedIds.length} contatos excluídos e ${failedCount} com falha.`);
+      } else {
+        toast.success(
+          deletedIds.length === 1
+            ? 'Contato excluído com sucesso.'
+            : `${deletedIds.length} contatos excluídos com sucesso.`
+        );
+      }
       await carregarContatos({ background: true });
       setDeleteDialog({ open: false, ids: [], mode: 'single', state: 'idle', message: '' });
     } catch (error) {

@@ -8,7 +8,7 @@ export async function DELETE(request, { params }) {
   const routeParams = await params;
   const eventId = String(routeParams?.id || '').trim();
 
-  console.info('[EVENT_DELETE_API][INPUT]', { eventId });
+  console.info('[EVENT_DELETE_API][DELETE_BULK][PAYLOAD]', { eventId, mode: 'single' });
 
   try {
     const auth = await requireAdminFromRequest({ supabase, request, logPrefix: '[EVENT_DELETE_API]' });
@@ -29,13 +29,19 @@ export async function DELETE(request, { params }) {
       );
     }
 
+    console.info('[EVENT_DELETE_API][DELETE_BULK][RESULT]', {
+      requested: 1,
+      success: result?.deletedId ? 1 : 0,
+      failed: result?.deletedId ? 0 : 1,
+    });
+
     return NextResponse.json({
       ok: true,
       deletedId: result.deletedId,
       cleanup: result.cleanup,
     });
   } catch (error) {
-    console.error('[EVENT_DELETE_API][ERROR]', {
+    console.error('[EVENT_DELETE_API][DELETE_BULK][ERROR]', {
       eventId,
       message: error?.message,
       details: error?.details,

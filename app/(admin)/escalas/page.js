@@ -1057,24 +1057,22 @@ export default function EscalasPage() {
         onConfirm={async () => {
           const targetIds = deleteDialog.eventId ? [deleteDialog.eventId] : selectedIds;
           try {
-            const result = await runBulkDelete({
+            const res = await runBulkDelete({
               endpoint: '/api/scales/delete-many',
               idsKey: 'eventIds',
               ids: targetIds,
             });
-            if (!result?.ok) throw new Error(result?.error || 'Erro ao excluir escalas.');
+            console.log('[DELETE_RESULT]', res);
+            if (!res?.success) {
+              toast.error(res?.message || 'Erro na operação');
+              return;
+            }
 
-            const deleted = (result.success || []).map((item) => String(item.eventId));
-            const failedCount = (result.failed || []).length;
+            const deleted = (res.ids || []).map((id) => String(id));
             setEscalas((prev) => prev.filter((item) => !deleted.includes(String(item.event_id))));
             setInvites((prev) => prev.filter((item) => !deleted.includes(String(item.event_id))));
             clear();
-
-            if (failedCount > 0) {
-              toast.warning(`${deleted.length} escalas excluídas e ${failedCount} com falha.`);
-            } else {
-              toast.success(`${deleted.length} escalas excluídas com sucesso.`);
-            }
+            toast.success(res.message || `${res.affected || 0} itens processados`);
           } catch (error) {
             toast.error(error?.message || 'Erro ao excluir escalas.');
           }

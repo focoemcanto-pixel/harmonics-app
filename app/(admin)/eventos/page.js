@@ -979,29 +979,14 @@ export default function EventosPage() {
         },
         body: JSON.stringify({ eventIds: targetIds }),
       });
-      const result = await response.json();
+      const res = await response.json();
+      console.log('[DELETE_RESULT]', res);
 
-      if (!response.ok || !result?.ok) {
-        throw new Error(result?.error || 'Não foi possível excluir os eventos selecionados.');
+      if (!response.ok || !res?.success) {
+        throw new Error(res?.message || 'Não foi possível excluir os eventos selecionados.');
       }
 
-      const deletedIds = (result.success || []).map((item) => String(item.eventId || ''));
-      const failedItems = Array.isArray(result.failed) ? result.failed : [];
-      const failedIds = failedItems.map((item) => String(item.eventId || '')).filter(Boolean);
-
-      for (const item of result.success || []) {
-        console.info('[EVENT_BULK_DELETE][ITEM_SUCCESS]', {
-          eventId: item?.eventId,
-          eventName: item?.eventName || null,
-        });
-      }
-
-      for (const item of failedItems) {
-        console.error('[EVENT_BULK_DELETE][ITEM_ERROR]', {
-          eventId: item?.eventId,
-          error: item?.error || 'delete_failed',
-        });
-      }
+      const deletedIds = (res.ids || []).map((id) => String(id)).filter(Boolean);
 
       if (deletedIds.length > 0) {
         setEventos((prev) => prev.filter((item) => !deletedIds.includes(String(item.id))));
@@ -1010,30 +995,21 @@ export default function EventosPage() {
       await Promise.allSettled([carregarEventos(), carregarPrecontracts(), carregarContracts()]);
       console.info('[EVENT_BULK_DELETE][POST_RELOAD]', {
         deletedCount: deletedIds.length,
-        failedCount: failedIds.length,
+        failedCount: 0,
       });
 
-      if (failedIds.length > 0) {
-        setSelectedEventIds(failedIds);
-        setFeedback({
-          type: deletedIds.length > 0 ? 'info' : 'error',
-          title: deletedIds.length > 0 ? 'Exclusão parcial concluída' : 'Falha na exclusão em massa',
-          message: `${deletedIds.length} evento(s) excluído(s) e ${failedIds.length} com falha. Revise os logs técnicos e tente novamente.`,
-        });
-      } else {
-        limparSelecaoEventos();
-        setFeedback({
-          type: 'success',
-          title: 'Exclusão em massa concluída',
-          message: `${deletedIds.length} evento(s) foram excluídos com sucesso.`,
-        });
-      }
+      limparSelecaoEventos();
+      setFeedback({
+        type: 'success',
+        title: 'Exclusão em massa concluída',
+        message: res.message || `${res.affected || 0} itens processados`,
+      });
 
       console.info('[EVENT_BULK_DELETE][SUMMARY]', {
-        requested: result?.requested || targetIds.length,
+        requested: targetIds.length,
         deletedCount: deletedIds.length,
-        failedCount: failedIds.length,
-        failedIds,
+        failedCount: 0,
+        failedIds: [],
       });
     } catch (error) {
       console.error('[EVENT_BULK_DELETE][SUMMARY]', {

@@ -231,28 +231,25 @@ export default function ConvitesPage() {
   }, [convitesEnriquecidos]);
 
   async function deleteSelectedInvites(ids) {
-    const result = await runBulkDelete({
+    const res = await runBulkDelete({
       endpoint: '/api/invites/delete-many',
       idsKey: 'inviteIds',
       ids,
     });
+    console.log('[DELETE_RESULT]', res);
 
-    if (!result?.ok) {
-      setFeedback({ type: 'error', title: 'Erro ao excluir convites', message: result?.error || 'Tente novamente.' });
+    if (!res?.success) {
+      setFeedback({ type: 'error', title: 'Erro ao excluir convites', message: res?.message || 'Erro na operação' });
       return;
     }
 
-    const deletedIds = (result.success || []).map((item) => String(item.inviteId));
+    const deletedIds = (res.ids || []).map((id) => String(id));
     setConvites((prev) => prev.filter((item) => !deletedIds.includes(String(item.id))));
     clear();
-
-    const failedCount = (result.failed || []).length;
     setFeedback({
-      type: failedCount ? 'info' : 'success',
-      title: failedCount ? 'Exclusão parcial' : 'Convites excluídos',
-      message: failedCount
-        ? `${deletedIds.length} convites excluídos e ${failedCount} com falha.`
-        : `${deletedIds.length} convites excluídos com sucesso.`,
+      type: 'success',
+      title: 'Convites excluídos',
+      message: res.message || `${res.affected || 0} itens processados`,
     });
   }
 

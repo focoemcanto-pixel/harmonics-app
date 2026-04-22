@@ -333,18 +333,22 @@ export default function ContatosPage() {
       setErrorMessage('');
       setDeleteDialog((prev) => ({ ...prev, state: 'deleting', message: '' }));
 
-      const result = await runBulkDelete({
+      const res = await runBulkDelete({
         endpoint: '/api/contacts/delete-many',
         idsKey: 'contactIds',
         ids,
       });
+      console.log('[DELETE_RESULT]', res);
 
-      if (!result?.ok) {
-        throw new Error(result?.error || 'Não foi possível excluir os contatos.');
+      if (!res?.success) {
+        const reason = res?.message || 'Erro na operação';
+        setDeleteDialog((prev) => ({ ...prev, state: 'error', message: reason }));
+        setErrorMessage(reason);
+        toast.error(reason);
+        return;
       }
 
-      const deletedIds = (result.success || []).map((item) => String(item.contactId));
-      const failedCount = (result.failed || []).length;
+      const deletedIds = (res.ids || []).map((id) => String(id));
 
       if (editandoId && deletedIds.includes(String(editandoId))) cancelarEdicao();
       setContatos((prev) => prev.filter((item) => !deletedIds.includes(String(item.id))));
@@ -355,15 +359,7 @@ export default function ContatosPage() {
       });
       setDeleteDialog((prev) => ({ ...prev, state: 'success' }));
 
-      if (failedCount > 0) {
-        toast.warning(`${deletedIds.length} contatos excluídos e ${failedCount} com falha.`);
-      } else {
-        toast.success(
-          deletedIds.length === 1
-            ? 'Contato excluído com sucesso.'
-            : `${deletedIds.length} contatos excluídos com sucesso.`
-        );
-      }
+      toast.success(res.message || `${res.affected || 0} itens processados`);
       await carregarContatos({ background: true });
       setDeleteDialog({ open: false, ids: [], mode: 'single', state: 'idle', message: '' });
     } catch (error) {

@@ -254,28 +254,22 @@ export default function ContratosPage() {
   }
 
   async function onDeleteManyContracts() {
-    const result = await runBulkDelete({
+    const res = await runBulkDelete({
       endpoint: '/api/contracts/delete-many',
       idsKey: 'precontractIds',
       ids: selectedIds,
     });
+    console.log('[DELETE_RESULT]', res);
 
-    if (!result?.ok) {
-      toast.error(result?.error || 'Erro ao excluir contratos selecionados.');
+    if (!res?.success) {
+      toast.error(res?.message || 'Erro na operação');
       return;
     }
 
-    const deleted = (result.success || []).map((item) => String(item.precontractId));
-    const failed = result.failed || [];
+    const deleted = (res.ids || []).map((id) => String(id));
     setContratos((prev) => prev.filter((item) => !deleted.includes(String(item.precontractId))));
     clear();
-
-    if (failed.length > 0) {
-      toast.warning(`${deleted.length} contratos excluídos e ${failed.length} com falha.`);
-      return;
-    }
-
-    toast.success(`${deleted.length} contratos excluídos com sucesso.`);
+    toast.success(res.message || `${res.affected || 0} itens processados`);
   }
 
   function handleExportar() {

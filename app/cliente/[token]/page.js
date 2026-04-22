@@ -1505,6 +1505,20 @@ export default async function ClienteTokenPage({ params }) {
     },
   };
 
+  console.log('[ANTESALA_REOPEN][DB_VALUES]', {
+    eventId,
+    has_antesala: event?.has_antesala ?? null,
+    antesala_enabled: event?.antesala_enabled ?? null,
+    antesala_requested_by_client: event?.antesala_requested_by_client ?? null,
+    antesala_request_status: event?.antesala_request_status ?? '',
+    antesala_duration_minutes: event?.antesala_duration_minutes ?? null,
+    antesala_price_increment: event?.antesala_price_increment ?? null,
+    has_ante_room: config?.has_ante_room ?? null,
+    ante_room_style: config?.ante_room_style ?? '',
+    ante_room_notes: config?.ante_room_notes ?? '',
+    initial_antessala: data?.repertorio?.initialState?.antessala ?? null,
+  });
+
   console.log('[ANTESALA][INITIAL_STATE_FROM_DB]', {
     has_antesala: event?.has_antesala ?? null,
     antesala_enabled: event?.antesala_enabled ?? null,

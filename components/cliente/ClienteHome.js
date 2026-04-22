@@ -56,6 +56,11 @@ function getDefaultAntesalaState() {
   };
 }
 
+function getNumericOrNull(value) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && numeric > 0 ? numeric : null;
+}
+
 function isRepertoireFinalizedStatus(status, isLocked = false) {
   return isRepertorioTravado(status, isLocked);
 }
@@ -285,12 +290,15 @@ function pickTracePayloadItem(items = [], section = '') {
 }
 
 function hasUsefulAntesalaState(state = {}) {
+  const hasCustomDuration =
+    Number(state?.durationMinutes || 0) > 0 &&
+    Number(state?.durationMinutes || 0) !== getDefaultAntesalaState().durationMinutes;
   return Boolean(
     hasFilledField(state?.estilo) ||
       hasFilledField(state?.generos) ||
       hasFilledField(state?.artistas) ||
       hasFilledField(state?.observacao) ||
-      Number(state?.durationMinutes || 0) > 0 ||
+      hasCustomDuration ||
       Number(state?.quoteMinutes || 0) > 0 ||
       Number(state?.quotePriceIncrement || 0) > 0 ||
       Boolean(state?.requestedByClient) ||
@@ -308,6 +316,65 @@ function mergeNonEmptyFields(base = {}, draft = {}, fields = []) {
     acc[field] = hasFilledField(draftValue) ? draftValue : baseValue || '';
     return acc;
   }, {});
+}
+
+function mergeAntesalaState(baseState = {}, draftState = {}) {
+  const base = {
+    ...getDefaultAntesalaState(),
+    ...(baseState || {}),
+  };
+  const draft = draftState && typeof draftState === 'object' ? draftState : {};
+  const draftHasField = (field) =>
+    Object.prototype.hasOwnProperty.call(draft, field);
+  const merged = {
+    ...base,
+    ...mergeNonEmptyFields(base, draft, ['estilo', 'generos', 'artistas', 'observacao']),
+    styleTags:
+      Array.isArray(draft.styleTags) && draft.styleTags.length > 0
+        ? draft.styleTags
+        : Array.isArray(base.styleTags)
+        ? base.styleTags
+        : [],
+    references:
+      Array.isArray(draft.references) && draft.references.length > 0
+        ? draft.references
+        : Array.isArray(base.references)
+        ? base.references
+        : [],
+    preferredArtistsEnabled:
+      typeof draft.preferredArtistsEnabled === 'boolean'
+        ? draft.preferredArtistsEnabled
+        : Boolean(base.preferredArtistsEnabled),
+    referenceEnabled:
+      typeof draft.referenceEnabled === 'boolean'
+        ? draft.referenceEnabled
+        : Boolean(base.referenceEnabled),
+    requestQuoteOpened:
+      typeof draft.requestQuoteOpened === 'boolean'
+        ? draft.requestQuoteOpened
+        : Boolean(base.requestQuoteOpened),
+    requestedByClient:
+      typeof draft.requestedByClient === 'boolean'
+        ? draft.requestedByClient
+        : Boolean(base.requestedByClient),
+    requestStatus: hasFilledField(draft.requestStatus)
+      ? String(draft.requestStatus)
+      : String(base.requestStatus || ''),
+    quoteMinutes:
+      draftHasField('quoteMinutes') && getNumericOrNull(draft.quoteMinutes) !== null
+        ? getNumericOrNull(draft.quoteMinutes)
+        : getNumericOrNull(base.quoteMinutes),
+    quotePriceIncrement:
+      draftHasField('quotePriceIncrement') && Number.isFinite(Number(draft.quotePriceIncrement))
+        ? Number(draft.quotePriceIncrement)
+        : Number(base.quotePriceIncrement || 0),
+    durationMinutes:
+      draftHasField('durationMinutes') && getNumericOrNull(draft.durationMinutes) !== null
+        ? Number(draft.durationMinutes)
+        : Number(base.durationMinutes || getDefaultAntesalaState().durationMinutes),
+  };
+
+  return merged;
 }
 
 function applySuggestionToRepertorioState(state, suggestionItem = {}) {
@@ -1245,6 +1312,23 @@ const [antessala, setAntessala] = useState(
     quoteMinutes: null,
   }
 );
+  useEffect(() => {
+    console.log('[ANTESALA_REOPEN][INITIAL_STATE]', {
+      querAntessala: initialState.querAntessala ?? null,
+      antessalaFromInitialState: initialState.antessala || null,
+      antesalaDurationFromEvent: data?.repertorio?.antesalaDurationMinutes ?? null,
+      finalInitialState: {
+        ...getDefaultAntesalaState(),
+        ...(initialState.antessala || {}),
+        durationMinutes:
+          Number(
+            initialState?.antessala?.durationMinutes ||
+              data?.repertorio?.antesalaDurationMinutes ||
+              30
+          ) || 30,
+      },
+    });
+  }, [data?.repertorio?.antesalaDurationMinutes, initialState.antessala, initialState.querAntessala]);
 
 const [cortejo, setCortejo] = useState(initialCortejo?.length ? initialCortejo : []);
 
@@ -1387,7 +1471,14 @@ const [generalNotes, setGeneralNotes] = useState(initialState.generalNotes || ''
     const currentSnapshot = repertorioStateRef.current || {};
     const parsedCortejo = filterUsefulMusicalItems(parsed?.cortejo);
     const parsedCerimonia = filterUsefulMusicalItems(parsed?.cerimonia);
-    const parsedAntesala = { ...getDefaultAntesalaState(), ...(parsed?.antessala || {}) };
+    const parsedAntesalaRaw =
+      parsed?.antessala && typeof parsed?.antessala === 'object'
+        ? parsed.antessala
+        : {};
+    const parsedAntesala = mergeAntesalaState(
+      currentSnapshot?.antessala || {},
+      parsedAntesalaRaw
+    );
     const currentSaida = currentSnapshot?.saida || {
       musica: '',
       referencia: '',
@@ -1436,7 +1527,7 @@ const [generalNotes, setGeneralNotes] = useState(initialState.generalNotes || ''
     };
     const shouldUseDraftCortejo = parsedCortejo.length > 0;
     const shouldUseDraftCerimonia = parsedCerimonia.length > 0;
-    const shouldUseDraftAntesala = hasUsefulAntesalaState(parsedAntesala);
+    const shouldUseDraftAntesala = hasUsefulAntesalaState(parsedAntesalaRaw);
 
     const restoredState = {
       querAntessala: parsed?.querAntessala ?? currentSnapshot.querAntessala ?? null,
@@ -1458,7 +1549,7 @@ const [generalNotes, setGeneralNotes] = useState(initialState.generalNotes || ''
       antessala:
         shouldUseDraftAntesala || !hasBackendRepertorio
           ? parsedAntesala
-          : { ...getDefaultAntesalaState(), ...(currentSnapshot?.antessala || {}) },
+          : mergeAntesalaState(currentSnapshot?.antessala || {}, {}),
       receptivo:
         mergedReceptivo,
       desiredSongs: hasFilledField(parsed?.desiredSongs)
@@ -1469,6 +1560,14 @@ const [generalNotes, setGeneralNotes] = useState(initialState.generalNotes || ''
         : currentSnapshot?.generalNotes || '',
     };
 
+    console.log('[ANTESALA_REOPEN][MERGED_STATE]', {
+      hasBackendRepertorio,
+      parsedAntesalaRaw,
+      parsedAntesalaMerged: parsedAntesala,
+      shouldUseDraftAntesala,
+      antessalaFromCurrentSnapshot: currentSnapshot?.antessala || null,
+      restoredAntesala: restoredState.antessala,
+    });
     debugClientHome('[REPERTORIO_AUTOSAVE] estados restaurados no draft local:', restoredState);
 
     setQuerAntessala(restoredState.querAntessala);
@@ -1506,10 +1605,13 @@ const [generalNotes, setGeneralNotes] = useState(initialState.generalNotes || ''
         const parsed = JSON.parse(savedDraftRaw);
         const parsedCortejo = filterUsefulMusicalItems(parsed?.cortejo);
         const parsedCerimonia = filterUsefulMusicalItems(parsed?.cerimonia);
-        const parsedAntesala = { ...getDefaultAntesalaState(), ...(parsed?.antessala || {}) };
+        const parsedAntesalaRaw =
+          parsed?.antessala && typeof parsed?.antessala === 'object'
+            ? parsed.antessala
+            : {};
         const hasUsefulDraftCortejo = parsedCortejo.length > 0;
         const hasUsefulDraftCerimonia = parsedCerimonia.length > 0;
-        const hasUsefulDraftAntesala = hasUsefulAntesalaState(parsedAntesala);
+        const hasUsefulDraftAntesala = hasUsefulAntesalaState(parsedAntesalaRaw);
         const shouldHydrateFromLocalDraft =
           !hasBackendRepertorio ||
           hasUsefulDraftCortejo ||
@@ -1586,6 +1688,13 @@ const [generalNotes, setGeneralNotes] = useState(initialState.generalNotes || ''
     setShowLocalDraftBanner(false);
     showToast('Rascunho local descartado.', 'default');
   }
+
+  useEffect(() => {
+    console.log('[ANTESALA_REOPEN][FINAL_FORM_STATE]', {
+      querAntessala,
+      antessala,
+    });
+  }, [antessala, querAntessala]);
 
   useEffect(() => {
     if (!autosaveReady) {

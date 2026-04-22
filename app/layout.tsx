@@ -4,6 +4,7 @@ import "./globals.css";
 import { ToastProvider } from "@/components/ui/ToastProvider";
 import ConfirmDialogProvider from "@/components/ui/ConfirmDialogProvider";
 import GoogleMapsScriptClient from "@/components/GoogleMapsScriptClient";
+import GlobalPlayerRoot from "@/components/player/GlobalPlayerRoot";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -45,7 +46,9 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <ToastProvider>
-          <ConfirmDialogProvider>{children}</ConfirmDialogProvider>
+          <GlobalPlayerRoot>
+            <ConfirmDialogProvider>{children}</ConfirmDialogProvider>
+          </GlobalPlayerRoot>
         </ToastProvider>
         <GoogleMapsScriptClient apiKey={GOOGLE_MAPS_KEY} />
       </body>

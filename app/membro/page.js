@@ -9,10 +9,12 @@ import MembroRepertoriosTab from '../../components/membro/MembroRepertoriosTab';
 import MembroPerfilTab from '../../components/membro/MembroPerfilTab';
 import MembroBottomNav from '../../components/membro/MembroBottomNav';
 import MiniPlayerBar from '../../components/membro/MiniPlayerBar';
+import MembroPlayerModal from '../../components/membro/MembroPlayerModal';
 import MembroEscalaModal from '../../components/membro/MembroEscalaModal';
 import MembroRepertorioResumoModal from '../../components/membro/MembroRepertorioResumoModal';
 import { buildMemberDashboardData } from '../../lib/membro/membro-invites';
 import { useAppToast } from '../../components/ui/ToastProvider';
+import { useGlobalPlayer } from '../../components/player/GlobalPlayerProvider';
 
 const DESKTOP_TABS = [
   { key: 'home', label: 'Início', icon: '🏠' },
@@ -461,12 +463,25 @@ export default function MembroPage() {
 
   const [isPlayerModalOpen, setIsPlayerModalOpen] = useState(false);
   const [isMiniPlayerVisible, setIsMiniPlayerVisible] = useState(false);
-  const [playerPlaylist, setPlayerPlaylist] = useState([]);
-  const [playerIndex, setPlayerIndex] = useState(0);
   const [playerEventTitle, setPlayerEventTitle] = useState('');
-  const [isPlaying, setIsPlaying] = useState(true);
 
-  const currentTrack = playerPlaylist[playerIndex] || null;
+  const {
+    state: {
+      isPlaying,
+      currentTrackIndex: playerIndex,
+      playlist: playerPlaylist,
+      currentTrack,
+    },
+    actions: {
+      play,
+      pause,
+      next,
+      prev,
+      setTrack,
+      replacePlaylist,
+      closeSession,
+    },
+  } = useGlobalPlayer();
 
   const [scaleModalOpen, setScaleModalOpen] = useState(false);
   const [scaleModalEvent, setScaleModalEvent] = useState(null);
@@ -1007,12 +1022,10 @@ export default function MembroPage() {
       setInvites([]);
       setPrecontracts([]);
       setContracts([]);
-      setPlayerPlaylist([]);
-      setPlayerIndex(0);
       setPlayerEventTitle('');
       setIsPlayerModalOpen(false);
       setIsMiniPlayerVisible(false);
-      setIsPlaying(false);
+      closeSession();
       setScaleModalOpen(false);
       setScaleModalEvent(null);
       setScaleModalMusicians([]);
@@ -1153,10 +1166,8 @@ export default function MembroPage() {
       return;
     }
 
-    setPlayerPlaylist(playlist);
-    setPlayerIndex(0);
+    replacePlaylist(playlist, { autoplay: options.autoplay !== false, startIndex: 0 });
     setPlayerEventTitle(item?.clientName || 'Repertório');
-    setIsPlaying(Boolean(options.autoplay !== false));
     setIsMiniPlayerVisible(Boolean(options.autoplay !== false));
 
     if (options.autoplay !== false) {
@@ -1183,10 +1194,8 @@ export default function MembroPage() {
     });
     setIsPlayerModalOpen(false);
     setIsMiniPlayerVisible(false);
-    setPlayerPlaylist([]);
-    setPlayerIndex(0);
     setPlayerEventTitle('');
-    setIsPlaying(false);
+    closeSession();
   }
 
   function openPdf(item) {
@@ -1273,42 +1282,39 @@ export default function MembroPage() {
   }
 
   function handlePrevTrack() {
-    const wasPlaying = isPlaying;
-    setPlayerIndex((prev) => {
-      if (playerPlaylist.length === 0) return 0;
-      return (prev - 1 + playerPlaylist.length) % playerPlaylist.length;
-    });
-    setIsPlaying(wasPlaying);
+    prev();
     console.log('[MEMBRO_PLAYER][TRACK_CHANGE]', {
       action: 'prev',
-      wasPlaying,
+      wasPlaying: isPlaying,
       total: playerPlaylist.length,
     });
   }
 
   function handleTogglePlaying() {
-    setIsPlaying((prev) => {
-      const next = !prev;
+    if (isPlaying) {
+      pause();
       console.log('[MEMBRO_PLAYER][PLAYBACK_STATE]', {
         action: 'toggle',
-        previous: prev,
-        next,
+        previous: true,
+        next: false,
       });
-      return next;
+      return;
+    }
+
+    play();
+    console.log('[MEMBRO_PLAYER][PLAYBACK_STATE]', {
+      action: 'toggle',
+      previous: false,
+      next: true,
     });
   }
 
   function handleNextTrack(reason = 'manual') {
-    const wasPlaying = isPlaying;
-    setPlayerIndex((prev) => {
-      if (playerPlaylist.length === 0) return 0;
-      return (prev + 1) % playerPlaylist.length;
-    });
-    setIsPlaying(wasPlaying);
+    next();
     console.log('[MEMBRO_PLAYER][TRACK_CHANGE]', {
       action: 'next',
       reason,
-      wasPlaying,
+      wasPlaying: isPlaying,
       total: playerPlaylist.length,
     });
   }
@@ -1569,13 +1575,30 @@ export default function MembroPage() {
         }}
       />
 
-      <MiniPlayerBar
-        isPlayerModalOpen={isPlayerModalOpen}
-        isMiniPlayerVisible={isMiniPlayerVisible}
-        currentTrack={currentTrack}
+      <MembroPlayerModal
+        open={isPlayerModalOpen}
         eventTitle={playerEventTitle}
         playlist={playerPlaylist}
         currentIndex={playerIndex}
+        isPlaying={isPlaying}
+        onClose={handleMinimizePlayer}
+        onSelectTrack={(index) => {
+          setTrack(index);
+          console.log('[MEMBRO_PLAYER][TRACK_CHANGE]', {
+            action: 'select',
+            targetIndex: index,
+            total: playerPlaylist.length,
+          });
+        }}
+        onPrev={handlePrevTrack}
+        onNext={handleNextTrack}
+        onTogglePlay={handleTogglePlaying}
+      />
+
+      <MiniPlayerBar
+        isMiniPlayerVisible={isMiniPlayerVisible}
+        currentTrack={currentTrack}
+        eventTitle={playerEventTitle}
         isPlaying={isPlaying}
         onExpand={() => {
           setIsPlayerModalOpen(true);
@@ -1587,24 +1610,10 @@ export default function MembroPage() {
             playlistSize: playerPlaylist.length,
           });
         }}
-        onMinimize={handleMinimizePlayer}
         onCloseSession={handleClosePlayerSession}
         onNext={handleNextTrack}
         onPrev={handlePrevTrack}
         onTogglePlay={handleTogglePlaying}
-        onSelectTrack={(index) => {
-          const wasPlaying = isPlaying;
-          setPlayerIndex(index);
-          setIsPlaying(wasPlaying);
-          console.log('[MEMBRO_PLAYER][TRACK_CHANGE]', {
-            action: 'select',
-            targetIndex: index,
-            wasPlaying,
-            total: playerPlaylist.length,
-          });
-        }}
-        onPlayerStateChange={(playing) => setIsPlaying(playing)}
-        onTrackEnd={() => handleNextTrack('auto_end')}
       />
 
       {showWelcomeSplash ? (

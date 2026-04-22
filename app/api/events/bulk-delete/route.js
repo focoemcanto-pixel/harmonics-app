@@ -15,7 +15,7 @@ export async function POST(request) {
     const body = await request.json().catch(() => ({}));
     const eventIds = Array.isArray(body?.eventIds) ? body.eventIds : [];
 
-    console.info('[EVENT_BULK_DELETE_API][REQUEST_START]', {
+    console.info('[EVENT_BULK_DELETE_API][DELETE_BULK][PAYLOAD]', {
       requestedCount: eventIds.length,
     });
 
@@ -32,12 +32,18 @@ export async function POST(request) {
       logPrefix: '[EVENT_BULK_DELETE_API]',
     });
 
+    console.info('[EVENT_BULK_DELETE_API][DELETE_BULK][RESULT]', {
+      requested: summary.requested,
+      success: summary.success.length,
+      failed: summary.failed.length,
+    });
+
     return NextResponse.json({
       ok: true,
       ...summary,
     });
   } catch (error) {
-    console.error('[EVENT_BULK_DELETE_API][ERROR]', {
+    console.error('[EVENT_BULK_DELETE_API][DELETE_BULK][ERROR]', {
       message: error?.message,
       details: error?.details,
       hint: error?.hint,

@@ -24,6 +24,9 @@ const DESKTOP_TABS = [
 const REPERTOIRE_CONFIG_SELECT = [
   'id',
   'event_id',
+  'status',
+  'is_locked',
+  'submitted_at',
   'repertoire_pdf_url',
   'has_ante_room',
   'ante_room_style',
@@ -50,6 +53,57 @@ const REPERTOIRE_ITEMS_SELECT = [
   'genres',
   'artists',
 ].join(', ');
+const CONTRACTS_SELECT = [
+  'id',
+  'precontract_id',
+  'event_id',
+  'status',
+  'pdf_url',
+  'doc_url',
+  'signed_at',
+].join(', ');
+
+function normalizeStatus(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function isValidEventDate(value) {
+  if (!value) return false;
+  const parsed = new Date(`${value}T12:00:00`);
+  return !Number.isNaN(parsed.getTime());
+}
+
+function isActiveSystemEvent(event = {}) {
+  const status = normalizeStatus(event?.status);
+  if (!status) return true;
+  return !['deleted', 'cancelled', 'canceled', 'arquivado', 'archived'].includes(status);
+}
+
+function isSignedContract(contract = {}) {
+  if (contract?.signed_at) return true;
+  const status = normalizeStatus(contract?.status);
+  return status === 'signed';
+}
+
+function hasRepertoireMaterial(config = {}) {
+  const status = String(config?.status || '').trim().toUpperCase();
+  const hasPdf = Boolean(String(config?.repertoire_pdf_url || '').trim());
+  const hasSubmitMark = Boolean(config?.submitted_at);
+  const isLocked = Boolean(config?.is_locked);
+  const statusSignalsActive = [
+    'ENVIADO',
+    'ENVIADO_TRANCADO',
+    'FINALIZADO',
+    'CONCLUIDO',
+    'AGUARDANDO_REVISAO',
+    'REABERTO',
+    'LIBERADO_PARA_EDICAO',
+    'REVISAO_SOLICITADA',
+    'REVIEW_REQUESTED',
+  ].includes(status);
+
+  return hasPdf || hasSubmitMark || isLocked || statusSignalsActive;
+}
 
 function resolveTrackUrl(row) {
   const referenceLink = String(row?.referencia || row?.reference_link || '').trim();
@@ -407,7 +461,7 @@ export default function MembroPage() {
 
           supabase
             .from('contracts')
-            .select('id, precontract_id, event_id, pdf_url, doc_url, signed_at'),
+            .select(CONTRACTS_SELECT),
 
           supabase
             .from('repertoire_config')
@@ -426,6 +480,16 @@ export default function MembroPage() {
         if (repertoireConfigsResp.error) throw repertoireConfigsResp.error;
         if (repertoireItemsResp.error) throw repertoireItemsResp.error;
 
+        console.log('[MEMBRO_PANEL][RAW_QUERY_RESULT]', {
+          mode: 'admin',
+          scales: scalesResp.data?.length || 0,
+          invites: invitesResp.data?.length || 0,
+          precontracts: precontractsResp.data?.length || 0,
+          contracts: contractsResp.data?.length || 0,
+          repertoireConfigs: repertoireConfigsResp.data?.length || 0,
+          repertoireItems: repertoireItemsResp.data?.length || 0,
+        });
+
         const operationalEventIds = Array.from(
           new Set(
             [...(scalesResp.data || []), ...(invitesResp.data || [])]
@@ -433,22 +497,45 @@ export default function MembroPage() {
               .filter(Boolean)
           )
         );
-        const eventsResp =
-          operationalEventIds.length > 0
-            ? await supabase
-                .from('events')
-                .select(`
-                  id,
-                  created_at,
-                  *
-                `)
-                .in('id', operationalEventIds)
-                .order('event_date', { ascending: true })
-                .order('event_time', { ascending: true })
-            : { data: [], error: null };
+        const eventsResp = await supabase
+          .from('events')
+          .select(`
+            id,
+            created_at,
+            *
+          `)
+          .order('event_date', { ascending: true })
+          .order('event_time', { ascending: true });
 
         if (eventsResp.error) throw eventsResp.error;
-        const adminEvents = Array.isArray(eventsResp.data) ? eventsResp.data : [];
+        const signedContractEventIds = new Set(
+          (contractsResp.data || [])
+            .filter((row) => isSignedContract(row))
+            .map((row) => String(row?.event_id || '').trim())
+            .filter(Boolean)
+        );
+        const repertoireEventIds = new Set(
+          (repertoireConfigsResp.data || [])
+            .filter((row) => hasRepertoireMaterial(row))
+            .map((row) => String(row?.event_id || '').trim())
+            .filter(Boolean)
+        );
+        const operationalEventIdsSet = new Set(operationalEventIds);
+        const relevantEventIds = new Set([
+          ...signedContractEventIds,
+          ...repertoireEventIds,
+          ...operationalEventIdsSet,
+        ]);
+
+        const adminEvents = (Array.isArray(eventsResp.data) ? eventsResp.data : [])
+          .filter((event) => {
+            const eventId = String(event?.id || '').trim();
+            if (!eventId) return false;
+            if (!relevantEventIds.has(eventId)) return false;
+            if (!isActiveSystemEvent(event)) return false;
+            if (!isValidEventDate(event?.event_date)) return false;
+            return true;
+          });
         const adminInvites = adminEvents.map((event) => ({
           id: `admin-event-${event.id}`,
           event_id: event.id,
@@ -460,12 +547,20 @@ export default function MembroPage() {
           responded_at: event?.created_at || null,
           created_at: event?.created_at || null,
           events: event,
+          source_flags: {
+            contractSigned: signedContractEventIds.has(String(event?.id || '').trim()),
+            repertoireReady: repertoireEventIds.has(String(event?.id || '').trim()),
+            operationActive: operationalEventIdsSet.has(String(event?.id || '').trim()),
+          },
         }));
 
         console.info('[MEMBER_PANEL][ADMIN_BYPASS]', {
           memberId: currentMember.id,
           totalEvents: adminEvents.length,
           sourceEventIds: operationalEventIds.length,
+          signedContractEventIds: signedContractEventIds.size,
+          repertoireEventIds: repertoireEventIds.size,
+          relevantEventIds: relevantEventIds.size,
         });
 
         setInvites(adminInvites);
@@ -507,8 +602,8 @@ export default function MembroPage() {
           .select('id, event_id, public_token, reception_hours, has_sound, has_transport'),
 
         supabase
-          .from('contracts')
-          .select('id, precontract_id, event_id, pdf_url, doc_url, signed_at'),
+        .from('contracts')
+        .select(CONTRACTS_SELECT),
 
         supabase
           .from('repertoire_config')
@@ -525,6 +620,15 @@ export default function MembroPage() {
       if (contractsResp.error) throw contractsResp.error;
       if (repertoireConfigsResp.error) throw repertoireConfigsResp.error;
       if (repertoireItemsResp.error) throw repertoireItemsResp.error;
+
+      console.log('[MEMBRO_PANEL][RAW_QUERY_RESULT]', {
+        mode: 'member',
+        invites: invitesResp.data?.length || 0,
+        precontracts: precontractsResp.data?.length || 0,
+        contracts: contractsResp.data?.length || 0,
+        repertoireConfigs: repertoireConfigsResp.data?.length || 0,
+        repertoireItems: repertoireItemsResp.data?.length || 0,
+      });
 
       setInvites(Array.isArray(invitesResp.data) ? invitesResp.data : []);
       setPrecontracts(Array.isArray(precontractsResp.data) ? precontractsResp.data : []);
@@ -667,10 +771,47 @@ export default function MembroPage() {
     return confirmados.filter(
       (row) =>
         row?.repertorioPdfUrl ||
+        row?.repertoireConfig?.submitted_at ||
+        row?.repertoireConfig?.is_locked ||
+        ['ENVIADO', 'ENVIADO_TRANCADO', 'FINALIZADO', 'CONCLUIDO', 'AGUARDANDO_REVISAO', 'REABERTO', 'LIBERADO_PARA_EDICAO', 'REVISAO_SOLICITADA', 'REVIEW_REQUESTED'].includes(
+          String(row?.repertoireConfig?.status || '').trim().toUpperCase()
+        ) ||
         (Array.isArray(row?.youtubeUrls) && row.youtubeUrls.length > 0) ||
         (Array.isArray(row?.repertorioItems) && row.repertorioItems.length > 0)
     );
   }, [confirmados]);
+
+  useEffect(() => {
+    console.log('[MEMBRO_PANEL][EVENTS_MONTH_RESULT]', {
+      memberId: member?.id || null,
+      isAdmin: Boolean(member?.isAdmin),
+      currentMonth: new Date().toISOString().slice(0, 7),
+      confirmados: confirmados.length,
+      pendentes: pendentes.length,
+      proximosConfirmados: proximosConfirmados.length,
+    });
+  }, [member?.id, member?.isAdmin, confirmados.length, pendentes.length, proximosConfirmados.length]);
+
+  useEffect(() => {
+    console.log('[MEMBRO_PANEL][REPERTOIRES_RESULT]', {
+      memberId: member?.id || null,
+      isAdmin: Boolean(member?.isAdmin),
+      repertoriosAtivos: repertorios.length,
+      confirmadosComMaterial: repertorios.filter((item) => item?.inviteStatus === 'confirmed').length,
+    });
+  }, [member?.id, member?.isAdmin, repertorios]);
+
+  useEffect(() => {
+    console.log('[MEMBRO_PANEL][COUNTS_RESULT]', {
+      memberId: member?.id || null,
+      isAdmin: Boolean(member?.isAdmin),
+      pendentes: resumo?.pendentes || 0,
+      confirmados: resumo?.confirmados || 0,
+      repertorios: resumo?.repertorios || 0,
+      proximosConfirmados: proximosConfirmados.length,
+      concluidos: confirmados.filter((item) => item?.isDone).length,
+    });
+  }, [member?.id, member?.isAdmin, resumo, confirmados, proximosConfirmados.length]);
 
   const desktopMeta = getDesktopTabMeta(activeTab);
 

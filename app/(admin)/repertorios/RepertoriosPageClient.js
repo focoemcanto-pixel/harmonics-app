@@ -8,6 +8,10 @@ import AdminSectionTitle from '@/components/admin/AdminSectionTitle';
 import AdminSummaryCard from '@/components/admin/AdminSummaryCard';
 import { supabase } from '@/lib/supabase';
 import { formatDateBR } from '@/lib/eventos/eventos-format';
+import DeleteConfirmModal from '@/components/ui/DeleteConfirmModal';
+import BulkActionBar from '@/components/ui/BulkActionBar';
+import { useMultiSelect } from '@/hooks/useMultiSelect';
+import { useAppToast } from '@/components/ui/ToastProvider';
 
 const ADMIN_LIST_LIMIT = 100;
 const EVENTS_SELECT_FIELDS = 'id, created_at, client_name, event_type, event_date';
@@ -170,6 +174,14 @@ export default function RepertoriosPage() {
   const [loadingSugestoesId, setLoadingSugestoesId] = useState(null);
   const [sugestoesPorEvento, setSugestoesPorEvento] = useState({});
   const [aplicandoSugestaoKey, setAplicandoSugestaoKey] = useState(null);
+  const [deleteDialog, setDeleteDialog] = useState({
+    open: false,
+    eventId: null,
+    mode: 'single',
+  });
+  const [deleting, setDeleting] = useState(false);
+  const { selectedIds, selectedSet, clear, toggle, toggleAll } = useMultiSelect();
+  const toast = useAppToast();
 
   useEffect(() => {
     const statusParam = normalizeStatus(searchParams.get('status'));
@@ -349,7 +361,7 @@ export default function RepertoriosPage() {
         const contractInfo = contractsByEventId.get(eventId) || null;
         const clientPanelToken = String(config.client_public_token || '').trim();
 
-        return {
+        const cardSource = {
           event_id: eventId,
           event,
           config,
@@ -358,6 +370,10 @@ export default function RepertoriosPage() {
           fallbackRepertoireToken,
           contractInfo,
         };
+
+        console.log('[REPERTOIR_DELETE][CARD_SOURCE]', cardSource);
+
+        return cardSource;
       })
       .filter(Boolean);
   }, [configs, events, itemsByEventId, repertoireTokenByEventId, contractsByEventId]);
@@ -408,6 +424,16 @@ export default function RepertoriosPage() {
       return matchBusca && matchStatus && matchProximos;
     });
   }, [repertorios, busca, statusFiltro, somenteProximos]);
+
+  const visibleEventIds = useMemo(
+    () => repertoriosFiltrados.map((entry) => String(entry.event_id || '')).filter(Boolean),
+    [repertoriosFiltrados]
+  );
+
+  const allVisibleSelected = useMemo(
+    () => visibleEventIds.length > 0 && visibleEventIds.every((id) => selectedSet.has(id)),
+    [visibleEventIds, selectedSet]
+  );
 
   const resumo = useMemo(() => {
     const total = repertorios.length;
@@ -530,6 +556,106 @@ export default function RepertoriosPage() {
     }
   }
 
+  function solicitarExclusaoIndividual(entry) {
+    setDeleteDialog({
+      open: true,
+      mode: 'single',
+      eventId: entry.event_id,
+    });
+  }
+
+  function solicitarExclusaoEmMassa() {
+    if (selectedIds.length === 0) return;
+
+    setDeleteDialog({
+      open: true,
+      mode: 'bulk',
+      eventId: null,
+    });
+  }
+
+  function cancelarExclusao() {
+    if (deleting) return;
+
+    setDeleteDialog({
+      open: false,
+      mode: 'single',
+      eventId: null,
+    });
+  }
+
+  async function confirmarExclusao() {
+    const isBulk = deleteDialog.mode === 'bulk';
+    const targetIds = isBulk
+      ? selectedIds
+      : deleteDialog.eventId
+        ? [deleteDialog.eventId]
+        : [];
+
+    if (targetIds.length === 0) {
+      cancelarExclusao();
+      return;
+    }
+
+    const payload = isBulk ? { eventIds: targetIds } : { eventId: targetIds[0] };
+    const endpoint = isBulk ? '/api/repertoire/delete-many' : '/api/repertoire/delete';
+    console.log('[REPERTOIR_DELETE][SELECTED_IDS]', selectedIds);
+    console.log('[REPERTOIR_DELETE][PAYLOAD]', payload);
+
+    setDeleting(true);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const result = await response.json().catch(() => ({}));
+      console.log('[REPERTOIR_DELETE][RESULT]', result);
+
+      if (!result?.success || Number(result?.affected || 0) === 0) {
+        toast.error(result?.message || 'Nenhum repertório foi excluído');
+        return;
+      }
+
+      const deletedEventIds = (result?.ids || []).map((id) => String(id || '').trim()).filter(Boolean);
+      if (deletedEventIds.length > 0) {
+        setConfigs((prev) => prev.filter((cfg) => !deletedEventIds.includes(String(cfg?.event_id || '').trim())));
+        setItems((prev) => prev.filter((item) => !deletedEventIds.includes(String(item?.event_id || '').trim())));
+        setTokens((prev) => prev.filter((token) => !deletedEventIds.includes(String(token?.event_id || '').trim())));
+        setSugestoesPorEvento((prev) => {
+          const next = { ...prev };
+          deletedEventIds.forEach((eventId) => {
+            delete next[eventId];
+          });
+          return next;
+        });
+
+        if (deleteDialog.eventId && deletedEventIds.includes(String(deleteDialog.eventId))) {
+          setResumoAbertoId(null);
+        }
+      }
+
+      clear();
+      toast.success(result?.message || `${result.affected} repertório(s) excluído(s)`);
+      setDeleteDialog({
+        open: false,
+        mode: 'single',
+        eventId: null,
+      });
+    } catch (error) {
+      toast.error(error?.message || 'Falha ao excluir repertório(s).');
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   if (carregando) {
     return (
       <AdminShell pageTitle="Repertórios" activeItem="repertorios">
@@ -629,6 +755,18 @@ export default function RepertoriosPage() {
           </div>
 
           <div className="mt-6 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-[20px] border border-[#dbe3ef] bg-[#f8fafc] px-4 py-3">
+              <label className="inline-flex items-center gap-3 text-[13px] font-black text-[#334155]">
+                <input
+                  type="checkbox"
+                  checked={allVisibleSelected}
+                  onChange={() => toggleAll(visibleEventIds)}
+                  className="h-4 w-4 rounded border-[#cbd5e1] text-violet-600 focus:ring-violet-500"
+                />
+                Selecionar todos os visíveis ({repertoriosFiltrados.length})
+              </label>
+            </div>
+
             {repertoriosFiltrados.length === 0 ? (
               <div className="rounded-[20px] bg-[#f8fafc] px-5 py-5 text-[14px] font-semibold text-[#64748b]">
                 Nenhum repertório encontrado com esse filtro.
@@ -658,6 +796,18 @@ export default function RepertoriosPage() {
                     key={`${entry.event_id}-${entry.config.id}`}
                     className="rounded-[24px] border border-[#dbe3ef] bg-white p-5 shadow-[0_8px_22px_rgba(17,24,39,0.04)]"
                   >
+                    <div className="mb-4">
+                      <label className="inline-flex items-center gap-2 text-[12px] font-black uppercase tracking-[0.08em] text-[#475569]">
+                        <input
+                          type="checkbox"
+                          checked={selectedSet.has(String(entry.event_id))}
+                          onChange={() => toggle(entry.event_id)}
+                          className="h-4 w-4 rounded border-[#cbd5e1] text-violet-600 focus:ring-violet-500"
+                        />
+                        Selecionar
+                      </label>
+                    </div>
+
                     <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                       <div className="min-w-0">
                         {hasReviewRequested ? (
@@ -764,6 +914,14 @@ export default function RepertoriosPage() {
                         {loadingSugestoesId === entry.event_id
                           ? 'Sugerindo...'
                           : 'Sugerir repertório'}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => solicitarExclusaoIndividual(entry)}
+                        className="rounded-[16px] bg-red-600 px-4 py-3 text-[14px] font-black text-white shadow-[0_12px_24px_rgba(220,38,38,0.22)]"
+                      >
+                        Excluir repertório
                       </button>
                     </div>
 
@@ -877,6 +1035,34 @@ export default function RepertoriosPage() {
             )}
           </div>
         </section>
+
+        <BulkActionBar
+          selectedCount={selectedIds.length}
+          label="repertórios"
+          deleting={deleting}
+          onClear={clear}
+          onDelete={solicitarExclusaoEmMassa}
+        />
+
+        <DeleteConfirmModal
+          open={deleteDialog.open}
+          loading={deleting}
+          title={
+            deleteDialog.mode === 'bulk'
+              ? `Excluir ${selectedIds.length} repertório(s) selecionado(s)?`
+              : 'Excluir repertório?'
+          }
+          description={
+            deleteDialog.mode === 'bulk'
+              ? 'Esta ação remove tokens, itens e vínculos do repertório. Ação definitiva.'
+              : 'Serão removidos os dados do repertório, itens, token e vínculos operacionais relacionados.'
+          }
+          confirmLabel={
+            deleteDialog.mode === 'bulk' ? 'Excluir selecionados' : 'Excluir repertório'
+          }
+          onCancel={cancelarExclusao}
+          onConfirm={confirmarExclusao}
+        />
       </div>
     </AdminShell>
   );

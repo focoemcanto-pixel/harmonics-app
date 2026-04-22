@@ -8,6 +8,10 @@ import ProtectedRoute from '@/components/ProtectedRoute';
 import AdminPageHero from '@/components/admin/AdminPageHero';
 import AdminSectionTitle from '@/components/admin/AdminSectionTitle';
 import AdminSummaryCard from '@/components/admin/AdminSummaryCard';
+import DeleteConfirmModal from '@/components/ui/DeleteConfirmModal';
+import BulkActionBar from '@/components/ui/BulkActionBar';
+import { useAppToast } from '@/components/ui/ToastProvider';
+import { useMultiSelect } from '@/hooks/useMultiSelect';
 import { supabase } from '@/lib/supabase';
 import {
   toNumber,
@@ -170,6 +174,14 @@ function PagamentosPageContent() {
   const [historicoSelecionadoId, setHistoricoSelecionadoId] = useState(null);
   const [proofPreviewUrl, setProofPreviewUrl] = useState('');
   const [processingAction, setProcessingAction] = useState('');
+  const [deleteDialog, setDeleteDialog] = useState({
+    open: false,
+    mode: 'single',
+    paymentId: null,
+  });
+  const [deleting, setDeleting] = useState(false);
+  const { selectedIds, selectedSet, setSelectedIds, clear, toggle } = useMultiSelect();
+  const toast = useAppToast();
 
   async function carregarTudo() {
     const [eventsRes, paymentsRes] = await Promise.all([
@@ -340,6 +352,131 @@ function PagamentosPageContent() {
       });
     } finally {
       setProcessingAction('');
+    }
+  }
+
+  function abrirExclusaoIndividual(entry) {
+    setDeleteDialog({
+      open: true,
+      mode: 'single',
+      paymentId: String(entry?.id || ''),
+    });
+  }
+
+  function abrirExclusaoEmMassa() {
+    if (selectedIds.length === 0) return;
+    setDeleteDialog({
+      open: true,
+      mode: 'bulk',
+      paymentId: null,
+    });
+  }
+
+  function cancelarExclusao() {
+    if (deleting) return;
+    setDeleteDialog({
+      open: false,
+      mode: 'single',
+      paymentId: null,
+    });
+  }
+
+  function aplicarResultadoExclusao(result = {}, fallbackTargetIds = []) {
+    const deletedIds = (result?.ids || fallbackTargetIds).map((id) => String(id || '').trim()).filter(Boolean);
+    const eventUpdates = Array.isArray(result?.eventUpdates) ? result.eventUpdates : [];
+
+    if (deletedIds.length > 0) {
+      setPayments((prev) => prev.filter((item) => !deletedIds.includes(String(item?.id))));
+      setSelectedIds((prev) => prev.filter((id) => !deletedIds.includes(String(id))));
+    }
+
+    if (eventUpdates.length > 0) {
+      setEvents((prev) =>
+        prev.map((eventItem) => {
+          const found = eventUpdates.find((entry) => String(entry?.id) === String(eventItem?.id));
+          if (!found) return eventItem;
+          return {
+            ...eventItem,
+            paid_amount: found.paid_amount,
+            open_amount: found.open_amount,
+            payment_status: found.payment_status,
+          };
+        })
+      );
+    }
+
+    if (historicoSelecionadoId && deletedIds.includes(String(historicoSelecionadoId))) {
+      setHistoricoSelecionadoId(null);
+    }
+  }
+
+  async function confirmarExclusao() {
+    const isBulk = deleteDialog.mode === 'bulk';
+    const targetIds = isBulk
+      ? selectedIds
+      : deleteDialog.paymentId
+        ? [deleteDialog.paymentId]
+        : [];
+
+    if (targetIds.length === 0) {
+      cancelarExclusao();
+      return;
+    }
+
+    const payload = isBulk ? { paymentIds: targetIds } : { paymentId: targetIds[0] };
+    const endpoint = isBulk
+      ? '/api/payments/bulk-delete'
+      : `/api/payments/${encodeURIComponent(targetIds[0])}`;
+
+    if (isBulk) {
+      console.log('[PAYMENTS_DELETE][BULK_PAYLOAD]', payload);
+    } else {
+      console.log('[PAYMENTS_DELETE][SINGLE_PAYLOAD]', payload);
+    }
+
+    setDeleting(true);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+
+      const response = await fetch(endpoint, {
+        method: isBulk ? 'POST' : 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+        ...(isBulk ? { body: JSON.stringify(payload) } : {}),
+      });
+
+      const result = await response.json().catch(() => ({}));
+      if (isBulk) {
+        console.log('[PAYMENTS_DELETE][BULK_RESULT]', result);
+      } else {
+        console.log('[PAYMENTS_DELETE][SINGLE_RESULT]', result);
+      }
+
+      if (!response.ok || !result?.success || Number(result?.affected || 0) === 0) {
+        toast.error(result?.message || 'Não foi possível excluir pagamento(s).');
+        return;
+      }
+
+      aplicarResultadoExclusao(result, targetIds);
+      clear();
+      setDeleteDialog({
+        open: false,
+        mode: 'single',
+        paymentId: null,
+      });
+
+      if (isBulk) {
+        toast.success(`${result.affected} pagamento(s) excluído(s) com sucesso.`);
+      } else {
+        toast.success('Pagamento excluído com sucesso.');
+      }
+    } catch (error) {
+      toast.error(error?.message || 'Falha ao excluir pagamento(s).');
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -698,6 +835,7 @@ function PagamentosPageContent() {
                             {item.paymentEntries.map((entry) => {
                               const entryStatus = normalizeEntryStatus(entry.status);
                               const entryTone = getEntryTone(entryStatus);
+                              const isSelected = selectedSet.has(String(entry.id));
 
                               return (
                                 <div
@@ -725,6 +863,17 @@ function PagamentosPageContent() {
                                     </div>
 
                                     <div className="flex flex-wrap gap-2">
+                                      <label className="inline-flex items-center gap-2 rounded-full border border-[#dbe3ef] bg-white px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-[#0f172a]">
+                                        <input
+                                          type="checkbox"
+                                          checked={isSelected}
+                                          onChange={() => toggle(entry.id)}
+                                          disabled={deleting}
+                                          className="h-3.5 w-3.5"
+                                        />
+                                        Selecionar
+                                      </label>
+
                                       <PaymentPill tone={entryTone}>
                                         {entryStatus}
                                       </PaymentPill>
@@ -748,6 +897,15 @@ function PagamentosPageContent() {
                                       >
                                         Validar comprovante
                                       </button>
+
+                                      <button
+                                        type="button"
+                                        onClick={() => abrirExclusaoIndividual(entry)}
+                                        disabled={deleting}
+                                        className="rounded-full border border-red-200 bg-red-50 px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-red-700 disabled:opacity-60"
+                                      >
+                                        Excluir
+                                      </button>
                                     </div>
                                   </div>
                                 </div>
@@ -763,6 +921,14 @@ function PagamentosPageContent() {
             )}
           </div>
         </section>
+
+        <BulkActionBar
+          selectedCount={selectedIds.length}
+          label="pagamentos"
+          deleting={deleting}
+          onClear={clear}
+          onDelete={abrirExclusaoEmMassa}
+        />
       </div>
 
       {proofPreviewUrl ? (
@@ -864,6 +1030,24 @@ function PagamentosPageContent() {
           </div>
         </div>
       ) : null}
+
+      <DeleteConfirmModal
+        open={deleteDialog.open}
+        loading={deleting}
+        title={
+          deleteDialog.mode === 'bulk'
+            ? `Excluir ${selectedIds.length} pagamento(s) selecionado(s)?`
+            : 'Excluir este lançamento de pagamento?'
+        }
+        description={
+          deleteDialog.mode === 'bulk'
+            ? 'Esta ação removerá os registros do histórico financeiro selecionados e atualizará os totais relacionados. Essa ação é definitiva.'
+            : 'Esta ação removerá este registro do histórico financeiro e atualizará os totais do evento. Essa ação é definitiva.'
+        }
+        confirmLabel={deleteDialog.mode === 'bulk' ? 'Excluir selecionados' : 'Excluir'}
+        onCancel={cancelarExclusao}
+        onConfirm={confirmarExclusao}
+      />
     </AdminShell>
   );
 }

@@ -4,6 +4,9 @@ import { executeAutomationEvent } from '@/lib/automation/execute-automation-even
 const SUPPORTED_EVENT_TYPES = [
   'invite_member',
   'contract_signed_client',
+  'contract_review_released_client',
+  'repertoire_review_released_client',
+  'event_day_confirmation_client',
   'repertoire_pending_15_days_client',
   'payment_pending_2_days_client',
   'post_event_review_request_client',

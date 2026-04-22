@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { getDefaultWorkspaceSettings } from '@/lib/automation/get-workspace';
+import { ensureDefaultAutomations } from '@/lib/automation/ensure-defaults';
 
 export async function GET() {
   try {
     const supabaseAdmin = getSupabaseAdmin();
     const workspace = await getDefaultWorkspaceSettings();
+    await ensureDefaultAutomations(workspace.id);
 
     const query = supabaseAdmin
       .from('automation_rules')

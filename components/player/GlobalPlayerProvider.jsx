@@ -17,27 +17,75 @@ export function GlobalPlayerProvider({ children }) {
   const videoId = String(currentTrack?.videoId || '').trim() || extractYoutubeId(currentTrack?.url || '');
 
   const setTrack = useCallback((index) => {
+    console.log('[PLAYER][TRACK_BEFORE_CHANGE]', {
+      source: 'setTrack',
+      isPlaying,
+      currentTrackIndex,
+      requestedIndex: index,
+    });
+
     setCurrentTrackIndex((prev) => {
       if (!Array.isArray(playlist) || playlist.length === 0) return 0;
       if (!Number.isFinite(index)) return prev;
       const safeIndex = Math.max(0, Math.min(Number(index), playlist.length - 1));
+      console.log('[PLAYER][TRACK_AFTER_CHANGE]', {
+        source: 'setTrack',
+        previousIndex: prev,
+        nextIndex: safeIndex,
+      });
       return safeIndex;
     });
-  }, [playlist]);
+  }, [playlist, isPlaying, currentTrackIndex]);
 
-  const next = useCallback(() => {
+  const next = useCallback((options = {}) => {
+    const shouldContinuePlaying = options.forcePlay === true ? true : isPlaying;
+    console.log('[PLAYER][NEXT_CLICK]', {
+      isPlaying,
+      currentTrackIndex,
+      shouldContinuePlaying,
+      reason: options.reason || 'manual',
+    });
+
     setCurrentTrackIndex((prev) => {
       if (!playlist.length) return 0;
-      return (prev + 1) % playlist.length;
+      const nextIndex = (prev + 1) % playlist.length;
+      console.log('[PLAYER][TRACK_AFTER_CHANGE]', {
+        source: 'next',
+        previousIndex: prev,
+        nextIndex,
+      });
+      return nextIndex;
     });
-  }, [playlist.length]);
 
-  const prev = useCallback(() => {
+    if (shouldContinuePlaying) {
+      setIsPlaying(true);
+    }
+  }, [playlist.length, isPlaying, currentTrackIndex]);
+
+  const prev = useCallback((options = {}) => {
+    const shouldContinuePlaying = options.forcePlay === true ? true : isPlaying;
+    console.log('[PLAYER][PREV_CLICK]', {
+      isPlaying,
+      currentTrackIndex,
+      shouldContinuePlaying,
+      reason: options.reason || 'manual',
+    });
+
     setCurrentTrackIndex((prevIndex) => {
       if (!playlist.length) return 0;
-      return (prevIndex - 1 + playlist.length) % playlist.length;
+      const nextIndex = (prevIndex - 1 + playlist.length) % playlist.length;
+      console.log('[PLAYER][TRACK_AFTER_CHANGE]', {
+        source: 'prev',
+        previousIndex: prevIndex,
+        nextIndex,
+      });
+      return nextIndex;
     });
-  }, [playlist.length]);
+
+    if (shouldContinuePlaying) {
+      setIsPlaying(true);
+    }
+  }, [playlist.length, isPlaying, currentTrackIndex]);
 
   const play = useCallback(() => {
     setIsPlaying(true);

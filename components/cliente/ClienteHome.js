@@ -349,6 +349,15 @@ function hasUsefulAntesalaState(state = {}) {
   );
 }
 
+function mergeNonEmptyFields(base = {}, draft = {}, fields = []) {
+  return fields.reduce((acc, field) => {
+    const draftValue = draft?.[field];
+    const baseValue = base?.[field];
+    acc[field] = hasFilledField(draftValue) ? draftValue : baseValue || '';
+    return acc;
+  }, {});
+}
+
 function applySuggestionToRepertorioState(state, suggestionItem = {}) {
   const nextState = {
     ...state,
@@ -1312,6 +1321,9 @@ const [desiredSongs, setDesiredSongs] = useState(initialState.desiredSongs || ''
 const [generalNotes, setGeneralNotes] = useState(initialState.generalNotes || '');
 
   const isAntesalaApproved = querAntessala === true;
+  const isAntesalaPending =
+    !isAntesalaApproved &&
+    (Boolean(antessala?.requestedByClient) || hasFilledField(antessala?.requestStatus));
 
   const [showLocalDraftBanner, setShowLocalDraftBanner] = useState(false);
   const [savingMode, setSavingMode] = useState('');
@@ -1416,6 +1428,52 @@ const [generalNotes, setGeneralNotes] = useState(initialState.generalNotes || ''
     const parsedCortejo = filterUsefulMusicalItems(parsed?.cortejo);
     const parsedCerimonia = filterUsefulMusicalItems(parsed?.cerimonia);
     const parsedAntesala = { ...getDefaultAntesalaState(), ...(parsed?.antessala || {}) };
+    const currentSaida = currentSnapshot?.saida || {
+      musica: '',
+      referencia: '',
+      observacao: '',
+      referenceMeta: null,
+      reference_title: '',
+      reference_channel: '',
+      reference_thumbnail: '',
+      reference_video_id: '',
+    };
+    const parsedSaida = parsed?.saida || {};
+    const mergedSaida = {
+      ...currentSaida,
+      ...parsedSaida,
+      ...mergeNonEmptyFields(currentSaida, parsedSaida, [
+        'musica',
+        'referencia',
+        'observacao',
+        'reference_title',
+        'reference_channel',
+        'reference_thumbnail',
+        'reference_video_id',
+      ]),
+      referenceMeta:
+        parsedSaida?.referenceMeta ||
+        currentSaida.referenceMeta ||
+        toReferenceMeta(parsedSaida) ||
+        null,
+    };
+    const currentReceptivo = currentSnapshot?.receptivo || {
+      duracao: '1h',
+      generos: '',
+      artistas: '',
+      observacao: '',
+    };
+    const parsedReceptivo = parsed?.receptivo || {};
+    const mergedReceptivo = {
+      ...currentReceptivo,
+      ...parsedReceptivo,
+      ...mergeNonEmptyFields(currentReceptivo, parsedReceptivo, [
+        'duracao',
+        'generos',
+        'artistas',
+        'observacao',
+      ]),
+    };
     const shouldUseDraftCortejo = parsedCortejo.length > 0;
     const shouldUseDraftCerimonia = parsedCerimonia.length > 0;
     const shouldUseDraftAntesala = hasUsefulAntesalaState(parsedAntesala);
@@ -1436,29 +1494,19 @@ const [generalNotes, setGeneralNotes] = useState(initialState.generalNotes || ''
           ? currentSnapshot.cerimonia
           : [],
       saida:
-        parsed?.saida || currentSnapshot?.saida || {
-          musica: '',
-          referencia: '',
-          observacao: '',
-          referenceMeta: null,
-          reference_title: '',
-          reference_channel: '',
-          reference_thumbnail: '',
-          reference_video_id: '',
-        },
+        mergedSaida,
       antessala:
         shouldUseDraftAntesala || !hasBackendRepertorio
           ? parsedAntesala
           : { ...getDefaultAntesalaState(), ...(currentSnapshot?.antessala || {}) },
       receptivo:
-        parsed?.receptivo || currentSnapshot?.receptivo || {
-          duracao: '1h',
-          generos: '',
-          artistas: '',
-          observacao: '',
-        },
-      desiredSongs: parsed?.desiredSongs || '',
-      generalNotes: parsed?.generalNotes || '',
+        mergedReceptivo,
+      desiredSongs: hasFilledField(parsed?.desiredSongs)
+        ? parsed?.desiredSongs
+        : currentSnapshot?.desiredSongs || '',
+      generalNotes: hasFilledField(parsed?.generalNotes)
+        ? parsed?.generalNotes
+        : currentSnapshot?.generalNotes || '',
     };
 
     debugClientHome('[REPERTORIO_AUTOSAVE] estados restaurados no draft local:', restoredState);

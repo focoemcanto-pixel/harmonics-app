@@ -6,6 +6,13 @@ type Props = {
   apiKey: string;
 };
 
+declare global {
+  interface Window {
+    __GOOGLE_MAPS_LOADED__?: boolean;
+    __GOOGLE_MAPS_ERROR__?: boolean;
+  }
+}
+
 export default function GoogleMapsScriptClient({ apiKey }: Props) {
   if (!apiKey) return null;
 
@@ -16,13 +23,13 @@ export default function GoogleMapsScriptClient({ apiKey }: Props) {
       strategy="afterInteractive"
       onLoad={() => {
         if (typeof window !== 'undefined') {
-          (window as any).__GOOGLE_MAPS_LOADED__ = true;
+          window.__GOOGLE_MAPS_LOADED__ = true;
           window.dispatchEvent(new Event('google-maps-loaded'));
         }
       }}
       onError={() => {
         if (typeof window !== 'undefined') {
-          (window as any).__GOOGLE_MAPS_ERROR__ = true;
+          window.__GOOGLE_MAPS_ERROR__ = true;
           window.dispatchEvent(new Event('google-maps-error'));
         }
       }}

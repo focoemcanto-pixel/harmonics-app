@@ -1,12 +1,16 @@
 'use client';
 
-import { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import { createContext, useContext, useState, useCallback, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 
 const ToastContext = createContext(null);
 
 function cx(...classes) {
   return classes.filter(Boolean).join(' ');
+}
+
+function subscribeNoop() {
+  return () => {};
 }
 
 export function useToast() {
@@ -38,11 +42,7 @@ export function useAppToast() {
 
 export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([]);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const mounted = useSyncExternalStore(subscribeNoop, () => true, () => false);
 
   const removeToast = useCallback((id) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));

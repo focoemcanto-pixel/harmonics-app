@@ -57,6 +57,7 @@ export default function MiniPlayerBar({
   onTogglePlay,
   onSelectTrack,
   onPlayerStateChange,
+  onTrackEnd,
 }) {
   const playerRef = useRef(null);
   const playerHostRef = useRef(null);
@@ -70,8 +71,8 @@ export default function MiniPlayerBar({
   }, [videoId]);
   const modalEmbedUrl = useMemo(() => {
     if (!videoId) return '';
-    return `https://www.youtube.com/embed/${videoId}?autoplay=1&modestbranding=1&rel=0`;
-  }, [videoId]);
+    return `https://www.youtube.com/embed/${videoId}?autoplay=${isPlaying ? 1 : 0}&modestbranding=1&rel=0`;
+  }, [videoId, isPlaying]);
 
   useEffect(() => {
     if (!expanded || didReportModalOpenRef.current) return;
@@ -121,7 +122,11 @@ export default function MiniPlayerBar({
                 videoId,
                 playerState: event?.target?.getPlayerState?.(),
               });
-              onPlayerStateChange?.(false);
+              if (isPlaying) {
+                event?.target?.playVideo?.();
+              } else {
+                event?.target?.pauseVideo?.();
+              }
             },
             onStateChange: (event) => {
               const state = event?.data;
@@ -131,12 +136,14 @@ export default function MiniPlayerBar({
                 onPlayerStateChange?.(true);
               }
 
-              if (
-                state === window.YT.PlayerState.PAUSED ||
-                state === window.YT.PlayerState.ENDED
-              ) {
+              if (state === window.YT.PlayerState.PAUSED) {
                 console.log('[MEMBER_PLAYER][ON_PAUSE]', { videoId, state });
                 onPlayerStateChange?.(false);
+              }
+
+              if (state === window.YT.PlayerState.ENDED) {
+                console.log('[MEMBER_PLAYER][ON_END]', { videoId, state });
+                onTrackEnd?.();
               }
             },
           },
@@ -146,8 +153,12 @@ export default function MiniPlayerBar({
 
       if (currentVideoIdRef.current !== videoId) {
         currentVideoIdRef.current = videoId;
-        playerRef.current.loadVideoById(videoId);
-        onPlayerStateChange?.(true);
+        if (isPlaying) {
+          playerRef.current.loadVideoById(videoId);
+        } else {
+          playerRef.current.cueVideoById?.(videoId);
+        }
+        onPlayerStateChange?.(isPlaying);
         return;
       }
 
@@ -163,7 +174,7 @@ export default function MiniPlayerBar({
     return () => {
       cancelled = true;
     };
-  }, [videoId, isPlaying, onPlayerStateChange]);
+  }, [videoId, isPlaying, onPlayerStateChange, onTrackEnd]);
 
   function handlePrimaryButtonClick() {
     console.log('[MEMBER_PLAYER][PRIMARY_BUTTON_CLICK]', {

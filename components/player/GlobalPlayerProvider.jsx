@@ -136,13 +136,24 @@ export function GlobalPlayerProvider({ children }) {
     });
 
     const shouldAutoPlay = options.autoplay === true && normalizedPlaylist.length > 0;
-    setIsPlaying(shouldAutoPlay);
-    console.log('[AUDIO_PLAYER][IS_PLAYING]', shouldAutoPlay);
 
-    if (shouldAutoPlay) {
-      schedulePlayVideo();
+    if (!shouldAutoPlay) {
+      setIsPlaying(false);
+      console.log('[AUDIO_PLAYER][IS_PLAYING]', false);
+      playerRef?.pauseVideo?.();
+
+      const initialTrack = normalizedPlaylist[nextIndex] || null;
+      const initialVideoId = String(initialTrack?.videoId || '').trim() || extractYoutubeId(initialTrack?.url || '');
+      if (initialVideoId) {
+        playerRef?.cueVideoById?.(initialVideoId);
+      }
+      return;
     }
-  }, [schedulePlayVideo]);
+
+    setIsPlaying(true);
+    console.log('[AUDIO_PLAYER][IS_PLAYING]', true);
+    schedulePlayVideo();
+  }, [playerRef, schedulePlayVideo]);
 
   const closeSession = useCallback(() => {
     setPlaylist([]);

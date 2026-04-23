@@ -12,6 +12,7 @@ const MORE_ITEMS = [
   { label: 'Escalas', href: '/escalas', icon: '🎼', helper: 'Operação musical' },
   { label: 'Convites', href: '/convites', icon: '✉️', helper: 'Chamadas e respostas' },
   { label: 'Contratos', href: '/contratos', icon: '📝', helper: 'Fluxo contratual' },
+  { label: 'Templates contratos', href: '/contratos/templates', icon: '📄', helper: 'Modelos base' },
   { label: 'Pré-contratos', href: '/pre-contratos', icon: '🔗', helper: 'Comercial inicial' },
   { label: 'Repertórios', href: '/repertorios', icon: '🎧', helper: 'Organização musical' },
   { label: 'Sugestões', href: '/sugestoes', icon: '✨', helper: 'Ideias e votações' },

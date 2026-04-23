@@ -15,6 +15,7 @@ export function GlobalPlayerProvider({ children }) {
   const [desiredPlaybackState, setDesiredPlaybackState] = useState('paused');
   const [pendingManualPlay, setPendingManualPlay] = useState(false);
   const [hasUserUnlockedPlayback, setHasUserUnlockedPlayback] = useState(false);
+  const [isTrackTransitioning, setIsTrackTransitioning] = useState(false);
 
   const currentTrack = playlist[currentTrackIndex] || null;
   const videoId = String(currentTrack?.videoId || '').trim() || extractYoutubeId(currentTrack?.url || '');
@@ -52,11 +53,14 @@ export function GlobalPlayerProvider({ children }) {
 
     if (shouldContinuePlaying) {
       setDesiredPlaybackState('playing');
+      setIsTrackTransitioning(true);
       if (!hasUserUnlockedPlayback) {
         setPendingManualPlay(true);
       }
       setIsPlaying(true);
       schedulePlayVideo();
+    } else {
+      setIsTrackTransitioning(false);
     }
   }, [
     playlist,
@@ -91,11 +95,14 @@ export function GlobalPlayerProvider({ children }) {
 
     if (shouldContinuePlaying) {
       setDesiredPlaybackState('playing');
+      setIsTrackTransitioning(true);
       if (!hasUserUnlockedPlayback) {
         setPendingManualPlay(true);
       }
       setIsPlaying(true);
       schedulePlayVideo();
+    } else {
+      setIsTrackTransitioning(false);
     }
   }, [
     playlist.length,
@@ -130,11 +137,14 @@ export function GlobalPlayerProvider({ children }) {
 
     if (shouldContinuePlaying) {
       setDesiredPlaybackState('playing');
+      setIsTrackTransitioning(true);
       if (!hasUserUnlockedPlayback) {
         setPendingManualPlay(true);
       }
       setIsPlaying(true);
       schedulePlayVideo();
+    } else {
+      setIsTrackTransitioning(false);
     }
   }, [
     playlist.length,
@@ -155,6 +165,7 @@ export function GlobalPlayerProvider({ children }) {
   const pause = useCallback(() => {
     setDesiredPlaybackState('paused');
     setPendingManualPlay(false);
+    setIsTrackTransitioning(false);
     setIsPlaying(false);
     playerRef?.pauseVideo?.();
     console.log('[AUDIO_PLAYER][PAUSE_REQUESTED]', { hasPlayer: Boolean(playerRef) });
@@ -186,6 +197,7 @@ export function GlobalPlayerProvider({ children }) {
       setIsPlaying(false);
       setDesiredPlaybackState('paused');
       setPendingManualPlay(false);
+      setIsTrackTransitioning(false);
       setHasUserUnlockedPlayback(false);
       console.log('[AUDIO_PLAYER][IS_PLAYING]', false);
       playerRef?.pauseVideo?.();
@@ -200,6 +212,7 @@ export function GlobalPlayerProvider({ children }) {
 
     setIsPlaying(true);
     setDesiredPlaybackState('playing');
+    setIsTrackTransitioning(true);
     setPendingManualPlay(!hasUserUnlockedPlayback);
     console.log('[AUDIO_PLAYER][IS_PLAYING]', true);
     schedulePlayVideo();
@@ -212,6 +225,7 @@ export function GlobalPlayerProvider({ children }) {
     setIsPlaying(false);
     setDesiredPlaybackState('paused');
     setPendingManualPlay(false);
+    setIsTrackTransitioning(false);
     setHasUserUnlockedPlayback(false);
   }, []);
 
@@ -227,6 +241,7 @@ export function GlobalPlayerProvider({ children }) {
     desiredPlaybackState,
     pendingManualPlay,
     hasUserUnlockedPlayback,
+    isTrackTransitioning,
   }), [
     isPlaying,
     currentTrackIndex,
@@ -239,6 +254,7 @@ export function GlobalPlayerProvider({ children }) {
     desiredPlaybackState,
     pendingManualPlay,
     hasUserUnlockedPlayback,
+    isTrackTransitioning,
   ]);
 
   const actions = useMemo(() => ({
@@ -255,6 +271,7 @@ export function GlobalPlayerProvider({ children }) {
     setDesiredPlaybackState,
     setPendingManualPlay,
     setHasUserUnlockedPlayback,
+    setIsTrackTransitioning,
     replacePlaylist,
     closeSession,
   }), [
@@ -271,6 +288,7 @@ export function GlobalPlayerProvider({ children }) {
     setDesiredPlaybackState,
     setPendingManualPlay,
     setHasUserUnlockedPlayback,
+    setIsTrackTransitioning,
   ]);
 
   const value = useMemo(() => ({ state, actions }), [state, actions]);

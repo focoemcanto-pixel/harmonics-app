@@ -11,6 +11,7 @@ import { useGoogleMapsReady } from '../../../hooks/useGoogleMapsReady';
 import { normalizeTimeStrict, isValidTime, sanitizeTimeFields } from '../../../lib/time/normalize-time';
 import { buildContractTemplateData } from '../../../lib/contracts/buildContractTemplateData';
 import { generateInternalContract } from '../../../lib/contracts/internalContractGenerator';
+import { renderContractHtmlWithTemplateData, resolveContractHtmlSource } from '../../../lib/contracts/resolveContractHtmlSource';
 import { useAppToast } from '../../../components/ui/ToastProvider';
 const IS_DEV = process.env.NODE_ENV !== 'production';
 
@@ -542,10 +543,10 @@ export default function ContratoPublicoPage() {
   const [previewAberto, setPreviewAberto] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState('');
+  const [previewHtml, setPreviewHtml] = useState('');
 
   const [precontract, setPrecontract] = useState(null);
   const [contract, setContract] = useState(null);
-  const [internalContractHtml, setInternalContractHtml] = useState('');
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
   const [enviado, setEnviado] = useState(false);
@@ -587,8 +588,36 @@ const mapsLoaded = useGoogleMapsReady();
     }
 
     setPreviewError('');
+    if (isInternalMode) {
+      if (!previewHtml) {
+        toast.error('Não foi possível gerar a visualização do contrato.');
+        return;
+      }
+      setPreviewLoading(false);
+      setPreviewAberto(true);
+      return;
+    }
+
     setPreviewLoading(true);
     setPreviewAberto(true);
+    fetch(`/api/contracts/preview-html/${token}`, {
+      method: 'GET',
+      cache: 'no-store',
+    })
+      .then(async (response) => {
+        const html = await response.text();
+        if (!response.ok) {
+          throw new Error(html || 'Não foi possível carregar o contrato.');
+        }
+        setPreviewHtml(String(html || '').trim());
+      })
+      .catch((error) => {
+        setPreviewHtml('');
+        setPreviewError(error?.message || 'Erro ao carregar contrato.');
+      })
+      .finally(() => {
+        setPreviewLoading(false);
+      });
   }
 
   useEffect(() => {
@@ -650,10 +679,21 @@ const mapsLoaded = useGoogleMapsReady();
         };
 
         const templateData = buildContractTemplateData(context);
-        const internal = generateInternalContract(context, templateData);
-        setInternalContractHtml(String(internal?.html || '').trim());
+        const precontractHtml = resolveContractHtmlSource(safePreData || {}).html;
+        const resolvedHtml = renderContractHtmlWithTemplateData(precontractHtml, templateData);
+        const internal = generateInternalContract(
+          {
+            ...context,
+            precontract: {
+              ...(safePreData || {}),
+              custom_contract_content: resolvedHtml || precontractHtml,
+            },
+          },
+          templateData
+        );
+        setPreviewHtml(String(internal?.html || '').trim());
       } else {
-        setInternalContractHtml('');
+        setPreviewHtml('');
       }
 
       if (!safePreData?.id) {
@@ -2043,21 +2083,14 @@ if (contractSignedError) throw contractSignedError;
               <Card title="Leitura do contrato">
                 <div className="space-y-3">
                   <p className="text-sm text-slate-600">
-                    Leia o contrato completo antes da assinatura. A prévia será aberta aqui na própria página.
+                    Leia o contrato completo antes da assinatura.
                   </p>
-
-                  {isInternalMode ? (
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                      <article
-                        className="prose prose-slate max-w-none"
-                        dangerouslySetInnerHTML={{ __html: internalContractHtml }}
-                      />
-                    </div>
-                  ) : (
-                    <Button variant="secondary" onClick={abrirPreviewContrato}>
-                      Ler contrato
-                    </Button>
-                  )}
+                  <p className="text-xs font-medium text-slate-500">
+                    Status: {previewAberto ? 'em leitura' : 'ainda não visualizado'}
+                  </p>
+                  <Button variant="secondary" onClick={abrirPreviewContrato}>
+                    Visualizar contrato
+                  </Button>
 
                   {previewError ? (
                     <p className="text-sm text-red-600">{previewError}</p>
@@ -2153,12 +2186,20 @@ if (contractSignedError) throw contractSignedError;
                   </div>
                 )}
 
-                <iframe
-                  src={`/api/contracts/preview-html/${token}`}
-                  title="Prévia do contrato"
-                  className="h-full w-full"
-                  onLoad={() => setPreviewLoading(false)}
-                />
+                <div className="h-full overflow-y-auto p-4 md:p-6">
+                  <div className="mx-auto w-full max-w-[880px] rounded-[26px] border border-slate-200 bg-white p-6 shadow-[0_20px_40px_rgba(15,23,42,0.08)] md:p-10">
+                    {previewHtml ? (
+                      <article
+                        className="prose prose-slate max-w-none text-[15px] leading-7 [&_h1]:mb-4 [&_h1]:text-2xl [&_h1]:font-black [&_h2]:mt-7 [&_h2]:text-xl [&_h2]:font-extrabold [&_h3]:mt-6 [&_h3]:text-lg [&_h3]:font-bold [&_p]:my-3 [&_strong]:font-bold"
+                        dangerouslySetInnerHTML={{ __html: previewHtml }}
+                      />
+                    ) : (
+                      <p className="text-sm text-slate-500">
+                        {previewLoading ? 'Carregando contrato...' : 'Nenhum conteúdo disponível para visualização.'}
+                      </p>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           </div>

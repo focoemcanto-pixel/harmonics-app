@@ -1200,16 +1200,14 @@ export default function MembroPage() {
       return;
     }
 
-    replacePlaylist(playlist, { autoplay: options.autoplay !== false, startIndex: 0 });
-    setPlayerEventTitle(item?.clientName || 'Repertório');
-    setIsMiniPlayerVisible(Boolean(options.autoplay !== false));
-    console.log('[AUDIO_PLAYER][CURRENT_TRACK]', playlist[0]?.title || '');
-    console.log('[AUDIO_PLAYER][IS_PLAYING]', options.autoplay !== false);
+    const shouldAutoplay = options.autoplay === true;
 
-    if (options.autoplay !== false) {
-      setIsPlayerModalOpen(true);
-      setIsMiniPlayerVisible(false);
-    }
+    replacePlaylist(playlist, { autoplay: shouldAutoplay, startIndex: 0 });
+    setPlayerEventTitle(item?.clientName || 'Repertório');
+    setIsPlayerModalOpen(options.openModal !== false);
+    setIsMiniPlayerVisible(false);
+    console.log('[AUDIO_PLAYER][CURRENT_TRACK]', playlist[0]?.title || '');
+    console.log('[AUDIO_PLAYER][IS_PLAYING]', shouldAutoplay);
   }
 
   function handleMinimizePlayer() {
@@ -1341,7 +1339,7 @@ export default function MembroPage() {
   function handlePrevTrack() {
     console.log('[PLAYER_MOBILE][PREV_CLICK]', { isPlaying, currentTrackIndex: playerIndex });
     console.log('[PLAYER][PREV_CLICK]', { isPlaying, currentTrackIndex: playerIndex });
-    prev({ reason: 'manual_prev', forcePlay: true });
+    prev({ reason: 'manual_prev' });
     console.log('[MEMBRO_PLAYER][TRACK_CHANGE]', {
       action: 'prev',
       wasPlaying: isPlaying,
@@ -1371,7 +1369,7 @@ export default function MembroPage() {
   function handleNextTrack(reason = 'manual') {
     console.log('[PLAYER_MOBILE][NEXT_CLICK]', { isPlaying, currentTrackIndex: playerIndex, reason });
     console.log('[PLAYER][NEXT_CLICK]', { isPlaying, currentTrackIndex: playerIndex });
-    next({ reason, forcePlay: true });
+    next({ reason });
     console.log('[MEMBRO_PLAYER][TRACK_CHANGE]', {
       action: 'next',
       reason,
@@ -1628,7 +1626,7 @@ export default function MembroPage() {
         }}
         onOpenPlayer={(item) => {
           setRepertorioResumoOpen(false);
-          openRepertoire(item, { autoplay: true, source: 'repertoire_summary_modal' });
+          openRepertoire(item, { autoplay: false, source: 'repertoire_summary_modal' });
         }}
         onGoToRepertorios={() => {
           setRepertorioResumoOpen(false);

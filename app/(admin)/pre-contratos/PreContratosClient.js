@@ -525,7 +525,6 @@ export default function PreContratosClient() {
   const [eventos, setEventos] = useState([]);
   const [eventTypes, setEventTypes] = useState([]);
   const [appliedTemplateName, setAppliedTemplateName] = useState('');
-  const [contractContentTouched, setContractContentTouched] = useState(false);
 
   const [editandoId, setEditandoId] = useState(null);
   const [carregando, setCarregando] = useState(true);
@@ -611,7 +610,7 @@ export default function PreContratosClient() {
   async function carregarTiposEvento() {
     const { data, error } = await supabase
       .from('event_types')
-      .select('*')
+      .select('id, name, default_contract_template_id')
       .eq('is_active', true)
       .order('sort_order', { ascending: true });
 
@@ -666,7 +665,7 @@ export default function PreContratosClient() {
     setAppliedTemplateName('');
 
     const currentContent = String(nextFormState?.custom_contract_content || '').trim();
-    if (currentContent || contractContentTouched) return;
+    if (currentContent) return;
 
     const selectedEventType = eventTypes.find((item) => String(item?.id) === String(eventTypeId));
     const defaultTemplateId = selectedEventType?.default_contract_template_id;
@@ -674,7 +673,7 @@ export default function PreContratosClient() {
 
     const { data: template, error } = await supabase
       .from('contract_templates')
-      .select('*')
+      .select('id, name, title, template_name, content')
       .eq('id', defaultTemplateId)
       .single();
 
@@ -695,14 +694,13 @@ export default function PreContratosClient() {
   function handleFormChange(field, value) {
     const normalizedValue = field === 'event_time' ? normalizeTimeStrict(value) : value;
 
-    if (field === 'custom_contract_content') {
-      setContractContentTouched(true);
-    }
-
     if (field === 'event_type_id') {
       const selectedEventType = eventTypes.find((item) => String(item?.id) === String(normalizedValue));
       const selectedLabel =
-        selectedEventType?.name || selectedEventType?.label || selectedEventType?.title || '';
+        selectedEventType?.name ||
+        selectedEventType?.label ||
+        selectedEventType?.title ||
+        (eventTypes.length === 0 ? String(normalizedValue || '') : '');
 
       const nextFormState = {
         ...form,
@@ -729,7 +727,6 @@ export default function PreContratosClient() {
     setEditandoId(null);
     setAdjustmentHighlight({ active: false, message: '' });
     setAppliedTemplateName('');
-    setContractContentTouched(false);
     setForm(getInitialForm());
   }
 
@@ -776,7 +773,6 @@ export default function PreContratosClient() {
       contract_mode: item.contract_mode || '',
     });
     setAppliedTemplateName('');
-    setContractContentTouched(Boolean(String(item.custom_contract_content || '').trim()));
 
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -822,6 +818,37 @@ export default function PreContratosClient() {
       event_type_id: matched.id,
     }));
   }, [eventTypes, form.event_type, form.event_type_id]);
+
+  const eventTypeOptions = useMemo(() => {
+    const source = Array.isArray(eventTypes) ? eventTypes : [];
+    const normalized = source
+      .filter((item) => item?.id !== null && item?.id !== undefined)
+      .map((item) => ({
+        id: String(item.id),
+        name: String(item.name || '').trim(),
+      }))
+      .filter((item) => Boolean(item.name));
+
+    if (normalized.length > 0) return normalized;
+
+    const fallbackNames = Array.from(
+      new Set(
+        (items || [])
+          .map((item) => String(item?.event_type || '').trim())
+          .filter(Boolean)
+      )
+    );
+
+    if (form.event_type) {
+      fallbackNames.unshift(String(form.event_type).trim());
+    }
+
+    return Array.from(new Set(fallbackNames.filter(Boolean))).map((name) => ({
+      id: name,
+      name,
+      fallbackLegacy: true,
+    }));
+  }, [eventTypes, items, form.event_type]);
 
   const financeiro = useMemo(() => {
     const base = toNumber(form.base_amount);
@@ -1282,22 +1309,32 @@ export default function PreContratosClient() {
                     value={form.event_type_id}
                     onChange={(e) => handleFormChange('event_type_id', e.target.value)}
                   >
-                    <option value="">Selecione</option>
-                    {eventTypes.map((type) => (
+                    <option value="">{eventTypeOptions.length ? 'Selecione' : 'Sem tipos ativos (fallback legado)'}</option>
+                    {eventTypeOptions.map((type) => (
                       <option key={type.id} value={type.id}>
-                        {type.name || type.label || type.title || `Tipo #${type.id}`}
+                        {type.name}
                       </option>
                     ))}
                   </Select>
+                  {!eventTypeOptions.length ? (
+                    <p className="md:col-span-2 -mt-2 text-xs text-amber-700">
+                      Não foi possível carregar <code>event_types</code>. Use o campo legado abaixo para não interromper o fluxo.
+                    </p>
+                  ) : null}
+                  <Input
+                    label="Tipo de evento (legado/fallback)"
+                    value={form.event_type}
+                    onChange={(e) => handleFormChange('event_type', e.target.value)}
+                    className="md:col-span-2"
+                  />
+                  <div className="md:col-span-2 -mt-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                    <strong>DEBUG:</strong> event_type_id={String(form.event_type_id || '-')} • contract_template_id={String(form.contract_template_id || '-')}
+                  </div>
                   {appliedTemplateName ? (
-                    <div className="md:col-span-2 -mt-2 flex flex-wrap items-center gap-2 text-xs text-emerald-700">
-                      <span>Template aplicado automaticamente: {appliedTemplateName}</span>
-                      <button
-                        type="button"
-                        className="rounded-full border border-slate-300 px-3 py-1 text-slate-600 transition hover:border-slate-400 hover:text-slate-900"
-                      >
-                        Trocar template
-                      </button>
+                    <div className="md:col-span-2 -mt-2 flex flex-wrap items-center gap-2">
+                      <Badge tone="violet">
+                        Template aplicado automaticamente: {appliedTemplateName}
+                      </Badge>
                     </div>
                   ) : null}
 

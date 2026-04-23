@@ -963,7 +963,28 @@ export default function MembroPage() {
       playlistSize: playerPlaylist.length,
     });
     console.log('[AUDIO_PLAYER][CURRENT_TIME]', currentTime);
+    console.log('[PLAYER_MOBILE][CURRENT_TRACK]', {
+      currentTrack: currentTrack?.title || '',
+      currentTrackIndex: playerIndex,
+      playlistSize: playerPlaylist.length,
+    });
+    console.log('[PLAYER_MOBILE][CURRENT_TIME]', currentTime);
   }, [isPlaying, playerIndex, currentTrack?.title, playerPlaylist.length, currentTime]);
+
+  useEffect(() => {
+    if (!isPlayerModalOpen) return;
+    console.log('[PLAYER_MOBILE][OPEN_MODAL]', {
+      modalOpen: isPlayerModalOpen,
+      isPlaying,
+      currentTrackIndex: playerIndex,
+      currentTrack: currentTrack?.title || '',
+      currentTime,
+    });
+    console.log('[PLAYER_MOBILE][IS_PLAYING_ON_OPEN]', { isPlaying });
+    if (isPlaying) {
+      play();
+    }
+  }, [isPlayerModalOpen, isPlaying, playerIndex, currentTrack?.title, currentTime, play]);
 
   useEffect(() => {
     console.log('[MEMBRO_PLAYER][MINI_PLAYER_STATE]', {
@@ -1192,6 +1213,12 @@ export default function MembroPage() {
   }
 
   function handleMinimizePlayer() {
+    console.log('[PLAYER_MOBILE][CLOSE_MODAL_TO_MINI]', {
+      isPlaying,
+      currentTrackIndex: playerIndex,
+      currentTrack: currentTrack?.title || '',
+      currentTime,
+    });
     console.log('[PLAYER][CLOSE_TO_MINI]', {
       from: 'modal',
       to: 'minibar',
@@ -1211,6 +1238,12 @@ export default function MembroPage() {
   }
 
   function handleClosePlayerSession() {
+    console.log('[PLAYER_MOBILE][CLOSE_MINIBAR_STOP]', {
+      isPlaying,
+      currentTrackIndex: playerIndex,
+      currentTrack: currentTrack?.title || '',
+      currentTime,
+    });
     console.log('[MEMBRO_PLAYER][CLOSE_CLICK]', {
       isPlaying,
       currentTrack: currentTrack?.title || '',
@@ -1306,8 +1339,9 @@ export default function MembroPage() {
   }
 
   function handlePrevTrack() {
+    console.log('[PLAYER_MOBILE][PREV_CLICK]', { isPlaying, currentTrackIndex: playerIndex });
     console.log('[PLAYER][PREV_CLICK]', { isPlaying, currentTrackIndex: playerIndex });
-    prev({ reason: 'manual_prev' });
+    prev({ reason: 'manual_prev', forcePlay: true });
     console.log('[MEMBRO_PLAYER][TRACK_CHANGE]', {
       action: 'prev',
       wasPlaying: isPlaying,
@@ -1335,8 +1369,9 @@ export default function MembroPage() {
   }
 
   function handleNextTrack(reason = 'manual') {
+    console.log('[PLAYER_MOBILE][NEXT_CLICK]', { isPlaying, currentTrackIndex: playerIndex, reason });
     console.log('[PLAYER][NEXT_CLICK]', { isPlaying, currentTrackIndex: playerIndex });
-    next({ reason });
+    next({ reason, forcePlay: true });
     console.log('[MEMBRO_PLAYER][TRACK_CHANGE]', {
       action: 'next',
       reason,
@@ -1628,6 +1663,14 @@ export default function MembroPage() {
         eventTitle={playerEventTitle}
         isPlaying={isPlaying}
         onExpand={() => {
+          console.log('[PLAYER_MOBILE][OPEN_MODAL]', {
+            source: 'minibar_expand',
+            isPlaying,
+            currentTrackIndex: playerIndex,
+            currentTrack: currentTrack?.title || '',
+            currentTime,
+          });
+          console.log('[PLAYER_MOBILE][IS_PLAYING_ON_OPEN]', { isPlaying });
           console.log('[PLAYER][MINI_CONTINUITY]', {
             from: 'minibar',
             to: 'modal',

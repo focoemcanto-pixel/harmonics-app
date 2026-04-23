@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useGlobalPlayer } from '@/components/player/GlobalPlayerProvider';
 
 function ensureYouTubeAPI() {
@@ -53,17 +53,38 @@ export default function GlobalPlayerHost() {
   const pendingTrackChangeRef = useRef(false);
   const shouldResumeAfterTrackChangeRef = useRef(false);
   const previousTrackSnapshotRef = useRef({ index: 0, videoId: '' });
+  const playRetryTimeoutsRef = useRef([]);
+
+  const clearPlayRetries = useCallback(() => {
+    playRetryTimeoutsRef.current.forEach((timeoutId) => {
+      clearTimeout(timeoutId);
+    });
+    playRetryTimeoutsRef.current = [];
+  }, []);
+
+  const schedulePlayRetries = useCallback((targetPlayer, reason) => {
+    if (!targetPlayer) return;
+    clearPlayRetries();
+    [0, 120, 320].forEach((delay) => {
+      const timeoutId = setTimeout(() => {
+        console.log('[PLAYER_MOBILE][PLAY_RETRY]', { reason, delay });
+        targetPlayer?.playVideo?.();
+      }, delay);
+      playRetryTimeoutsRef.current.push(timeoutId);
+    });
+  }, [clearPlayRetries]);
 
   useEffect(() => {
     console.log('[PLAYER_MOUNT]', 'GlobalPlayerHost mounted');
     return () => {
       console.log('[PLAYER_UNMOUNT]', 'GlobalPlayerHost unmounted');
+      clearPlayRetries();
       playerRef?.destroy?.();
       if (typeof window !== 'undefined') {
         window.__harmonicsGlobalPlayerInstance = null;
       }
     };
-  }, [playerRef]);
+  }, [playerRef, clearPlayRetries]);
 
   useEffect(() => {
     let timer = null;
@@ -115,6 +136,7 @@ export default function GlobalPlayerHost() {
               window.__harmonicsGlobalPlayerInstance = event?.target || null;
               if (isPlaying) {
                 event?.target?.playVideo?.();
+                schedulePlayRetries(event?.target, 'on_ready_is_playing');
               }
             },
             onStateChange: (event) => {
@@ -155,7 +177,16 @@ export default function GlobalPlayerHost() {
                   index: currentTrackIndex,
                   title: currentTrack?.title || '',
                 });
+                console.log('[PLAYER_MOBILE][TRACK_ENDED]', {
+                  index: currentTrackIndex,
+                  title: currentTrack?.title || '',
+                });
                 console.log('[PLAYER][AUTO_ADVANCE]', {
+                  fromIndex: currentTrackIndex,
+                  fromTitle: currentTrack?.title || '',
+                  toIndex: currentTrackIndex + 1,
+                });
+                console.log('[PLAYER_MOBILE][AUTO_ADVANCE]', {
                   fromIndex: currentTrackIndex,
                   fromTitle: currentTrack?.title || '',
                   toIndex: currentTrackIndex + 1,
@@ -187,6 +218,7 @@ export default function GlobalPlayerHost() {
 
         if (isPlaying) {
           playerRef.loadVideoById?.(videoId);
+          schedulePlayRetries(playerRef, 'video_change_while_playing');
         } else {
           playerRef.cueVideoById?.(videoId);
         }
@@ -207,7 +239,9 @@ export default function GlobalPlayerHost() {
 
       if (isPlaying) {
         playerRef.playVideo?.();
+        schedulePlayRetries(playerRef, 'is_playing_effect');
       } else {
+        clearPlayRetries();
         playerRef.pauseVideo?.();
       }
     }
@@ -217,7 +251,7 @@ export default function GlobalPlayerHost() {
     return () => {
       cancelled = true;
     };
-  }, [videoId, isPlaying, playerRef, setIsPlaying, setPlayerRef, next, currentTrack?.title, currentTrackIndex]);
+  }, [videoId, isPlaying, playerRef, setIsPlaying, setPlayerRef, next, currentTrack?.title, currentTrackIndex, schedulePlayRetries, clearPlayRetries]);
 
   useEffect(() => {
     console.log('[AUDIO_PLAYER][GLOBAL_INSTANCE]', {

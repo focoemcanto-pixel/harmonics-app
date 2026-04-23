@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import AdminShell from '@/components/admin/AdminShell';
 import AdminPageHero from '@/components/admin/AdminPageHero';
@@ -22,10 +22,50 @@ function getInitialForm() {
     description: '',
     content: '',
     source_text: '',
+    source_rich_html: '',
     is_active: true,
     is_default: false,
   };
 }
+
+function htmlToReadableText(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+
+  if (typeof window !== 'undefined') {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(raw, 'text/html');
+    return String(doc.body?.textContent || '').replace(/\n{3,}/g, '\n\n').trim();
+  }
+
+  return raw
+    .replace(/<br\s*\/?\s*>/gi, '\n')
+    .replace(/<\/p>/gi, '\n\n')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function textToEditorHtml(value) {
+  const text = String(value || '').replace(/\r\n/g, '\n').trim();
+  if (!text) return '';
+  if (looksLikeHtml(text)) return text;
+
+  return text
+    .split(/\n{2,}/)
+    .map((paragraph) => `<p>${paragraph.replace(/\n/g, '<br />')}</p>`)
+    .join('');
+}
+
+const EDITOR_ACTIONS = [
+  { label: 'Título', command: 'formatBlock', value: 'h2' },
+  { label: 'Subtítulo', command: 'formatBlock', value: 'h3' },
+  { label: 'Parágrafo', command: 'formatBlock', value: 'p' },
+  { label: 'Negrito', command: 'bold' },
+  { label: 'Itálico', command: 'italic' },
+  { label: 'Lista', command: 'insertUnorderedList' },
+  { label: 'Numeração', command: 'insertOrderedList' },
+];
 
 function formatDateTime(value) {
   if (!value) return '—';
@@ -58,12 +98,14 @@ export default function ContractTemplatesPage() {
   const [editandoId, setEditandoId] = useState(null);
   const [form, setForm] = useState(getInitialForm());
   const [rawContractText, setRawContractText] = useState('');
+  const [supportsRichSourceColumn, setSupportsRichSourceColumn] = useState(false);
   const [editorTab, setEditorTab] = useState('texto');
   const [busca, setBusca] = useState('');
   const [mobileTab, setMobileTab] = useState('lista');
   const [preparingDynamicFields, setPreparingDynamicFields] = useState(false);
   const [prepareSnapshotText, setPrepareSnapshotText] = useState('');
   const [excluindoId, setExcluindoId] = useState(null);
+  const editorRef = useRef(null);
 
   const parsedTemplate = useMemo(() => parseContractTemplateInput(rawContractText), [rawContractText]);
   const processedContentForDisplay = rawContractText.trim()
@@ -82,11 +124,32 @@ export default function ContractTemplatesPage() {
       if (showLoading) setCarregando(true);
       setErro('');
 
-      const { data, error } = await supabase
+      let data = null;
+      let error = null;
+
+      const richResult = await supabase
         .from('contract_templates')
-        .select('id, name, slug, description, content, source_text, is_active, is_default, created_at, updated_at')
+        .select('id, name, slug, description, content, source_text, source_rich_html, is_active, is_default, created_at, updated_at')
         .order('updated_at', { ascending: false, nullsFirst: false })
         .order('created_at', { ascending: false });
+
+      if (!richResult.error) {
+        data = richResult.data;
+        setSupportsRichSourceColumn(true);
+      } else if (String(richResult.error?.message || '').toLowerCase().includes('source_rich_html')) {
+        const fallbackResult = await supabase
+          .from('contract_templates')
+          .select('id, name, slug, description, content, source_text, is_active, is_default, created_at, updated_at')
+          .order('updated_at', { ascending: false, nullsFirst: false })
+          .order('created_at', { ascending: false });
+
+        data = fallbackResult.data;
+        error = fallbackResult.error;
+        setSupportsRichSourceColumn(false);
+      } else {
+        data = richResult.data;
+        error = richResult.error;
+      }
 
       if (error) throw error;
 
@@ -135,6 +198,7 @@ export default function ContractTemplatesPage() {
   function iniciarEdicao(template) {
     const existingContent = template.content || '';
     const existingSourceText = template.source_text || '';
+    const existingSourceRichHtml = template.source_rich_html || '';
     setEditandoId(template.id);
     setForm({
       name: template.name || '',
@@ -142,17 +206,21 @@ export default function ContractTemplatesPage() {
       description: template.description || '',
       content: existingContent,
       source_text: existingSourceText,
+      source_rich_html: existingSourceRichHtml,
       is_active: template.is_active !== false,
       is_default: template.is_default === true,
     });
-    if (existingSourceText.trim()) {
-      setRawContractText(existingSourceText);
+    if (existingSourceRichHtml.trim()) {
+      setRawContractText(existingSourceRichHtml);
+      setEditorTab('texto');
+    } else if (existingSourceText.trim()) {
+      setRawContractText(textToEditorHtml(existingSourceText));
       setEditorTab('texto');
     } else if (looksLikeHtml(existingContent)) {
-      setRawContractText('');
-      setEditorTab('avancado');
-    } else {
       setRawContractText(existingContent);
+      setEditorTab('texto');
+    } else {
+      setRawContractText(textToEditorHtml(existingContent));
       setEditorTab('texto');
     }
     setMobileTab('form');
@@ -177,8 +245,9 @@ export default function ContractTemplatesPage() {
     const processedContent = rawContractText.trim()
       ? parsedTemplate.normalizedContent
       : String(form.content || '');
+    const sourceRichHtmlToPersist = rawContractText.trim() ? rawContractText : String(form.source_rich_html || '');
     const sourceTextToPersist = shouldPersistSourceText
-      ? rawContractText
+      ? htmlToReadableText(sourceRichHtmlToPersist)
       : String(form.source_text || '');
 
     const payload = {
@@ -190,6 +259,10 @@ export default function ContractTemplatesPage() {
       is_active: form.is_active !== false,
       is_default: form.is_default === true,
     };
+
+    if (supportsRichSourceColumn) {
+      payload.source_rich_html = sourceRichHtmlToPersist;
+    }
 
     try {
       setSalvando(true);
@@ -310,6 +383,44 @@ export default function ContractTemplatesPage() {
       return composed.includes(term);
     });
   }, [templates, busca]);
+
+  function runEditorCommand(command, value) {
+    const editor = editorRef.current;
+    if (!editor) return;
+    editor.focus();
+    document.execCommand(command, false, value);
+    setRawContractText(editor.innerHTML || '');
+  }
+
+  function handleEditorInput() {
+    if (!editorRef.current) return;
+    setRawContractText(editorRef.current.innerHTML || '');
+  }
+
+  function handleEditorPaste(event) {
+    event.preventDefault();
+
+    const clipboard = event.clipboardData;
+    const html = clipboard?.getData('text/html');
+    const text = clipboard?.getData('text/plain');
+
+    if (html) {
+      document.execCommand('insertHTML', false, html);
+    } else if (text) {
+      const escaped = text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/\n/g, '<br />');
+      document.execCommand('insertHTML', false, escaped);
+    }
+
+    queueMicrotask(() => {
+      if (editorRef.current) {
+        setRawContractText(editorRef.current.innerHTML || '');
+      }
+    });
+  }
 
   const totais = useMemo(() => {
     const total = templates.length;
@@ -506,15 +617,31 @@ export default function ContractTemplatesPage() {
                 {editorTab === 'texto' ? (
                   <label className="block">
                     <span className="mb-1 block text-xs font-bold uppercase tracking-[0.06em] text-[#64748b]">Texto do contrato</span>
-                    <p className="mb-2 text-xs font-medium text-[#64748b]">Cole aqui o contrato base. O sistema vai reconhecer e preparar os campos dinâmicos.</p>
+                    <p className="mb-2 text-xs font-medium text-[#64748b]">Cole aqui o contrato base mantendo negrito, títulos e estrutura visual.</p>
                     <p className="mb-2 text-xs font-medium text-[#64748b]">
-                      Texto do contrato = sua versão editável.
+                      Texto do contrato = sua versão rica/editável.
                     </p>
-                    <textarea
-                      value={rawContractText}
-                      onChange={(event) => setRawContractText(event.target.value)}
-                      className="min-h-[220px] w-full rounded-2xl border border-[#dbe3ef] bg-white px-4 py-3 text-sm text-[#0f172a] outline-none transition focus:border-violet-400"
-                      placeholder="Cole aqui o contrato em texto normal, com ou sem placeholders."
+                    <div className="mb-2 flex flex-wrap gap-2">
+                      {EDITOR_ACTIONS.map((action) => (
+                        <button
+                          key={action.label}
+                          type="button"
+                          onClick={() => runEditorCommand(action.command, action.value)}
+                          className="rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-violet-400 hover:text-violet-700"
+                        >
+                          {action.label}
+                        </button>
+                      ))}
+                    </div>
+                    <div
+                      ref={editorRef}
+                      contentEditable
+                      suppressContentEditableWarning
+                      onInput={handleEditorInput}
+                      onBlur={handleEditorInput}
+                      onPaste={handleEditorPaste}
+                      className="prose prose-slate min-h-[260px] max-w-none overflow-y-auto rounded-2xl border border-[#dbe3ef] bg-white px-4 py-3 text-sm text-[#0f172a] outline-none transition focus:border-violet-400"
+                      dangerouslySetInnerHTML={{ __html: rawContractText }}
                     />
                     {!!String(rawContractText || form.source_text || '').trim() && (
                       <button

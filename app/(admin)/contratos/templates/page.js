@@ -1,11 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import AdminShell from '@/components/admin/AdminShell';
 import AdminPageHero from '@/components/admin/AdminPageHero';
 import AdminSegmentTabs from '@/components/admin/AdminSegmentTabs';
 import { useAppToast } from '@/components/ui/ToastProvider';
+import { looksLikeHtml, parseContractTemplateInput } from '@/lib/contracts/templateImport';
 
 const MOBILE_TABS = [
   { key: 'lista', label: 'Lista' },
@@ -52,12 +53,26 @@ export default function ContractTemplatesPage() {
 
   const [editandoId, setEditandoId] = useState(null);
   const [form, setForm] = useState(getInitialForm());
+  const [rawContractText, setRawContractText] = useState('');
+  const [editorTab, setEditorTab] = useState('texto');
   const [busca, setBusca] = useState('');
   const [mobileTab, setMobileTab] = useState('lista');
 
-  const carregarTemplates = useCallback(async function carregarTemplates() {
+  const parsedTemplate = useMemo(() => parseContractTemplateInput(rawContractText), [rawContractText]);
+  const processedContentForDisplay = rawContractText.trim()
+    ? parsedTemplate.normalizedContent
+    : String(form.content || '');
+  const previewContent = editorTab === 'texto' && rawContractText.trim()
+    ? parsedTemplate.normalizedContent
+    : String(form.content || '');
+  const isHtmlAdvancedOnly = useMemo(
+    () => !rawContractText.trim() && looksLikeHtml(form.content),
+    [form.content, rawContractText],
+  );
+
+  async function carregarTemplates(showLoading = true) {
     try {
-      setCarregando(true);
+      if (showLoading) setCarregando(true);
       setErro('');
 
       const { data, error } = await supabase
@@ -74,13 +89,14 @@ export default function ContractTemplatesPage() {
       setErro('Não foi possível carregar os templates de contrato.');
       toast.error(`Erro ao carregar templates: ${loadError?.message || 'erro desconhecido'}`);
     } finally {
-      setCarregando(false);
+      if (showLoading) setCarregando(false);
     }
-  }, [toast]);
+  }
 
   useEffect(() => {
     carregarTemplates();
-  }, [carregarTemplates]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function handleFormChange(field, value) {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -89,6 +105,8 @@ export default function ContractTemplatesPage() {
   function limparFormulario() {
     setEditandoId(null);
     setForm(getInitialForm());
+    setRawContractText('');
+    setEditorTab('texto');
   }
 
   function iniciarNovo() {
@@ -98,15 +116,23 @@ export default function ContractTemplatesPage() {
   }
 
   function iniciarEdicao(template) {
+    const existingContent = template.content || '';
     setEditandoId(template.id);
     setForm({
       name: template.name || '',
       slug: template.slug || '',
       description: template.description || '',
-      content: template.content || '',
+      content: existingContent,
       is_active: template.is_active !== false,
       is_default: template.is_default === true,
     });
+    if (looksLikeHtml(existingContent)) {
+      setRawContractText('');
+      setEditorTab('avancado');
+    } else {
+      setRawContractText(existingContent);
+      setEditorTab('texto');
+    }
     setMobileTab('form');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -125,11 +151,15 @@ export default function ContractTemplatesPage() {
       return;
     }
 
+    const processedContent = rawContractText.trim()
+      ? parsedTemplate.normalizedContent
+      : String(form.content || '');
+
     const payload = {
       name,
       slug,
       description: String(form.description || '').trim(),
-      content: String(form.content || ''),
+      content: processedContent,
       is_active: form.is_active !== false,
       is_default: form.is_default === true,
     };
@@ -156,7 +186,7 @@ export default function ContractTemplatesPage() {
 
       limparFormulario();
       setMobileTab('lista');
-      await carregarTemplates();
+      await carregarTemplates(false);
     } catch (saveError) {
       console.error('Erro ao salvar template de contrato:', saveError);
       toast.error(`Não foi possível salvar: ${saveError?.message || 'erro desconhecido'}`);
@@ -176,7 +206,7 @@ export default function ContractTemplatesPage() {
       if (error) throw error;
 
       toast.success(nextActive ? 'Template ativado.' : 'Template inativado.');
-      await carregarTemplates();
+      await carregarTemplates(false);
     } catch (statusError) {
       console.error('Erro ao alterar status do template:', statusError);
       toast.error(`Não foi possível alterar o status: ${statusError?.message || 'erro desconhecido'}`);
@@ -359,15 +389,73 @@ export default function ContractTemplatesPage() {
                 />
               </label>
 
-              <label className="block">
-                <span className="mb-1 block text-xs font-bold uppercase tracking-[0.06em] text-[#64748b]">Content (HTML)</span>
-                <textarea
-                  value={form.content}
-                  onChange={(event) => handleFormChange('content', event.target.value)}
-                  className="min-h-[180px] w-full rounded-2xl border border-[#dbe3ef] bg-[#f8fafc] px-4 py-3 font-mono text-sm text-[#0f172a] outline-none transition focus:border-violet-400"
-                  placeholder="Cole aqui o HTML do contrato"
-                />
-              </label>
+              <div className="rounded-2xl border border-[#dbe3ef] bg-[#f8fafc] p-3">
+                <div className="mb-3 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditorTab('texto')}
+                    className={`rounded-xl px-3 py-2 text-xs font-black transition ${editorTab === 'texto' ? 'bg-violet-600 text-white' : 'bg-white text-[#334155] hover:bg-slate-100'}`}
+                  >
+                    Texto do contrato
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditorTab('avancado')}
+                    className={`rounded-xl px-3 py-2 text-xs font-black transition ${editorTab === 'avancado' ? 'bg-violet-600 text-white' : 'bg-white text-[#334155] hover:bg-slate-100'}`}
+                  >
+                    Modo avançado
+                  </button>
+                </div>
+
+                {editorTab === 'texto' ? (
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-bold uppercase tracking-[0.06em] text-[#64748b]">Texto do contrato</span>
+                    <p className="mb-2 text-xs font-medium text-[#64748b]">Cole aqui o contrato base. O sistema vai reconhecer e preparar os campos dinâmicos.</p>
+                    <textarea
+                      value={rawContractText}
+                      onChange={(event) => setRawContractText(event.target.value)}
+                      className="min-h-[220px] w-full rounded-2xl border border-[#dbe3ef] bg-white px-4 py-3 text-sm text-[#0f172a] outline-none transition focus:border-violet-400"
+                      placeholder="Cole aqui o contrato em texto normal, com ou sem placeholders."
+                    />
+                  </label>
+                ) : (
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-bold uppercase tracking-[0.06em] text-[#64748b]">Template processado</span>
+                    <textarea
+                      value={processedContentForDisplay}
+                      onChange={(event) => {
+                        setRawContractText('');
+                        handleFormChange('content', event.target.value);
+                      }}
+                      className="min-h-[220px] w-full rounded-2xl border border-[#dbe3ef] bg-white px-4 py-3 font-mono text-sm text-[#0f172a] outline-none transition focus:border-violet-400"
+                      placeholder="Conteúdo técnico final salvo em content"
+                    />
+                  </label>
+                )}
+
+                {isHtmlAdvancedOnly && editorTab === 'texto' && (
+                  <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+                    Este template já está em HTML legado. Use o Modo avançado para editar mantendo compatibilidade.
+                  </p>
+                )}
+              </div>
+
+              {editorTab === 'texto' && (
+                <div className="rounded-[22px] border border-[#e2e8f0] bg-white p-4">
+                  <h3 className="text-sm font-black text-[#0f172a]">Análise do texto</h3>
+                  <div className="mt-3 grid gap-2 text-sm text-[#334155]">
+                    <p><span className="font-bold">Placeholders reconhecidos:</span> {parsedTemplate.detectedPlaceholders.length}</p>
+                    <p><span className="font-bold">Placeholders não reconhecidos:</span> {parsedTemplate.unknownPlaceholders.length}</p>
+                    <p><span className="font-bold">Condicionais:</span> {parsedTemplate.hasConditionals ? parsedTemplate.conditionals.join(', ') : 'Nenhum'}</p>
+                  </div>
+
+                  {parsedTemplate.unknownPlaceholders.length > 0 && (
+                    <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+                      Encontramos variáveis que ainda não são reconhecidas automaticamente. Você poderá revisá-las depois.
+                    </p>
+                  )}
+                </div>
+              )}
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="flex items-center gap-2 rounded-2xl border border-[#dbe3ef] bg-[#f8fafc] px-4 py-3 text-sm font-semibold text-[#334155]">
@@ -399,10 +487,10 @@ export default function ContractTemplatesPage() {
             </div>
 
             <div className="mt-6 rounded-[22px] border border-[#e2e8f0] bg-[#f8fafc] p-4">
-              <h3 className="text-sm font-black text-[#0f172a]">Preview do HTML</h3>
+              <h3 className="text-sm font-black text-[#0f172a]">Preview do contrato</h3>
               <div className="prose prose-sm mt-3 max-w-none rounded-xl border border-[#e2e8f0] bg-white p-4 text-[#1e293b]">
-                {String(form.content || '').trim() ? (
-                  <div dangerouslySetInnerHTML={{ __html: form.content }} />
+                {String(previewContent || '').trim() ? (
+                  <div dangerouslySetInnerHTML={{ __html: previewContent }} />
                 ) : (
                   <p className="text-sm font-medium text-[#64748b]">Nenhum conteúdo para pré-visualizar.</p>
                 )}

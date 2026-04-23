@@ -19,6 +19,7 @@ function getInitialForm() {
     slug: '',
     description: '',
     content: '',
+    source_text: '',
     is_active: true,
     is_default: false,
   };
@@ -77,7 +78,7 @@ export default function ContractTemplatesPage() {
 
       const { data, error } = await supabase
         .from('contract_templates')
-        .select('id, name, slug, description, content, is_active, is_default, created_at, updated_at')
+        .select('id, name, slug, description, content, source_text, is_active, is_default, created_at, updated_at')
         .order('updated_at', { ascending: false, nullsFirst: false })
         .order('created_at', { ascending: false });
 
@@ -117,16 +118,21 @@ export default function ContractTemplatesPage() {
 
   function iniciarEdicao(template) {
     const existingContent = template.content || '';
+    const existingSourceText = template.source_text || '';
     setEditandoId(template.id);
     setForm({
       name: template.name || '',
       slug: template.slug || '',
       description: template.description || '',
       content: existingContent,
+      source_text: existingSourceText,
       is_active: template.is_active !== false,
       is_default: template.is_default === true,
     });
-    if (looksLikeHtml(existingContent)) {
+    if (existingSourceText.trim()) {
+      setRawContractText(existingSourceText);
+      setEditorTab('texto');
+    } else if (looksLikeHtml(existingContent)) {
       setRawContractText('');
       setEditorTab('avancado');
     } else {
@@ -151,15 +157,20 @@ export default function ContractTemplatesPage() {
       return;
     }
 
+    const shouldPersistSourceText = editorTab === 'texto' || rawContractText.trim();
     const processedContent = rawContractText.trim()
       ? parsedTemplate.normalizedContent
       : String(form.content || '');
+    const sourceTextToPersist = shouldPersistSourceText
+      ? rawContractText
+      : String(form.source_text || '');
 
     const payload = {
       name,
       slug,
       description: String(form.description || '').trim(),
       content: processedContent,
+      source_text: sourceTextToPersist,
       is_active: form.is_active !== false,
       is_default: form.is_default === true,
     };
@@ -411,6 +422,9 @@ export default function ContractTemplatesPage() {
                   <label className="block">
                     <span className="mb-1 block text-xs font-bold uppercase tracking-[0.06em] text-[#64748b]">Texto do contrato</span>
                     <p className="mb-2 text-xs font-medium text-[#64748b]">Cole aqui o contrato base. O sistema vai reconhecer e preparar os campos dinâmicos.</p>
+                    <p className="mb-2 text-xs font-medium text-[#64748b]">
+                      Texto do contrato = sua versão editável.
+                    </p>
                     <textarea
                       value={rawContractText}
                       onChange={(event) => setRawContractText(event.target.value)}
@@ -421,6 +435,9 @@ export default function ContractTemplatesPage() {
                 ) : (
                   <label className="block">
                     <span className="mb-1 block text-xs font-bold uppercase tracking-[0.06em] text-[#64748b]">Template processado</span>
+                    <p className="mb-2 text-xs font-medium text-[#64748b]">
+                      Modo avançado = versão processada usada pelo sistema.
+                    </p>
                     <textarea
                       value={processedContentForDisplay}
                       onChange={(event) => {

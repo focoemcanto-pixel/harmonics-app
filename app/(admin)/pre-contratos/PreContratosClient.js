@@ -68,6 +68,9 @@ const PRECONTRACT_SELECT_FIELDS = [
   'status',
   'public_token',
   'generated_link',
+  'custom_contract_enabled',
+  'custom_contract_content',
+  'contract_mode',
 ].join(', ');
 let preContratosCache = {
   updatedAt: 0,
@@ -154,6 +157,13 @@ function getStatusTone(status) {
   return 'default';
 }
 
+function isInternalContractModel(precontract) {
+  return (
+    precontract?.custom_contract_enabled === true ||
+    String(precontract?.contract_mode || '').toLowerCase() === 'internal'
+  );
+}
+
 function getInitialForm() {
   return {
     client_name: '',
@@ -183,6 +193,9 @@ function getInitialForm() {
 
     notes: '',
     status: 'draft',
+    custom_contract_enabled: false,
+    custom_contract_content: '',
+    contract_mode: '',
   };
 }
 
@@ -676,6 +689,9 @@ export default function PreContratosClient() {
 
       notes: item.notes || '',
       status: item.status || 'draft',
+      custom_contract_enabled: item.custom_contract_enabled === true,
+      custom_contract_content: item.custom_contract_content || '',
+      contract_mode: item.contract_mode || '',
     });
 
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -832,6 +848,12 @@ export default function PreContratosClient() {
 
         notes: form.notes.trim() || null,
         status: statusToSave,
+        custom_contract_enabled: form.custom_contract_enabled === true,
+        custom_contract_content:
+          form.custom_contract_enabled && String(form.custom_contract_content || '').trim()
+            ? String(form.custom_contract_content).trim()
+            : null,
+        contract_mode: form.custom_contract_enabled ? 'internal' : (form.contract_mode || null),
       };
 
       let savedItem = null;
@@ -1309,6 +1331,57 @@ export default function PreContratosClient() {
                   />
                 </label>
               </Card>
+
+              <Card
+                title="Modelo deste contrato"
+                subtitle="Defina se este pré-contrato seguirá o modelo padrão ou conteúdo personalizado (internal)."
+              >
+                <label className="flex items-center justify-between rounded-2xl border border-slate-200 p-4">
+                  <div>
+                    <p className="font-semibold text-slate-800">Personalizar este contrato</p>
+                    <p className="text-sm text-slate-500">
+                      Ao ativar, este pré-contrato passa a usar conteúdo interno personalizado.
+                    </p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={form.custom_contract_enabled === true}
+                    onChange={(e) => handleFormChange('custom_contract_enabled', e.target.checked)}
+                    className="h-5 w-5"
+                  />
+                </label>
+
+                {form.custom_contract_enabled ? (
+                  <label className="mt-4 block">
+                    <span className="mb-2 block text-sm font-medium text-slate-600">
+                      Conteúdo personalizado do contrato
+                    </span>
+                    <textarea
+                      value={form.custom_contract_content}
+                      onChange={(e) => handleFormChange('custom_contract_content', e.target.value)}
+                      placeholder="Cole aqui o texto base do contrato personalizado..."
+                      className="min-h-[180px] w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-100"
+                    />
+                  </label>
+                ) : null}
+
+                <div className="mt-4">
+                  {editandoId ? (
+                    <a
+                      href={`/contrato-preview/${editandoId}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-sm font-semibold text-violet-700 underline underline-offset-2"
+                    >
+                      Ver preview do contrato
+                    </a>
+                  ) : (
+                    <p className="text-sm text-slate-500">
+                      Ver preview do contrato (disponível após salvar o pré-contrato).
+                    </p>
+                  )}
+                </div>
+              </Card>
             </div>
 
             <div className="space-y-6">
@@ -1437,15 +1510,21 @@ export default function PreContratosClient() {
               {listaFiltrada.map((item) => {
                 const adjustment = adjustmentRequestsByPrecontract.get(String(item.id)) || null;
                 const pending = String(adjustment?.status || '').toLowerCase() === 'pending';
+                const usesInternalModel = isInternalContractModel(item);
                 return (
                 <Card
                   key={item.id}
                   title={item.client_name || 'Cliente a confirmar'}
                   subtitle={`${formatDateBR(item.event_date)} • ${item.location_name || 'Local não informado'}`}
                   actions={
-                    <Badge tone={getStatusTone(item.status)}>
-                      {getStatusLabel(item.status)}
-                    </Badge>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge tone={usesInternalModel ? 'violet' : 'default'}>
+                        {usesInternalModel ? 'Modelo personalizado' : 'Modelo padrão'}
+                      </Badge>
+                      <Badge tone={getStatusTone(item.status)}>
+                        {getStatusLabel(item.status)}
+                      </Badge>
+                    </div>
                   }
                 >
                   <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">

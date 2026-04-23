@@ -207,6 +207,9 @@ export default function ContractCard({ item, onCopyLink, onDeleteContract, selec
 
           <div className="flex flex-wrap gap-2">
             <AdminPill tone={item.statusTone}>{item.statusLabel}</AdminPill>
+            <AdminPill tone={item.contractModelTone || 'default'}>
+              {item.contractModelLabel || 'Docs'}
+            </AdminPill>
 
             {item.assinadoEm ? (
               <AdminPill tone="emerald">

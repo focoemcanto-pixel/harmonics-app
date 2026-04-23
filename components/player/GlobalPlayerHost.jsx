@@ -60,7 +60,6 @@ export default function GlobalPlayerHost() {
       next,
       setPendingManualPlay,
       setHasUserUnlockedPlayback,
-      setDesiredPlaybackState,
     },
   } = useGlobalPlayer();
 
@@ -186,14 +185,7 @@ export default function GlobalPlayerHost() {
                 });
               }
               if (state === window.YT.PlayerState.PAUSED) {
-                if (
-                  desiredPlaybackState === 'playing'
-                  && (
-                    pendingTrackChangeRef.current
-                    || shouldResumeAfterTrackChangeRef.current
-                    || pendingManualPlay
-                  )
-                ) {
+                if (desiredPlaybackState === 'playing') {
                   console.log('[PLAYER][IS_PLAYING_AFTER_CHANGE]', {
                     isPlaying: true,
                     ignoredPauseEvent: true,
@@ -203,7 +195,6 @@ export default function GlobalPlayerHost() {
                 }
 
                 setIsPlaying(false);
-                setDesiredPlaybackState('paused');
                 console.log('[AUDIO_PLAYER][IS_PLAYING]', false);
                 console.log('[PLAYER][IS_PLAYING_AFTER_CHANGE]', {
                   isPlaying: false,
@@ -274,7 +265,6 @@ export default function GlobalPlayerHost() {
     setHasUserUnlockedPlayback,
     desiredPlaybackState,
     requestPlayIfDesired,
-    setDesiredPlaybackState,
   ]);
 
   useEffect(() => {

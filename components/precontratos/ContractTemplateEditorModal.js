@@ -1,8 +1,8 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import Button from '@/components/ui/Button';
-import { parseContractTemplateInput } from '@/lib/contracts/templateImport';
+import { parseContractTemplateInput, looksLikeHtml } from '@/lib/contracts/templateImport';
 
 function htmlToReadableText(value) {
   const raw = String(value || '').trim();
@@ -22,6 +22,27 @@ function htmlToReadableText(value) {
     .trim();
 }
 
+function textToEditorHtml(value) {
+  const text = String(value || '').replace(/\r\n/g, '\n').trim();
+  if (!text) return '';
+  if (looksLikeHtml(text)) return text;
+
+  return text
+    .split(/\n{2,}/)
+    .map((paragraph) => `<p>${paragraph.replace(/\n/g, '<br />')}</p>`)
+    .join('');
+}
+
+const EDITOR_ACTIONS = [
+  { label: 'Título', command: 'formatBlock', value: 'h2' },
+  { label: 'Subtítulo', command: 'formatBlock', value: 'h3' },
+  { label: 'Parágrafo', command: 'formatBlock', value: 'p' },
+  { label: 'Negrito', command: 'bold' },
+  { label: 'Itálico', command: 'italic' },
+  { label: 'Lista', command: 'insertUnorderedList' },
+  { label: 'Numeração', command: 'insertOrderedList' },
+];
+
 export default function ContractTemplateEditorModal({
   open,
   onClose,
@@ -33,13 +54,54 @@ export default function ContractTemplateEditorModal({
   hasCustomContent,
   readOnly = false,
 }) {
-  const [draft, setDraft] = useState(String(initialText || ''));
+  const [draft, setDraft] = useState(() => textToEditorHtml(initialText));
+  const editorRef = useRef(null);
 
   const parsed = useMemo(() => parseContractTemplateInput(draft), [draft]);
   const previewHtml = useMemo(() => {
-    if (!draft.trim()) return '';
+    if (!String(draft || '').trim()) return '';
     return parsed.normalizedContent;
   }, [draft, parsed.normalizedContent]);
+
+  function runEditorCommand(command, value) {
+    if (readOnly) return;
+    const editor = editorRef.current;
+    if (!editor) return;
+    editor.focus();
+    document.execCommand(command, false, value);
+    setDraft(editor.innerHTML || '');
+  }
+
+  function handleEditorInput() {
+    if (!editorRef.current) return;
+    setDraft(editorRef.current.innerHTML || '');
+  }
+
+  function handlePaste(event) {
+    if (readOnly) return;
+    event.preventDefault();
+
+    const clipboard = event.clipboardData;
+    const html = clipboard?.getData('text/html');
+    const text = clipboard?.getData('text/plain');
+
+    if (html) {
+      document.execCommand('insertHTML', false, html);
+    } else if (text) {
+      const escaped = text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/\n/g, '<br />');
+      document.execCommand('insertHTML', false, escaped);
+    }
+
+    queueMicrotask(() => {
+      if (editorRef.current) {
+        setDraft(editorRef.current.innerHTML || '');
+      }
+    });
+  }
 
   if (!open) return null;
 
@@ -72,13 +134,29 @@ export default function ContractTemplateEditorModal({
             <div className="border-b border-slate-200 px-5 py-3 md:px-6">
               <p className="text-xs font-bold uppercase tracking-[0.1em] text-slate-500">Edição</p>
             </div>
+            <div className="flex flex-wrap gap-2 border-b border-slate-200 px-4 py-3 md:px-6">
+              {EDITOR_ACTIONS.map((action) => (
+                <button
+                  key={action.label}
+                  type="button"
+                  disabled={readOnly}
+                  onClick={() => runEditorCommand(action.command, action.value)}
+                  className="rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-violet-400 hover:text-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {action.label}
+                </button>
+              ))}
+            </div>
             <div className="min-h-0 flex-1 p-4 md:p-6">
-              <textarea
-                value={draft}
-                onChange={(event) => setDraft(event.target.value)}
-                readOnly={readOnly}
-                className="h-full min-h-[260px] w-full resize-none rounded-2xl border border-slate-300 bg-white px-4 py-4 text-sm leading-7 text-slate-900 outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-100"
-                placeholder="Escreva ou ajuste o texto do contrato aqui..."
+              <div
+                ref={editorRef}
+                contentEditable={!readOnly}
+                suppressContentEditableWarning
+                onInput={handleEditorInput}
+                onBlur={handleEditorInput}
+                onPaste={handlePaste}
+                className="prose prose-slate h-full min-h-[260px] max-w-none overflow-y-auto rounded-2xl border border-slate-300 bg-white px-4 py-4 text-sm leading-7 text-slate-900 outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-100"
+                dangerouslySetInnerHTML={{ __html: draft }}
               />
             </div>
           </div>
@@ -95,6 +173,11 @@ export default function ContractTemplateEditorModal({
                   <p className="text-sm text-slate-500">Sem conteúdo para pré-visualização.</p>
                 )}
               </div>
+            </div>
+            <div className="border-t border-slate-200 px-5 py-3 text-xs text-slate-600 md:px-6">
+              <p><span className="font-bold">Placeholders reconhecidos:</span> {parsed.detectedPlaceholders.length}</p>
+              <p><span className="font-bold">Placeholders não reconhecidos:</span> {parsed.unknownPlaceholders.length}</p>
+              <p><span className="font-bold">Condicionais:</span> {parsed.hasConditionals ? parsed.conditionals.join(', ') : 'Nenhum'}</p>
             </div>
           </div>
         </div>

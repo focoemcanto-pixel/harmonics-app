@@ -526,6 +526,11 @@ export default function PreContratosClient() {
   const [eventos, setEventos] = useState([]);
   const [eventTypes, setEventTypes] = useState([]);
   const [contractTemplates, setContractTemplates] = useState([]);
+  const [eventTypesLoading, setEventTypesLoading] = useState(true);
+  const [eventTypesLoaded, setEventTypesLoaded] = useState(false);
+  const [eventTypesError, setEventTypesError] = useState(null);
+  const [contractTemplatesLoading, setContractTemplatesLoading] = useState(false);
+  const [contractTemplatesLoaded, setContractTemplatesLoaded] = useState(false);
   const [appliedTemplateName, setAppliedTemplateName] = useState('');
 
   const [editandoId, setEditandoId] = useState(null);
@@ -610,31 +615,61 @@ export default function PreContratosClient() {
   }
 
   async function carregarTiposEvento() {
+    setEventTypesLoading(true);
     const { data, error } = await supabase
       .from('event_types')
       .select('id, name, default_contract_template_id')
       .eq('is_active', true)
       .order('sort_order', { ascending: true });
 
-    if (error) throw error;
+    if (IS_DEV) {
+      console.log('[PRECONTRATOS][event_types] resposta bruta:', data);
+      console.log('[PRECONTRATOS][event_types] erro Supabase:', error);
+    }
+
+    if (error) {
+      setEventTypes([]);
+      setEventTypesError(error);
+      setEventTypesLoaded(true);
+      setEventTypesLoading(false);
+      throw error;
+    }
+
     const types = data || [];
+    if (IS_DEV) {
+      console.log('[PRECONTRATOS][event_types] quantidade carregada:', types.length);
+    }
     setEventTypes(types);
+    setEventTypesError(null);
+    setEventTypesLoaded(true);
+    setEventTypesLoading(false);
     preContratosCache.eventTypes = types;
     preContratosCache.updatedAt = Date.now();
   }
 
-  async function carregarModelosContrato() {
+  async function carregarModelosContrato({ force = false } = {}) {
+    if (contractTemplatesLoading) return contractTemplates;
+    if (!force && contractTemplatesLoaded && contractTemplates.length > 0) return contractTemplates;
+
+    setContractTemplatesLoading(true);
     const { data, error } = await supabase
       .from('contract_templates')
       .select('id, name, content')
       .eq('is_active', true)
       .order('name', { ascending: true });
 
-    if (error) throw error;
+    if (error) {
+      setContractTemplatesLoading(false);
+      throw error;
+    }
+
     const templates = data || [];
     setContractTemplates(templates);
+    setContractTemplatesLoaded(true);
+    setContractTemplatesLoading(false);
     preContratosCache.contractTemplates = templates;
     preContratosCache.updatedAt = Date.now();
+    return templates;
   }
 
   useEffect(() => {
@@ -650,12 +685,10 @@ export default function PreContratosClient() {
             carregarPreContratos(),
             carregarEventos(),
             carregarTiposEvento(),
-            carregarModelosContrato(),
           ]);
           await carregarAdjustmentRequests(loadedPrecontracts);
         } else {
           await carregarTiposEvento();
-          await carregarModelosContrato();
         }
       } catch (error) {
         console.error('Erro ao carregar pré-contratos:', error);
@@ -669,7 +702,10 @@ export default function PreContratosClient() {
       setItems(preContratosCache.items || []);
       setEventos(preContratosCache.eventos || []);
       setEventTypes(preContratosCache.eventTypes || []);
+      setEventTypesLoaded((preContratosCache.eventTypes || []).length > 0);
+      setEventTypesLoading(false);
       setContractTemplates(preContratosCache.contractTemplates || []);
+      setContractTemplatesLoaded((preContratosCache.contractTemplates || []).length > 0);
       setAdjustmentRequestsByPrecontract(
         preContratosCache.adjustmentRequestsByPrecontract || new Map()
       );
@@ -690,6 +726,14 @@ export default function PreContratosClient() {
     const defaultTemplateId = selectedEventType?.default_contract_template_id;
     if (!defaultTemplateId) return;
     let template = contractTemplates.find((item) => String(item?.id) === String(defaultTemplateId));
+    if (!template) {
+      try {
+        const loadedTemplates = await carregarModelosContrato();
+        template = loadedTemplates.find((item) => String(item?.id) === String(defaultTemplateId));
+      } catch {
+        template = null;
+      }
+    }
     if (!template) {
       const { data, error } = await supabase
         .from('contract_templates')
@@ -718,7 +762,15 @@ export default function PreContratosClient() {
   }
 
   async function applyContractTemplate(templateId) {
-    const template = contractTemplates.find((item) => String(item?.id) === String(templateId));
+    let availableTemplates = contractTemplates;
+    if (!availableTemplates.length) {
+      try {
+        availableTemplates = await carregarModelosContrato();
+      } catch {
+        return;
+      }
+    }
+    const template = availableTemplates.find((item) => String(item?.id) === String(templateId));
     if (!template?.id) return;
 
     const hasManualContent = String(form.custom_contract_content || '').trim().length > 0;
@@ -770,6 +822,10 @@ export default function PreContratosClient() {
     if (field === 'contract_template_id') {
       void applyContractTemplate(normalizedValue);
       return;
+    }
+
+    if (field === 'custom_contract_enabled' && normalizedValue === true) {
+      void carregarModelosContrato();
     }
 
     setForm((prev) => ({
@@ -1363,24 +1419,32 @@ export default function PreContratosClient() {
                     value={form.event_type_id}
                     onChange={(e) => handleFormChange('event_type_id', e.target.value)}
                   >
-                    <option value="">{eventTypeOptions.length ? 'Selecione' : 'Sem tipos ativos (fallback legado)'}</option>
+                    <option value="">
+                      {eventTypesLoading
+                        ? 'Carregando tipos...'
+                        : eventTypeOptions.length
+                          ? 'Selecione'
+                          : 'Sem tipos ativos (fallback legado)'}
+                    </option>
                     {eventTypeOptions.map((type) => (
                       <option key={type.id} value={type.id}>
                         {type.name}
                       </option>
                     ))}
                   </Select>
-                  {!eventTypeOptions.length ? (
+                  {!eventTypesLoading && (eventTypesError || (eventTypesLoaded && !eventTypeOptions.length)) ? (
                     <p className="md:col-span-2 -mt-2 text-xs text-amber-700">
                       Não foi possível carregar <code>event_types</code>. Use o campo legado abaixo para não interromper o fluxo.
                     </p>
                   ) : null}
-                  <Input
-                    label="Tipo de evento (legado/fallback)"
-                    value={form.event_type}
-                    onChange={(e) => handleFormChange('event_type', e.target.value)}
-                    className="md:col-span-2"
-                  />
+                  {!eventTypesLoading && (eventTypesError || (eventTypesLoaded && !eventTypeOptions.length)) ? (
+                    <Input
+                      label="Tipo de evento (legado/fallback)"
+                      value={form.event_type}
+                      onChange={(e) => handleFormChange('event_type', e.target.value)}
+                      className="md:col-span-2"
+                    />
+                  ) : null}
                   {appliedTemplateName ? (
                     <div className="md:col-span-2 -mt-2 flex flex-wrap items-center gap-2">
                       <Badge tone="violet">

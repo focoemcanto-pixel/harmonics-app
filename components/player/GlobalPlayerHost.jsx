@@ -43,8 +43,25 @@ function ensureYouTubeAPI() {
 
 export default function GlobalPlayerHost() {
   const {
-    state: { videoId, isPlaying, playerRef, currentTrackIndex, currentTrack },
-    actions: { setPlayerRef, setIsPlaying, setCurrentTime, next },
+    state: {
+      videoId,
+      isPlaying,
+      playerRef,
+      currentTrackIndex,
+      currentTrack,
+      desiredPlaybackState,
+      pendingManualPlay,
+      hasUserUnlockedPlayback,
+    },
+    actions: {
+      setPlayerRef,
+      setIsPlaying,
+      setCurrentTime,
+      next,
+      setPendingManualPlay,
+      setHasUserUnlockedPlayback,
+      setDesiredPlaybackState,
+    },
   } = useGlobalPlayer();
 
   const mountNodeRef = useRef(null);
@@ -73,6 +90,13 @@ export default function GlobalPlayerHost() {
       playRetryTimeoutsRef.current.push(timeoutId);
     });
   }, [clearPlayRetries]);
+
+  const requestPlayIfDesired = useCallback((targetPlayer, reason) => {
+    if (!targetPlayer) return;
+    if (desiredPlaybackState !== 'playing') return;
+    targetPlayer?.playVideo?.();
+    schedulePlayRetries(targetPlayer, reason);
+  }, [desiredPlaybackState, schedulePlayRetries]);
 
   useEffect(() => {
     console.log('[PLAYER_MOUNT]', 'GlobalPlayerHost mounted');
@@ -131,16 +155,17 @@ export default function GlobalPlayerHost() {
               console.log('[AUDIO_PLAYER][GLOBAL_INSTANCE]', { instanceCount: createdInstancesRef.current });
               setPlayerRef(event?.target || null);
               window.__harmonicsGlobalPlayerInstance = event?.target || null;
-              if (isPlaying) {
-                event?.target?.playVideo?.();
-                schedulePlayRetries(event?.target, 'on_ready_is_playing');
-              }
+              requestPlayIfDesired(event?.target, pendingManualPlay ? 'on_ready_pending_manual' : 'on_ready_desired_playing');
             },
             onStateChange: (event) => {
               const state = event?.data;
               if (state === window.YT.PlayerState.PLAYING) {
                 pendingTrackChangeRef.current = false;
                 shouldResumeAfterTrackChangeRef.current = false;
+                if (!hasUserUnlockedPlayback) {
+                  setHasUserUnlockedPlayback(true);
+                }
+                setPendingManualPlay(false);
                 setIsPlaying(true);
                 console.log('[AUDIO_PLAYER][IS_PLAYING]', true);
                 console.log('[PLAYER][IS_PLAYING_AFTER_CHANGE]', {
@@ -149,16 +174,24 @@ export default function GlobalPlayerHost() {
                 });
               }
               if (state === window.YT.PlayerState.PAUSED) {
-                if (pendingTrackChangeRef.current && shouldResumeAfterTrackChangeRef.current) {
+                if (
+                  desiredPlaybackState === 'playing'
+                  && (
+                    pendingTrackChangeRef.current
+                    || shouldResumeAfterTrackChangeRef.current
+                    || pendingManualPlay
+                  )
+                ) {
                   console.log('[PLAYER][IS_PLAYING_AFTER_CHANGE]', {
                     isPlaying: true,
                     ignoredPauseEvent: true,
-                    reason: 'track_change_while_should_continue_playing',
+                    reason: 'transient_pause_while_desired_playing',
                   });
                   return;
                 }
 
                 setIsPlaying(false);
+                setDesiredPlaybackState('paused');
                 console.log('[AUDIO_PLAYER][IS_PLAYING]', false);
                 console.log('[PLAYER][IS_PLAYING_AFTER_CHANGE]', {
                   isPlaying: false,
@@ -166,6 +199,11 @@ export default function GlobalPlayerHost() {
                 });
               }
               if (state === window.YT.PlayerState.CUED) {
+                if (desiredPlaybackState === 'playing') {
+                  requestPlayIfDesired(event?.target, pendingManualPlay ? 'cued_pending_manual' : 'cued_desired_playing');
+                  return;
+                }
+
                 pendingTrackChangeRef.current = false;
                 shouldResumeAfterTrackChangeRef.current = false;
                 setIsPlaying(false);
@@ -210,7 +248,22 @@ export default function GlobalPlayerHost() {
     return () => {
       cancelled = true;
     };
-  }, [playerRef, setPlayerRef, isPlaying, setIsPlaying, next, currentTrack?.title, currentTrackIndex, schedulePlayRetries, videoId]);
+  }, [
+    playerRef,
+    setPlayerRef,
+    setIsPlaying,
+    next,
+    currentTrack?.title,
+    currentTrackIndex,
+    videoId,
+    hasUserUnlockedPlayback,
+    pendingManualPlay,
+    setPendingManualPlay,
+    setHasUserUnlockedPlayback,
+    desiredPlaybackState,
+    requestPlayIfDesired,
+    setDesiredPlaybackState,
+  ]);
 
   useEffect(() => {
     if (!playerRef) return;
@@ -225,7 +278,7 @@ export default function GlobalPlayerHost() {
     }
 
     if (currentVideoIdRef.current !== videoId) {
-      const shouldContinuePlaying = isPlaying;
+      const shouldContinuePlaying = desiredPlaybackState === 'playing';
       const previousTrack = previousTrackSnapshotRef.current;
       console.log('[PLAYER][TRACK_BEFORE_CHANGE]', {
         source: 'videoId_effect',
@@ -238,7 +291,7 @@ export default function GlobalPlayerHost() {
       pendingTrackChangeRef.current = true;
       shouldResumeAfterTrackChangeRef.current = shouldContinuePlaying;
 
-      if (isPlaying) {
+      if (shouldContinuePlaying) {
         playerRef.loadVideoById?.(videoId);
         schedulePlayRetries(playerRef, 'video_change_while_playing');
       } else {
@@ -259,19 +312,31 @@ export default function GlobalPlayerHost() {
       return;
     }
 
-    if (isPlaying) {
-      playerRef.playVideo?.();
-      schedulePlayRetries(playerRef, 'is_playing_effect');
+    if (desiredPlaybackState === 'playing') {
+      requestPlayIfDesired(playerRef, pendingManualPlay ? 'is_playing_pending_manual' : 'is_playing_effect');
     } else {
       clearPlayRetries();
       playerRef.pauseVideo?.();
     }
-  }, [videoId, isPlaying, playerRef, currentTrackIndex, schedulePlayRetries, clearPlayRetries]);
+  }, [
+    videoId,
+    isPlaying,
+    playerRef,
+    currentTrackIndex,
+    schedulePlayRetries,
+    clearPlayRetries,
+    desiredPlaybackState,
+    requestPlayIfDesired,
+    pendingManualPlay,
+  ]);
 
   useEffect(() => {
     console.log('[AUDIO_PLAYER][GLOBAL_INSTANCE]', {
       videoId,
       isPlaying,
+      desiredPlaybackState,
+      pendingManualPlay,
+      hasUserUnlockedPlayback,
       currentTrackIndex,
       hasInstance: Boolean(playerRef),
     });
@@ -281,7 +346,16 @@ export default function GlobalPlayerHost() {
       videoId,
     });
     previousTrackSnapshotRef.current = { index: currentTrackIndex, videoId };
-  }, [videoId, isPlaying, currentTrackIndex, playerRef, currentTrack]);
+  }, [
+    videoId,
+    isPlaying,
+    desiredPlaybackState,
+    pendingManualPlay,
+    hasUserUnlockedPlayback,
+    currentTrackIndex,
+    playerRef,
+    currentTrack,
+  ]);
 
   return (
     <div className="hidden" aria-hidden="true">

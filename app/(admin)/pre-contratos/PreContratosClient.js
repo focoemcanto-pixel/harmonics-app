@@ -13,6 +13,7 @@ import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
 import ContractTemplateEditorModal from '@/components/precontratos/ContractTemplateEditorModal';
 import { supabase } from '@/lib/supabase';
 import { normalizeTimeStrict, isValidTime, sanitizeTimeFields } from '@/lib/time/normalize-time';
+import { resolveContractHtmlSource } from '@/lib/contracts/resolveContractHtmlSource';
 
 const FORMATIONS = [
   'Solo',
@@ -652,16 +653,35 @@ export default function PreContratosClient() {
     preContratosCache.updatedAt = Date.now();
   }
 
-  async function carregarModelosContrato({ force = false } = {}) {
+async function carregarModelosContrato({ force = false } = {}) {
     if (contractTemplatesLoading) return contractTemplates;
     if (!force && contractTemplatesLoaded && contractTemplates.length > 0) return contractTemplates;
 
     setContractTemplatesLoading(true);
-    const { data, error } = await supabase
+    let data = null;
+    let error = null;
+
+    const richResult = await supabase
       .from('contract_templates')
-      .select('id, name, content, source_text')
+      .select('id, name, content, source_text, source_rich_html')
       .eq('is_active', true)
       .order('name', { ascending: true });
+
+    if (!richResult.error) {
+      data = richResult.data;
+    } else if (String(richResult.error?.message || '').toLowerCase().includes('source_rich_html')) {
+      const fallbackResult = await supabase
+        .from('contract_templates')
+        .select('id, name, content, source_text')
+        .eq('is_active', true)
+        .order('name', { ascending: true });
+
+      data = fallbackResult.data;
+      error = fallbackResult.error;
+    } else {
+      data = richResult.data;
+      error = richResult.error;
+    }
 
     if (error) {
       setContractTemplatesLoading(false);
@@ -740,20 +760,33 @@ export default function PreContratosClient() {
       }
     }
     if (!template) {
-      const { data, error } = await supabase
+      const richResult = await supabase
         .from('contract_templates')
-        .select('id, name, content, source_text')
+        .select('id, name, content, source_text, source_rich_html')
         .eq('id', defaultTemplateId)
         .single();
-      if (error) return;
-      template = data;
+
+      if (!richResult.error) {
+        template = richResult.data;
+      } else if (String(richResult.error?.message || '').toLowerCase().includes('source_rich_html')) {
+        const fallbackResult = await supabase
+          .from('contract_templates')
+          .select('id, name, content, source_text')
+          .eq('id', defaultTemplateId)
+          .single();
+        if (fallbackResult.error) return;
+        template = fallbackResult.data;
+      } else {
+        return;
+      }
     }
-    if (!template?.content) return;
+    const resolvedTemplate = resolveContractHtmlSource(template);
+    if (!resolvedTemplate.html) return;
 
     setForm((prev) => ({
       ...prev,
       custom_contract_enabled: true,
-      custom_contract_content: template.content,
+      custom_contract_content: resolvedTemplate.html,
       contract_template_id: template.id,
     }));
 
@@ -793,7 +826,7 @@ export default function PreContratosClient() {
       ...prev,
       contract_template_id: template.id,
       custom_contract_enabled: true,
-      custom_contract_content: template.content || '',
+      custom_contract_content: resolveContractHtmlSource(template).html || '',
     }));
     setAppliedTemplateName(getTemplateDisplayName(template));
   }
@@ -884,7 +917,7 @@ export default function PreContratosClient() {
       notes: item.notes || '',
       status: item.status || 'draft',
       custom_contract_enabled: item.custom_contract_enabled === true,
-      custom_contract_content: item.custom_contract_content || '',
+      custom_contract_content: resolveContractHtmlSource(item).html || '',
       contract_template_id: item.contract_template_id || '',
       contract_mode: item.contract_mode || '',
     });
@@ -975,22 +1008,14 @@ export default function PreContratosClient() {
     [form.custom_contract_content]
   );
 
-  function stripHtmlToText(value) {
-    const raw = String(value || '').trim();
-    if (!raw) return '';
-    if (typeof window !== 'undefined') {
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(raw, 'text/html');
-      return String(doc.body?.textContent || '').replace(/\n{3,}/g, '\n\n').trim();
-    }
-    return raw.replace(/<[^>]*>/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
-  }
-
   function getContractEditableContent() {
-    if (hasCustomContractContent) return form.custom_contract_content;
-    if (selectedTemplate?.source_text) return selectedTemplate.source_text;
-    if (selectedTemplate?.content) return stripHtmlToText(selectedTemplate.content);
-    return '';
+    if (hasCustomContractContent) {
+      return resolveContractHtmlSource({
+        custom_contract_content: form.custom_contract_content,
+      }).html;
+    }
+
+    return resolveContractHtmlSource(selectedTemplate || {}).html;
   }
 
   function openContractEditor({ readOnly = false } = {}) {

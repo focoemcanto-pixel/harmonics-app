@@ -10,6 +10,7 @@ import Select from '@/components/ui/Select';
 import Badge from '@/components/ui/Badge';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
+import ContractTemplateEditorModal from '@/components/precontratos/ContractTemplateEditorModal';
 import { supabase } from '@/lib/supabase';
 import { normalizeTimeStrict, isValidTime, sanitizeTimeFields } from '@/lib/time/normalize-time';
 
@@ -550,6 +551,10 @@ export default function PreContratosClient() {
   const [shareData, setShareData] = useState(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewItem, setPreviewItem] = useState(null);
+  const [contractEditorOpen, setContractEditorOpen] = useState(false);
+  const [contractEditorReadOnly, setContractEditorReadOnly] = useState(false);
+  const [showTemplateSelector, setShowTemplateSelector] = useState(false);
+  const [contractEditorSeed, setContractEditorSeed] = useState(0);
 
   const [form, setForm] = useState(getInitialForm());
 
@@ -654,7 +659,7 @@ export default function PreContratosClient() {
     setContractTemplatesLoading(true);
     const { data, error } = await supabase
       .from('contract_templates')
-      .select('id, name, content')
+      .select('id, name, content, source_text')
       .eq('is_active', true)
       .order('name', { ascending: true });
 
@@ -737,7 +742,7 @@ export default function PreContratosClient() {
     if (!template) {
       const { data, error } = await supabase
         .from('contract_templates')
-        .select('id, name, content')
+        .select('id, name, content, source_text')
         .eq('id', defaultTemplateId)
         .single();
       if (error) return;
@@ -959,6 +964,67 @@ export default function PreContratosClient() {
       .filter((item) => Boolean(item.name));
     return normalized;
   }, [eventTypes]);
+
+  const selectedTemplate = useMemo(
+    () => contractTemplates.find((template) => String(template?.id) === String(form.contract_template_id || '')) || null,
+    [contractTemplates, form.contract_template_id]
+  );
+
+  const hasCustomContractContent = useMemo(
+    () => String(form.custom_contract_content || '').trim().length > 0,
+    [form.custom_contract_content]
+  );
+
+  function stripHtmlToText(value) {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    if (typeof window !== 'undefined') {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(raw, 'text/html');
+      return String(doc.body?.textContent || '').replace(/\n{3,}/g, '\n\n').trim();
+    }
+    return raw.replace(/<[^>]*>/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+  }
+
+  function getContractEditableContent() {
+    if (hasCustomContractContent) return form.custom_contract_content;
+    if (selectedTemplate?.source_text) return selectedTemplate.source_text;
+    if (selectedTemplate?.content) return stripHtmlToText(selectedTemplate.content);
+    return '';
+  }
+
+  function openContractEditor({ readOnly = false } = {}) {
+    setContractEditorReadOnly(readOnly);
+    setContractEditorSeed((prev) => prev + 1);
+    setContractEditorOpen(true);
+  }
+
+  function handleSaveContractCustomization(payload) {
+    const normalizedContent = String(payload?.processedContent || '').trim();
+    if (!normalizedContent) {
+      showToast?.('Adicione conteúdo antes de salvar a personalização.', 'warning');
+      return;
+    }
+    setForm((prev) => ({
+      ...prev,
+      custom_contract_enabled: true,
+      custom_contract_content: normalizedContent,
+      contract_mode: 'internal',
+    }));
+    setContractEditorOpen(false);
+    showToast?.('Personalização do contrato salva com sucesso.', 'success');
+  }
+
+  function handleRestoreDefaultTemplate() {
+    setForm((prev) => ({
+      ...prev,
+      custom_contract_enabled: false,
+      custom_contract_content: '',
+      contract_mode: '',
+    }));
+    setContractEditorOpen(false);
+    showToast?.('Modelo padrão restaurado para este pré-contrato.', 'success');
+  }
 
   const financeiro = useMemo(() => {
     const base = toNumber(form.base_amount);
@@ -1603,25 +1669,53 @@ export default function PreContratosClient() {
 
               <Card
                 title="Modelo deste contrato"
-                subtitle="Defina se este pré-contrato seguirá o modelo padrão ou conteúdo personalizado (internal)."
+                subtitle="Use o template padrão sem atrito e personalize apenas quando necessário."
               >
-                <label className="flex items-center justify-between rounded-2xl border border-slate-200 p-4">
-                  <div>
-                    <p className="font-semibold text-slate-800">Personalizar este contrato</p>
-                    <p className="text-sm text-slate-500">
-                      Ao ativar, este pré-contrato passa a usar conteúdo interno personalizado.
-                    </p>
+                <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4 md:p-5">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-[0.1em] text-slate-500">Template aplicado</p>
+                      <p className="mt-1 text-base font-bold text-slate-900">
+                        {appliedTemplateName || selectedTemplate?.name || 'Sem template selecionado'}
+                      </p>
+                    </div>
+                    <span className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${
+                      hasCustomContractContent
+                        ? 'bg-violet-100 text-violet-700'
+                        : 'bg-emerald-100 text-emerald-700'
+                    }`}>
+                      {hasCustomContractContent ? 'Modelo personalizado' : 'Usando modelo padrão'}
+                    </span>
                   </div>
-                  <input
-                    type="checkbox"
-                    checked={form.custom_contract_enabled === true}
-                    onChange={(e) => handleFormChange('custom_contract_enabled', e.target.checked)}
-                    className="h-5 w-5"
-                  />
-                </label>
 
-                {form.custom_contract_enabled ? (
-                  <>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <Button
+                      variant="soft"
+                      onClick={() => {
+                        if (editandoId) {
+                          window.open(`/contrato-preview/${editandoId}`, '_blank', 'noopener,noreferrer');
+                          return;
+                        }
+                        openContractEditor({ readOnly: true });
+                      }}
+                    >
+                      Ver preview
+                    </Button>
+                    <Button onClick={() => openContractEditor({ readOnly: false })}>
+                      Editar contrato
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      onClick={() => {
+                        void carregarModelosContrato();
+                        setShowTemplateSelector((prev) => !prev);
+                      }}
+                    >
+                      Trocar template
+                    </Button>
+                  </div>
+
+                  {showTemplateSelector ? (
                     <Select
                       label="Template de contrato"
                       value={form.contract_template_id || ''}
@@ -1635,36 +1729,7 @@ export default function PreContratosClient() {
                         </option>
                       ))}
                     </Select>
-
-                    <label className="mt-4 block">
-                      <span className="mb-2 block text-sm font-medium text-slate-600">
-                        Conteúdo personalizado do contrato
-                      </span>
-                      <textarea
-                        value={form.custom_contract_content}
-                        onChange={(e) => handleFormChange('custom_contract_content', e.target.value)}
-                        placeholder="Cole aqui o texto base do contrato personalizado..."
-                        className="min-h-[180px] w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-100"
-                      />
-                    </label>
-                  </>
-                ) : null}
-
-                <div className="mt-4">
-                  {editandoId ? (
-                    <a
-                      href={`/contrato-preview/${editandoId}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-sm font-semibold text-violet-700 underline underline-offset-2"
-                    >
-                      Ver preview do contrato
-                    </a>
-                  ) : (
-                    <p className="text-sm text-slate-500">
-                      Ver preview do contrato (disponível após salvar o pré-contrato).
-                    </p>
-                  )}
+                  ) : null}
                 </div>
               </Card>
             </div>
@@ -1907,6 +1972,18 @@ export default function PreContratosClient() {
           setPreviewOpen(false);
           setPreviewItem(null);
         }}
+      />
+      <ContractTemplateEditorModal
+        key={contractEditorSeed}
+        open={contractEditorOpen}
+        readOnly={contractEditorReadOnly}
+        initialText={getContractEditableContent()}
+        templateName={appliedTemplateName || selectedTemplate?.name || ''}
+        eventTypeName={form.event_type || ''}
+        hasCustomContent={hasCustomContractContent}
+        onClose={() => setContractEditorOpen(false)}
+        onSave={handleSaveContractCustomization}
+        onRestoreDefault={handleRestoreDefaultTemplate}
       />
     </AdminShell>
   );

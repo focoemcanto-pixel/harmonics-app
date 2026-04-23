@@ -16,6 +16,12 @@ export function GlobalPlayerProvider({ children }) {
   const currentTrack = playlist[currentTrackIndex] || null;
   const videoId = String(currentTrack?.videoId || '').trim() || extractYoutubeId(currentTrack?.url || '');
 
+  const schedulePlayVideo = useCallback(() => {
+    setTimeout(() => {
+      playerRef?.playVideo?.();
+    }, 0);
+  }, [playerRef]);
+
   const setTrack = useCallback((index, options = {}) => {
     const shouldContinuePlaying = options.forcePlay === true ? true : isPlaying;
     console.log('[PLAYER][TRACK_BEFORE_CHANGE]', {
@@ -41,8 +47,9 @@ export function GlobalPlayerProvider({ children }) {
 
     if (shouldContinuePlaying) {
       setIsPlaying(true);
+      schedulePlayVideo();
     }
-  }, [playlist, isPlaying, currentTrackIndex]);
+  }, [playlist, isPlaying, currentTrackIndex, schedulePlayVideo]);
 
   const next = useCallback((options = {}) => {
     const shouldContinuePlaying = options.forcePlay === true ? true : isPlaying;
@@ -66,8 +73,9 @@ export function GlobalPlayerProvider({ children }) {
 
     if (shouldContinuePlaying) {
       setIsPlaying(true);
+      schedulePlayVideo();
     }
-  }, [playlist.length, isPlaying, currentTrackIndex]);
+  }, [playlist.length, isPlaying, currentTrackIndex, schedulePlayVideo]);
 
   const prev = useCallback((options = {}) => {
     const shouldContinuePlaying = options.forcePlay === true ? true : isPlaying;
@@ -91,8 +99,9 @@ export function GlobalPlayerProvider({ children }) {
 
     if (shouldContinuePlaying) {
       setIsPlaying(true);
+      schedulePlayVideo();
     }
-  }, [playlist.length, isPlaying, currentTrackIndex]);
+  }, [playlist.length, isPlaying, currentTrackIndex, schedulePlayVideo]);
 
   const play = useCallback(() => {
     setIsPlaying(true);
@@ -132,9 +141,14 @@ export function GlobalPlayerProvider({ children }) {
       return;
     }
 
-    setIsPlaying(normalizedPlaylist.length > 0);
-    console.log('[AUDIO_PLAYER][IS_PLAYING]', normalizedPlaylist.length > 0);
-  }, []);
+    const shouldAutoPlay = normalizedPlaylist.length > 0;
+    setIsPlaying(shouldAutoPlay);
+    console.log('[AUDIO_PLAYER][IS_PLAYING]', shouldAutoPlay);
+
+    if (shouldAutoPlay) {
+      schedulePlayVideo();
+    }
+  }, [schedulePlayVideo]);
 
   const closeSession = useCallback(() => {
     setPlaylist([]);

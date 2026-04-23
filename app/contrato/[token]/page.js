@@ -487,31 +487,124 @@ async function upsertEventFromSignature({
   form,
 }) {
   let existing = null;
+  let matchReason = '';
 
   const legacyId = String(precontract?.legacy_id || '').trim();
-  if (legacyId) {
+
+  const normalizeFingerprintValue = (value) =>
+    String(value || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase();
+
+  const safeDate = convertDateToInput(form.event_date) || precontract?.event_date || null;
+  const safeTime = normalizeTimeStrict(form.event_time) || normalizeTimeStrict(precontract?.event_time) || null;
+  const safeClientName =
+    String(form.full_name || precontract?.client_name || '').trim() || null;
+  const safeLocationName =
+    String(form.event_location_name || precontract?.location_name || '').trim() || null;
+  const safeLocationAddress =
+    String(form.event_location_address || precontract?.location_address || '').trim() || null;
+
+  const precontractEventId = precontract?.event_id || null;
+
+  if (precontractEventId) {
+    const { data } = await supabase
+      .from('events')
+      .select('id, observations')
+      .eq('id', precontractEventId)
+      .maybeSingle();
+
+    if (data?.id) {
+      existing = data;
+      matchReason = 'MATCH_BY_PRECONTRACT_EVENT_ID';
+      console.info('[EVENT_UPSERT][MATCH_BY_PRECONTRACT_EVENT_ID]', {
+        precontract_id: precontract?.id || null,
+        event_id: data.id,
+      });
+    }
+  }
+
+  if (!existing && legacyId) {
     const { data } = await supabase
       .from('events')
       .select('id, observations')
       .eq('legacy_id', legacyId)
       .maybeSingle();
 
-    existing = data || null;
+    if (data?.id) {
+      existing = data;
+      matchReason = 'MATCH_BY_LEGACY_ID';
+      console.info('[EVENT_UPSERT][MATCH_BY_LEGACY_ID]', {
+        precontract_id: precontract?.id || null,
+        event_id: data.id,
+        legacy_id: legacyId,
+      });
+    }
+  }
+
+  if (!existing && safeClientName && safeDate && safeTime && (safeLocationName || safeLocationAddress)) {
+    const normalizedFingerprint = {
+      client_name: normalizeFingerprintValue(safeClientName),
+      event_date: safeDate,
+      event_time: safeTime,
+      location_name: normalizeFingerprintValue(safeLocationName),
+      location_address: normalizeFingerprintValue(safeLocationAddress),
+    };
+
+    const { data: candidates } = await supabase
+      .from('events')
+      .select('id, observations, client_name, event_date, event_time, location_name, location_address')
+      .eq('event_date', safeDate)
+      .eq('event_time', safeTime)
+      .limit(20);
+
+    const matchedByFingerprint = (candidates || []).find((candidate) => {
+      const candidateClient = normalizeFingerprintValue(candidate?.client_name);
+      const candidateLocationName = normalizeFingerprintValue(candidate?.location_name);
+      const candidateLocationAddress = normalizeFingerprintValue(candidate?.location_address);
+
+      if (!candidateClient || candidateClient !== normalizedFingerprint.client_name) return false;
+
+      const locationByName =
+        normalizedFingerprint.location_name &&
+        candidateLocationName &&
+        normalizedFingerprint.location_name === candidateLocationName;
+
+      const locationByAddress =
+        normalizedFingerprint.location_address &&
+        candidateLocationAddress &&
+        normalizedFingerprint.location_address === candidateLocationAddress;
+
+      return Boolean(locationByName || locationByAddress);
+    });
+
+    if (matchedByFingerprint?.id) {
+      existing = {
+        id: matchedByFingerprint.id,
+        observations: matchedByFingerprint.observations || null,
+      };
+      matchReason = 'MATCH_BY_FINGERPRINT';
+      console.info('[EVENT_UPSERT][MATCH_BY_FINGERPRINT]', {
+        precontract_id: precontract?.id || null,
+        event_id: matchedByFingerprint.id,
+      });
+    }
   }
 
   const payload = {
     client_contact_id: contactId || null,
-    client_name: String(form.full_name || precontract?.client_name || '').trim() || null,
+    client_name: safeClientName,
 
     event_type: precontract?.event_type || null,
-    event_date: convertDateToInput(form.event_date) || precontract?.event_date || null,
-    event_time: normalizeTimeStrict(form.event_time) || normalizeTimeStrict(precontract?.event_time) || null,
+    event_date: safeDate,
+    event_time: safeTime,
     duration_min: Number(precontract?.duration_min || 60),
 
-    location_name:
-      String(form.event_location_name || precontract?.location_name || '').trim() || null,
-    location_address:
-      String(form.event_location_address || precontract?.location_address || '').trim() || null,
+    location_name: safeLocationName,
+    location_address: safeLocationAddress,
 
     formation: precontract?.formation || null,
     instruments: precontract?.instruments || null,
@@ -542,6 +635,8 @@ async function upsertEventFromSignature({
     legacy_id: legacyId || null,
   };
 
+  let finalEventId = null;
+
   if (existing?.id) {
     const { error } = await supabase
       .from('events')
@@ -549,19 +644,55 @@ async function upsertEventFromSignature({
       .eq('id', existing.id);
 
     if (error) throw error;
+    finalEventId = existing.id;
+    console.info('[EVENT_UPSERT][UPDATE_EXISTING]', {
+      precontract_id: precontract?.id || null,
+      event_id: finalEventId,
+      matched_by: matchReason || 'UNKNOWN',
+    });
+  } else {
+    console.info('[EVENT_UPSERT][INSERT_NEW]', {
+      precontract_id: precontract?.id || null,
+      legacy_id: legacyId || null,
+    });
 
-    return existing.id;
+    const { data, error } = await supabase
+      .from('events')
+      .insert([payload])
+      .select('id')
+      .single();
+
+    if (error) throw error;
+    finalEventId = data.id;
   }
 
-  const { data, error } = await supabase
-    .from('events')
-    .insert([payload])
-    .select('id')
-    .single();
+  if (precontract?.id && finalEventId) {
+    const { error: precontractUpdateError } = await supabase
+      .from('precontracts')
+      .update({ event_id: finalEventId })
+      .eq('id', precontract.id);
 
-  if (error) throw error;
+    if (precontractUpdateError) throw precontractUpdateError;
 
-  return data.id;
+    const { data: relatedContract, error: relatedContractError } = await supabase
+      .from('contracts')
+      .select('id, event_id')
+      .eq('precontract_id', precontract.id)
+      .maybeSingle();
+
+    if (relatedContractError) throw relatedContractError;
+
+    if (relatedContract?.id) {
+      const { error: contractEventUpdateError } = await supabase
+        .from('contracts')
+        .update({ event_id: finalEventId })
+        .eq('id', relatedContract.id);
+
+      if (contractEventUpdateError) throw contractEventUpdateError;
+    }
+  }
+
+  return finalEventId;
 }
 
 export default function ContratoPublicoPage() {

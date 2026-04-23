@@ -29,25 +29,23 @@ function getInitialForm() {
 }
 
 function htmlToReadableText(value) {
-  const raw = String(value || '').trim();
+  const raw = String(value || '');
   if (!raw) return '';
 
   if (typeof window !== 'undefined') {
     const parser = new DOMParser();
     const doc = parser.parseFromString(raw, 'text/html');
-    return String(doc.body?.textContent || '').replace(/\n{3,}/g, '\n\n').trim();
+    return String(doc.body?.textContent || '');
   }
 
   return raw
     .replace(/<br\s*\/?\s*>/gi, '\n')
     .replace(/<\/p>/gi, '\n\n')
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
+    .replace(/<[^>]*>/g, ' ');
 }
 
 function textToEditorHtml(value) {
-  const text = String(value || '').replace(/\r\n/g, '\n').trim();
+  const text = String(value || '').replace(/\r\n/g, '\n');
   if (!text) return '';
   if (looksLikeHtml(text)) return text;
 
@@ -105,17 +103,19 @@ export default function ContractTemplatesPage() {
   const [preparingDynamicFields, setPreparingDynamicFields] = useState(false);
   const [prepareSnapshotText, setPrepareSnapshotText] = useState('');
   const [excluindoId, setExcluindoId] = useState(null);
+  const [editorSyncToken, setEditorSyncToken] = useState(0);
   const editorRef = useRef(null);
 
   const parsedTemplate = useMemo(() => parseContractTemplateInput(rawContractText), [rawContractText]);
-  const processedContentForDisplay = rawContractText.trim()
+  const hasRichEditorText = rawContractText.length > 0;
+  const processedContentForDisplay = hasRichEditorText
     ? parsedTemplate.normalizedContent
     : String(form.content || '');
-  const previewContent = editorTab === 'texto' && rawContractText.trim()
+  const previewContent = editorTab === 'texto' && hasRichEditorText
     ? parsedTemplate.normalizedContent
     : String(form.content || '');
   const isHtmlAdvancedOnly = useMemo(
-    () => !rawContractText.trim() && looksLikeHtml(form.content),
+    () => rawContractText.length === 0 && looksLikeHtml(form.content),
     [form.content, rawContractText],
   );
 
@@ -176,6 +176,7 @@ export default function ContractTemplatesPage() {
     setEditandoId(null);
     setForm(getInitialForm());
     setRawContractText('');
+    setEditorSyncToken((prev) => prev + 1);
     setEditorTab('texto');
   }
 
@@ -210,19 +211,15 @@ export default function ContractTemplatesPage() {
       is_active: template.is_active !== false,
       is_default: template.is_default === true,
     });
-    if (existingSourceRichHtml.trim()) {
-      setRawContractText(existingSourceRichHtml);
-      setEditorTab('texto');
-    } else if (existingSourceText.trim()) {
-      setRawContractText(textToEditorHtml(existingSourceText));
-      setEditorTab('texto');
-    } else if (looksLikeHtml(existingContent)) {
-      setRawContractText(existingContent);
-      setEditorTab('texto');
-    } else {
-      setRawContractText(textToEditorHtml(existingContent));
-      setEditorTab('texto');
-    }
+    let nextEditorText = '';
+    if (existingSourceRichHtml) nextEditorText = existingSourceRichHtml;
+    else if (existingSourceText) nextEditorText = textToEditorHtml(existingSourceText);
+    else if (looksLikeHtml(existingContent)) nextEditorText = existingContent;
+    else nextEditorText = textToEditorHtml(existingContent);
+
+    setRawContractText(nextEditorText);
+    setEditorSyncToken((prev) => prev + 1);
+    setEditorTab('texto');
     setMobileTab('form');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -241,11 +238,11 @@ export default function ContractTemplatesPage() {
       return;
     }
 
-    const shouldPersistSourceText = editorTab === 'texto' || rawContractText.trim();
-    const processedContent = rawContractText.trim()
+    const shouldPersistSourceText = editorTab === 'texto' || hasRichEditorText;
+    const processedContent = hasRichEditorText
       ? parsedTemplate.normalizedContent
       : String(form.content || '');
-    const sourceRichHtmlToPersist = rawContractText.trim() ? rawContractText : String(form.source_rich_html || '');
+    const sourceRichHtmlToPersist = hasRichEditorText ? rawContractText : String(form.source_rich_html || '');
     const sourceTextToPersist = shouldPersistSourceText
       ? htmlToReadableText(sourceRichHtmlToPersist)
       : String(form.source_text || '');
@@ -263,6 +260,11 @@ export default function ContractTemplatesPage() {
     if (supportsRichSourceColumn) {
       payload.source_rich_html = sourceRichHtmlToPersist;
     }
+    console.log('[TEMPLATE_EDITOR][BEFORE_SAVE_PAYLOAD]', {
+      editandoId,
+      payload,
+      rawContractLength: rawContractText.length,
+    });
 
     try {
       setSalvando(true);
@@ -274,6 +276,7 @@ export default function ContractTemplatesPage() {
           .eq('id', editandoId);
 
         if (error) throw error;
+        console.log('[TEMPLATE_EDITOR][SAVE_RESULT]', { mode: 'update', id: editandoId, ok: true });
         toast.success('Template atualizado com sucesso.');
       } else {
         const { error } = await supabase
@@ -281,6 +284,7 @@ export default function ContractTemplatesPage() {
           .insert([payload]);
 
         if (error) throw error;
+        console.log('[TEMPLATE_EDITOR][SAVE_RESULT]', { mode: 'insert', ok: true });
         toast.success('Template criado com sucesso.');
       }
 
@@ -288,6 +292,7 @@ export default function ContractTemplatesPage() {
       setMobileTab('lista');
       await carregarTemplates(false);
     } catch (saveError) {
+      console.log('[TEMPLATE_EDITOR][SAVE_RESULT]', { ok: false, message: saveError?.message });
       console.error('Erro ao salvar template de contrato:', saveError);
       toast.error(`Não foi possível salvar: ${saveError?.message || 'erro desconhecido'}`);
     } finally {
@@ -328,6 +333,7 @@ export default function ContractTemplatesPage() {
 
     try {
       setExcluindoId(template.id);
+      console.log('[TEMPLATE_EDITOR][DELETE_REQUEST]', { id: template.id, name: template.name });
 
       const [eventTypesUsage, precontractsUsage] = await Promise.all([
         supabase
@@ -354,19 +360,26 @@ export default function ContractTemplatesPage() {
         return;
       }
 
-      const { error } = await supabase
+      const { data: deletedRows, error } = await supabase
         .from('contract_templates')
         .delete()
-        .eq('id', template.id);
+        .eq('id', template.id)
+        .select('id');
 
       if (error) throw error;
+      if (!deletedRows || deletedRows.length === 0) {
+        throw new Error('Nenhum registro foi excluído. Verifique permissões/políticas de exclusão.');
+      }
+      console.log('[TEMPLATE_EDITOR][DELETE_RESULT]', { id: template.id, ok: true, deletedRows: deletedRows.length });
 
       if (String(editandoId || '') === String(template.id)) {
         limparFormulario();
       }
+      setTemplates((prev) => prev.filter((item) => String(item.id) !== String(template.id)));
       await carregarTemplates(false);
       toast.success('Template excluído com sucesso.');
     } catch (deleteError) {
+      console.log('[TEMPLATE_EDITOR][DELETE_RESULT]', { id: template.id, ok: false, message: deleteError?.message });
       console.error('Erro ao excluir template:', deleteError);
       toast.error(`Não foi possível excluir: ${deleteError?.message || 'erro desconhecido'}`);
     } finally {
@@ -389,12 +402,16 @@ export default function ContractTemplatesPage() {
     if (!editor) return;
     editor.focus();
     document.execCommand(command, false, value);
-    setRawContractText(editor.innerHTML || '');
+    const nextHtml = editor.innerHTML || '';
+    console.log('[TEMPLATE_EDITOR][TEXT_CHANGE]', { source: 'command', command, length: nextHtml.length });
+    setRawContractText(nextHtml);
   }
 
   function handleEditorInput() {
     if (!editorRef.current) return;
-    setRawContractText(editorRef.current.innerHTML || '');
+    const nextHtml = editorRef.current.innerHTML || '';
+    console.log('[TEMPLATE_EDITOR][TEXT_CHANGE]', { source: 'input', length: nextHtml.length });
+    setRawContractText(nextHtml);
   }
 
   function handleEditorPaste(event) {
@@ -403,6 +420,7 @@ export default function ContractTemplatesPage() {
     const clipboard = event.clipboardData;
     const html = clipboard?.getData('text/html');
     const text = clipboard?.getData('text/plain');
+    console.log('[TEMPLATE_EDITOR][PASTE]', { hasHtml: Boolean(html), textLength: text?.length || 0 });
 
     if (html) {
       document.execCommand('insertHTML', false, html);
@@ -417,10 +435,27 @@ export default function ContractTemplatesPage() {
 
     queueMicrotask(() => {
       if (editorRef.current) {
-        setRawContractText(editorRef.current.innerHTML || '');
+        const nextHtml = editorRef.current.innerHTML || '';
+        console.log('[TEMPLATE_EDITOR][TEXT_CHANGE]', { source: 'paste_commit', length: nextHtml.length });
+        setRawContractText(nextHtml);
       }
     });
   }
+
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor || editorTab !== 'texto') return;
+    const nextHtml = String(rawContractText || '');
+    if (editor.innerHTML !== nextHtml) {
+      console.log('[TEMPLATE_EDITOR][RESET_BY_EFFECT]', {
+        reason: 'external_sync',
+        token: editorSyncToken,
+        fromLength: editor.innerHTML.length,
+        toLength: nextHtml.length,
+      });
+      editor.innerHTML = nextHtml;
+    }
+  }, [editorSyncToken, editorTab, rawContractText]);
 
   const totais = useMemo(() => {
     const total = templates.length;
@@ -663,6 +698,7 @@ export default function ContractTemplatesPage() {
                       value={processedContentForDisplay}
                       onChange={(event) => {
                         setRawContractText('');
+                        setEditorSyncToken((prev) => prev + 1);
                         handleFormChange('content', event.target.value);
                       }}
                       className="min-h-[220px] w-full rounded-2xl border border-[#dbe3ef] bg-white px-4 py-3 font-mono text-sm text-[#0f172a] outline-none transition focus:border-violet-400"
@@ -755,13 +791,18 @@ export default function ContractTemplatesPage() {
       {preparingDynamicFields && (
         <PrepareDynamicFieldsModal
           initialText={rawContractText}
-          onLiveChange={setRawContractText}
+          onLiveChange={(nextText) => {
+            setRawContractText(nextText);
+            setEditorSyncToken((prev) => prev + 1);
+          }}
           onCancel={() => {
             setRawContractText(prepareSnapshotText);
+            setEditorSyncToken((prev) => prev + 1);
             setPreparingDynamicFields(false);
           }}
           onConclude={(updatedText) => {
             setRawContractText(updatedText);
+            setEditorSyncToken((prev) => prev + 1);
             setPreparingDynamicFields(false);
             toast.success('Campos dinâmicos preparados no texto.');
           }}

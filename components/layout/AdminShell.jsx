@@ -12,6 +12,7 @@ const MORE_ITEMS = [
   { label: 'Escalas', href: '/escalas', icon: '🎼', helper: 'Operação musical' },
   { label: 'Convites', href: '/convites', icon: '✉️', helper: 'Chamadas e respostas' },
   { label: 'Contratos', href: '/contratos', icon: '📝', helper: 'Fluxo contratual' },
+  { label: 'Tipos de evento', href: '/eventos/tipos', icon: '🏷️', helper: 'Catálogo de eventos' },
   { label: 'Templates contratos', href: '/contratos/templates', icon: '📄', helper: 'Modelos base' },
   { label: 'Pré-contratos', href: '/pre-contratos', icon: '🔗', helper: 'Comercial inicial' },
   { label: 'Repertórios', href: '/repertorios', icon: '🎧', helper: 'Organização musical' },

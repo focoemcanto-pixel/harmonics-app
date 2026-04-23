@@ -2,12 +2,33 @@ import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { getDefaultWorkspaceSettings } from '@/lib/automation/get-workspace';
 import { validateChannelConfig } from '@/lib/whatsapp/channel-config';
+import { requireAdmin } from '@/lib/api/require-admin';
 
 const SAVE_CHANNELS_AUDIT_VERSION = '2026-04-12-audit-v2';
 
-export async function GET() {
+async function requireChannelsAdmin(request, method) {
+  const supabaseAdmin = getSupabaseAdmin();
+
+  const auth = await requireAdmin({
+    supabase: supabaseAdmin,
+    request,
+    logPrefix: `[AUTOMATION_CHANNELS][${method}]`,
+  });
+
+  return { supabaseAdmin, auth };
+}
+
+export async function GET(request) {
+  const { supabaseAdmin, auth } = await requireChannelsAdmin(request, 'GET');
+
+  if (!auth.ok) {
+    return NextResponse.json(
+      { ok: false, error: auth.error },
+      { status: auth.status || 401 }
+    );
+  }
+
   try {
-    const supabaseAdmin = getSupabaseAdmin();
     const workspace = await getDefaultWorkspaceSettings();
 
     const query = supabaseAdmin
@@ -44,6 +65,15 @@ export async function GET() {
 }
 
 export async function POST(request) {
+  const { supabaseAdmin, auth } = await requireChannelsAdmin(request, 'POST');
+
+  if (!auth.ok) {
+    return NextResponse.json(
+      { ok: false, error: auth.error },
+      { status: auth.status || 401 }
+    );
+  }
+
   try {
     const body = await request.json();
 
@@ -66,7 +96,6 @@ export async function POST(request) {
       );
     }
 
-    const supabaseAdmin = getSupabaseAdmin();
     const workspace = await getDefaultWorkspaceSettings();
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'missing';
 

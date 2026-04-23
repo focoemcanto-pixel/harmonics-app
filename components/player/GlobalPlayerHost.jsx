@@ -78,24 +78,39 @@ export default function GlobalPlayerHost() {
     playRetryTimeoutsRef.current = [];
   }, []);
 
+  const isPlayerPlaying = useCallback((targetPlayer) => {
+    const playerState = targetPlayer?.getPlayerState?.();
+    const playingState = typeof window !== 'undefined' ? window?.YT?.PlayerState?.PLAYING : null;
+    return playerState === playingState;
+  }, []);
+
   const schedulePlayRetries = useCallback((targetPlayer, reason) => {
     if (!targetPlayer) return;
     clearPlayRetries();
-    [0, 120, 320].forEach((delay) => {
+    [0, 120, 320, 700].forEach((delay, attempt) => {
       const timeoutId = setTimeout(() => {
-        console.log('[PLAYER_MOBILE][PLAY_RETRY]', { reason, delay });
+        if (desiredPlaybackState !== 'playing') return;
+        if (isPlayerPlaying(targetPlayer)) {
+          clearPlayRetries();
+          return;
+        }
+        console.log('[PLAYER_MOBILE][PLAY_RETRY]', { reason, delay, attempt });
         targetPlayer?.playVideo?.();
       }, delay);
       playRetryTimeoutsRef.current.push(timeoutId);
     });
-  }, [clearPlayRetries]);
+  }, [clearPlayRetries, desiredPlaybackState, isPlayerPlaying]);
 
   const requestPlayIfDesired = useCallback((targetPlayer, reason) => {
     if (!targetPlayer) return;
     if (desiredPlaybackState !== 'playing') return;
+    if (isPlayerPlaying(targetPlayer)) {
+      setPendingManualPlay(false);
+      return;
+    }
     targetPlayer?.playVideo?.();
     schedulePlayRetries(targetPlayer, reason);
-  }, [desiredPlaybackState, schedulePlayRetries]);
+  }, [desiredPlaybackState, schedulePlayRetries, setPendingManualPlay, isPlayerPlaying]);
 
   useEffect(() => {
     console.log('[PLAYER_MOUNT]', 'GlobalPlayerHost mounted');
@@ -157,14 +172,12 @@ export default function GlobalPlayerHost() {
 
               if (videoId) {
                 currentVideoIdRef.current = videoId;
-                if (desiredPlaybackState === 'playing') {
-                  event?.target?.loadVideoById?.(videoId);
+                event?.target?.cueVideoById?.(videoId);
+                if (desiredPlaybackState === 'playing' || pendingManualPlay) {
                   requestPlayIfDesired(
                     event?.target,
                     pendingManualPlay ? 'on_ready_pending_manual' : 'on_ready_desired_playing'
                   );
-                } else {
-                  event?.target?.cueVideoById?.(videoId);
                 }
               }
             },
@@ -202,7 +215,7 @@ export default function GlobalPlayerHost() {
                 });
               }
               if (state === window.YT.PlayerState.CUED) {
-                if (desiredPlaybackState === 'playing') {
+                if (desiredPlaybackState === 'playing' || pendingManualPlay) {
                   requestPlayIfDesired(event?.target, pendingManualPlay ? 'cued_pending_manual' : 'cued_desired_playing');
                   return;
                 }

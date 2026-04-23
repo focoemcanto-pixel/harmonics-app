@@ -2,10 +2,22 @@ import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { getDefaultWorkspaceSettings } from '@/lib/automation/get-workspace';
 import { ensureDefaultAutomations } from '@/lib/automation/ensure-defaults';
+import { requireAdmin } from '@/lib/api/require-admin';
 
-export async function GET() {
+export async function GET(request) {
+  const supabaseAdmin = getSupabaseAdmin();
+
+  const auth = await requireAdmin({
+    supabase: supabaseAdmin,
+    request,
+    logPrefix: '[AUTOMATION_TEMPLATES][GET]',
+  });
+
+  if (!auth.ok) {
+    return NextResponse.json({ ok: false, error: auth.error }, { status: auth.status || 401 });
+  }
+
   try {
-    const supabaseAdmin = getSupabaseAdmin();
     const workspace = await getDefaultWorkspaceSettings();
     await ensureDefaultAutomations(workspace.id);
 
@@ -30,6 +42,18 @@ export async function GET() {
 }
 
 export async function POST(request) {
+  const supabaseAdmin = getSupabaseAdmin();
+
+  const auth = await requireAdmin({
+    supabase: supabaseAdmin,
+    request,
+    logPrefix: '[AUTOMATION_TEMPLATES][POST]',
+  });
+
+  if (!auth.ok) {
+    return NextResponse.json({ ok: false, error: auth.error }, { status: auth.status || 401 });
+  }
+
   try {
     const body = await request.json();
 
@@ -42,7 +66,6 @@ export async function POST(request) {
       );
     }
 
-    const supabaseAdmin = getSupabaseAdmin();
     const workspace = await getDefaultWorkspaceSettings();
 
     const { data, error } = await supabaseAdmin

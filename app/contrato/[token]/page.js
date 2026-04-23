@@ -11,7 +11,7 @@ import { useGoogleMapsReady } from '../../../hooks/useGoogleMapsReady';
 import { normalizeTimeStrict, isValidTime, sanitizeTimeFields } from '../../../lib/time/normalize-time';
 import { buildContractTemplateData } from '../../../lib/contracts/buildContractTemplateData';
 import { generateInternalContract } from '../../../lib/contracts/internalContractGenerator';
-import { renderContractHtmlWithTemplateData, resolveContractHtmlSource } from '../../../lib/contracts/resolveContractHtmlSource';
+import { renderContractHtmlWithData, resolveContractHtmlSource } from '../../../lib/contracts/resolveContractHtmlSource';
 import { useAppToast } from '../../../components/ui/ToastProvider';
 const IS_DEV = process.env.NODE_ENV !== 'production';
 
@@ -105,6 +105,39 @@ function convertDateToBr(value) {
 
   const [, yyyy, mm, dd] = match;
   return `${dd}/${mm}/${yyyy}`;
+}
+
+function buildClientAddress(formData) {
+  const parts = [
+    String(formData?.address_street || '').trim(),
+    String(formData?.address_number || '').trim()
+      ? `nº ${String(formData?.address_number || '').trim()}`
+      : '',
+    String(formData?.address_complement || '').trim(),
+    String(formData?.address_neighborhood || '').trim(),
+    String(formData?.address_cep || '').trim()
+      ? `CEP ${String(formData?.address_cep || '').trim()}`
+      : '',
+    String(formData?.address_city || '').trim(),
+    String(formData?.address_state || '').trim(),
+  ].filter(Boolean);
+
+  return parts.join(', ');
+}
+
+function mergeTemplateDataPriority(...sources) {
+  const merged = {};
+
+  sources.forEach((source) => {
+    if (!source || typeof source !== 'object') return;
+    Object.entries(source).forEach(([key, value]) => {
+      if (value === undefined || value === null) return;
+      if (typeof value === 'string' && value.trim() === '') return;
+      merged[key] = value;
+    });
+  });
+
+  return merged;
 }
 
 function isValidCpf(value) {
@@ -547,6 +580,8 @@ export default function ContratoPublicoPage() {
 
   const [precontract, setPrecontract] = useState(null);
   const [contract, setContract] = useState(null);
+  const [contactData, setContactData] = useState(null);
+  const [eventData, setEventData] = useState(null);
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
   const [enviado, setEnviado] = useState(false);
@@ -582,6 +617,93 @@ const mapsLoaded = useGoogleMapsReady();
     precontract?.custom_contract_enabled === true ||
     precontract?.contract_mode === 'internal';
 
+  const savedClientForm = useMemo(() => contract?.raw_payload?.client_form || {}, [contract]);
+
+  const contextTemplateData = useMemo(
+    () => buildContractTemplateData({
+      contract,
+      precontract,
+      contact: contactData,
+      event: eventData,
+    }),
+    [contract, precontract, contactData, eventData]
+  );
+
+  const formTemplateData = useMemo(() => {
+    const eventDate = convertDateToBr(form.event_date);
+    const eventTime = normalizeTimeStrict(form.event_time);
+    const eventLocation = [form.event_location_name, form.event_location_address]
+      .map((item) => String(item || '').trim())
+      .filter(Boolean)
+      .join(' - ');
+
+    return {
+      client_name: form.full_name,
+      client_marital_status: form.marital_status,
+      client_profession: form.profession,
+      client_cpf: form.cpf,
+      client_rg: form.rg,
+      client_address: buildClientAddress(form),
+      event_date: eventDate,
+      event_time: eventTime,
+      event_location: eventLocation,
+      client_signature: form.signer_name,
+      accepted_name: form.signer_name,
+      accepted_cpf: form.signer_cpf,
+      NOME: form.full_name,
+      ESTADO_CIVIL: form.marital_status,
+      PROFISSAO: form.profession,
+      CPF: form.cpf,
+      RG: form.rg,
+      ENDERECO: buildClientAddress(form),
+      DATA_EVENTO: eventDate,
+      HORA_EVENTO: eventTime,
+      LOCAL_EVENTO: eventLocation,
+      ASSINATURA: form.signer_name,
+      ACEITE_NOME: form.signer_name,
+      ACEITE_CPF: form.signer_cpf,
+    };
+  }, [form]);
+
+  const savedFormTemplateData = useMemo(() => {
+    const eventLocation = [savedClientForm?.event_location_name, savedClientForm?.event_location_address]
+      .map((item) => String(item || '').trim())
+      .filter(Boolean)
+      .join(' - ');
+
+    return {
+      client_name: savedClientForm?.full_name,
+      client_marital_status: savedClientForm?.marital_status,
+      client_profession: savedClientForm?.profession,
+      client_cpf: savedClientForm?.cpf,
+      client_rg: savedClientForm?.rg,
+      client_address: buildClientAddress(savedClientForm),
+      event_date: convertDateToBr(savedClientForm?.event_date),
+      event_time: normalizeTimeStrict(savedClientForm?.event_time),
+      event_location: eventLocation,
+      client_signature: savedClientForm?.signer_name,
+      accepted_name: savedClientForm?.signer_name,
+      accepted_cpf: savedClientForm?.signer_cpf,
+      NOME: savedClientForm?.full_name,
+      ESTADO_CIVIL: savedClientForm?.marital_status,
+      PROFISSAO: savedClientForm?.profession,
+      CPF: savedClientForm?.cpf,
+      RG: savedClientForm?.rg,
+      ENDERECO: buildClientAddress(savedClientForm),
+      DATA_EVENTO: convertDateToBr(savedClientForm?.event_date),
+      HORA_EVENTO: normalizeTimeStrict(savedClientForm?.event_time),
+      LOCAL_EVENTO: eventLocation,
+      ASSINATURA: savedClientForm?.signer_name,
+      ACEITE_NOME: savedClientForm?.signer_name,
+      ACEITE_CPF: savedClientForm?.signer_cpf,
+    };
+  }, [savedClientForm]);
+
+  const previewTemplateData = useMemo(
+    () => mergeTemplateDataPriority(contextTemplateData, savedFormTemplateData, formTemplateData),
+    [contextTemplateData, savedFormTemplateData, formTemplateData]
+  );
+
   function resolveContractHtml() {
     const candidates = [
       precontract?.custom_contract_rich_html,
@@ -594,7 +716,10 @@ const mapsLoaded = useGoogleMapsReady();
     ];
 
     const resolved = candidates.find((item) => String(item || '').trim().length > 0);
-    return String(resolved || '').trim();
+    const sourceHtml = String(resolved || '').trim();
+    if (!sourceHtml) return '';
+
+    return renderContractHtmlWithData(sourceHtml, previewTemplateData);
   }
 
   function abrirPreviewContrato() {
@@ -610,7 +735,7 @@ const mapsLoaded = useGoogleMapsReady();
 
     setPreviewError('');
     if (isInternalMode) {
-      if (!previewHtml) {
+      if (!contratoHtmlResolvido) {
         toast.error('Não foi possível gerar a visualização do contrato.');
         return;
       }
@@ -671,6 +796,8 @@ const mapsLoaded = useGoogleMapsReady();
       contractData = payload?.contract || null;
       const contactData = payload?.contact || null;
       const eventLoadedData = payload?.event || null;
+      setContactData(contactData || null);
+      setEventData(eventLoadedData || null);
 
       safePreData = sanitizeTimeFields(preData || null);
       setPrecontract(safePreData || null);
@@ -701,7 +828,7 @@ const mapsLoaded = useGoogleMapsReady();
 
         const templateData = buildContractTemplateData(context);
         const precontractHtml = resolveContractHtmlSource(safePreData || {}).html;
-        const resolvedHtml = renderContractHtmlWithTemplateData(precontractHtml, templateData);
+        const resolvedHtml = renderContractHtmlWithData(precontractHtml, templateData);
         const internal = generateInternalContract(
           {
             ...context,
@@ -1060,6 +1187,17 @@ const mapsLoaded = useGoogleMapsReady();
       status: precontract.status || 'draft',
     };
   }, [precontract]);
+
+useEffect(() => {
+  if (!previewAberto) return undefined;
+
+  const originalOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+
+  return () => {
+    document.body.style.overflow = originalOverflow;
+  };
+}, [previewAberto]);
 
 const pdfDisponivel =
   !!resultadoFinal.pdfUrl || !!contract?.pdf_url;
@@ -1497,7 +1635,7 @@ if (!generateRes.ok || !generateJson?.ok) {
 
       const htmlAssinado =
         String(generateJson?.html || '').trim() ||
-        resolveContractHtml();
+        contratoHtmlResolvido;
 
       setResultadoFinal({
         pdfUrl: pdfUrlFinal,
@@ -2226,7 +2364,7 @@ if (contractSignedError) throw contractSignedError;
         </div>
 
         {previewAberto && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-3">
+          <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-black/60 p-3">
             <div className="relative flex h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
               <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
                 <div>
@@ -2248,7 +2386,7 @@ if (contractSignedError) throw contractSignedError;
                 </button>
               </div>
 
-              <div className="relative flex-1 bg-slate-100 p-4 md:p-6">
+              <div className="relative flex-1 overflow-hidden bg-slate-100 p-4 md:p-6">
                 {isInternalMode ? (
                   <div className="h-full overflow-y-auto rounded-2xl border border-slate-200 bg-white p-6 shadow-inner md:p-10">
                     <article
@@ -2273,7 +2411,7 @@ if (contractSignedError) throw contractSignedError;
                   </>
                 )}
 
-                <div className="h-full overflow-y-auto p-4 md:p-6">
+                <div className="h-full max-h-[80vh] overflow-y-auto p-4 md:p-6" onWheel={(e) => e.stopPropagation()} onTouchMove={(e) => e.stopPropagation()}>
                   <div className="mx-auto w-full max-w-[880px] rounded-[26px] border border-slate-200 bg-white p-6 shadow-[0_20px_40px_rgba(15,23,42,0.08)] md:p-10">
                     {previewHtml ? (
                       <article

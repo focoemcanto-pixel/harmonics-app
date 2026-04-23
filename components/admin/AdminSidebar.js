@@ -14,6 +14,7 @@ export default function AdminSidebar({ activeItem = 'eventos' }) {
   const pathname = usePathname();
   const { signOut, profile } = useAuth();
   const automationOpen = pathname?.startsWith('/automacoes');
+  const contractsOpen = pathname?.startsWith('/contratos');
 
   const items = [
     { key: 'dashboard', label: 'Dashboard', href: '/dashboard' },
@@ -37,6 +38,11 @@ export default function AdminSidebar({ activeItem = 'eventos' }) {
     { label: 'Logs', href: '/automacoes/logs' },
   ];
 
+
+  const contractItems = [
+    { label: 'Visão geral', href: '/contratos' },
+    { label: 'Templates', href: '/contratos/templates' },
+  ];
   return (
     <aside className="sticky top-0 flex min-h-screen w-[280px] shrink-0 flex-col bg-[#020b2c] px-5 py-6 text-white">
       <div className="flex items-center gap-3 px-2">
@@ -55,6 +61,16 @@ export default function AdminSidebar({ activeItem = 'eventos' }) {
             <Link href={item.href} className={`flex w-full items-center rounded-2xl px-4 py-3 text-left text-[15px] font-bold transition ${navClass(activeItem === item.key)}`}>
               {item.label}
             </Link>
+            {item.key === 'contratos' && contractsOpen && (
+              <div className="ml-6 mt-1 space-y-1 border-l border-violet-400/30 pl-3">
+                {contractItems.map((sub) => (
+                  <Link key={sub.href} href={sub.href} className={`block rounded-lg px-3 py-1.5 text-[13px] font-semibold ${pathname === sub.href ? 'bg-violet-200/20 text-violet-200' : 'text-[#a5b4fc] hover:text-white'}`}>
+                    {sub.label}
+                  </Link>
+                ))}
+              </div>
+            )}
+
             {item.key === 'automacoes' && automationOpen && (
               <div className="ml-6 mt-1 space-y-1 border-l border-violet-400/30 pl-3">
                 {automationItems.map((sub) => (

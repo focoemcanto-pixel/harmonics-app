@@ -13,14 +13,6 @@ import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
 import { supabase } from '@/lib/supabase';
 import { normalizeTimeStrict, isValidTime, sanitizeTimeFields } from '@/lib/time/normalize-time';
 
-const EVENT_TYPES = [
-  'Casamento',
-  'Aniversário',
-  'Corporativo',
-  'Igreja',
-  'Outro',
-];
-
 const FORMATIONS = [
   'Solo',
   'Duo',
@@ -49,6 +41,7 @@ const PRECONTRACT_SELECT_FIELDS = [
   'client_email',
   'client_phone',
   'event_type',
+  'event_type_id',
   'event_date',
   'event_time',
   'duration_min',
@@ -70,12 +63,14 @@ const PRECONTRACT_SELECT_FIELDS = [
   'generated_link',
   'custom_contract_enabled',
   'custom_contract_content',
+  'contract_template_id',
   'contract_mode',
 ].join(', ');
 let preContratosCache = {
   updatedAt: 0,
   items: [],
   eventos: [],
+  eventTypes: [],
   adjustmentRequestsByPrecontract: new Map(),
 };
 
@@ -171,6 +166,7 @@ function getInitialForm() {
     client_phone: '',
 
     event_type: '',
+    event_type_id: '',
     event_date: '',
     event_time: '',
     duration_min: '60',
@@ -195,6 +191,7 @@ function getInitialForm() {
     status: 'draft',
     custom_contract_enabled: false,
     custom_contract_content: '',
+    contract_template_id: '',
     contract_mode: '',
   };
 }
@@ -526,6 +523,9 @@ export default function PreContratosClient() {
   const { confirm } = useConfirm() || {};
   const [items, setItems] = useState([]);
   const [eventos, setEventos] = useState([]);
+  const [eventTypes, setEventTypes] = useState([]);
+  const [appliedTemplateName, setAppliedTemplateName] = useState('');
+  const [contractContentTouched, setContractContentTouched] = useState(false);
 
   const [editandoId, setEditandoId] = useState(null);
   const [carregando, setCarregando] = useState(true);
@@ -608,6 +608,20 @@ export default function PreContratosClient() {
     preContratosCache.updatedAt = Date.now();
   }
 
+  async function carregarTiposEvento() {
+    const { data, error } = await supabase
+      .from('event_types')
+      .select('*')
+      .eq('is_active', true)
+      .order('sort_order', { ascending: true });
+
+    if (error) throw error;
+    const types = data || [];
+    setEventTypes(types);
+    preContratosCache.eventTypes = types;
+    preContratosCache.updatedAt = Date.now();
+  }
+
   useEffect(() => {
     async function carregar() {
       try {
@@ -617,8 +631,14 @@ export default function PreContratosClient() {
 
         if (!hasFreshCache) {
           setCarregando(true);
-          const [loadedPrecontracts] = await Promise.all([carregarPreContratos(), carregarEventos()]);
+          const [loadedPrecontracts] = await Promise.all([
+            carregarPreContratos(),
+            carregarEventos(),
+            carregarTiposEvento(),
+          ]);
           await carregarAdjustmentRequests(loadedPrecontracts);
+        } else {
+          await carregarTiposEvento();
         }
       } catch (error) {
         console.error('Erro ao carregar pré-contratos:', error);
@@ -631,6 +651,7 @@ export default function PreContratosClient() {
     if ((preContratosCache.items || []).length > 0) {
       setItems(preContratosCache.items || []);
       setEventos(preContratosCache.eventos || []);
+      setEventTypes(preContratosCache.eventTypes || []);
       setAdjustmentRequestsByPrecontract(
         preContratosCache.adjustmentRequestsByPrecontract || new Map()
       );
@@ -640,16 +661,75 @@ export default function PreContratosClient() {
     carregar();
   }, [showToast]);
 
-  function handleFormChange(field, value) {
+  async function applyDefaultTemplateByEventType(eventTypeId, nextFormState) {
+    if (!eventTypeId) return;
+    setAppliedTemplateName('');
+
+    const currentContent = String(nextFormState?.custom_contract_content || '').trim();
+    if (currentContent || contractContentTouched) return;
+
+    const selectedEventType = eventTypes.find((item) => String(item?.id) === String(eventTypeId));
+    const defaultTemplateId = selectedEventType?.default_contract_template_id;
+    if (!defaultTemplateId) return;
+
+    const { data: template, error } = await supabase
+      .from('contract_templates')
+      .select('*')
+      .eq('id', defaultTemplateId)
+      .single();
+
+    if (error || !template?.content) return;
+
     setForm((prev) => ({
       ...prev,
-      [field]: field === 'event_time' ? normalizeTimeStrict(value) : value,
+      custom_contract_enabled: true,
+      custom_contract_content: template.content,
+      contract_template_id: template.id,
+    }));
+
+    setAppliedTemplateName(
+      template.name || template.title || template.template_name || `#${template.id}`
+    );
+  }
+
+  function handleFormChange(field, value) {
+    const normalizedValue = field === 'event_time' ? normalizeTimeStrict(value) : value;
+
+    if (field === 'custom_contract_content') {
+      setContractContentTouched(true);
+    }
+
+    if (field === 'event_type_id') {
+      const selectedEventType = eventTypes.find((item) => String(item?.id) === String(normalizedValue));
+      const selectedLabel =
+        selectedEventType?.name || selectedEventType?.label || selectedEventType?.title || '';
+
+      const nextFormState = {
+        ...form,
+        event_type_id: normalizedValue,
+        event_type: selectedLabel,
+      };
+
+      setForm((prev) => ({
+        ...prev,
+        event_type_id: normalizedValue,
+        event_type: selectedLabel,
+      }));
+      void applyDefaultTemplateByEventType(normalizedValue, nextFormState);
+      return;
+    }
+
+    setForm((prev) => ({
+      ...prev,
+      [field]: normalizedValue,
     }));
   }
 
   function resetForm() {
     setEditandoId(null);
     setAdjustmentHighlight({ active: false, message: '' });
+    setAppliedTemplateName('');
+    setContractContentTouched(false);
     setForm(getInitialForm());
   }
 
@@ -667,6 +747,7 @@ export default function PreContratosClient() {
       client_phone: item.client_phone || '',
 
       event_type: item.event_type || '',
+      event_type_id: item.event_type_id || '',
       event_date: item.event_date || '',
       event_time: normalizeTimeStrict(item.event_time || ''),
       duration_min: String(item.duration_min ?? 60),
@@ -691,8 +772,11 @@ export default function PreContratosClient() {
       status: item.status || 'draft',
       custom_contract_enabled: item.custom_contract_enabled === true,
       custom_contract_content: item.custom_contract_content || '',
+      contract_template_id: item.contract_template_id || '',
       contract_mode: item.contract_mode || '',
     });
+    setAppliedTemplateName('');
+    setContractContentTouched(Boolean(String(item.custom_contract_content || '').trim()));
 
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -718,6 +802,26 @@ export default function PreContratosClient() {
   useEffect(() => {
     preContratosCache.eventos = eventos;
   }, [eventos]);
+
+  useEffect(() => {
+    preContratosCache.eventTypes = eventTypes;
+  }, [eventTypes]);
+
+  useEffect(() => {
+    if (!form.event_type || form.event_type_id || eventTypes.length === 0) return;
+
+    const matched = eventTypes.find((item) => {
+      const label = item?.name || item?.label || item?.title || '';
+      return String(label).trim().toLowerCase() === String(form.event_type).trim().toLowerCase();
+    });
+
+    if (!matched?.id) return;
+
+    setForm((prev) => ({
+      ...prev,
+      event_type_id: matched.id,
+    }));
+  }, [eventTypes, form.event_type, form.event_type_id]);
 
   const financeiro = useMemo(() => {
     const base = toNumber(form.base_amount);
@@ -826,6 +930,7 @@ export default function PreContratosClient() {
         client_phone: cleanPhone(form.client_phone) || null,
 
         event_type: form.event_type || null,
+        event_type_id: form.event_type_id || null,
         event_date: form.event_date || null,
         event_time: normalizeTimeStrict(form.event_time) || null,
         duration_min: parseInt(form.duration_min, 10) || 60,
@@ -853,6 +958,7 @@ export default function PreContratosClient() {
           form.custom_contract_enabled && String(form.custom_contract_content || '').trim()
             ? String(form.custom_contract_content).trim()
             : null,
+        contract_template_id: form.contract_template_id || null,
         contract_mode: form.custom_contract_enabled ? 'internal' : (form.contract_mode || null),
       };
 
@@ -1173,16 +1279,27 @@ export default function PreContratosClient() {
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <Select
                     label="Tipo de evento"
-                    value={form.event_type}
-                    onChange={(e) => handleFormChange('event_type', e.target.value)}
+                    value={form.event_type_id}
+                    onChange={(e) => handleFormChange('event_type_id', e.target.value)}
                   >
                     <option value="">Selecione</option>
-                    {EVENT_TYPES.map((type) => (
-                      <option key={type} value={type}>
-                        {type}
+                    {eventTypes.map((type) => (
+                      <option key={type.id} value={type.id}>
+                        {type.name || type.label || type.title || `Tipo #${type.id}`}
                       </option>
                     ))}
                   </Select>
+                  {appliedTemplateName ? (
+                    <div className="md:col-span-2 -mt-2 flex flex-wrap items-center gap-2 text-xs text-emerald-700">
+                      <span>Template aplicado automaticamente: {appliedTemplateName}</span>
+                      <button
+                        type="button"
+                        className="rounded-full border border-slate-300 px-3 py-1 text-slate-600 transition hover:border-slate-400 hover:text-slate-900"
+                      >
+                        Trocar template
+                      </button>
+                    </div>
+                  ) : null}
 
                   <Select
                     label="Formação"

@@ -104,15 +104,13 @@ export function GlobalPlayerProvider({ children }) {
   }, [playlist.length, isPlaying, currentTrackIndex, schedulePlayVideo]);
 
   const play = useCallback(() => {
-    setIsPlaying(true);
-    console.log('[AUDIO_PLAYER][IS_PLAYING]', true);
     playerRef?.playVideo?.();
+    console.log('[AUDIO_PLAYER][PLAY_REQUESTED]', { hasPlayer: Boolean(playerRef) });
   }, [playerRef]);
 
   const pause = useCallback(() => {
-    setIsPlaying(false);
-    console.log('[AUDIO_PLAYER][IS_PLAYING]', false);
     playerRef?.pauseVideo?.();
+    console.log('[AUDIO_PLAYER][PAUSE_REQUESTED]', { hasPlayer: Boolean(playerRef) });
   }, [playerRef]);
 
   const seek = useCallback((timeInSeconds) => {

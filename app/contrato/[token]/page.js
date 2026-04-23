@@ -294,6 +294,60 @@ function getInputTone(error, success) {
   return '';
 }
 
+const RESOLVED_ADJUSTMENT_STATUSES = new Set([
+  'resolved',
+  'corrected',
+  'released',
+  'liberado',
+]);
+
+function getEffectiveAdjustmentValue({ saved, latestAdjustment }) {
+  const latestAdjustmentStatus = String(latestAdjustment?.status || '').trim().toLowerCase();
+  const rawSavedAdjustment = String(saved?.adjustment_request || '');
+  const pendingAdjustmentMessage = String(latestAdjustment?.request_message || '');
+
+  const textareaInitialValue =
+    latestAdjustmentStatus === 'pending'
+      ? pendingAdjustmentMessage || rawSavedAdjustment
+      : rawSavedAdjustment;
+
+  if (RESOLVED_ADJUSTMENT_STATUSES.has(latestAdjustmentStatus)) {
+    return '';
+  }
+
+  return textareaInitialValue;
+}
+
+function getInitialFormFromSavedData({ saved, precontract, effectiveAdjustmentValue }) {
+  return {
+    full_name: saved.full_name || precontract.client_name || '',
+    marital_status: saved.marital_status || '',
+    profession: saved.profession || '',
+    cpf: saved.cpf ? maskCpf(saved.cpf) : '',
+    rg: saved.rg || '',
+    whatsapp: saved.whatsapp ? maskPhone(saved.whatsapp) : '',
+
+    address_street: saved.address_street || '',
+    address_number: saved.address_number || '',
+    address_complement: saved.address_complement || '',
+    address_neighborhood: saved.address_neighborhood || '',
+    address_cep: saved.address_cep ? maskCep(saved.address_cep) : '',
+    address_city: saved.address_city || '',
+    address_state: saved.address_state || '',
+
+    event_date: convertDateToBr(saved.event_date || precontract.event_date || ''),
+    event_time: normalizeTimeStrict(saved.event_time || precontract.event_time || ''),
+    event_location_name: saved.event_location_name || precontract.location_name || '',
+    event_location_address: saved.event_location_address || precontract.location_address || '',
+
+    adjustment_request: effectiveAdjustmentValue,
+
+    signer_name: saved.signer_name || '',
+    signer_cpf: saved.signer_cpf ? maskCpf(saved.signer_cpf) : '',
+    accepted_terms: !!saved.accepted_terms,
+  };
+}
+
 async function upsertContactFromSignature({
   supabase,
   precontract,
@@ -626,57 +680,18 @@ const mapsLoaded = useGoogleMapsReady();
         setPendingAdjustmentRequest(null);
       }
 
-      const latestAdjustmentStatus = String(latestAdjustment?.status || '').trim().toLowerCase();
-      const rawSavedAdjustment = String(saved.adjustment_request || '');
-      const pendingAdjustmentMessage = String(latestAdjustment?.request_message || '');
-
-      const textareaInitialValue = latestAdjustmentStatus === 'pending'
-        ? pendingAdjustmentMessage || rawSavedAdjustment
-        : rawSavedAdjustment;
-
-      const effectiveAdjustmentValue =
-        latestAdjustmentStatus === 'resolved' ||
-        latestAdjustmentStatus === 'corrected' ||
-        latestAdjustmentStatus === 'released' ||
-        latestAdjustmentStatus === 'liberado'
-          ? ''
-          : textareaInitialValue;
-
-      console.log('[CONTRACT_ADJUST][RAW_STATUS]', latestAdjustmentStatus || '(empty)');
-      console.log('[CONTRACT_ADJUST][RAW_TEXT_SOURCE]', {
-        pendingRequestMessage: pendingAdjustmentMessage,
-        savedClientFormValue: rawSavedAdjustment,
+      const effectiveAdjustmentValue = getEffectiveAdjustmentValue({
+        saved,
+        latestAdjustment,
       });
-      console.log('[CONTRACT_ADJUST][TEXTAREA_INITIAL_VALUE]', effectiveAdjustmentValue);
 
-      setForm({
-        full_name: saved.full_name || safePreData.client_name || '',
-        marital_status: saved.marital_status || '',
-        profession: saved.profession || '',
-        cpf: saved.cpf ? maskCpf(saved.cpf) : '',
-        rg: saved.rg || '',
-        whatsapp: saved.whatsapp ? maskPhone(saved.whatsapp) : '',
-
-        address_street: saved.address_street || '',
-        address_number: saved.address_number || '',
-        address_complement: saved.address_complement || '',
-        address_neighborhood: saved.address_neighborhood || '',
-        address_cep: saved.address_cep ? maskCep(saved.address_cep) : '',
-        address_city: saved.address_city || '',
-        address_state: saved.address_state || '',
-
-        event_date: convertDateToBr(saved.event_date || safePreData.event_date || ''),
-        event_time: normalizeTimeStrict(saved.event_time || safePreData.event_time || ''),
-        event_location_name: saved.event_location_name || safePreData.location_name || '',
-        event_location_address:
-          saved.event_location_address || safePreData.location_address || '',
-
-        adjustment_request: effectiveAdjustmentValue,
-
-        signer_name: saved.signer_name || '',
-        signer_cpf: saved.signer_cpf ? maskCpf(saved.signer_cpf) : '',
-        accepted_terms: !!saved.accepted_terms,
-      });
+      setForm(
+        getInitialFormFromSavedData({
+          saved,
+          precontract: safePreData,
+          effectiveAdjustmentValue,
+        })
+      );
 
       setAddressValidation({
         clientAddressConfirmed: !!saved.address_street,
@@ -735,7 +750,6 @@ const mapsLoaded = useGoogleMapsReady();
   carregar();
 }, [token]);
  useEffect(() => {
-  console.log('🔥 EFFECT AUTOCOMPLETE RODANDO');
   if (!mapsLoaded) return;
   if (typeof window === 'undefined') return;
 
@@ -749,10 +763,12 @@ const mapsLoaded = useGoogleMapsReady();
     const clientInput = addressStreetRef.current;
     const eventInput = eventAddressRef.current;
 
-    console.log('[Google Maps] tentativa:', attempts);
-    console.log('[Google Maps] places:', !!places);
-    console.log('[Google Maps] clientInput:', clientInput);
-    console.log('[Google Maps] eventInput:', eventInput);
+    devLog('[Google Maps] tentativa de inicialização', {
+      attempts,
+      placesReady: !!places,
+      hasClientInput: !!clientInput,
+      hasEventInput: !!eventInput,
+    });
 
     if (!places || !clientInput || !eventInput) {
       if (attempts >= 20) {
@@ -765,8 +781,6 @@ const mapsLoaded = useGoogleMapsReady();
     }
 
     if (!clientAutocompleteRef.current) {
-      console.log('🚀 inicializando autocomplete do contratante');
-
       clientAutocompleteRef.current = new window.google.maps.places.Autocomplete(
         clientInput,
         {
@@ -776,9 +790,7 @@ const mapsLoaded = useGoogleMapsReady();
         }
       );
 
-            clientAutocompleteRef.current.addListener('place_changed', () => {
-        console.log('place_changed contratante disparou');
-
+      clientAutocompleteRef.current.addListener('place_changed', () => {
         const place = clientAutocompleteRef.current.getPlace();
         const data = extractAddressDataFromPlace(place);
 
@@ -812,8 +824,6 @@ const mapsLoaded = useGoogleMapsReady();
     }
 
     if (!eventAutocompleteRef.current) {
-      console.log('🚀 inicializando autocomplete do evento');
-
       eventAutocompleteRef.current = new window.google.maps.places.Autocomplete(
         eventInput,
         {
@@ -824,8 +834,6 @@ const mapsLoaded = useGoogleMapsReady();
       );
 
       eventAutocompleteRef.current.addListener('place_changed', () => {
-        console.log('place_changed evento disparou');
-
         const place = eventAutocompleteRef.current.getPlace();
         const formattedAddress = place?.formatted_address || '';
 
@@ -850,7 +858,7 @@ const mapsLoaded = useGoogleMapsReady();
     }
 
     if (clientAutocompleteRef.current && eventAutocompleteRef.current) {
-      console.log('✅ autocomplete inicializado com sucesso');
+      devLog('[Google Maps] autocomplete inicializado com sucesso');
       clearInterval(intervalId);
     }
   }
@@ -1044,10 +1052,6 @@ const contratoFinalizado =
     return true;
   }
 
-  function validateMainFields() {
-    return validateFormFields();
-  }
-
   async function upsertContract(statusOverride = 'client_filling') {
     if (!precontract?.id) throw new Error('Pré-contrato não encontrado.');
 
@@ -1126,7 +1130,7 @@ const contratoFinalizado =
   }
 
   async function solicitarAjuste() {
-    if (!validateMainFields()) return;
+    if (!validateFormFields()) return;
 
     if (!form.adjustment_request.trim()) {
       toast.warning('Descreva o ajuste que deseja solicitar.');
@@ -1252,13 +1256,13 @@ const contratoFinalizado =
     }
   }
 
-  async function assinarContrato() {
+ async function assinarContrato() {
    if (hasPendingAdjustment) {
       toast.info('Sua solicitação de ajuste está em análise. Assim que for concluída, a assinatura será liberada.');
       return;
     }
 
-    if (!validateMainFields()) return;
+    if (!validateFormFields()) return;
 
     if (!form.signer_name.trim()) {
       toast.warning('Digite seu nome na assinatura.');

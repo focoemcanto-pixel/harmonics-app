@@ -6,6 +6,8 @@ import AdminShell from '@/components/admin/AdminShell';
 import AdminPageHero from '@/components/admin/AdminPageHero';
 import AdminSegmentTabs from '@/components/admin/AdminSegmentTabs';
 import { useAppToast } from '@/components/ui/ToastProvider';
+import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
+import PrepareDynamicFieldsModal from '@/components/contratos/PrepareDynamicFieldsModal';
 import { looksLikeHtml, parseContractTemplateInput } from '@/lib/contracts/templateImport';
 
 const MOBILE_TABS = [
@@ -47,6 +49,7 @@ function normalizeSlug(value) {
 
 export default function ContractTemplatesPage() {
   const toast = useAppToast();
+  const { confirm } = useConfirm() || {};
   const [templates, setTemplates] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
@@ -58,6 +61,9 @@ export default function ContractTemplatesPage() {
   const [editorTab, setEditorTab] = useState('texto');
   const [busca, setBusca] = useState('');
   const [mobileTab, setMobileTab] = useState('lista');
+  const [preparingDynamicFields, setPreparingDynamicFields] = useState(false);
+  const [prepareSnapshotText, setPrepareSnapshotText] = useState('');
+  const [excluindoId, setExcluindoId] = useState(null);
 
   const parsedTemplate = useMemo(() => parseContractTemplateInput(rawContractText), [rawContractText]);
   const processedContentForDisplay = rawContractText.trim()
@@ -114,6 +120,16 @@ export default function ContractTemplatesPage() {
     limparFormulario();
     setMobileTab('form');
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function abrirPreparadorCampos() {
+    const source = String(rawContractText || form.source_text || '').trim();
+    if (!source) {
+      toast.warning('Informe um texto de contrato antes de preparar campos dinâmicos.');
+      return;
+    }
+    setPrepareSnapshotText(rawContractText);
+    setPreparingDynamicFields(true);
   }
 
   function iniciarEdicao(template) {
@@ -221,6 +237,67 @@ export default function ContractTemplatesPage() {
     } catch (statusError) {
       console.error('Erro ao alterar status do template:', statusError);
       toast.error(`Não foi possível alterar o status: ${statusError?.message || 'erro desconhecido'}`);
+    }
+  }
+
+  async function excluirTemplate(template) {
+    const confirmou = confirm
+      ? await confirm({
+        title: 'Excluir template?',
+        description:
+          'Essa ação removerá este template. Se ele estiver vinculado a tipos de evento ou pré-contratos, o sistema deve impedir exclusão física ou avisar corretamente.',
+        confirmText: 'Excluir template',
+        cancelText: 'Cancelar',
+        tone: 'destructive',
+      })
+      : window.confirm('Excluir template? Esta ação não pode ser desfeita.');
+    if (!confirmou) return;
+
+    try {
+      setExcluindoId(template.id);
+
+      const [eventTypesUsage, precontractsUsage] = await Promise.all([
+        supabase
+          .from('event_types')
+          .select('id', { count: 'exact', head: true })
+          .eq('default_contract_template_id', template.id),
+        supabase
+          .from('precontracts')
+          .select('id', { count: 'exact', head: true })
+          .eq('contract_template_id', template.id),
+      ]);
+
+      if (eventTypesUsage.error) throw eventTypesUsage.error;
+      if (precontractsUsage.error) throw precontractsUsage.error;
+
+      const eventTypesCount = Number(eventTypesUsage.count || 0);
+      const precontractsCount = Number(precontractsUsage.count || 0);
+      const totalUsages = eventTypesCount + precontractsCount;
+
+      if (totalUsages > 0) {
+        toast.warning(
+          `Este template está vinculado (${eventTypesCount} tipo(s) de evento e ${precontractsCount} pré-contrato(s)). Desvincule antes de excluir.`
+        );
+        return;
+      }
+
+      const { error } = await supabase
+        .from('contract_templates')
+        .delete()
+        .eq('id', template.id);
+
+      if (error) throw error;
+
+      if (String(editandoId || '') === String(template.id)) {
+        limparFormulario();
+      }
+      await carregarTemplates(false);
+      toast.success('Template excluído com sucesso.');
+    } catch (deleteError) {
+      console.error('Erro ao excluir template:', deleteError);
+      toast.error(`Não foi possível excluir: ${deleteError?.message || 'erro desconhecido'}`);
+    } finally {
+      setExcluindoId(null);
     }
   }
 
@@ -344,6 +421,14 @@ export default function ContractTemplatesPage() {
                           >
                             {template.is_active !== false ? 'Inativar' : 'Ativar'}
                           </button>
+                          <button
+                            type="button"
+                            disabled={excluindoId === template.id}
+                            onClick={() => excluirTemplate(template)}
+                            className="rounded-xl border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-black text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {excluindoId === template.id ? 'Excluindo...' : 'Excluir'}
+                          </button>
                         </div>
                       </div>
                     </article>
@@ -431,6 +516,15 @@ export default function ContractTemplatesPage() {
                       className="min-h-[220px] w-full rounded-2xl border border-[#dbe3ef] bg-white px-4 py-3 text-sm text-[#0f172a] outline-none transition focus:border-violet-400"
                       placeholder="Cole aqui o contrato em texto normal, com ou sem placeholders."
                     />
+                    {!!String(rawContractText || form.source_text || '').trim() && (
+                      <button
+                        type="button"
+                        onClick={abrirPreparadorCampos}
+                        className="mt-3 rounded-2xl border border-violet-200 bg-violet-50 px-4 py-2.5 text-xs font-black text-violet-700 transition hover:bg-violet-100"
+                      >
+                        Preparar campos dinâmicos
+                      </button>
+                    )}
                   </label>
                 ) : (
                   <label className="block">
@@ -501,6 +595,21 @@ export default function ContractTemplatesPage() {
               >
                 {salvando ? 'Salvando...' : editandoId ? 'Salvar alterações' : 'Criar template'}
               </button>
+
+              {editandoId && (
+                <button
+                  type="button"
+                  disabled={excluindoId === editandoId}
+                  onClick={() => {
+                    const templateInMemory = templates.find((item) => String(item.id) === String(editandoId));
+                    if (!templateInMemory) return;
+                    excluirTemplate(templateInMemory);
+                  }}
+                  className="w-full rounded-2xl border border-red-200 bg-red-50 px-5 py-3 text-sm font-black text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {excluindoId === editandoId ? 'Excluindo...' : 'Excluir template'}
+                </button>
+              )}
             </div>
 
             <div className="mt-6 rounded-[22px] border border-[#e2e8f0] bg-[#f8fafc] p-4">
@@ -516,6 +625,21 @@ export default function ContractTemplatesPage() {
           </section>
         </div>
       </div>
+      {preparingDynamicFields && (
+        <PrepareDynamicFieldsModal
+          initialText={rawContractText}
+          onLiveChange={setRawContractText}
+          onCancel={() => {
+            setRawContractText(prepareSnapshotText);
+            setPreparingDynamicFields(false);
+          }}
+          onConclude={(updatedText) => {
+            setRawContractText(updatedText);
+            setPreparingDynamicFields(false);
+            toast.success('Campos dinâmicos preparados no texto.');
+          }}
+        />
+      )}
     </AdminShell>
   );
 }

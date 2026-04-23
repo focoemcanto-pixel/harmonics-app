@@ -147,13 +147,10 @@ export function GlobalPlayerProvider({ children }) {
 
   const play = useCallback(() => {
     setDesiredPlaybackState('playing');
-    if (!hasUserUnlockedPlayback) {
-      setPendingManualPlay(true);
-    }
-    setIsPlaying(true);
+    setPendingManualPlay(true);
     playerRef?.playVideo?.();
     console.log('[AUDIO_PLAYER][PLAY_REQUESTED]', { hasPlayer: Boolean(playerRef) });
-  }, [playerRef, hasUserUnlockedPlayback]);
+  }, [playerRef]);
 
   const pause = useCallback(() => {
     setDesiredPlaybackState('paused');

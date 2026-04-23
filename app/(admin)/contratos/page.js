@@ -24,7 +24,7 @@ import { useAppToast } from '@/components/ui/ToastProvider';
 
 const ADMIN_LIST_LIMIT = 100;
 const PRECONTRACTS_SELECT_FIELDS =
-  'id, created_at, event_id, client_name, event_type, event_date, location_name, client_phone, status, notes, public_token';
+  'id, created_at, event_id, client_name, event_type, event_date, location_name, client_phone, status, notes, public_token, custom_contract_enabled, contract_mode';
 const CONTRACTS_SELECT_FIELDS =
   'id, created_at, precontract_id, event_id, status, signed_at, pdf_url, doc_url, public_token';
 const CONTRATOS_CACHE_TTL_MS = 60 * 1000;
@@ -62,6 +62,13 @@ function getResolvedToken(precontract, contract) {
   return preToken || contractToken;
 }
 
+function isInternalContractModel(precontract) {
+  return (
+    precontract?.custom_contract_enabled === true ||
+    String(precontract?.contract_mode || '').toLowerCase() === 'internal'
+  );
+}
+
 export default function ContratosPage() {
   const router = useRouter();
   const toast = useAppToast();
@@ -95,6 +102,7 @@ export default function ContratosPage() {
 
       const visualizado =
         String(pre?.status || '').toLowerCase() !== 'link_generated' || !!contract;
+      const internalMode = isInternalContractModel(pre);
 
       const clienteNome = pre.client_name || 'Cliente a confirmar';
 
@@ -127,6 +135,8 @@ export default function ContratosPage() {
         linkContrato: resolvedToken ? `/contrato/${resolvedToken}` : '',
         pdfUrl: contract?.pdf_url || '',
         docUrl: contract?.doc_url || '',
+        contractModelLabel: internalMode ? 'Internal' : 'Docs',
+        contractModelTone: internalMode ? 'violet' : 'default',
       };
     });
   };

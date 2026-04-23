@@ -102,8 +102,6 @@ export default function GlobalPlayerHost() {
   }, [playerRef, isPlaying, setCurrentTime]);
 
   useEffect(() => {
-    if (!videoId) return;
-
     let cancelled = false;
 
     async function init() {
@@ -119,7 +117,6 @@ export default function GlobalPlayerHost() {
         }
 
         const instance = new YT.Player(mountNodeRef.current, {
-          videoId,
           playerVars: {
             autoplay: 0,
             controls: 0,
@@ -205,50 +202,6 @@ export default function GlobalPlayerHost() {
 
         setPlayerRef(instance);
         window.__harmonicsGlobalPlayerInstance = instance;
-        return;
-      }
-
-      if (currentVideoIdRef.current !== videoId) {
-        const shouldContinuePlaying = isPlaying;
-        const previousTrack = previousTrackSnapshotRef.current;
-        console.log('[PLAYER][TRACK_BEFORE_CHANGE]', {
-          source: 'videoId_effect',
-          previousTrackIndex: previousTrack.index,
-          previousVideoId: previousTrack.videoId,
-          isPlayingBeforeChange: shouldContinuePlaying,
-        });
-
-        currentVideoIdRef.current = videoId;
-        pendingTrackChangeRef.current = true;
-        shouldResumeAfterTrackChangeRef.current = shouldContinuePlaying;
-
-        if (isPlaying) {
-          playerRef.loadVideoById?.(videoId);
-          schedulePlayRetries(playerRef, 'video_change_while_playing');
-        } else {
-          playerRef.cueVideoById?.(videoId);
-        }
-
-        console.log('[PLAYER][TRACK_AFTER_CHANGE]', {
-          source: 'videoId_effect',
-          currentTrackIndex,
-          nextVideoId: videoId,
-        });
-        console.log('[PLAYER][IS_PLAYING_AFTER_CHANGE]', {
-          isPlaying: shouldContinuePlaying,
-          reason: 'post_video_change_intent',
-        });
-
-        previousTrackSnapshotRef.current = { index: currentTrackIndex, videoId };
-        return;
-      }
-
-      if (isPlaying) {
-        playerRef.playVideo?.();
-        schedulePlayRetries(playerRef, 'is_playing_effect');
-      } else {
-        clearPlayRetries();
-        playerRef.pauseVideo?.();
       }
     }
 
@@ -257,7 +210,63 @@ export default function GlobalPlayerHost() {
     return () => {
       cancelled = true;
     };
-  }, [videoId, isPlaying, playerRef, setIsPlaying, setPlayerRef, next, currentTrack?.title, currentTrackIndex, schedulePlayRetries, clearPlayRetries]);
+  }, [playerRef, setPlayerRef, isPlaying, setIsPlaying, next, currentTrack?.title, currentTrackIndex, schedulePlayRetries, videoId]);
+
+  useEffect(() => {
+    if (!playerRef) return;
+
+    if (!videoId) {
+      clearPlayRetries();
+      playerRef.stopVideo?.();
+      currentVideoIdRef.current = '';
+      pendingTrackChangeRef.current = false;
+      shouldResumeAfterTrackChangeRef.current = false;
+      return;
+    }
+
+    if (currentVideoIdRef.current !== videoId) {
+      const shouldContinuePlaying = isPlaying;
+      const previousTrack = previousTrackSnapshotRef.current;
+      console.log('[PLAYER][TRACK_BEFORE_CHANGE]', {
+        source: 'videoId_effect',
+        previousTrackIndex: previousTrack.index,
+        previousVideoId: previousTrack.videoId,
+        isPlayingBeforeChange: shouldContinuePlaying,
+      });
+
+      currentVideoIdRef.current = videoId;
+      pendingTrackChangeRef.current = true;
+      shouldResumeAfterTrackChangeRef.current = shouldContinuePlaying;
+
+      if (isPlaying) {
+        playerRef.loadVideoById?.(videoId);
+        schedulePlayRetries(playerRef, 'video_change_while_playing');
+      } else {
+        playerRef.cueVideoById?.(videoId);
+      }
+
+      console.log('[PLAYER][TRACK_AFTER_CHANGE]', {
+        source: 'videoId_effect',
+        currentTrackIndex,
+        nextVideoId: videoId,
+      });
+      console.log('[PLAYER][IS_PLAYING_AFTER_CHANGE]', {
+        isPlaying: shouldContinuePlaying,
+        reason: 'post_video_change_intent',
+      });
+
+      previousTrackSnapshotRef.current = { index: currentTrackIndex, videoId };
+      return;
+    }
+
+    if (isPlaying) {
+      playerRef.playVideo?.();
+      schedulePlayRetries(playerRef, 'is_playing_effect');
+    } else {
+      clearPlayRetries();
+      playerRef.pauseVideo?.();
+    }
+  }, [videoId, isPlaying, playerRef, currentTrackIndex, schedulePlayRetries, clearPlayRetries]);
 
   useEffect(() => {
     console.log('[AUDIO_PLAYER][GLOBAL_INSTANCE]', {

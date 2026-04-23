@@ -1,7 +1,39 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { requireAdmin } from '@/lib/api/require-admin';
+
+function buildInternalHeaders(request) {
+  const headers = { 'Content-Type': 'application/json' };
+
+  const internalSecret = process.env.INTERNAL_API_SECRET;
+  if (internalSecret) {
+    headers['x-internal-api-secret'] = internalSecret;
+  } else {
+    const cookie = request.headers.get('cookie');
+    if (cookie) {
+      headers['cookie'] = cookie;
+    }
+  }
+
+  return headers;
+}
 
 export async function POST(request) {
+  const supabaseAdmin = getSupabaseAdmin();
+
+  const auth = await requireAdmin({
+    supabase: supabaseAdmin,
+    request,
+    logPrefix: '[AUTOMATION_RETRY]',
+  });
+
+  if (!auth.ok) {
+    return NextResponse.json(
+      { ok: false, error: auth.error },
+      { status: auth.status || 401 }
+    );
+  }
+
   try {
     const body = await request.json();
     const { logId } = body;
@@ -9,8 +41,6 @@ export async function POST(request) {
     if (!logId) {
       return NextResponse.json({ error: 'logId é obrigatório' }, { status: 400 });
     }
-
-    const supabaseAdmin = getSupabaseAdmin();
 
     // Buscar o log original com a regra associada
     const { data: originalLog, error: logError } = await supabaseAdmin
@@ -30,10 +60,8 @@ export async function POST(request) {
       );
     }
 
-    // Extrair entity_id e event_type com fallback para rule.event_type
     const entity_id = originalLog.entity_id || originalLog.metadata?.entityId;
-    const event_type =
-      originalLog.metadata?.eventType || originalLog.rule?.event_type;
+    const event_type = originalLog.metadata?.eventType || originalLog.rule?.event_type;
 
     if (!entity_id || !event_type) {
       return NextResponse.json(
@@ -42,17 +70,16 @@ export async function POST(request) {
       );
     }
 
-    // Chamar o motor de automação
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || 'http://localhost:3000';
+
     const response = await fetch(`${baseUrl}/api/automation/send`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: buildInternalHeaders(request),
       body: JSON.stringify({ eventType: event_type, entityId: entity_id }),
     });
 
     const result = await response.json();
 
-    // Validar resposta — evitar falso sucesso
     if (!response.ok) {
       throw new Error(result?.error || 'Erro no motor de automação');
     }

@@ -52,6 +52,7 @@ export default function GlobalPlayerHost() {
       desiredPlaybackState,
       pendingManualPlay,
       hasUserUnlockedPlayback,
+      isTrackTransitioning,
     },
     actions: {
       setPlayerRef,
@@ -60,6 +61,7 @@ export default function GlobalPlayerHost() {
       next,
       setPendingManualPlay,
       setHasUserUnlockedPlayback,
+      setIsTrackTransitioning,
     },
   } = useGlobalPlayer();
 
@@ -101,6 +103,12 @@ export default function GlobalPlayerHost() {
     });
   }, [clearPlayRetries, desiredPlaybackState, isPlayerPlaying]);
 
+  const forcePlay = useCallback((targetPlayer, reason) => {
+    if (!targetPlayer) return;
+    targetPlayer?.playVideo?.();
+    schedulePlayRetries(targetPlayer, reason);
+  }, [schedulePlayRetries]);
+
   const requestPlayIfDesired = useCallback((targetPlayer, reason) => {
     if (!targetPlayer) return;
     if (desiredPlaybackState !== 'playing') return;
@@ -108,9 +116,8 @@ export default function GlobalPlayerHost() {
       setPendingManualPlay(false);
       return;
     }
-    targetPlayer?.playVideo?.();
-    schedulePlayRetries(targetPlayer, reason);
-  }, [desiredPlaybackState, schedulePlayRetries, setPendingManualPlay, isPlayerPlaying]);
+    forcePlay(targetPlayer, reason);
+  }, [desiredPlaybackState, setPendingManualPlay, isPlayerPlaying, forcePlay]);
 
   useEffect(() => {
     console.log('[PLAYER_MOUNT]', 'GlobalPlayerHost mounted');
@@ -186,6 +193,7 @@ export default function GlobalPlayerHost() {
               if (state === window.YT.PlayerState.PLAYING) {
                 pendingTrackChangeRef.current = false;
                 shouldResumeAfterTrackChangeRef.current = false;
+                setIsTrackTransitioning(false);
                 if (!hasUserUnlockedPlayback) {
                   setHasUserUnlockedPlayback(true);
                 }
@@ -198,11 +206,11 @@ export default function GlobalPlayerHost() {
                 });
               }
               if (state === window.YT.PlayerState.PAUSED) {
-                if (desiredPlaybackState === 'playing') {
+                if (desiredPlaybackState === 'playing' || isTrackTransitioning) {
                   console.log('[PLAYER][IS_PLAYING_AFTER_CHANGE]', {
                     isPlaying: true,
                     ignoredPauseEvent: true,
-                    reason: 'transient_pause_while_desired_playing',
+                    reason: 'transient_pause_during_track_transition',
                   });
                   return;
                 }
@@ -215,13 +223,14 @@ export default function GlobalPlayerHost() {
                 });
               }
               if (state === window.YT.PlayerState.CUED) {
-                if (desiredPlaybackState === 'playing' || pendingManualPlay) {
-                  requestPlayIfDesired(event?.target, pendingManualPlay ? 'cued_pending_manual' : 'cued_desired_playing');
+                if (desiredPlaybackState === 'playing' || pendingManualPlay || isTrackTransitioning) {
+                  forcePlay(event?.target, pendingManualPlay ? 'cued_pending_manual' : 'cued_track_transition');
                   return;
                 }
 
                 pendingTrackChangeRef.current = false;
                 shouldResumeAfterTrackChangeRef.current = false;
+                setIsTrackTransitioning(false);
                 setIsPlaying(false);
                 console.log('[AUDIO_PLAYER][IS_PLAYING]', false);
                 console.log('[PLAYER][IS_PLAYING_AFTER_CHANGE]', {
@@ -274,10 +283,13 @@ export default function GlobalPlayerHost() {
     videoId,
     hasUserUnlockedPlayback,
     pendingManualPlay,
+    isTrackTransitioning,
     setPendingManualPlay,
+    setIsTrackTransitioning,
     setHasUserUnlockedPlayback,
     desiredPlaybackState,
     requestPlayIfDesired,
+    forcePlay,
   ]);
 
   useEffect(() => {
@@ -289,6 +301,7 @@ export default function GlobalPlayerHost() {
       currentVideoIdRef.current = '';
       pendingTrackChangeRef.current = false;
       shouldResumeAfterTrackChangeRef.current = false;
+      setIsTrackTransitioning(false);
       return;
     }
 
@@ -305,10 +318,11 @@ export default function GlobalPlayerHost() {
       currentVideoIdRef.current = videoId;
       pendingTrackChangeRef.current = true;
       shouldResumeAfterTrackChangeRef.current = shouldContinuePlaying;
+      setIsTrackTransitioning(shouldContinuePlaying);
 
       if (shouldContinuePlaying) {
         playerRef.loadVideoById?.(videoId);
-        schedulePlayRetries(playerRef, 'video_change_while_playing');
+        forcePlay(playerRef, 'video_change_while_playing');
       } else {
         playerRef.cueVideoById?.(videoId);
       }
@@ -343,6 +357,8 @@ export default function GlobalPlayerHost() {
     desiredPlaybackState,
     requestPlayIfDesired,
     pendingManualPlay,
+    setIsTrackTransitioning,
+    forcePlay,
   ]);
 
   useEffect(() => {
@@ -352,6 +368,7 @@ export default function GlobalPlayerHost() {
       desiredPlaybackState,
       pendingManualPlay,
       hasUserUnlockedPlayback,
+      isTrackTransitioning,
       currentTrackIndex,
       hasInstance: Boolean(playerRef),
     });
@@ -367,6 +384,7 @@ export default function GlobalPlayerHost() {
     desiredPlaybackState,
     pendingManualPlay,
     hasUserUnlockedPlayback,
+    isTrackTransitioning,
     currentTrackIndex,
     playerRef,
     currentTrack,

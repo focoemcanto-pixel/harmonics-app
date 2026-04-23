@@ -125,6 +125,48 @@ export async function GET(request, { params }) {
       contract = contractByPreData?.[0] || null;
     }
 
+    let contact = null;
+    let event = null;
+
+    const contactId = contract?.contact_id || precontract?.contact_id || null;
+    const eventId = contract?.event_id || precontract?.event_id || null;
+
+    if (contactId) {
+      const { data: contactData, error: contactError } = await supabase
+        .from('contacts')
+        .select('*')
+        .eq('id', contactId)
+        .maybeSingle();
+
+      if (contactError) {
+        console.warn('[CONTRACT_PUBLIC_ROUTE] falha não fatal ao buscar contact', {
+          token,
+          contactId,
+          message: contactError.message,
+        });
+      } else {
+        contact = contactData || null;
+      }
+    }
+
+    if (eventId) {
+      const { data: eventData, error: eventError } = await supabase
+        .from('events')
+        .select('*')
+        .eq('id', eventId)
+        .maybeSingle();
+
+      if (eventError) {
+        console.warn('[CONTRACT_PUBLIC_ROUTE] falha não fatal ao buscar event', {
+          token,
+          eventId,
+          message: eventError.message,
+        });
+      } else {
+        event = eventData || null;
+      }
+    }
+
     if (!precontract.public_token) {
       await supabase
         .from('precontracts')
@@ -162,6 +204,8 @@ export async function GET(request, { params }) {
       token,
       precontract,
       contract,
+      contact,
+      event,
     });
   } catch (error) {
     console.error('[CONTRACT_PUBLIC_ROUTE] erro ao buscar contrato público', {

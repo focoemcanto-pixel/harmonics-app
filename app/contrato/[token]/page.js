@@ -9,6 +9,8 @@ import Input from '../../../components/ui/Input';
 import Badge from '../../../components/ui/Badge';
 import { useGoogleMapsReady } from '../../../hooks/useGoogleMapsReady';
 import { normalizeTimeStrict, isValidTime, sanitizeTimeFields } from '../../../lib/time/normalize-time';
+import { buildContractTemplateData } from '../../../lib/contracts/buildContractTemplateData';
+import { generateInternalContract } from '../../../lib/contracts/internalContractGenerator';
 import { useAppToast } from '../../../components/ui/ToastProvider';
 const IS_DEV = process.env.NODE_ENV !== 'production';
 
@@ -543,6 +545,7 @@ export default function ContratoPublicoPage() {
 
   const [precontract, setPrecontract] = useState(null);
   const [contract, setContract] = useState(null);
+  const [internalContractHtml, setInternalContractHtml] = useState('');
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
   const [enviado, setEnviado] = useState(false);
@@ -573,6 +576,9 @@ const mapsLoaded = useGoogleMapsReady();
   });
   const [clientAddressStatus, setClientAddressStatus] = useState('idle'); // 'idle' | 'typing' | 'selected' | 'fallback'
   const [eventAddressStatus, setEventAddressStatus] = useState('idle');   // 'idle' | 'typing' | 'selected' | 'fallback'
+  const isInternalMode =
+    precontract?.custom_contract_enabled === true ||
+    precontract?.contract_mode === 'internal';
 
   function abrirPreviewContrato() {
     if (!token) {
@@ -613,10 +619,42 @@ const mapsLoaded = useGoogleMapsReady();
 
       preData = payload?.precontract || null;
       contractData = payload?.contract || null;
+      const contactData = payload?.contact || null;
+      const eventLoadedData = payload?.event || null;
 
       safePreData = sanitizeTimeFields(preData || null);
       setPrecontract(safePreData || null);
       setContract(contractData || null);
+
+      const resolvedMode =
+        safePreData?.custom_contract_enabled === true ||
+        safePreData?.contract_mode === 'internal'
+          ? 'internal'
+          : 'docs';
+
+      devLog('[CONTRACT_PUBLIC_UI] precontract encontrado', {
+        token,
+        precontractId: safePreData?.id || null,
+      });
+      devLog('[CONTRACT_PUBLIC_UI] mode resolvido', {
+        token,
+        mode: resolvedMode,
+      });
+
+      if (resolvedMode === 'internal') {
+        const context = {
+          precontract: safePreData || null,
+          contract: contractData || null,
+          contact: contactData || null,
+          event: eventLoadedData || null,
+        };
+
+        const templateData = buildContractTemplateData(context);
+        const internal = generateInternalContract(context, templateData);
+        setInternalContractHtml(String(internal?.html || '').trim());
+      } else {
+        setInternalContractHtml('');
+      }
 
       if (!safePreData?.id) {
         return;
@@ -2008,9 +2046,18 @@ if (contractSignedError) throw contractSignedError;
                     Leia o contrato completo antes da assinatura. A prévia será aberta aqui na própria página.
                   </p>
 
-                  <Button variant="secondary" onClick={abrirPreviewContrato}>
-                    Ler contrato
-                  </Button>
+                  {isInternalMode ? (
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <article
+                        className="prose prose-slate max-w-none"
+                        dangerouslySetInnerHTML={{ __html: internalContractHtml }}
+                      />
+                    </div>
+                  ) : (
+                    <Button variant="secondary" onClick={abrirPreviewContrato}>
+                      Ler contrato
+                    </Button>
+                  )}
 
                   {previewError ? (
                     <p className="text-sm text-red-600">{previewError}</p>

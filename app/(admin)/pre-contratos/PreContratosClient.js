@@ -626,7 +626,7 @@ export default function PreContratosClient() {
   async function carregarModelosContrato() {
     const { data, error } = await supabase
       .from('contract_templates')
-      .select('id, name, title, template_name, content')
+      .select('id, name, content')
       .eq('is_active', true)
       .order('name', { ascending: true });
 
@@ -693,7 +693,7 @@ export default function PreContratosClient() {
     if (!template) {
       const { data, error } = await supabase
         .from('contract_templates')
-        .select('id, name, title, template_name, content')
+        .select('id, name, content')
         .eq('id', defaultTemplateId)
         .single();
       if (error) return;
@@ -709,12 +709,12 @@ export default function PreContratosClient() {
     }));
 
     setAppliedTemplateName(
-      template.name || template.title || template.template_name || `#${template.id}`
+      template.name || `Template #${template.id}`
     );
   }
 
   function getTemplateDisplayName(template) {
-    return template?.name || template?.title || template?.template_name || `#${template?.id || ''}`;
+    return template?.name || `Template #${template?.id || ''}`;
   }
 
   async function applyContractTemplate(templateId) {

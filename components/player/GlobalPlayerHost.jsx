@@ -151,9 +151,14 @@ export default function GlobalPlayerHost() {
                 shouldResumeAfterTrackChangeRef.current = false;
               }
               if (state === window.YT.PlayerState.ENDED) {
-                console.log('[AUDIO_PLAYER][TRACK_END]', {
+                console.log('[PLAYER][TRACK_ENDED]', {
                   index: currentTrackIndex,
                   title: currentTrack?.title || '',
+                });
+                console.log('[PLAYER][AUTO_ADVANCE]', {
+                  fromIndex: currentTrackIndex,
+                  fromTitle: currentTrack?.title || '',
+                  toIndex: currentTrackIndex + 1,
                 });
                 next({ reason: 'track_ended', forcePlay: true });
               }

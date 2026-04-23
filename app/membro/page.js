@@ -1192,6 +1192,14 @@ export default function MembroPage() {
   }
 
   function handleMinimizePlayer() {
+    console.log('[PLAYER][CLOSE_TO_MINI]', {
+      from: 'modal',
+      to: 'minibar',
+      isPlaying,
+      currentTrackIndex: playerIndex,
+      currentTrack: currentTrack?.title || '',
+      currentTime,
+    });
     console.log('[AUDIO_PLAYER][MINIMIZE]', {
       isPlaying,
       currentTrack: currentTrack?.title || '',
@@ -1298,9 +1306,8 @@ export default function MembroPage() {
   }
 
   function handlePrevTrack() {
-    prev();
-    play();
-    console.log('[AUDIO_PLAYER][NEXT_AUTOPLAY]', { direction: 'prev', autoPlay: true });
+    console.log('[PLAYER][PREV_CLICK]', { isPlaying, currentTrackIndex: playerIndex });
+    prev({ reason: 'manual_prev' });
     console.log('[MEMBRO_PLAYER][TRACK_CHANGE]', {
       action: 'prev',
       wasPlaying: isPlaying,
@@ -1328,9 +1335,8 @@ export default function MembroPage() {
   }
 
   function handleNextTrack(reason = 'manual') {
-    next();
-    play();
-    console.log('[AUDIO_PLAYER][NEXT_AUTOPLAY]', { direction: 'next', reason, autoPlay: true });
+    console.log('[PLAYER][NEXT_CLICK]', { isPlaying, currentTrackIndex: playerIndex });
+    next({ reason });
     console.log('[MEMBRO_PLAYER][TRACK_CHANGE]', {
       action: 'next',
       reason,
@@ -1603,12 +1609,11 @@ export default function MembroPage() {
         isPlaying={isPlaying}
         onClose={handleMinimizePlayer}
         onSelectTrack={(index) => {
-          setTrack(index);
-          play();
-          console.log('[AUDIO_PLAYER][NEXT_AUTOPLAY]', { direction: 'select', autoPlay: true, targetIndex: index });
+          setTrack(index, { reason: 'manual_select' });
           console.log('[MEMBRO_PLAYER][TRACK_CHANGE]', {
             action: 'select',
             targetIndex: index,
+            wasPlaying: isPlaying,
             total: playerPlaylist.length,
           });
         }}
@@ -1623,6 +1628,14 @@ export default function MembroPage() {
         eventTitle={playerEventTitle}
         isPlaying={isPlaying}
         onExpand={() => {
+          console.log('[PLAYER][MINI_CONTINUITY]', {
+            from: 'minibar',
+            to: 'modal',
+            isPlaying,
+            currentTrackIndex: playerIndex,
+            currentTrack: currentTrack?.title || '',
+            currentTime,
+          });
           console.log('[AUDIO_PLAYER][EXPAND]', {
             isPlaying,
             currentTrack: currentTrack?.title || '',
@@ -1637,6 +1650,8 @@ export default function MembroPage() {
             currentTrackIndex: playerIndex,
             playlistSize: playerPlaylist.length,
           });
+          console.log('[PLAYER][IS_PLAYING_AFTER_SWITCH]', { isPlaying });
+          console.log('[PLAYER][CURRENT_TIME_AFTER_SWITCH]', { currentTime });
         }}
         onCloseSession={handleClosePlayerSession}
         onNext={handleNextTrack}

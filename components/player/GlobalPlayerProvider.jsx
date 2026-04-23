@@ -16,12 +16,15 @@ export function GlobalPlayerProvider({ children }) {
   const currentTrack = playlist[currentTrackIndex] || null;
   const videoId = String(currentTrack?.videoId || '').trim() || extractYoutubeId(currentTrack?.url || '');
 
-  const setTrack = useCallback((index) => {
+  const setTrack = useCallback((index, options = {}) => {
+    const shouldContinuePlaying = options.forcePlay === true ? true : isPlaying;
     console.log('[PLAYER][TRACK_BEFORE_CHANGE]', {
       source: 'setTrack',
       isPlaying,
       currentTrackIndex,
       requestedIndex: index,
+      shouldContinuePlaying,
+      reason: options.reason || 'manual_select',
     });
 
     setCurrentTrackIndex((prev) => {
@@ -35,6 +38,10 @@ export function GlobalPlayerProvider({ children }) {
       });
       return safeIndex;
     });
+
+    if (shouldContinuePlaying) {
+      setIsPlaying(true);
+    }
   }, [playlist, isPlaying, currentTrackIndex]);
 
   const next = useCallback((options = {}) => {

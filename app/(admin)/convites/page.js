@@ -8,34 +8,12 @@ import AdminSectionTitle from '@/components/admin/AdminSectionTitle';
 import AdminSummaryCard from '@/components/admin/AdminSummaryCard';
 import { supabase } from '@/lib/supabase';
 import { formatDateBR, formatPhoneDisplay } from '@/lib/eventos/eventos-format';
+import { EVENT_FILTERS, buildEventInviteGroups, isWithinDays } from '@/lib/invites/event-invite-summary';
 import DeleteConfirmModal from '@/components/ui/DeleteConfirmModal';
 import BulkActionBar from '@/components/ui/BulkActionBar';
 import { useMultiSelect } from '@/hooks/useMultiSelect';
 import { useBulkDelete } from '@/hooks/useBulkDelete';
 
-const FILTERS = [
-  { key: 'todos', label: 'Todos' },
-  { key: 'acao', label: 'Precisam de ação' },
-  { key: 'proximos7', label: 'Próximos 7 dias' },
-  { key: 'pendentes', label: 'Com pendentes' },
-  { key: 'recusas', label: 'Com recusas' },
-  { key: 'fechados', label: 'Escala fechada' },
-];
-
-function normalizeInviteStatus(status) {
-  const s = String(status || '').trim().toLowerCase();
-
-  if (s === 'confirmed' || s === 'confirmado') return 'confirmado';
-  if (s === 'declined' || s === 'recusado') return 'recusado';
-
-  return 'pendente';
-}
-
-function getInviteStatusLabel(statusKey) {
-  if (statusKey === 'confirmado') return 'Confirmado';
-  if (statusKey === 'recusado') return 'Recusado';
-  return 'Pendente';
-}
 
 function getToneClasses(tone) {
   switch (tone) {
@@ -87,57 +65,6 @@ function FeedbackBanner({ feedback, onClose }) {
   );
 }
 
-function getDaysUntilEvent(dateStr) {
-  if (!dateStr) return Number.POSITIVE_INFINITY;
-
-  const today = new Date();
-  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  const target = new Date(`${dateStr}T00:00:00`);
-  return Math.ceil((target - start) / (1000 * 60 * 60 * 24));
-}
-
-function isWithinDays(dateStr, days = 7) {
-  const diff = getDaysUntilEvent(dateStr);
-  return diff >= 0 && diff <= days;
-}
-
-function getEventStatusSummary(group) {
-  const { total, confirmados, pendentes, recusados, coberturaFaltando, event } = group;
-  const proximidade = getDaysUntilEvent(event?.event_date);
-
-  if (total === 0 || (coberturaFaltando && proximidade <= 7 && proximidade >= 0 && (pendentes > 0 || recusados > 0))) {
-    return { label: 'Evento em risco', tone: 'red' };
-  }
-
-  if (coberturaFaltando && recusados > 0) {
-    return { label: 'Recusa recebida', tone: 'red' };
-  }
-
-  if (coberturaFaltando && pendentes > 0) {
-    return { label: 'Aguardando respostas', tone: 'amber' };
-  }
-
-  if (coberturaFaltando) {
-    return { label: 'Cobertura incompleta', tone: 'violet' };
-  }
-
-  if (confirmados > 0 && confirmados === total) {
-    return { label: 'Escala fechada', tone: 'emerald' };
-  }
-
-  return { label: 'Aguardando respostas', tone: 'amber' };
-}
-
-function getPriorityBucket(group) {
-  const proximidade = getDaysUntilEvent(group.event?.event_date);
-
-  if (group.pendentes > 0 && proximidade >= 0) return 1;
-  if (group.coberturaFaltando) return 2;
-  if (group.recusados > 0) return 3;
-  if (group.pendentes > 0) return 4;
-  return 5;
-}
-
 export default function ConvitesPage() {
   const [convites, setConvites] = useState([]);
   const [events, setEvents] = useState([]);
@@ -187,75 +114,10 @@ export default function ConvitesPage() {
     init();
   }, []);
 
-  const convitesEnriquecidos = useMemo(() => {
-    return convites
-      .map((invite) => {
-        const event = events.find((ev) => String(ev.id) === String(invite.event_id));
-        if (!event) return null;
-
-        const contact = contacts.find((ct) => String(ct.id) === String(invite.musician_id));
-        const statusKey = normalizeInviteStatus(invite.status);
-
-        return {
-          ...invite,
-          event,
-          contact,
-          statusKey,
-          statusLabel: getInviteStatusLabel(statusKey),
-        };
-      })
-      .filter(Boolean);
-  }, [convites, events, contacts]);
-
-  const eventosAgrupados = useMemo(() => {
-    const map = new Map();
-
-    convitesEnriquecidos.forEach((invite) => {
-      const key = String(invite.event_id);
-      if (!map.has(key)) {
-        map.set(key, {
-          eventId: key,
-          event: invite.event,
-          invites: [],
-          total: 0,
-          confirmados: 0,
-          pendentes: 0,
-          recusados: 0,
-        });
-      }
-
-      const current = map.get(key);
-      current.invites.push(invite);
-      current.total += 1;
-      if (invite.statusKey === 'confirmado') current.confirmados += 1;
-      if (invite.statusKey === 'pendente') current.pendentes += 1;
-      if (invite.statusKey === 'recusado') current.recusados += 1;
-    });
-
-    return Array.from(map.values())
-      .map((group) => {
-        const coberturaFaltando = group.confirmados < group.total;
-        const statusGeral = getEventStatusSummary({ ...group, coberturaFaltando });
-        const prioridade = getPriorityBucket({ ...group, coberturaFaltando });
-
-        return {
-          ...group,
-          coberturaFaltando,
-          statusGeral,
-          prioridade,
-          emRisco: statusGeral.label === 'Evento em risco',
-        };
-      })
-      .sort((a, b) => {
-        if (a.prioridade !== b.prioridade) return a.prioridade - b.prioridade;
-
-        const diffA = getDaysUntilEvent(a.event?.event_date);
-        const diffB = getDaysUntilEvent(b.event?.event_date);
-        if (diffA !== diffB) return diffA - diffB;
-
-        return String(a.event?.client_name || '').localeCompare(String(b.event?.client_name || ''));
-      });
-  }, [convitesEnriquecidos]);
+  const { enrichedInvites: convitesEnriquecidos, groupedEvents: eventosAgrupados } = useMemo(
+    () => buildEventInviteGroups({ invites: convites, events, contacts }),
+    [convites, events, contacts]
+  );
 
   const eventosFiltrados = useMemo(() => {
     const termo = busca.trim().toLowerCase();
@@ -399,7 +261,7 @@ export default function ConvitesPage() {
             />
 
             <div className="flex flex-wrap gap-2">
-              {FILTERS.map((filter) => (
+              {EVENT_FILTERS.map((filter) => (
                 <button
                   key={filter.key}
                   type="button"

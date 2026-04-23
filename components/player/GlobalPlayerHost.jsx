@@ -171,6 +171,12 @@ export default function GlobalPlayerHost() {
               if (state === window.YT.PlayerState.CUED) {
                 pendingTrackChangeRef.current = false;
                 shouldResumeAfterTrackChangeRef.current = false;
+                setIsPlaying(false);
+                console.log('[AUDIO_PLAYER][IS_PLAYING]', false);
+                console.log('[PLAYER][IS_PLAYING_AFTER_CHANGE]', {
+                  isPlaying: false,
+                  reason: 'onStateChange:CUED',
+                });
               }
               if (state === window.YT.PlayerState.ENDED) {
                 console.log('[PLAYER][TRACK_ENDED]', {

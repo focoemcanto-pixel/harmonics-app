@@ -559,6 +559,7 @@ export default function ContratoPublicoPage() {
   const [resultadoFinal, setResultadoFinal] = useState({
     pdfUrl: '',
     docUrl: '',
+    html: '',
     clientPanelUrl: '',
   });
 
@@ -580,14 +581,34 @@ const mapsLoaded = useGoogleMapsReady();
     precontract?.custom_contract_enabled === true ||
     precontract?.contract_mode === 'internal';
 
+  function resolveContractHtml() {
+    const candidates = [
+      precontract?.custom_contract_rich_html,
+      precontract?.custom_contract_content,
+      internalContractHtml,
+      contract?.raw_payload?.signed_contract_html,
+      contract?.raw_payload?.contract_html_snapshot,
+      contract?.raw_payload?.contract_html,
+      contract?.raw_payload?.generated_contract?.html,
+    ];
+
+    const resolved = candidates.find((item) => String(item || '').trim().length > 0);
+    return String(resolved || '').trim();
+  }
+
   function abrirPreviewContrato() {
     if (!token) {
       toast.error('Token do contrato não encontrado.');
       return;
     }
 
+    if (isInternalMode && !resolveContractHtml()) {
+      toast.warning('Contrato interno ainda não disponível para visualização.');
+      return;
+    }
+
     setPreviewError('');
-    setPreviewLoading(true);
+    setPreviewLoading(!isInternalMode);
     setPreviewAberto(true);
   }
 
@@ -651,7 +672,18 @@ const mapsLoaded = useGoogleMapsReady();
 
         const templateData = buildContractTemplateData(context);
         const internal = generateInternalContract(context, templateData);
-        setInternalContractHtml(String(internal?.html || '').trim());
+        const resolvedInternalHtml = [
+          safePreData?.custom_contract_rich_html,
+          safePreData?.custom_contract_content,
+          contractData?.raw_payload?.signed_contract_html,
+          contractData?.raw_payload?.contract_html_snapshot,
+          contractData?.raw_payload?.contract_html,
+          contractData?.raw_payload?.generated_contract?.html,
+          internal?.html,
+        ]
+          .map((item) => String(item || '').trim())
+          .find(Boolean);
+        setInternalContractHtml(String(resolvedInternalHtml || '').trim());
       } else {
         setInternalContractHtml('');
       }
@@ -1000,12 +1032,16 @@ const mapsLoaded = useGoogleMapsReady();
     };
   }, [precontract]);
 
- const pdfDisponivel =
+const pdfDisponivel =
   !!resultadoFinal.pdfUrl || !!contract?.pdf_url;
+const contratoHtmlResolvido = resolveContractHtml();
+const internalSnapshotDisponivel =
+  isInternalMode &&
+  !!(resultadoFinal.html || contratoHtmlResolvido);
 
 const contratoFinalizado =
   (contract?.status === 'signed' || precontract?.status === 'signed') &&
-  pdfDisponivel;
+  (isInternalMode ? internalSnapshotDisponivel || pdfDisponivel : pdfDisponivel);
   function validateFormFields() {
     const errors = {};
 
@@ -1425,14 +1461,29 @@ if (!generateRes.ok || !generateJson?.ok) {
         generateJson?.docUrl ||
         '';
 
+      const modoGeracao = String(
+        generateJson?.mode ||
+        (isInternalMode ? 'internal' : 'docs')
+      ).toLowerCase();
+
+      const htmlAssinado =
+        String(generateJson?.html || '').trim() ||
+        resolveContractHtml();
+
       setResultadoFinal({
         pdfUrl: pdfUrlFinal,
         docUrl: docUrlFinal,
+        html: htmlAssinado,
         clientPanelUrl: `${window.location.origin}/cliente/${token}`,
       });
-      if (!pdfUrlFinal) {
-  throw new Error('Contrato gerado sem PDF final. A assinatura não será concluída até o PDF existir.');
-}
+
+      if (modoGeracao !== 'internal' && !pdfUrlFinal) {
+        throw new Error('Contrato gerado sem PDF final. A assinatura não será concluída até o PDF existir.');
+      }
+
+      if (modoGeracao === 'internal' && !htmlAssinado) {
+        throw new Error('Contrato interno sem HTML final para snapshot de assinatura.');
+      }
 
       const notesAtualizadas = [
         precontract.notes || '',
@@ -1469,6 +1520,23 @@ if (!generateRes.ok || !generateJson?.ok) {
     signature_name: form.signer_name.trim() || null,
     contact_id: contactId,
     event_id: eventId,
+    ...(modoGeracao === 'internal' ? { pdf_url: pdfUrlFinal || null } : {}),
+    raw_payload: {
+      ...(contractAtualizado?.raw_payload || {}),
+      signed_contract_mode: modoGeracao,
+      ...(htmlAssinado
+        ? {
+            signed_contract_html: htmlAssinado,
+            contract_html_snapshot: htmlAssinado,
+          }
+        : {}),
+      final_generation: {
+        mode: modoGeracao,
+        pdfUrl: pdfUrlFinal || null,
+        docUrl: docUrlFinal || null,
+        generatedAt: new Date().toISOString(),
+      },
+    },
   })
   .eq('precontract_id', precontract.id);
 
@@ -1555,6 +1623,7 @@ if (contractSignedError) throw contractSignedError;
 
   if (enviado || contratoFinalizado) {
     const pdfUrl = resultadoFinal.pdfUrl || contract?.pdf_url || '';
+    const signedHtml = resultadoFinal.html || contratoHtmlResolvido || '';
     const painelUrl =
       resultadoFinal.clientPanelUrl ||
       `${window.location.origin}/cliente/${token}`;
@@ -1573,10 +1642,9 @@ if (contractSignedError) throw contractSignedError;
               </h1>
 
               <p className="mx-auto max-w-2xl text-sm text-slate-500 md:text-base">
-                Seu contrato foi concluído com sucesso. Abaixo você já pode acessar
-                o PDF do contrato e também o seu painel do cliente, onde poderá
-                acompanhar informações importantes do seu evento, financeiro e as
-                próximas etapas.
+                Seu contrato foi concluído com sucesso. {isInternalMode
+                  ? 'Seu documento assinado foi registrado internamente e o painel do cliente já está liberado.'
+                  : 'Abaixo você já pode acessar o PDF do contrato e também o seu painel do cliente, onde poderá acompanhar informações importantes do seu evento, financeiro e as próximas etapas.'}
               </p>
 
               <div className="flex flex-col justify-center gap-3 pt-2 sm:flex-row">
@@ -1591,6 +1659,18 @@ if (contractSignedError) throw contractSignedError;
         <Button>Abrir PDF do contrato</Button>
       </a>
 
+      <a
+        href={painelUrl}
+        target="_blank"
+        rel="noreferrer"
+        className="inline-flex"
+      >
+        <Button variant="secondary">Abrir painel do cliente</Button>
+      </a>
+    </>
+  ) : isInternalMode && signedHtml ? (
+    <>
+      <Button disabled>Contrato assinado com snapshot interno</Button>
       <a
         href={painelUrl}
         target="_blank"
@@ -2043,21 +2123,12 @@ if (contractSignedError) throw contractSignedError;
               <Card title="Leitura do contrato">
                 <div className="space-y-3">
                   <p className="text-sm text-slate-600">
-                    Leia o contrato completo antes da assinatura. A prévia será aberta aqui na própria página.
+                    Leia o contrato completo com atenção antes de assinar.
                   </p>
 
-                  {isInternalMode ? (
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                      <article
-                        className="prose prose-slate max-w-none"
-                        dangerouslySetInnerHTML={{ __html: internalContractHtml }}
-                      />
-                    </div>
-                  ) : (
-                    <Button variant="secondary" onClick={abrirPreviewContrato}>
-                      Ler contrato
-                    </Button>
-                  )}
+                  <Button variant="secondary" onClick={abrirPreviewContrato}>
+                    Visualizar contrato
+                  </Button>
 
                   {previewError ? (
                     <p className="text-sm text-red-600">{previewError}</p>
@@ -2146,19 +2217,30 @@ if (contractSignedError) throw contractSignedError;
                 </button>
               </div>
 
-              <div className="relative flex-1 bg-slate-100">
-                {previewLoading && (
-                  <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/80">
-                    <p className="text-sm text-slate-600">Gerando prévia do contrato...</p>
+              <div className="relative flex-1 bg-slate-100 p-4 md:p-6">
+                {isInternalMode ? (
+                  <div className="h-full overflow-y-auto rounded-2xl border border-slate-200 bg-white p-6 shadow-inner md:p-10">
+                    <article
+                      className="prose prose-slate max-w-none"
+                      dangerouslySetInnerHTML={{ __html: contratoHtmlResolvido }}
+                    />
                   </div>
-                )}
+                ) : (
+                  <>
+                    {previewLoading && (
+                      <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/80">
+                        <p className="text-sm text-slate-600">Gerando prévia do contrato...</p>
+                      </div>
+                    )}
 
-                <iframe
-                  src={`/api/contracts/preview-html/${token}`}
-                  title="Prévia do contrato"
-                  className="h-full w-full"
-                  onLoad={() => setPreviewLoading(false)}
-                />
+                    <iframe
+                      src={`/api/contracts/preview-html/${token}`}
+                      title="Prévia do contrato"
+                      className="h-full w-full rounded-2xl border border-slate-200 bg-white"
+                      onLoad={() => setPreviewLoading(false)}
+                    />
+                  </>
+                )}
               </div>
             </div>
           </div>

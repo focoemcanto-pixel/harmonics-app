@@ -149,13 +149,25 @@ export default function GlobalPlayerHost() {
           },
           events: {
             onReady: (event) => {
-              currentVideoIdRef.current = videoId;
+              currentVideoIdRef.current = '';
               console.log('[AUDIO_PLAYER][GLOBAL_INSTANCE]', event?.target || null);
               createdInstancesRef.current += 1;
               console.log('[AUDIO_PLAYER][GLOBAL_INSTANCE]', { instanceCount: createdInstancesRef.current });
               setPlayerRef(event?.target || null);
               window.__harmonicsGlobalPlayerInstance = event?.target || null;
-              requestPlayIfDesired(event?.target, pendingManualPlay ? 'on_ready_pending_manual' : 'on_ready_desired_playing');
+
+              if (videoId) {
+                currentVideoIdRef.current = videoId;
+                if (desiredPlaybackState === 'playing') {
+                  event?.target?.loadVideoById?.(videoId);
+                  requestPlayIfDesired(
+                    event?.target,
+                    pendingManualPlay ? 'on_ready_pending_manual' : 'on_ready_desired_playing'
+                  );
+                } else {
+                  event?.target?.cueVideoById?.(videoId);
+                }
+              }
             },
             onStateChange: (event) => {
               const state = event?.data;

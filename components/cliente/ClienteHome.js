@@ -108,23 +108,20 @@ function normalizeSuggestionSection(section = '') {
   return 'cortejo';
 }
 
+function getSectionMomentLabel(section = '') {
+  if (section === 'saida') return 'Saída';
+  if (section === 'cerimonia') return 'Cerimônia';
+  if (section === 'antessala') return 'Antessala';
+  if (section === 'receptivo') return 'Receptivo';
+  return 'Entrada';
+}
+
 function buildSuggestionPayload(song, payload = {}) {
   const normalizedSection = normalizeSuggestionSection(payload.section);
   const youtubeVideoId = String(song?.youtubeId || '').trim();
   const referenceLink = youtubeVideoId
     ? `https://www.youtube.com/watch?v=${youtubeVideoId}`
     : '';
-  const fallbackMoment =
-    normalizedSection === 'saida'
-      ? 'Saída'
-      : normalizedSection === 'cerimonia'
-      ? 'Cerimônia'
-      : normalizedSection === 'antessala'
-      ? 'Antessala'
-      : normalizedSection === 'receptivo'
-      ? 'Receptivo'
-      : 'Entrada';
-
   return {
     song_name: String(song?.title || '').trim(),
     reference_link: referenceLink,
@@ -134,7 +131,7 @@ function buildSuggestionPayload(song, payload = {}) {
     reference_video_id: youtubeVideoId,
     notes: String(payload?.notes || '').trim(),
     who_enters: String(payload?.label || '').trim(),
-    moment: fallbackMoment,
+    moment: getSectionMomentLabel(normalizedSection),
     section: normalizedSection,
   };
 }
@@ -146,6 +143,27 @@ function normalizeCompareText(value = '') {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/\s+/g, ' ');
+}
+
+function isSameSongSelection({
+  baseLabel = '',
+  baseSongName = '',
+  baseVideoId = '',
+  candidateLabel = '',
+  candidateSongName = '',
+  candidateVideoId = '',
+}) {
+  const sameLabel = normalizeCompareText(baseLabel) === normalizeCompareText(candidateLabel);
+  const sameSongName =
+    normalizeCompareText(baseSongName) === normalizeCompareText(candidateSongName);
+  const normalizedBaseVideoId = String(baseVideoId || '').trim();
+  const normalizedCandidateVideoId = String(candidateVideoId || '').trim();
+  const sameVideoId =
+    normalizedBaseVideoId &&
+    normalizedCandidateVideoId &&
+    normalizedBaseVideoId === normalizedCandidateVideoId;
+
+  return sameLabel && (sameSongName || sameVideoId);
 }
 
 function hasFilledField(value) {
@@ -213,37 +231,36 @@ function buildRepertorioSnapshot({
 }
 
 function buildUnifiedRepertorioItems({ cortejo = [], cerimonia = [], saida = {} }) {
-  const cortejoItems = (Array.isArray(cortejo) ? cortejo : [])
-    .filter((item) => hasUsefulMusicalItem(item))
-    .map((item, index) => ({
-      id: String(item?.id || `cortejo-${index}`),
-      section: 'cortejo',
-      moment: String(item?.label || 'Entrada').trim(),
-      song_name: String(item?.musica || '').trim(),
-      reference_link: String(item?.referencia || '').trim(),
-      notes: String(item?.observacao || '').trim(),
-      source: item?.source === 'suggestion' ? 'suggestion' : 'manual',
-      reference_title: String(item?.reference_title || '').trim(),
-      reference_channel: String(item?.reference_channel || '').trim(),
-      reference_thumbnail: String(item?.reference_thumbnail || '').trim(),
-      reference_video_id: String(item?.reference_video_id || '').trim(),
-    }));
+  const toUnifiedSectionItems = ({ list, section, idPrefix, defaultMoment }) =>
+    (Array.isArray(list) ? list : [])
+      .filter((item) => hasUsefulMusicalItem(item))
+      .map((item, index) => ({
+        id: String(item?.id || `${idPrefix}-${index}`),
+        section,
+        moment: String(item?.label || defaultMoment).trim(),
+        song_name: String(item?.musica || '').trim(),
+        reference_link: String(item?.referencia || '').trim(),
+        notes: String(item?.observacao || '').trim(),
+        source: item?.source === 'suggestion' ? 'suggestion' : 'manual',
+        reference_title: String(item?.reference_title || '').trim(),
+        reference_channel: String(item?.reference_channel || '').trim(),
+        reference_thumbnail: String(item?.reference_thumbnail || '').trim(),
+        reference_video_id: String(item?.reference_video_id || '').trim(),
+      }));
 
-  const cerimoniaItems = (Array.isArray(cerimonia) ? cerimonia : [])
-    .filter((item) => hasUsefulMusicalItem(item))
-    .map((item, index) => ({
-      id: String(item?.id || `cerimonia-${index}`),
-      section: 'cerimonia',
-      moment: String(item?.label || 'Cerimônia').trim(),
-      song_name: String(item?.musica || '').trim(),
-      reference_link: String(item?.referencia || '').trim(),
-      notes: String(item?.observacao || '').trim(),
-      source: item?.source === 'suggestion' ? 'suggestion' : 'manual',
-      reference_title: String(item?.reference_title || '').trim(),
-      reference_channel: String(item?.reference_channel || '').trim(),
-      reference_thumbnail: String(item?.reference_thumbnail || '').trim(),
-      reference_video_id: String(item?.reference_video_id || '').trim(),
-    }));
+  const cortejoItems = toUnifiedSectionItems({
+    list: cortejo,
+    section: 'cortejo',
+    idPrefix: 'cortejo',
+    defaultMoment: 'Entrada',
+  });
+
+  const cerimoniaItems = toUnifiedSectionItems({
+    list: cerimonia,
+    section: 'cerimonia',
+    idPrefix: 'cerimonia',
+    defaultMoment: 'Cerimônia',
+  });
 
   const saidaItems =
     saida?.musica || saida?.referencia || saida?.observacao
@@ -457,12 +474,14 @@ function applySuggestionToRepertorioState(state, suggestionItem = {}) {
   if (section === 'cortejo') {
     const label = String(suggestionItem.who_enters || suggestionItem.targetLabel || 'Entrada').trim();
     const alreadyExists = nextState.cortejo.some((item) => {
-      const sameLabel = normalizeCompareText(item.label) === normalizeCompareText(label);
-      const sameSong = normalizeCompareText(item.musica) === normalizeCompareText(songName);
-      const sameVideoId =
-        String(item.reference_video_id || '').trim() &&
-        String(item.reference_video_id || '').trim() === String(referenceMeta.videoId || '').trim();
-      return sameLabel && (sameSong || sameVideoId);
+      return isSameSongSelection({
+        baseLabel: item.label,
+        baseSongName: item.musica,
+        baseVideoId: item.reference_video_id,
+        candidateLabel: label,
+        candidateSongName: songName,
+        candidateVideoId: referenceMeta.videoId,
+      });
     });
 
     if (!alreadyExists) {
@@ -483,12 +502,14 @@ function applySuggestionToRepertorioState(state, suggestionItem = {}) {
   } else if (section === 'cerimonia') {
     const label = String(suggestionItem.who_enters || suggestionItem.targetLabel || suggestionItem.moment || 'Cerimônia').trim();
     const alreadyExists = nextState.cerimonia.some((item) => {
-      const sameLabel = normalizeCompareText(item.label) === normalizeCompareText(label);
-      const sameSong = normalizeCompareText(item.musica) === normalizeCompareText(songName);
-      const sameVideoId =
-        String(item.reference_video_id || '').trim() &&
-        String(item.reference_video_id || '').trim() === String(referenceMeta.videoId || '').trim();
-      return sameLabel && (sameSong || sameVideoId);
+      return isSameSongSelection({
+        baseLabel: item.label,
+        baseSongName: item.musica,
+        baseVideoId: item.reference_video_id,
+        candidateLabel: label,
+        candidateSongName: songName,
+        candidateVideoId: referenceMeta.videoId,
+      });
     });
 
     if (!alreadyExists) {
@@ -2390,14 +2411,14 @@ async function handleRequestReview() {
           normalizeSuggestionSection(entry.section || entry.targetSection) === sectionKey;
         if (!sameSection) return true;
 
-        const sameLabel =
-          normalizeCompareText(entry.who_enters || entry.targetLabel || '') === removedLabel;
-        const sameSongName =
-          normalizeCompareText(entry.song_name || entry.title || '') === removedSongName;
-        const entryVideoId = String(entry.reference_video_id || '').trim();
-        const sameVideoId = removedVideoId && entryVideoId && removedVideoId === entryVideoId;
-
-        return !(sameLabel && (sameSongName || sameVideoId));
+        return !isSameSongSelection({
+          baseLabel: entry.who_enters || entry.targetLabel || '',
+          baseSongName: entry.song_name || entry.title || '',
+          baseVideoId: entry.reference_video_id || '',
+          candidateLabel: removedLabel,
+          candidateSongName: removedSongName,
+          candidateVideoId: removedVideoId,
+        });
       });
     });
   }

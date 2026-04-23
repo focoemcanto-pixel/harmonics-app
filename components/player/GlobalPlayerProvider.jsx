@@ -135,13 +135,7 @@ export function GlobalPlayerProvider({ children }) {
       startIndex: nextIndex,
     });
 
-    if (options.autoplay === false) {
-      setIsPlaying(false);
-      console.log('[AUDIO_PLAYER][IS_PLAYING]', false);
-      return;
-    }
-
-    const shouldAutoPlay = normalizedPlaylist.length > 0;
+    const shouldAutoPlay = options.autoplay === true && normalizedPlaylist.length > 0;
     setIsPlaying(shouldAutoPlay);
     console.log('[AUDIO_PLAYER][IS_PLAYING]', shouldAutoPlay);
 

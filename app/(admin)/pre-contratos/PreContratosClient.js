@@ -71,6 +71,7 @@ let preContratosCache = {
   items: [],
   eventos: [],
   eventTypes: [],
+  contractTemplates: [],
   adjustmentRequestsByPrecontract: new Map(),
 };
 
@@ -524,6 +525,7 @@ export default function PreContratosClient() {
   const [items, setItems] = useState([]);
   const [eventos, setEventos] = useState([]);
   const [eventTypes, setEventTypes] = useState([]);
+  const [contractTemplates, setContractTemplates] = useState([]);
   const [appliedTemplateName, setAppliedTemplateName] = useState('');
 
   const [editandoId, setEditandoId] = useState(null);
@@ -621,6 +623,20 @@ export default function PreContratosClient() {
     preContratosCache.updatedAt = Date.now();
   }
 
+  async function carregarModelosContrato() {
+    const { data, error } = await supabase
+      .from('contract_templates')
+      .select('id, name, title, template_name, content')
+      .eq('is_active', true)
+      .order('name', { ascending: true });
+
+    if (error) throw error;
+    const templates = data || [];
+    setContractTemplates(templates);
+    preContratosCache.contractTemplates = templates;
+    preContratosCache.updatedAt = Date.now();
+  }
+
   useEffect(() => {
     async function carregar() {
       try {
@@ -634,10 +650,12 @@ export default function PreContratosClient() {
             carregarPreContratos(),
             carregarEventos(),
             carregarTiposEvento(),
+            carregarModelosContrato(),
           ]);
           await carregarAdjustmentRequests(loadedPrecontracts);
         } else {
           await carregarTiposEvento();
+          await carregarModelosContrato();
         }
       } catch (error) {
         console.error('Erro ao carregar pré-contratos:', error);
@@ -651,6 +669,7 @@ export default function PreContratosClient() {
       setItems(preContratosCache.items || []);
       setEventos(preContratosCache.eventos || []);
       setEventTypes(preContratosCache.eventTypes || []);
+      setContractTemplates(preContratosCache.contractTemplates || []);
       setAdjustmentRequestsByPrecontract(
         preContratosCache.adjustmentRequestsByPrecontract || new Map()
       );
@@ -670,14 +689,17 @@ export default function PreContratosClient() {
     const selectedEventType = eventTypes.find((item) => String(item?.id) === String(eventTypeId));
     const defaultTemplateId = selectedEventType?.default_contract_template_id;
     if (!defaultTemplateId) return;
-
-    const { data: template, error } = await supabase
-      .from('contract_templates')
-      .select('id, name, title, template_name, content')
-      .eq('id', defaultTemplateId)
-      .single();
-
-    if (error || !template?.content) return;
+    let template = contractTemplates.find((item) => String(item?.id) === String(defaultTemplateId));
+    if (!template) {
+      const { data, error } = await supabase
+        .from('contract_templates')
+        .select('id, name, title, template_name, content')
+        .eq('id', defaultTemplateId)
+        .single();
+      if (error) return;
+      template = data;
+    }
+    if (!template?.content) return;
 
     setForm((prev) => ({
       ...prev,
@@ -691,6 +713,34 @@ export default function PreContratosClient() {
     );
   }
 
+  function getTemplateDisplayName(template) {
+    return template?.name || template?.title || template?.template_name || `#${template?.id || ''}`;
+  }
+
+  async function applyContractTemplate(templateId) {
+    const template = contractTemplates.find((item) => String(item?.id) === String(templateId));
+    if (!template?.id) return;
+
+    const hasManualContent = String(form.custom_contract_content || '').trim().length > 0;
+    if (hasManualContent && String(form.contract_template_id || '') !== String(template.id)) {
+      const shouldOverwrite = await confirm?.({
+        title: 'Substituir conteúdo personalizado?',
+        description: 'Ao trocar o template, o conteúdo atual será substituído pelo novo modelo selecionado.',
+        confirmText: 'Substituir conteúdo',
+        cancelText: 'Manter conteúdo atual',
+      });
+      if (!shouldOverwrite) return;
+    }
+
+    setForm((prev) => ({
+      ...prev,
+      contract_template_id: template.id,
+      custom_contract_enabled: true,
+      custom_contract_content: template.content || '',
+    }));
+    setAppliedTemplateName(getTemplateDisplayName(template));
+  }
+
   function handleFormChange(field, value) {
     const normalizedValue = field === 'event_time' ? normalizeTimeStrict(value) : value;
 
@@ -700,7 +750,7 @@ export default function PreContratosClient() {
         selectedEventType?.name ||
         selectedEventType?.label ||
         selectedEventType?.title ||
-        (eventTypes.length === 0 ? String(normalizedValue || '') : '');
+        '';
 
       const nextFormState = {
         ...form,
@@ -714,6 +764,11 @@ export default function PreContratosClient() {
         event_type: selectedLabel,
       }));
       void applyDefaultTemplateByEventType(normalizedValue, nextFormState);
+      return;
+    }
+
+    if (field === 'contract_template_id') {
+      void applyContractTemplate(normalizedValue);
       return;
     }
 
@@ -804,6 +859,10 @@ export default function PreContratosClient() {
   }, [eventTypes]);
 
   useEffect(() => {
+    preContratosCache.contractTemplates = contractTemplates;
+  }, [contractTemplates]);
+
+  useEffect(() => {
     if (!form.event_type || form.event_type_id || eventTypes.length === 0) return;
 
     const matched = eventTypes.find((item) => {
@@ -819,6 +878,20 @@ export default function PreContratosClient() {
     }));
   }, [eventTypes, form.event_type, form.event_type_id]);
 
+  useEffect(() => {
+    if (!form.contract_template_id) {
+      setAppliedTemplateName('');
+      return;
+    }
+
+    const selectedTemplate = contractTemplates.find(
+      (template) => String(template?.id) === String(form.contract_template_id)
+    );
+
+    if (!selectedTemplate) return;
+    setAppliedTemplateName(getTemplateDisplayName(selectedTemplate));
+  }, [form.contract_template_id, contractTemplates]);
+
   const eventTypeOptions = useMemo(() => {
     const source = Array.isArray(eventTypes) ? eventTypes : [];
     const normalized = source
@@ -828,27 +901,8 @@ export default function PreContratosClient() {
         name: String(item.name || '').trim(),
       }))
       .filter((item) => Boolean(item.name));
-
-    if (normalized.length > 0) return normalized;
-
-    const fallbackNames = Array.from(
-      new Set(
-        (items || [])
-          .map((item) => String(item?.event_type || '').trim())
-          .filter(Boolean)
-      )
-    );
-
-    if (form.event_type) {
-      fallbackNames.unshift(String(form.event_type).trim());
-    }
-
-    return Array.from(new Set(fallbackNames.filter(Boolean))).map((name) => ({
-      id: name,
-      name,
-      fallbackLegacy: true,
-    }));
-  }, [eventTypes, items, form.event_type]);
+    return normalized;
+  }, [eventTypes]);
 
   const financeiro = useMemo(() => {
     const base = toNumber(form.base_amount);
@@ -1327,9 +1381,6 @@ export default function PreContratosClient() {
                     onChange={(e) => handleFormChange('event_type', e.target.value)}
                     className="md:col-span-2"
                   />
-                  <div className="md:col-span-2 -mt-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-xs text-slate-600">
-                    <strong>DEBUG:</strong> event_type_id={String(form.event_type_id || '-')} • contract_template_id={String(form.contract_template_id || '-')}
-                  </div>
                   {appliedTemplateName ? (
                     <div className="md:col-span-2 -mt-2 flex flex-wrap items-center gap-2">
                       <Badge tone="violet">
@@ -1506,17 +1557,33 @@ export default function PreContratosClient() {
                 </label>
 
                 {form.custom_contract_enabled ? (
-                  <label className="mt-4 block">
-                    <span className="mb-2 block text-sm font-medium text-slate-600">
-                      Conteúdo personalizado do contrato
-                    </span>
-                    <textarea
-                      value={form.custom_contract_content}
-                      onChange={(e) => handleFormChange('custom_contract_content', e.target.value)}
-                      placeholder="Cole aqui o texto base do contrato personalizado..."
-                      className="min-h-[180px] w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-100"
-                    />
-                  </label>
+                  <>
+                    <Select
+                      label="Template de contrato"
+                      value={form.contract_template_id || ''}
+                      onChange={(e) => handleFormChange('contract_template_id', e.target.value)}
+                      className="mt-4"
+                    >
+                      <option value="">Selecione um template</option>
+                      {contractTemplates.map((template) => (
+                        <option key={template.id} value={template.id}>
+                          {getTemplateDisplayName(template)}
+                        </option>
+                      ))}
+                    </Select>
+
+                    <label className="mt-4 block">
+                      <span className="mb-2 block text-sm font-medium text-slate-600">
+                        Conteúdo personalizado do contrato
+                      </span>
+                      <textarea
+                        value={form.custom_contract_content}
+                        onChange={(e) => handleFormChange('custom_contract_content', e.target.value)}
+                        placeholder="Cole aqui o texto base do contrato personalizado..."
+                        className="min-h-[180px] w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-100"
+                      />
+                    </label>
+                  </>
                 ) : null}
 
                 <div className="mt-4">

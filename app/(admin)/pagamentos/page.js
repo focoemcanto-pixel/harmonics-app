@@ -148,6 +148,11 @@ function resolvePreviewDetails(proofReference) {
   return preview.url;
 }
 
+function isSettledPaymentStatus(status) {
+  const raw = String(status || '').trim().toLowerCase();
+  return ['confirmed', 'confirmado', 'paid', 'pago'].includes(raw);
+}
+
 function isRejectedStatus(status) {
   const raw = String(status || '').trim().toLowerCase();
   return ['rejected', 'rejeitado', 'cancelado', 'cancelled', 'canceled'].includes(raw);
@@ -196,6 +201,23 @@ function PagamentosPageContent() {
     open: false,
     mode: 'single',
     paymentId: null,
+  });
+  const [manualPaymentModal, setManualPaymentModal] = useState({ open: false, eventId: '' });
+  const [manualPaymentForm, setManualPaymentForm] = useState({
+    event_id: '',
+    amount: '',
+    payment_date: '',
+    payment_method: 'pix',
+    status: 'confirmado',
+    notes: '',
+    proof_file_url: '',
+  });
+  const [costModal, setCostModal] = useState({ open: false, eventId: '' });
+  const [costForm, setCostForm] = useState({
+    musician_cost: '',
+    sound_cost: '',
+    extra_transport_cost: '',
+    other_cost: '',
   });
   const [deleting, setDeleting] = useState(false);
   const { selectedIds, selectedSet, setSelectedIds, clear, toggle } = useMultiSelect();
@@ -281,6 +303,7 @@ function PagamentosPageContent() {
     const agreedAmount = toNumber(eventRes.data?.agreed_amount);
     const paidAmount = (paymentsRes.data || []).reduce((acc, item) => {
       if (isRejectedStatus(item?.status)) return acc;
+      if (!isSettledPaymentStatus(item?.status)) return acc;
       return acc + toNumber(item?.amount);
     }, 0);
     const openAmount = Math.max(agreedAmount - paidAmount, 0);
@@ -489,6 +512,97 @@ function PagamentosPageContent() {
     }
   }
 
+  function abrirModalPagamentoManual(eventId = '') {
+    const defaultEventId = String(eventId || '');
+    setManualPaymentForm({
+      event_id: defaultEventId,
+      amount: '',
+      payment_date: new Date().toISOString().slice(0, 10),
+      payment_method: 'pix',
+      status: 'confirmado',
+      notes: '',
+      proof_file_url: '',
+    });
+    setManualPaymentModal({ open: true, eventId: defaultEventId });
+  }
+
+  async function salvarPagamentoManual() {
+    const eventId = String(manualPaymentForm.event_id || '').trim();
+    const amount = toNumber(manualPaymentForm.amount);
+    if (!eventId) return toast.warning('Selecione um evento para registrar o pagamento.');
+    if (amount <= 0) return toast.warning('Informe um valor válido para o pagamento.');
+
+    try {
+      setProcessingAction('manual-payment');
+      const { error } = await supabase.from('payments').insert([{
+        event_id: eventId,
+        amount,
+        payment_date: manualPaymentForm.payment_date || null,
+        payment_method: manualPaymentForm.payment_method || null,
+        status: manualPaymentForm.status || 'pendente',
+        notes: manualPaymentForm.notes || null,
+        proof_file_url: manualPaymentForm.proof_file_url || null,
+      }]);
+      if (error) throw error;
+
+      await atualizarResumoEvento(eventId);
+      await carregarTudo();
+      setManualPaymentModal({ open: false, eventId: '' });
+      toast.success('Pagamento manual inserido com sucesso.');
+    } catch (error) {
+      toast.error(error?.message || 'Erro ao inserir pagamento manual.');
+    } finally {
+      setProcessingAction('');
+    }
+  }
+
+  function abrirModalCustos(item) {
+    const eventId = String(item?.primaryEventId || item?.id || '');
+    setCostForm({
+      musician_cost: String(item?.musician_cost ?? ''),
+      sound_cost: String(item?.sound_cost ?? ''),
+      extra_transport_cost: String(item?.extra_transport_cost ?? ''),
+      other_cost: String(item?.other_cost ?? ''),
+    });
+    setCostModal({ open: true, eventId });
+  }
+
+  async function salvarCustosEvento() {
+    const eventId = String(costModal.eventId || '').trim();
+    if (!eventId) return;
+
+    const musicianCost = toNumber(costForm.musician_cost);
+    const soundCost = toNumber(costForm.sound_cost);
+    const extraTransportCost = toNumber(costForm.extra_transport_cost);
+    const otherCost = toNumber(costForm.other_cost);
+
+    const event = events.find((ev) => String(ev.id) === eventId);
+    const agreedAmount = toNumber(event?.agreed_amount);
+    const profitAmount = agreedAmount - (musicianCost + soundCost + extraTransportCost + otherCost);
+
+    try {
+      setProcessingAction('costs');
+      const { error } = await supabase
+        .from('events')
+        .update({
+          musician_cost: musicianCost,
+          sound_cost: soundCost,
+          extra_transport_cost: extraTransportCost,
+          other_cost: otherCost,
+          profit_amount: profitAmount,
+        })
+        .eq('id', eventId);
+      if (error) throw error;
+      await carregarTudo();
+      setCostModal({ open: false, eventId: '' });
+      toast.success('Custos atualizados com sucesso.');
+    } catch (error) {
+      toast.error(error?.message || 'Erro ao atualizar custos do evento.');
+    } finally {
+      setProcessingAction('');
+    }
+  }
+
   const paymentsByEventId = useMemo(() => {
     const map = new Map();
 
@@ -517,8 +631,9 @@ function PagamentosPageContent() {
       const custos =
         toNumber(ev.musician_cost) +
         toNumber(ev.sound_cost) +
-        toNumber(ev.extra_transport_cost);
-      const liquido = toNumber(ev.profit_amount);
+        toNumber(ev.extra_transport_cost) +
+        toNumber(ev.other_cost);
+      const liquido = toNumber(ev.profit_amount) || bruto - custos;
 
       const paymentStatus = normalizePaymentStatus(
         ev.payment_status,
@@ -612,6 +727,7 @@ function PagamentosPageContent() {
       const totalHistorico = paymentEntries.reduce((acc, item) => acc + toNumber(item.amount), 0);
       const quitadoPorHistorico = paymentEntries.reduce((acc, entry) => {
         if (isRejectedStatus(entry?.status) || isPendingValidationStatus(entry?.status)) return acc;
+        if (!isSettledPaymentStatus(entry?.status)) return acc;
         return acc + toNumber(entry?.amount);
       }, 0);
       const quitado = Math.max(groupRow.quitadoReferencia, quitadoPorHistorico);
@@ -852,6 +968,16 @@ function PagamentosPageContent() {
             subtitle="Filtre os eventos e acompanhe a fotografia financeira consolidada e o histórico real de entradas."
           />
 
+          <div className="mt-5 flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() => abrirModalPagamentoManual()}
+              className="rounded-[18px] bg-violet-600 px-4 py-3 text-[14px] font-black text-white"
+            >
+              Inserir pagamento
+            </button>
+          </div>
+
           <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">
             <input
               value={busca}
@@ -1011,6 +1137,22 @@ function PagamentosPageContent() {
                         className="rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3 text-[14px] font-black text-[#0f172a]"
                       >
                         {historicoAberto ? 'Ocultar histórico' : 'Ver histórico'}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => abrirModalPagamentoManual(item.primaryEventId)}
+                        className="rounded-[16px] bg-violet-600 px-4 py-3 text-[14px] font-black text-white"
+                      >
+                        Adicionar pagamento
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => abrirModalCustos(item)}
+                        className="rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3 text-[14px] font-black text-[#0f172a]"
+                      >
+                        Editar custos
                       </button>
 
                       <Link
@@ -1242,6 +1384,155 @@ function PagamentosPageContent() {
                 className="rounded-[14px] bg-red-600 px-4 py-3 text-sm font-black text-white disabled:opacity-50"
               >
                 {processingAction === `${entrySelecionado.id}:cancelado` ? 'Rejeitando...' : 'Rejeitar comprovante'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {manualPaymentModal.open ? (
+        <div className="fixed inset-0 z-[95] flex items-center justify-center bg-black/55 p-4">
+          <div className="w-full max-w-2xl rounded-[20px] bg-white p-5 shadow-2xl">
+            <div className="mb-4 flex items-center justify-between">
+              <div className="text-lg font-black text-[#0f172a]">Inserir pagamento</div>
+              <button
+                type="button"
+                onClick={() => setManualPaymentModal({ open: false, eventId: '' })}
+                className="rounded-[12px] border border-[#dbe3ef] px-3 py-2 text-xs font-black"
+              >
+                Fechar
+              </button>
+            </div>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <select
+                value={manualPaymentForm.event_id}
+                onChange={(e) =>
+                  setManualPaymentForm((prev) => ({ ...prev, event_id: e.target.value }))
+                }
+                className="rounded-[12px] border border-[#dbe3ef] px-3 py-2 text-sm md:col-span-2"
+              >
+                <option value="">Selecione evento/cliente</option>
+                {events.map((ev) => (
+                  <option key={ev.id} value={ev.id}>
+                    {ev.client_name || 'Sem cliente'} • {formatDateBR(ev.event_date)}
+                  </option>
+                ))}
+              </select>
+              <input
+                value={manualPaymentForm.amount}
+                onChange={(e) => setManualPaymentForm((prev) => ({ ...prev, amount: e.target.value }))}
+                placeholder="Valor"
+                className="rounded-[12px] border border-[#dbe3ef] px-3 py-2 text-sm"
+              />
+              <input
+                type="date"
+                value={manualPaymentForm.payment_date}
+                onChange={(e) =>
+                  setManualPaymentForm((prev) => ({ ...prev, payment_date: e.target.value }))
+                }
+                className="rounded-[12px] border border-[#dbe3ef] px-3 py-2 text-sm"
+              />
+              <select
+                value={manualPaymentForm.payment_method}
+                onChange={(e) =>
+                  setManualPaymentForm((prev) => ({ ...prev, payment_method: e.target.value }))
+                }
+                className="rounded-[12px] border border-[#dbe3ef] px-3 py-2 text-sm"
+              >
+                <option value="pix">Pix</option>
+                <option value="cartao">Cartão</option>
+                <option value="dinheiro">Dinheiro</option>
+                <option value="transferencia">Transferência</option>
+                <option value="outro">Outro</option>
+              </select>
+              <select
+                value={manualPaymentForm.status}
+                onChange={(e) => setManualPaymentForm((prev) => ({ ...prev, status: e.target.value }))}
+                className="rounded-[12px] border border-[#dbe3ef] px-3 py-2 text-sm"
+              >
+                <option value="confirmado">Confirmado</option>
+                <option value="pendente">Pendente</option>
+                <option value="em_analise">Em análise</option>
+              </select>
+              <input
+                value={manualPaymentForm.proof_file_url}
+                onChange={(e) =>
+                  setManualPaymentForm((prev) => ({ ...prev, proof_file_url: e.target.value }))
+                }
+                placeholder="Comprovante (URL opcional)"
+                className="rounded-[12px] border border-[#dbe3ef] px-3 py-2 text-sm md:col-span-2"
+              />
+              <textarea
+                value={manualPaymentForm.notes}
+                onChange={(e) => setManualPaymentForm((prev) => ({ ...prev, notes: e.target.value }))}
+                placeholder="Observações"
+                className="rounded-[12px] border border-[#dbe3ef] px-3 py-2 text-sm md:col-span-2"
+                rows={3}
+              />
+            </div>
+            <div className="mt-4 flex justify-end">
+              <button
+                type="button"
+                onClick={salvarPagamentoManual}
+                disabled={processingAction === 'manual-payment'}
+                className="rounded-[14px] bg-violet-600 px-4 py-3 text-sm font-black text-white"
+              >
+                {processingAction === 'manual-payment' ? 'Salvando...' : 'Salvar pagamento'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {costModal.open ? (
+        <div className="fixed inset-0 z-[95] flex items-center justify-center bg-black/55 p-4">
+          <div className="w-full max-w-xl rounded-[20px] bg-white p-5 shadow-2xl">
+            <div className="mb-4 flex items-center justify-between">
+              <div className="text-lg font-black text-[#0f172a]">Editar custos</div>
+              <button
+                type="button"
+                onClick={() => setCostModal({ open: false, eventId: '' })}
+                className="rounded-[12px] border border-[#dbe3ef] px-3 py-2 text-xs font-black"
+              >
+                Fechar
+              </button>
+            </div>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <input
+                value={costForm.musician_cost}
+                onChange={(e) => setCostForm((prev) => ({ ...prev, musician_cost: e.target.value }))}
+                placeholder="Custo músicos"
+                className="rounded-[12px] border border-[#dbe3ef] px-3 py-2 text-sm"
+              />
+              <input
+                value={costForm.sound_cost}
+                onChange={(e) => setCostForm((prev) => ({ ...prev, sound_cost: e.target.value }))}
+                placeholder="Custo som"
+                className="rounded-[12px] border border-[#dbe3ef] px-3 py-2 text-sm"
+              />
+              <input
+                value={costForm.extra_transport_cost}
+                onChange={(e) =>
+                  setCostForm((prev) => ({ ...prev, extra_transport_cost: e.target.value }))
+                }
+                placeholder="Custo transporte"
+                className="rounded-[12px] border border-[#dbe3ef] px-3 py-2 text-sm"
+              />
+              <input
+                value={costForm.other_cost}
+                onChange={(e) => setCostForm((prev) => ({ ...prev, other_cost: e.target.value }))}
+                placeholder="Outros custos"
+                className="rounded-[12px] border border-[#dbe3ef] px-3 py-2 text-sm"
+              />
+            </div>
+            <div className="mt-4 flex justify-end">
+              <button
+                type="button"
+                onClick={salvarCustosEvento}
+                disabled={processingAction === 'costs'}
+                className="rounded-[14px] bg-violet-600 px-4 py-3 text-sm font-black text-white"
+              >
+                {processingAction === 'costs' ? 'Salvando...' : 'Salvar custos'}
               </button>
             </div>
           </div>

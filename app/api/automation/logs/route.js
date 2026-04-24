@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { getDefaultWorkspaceSettings } from '@/lib/automation/get-workspace';
+import { requireAdmin } from '@/lib/api/require-admin';
 
 const DEFAULT_LIMIT = 100;
 const AUTOMATION_LOGS_SELECT_FIELDS = [
@@ -201,6 +202,67 @@ export async function GET(request) {
     console.error('[GET /api/automation/logs] Erro:', error);
     return NextResponse.json(
       { ok: false, error: error?.message || 'Erro interno' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(request) {
+  const supabaseAdmin = getSupabaseAdmin();
+
+  try {
+    const auth = await requireAdmin({ supabase: supabaseAdmin, request, logPrefix: '[AUTOMATION_LOGS_DELETE]' });
+    if (!auth.ok) return NextResponse.json(auth, { status: auth.status || 401 });
+
+    const workspace = await getDefaultWorkspaceSettings();
+    const body = await request.json().catch(() => ({}));
+
+    const ids = Array.from(
+      new Set(
+        [
+          ...(Array.isArray(body?.ids) ? body.ids : []),
+          ...(Array.isArray(body?.logIds) ? body.logIds : []),
+        ]
+          .map((id) => String(id || '').trim())
+          .filter(Boolean)
+      )
+    );
+    const mode = String(body?.mode || '').trim();
+    const statusFilter = normalizeStatusFilter(body?.status);
+    const olderThanDays = Number(body?.olderThanDays || 0);
+
+    let query = supabaseAdmin.from('automation_logs').delete().eq('workspace_id', workspace.id);
+
+    if (ids.length > 0) {
+      query = query.in('id', ids);
+    } else if (mode === 'cleanup') {
+      if (olderThanDays > 0) {
+        const cutoff = new Date();
+        cutoff.setDate(cutoff.getDate() - olderThanDays);
+        query = query.lt('created_at', cutoff.toISOString());
+      }
+      if (statusFilter) {
+        query = query.eq('status', statusFilter);
+      }
+    } else {
+      return NextResponse.json(
+        { ok: false, success: false, affected: 0, message: 'Informe ids ou filtro de limpeza.' },
+        { status: 400 }
+      );
+    }
+
+    const { data, error } = await query.select('id');
+    if (error) throw error;
+
+    return NextResponse.json({
+      ok: true,
+      success: true,
+      affected: Array.isArray(data) ? data.length : 0,
+    });
+  } catch (error) {
+    console.error('[AUTOMATION_LOGS_DELETE][ERROR]', error);
+    return NextResponse.json(
+      { ok: false, success: false, affected: 0, message: error?.message || 'Erro ao excluir logs.' },
       { status: 500 }
     );
   }

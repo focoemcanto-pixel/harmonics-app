@@ -168,6 +168,61 @@ export default function EventosPricingTab({
           </div>
         </div>
 
+
+
+        <div>
+          <p className="mb-3 text-sm font-semibold text-slate-700">
+            Custos padrão
+          </p>
+
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+            <Field label="Custo por músico">
+              <Input
+                value={pricing.musician_unit_cost ?? ''}
+                onChange={(e) =>
+                  setPricing({ ...pricing, musician_unit_cost: e.target.value })
+                }
+              />
+            </Field>
+
+            <Field label="Custo padrão som">
+              <Input
+                value={pricing.sound_default_cost ?? ''}
+                onChange={(e) =>
+                  setPricing({ ...pricing, sound_default_cost: e.target.value })
+                }
+              />
+            </Field>
+
+            <Field label="Custo padrão transporte">
+              <Input
+                value={pricing.transport_default_cost ?? ''}
+                onChange={(e) =>
+                  setPricing({ ...pricing, transport_default_cost: e.target.value })
+                }
+              />
+            </Field>
+
+            <Field label="Outros custos padrão">
+              <Input
+                value={pricing.other_default_cost ?? ''}
+                onChange={(e) =>
+                  setPricing({ ...pricing, other_default_cost: e.target.value })
+                }
+              />
+            </Field>
+
+            <Field label="Observações">
+              <Input
+                value={pricing.finance_notes ?? ''}
+                onChange={(e) =>
+                  setPricing({ ...pricing, finance_notes: e.target.value })
+                }
+              />
+            </Field>
+          </div>
+        </div>
+
         <div>
           <button
             type="button"

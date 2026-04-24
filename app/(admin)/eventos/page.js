@@ -46,6 +46,7 @@ import {
   getAutomaticReceptionPrice,
   getPaymentStatus,
   getPaymentTone,
+  getAutomaticCosts,
 } from '@/lib/eventos/eventos-finance';
 import {
   isPastEvent,
@@ -85,7 +86,7 @@ const DESKTOP_TABS = [
 ];
 const ADMIN_LIST_LIMIT = 100;
 const EVENTS_SELECT_FIELDS =
-  'id, created_at, client_name, event_type, event_date, event_time, duration_min, location_name, formation, instruments, has_sound, reception_hours, whatsapp_name, whatsapp_phone, agreed_amount, paid_amount, open_amount, payment_status, status, has_antesala, antesala_enabled, antesala_requested_by_client, antesala_request_status, antesala_duration_minutes, antesala_price_increment';
+  'id, created_at, client_name, event_type, event_date, event_time, duration_min, location_name, formation, instruments, has_sound, has_transport, reception_hours, whatsapp_name, whatsapp_phone, agreed_amount, paid_amount, open_amount, payment_status, status, has_antesala, antesala_enabled, antesala_requested_by_client, antesala_request_status, antesala_duration_minutes, antesala_price_increment, musician_cost, sound_cost, extra_transport_cost, other_cost, profit_amount, transport_price';
 const PRECONTRACTS_SELECT_FIELDS =
   'id, created_at, event_id, client_name, event_date, event_time, status, public_token';
 const CONTRACTS_SELECT_FIELDS =
@@ -168,6 +169,7 @@ function getInitialForm() {
     musician_cost: '',
     sound_cost: '',
     extra_transport_cost: '',
+    other_cost: '',
 
     status: 'Rascunho',
   };
@@ -528,6 +530,25 @@ export default function EventosPage() {
   }, [eventos]);
 
   function handleFormChange(field, value) {
+    if (field === 'transport_price') {
+      setForm((prev) => {
+        const automaticCosts = getAutomaticCosts({
+          formation: prev.formation,
+          hasSound: !!prev.has_sound,
+          hasTransport: toNumber(value) > 0,
+          transportPrice: value,
+          pricing,
+        });
+
+        return {
+          ...prev,
+          transport_price: value,
+          extra_transport_cost: String(automaticCosts.extraTransportCost || ''),
+        };
+      });
+      return;
+    }
+
     setForm((prev) => ({
       ...prev,
       [field]: field === 'event_time' ? normalizeTimeStrict(value) : value,
@@ -582,6 +603,13 @@ export default function EventosPage() {
       pricing
     );
     const soundPrice = nextHasSound ? toNumber(pricing.sound_price) : 0;
+    const automaticCosts = getAutomaticCosts({
+      formation: nextFormation,
+      hasSound: !!nextHasSound,
+      hasTransport: Boolean(form.has_transport),
+      transportPrice: form.transport_price,
+      pricing,
+    });
 
     setForm((prev) => ({
       ...prev,
@@ -591,6 +619,10 @@ export default function EventosPage() {
       formation_price: String(formationPrice || ''),
       reception_price: String(receptionPrice || ''),
       sound_price: String(soundPrice || ''),
+      musician_cost: String(automaticCosts.musicianCost || ''),
+      sound_cost: String(automaticCosts.soundCost || ''),
+      extra_transport_cost: String(automaticCosts.extraTransportCost || ''),
+      other_cost: String(automaticCosts.otherCost || ''),
     }));
   }
 
@@ -702,6 +734,7 @@ export default function EventosPage() {
       musician_cost: String(evento.musician_cost ?? ''),
       sound_cost: String(evento.sound_cost ?? ''),
       extra_transport_cost: String(evento.extra_transport_cost ?? ''),
+      other_cost: String(evento.other_cost ?? ''),
 
       status: evento.status || 'Rascunho',
     });
@@ -735,7 +768,8 @@ export default function EventosPage() {
     const musicianCost = toNumber(form.musician_cost);
     const soundCost = toNumber(form.sound_cost);
     const extraTransportCost = toNumber(form.extra_transport_cost);
-    const totalCosts = musicianCost + soundCost + extraTransportCost;
+    const otherCost = toNumber(form.other_cost);
+    const totalCosts = musicianCost + soundCost + extraTransportCost + otherCost;
 
     const profitAmount = agreedAmount - totalCosts;
     const paymentStatus = getPaymentStatus(agreedAmount, paidAmount);
@@ -751,6 +785,7 @@ export default function EventosPage() {
       musicianCost,
       soundCost,
       extraTransportCost,
+      otherCost,
       totalCosts,
       profitAmount,
       paymentStatus,
@@ -847,6 +882,7 @@ export default function EventosPage() {
         whatsapp_name: form.whatsapp_name.trim() || null,
         whatsapp_phone: cleanPhone(form.whatsapp_phone),
         has_sound: !!form.has_sound,
+        has_transport: toNumber(form.transport_price) > 0,
         reception_hours: parseInt(form.reception_hours, 10) || 0,
 
         formation_price: financial.formationPrice,
@@ -862,6 +898,7 @@ export default function EventosPage() {
         musician_cost: financial.musicianCost,
         sound_cost: financial.soundCost,
         extra_transport_cost: financial.extraTransportCost,
+        other_cost: financial.otherCost,
         profit_amount: financial.profitAmount,
 
         status: form.status || 'Rascunho',

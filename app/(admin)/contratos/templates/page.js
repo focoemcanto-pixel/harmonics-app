@@ -8,6 +8,7 @@ import AdminSegmentTabs from '@/components/admin/AdminSegmentTabs';
 import { useAppToast } from '@/components/ui/ToastProvider';
 import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
 import PrepareDynamicFieldsModal from '@/components/contratos/PrepareDynamicFieldsModal';
+import RichContractEditor from '@/components/contracts/RichContractEditor';
 import { looksLikeHtml, parseContractTemplateInput } from '@/lib/contracts/templateImport';
 
 const MOBILE_TABS = [
@@ -55,16 +56,6 @@ function textToEditorHtml(value) {
     .join('');
 }
 
-const EDITOR_ACTIONS = [
-  { label: 'Título', command: 'formatBlock', value: 'h2' },
-  { label: 'Subtítulo', command: 'formatBlock', value: 'h3' },
-  { label: 'Parágrafo', command: 'formatBlock', value: 'p' },
-  { label: 'Negrito', command: 'bold' },
-  { label: 'Itálico', command: 'italic' },
-  { label: 'Lista', command: 'insertUnorderedList' },
-  { label: 'Numeração', command: 'insertOrderedList' },
-];
-
 function formatDateTime(value) {
   if (!value) return '—';
   const date = new Date(value);
@@ -95,31 +86,29 @@ export default function ContractTemplatesPage() {
 
   const [editandoId, setEditandoId] = useState(null);
   const [form, setForm] = useState(getInitialForm());
-  const [richContent, setRichContent] = useState('');
-  const [supportsRichSourceColumn, setSupportsRichSourceColumn] = useState(false);
+  const [richContentHtml, setRichContentHtml] = useState('');
   const [editorTab, setEditorTab] = useState('texto');
+  const [editSessionId, setEditSessionId] = useState(0);
   const [busca, setBusca] = useState('');
   const [mobileTab, setMobileTab] = useState('lista');
   const [preparingDynamicFields, setPreparingDynamicFields] = useState(false);
   const [prepareSnapshotText, setPrepareSnapshotText] = useState('');
   const [excluindoId, setExcluindoId] = useState(null);
-  const [editorSyncToken, setEditorSyncToken] = useState(0);
-  const editorRef = useRef(null);
-  const pendingEditorHtmlRef = useRef(null);
+  const editorApiRef = useRef(null);
 
   function devLog(label, data) {
     if (process.env.NODE_ENV !== 'development') return;
     console.log(label, data);
   }
 
-  const parsedTemplate = useMemo(() => parseContractTemplateInput(richContent), [richContent]);
-  const hasRichEditorText = richContent.length > 0;
+  const parsedTemplate = useMemo(() => parseContractTemplateInput(richContentHtml), [richContentHtml]);
+  const hasRichEditorText = richContentHtml.length > 0;
   const processedContentForDisplay = hasRichEditorText
     ? parsedTemplate.normalizedContent
     : String(form.content || '');
   const isHtmlAdvancedOnly = useMemo(
-    () => richContent.length === 0 && looksLikeHtml(form.content),
-    [form.content, richContent],
+    () => richContentHtml.length === 0 && looksLikeHtml(form.content),
+    [form.content, richContentHtml],
   );
 
   async function carregarTemplates(showLoading = true) {
@@ -127,36 +116,19 @@ export default function ContractTemplatesPage() {
       if (showLoading) setCarregando(true);
       setErro('');
 
-      let data = null;
-      let error = null;
-
       const richResult = await supabase
         .from('contract_templates')
         .select('id, name, slug, description, content, source_text, source_rich_html, is_active, is_default, created_at, updated_at')
         .order('updated_at', { ascending: false, nullsFirst: false })
         .order('created_at', { ascending: false });
 
-      if (!richResult.error) {
-        data = richResult.data;
-        setSupportsRichSourceColumn(true);
-      } else if (String(richResult.error?.message || '').toLowerCase().includes('source_rich_html')) {
-        const fallbackResult = await supabase
-          .from('contract_templates')
-          .select('id, name, slug, description, content, source_text, is_active, is_default, created_at, updated_at')
-          .order('updated_at', { ascending: false, nullsFirst: false })
-          .order('created_at', { ascending: false });
-
-        data = fallbackResult.data;
-        error = fallbackResult.error;
-        setSupportsRichSourceColumn(false);
-      } else {
-        data = richResult.data;
-        error = richResult.error;
+      if (richResult.error) {
+        if (String(richResult.error?.message || '').toLowerCase().includes('source_rich_html')) {
+          throw new Error('Coluna source_rich_html não existe. Rode a migration.');
+        }
+        throw richResult.error;
       }
-
-      if (error) throw error;
-
-      setTemplates(data || []);
+      setTemplates(richResult.data || []);
     } catch (loadError) {
       console.error('Erro ao carregar templates de contrato:', loadError);
       setErro('Não foi possível carregar os templates de contrato.');
@@ -175,14 +147,10 @@ export default function ContractTemplatesPage() {
     setForm((prev) => ({ ...prev, [field]: value }));
   }
 
-  function scheduleEditorHtmlApply(nextHtml) {
-    pendingEditorHtmlRef.current = String(nextHtml || '');
-    setEditorSyncToken((prev) => prev + 1);
-  }
-
   function getCurrentEditorHtml() {
-    if (editorRef.current) return String(editorRef.current.innerHTML || '');
-    if (richContent) return String(richContent);
+    const liveHtml = editorApiRef.current?.getHtml?.();
+    if (String(liveHtml || '').trim()) return String(liveHtml);
+    if (richContentHtml) return String(richContentHtml);
     if (form.source_rich_html) return String(form.source_rich_html);
     return '';
   }
@@ -190,9 +158,8 @@ export default function ContractTemplatesPage() {
   function limparFormulario() {
     setEditandoId(null);
     setForm(getInitialForm());
-    setRichContent('');
-    pendingEditorHtmlRef.current = null;
-    if (editorRef.current) editorRef.current.innerHTML = '';
+    setRichContentHtml('');
+    setEditSessionId((prev) => prev + 1);
     setEditorTab('texto');
   }
 
@@ -208,7 +175,7 @@ export default function ContractTemplatesPage() {
       toast.warning('Informe um texto de contrato antes de preparar campos dinâmicos.');
       return;
     }
-    setPrepareSnapshotText(getCurrentEditorHtml());
+    setPrepareSnapshotText(getCurrentEditorHtml() || richContentHtml);
     setPreparingDynamicFields(true);
   }
 
@@ -232,7 +199,7 @@ export default function ContractTemplatesPage() {
     else if (existingSourceText) nextEditorHtml = textToEditorHtml(existingSourceText);
     else nextEditorHtml = existingContent;
 
-    setRichContent(nextEditorHtml);
+    setRichContentHtml(nextEditorHtml);
     devLog('[TEMPLATE_EDITOR][LOAD_FOR_EDIT]', {
       id: template.id,
       sourceRichHtmlLength: existingSourceRichHtml.length,
@@ -241,7 +208,7 @@ export default function ContractTemplatesPage() {
       loadedRichLength: nextEditorHtml.length,
     });
     setEditorTab('texto');
-    scheduleEditorHtmlApply(nextEditorHtml);
+    setEditSessionId((prev) => prev + 1);
     setMobileTab('form');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -260,21 +227,21 @@ export default function ContractTemplatesPage() {
       return;
     }
 
-    const currentEditorHtml = getCurrentEditorHtml();
-    const hasCurrentEditorHtml = String(currentEditorHtml || '').trim().length > 0;
-    const shouldPersistFromRichEditor = editorTab === 'texto' || hasCurrentEditorHtml;
-    const sourceRichHtmlToPersist = shouldPersistFromRichEditor
-      ? currentEditorHtml
+    const currentEditorHtml = editorApiRef.current?.getHtml?.() ?? richContentHtml;
+    const sourceRichHtmlToPersist = editorTab === 'texto'
+      ? String(currentEditorHtml || '')
       : String(form.source_rich_html || '');
-    const sourceTextToPersist = shouldPersistFromRichEditor
-      ? htmlToReadableText(currentEditorHtml)
+    const sourceTextToPersist = editorTab === 'texto'
+      ? htmlToReadableText(sourceRichHtmlToPersist)
       : String(form.source_text || '');
-    const processedFromEditor = shouldPersistFromRichEditor
-      ? parseContractTemplateInput(currentEditorHtml).normalizedContent
-      : '';
-    const processedContent = shouldPersistFromRichEditor
-      ? processedFromEditor
+    const processedContent = editorTab === 'texto'
+      ? parseContractTemplateInput(sourceRichHtmlToPersist).normalizedContent
       : String(form.content || '');
+
+    if (editorTab === 'texto' && sourceRichHtmlToPersist.trim() && !processedContent.trim()) {
+      toast.error('Não foi possível salvar: conteúdo processado ficou vazio a partir do editor.');
+      return;
+    }
 
     const payload = {
       name,
@@ -282,17 +249,14 @@ export default function ContractTemplatesPage() {
       description: String(form.description || '').trim(),
       content: processedContent,
       source_text: sourceTextToPersist,
+      source_rich_html: sourceRichHtmlToPersist,
       is_active: form.is_active !== false,
       is_default: form.is_default === true,
     };
-
-    if (supportsRichSourceColumn) {
-      payload.source_rich_html = sourceRichHtmlToPersist;
-    }
     devLog('[TEMPLATE_EDITOR][BEFORE_SAVE_PAYLOAD]', {
       editandoId,
-      richContentLength: richContent.length,
-      currentEditorHtmlLength: currentEditorHtml.length,
+      editorTab,
+      sourceRichHtmlLength: sourceRichHtmlToPersist.length,
       sourceTextLength: sourceTextToPersist.length,
       contentLength: processedContent.length,
     });
@@ -323,6 +287,10 @@ export default function ContractTemplatesPage() {
       setMobileTab('lista');
       await carregarTemplates(false);
     } catch (saveError) {
+      if (String(saveError?.message || '').toLowerCase().includes('source_rich_html')) {
+        toast.error('Coluna source_rich_html não existe. Rode a migration.');
+        return;
+      }
       devLog('[TEMPLATE_EDITOR][SAVE_RESULT]', { ok: false, message: saveError?.message });
       console.error('Erro ao salvar template de contrato:', saveError);
       toast.error(`Não foi possível salvar: ${saveError?.message || 'erro desconhecido'}`);
@@ -427,64 +395,6 @@ export default function ContractTemplatesPage() {
       return composed.includes(term);
     });
   }, [templates, busca]);
-
-  function runEditorCommand(command, value) {
-    const editor = editorRef.current;
-    if (!editor) return;
-    editor.focus();
-    document.execCommand(command, false, value);
-    const nextHtml = editor.innerHTML || '';
-    devLog('[TEMPLATE_EDITOR][RICH_CONTENT_LENGTH]', { source: 'command', command, richContentLength: nextHtml.length });
-    setRichContent(nextHtml);
-  }
-
-  function handleEditorInput() {
-    if (!editorRef.current) return;
-    const nextHtml = editorRef.current.innerHTML || '';
-    devLog('[TEMPLATE_EDITOR][RICH_CONTENT_LENGTH]', { source: 'input', richContentLength: nextHtml.length });
-    setRichContent(nextHtml);
-  }
-
-  function handleEditorPaste(event) {
-    event.preventDefault();
-
-    const clipboard = event.clipboardData;
-    const html = clipboard?.getData('text/html');
-    const text = clipboard?.getData('text/plain');
-    devLog('[TEMPLATE_EDITOR][PASTE_RECEIVED]', { htmlLength: html?.length || 0, plainLength: text?.length || 0 });
-
-    if (html) {
-      document.execCommand('insertHTML', false, html);
-    } else if (text) {
-      const escaped = text
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/\n/g, '<br />');
-      document.execCommand('insertHTML', false, escaped);
-    }
-
-    if (!editorRef.current) return;
-    const nextHtml = editorRef.current.innerHTML || '';
-    devLog('[TEMPLATE_EDITOR][RICH_CONTENT_LENGTH]', { source: 'paste_commit', richContentLength: nextHtml.length });
-    setRichContent(nextHtml);
-  }
-
-  useEffect(() => {
-    const editor = editorRef.current;
-    if (!editor || editorTab !== 'texto' || pendingEditorHtmlRef.current === null) return;
-    const nextHtml = String(pendingEditorHtmlRef.current || '');
-    if (editor.innerHTML !== nextHtml) {
-      devLog('[TEMPLATE_EDITOR][RESET_BY_EFFECT]', {
-        reason: 'single_sync',
-        token: editorSyncToken,
-        fromLength: editor.innerHTML.length,
-        toLength: nextHtml.length,
-      });
-      editor.innerHTML = nextHtml;
-    }
-    pendingEditorHtmlRef.current = null;
-  }, [editorSyncToken, editorTab]);
 
   let previewContent = String(form.content || '');
   if (editorTab === 'texto') {
@@ -689,32 +599,19 @@ export default function ContractTemplatesPage() {
                 {editorTab === 'texto' ? (
                   <label className="block">
                     <span className="mb-1 block text-xs font-bold uppercase tracking-[0.06em] text-[#64748b]">Texto do contrato</span>
-                    <p className="mb-2 text-xs font-medium text-[#64748b]">Cole aqui o contrato base mantendo negrito, títulos e estrutura visual.</p>
-                    <p className="mb-2 text-xs font-medium text-[#64748b]">
-                      Texto do contrato = sua versão rica/editável.
-                    </p>
-                    <div className="mb-2 flex flex-wrap gap-2">
-                      {EDITOR_ACTIONS.map((action) => (
-                        <button
-                          key={action.label}
-                          type="button"
-                          onClick={() => runEditorCommand(action.command, action.value)}
-                          className="rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-violet-400 hover:text-violet-700"
-                        >
-                          {action.label}
-                        </button>
-                      ))}
-                    </div>
-                    <div
-                      ref={editorRef}
-                      contentEditable
-                      suppressContentEditableWarning
-                      onInput={handleEditorInput}
-                      onBlur={handleEditorInput}
-                      onPaste={handleEditorPaste}
-                      className="prose prose-slate min-h-[260px] max-w-none overflow-y-auto rounded-2xl border border-[#dbe3ef] bg-white px-4 py-3 text-sm text-[#0f172a] outline-none transition focus:border-violet-400"
+                    <RichContractEditor
+                      ref={editorApiRef}
+                      sessionKey={editSessionId}
+                      initialHtml={richContentHtml}
+                      onChangeHtml={(nextHtml) => {
+                        setRichContentHtml(nextHtml);
+                        devLog('[TEMPLATE_EDITOR][RICH_CONTENT_LENGTH]', {
+                          source: 'editor_change',
+                          richContentLength: String(nextHtml || '').length,
+                        });
+                      }}
                     />
-                    {!!String(richContent || form.source_text || '').trim() && (
+                    {!!String(richContentHtml || form.source_text || '').trim() && (
                       <button
                         type="button"
                         onClick={abrirPreparadorCampos}
@@ -827,18 +724,18 @@ export default function ContractTemplatesPage() {
           initialText={getCurrentEditorHtml()}
           onLiveChange={(nextText) => {
             const updatedHtml = looksLikeHtml(nextText) ? nextText : textToEditorHtml(nextText);
-            setRichContent(updatedHtml);
-            scheduleEditorHtmlApply(updatedHtml);
+            setRichContentHtml(updatedHtml);
+            editorApiRef.current?.setHtml?.(updatedHtml);
           }}
           onCancel={() => {
-            setRichContent(prepareSnapshotText);
-            scheduleEditorHtmlApply(prepareSnapshotText);
+            setRichContentHtml(prepareSnapshotText);
+            editorApiRef.current?.setHtml?.(prepareSnapshotText);
             setPreparingDynamicFields(false);
           }}
           onConclude={(updatedText) => {
             const updatedHtml = looksLikeHtml(updatedText) ? updatedText : textToEditorHtml(updatedText);
-            setRichContent(updatedHtml);
-            scheduleEditorHtmlApply(updatedHtml);
+            setRichContentHtml(updatedHtml);
+            editorApiRef.current?.setHtml?.(updatedHtml);
             setPreparingDynamicFields(false);
             toast.success('Campos dinâmicos preparados no texto.');
           }}

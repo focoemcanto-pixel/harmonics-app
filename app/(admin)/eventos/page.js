@@ -47,6 +47,8 @@ import {
   getPaymentStatus,
   getPaymentTone,
   getAutomaticCosts,
+  buildCostBreakdown,
+  sanitizeCustomCosts,
 } from '@/lib/eventos/eventos-finance';
 import {
   isPastEvent,
@@ -86,7 +88,7 @@ const DESKTOP_TABS = [
 ];
 const ADMIN_LIST_LIMIT = 100;
 const EVENTS_SELECT_FIELDS =
-  'id, created_at, client_name, event_type, event_date, event_time, duration_min, location_name, formation, instruments, has_sound, has_transport, reception_hours, whatsapp_name, whatsapp_phone, agreed_amount, paid_amount, open_amount, payment_status, status, has_antesala, antesala_enabled, antesala_requested_by_client, antesala_request_status, antesala_duration_minutes, antesala_price_increment, musician_cost, sound_cost, extra_transport_cost, other_cost, profit_amount, transport_price';
+  'id, created_at, client_name, event_type, event_date, event_time, duration_min, location_name, formation, instruments, has_sound, has_transport, reception_hours, whatsapp_name, whatsapp_phone, agreed_amount, paid_amount, open_amount, payment_status, status, has_antesala, antesala_enabled, antesala_requested_by_client, antesala_request_status, antesala_duration_minutes, antesala_price_increment, musician_cost, sound_cost, extra_transport_cost, other_cost, profit_amount, transport_price, cost_breakdown, costs_source';
 const PRECONTRACTS_SELECT_FIELDS =
   'id, created_at, event_id, client_name, event_date, event_time, status, public_token';
 const CONTRACTS_SELECT_FIELDS =
@@ -342,6 +344,7 @@ export default function EventosPage() {
     sound_default_cost: 0,
     transport_default_cost: 0,
     other_default_cost: 0,
+    custom_costs: [],
     notes: '',
   });
 
@@ -468,7 +471,7 @@ export default function EventosPage() {
       const { data, error } = await supabase
         .from('finance_cost_defaults')
         .select(
-          'slug, musician_unit_cost, sound_default_cost, transport_default_cost, other_default_cost, notes'
+          'slug, musician_unit_cost, sound_default_cost, transport_default_cost, other_default_cost, custom_costs, notes'
         )
         .eq('slug', 'default')
         .maybeSingle();
@@ -481,6 +484,7 @@ export default function EventosPage() {
         sound_default_cost: toNumber(data.sound_default_cost),
         transport_default_cost: toNumber(data.transport_default_cost),
         other_default_cost: toNumber(data.other_default_cost),
+        custom_costs: sanitizeCustomCosts(data.custom_costs),
         notes: String(data.notes || ''),
       });
     } catch (error) {
@@ -804,6 +808,12 @@ export default function EventosPage() {
     const extraTransportCost = toNumber(form.extra_transport_cost);
     const otherCost = toNumber(form.other_cost);
     const totalCosts = musicianCost + soundCost + extraTransportCost + otherCost;
+    const costBreakdown = buildCostBreakdown({
+      musicianCost,
+      soundCost,
+      extraTransportCost,
+      customCosts: financeCostDefaults.custom_costs,
+    });
 
     const profitAmount = agreedAmount - totalCosts;
     const paymentStatus = getPaymentStatus(agreedAmount, paidAmount);
@@ -820,6 +830,7 @@ export default function EventosPage() {
       soundCost,
       extraTransportCost,
       otherCost,
+      costBreakdown,
       totalCosts,
       profitAmount,
       paymentStatus,
@@ -831,7 +842,7 @@ export default function EventosPage() {
       openAmountFormatted: formatMoney(openAmount),
       profitAmountFormatted: formatMoney(profitAmount),
     };
-  }, [form, pricing]);
+  }, [financeCostDefaults.custom_costs, form, pricing]);
 
   async function salvarPricing() {
     if (!pricingId) {
@@ -934,6 +945,7 @@ export default function EventosPage() {
         extra_transport_cost: financial.extraTransportCost,
         other_cost: financial.otherCost,
         profit_amount: financial.profitAmount,
+        cost_breakdown: financial.costBreakdown,
 
         status: form.status || 'Rascunho',
       };
@@ -948,7 +960,7 @@ export default function EventosPage() {
       } else {
         const { error } = await supabase.from('events').insert([{
           ...payload,
-          costs_source: 'auto',
+          costs_source: 'default',
         }]);
 
         if (error) throw error;

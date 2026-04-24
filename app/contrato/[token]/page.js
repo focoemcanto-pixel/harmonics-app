@@ -839,7 +839,7 @@ const mapsLoaded = useGoogleMapsReady();
     const candidates = [
       precontract?.custom_contract_rich_html,
       precontract?.custom_contract_content,
-      internalContractHtml,
+      previewHtml,
       contract?.raw_payload?.signed_contract_html,
       contract?.raw_payload?.contract_html_snapshot,
       contract?.raw_payload?.contract_html,
@@ -865,6 +865,7 @@ const mapsLoaded = useGoogleMapsReady();
     }
 
     setPreviewError('');
+    const contratoHtmlResolvido = resolveContractHtml();
     if (isInternalMode) {
       if (!contratoHtmlResolvido) {
         toast.error('Não foi possível gerar a visualização do contrato.');

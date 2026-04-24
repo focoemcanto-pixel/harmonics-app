@@ -71,3 +71,43 @@ export async function GET(request, context) {
     hasContractServiceApiKey: Boolean(process.env.CONTRACT_SERVICE_API_KEY),
   });
 }
+
+export async function POST(request, context) {
+  const resolvedParams = await context?.params;
+  const token = String(resolvedParams?.token || '').trim();
+
+  const { searchParams } = new URL(request.url);
+  const debugKey = searchParams.get('debugKey');
+
+  if (debugKey !== process.env.DEBUG_INTERNAL_KEY) {
+    return Response.json({ ok: false, code: 'UNAUTHORIZED_DEBUG' }, { status: 401 });
+  }
+
+  try {
+    const res = await fetch(`${process.env.CONTRACT_SERVICE_URL}/api/contracts/html-to-pdf`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': process.env.CONTRACT_SERVICE_API_KEY,
+      },
+      body: JSON.stringify({
+        html: '<h1>TESTE PDF</h1>',
+      }),
+    });
+
+    const text = await res.text();
+
+    return Response.json({
+      ok: true,
+      step: 'render_call',
+      status: res.status,
+      response: text,
+    });
+  } catch (err) {
+    return Response.json({
+      ok: false,
+      step: 'render_call_error',
+      error: String(err),
+    });
+  }
+}

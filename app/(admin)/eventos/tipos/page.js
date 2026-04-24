@@ -82,7 +82,13 @@ export default function EventTypesPage() {
       if (eventTypesResp.error) throw eventTypesResp.error;
       if (templatesResp.error) throw templatesResp.error;
 
-      setEventTypes(dedupeById(eventTypesResp.data || []));
+      const rawEventTypes = eventTypesResp.data || [];
+      const uniqueEventTypes = dedupeById(rawEventTypes);
+      if (rawEventTypes.length !== uniqueEventTypes.length) {
+        console.warn('[EVENT_TYPES] Registros duplicados detectados na consulta. Mantendo apenas 1 por id.');
+      }
+
+      setEventTypes(uniqueEventTypes);
       setTemplates(dedupeById(templatesResp.data || []));
     } catch (error) {
       console.error('Erro ao carregar tipos de evento:', error);
@@ -193,20 +199,28 @@ export default function EventTypesPage() {
     try {
       setSaving(true);
       if (editingId) {
+        const tipoSelecionado = eventTypes.find((item) => String(item.id) === String(editingId));
+        const id = tipoSelecionado?.id;
+        if (!id) {
+          throw new Error('ID inválido para atualização do tipo de evento');
+        }
+
+        console.log('Atualizando tipo:', tipoSelecionado.id);
+
         devLog('[EVENT_TYPES][SAVE_PAYLOAD]', {
-          editingId: String(editingId),
+          editingId: String(tipoSelecionado.id),
           default_contract_template_id: payload.default_contract_template_id,
         });
 
         const { data, error } = await supabase
           .from('event_types')
           .update(payload)
-          .eq('id', editingId)
+          .eq('id', tipoSelecionado.id)
           .select('id, name, default_contract_template_id, updated_at')
-          .single();
+          .maybeSingle();
 
         devLog('[EVENT_TYPES][UPDATE_RESULT]', {
-          editingId: String(editingId),
+          editingId: String(tipoSelecionado.id),
           payload_default_contract_template_id: payload.default_contract_template_id,
           data_default_contract_template_id: data?.default_contract_template_id ?? null,
           hasError: Boolean(error),

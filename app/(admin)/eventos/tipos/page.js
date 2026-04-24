@@ -58,6 +58,11 @@ export default function EventTypesPage() {
   const [editingId, setEditingId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
 
+  function devLog(label, data) {
+    if (process.env.NODE_ENV !== 'development') return;
+    console.log(label, data);
+  }
+
   async function loadData(showLoading = true) {
     try {
       if (showLoading) setLoading(true);
@@ -155,7 +160,7 @@ export default function EventTypesPage() {
       sort_order: String(item.sort_order ?? 0),
       color: item.color || '',
       icon: item.icon || '',
-      default_contract_template_id: item.default_contract_template_id || '',
+      default_contract_template_id: item.default_contract_template_id ? String(item.default_contract_template_id) : '',
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -182,26 +187,64 @@ export default function EventTypesPage() {
       sort_order: Number.parseInt(String(form.sort_order || '0'), 10) || 0,
       color: String(form.color || '').trim() || null,
       icon: String(form.icon || '').trim() || null,
-      default_contract_template_id: form.default_contract_template_id || null,
+      default_contract_template_id: String(form.default_contract_template_id || '').trim() || null,
     };
 
     try {
       setSaving(true);
       if (editingId) {
-        const { error } = await supabase.from('event_types').update(payload).eq('id', editingId);
-        if (error) throw error;
+        devLog('[EVENT_TYPES][SAVE_PAYLOAD]', {
+          editingId: String(editingId),
+          default_contract_template_id: payload.default_contract_template_id,
+        });
+
+        const { data, error } = await supabase
+          .from('event_types')
+          .update(payload)
+          .eq('id', editingId)
+          .select('id, name, default_contract_template_id, updated_at')
+          .single();
+
+        devLog('[EVENT_TYPES][UPDATE_RESULT]', {
+          editingId: String(editingId),
+          payload_default_contract_template_id: payload.default_contract_template_id,
+          data_default_contract_template_id: data?.default_contract_template_id ?? null,
+          hasError: Boolean(error),
+        });
+
+        if (error) {
+          const message = String(error?.message || '').toLowerCase();
+          if (message.includes('rls') || message.includes('permission denied') || message.includes('policy')) {
+            throw new Error('Não foi possível salvar. A tabela event_types pode estar bloqueada por RLS.');
+          }
+          throw error;
+        }
+
+        if (!data) {
+          throw new Error('Tipo de evento não foi atualizado. Verifique permissões/RLS.');
+        }
+
+        setEventTypes((prev) => prev.map((item) => (String(item.id) === String(data.id)
+          ? { ...item, ...payload, ...data }
+          : item)));
         toast.success('Tipo de evento atualizado com sucesso.');
+        await loadData(false);
+        resetForm();
       } else {
         const { error } = await supabase.from('event_types').insert([payload]);
         if (error) throw error;
         toast.success('Tipo de evento criado com sucesso.');
+        await loadData(false);
+        resetForm();
       }
-
-      resetForm();
-      await loadData(false);
     } catch (error) {
       console.error('Erro ao salvar tipo de evento:', error);
-      toast.error(`Não foi possível salvar: ${error?.message || 'erro desconhecido'}`);
+      const msg = String(error?.message || '');
+      if (msg.toLowerCase().includes('rls') || msg.toLowerCase().includes('permission denied') || msg.toLowerCase().includes('policy')) {
+        toast.error('Não foi possível salvar. A tabela event_types pode estar bloqueada por RLS.');
+      } else {
+        toast.error(`Não foi possível salvar: ${msg || 'erro desconhecido'}`);
+      }
     } finally {
       setSaving(false);
     }
@@ -401,10 +444,13 @@ export default function EventTypesPage() {
                 </Field>
 
                 <Field label="Template padrão">
-                  <Select value={form.default_contract_template_id} onChange={(event) => setForm((prev) => ({ ...prev, default_contract_template_id: event.target.value }))}>
+                  <Select
+                    value={form.default_contract_template_id || ''}
+                    onChange={(event) => setForm((prev) => ({ ...prev, default_contract_template_id: event.target.value }))}
+                  >
                     <option value="">Sem template padrão</option>
                     {templateOptions.map((template) => (
-                      <option key={template.id} value={template.id}>
+                      <option key={template.id} value={String(template.id)}>
                         {template.name}
                         {template.is_active === false ? ' (inativo)' : ''}
                       </option>

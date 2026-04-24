@@ -730,6 +730,7 @@ export default function ContratoPublicoPage() {
     clientPanelUrl: '',
   });
   const [internalPdfStatus, setInternalPdfStatus] = useState('idle');
+  const [internalPdfError, setInternalPdfError] = useState('');
 
   const addressStreetRef = useRef(null);
 const eventAddressRef = useRef(null);
@@ -1774,6 +1775,7 @@ if (!generateRes.ok || !generateJson?.ok) {
       let internalPdfUrl = '';
       if (modoGeracao === 'internal' && htmlAssinado) {
         setInternalPdfStatus('generating');
+        setInternalPdfError('');
         try {
           const internalPdfRes = await fetch('/api/contracts/internal/pdf', {
             method: 'POST',
@@ -1794,9 +1796,15 @@ if (!generateRes.ok || !generateJson?.ok) {
 
           internalPdfUrl = String(internalPdfJson?.pdfUrl || '').trim();
           setInternalPdfStatus(internalPdfUrl ? 'ready' : 'failed');
+          if (!internalPdfUrl) {
+            setInternalPdfError('PDF sendo preparado. Tente novamente em instantes.');
+          }
         } catch (internalPdfError) {
           console.error('Erro ao gerar PDF interno:', internalPdfError);
           setInternalPdfStatus('failed');
+          setInternalPdfError(
+            internalPdfError?.message || 'Não foi possível finalizar o PDF agora.'
+          );
         }
       }
 
@@ -2008,7 +2016,7 @@ if (contractSignedError) throw contractSignedError;
     </>
   ) : internalPdfIsGenerating ? (
     <>
-      <Button disabled>Gerando PDF do contrato...</Button>
+      <Button disabled>PDF sendo preparado</Button>
       <a
         href={painelUrl}
         target="_blank"
@@ -2020,7 +2028,7 @@ if (contractSignedError) throw contractSignedError;
     </>
   ) : internalPdfFailed ? (
     <>
-      <Button disabled>Contrato assinado. O PDF ainda está sendo preparado.</Button>
+      <Button disabled>PDF sendo preparado</Button>
       <a
         href={painelUrl}
         target="_blank"
@@ -2029,6 +2037,9 @@ if (contractSignedError) throw contractSignedError;
       >
         <Button variant="secondary">Abrir painel do cliente</Button>
       </a>
+      <p className="text-sm text-slate-500">
+        {internalPdfError || 'Seu contrato foi assinado, mas o PDF ainda não ficou pronto.'}
+      </p>
     </>
   ) : isInternalMode && signedHtml ? (
     <>

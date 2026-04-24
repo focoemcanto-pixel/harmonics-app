@@ -86,6 +86,7 @@ export default function PrepareDynamicFieldsModal({
         <div className="border-b border-[#e2e8f0] px-6 py-5">
           <h3 className="text-2xl font-black tracking-[-0.03em] text-[#0f172a]">Preparar campos dinâmicos</h3>
           <p className="mt-2 text-sm text-[#475569]">Selecione um trecho do contrato e associe a um campo do sistema.</p>
+          <p className="mt-1 text-xs text-[#64748b]">A preparação de campos trabalha em texto limpo para facilitar a seleção.</p>
           <p className="mt-1 text-xs font-medium text-[#64748b]">Esse recurso ajuda a transformar contratos prontos em templates dinâmicos. Selecione um trecho do texto e substitua pelo campo correspondente.</p>
         </div>
 

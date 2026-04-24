@@ -36,7 +36,35 @@ function htmlToReadableText(value) {
   if (typeof window !== 'undefined') {
     const parser = new DOMParser();
     const doc = parser.parseFromString(raw, 'text/html');
-    return String(doc.body?.textContent || '');
+    const blockTags = new Set(['P', 'DIV', 'SECTION', 'ARTICLE', 'HEADER', 'FOOTER', 'LI', 'UL', 'OL', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'TABLE', 'TR']);
+    let output = '';
+
+    function walk(node) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        output += node.textContent || '';
+        return;
+      }
+      if (node.nodeType !== Node.ELEMENT_NODE) return;
+
+      const tag = node.nodeName;
+      if (tag === 'BR') {
+        output += '\n';
+        return;
+      }
+
+      const shouldBreakBefore = blockTags.has(tag) && output && !output.endsWith('\n');
+      if (shouldBreakBefore) output += '\n';
+      node.childNodes.forEach(walk);
+      const shouldBreakAfter = blockTags.has(tag) && !output.endsWith('\n');
+      if (shouldBreakAfter) output += '\n';
+    }
+
+    doc.body?.childNodes.forEach(walk);
+    return output
+      .replace(/\u00a0/g, ' ')
+      .replace(/[ \t]+\n/g, '\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
   }
 
   return raw
@@ -114,7 +142,8 @@ export default function ContractTemplatesPage() {
   const [busca, setBusca] = useState('');
   const [mobileTab, setMobileTab] = useState('lista');
   const [preparingDynamicFields, setPreparingDynamicFields] = useState(false);
-  const [prepareSnapshotText, setPrepareSnapshotText] = useState('');
+  const [prepareSnapshotHtml, setPrepareSnapshotHtml] = useState('');
+  const [prepareInitialText, setPrepareInitialText] = useState('');
   const [excluindoId, setExcluindoId] = useState(null);
   const richEditorRef = useRef(null);
 
@@ -192,12 +221,23 @@ export default function ContractTemplatesPage() {
   }
 
   function abrirPreparadorCampos() {
-    const source = String(getCurrentEditorHtml() || form.source_text || form.content || '').trim();
+    const editorHtml = getCurrentEditorHtml();
+    const readableFromEditor = htmlToReadableText(editorHtml);
+    const readableFromRichState = htmlToReadableText(richContentHtml);
+    const readableFromContent = htmlToReadableText(form.content);
+    const source = String(
+      readableFromEditor ||
+      readableFromRichState ||
+      form.source_text ||
+      readableFromContent ||
+      ''
+    ).trim();
     if (!source) {
       toast.warning('Informe um texto de contrato antes de preparar campos dinâmicos.');
       return;
     }
-    setPrepareSnapshotText(getCurrentEditorHtml() || richContentHtml);
+    setPrepareSnapshotHtml(editorHtml || richContentHtml);
+    setPrepareInitialText(source);
     setPreparingDynamicFields(true);
   }
 
@@ -475,14 +515,6 @@ export default function ContractTemplatesPage() {
       return composed.includes(term);
     });
   }, [templates, busca]);
-
-  let previewContent = String(form.content || '');
-  if (editorTab === 'texto') {
-    const currentHtml = getCurrentEditorHtml();
-    if (String(currentHtml || '').trim()) {
-      previewContent = parseContractTemplateInput(currentHtml).normalizedContent;
-    }
-  }
 
   const totais = useMemo(() => {
     const total = templates.length;
@@ -786,36 +818,36 @@ export default function ContractTemplatesPage() {
               )}
             </div>
 
-            <div className="mt-6 rounded-[22px] border border-[#e2e8f0] bg-[#f8fafc] p-4">
-              <h3 className="text-sm font-black text-[#0f172a]">Preview do contrato</h3>
-              <div className="prose prose-sm mt-3 max-w-none rounded-xl border border-[#e2e8f0] bg-white p-4 text-[#1e293b]">
-                {String(previewContent || '').trim() ? (
-                  <div dangerouslySetInnerHTML={{ __html: previewContent }} />
-                ) : (
-                  <p className="text-sm font-medium text-[#64748b]">Nenhum conteúdo para pré-visualizar.</p>
-                )}
-              </div>
-            </div>
           </section>
         </div>
       </div>
       {preparingDynamicFields && (
         <PrepareDynamicFieldsModal
-          initialText={getCurrentEditorHtml()}
+          initialText={prepareInitialText}
           onLiveChange={(nextText) => {
-            const updatedHtml = looksLikeHtml(nextText) ? nextText : textToEditorHtml(nextText);
+            const updatedHtml = textToEditorHtml(nextText);
             setRichContentHtml(updatedHtml);
             richEditorRef.current?.setHtml?.(updatedHtml);
+            setForm((prev) => ({
+              ...prev,
+              source_text: String(nextText || ''),
+              source_rich_html: updatedHtml,
+            }));
           }}
           onCancel={() => {
-            setRichContentHtml(prepareSnapshotText);
-            richEditorRef.current?.setHtml?.(prepareSnapshotText);
+            setRichContentHtml(prepareSnapshotHtml);
+            richEditorRef.current?.setHtml?.(prepareSnapshotHtml);
             setPreparingDynamicFields(false);
           }}
           onConclude={(updatedText) => {
-            const updatedHtml = looksLikeHtml(updatedText) ? updatedText : textToEditorHtml(updatedText);
+            const updatedHtml = textToEditorHtml(updatedText);
             setRichContentHtml(updatedHtml);
             richEditorRef.current?.setHtml?.(updatedHtml);
+            setForm((prev) => ({
+              ...prev,
+              source_text: String(updatedText || ''),
+              source_rich_html: updatedHtml,
+            }));
             setPreparingDynamicFields(false);
             toast.success('Campos dinâmicos preparados no texto.');
           }}

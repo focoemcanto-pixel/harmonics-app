@@ -16,34 +16,31 @@ export async function GET(request, context) {
 
   const supabase = getSupabaseAdmin();
 
-  // 1. Buscar pré-contrato
-  const { data: precontract, error } = await supabase
+  // 1) Buscar pré-contrato (opcional para fallback de busca do contrato).
+  const { data: precontract, error: precontractError } = await supabase
     .from('precontracts')
     .select('*')
     .eq('public_token', token)
-    .single();
+    .maybeSingle();
 
-  if (error || !precontract) {
-    return Response.json({
-      ok: false,
-      step: 'fetch_precontract',
-      error,
-      found: false,
-    });
-  }
-
-  // 2. Verificar contrato e HTML assinado
+  // 2) Buscar contrato por token público primeiro.
   const { data: contractByToken } = await supabase
     .from('contracts')
     .select('*')
     .eq('public_token', token)
     .maybeSingle();
 
-  const { data: contractByPrecontract } = await supabase
-    .from('contracts')
-    .select('*')
-    .eq('precontract_id', precontract.id)
-    .maybeSingle();
+  // 3) Se não encontrou, buscar por precontract_id (quando houver pré-contrato).
+  let contractByPrecontract = null;
+  if (!contractByToken && precontract?.id) {
+    const { data } = await supabase
+      .from('contracts')
+      .select('*')
+      .eq('precontract_id', precontract.id)
+      .maybeSingle();
+
+    contractByPrecontract = data;
+  }
 
   const contract = contractByToken || contractByPrecontract;
 
@@ -57,7 +54,8 @@ export async function GET(request, context) {
     ok: true,
     step: 'contract_debug',
     token,
-    precontractId: precontract.id,
+    precontractId: precontract?.id || null,
+    precontractLookupError: precontractError || null,
     foundContract: Boolean(contract?.id),
     contractId: contract?.id || null,
     contractStatus: contract?.status || null,

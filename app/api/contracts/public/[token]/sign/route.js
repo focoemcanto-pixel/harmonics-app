@@ -236,15 +236,101 @@ export async function POST(request, context) {
     }
 
     if (contract.signed_at && contract.document_hash) {
+      if (contract.pdf_url) {
+        return NextResponse.json({
+          ok: true,
+          alreadySigned: true,
+          contractId: contract.id,
+          precontractId: contract.precontract_id,
+          signedAt: contract.signed_at,
+          documentHash: contract.document_hash,
+          verificationToken: contract.verification_token || null,
+          pdfUrl: contract.pdf_url || null,
+        });
+      }
+
+      const signedHtml = asString(
+        contract.signed_html
+        || contract.raw_payload?.signed_contract_html
+        || contract.raw_payload?.contract_html_snapshot
+      );
+
+      console.info('[CONTRACT_PUBLIC_SIGN][ALREADY_SIGNED_WITHOUT_PDF]', {
+        contractId: contract.id,
+        precontractId: contract.precontract_id,
+        hasSignedHtml: Boolean(signedHtml),
+      });
+
+      if (!signedHtml) {
+        console.error('[CONTRACT_PUBLIC_SIGN][MISSING_SIGNED_HTML_FOR_PDF_RECOVERY]', {
+          contractId: contract.id,
+          precontractId: contract.precontract_id,
+        });
+
+        return NextResponse.json({
+          ok: true,
+          alreadySigned: true,
+          pdfPending: true,
+          contractId: contract.id,
+          precontractId: contract.precontract_id,
+          signedAt: contract.signed_at,
+          documentHash: contract.document_hash,
+          verificationToken: contract.verification_token || null,
+          pdfUrl: null,
+          message: 'Contrato assinado. O PDF ainda está sendo preparado.',
+        });
+      }
+
+      const pdfPayload = {
+        contractId: contract.id,
+        precontractId: contract.precontract_id,
+        html: signedHtml,
+      };
+
+      const pdfRes = await fetch(new URL('/api/contracts/internal/pdf', request.url), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(pdfPayload),
+        cache: 'no-store',
+      });
+
+      const pdfJson = await pdfRes.json().catch(() => null);
+
+      console.info('[CONTRACT_PUBLIC_SIGN][PDF_RECOVERY_RESPONSE]', {
+        status: pdfRes.status,
+        ok: pdfRes.ok,
+        pdfJson,
+      });
+
+      const recoveredPdfUrl = asString(pdfJson?.pdfUrl);
+
+      if (pdfRes.ok && recoveredPdfUrl) {
+        await supabase.from('contracts').update({ pdf_url: recoveredPdfUrl }).eq('id', contract.id);
+
+        return NextResponse.json({
+          ok: true,
+          alreadySigned: true,
+          pdfRecovered: true,
+          contractId: contract.id,
+          precontractId: contract.precontract_id,
+          signedAt: contract.signed_at,
+          documentHash: contract.document_hash,
+          verificationToken: contract.verification_token || null,
+          pdfUrl: recoveredPdfUrl,
+        });
+      }
+
       return NextResponse.json({
         ok: true,
         alreadySigned: true,
+        pdfPending: true,
         contractId: contract.id,
         precontractId: contract.precontract_id,
         signedAt: contract.signed_at,
         documentHash: contract.document_hash,
         verificationToken: contract.verification_token || null,
-        pdfUrl: contract.pdf_url || null,
+        pdfUrl: null,
+        message: 'Contrato assinado. O PDF ainda está sendo preparado.',
       });
     }
 

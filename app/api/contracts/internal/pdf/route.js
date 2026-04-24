@@ -82,11 +82,10 @@ async function persistContractFields({
   pdfUrl,
   signedHtml,
 }) {
-  const signedAt = new Date().toISOString();
+  const generatedAt = new Date().toISOString();
 
   const patchPayload = {
     status: 'signed',
-    signed_at: signedAt,
     pdf_url: pdfUrl,
     signed_snapshot_html: signedHtml,
     raw_payload: {
@@ -94,7 +93,7 @@ async function persistContractFields({
       contract_html_snapshot: signedHtml,
       internal_pdf: {
         pdf_url: pdfUrl,
-        generated_at: signedAt,
+        generated_at: generatedAt,
       },
     },
   };
@@ -115,7 +114,7 @@ async function persistContractFields({
         contract_html_snapshot: signedHtml,
         internal_pdf: {
           pdf_url: pdfUrl,
-          generated_at: signedAt,
+          generated_at: generatedAt,
         },
       },
     };

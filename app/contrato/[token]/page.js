@@ -728,9 +728,11 @@ export default function ContratoPublicoPage() {
     docUrl: '',
     html: '',
     clientPanelUrl: '',
+    documentHash: '',
+    missingColumns: [],
   });
   const [internalPdfStatus, setInternalPdfStatus] = useState('idle');
-  const [internalPdfError, setInternalPdfError] = useState('');
+  const [signatureStep, setSignatureStep] = useState('');
 
   const addressStreetRef = useRef(null);
 const eventAddressRef = useRef(null);
@@ -1343,6 +1345,12 @@ const internalSnapshotDisponivel =
 const contratoFinalizado =
   (contract?.status === 'signed' || precontract?.status === 'signed') &&
   (isInternalMode ? internalSnapshotDisponivel || pdfDisponivel : pdfDisponivel);
+const canSubmitSignature =
+  !!form.accepted_terms &&
+  !!String(form.signer_name || '').trim() &&
+  !!String(form.signer_cpf || '').trim() &&
+  !salvando &&
+  !hasPendingAdjustment;
   function validateFormFields() {
     const errors = {};
 
@@ -1667,6 +1675,7 @@ const contratoFinalizado =
     try {
      setSalvando(true);
      setInternalPdfStatus('idle');
+     setSignatureStep('Registrando assinatura...');
 
 // salva em estado intermediário enquanto gera o contrato final
 await upsertContract('client_filling');
@@ -1742,6 +1751,7 @@ if (contentType.includes('application/json')) {
 if (!generateRes.ok || !generateJson?.ok) {
   throw new Error(generateJson?.message || 'Erro ao gerar contrato final.');
 }
+      setSignatureStep('Gerando documento seguro...');
 
       const { data: contractAtualizado, error: contractReloadError } = await supabase
         .from('contracts')
@@ -1773,38 +1783,41 @@ if (!generateRes.ok || !generateJson?.ok) {
         contratoHtmlResolvido;
 
       let internalPdfUrl = '';
+      let documentHash = '';
+      let missingColumns = [];
       if (modoGeracao === 'internal' && htmlAssinado) {
         setInternalPdfStatus('generating');
-        setInternalPdfError('');
+        setSignatureStep('Preparando PDF...');
         try {
-          const internalPdfRes = await fetch('/api/contracts/internal/pdf', {
+          const internalSignRes = await fetch(`/api/contracts/public/${token}/sign`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               precontractId: precontract.id,
               contractId: contractAtualizado?.id || null,
               html: htmlAssinado,
+              signerName: form.signer_name,
+              signerCpf: form.signer_cpf,
+              origin: 'CLIENTE',
             }),
           });
 
-          const internalPdfJson = await internalPdfRes.json().catch(() => null);
-          if (!internalPdfRes.ok || !internalPdfJson?.ok) {
+          const internalSignJson = await internalSignRes.json().catch(() => null);
+          if (!internalSignRes.ok || !internalSignJson?.ok) {
             throw new Error(
-              internalPdfJson?.message || 'Falha ao gerar PDF do contrato interno.'
+              internalSignJson?.message || 'Falha ao assinar contrato interno.'
             );
           }
 
-          internalPdfUrl = String(internalPdfJson?.pdfUrl || '').trim();
+          internalPdfUrl = String(internalSignJson?.pdfUrl || '').trim();
+          documentHash = String(internalSignJson?.documentHash || '').trim();
+          missingColumns = Array.isArray(internalSignJson?.missingColumns)
+            ? internalSignJson.missingColumns
+            : [];
           setInternalPdfStatus(internalPdfUrl ? 'ready' : 'failed');
-          if (!internalPdfUrl) {
-            setInternalPdfError('PDF sendo preparado. Tente novamente em instantes.');
-          }
-        } catch (internalPdfError) {
-          console.error('Erro ao gerar PDF interno:', internalPdfError);
+        } catch (errorInternalPdf) {
+          console.error('Erro ao gerar PDF interno:', errorInternalPdf);
           setInternalPdfStatus('failed');
-          setInternalPdfError(
-            internalPdfError?.message || 'Não foi possível finalizar o PDF agora.'
-          );
         }
       }
 
@@ -1817,6 +1830,8 @@ if (!generateRes.ok || !generateJson?.ok) {
         docUrl: docUrlFinal,
         html: htmlAssinado,
         clientPanelUrl: `${window.location.origin}/cliente/${token}`,
+        documentHash,
+        missingColumns,
       });
 
       if (modoGeracao !== 'internal' && !pdfUrlFinal) {
@@ -1866,7 +1881,7 @@ if (!generateRes.ok || !generateJson?.ok) {
     raw_payload: {
       ...(contractAtualizado?.raw_payload || {}),
       signed_contract_mode: modoGeracao,
-      ...(htmlAssinado
+      ...(htmlAssinado && modoGeracao !== 'internal'
         ? {
             signed_contract_html: htmlAssinado,
             contract_html_snapshot: htmlAssinado,
@@ -1918,9 +1933,10 @@ if (contractSignedError) throw contractSignedError;
       setEnviado(true);
     } catch (error) {
       console.error('Erro ao assinar contrato:', error);
-      toast.error(`Erro ao assinar: ${error?.message || 'erro desconhecido'}`);
+      toast.error('Contrato assinado. Não foi possível preparar o PDF agora.');
     } finally {
       setSalvando(false);
+      setSignatureStep('');
     }
   }
 
@@ -1989,9 +2005,15 @@ if (contractSignedError) throw contractSignedError;
 
               <p className="mx-auto max-w-2xl text-sm text-slate-500 md:text-base">
                 Seu contrato foi concluído com sucesso. {isInternalMode
-                  ? 'Seu documento assinado está sendo finalizado com segurança e o painel do cliente já está liberado.'
+                  ? 'Seu documento foi registrado com segurança.'
                   : 'Abaixo você já pode acessar o PDF do contrato e também o seu painel do cliente, onde poderá acompanhar informações importantes do seu evento, financeiro e as próximas etapas.'}
               </p>
+
+              {resultadoFinal.documentHash ? (
+                <div className="mx-auto inline-flex rounded-full bg-emerald-50 px-4 py-2 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">
+                  Documento validado com hash SHA256
+                </div>
+              ) : null}
 
               <div className="flex flex-col justify-center gap-3 pt-2 sm:flex-row">
   {pdfUrl ? (
@@ -2002,7 +2024,7 @@ if (contractSignedError) throw contractSignedError;
         rel="noreferrer"
         className="inline-flex"
       >
-        <Button>Baixar contrato em PDF</Button>
+        <Button>Baixar contrato assinado</Button>
       </a>
 
       <a
@@ -2016,7 +2038,7 @@ if (contractSignedError) throw contractSignedError;
     </>
   ) : internalPdfIsGenerating ? (
     <>
-      <Button disabled>PDF sendo preparado</Button>
+      <Button disabled>Contrato assinado. O PDF está sendo preparado e ficará disponível em instantes.</Button>
       <a
         href={painelUrl}
         target="_blank"
@@ -2037,13 +2059,11 @@ if (contractSignedError) throw contractSignedError;
       >
         <Button variant="secondary">Abrir painel do cliente</Button>
       </a>
-      <p className="text-sm text-slate-500">
-        {internalPdfError || 'Seu contrato foi assinado, mas o PDF ainda não ficou pronto.'}
-      </p>
+      <p className="text-sm text-slate-500">Contrato assinado. Não foi possível preparar o PDF agora.</p>
     </>
   ) : isInternalMode && signedHtml ? (
     <>
-      <Button disabled>Contrato assinado. O PDF ainda está sendo preparado.</Button>
+      <Button disabled>Contrato assinado. O PDF está sendo preparado e ficará disponível em instantes.</Button>
       <a
         href={painelUrl}
         target="_blank"
@@ -2552,7 +2572,11 @@ if (contractSignedError) throw contractSignedError;
                     </span>
                   </label>
 
-                  <Button onClick={assinarContrato} disabled={salvando || !!hasPendingAdjustment}>
+                  {salvando && signatureStep ? (
+                    <p className="text-sm font-medium text-violet-700">{signatureStep}</p>
+                  ) : null}
+
+                  <Button onClick={assinarContrato} disabled={!canSubmitSignature}>
                     {salvando ? 'Assinando...' : 'Assinar contrato'}
                   </Button>
                 </div>

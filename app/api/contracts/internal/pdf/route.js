@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { generatePdfBufferFromHtml } from '@/lib/contracts/htmlToPdfService';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -7,20 +8,9 @@ export const runtime = 'nodejs';
 const DEFAULT_BUCKET = 'contract-pdfs';
 
 function resolveContractServiceEnv() {
-  const contractServiceUrl = String(
-    process.env.CONTRACT_SERVICE_URL || process.env.NEXT_PUBLIC_CONTRACT_SERVICE_URL || ''
-  )
-    .trim()
-    .replace(/\/+$/, '');
+  const contractServiceUrl = String(process.env.CONTRACT_SERVICE_URL || process.env.NEXT_PUBLIC_CONTRACT_SERVICE_URL || '').trim();
 
-  const contractServiceApiKey = String(
-    process.env.CONTRACT_SERVICE_API_KEY || process.env.NEXT_PUBLIC_CONTRACT_SERVICE_API_KEY || ''
-  ).trim();
-
-  return {
-    contractServiceUrl,
-    contractServiceApiKey,
-  };
+  return { contractServiceUrl };
 }
 
 function stripHtmlWrapper(html) {
@@ -34,87 +24,13 @@ function stripHtmlWrapper(html) {
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8" /></head><body>${value}</body></html>`;
 }
 
-async function requestPdfFromContractService({ html, contractId, precontractId, serviceUrl, apiKey }) {
-  if (!serviceUrl) {
-    throw new Error('CONTRACT_SERVICE_URL não configurada para gerar PDF interno.');
-  }
-
-  const endpoint = `${serviceUrl}/api/contracts/html-to-pdf`;
-
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/pdf,application/json,text/plain,*/*',
-      ...(apiKey ? { 'x-api-key': apiKey } : {}),
-    },
-    body: JSON.stringify({
-      html,
-      contractId: contractId || null,
-      precontractId: precontractId || null,
-    }),
-    cache: 'no-store',
-  });
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || `Falha ao gerar PDF no serviço externo (status ${response.status}).`);
-  }
-
-  const contentType = String(response.headers.get('content-type') || '').toLowerCase();
-
-  if (contentType.includes('application/pdf')) {
-    const arrayBuffer = await response.arrayBuffer();
-    return Buffer.from(arrayBuffer);
-  }
-
-  const json = await response.json().catch(() => null);
-
-  const base64 = String(
-    json?.pdfBase64 || json?.pdf_base64 || json?.data?.pdfBase64 || json?.data?.pdf_base64 || ''
-  ).trim();
-
-  if (base64) {
-    return Buffer.from(base64, 'base64');
-  }
-
-  const pdfUrl = String(json?.pdfUrl || json?.pdf_url || json?.data?.pdfUrl || json?.data?.pdf_url || '').trim();
-  if (pdfUrl) {
-    const fetchPdf = await fetch(pdfUrl, {
-      method: 'GET',
-      cache: 'no-store',
-      headers: {
-        Accept: 'application/pdf,*/*',
-      },
-    });
-
-    if (!fetchPdf.ok) {
-      const text = await fetchPdf.text();
-      throw new Error(text || `Falha ao baixar PDF do serviço externo (status ${fetchPdf.status}).`);
-    }
-
-    const arrayBuffer = await fetchPdf.arrayBuffer();
-    return Buffer.from(arrayBuffer);
-  }
-
-  throw new Error('Serviço de PDF respondeu sem conteúdo de PDF válido.');
-}
-
 async function ensureBucketExists(supabase, bucketName) {
   const { data: buckets, error: listError } = await supabase.storage.listBuckets();
   if (listError) throw listError;
 
   const exists = (buckets || []).some((bucket) => bucket?.name === bucketName);
-  if (exists) return;
-
-  const { error: createError } = await supabase.storage.createBucket(bucketName, {
-    public: true,
-    fileSizeLimit: '20MB',
-    allowedMimeTypes: ['application/pdf'],
-  });
-
-  if (createError && !String(createError.message || '').toLowerCase().includes('already exists')) {
-    throw createError;
+  if (!exists) {
+    throw new Error('Bucket contract-pdfs não encontrado.');
   }
 }
 
@@ -244,13 +160,16 @@ export async function POST(request) {
       precontractId,
     });
 
-    const { contractServiceUrl, contractServiceApiKey } = resolveContractServiceEnv();
-    const pdfBuffer = await requestPdfFromContractService({
+    const { contractServiceUrl } = resolveContractServiceEnv();
+
+    if (!contractServiceUrl) {
+      throw new Error('CONTRACT_SERVICE_URL não configurada para gerar PDF interno.');
+    }
+
+    const pdfBuffer = await generatePdfBufferFromHtml({
       html,
       contractId: contract?.id || contractId,
       precontractId: resolvedPrecontractId,
-      serviceUrl: contractServiceUrl,
-      apiKey: contractServiceApiKey,
     });
 
     const bucketName = DEFAULT_BUCKET;

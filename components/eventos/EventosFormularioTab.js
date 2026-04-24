@@ -461,6 +461,13 @@ export default function EventosFormularioTab({
                 }
               />
             </Field>
+
+            <Field label="Outros custos">
+              <Input
+                value={form.other_cost}
+                onChange={(e) => handleFormChange('other_cost', e.target.value)}
+              />
+            </Field>
           </div>
         </SectionCard>
       </div>

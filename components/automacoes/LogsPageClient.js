@@ -588,6 +588,57 @@ export default function LogsPageClient() {
     }
   }
 
+  async function handleDeleteSelected() {
+    if (selectedIds.length === 0 || isProcessing) return;
+    if (!window.confirm(`Excluir ${selectedIds.length} log(s) selecionado(s)? Essa ação é definitiva.`)) return;
+
+    try {
+      setIsProcessing(true);
+      const response = await fetch('/api/automation/logs', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: selectedIds }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload?.success) throw new Error(payload?.message || 'Erro ao excluir logs.');
+
+      setBulkToast({ type: 'success', message: `${payload.affected || 0} log(s) excluído(s) com sucesso.` });
+      setSelectedIds([]);
+      invalidateCache('automation:logs');
+      carregarLogs({ force: true });
+    } catch (error) {
+      setBulkToast({ type: 'error', message: error?.message || 'Falha ao excluir logs selecionados.' });
+    } finally {
+      setIsProcessing(false);
+    }
+  }
+
+  async function handleCleanupLogs(status = '') {
+    if (isProcessing) return;
+    const statusLabel = status === 'failed' ? 'falhas' : status === 'sent' ? 'enviados' : 'logs';
+    if (!window.confirm(`Limpar ${statusLabel} com mais de 30 dias?`)) return;
+
+    try {
+      setIsProcessing(true);
+      const response = await fetch('/api/automation/logs', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'cleanup', olderThanDays: 30, status }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload?.success) throw new Error(payload?.message || 'Erro ao limpar logs antigos.');
+
+      setBulkToast({ type: 'success', message: `${payload.affected || 0} log(s) antigo(s) removido(s).` });
+      setSelectedIds([]);
+      invalidateCache('automation:logs');
+      carregarLogs({ force: true });
+    } catch (error) {
+      setBulkToast({ type: 'error', message: error?.message || 'Falha ao limpar logs antigos.' });
+    } finally {
+      setIsProcessing(false);
+    }
+  }
+
   const temFiltros = filtroStatus || filtroRecipient || filtroSource;
 
   const stats = logs.reduce(
@@ -772,6 +823,26 @@ export default function LogsPageClient() {
                 </>
               )}
             </button>
+            <button
+              onClick={handleDeleteSelected}
+              disabled={isProcessing}
+              className="inline-flex items-center gap-2 rounded-full border border-red-300 bg-red-50 px-5 py-2 text-[13px] font-bold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Excluir selecionados
+            </button>
+          </div>
+        </section>
+      )}
+
+      {!carregando && !erro && logs.length > 0 && (
+        <section className="rounded-[20px] border border-[#dbe3ef] bg-white p-4 shadow-[0_4px_12px_rgba(15,23,42,0.04)]">
+          <div className="text-[12px] font-black uppercase tracking-[0.08em] text-[#475569]">
+            Limpar logs antigos
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button onClick={() => handleCleanupLogs('failed')} className="rounded-full border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700">Excluir falhas &gt; 30 dias</button>
+            <button onClick={() => handleCleanupLogs('sent')} className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">Excluir enviados &gt; 30 dias</button>
+            <button onClick={() => handleCleanupLogs('')} className="rounded-full border border-slate-300 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700">Excluir todos filtrados &gt; 30 dias</button>
           </div>
         </section>
       )}

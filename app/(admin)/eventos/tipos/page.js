@@ -38,6 +38,15 @@ function formatDateTime(value) {
   return date.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
 }
 
+function dedupeById(items) {
+  const map = new Map();
+  (items || []).forEach((item) => {
+    if (!item?.id) return;
+    map.set(String(item.id), item);
+  });
+  return Array.from(map.values());
+}
+
 export default function EventTypesPage() {
   const toast = useAppToast();
   const [eventTypes, setEventTypes] = useState([]);
@@ -47,6 +56,7 @@ export default function EventTypesPage() {
   const [search, setSearch] = useState('');
   const [form, setForm] = useState(getInitialForm());
   const [editingId, setEditingId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
 
   async function loadData(showLoading = true) {
     try {
@@ -67,8 +77,8 @@ export default function EventTypesPage() {
       if (eventTypesResp.error) throw eventTypesResp.error;
       if (templatesResp.error) throw templatesResp.error;
 
-      setEventTypes(eventTypesResp.data || []);
-      setTemplates(templatesResp.data || []);
+      setEventTypes(dedupeById(eventTypesResp.data || []));
+      setTemplates(dedupeById(templatesResp.data || []));
     } catch (error) {
       console.error('Erro ao carregar tipos de evento:', error);
       toast.error(`Não foi possível carregar dados: ${error?.message || 'erro desconhecido'}`);
@@ -92,6 +102,19 @@ export default function EventTypesPage() {
     () => templates.filter((template) => template.is_active !== false),
     [templates],
   );
+
+  const templateOptions = useMemo(() => {
+    const selectedId = String(form.default_contract_template_id || '');
+    if (!selectedId) return activeTemplates;
+
+    const selectedTemplate = templates.find((template) => String(template.id) === selectedId);
+    if (!selectedTemplate) return activeTemplates;
+
+    const alreadyIncluded = activeTemplates.some((template) => String(template.id) === selectedId);
+    if (alreadyIncluded) return activeTemplates;
+
+    return [selectedTemplate, ...activeTemplates];
+  }, [activeTemplates, form.default_contract_template_id, templates]);
 
   const filteredTypes = useMemo(() => {
     const term = String(search || '').trim().toLowerCase();
@@ -138,6 +161,8 @@ export default function EventTypesPage() {
   }
 
   async function saveEventType() {
+    if (saving) return;
+
     const name = String(form.name || '').trim();
     const slug = normalizeSlug(form.slug || form.name);
     if (!name) {
@@ -200,13 +225,60 @@ export default function EventTypesPage() {
     }
   }
 
+  async function deleteEventType(item) {
+    const confirmed = window.confirm(
+      `Excluir o tipo "${item?.name || 'sem nome'}"? Essa ação só será permitida se não houver vínculo com eventos e pré-contratos.`,
+    );
+    if (!confirmed) return;
+
+    try {
+      setDeletingId(item.id);
+
+      const [eventsById, eventsByName, precontractsById, precontractsByName] = await Promise.all([
+        supabase.from('events').select('id', { head: true, count: 'exact' }).eq('event_type_id', item.id),
+        supabase.from('events').select('id', { head: true, count: 'exact' }).eq('event_type', item.name),
+        supabase.from('precontracts').select('id', { head: true, count: 'exact' }).eq('event_type_id', item.id),
+        supabase.from('precontracts').select('id', { head: true, count: 'exact' }).eq('event_type', item.name),
+      ]);
+
+      const checkErrors = [eventsById.error, eventsByName.error, precontractsById.error, precontractsByName.error]
+        .filter(Boolean);
+      if (checkErrors.length > 0) throw checkErrors[0];
+
+      const totalLinks = Number(eventsById.count || 0)
+        + Number(eventsByName.count || 0)
+        + Number(precontractsById.count || 0)
+        + Number(precontractsByName.count || 0);
+
+      if (totalLinks > 0) {
+        toast.warning('Este tipo já está em uso. Inative para não aparecer em novos pré-contratos.');
+        return;
+      }
+
+      const { error: deleteError } = await supabase.from('event_types').delete().eq('id', item.id);
+      if (deleteError) throw deleteError;
+
+      if (editingId && String(editingId) === String(item.id)) {
+        resetForm();
+      }
+
+      await loadData(false);
+      toast.success('Tipo de evento excluído com sucesso.');
+    } catch (error) {
+      console.error('Erro ao excluir tipo de evento:', error);
+      toast.error(`Não foi possível excluir: ${error?.message || 'erro desconhecido'}`);
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   return (
     <AdminShell pageTitle="Tipos de evento" activeItem="eventos">
       <div className="space-y-6">
         <AdminPageHero
-          badge="Eventos"
+          badge="Configuração"
           title="Tipos de evento"
-          subtitle="Gerencie o catálogo que alimenta os eventos e o template padrão de contrato aplicado no pré-contrato."
+          subtitle="Configure os tipos que aparecem no pré-contrato e o template padrão usado em cada um."
           actions={(
             <button
               type="button"
@@ -220,14 +292,14 @@ export default function EventTypesPage() {
 
         <section className="grid gap-4 md:grid-cols-3">
           <AdminSummaryCard label="Tipos cadastrados" value={summary.total} helper="Total no catálogo" />
-          <AdminSummaryCard label="Ativos" value={summary.active} helper="Disponíveis no fluxo" tone="success" />
+          <AdminSummaryCard label="Ativos" value={summary.active} helper="Disponíveis para novos pré-contratos" tone="success" />
           <AdminSummaryCard label="Sem template" value={summary.withoutTemplate} helper="Defina padrão para agilizar contratos" tone="warning" />
         </section>
 
         <section className="grid gap-6 xl:grid-cols-[1.45fr_1fr]">
           <div className="rounded-[26px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_28px_rgba(17,24,39,0.05)] md:p-6">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <h2 className="text-[20px] font-black tracking-[-0.02em] text-[#0f172a]">Lista de tipos</h2>
+              <h2 className="text-[20px] font-black tracking-[-0.02em] text-[#0f172a]">Lista de tipos (configuração)</h2>
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
@@ -289,6 +361,14 @@ export default function EventTypesPage() {
                         >
                           {item.is_active !== false ? 'Inativar' : 'Ativar'}
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => deleteEventType(item)}
+                          disabled={deletingId === item.id}
+                          className="rounded-[12px] border border-rose-200 bg-white px-3 py-2 text-[12px] font-black text-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {deletingId === item.id ? 'Excluindo...' : 'Excluir'}
+                        </button>
                       </div>
                     </div>
                   </article>
@@ -323,8 +403,11 @@ export default function EventTypesPage() {
                 <Field label="Template padrão">
                   <Select value={form.default_contract_template_id} onChange={(event) => setForm((prev) => ({ ...prev, default_contract_template_id: event.target.value }))}>
                     <option value="">Sem template padrão</option>
-                    {activeTemplates.map((template) => (
-                      <option key={template.id} value={template.id}>{template.name}</option>
+                    {templateOptions.map((template) => (
+                      <option key={template.id} value={template.id}>
+                        {template.name}
+                        {template.is_active === false ? ' (inativo)' : ''}
+                      </option>
                     ))}
                   </Select>
                 </Field>

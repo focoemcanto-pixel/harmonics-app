@@ -34,6 +34,7 @@ function plainTextToEditorHtml(value) {
 const RichContractEditor = forwardRef(function RichContractEditor(
   {
     initialHtml = '',
+    editSessionId,
     sessionKey,
     onChangeHtml,
     readOnly = false,
@@ -42,25 +43,26 @@ const RichContractEditor = forwardRef(function RichContractEditor(
   ref
 ) {
   const editorRef = useRef(null);
-  const htmlRef = useRef(String(initialHtml || ''));
+  const latestHtmlRef = useRef(String(initialHtml || ''));
 
   useEffect(() => {
     const nextHtml = String(initialHtml || '');
-    htmlRef.current = nextHtml;
+    latestHtmlRef.current = nextHtml;
     if (editorRef.current) {
       editorRef.current.innerHTML = nextHtml;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionKey]);
+  }, [editSessionId, sessionKey]);
 
   function commitHtml(nextHtml) {
-    htmlRef.current = String(nextHtml || '');
-    onChangeHtml?.(htmlRef.current);
+    const normalized = String(nextHtml || '');
+    latestHtmlRef.current = normalized;
+    onChangeHtml?.(normalized);
   }
 
   function handleInput() {
-    if (!editorRef.current) return;
-    commitHtml(editorRef.current.innerHTML || '');
+    const nextHtml = editorRef.current?.innerHTML || '';
+    commitHtml(nextHtml);
   }
 
   function runEditorCommand(command, value) {
@@ -84,17 +86,15 @@ const RichContractEditor = forwardRef(function RichContractEditor(
       document.execCommand('insertHTML', false, plainTextToEditorHtml(text));
     }
 
-    queueMicrotask(() => {
-      if (!editorRef.current) return;
-      commitHtml(editorRef.current.innerHTML || '');
-    });
+    const nextHtml = editorRef.current?.innerHTML || '';
+    commitHtml(nextHtml);
   }
 
   useImperativeHandle(ref, () => ({
-    getHtml: () => String(editorRef.current?.innerHTML || htmlRef.current || ''),
+    getHtml: () => String(editorRef.current?.innerHTML || latestHtmlRef.current || ''),
     setHtml: (nextHtml) => {
       const normalized = String(nextHtml || '');
-      htmlRef.current = normalized;
+      latestHtmlRef.current = normalized;
       if (editorRef.current) editorRef.current.innerHTML = normalized;
       onChangeHtml?.(normalized);
     },
@@ -104,8 +104,7 @@ const RichContractEditor = forwardRef(function RichContractEditor(
   }), [onChangeHtml]);
 
   return (
-    <label className="block">
-      <span className="mb-1 block text-xs font-bold uppercase tracking-[0.06em] text-[#64748b]">Texto do contrato</span>
+    <div className="block">
       <p className="mb-2 text-xs font-medium text-[#64748b]">Cole aqui o contrato base mantendo negrito, títulos e estrutura visual.</p>
       <p className="mb-2 text-xs font-medium text-[#64748b]">Texto do contrato = sua versão rica/editável.</p>
       <div className="mb-2 flex flex-wrap gap-2">
@@ -130,7 +129,7 @@ const RichContractEditor = forwardRef(function RichContractEditor(
         onPaste={handlePaste}
         className={`prose prose-slate max-w-none overflow-y-auto rounded-2xl border border-[#dbe3ef] bg-white px-4 py-3 text-sm text-[#0f172a] outline-none transition focus:border-violet-400 ${minHeightClass}`}
       />
-    </label>
+    </div>
   );
 });
 

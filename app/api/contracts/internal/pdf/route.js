@@ -184,14 +184,28 @@ export async function POST(request) {
     });
 
     if (!contractServiceUrl) {
-      return NextResponse.json({
-        ok: false,
-        pending: true,
-        message: 'Serviço de PDF não configurado.',
+      console.error('[CONTRACT_INTERNAL_PDF][MISSING_SERVICE_URL]', {
+        hasContractServiceUrl: Boolean(contractServiceUrl),
+        hasNextPublicContractServiceUrl: Boolean(process.env.NEXT_PUBLIC_CONTRACT_SERVICE_URL),
+        hasPrivateContractServiceUrl: Boolean(process.env.CONTRACT_SERVICE_URL),
+        hasContractServiceApiKey: Boolean(contractServiceApiKey),
       });
+
+      return NextResponse.json(
+        {
+          ok: false,
+          code: 'CONTRACT_SERVICE_URL_MISSING',
+          message: 'CONTRACT_SERVICE_URL não configurado no ambiente do app.',
+        },
+        { status: 500 }
+      );
     }
 
     const htmlToPdfUrl = `${contractServiceUrl.replace(/\/+$/, '')}/api/contracts/html-to-pdf`;
+    console.info('[CONTRACT_INTERNAL_PDF][CALLING_RENDER]', {
+      htmlToPdfUrl,
+      hasApiKey: Boolean(contractServiceApiKey),
+    });
     const pdfResponse = await fetch(htmlToPdfUrl, {
       method: 'POST',
       headers: {

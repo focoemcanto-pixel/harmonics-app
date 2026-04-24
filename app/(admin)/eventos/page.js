@@ -337,6 +337,13 @@ export default function EventosPage() {
   const [showPricing, setShowPricing] = useState(false);
   const [pricingId, setPricingId] = useState(null);
   const [pricing, setPricing] = useState(getDefaultPricing());
+  const [financeCostDefaults, setFinanceCostDefaults] = useState({
+    musician_unit_cost: 0,
+    sound_default_cost: 0,
+    transport_default_cost: 0,
+    other_default_cost: 0,
+    notes: '',
+  });
 
   const [form, setForm] = useState(getInitialForm());
   const [mobileTab, setMobileTab] = useState('resumo');
@@ -456,6 +463,31 @@ export default function EventosPage() {
     }
   }
 
+  async function carregarFinanceCostDefaults() {
+    try {
+      const { data, error } = await supabase
+        .from('finance_cost_defaults')
+        .select(
+          'slug, musician_unit_cost, sound_default_cost, transport_default_cost, other_default_cost, notes'
+        )
+        .eq('slug', 'default')
+        .maybeSingle();
+
+      if (error) throw error;
+      if (!data) return;
+
+      setFinanceCostDefaults({
+        musician_unit_cost: toNumber(data.musician_unit_cost),
+        sound_default_cost: toNumber(data.sound_default_cost),
+        transport_default_cost: toNumber(data.transport_default_cost),
+        other_default_cost: toNumber(data.other_default_cost),
+        notes: String(data.notes || ''),
+      });
+    } catch (error) {
+      logLoadError('finance_cost_defaults', error);
+    }
+  }
+
   async function carregarContatos() {
     try {
       const { data, error } = await supabase
@@ -475,6 +507,7 @@ export default function EventosPage() {
 
   useEffect(() => {
     async function carregar() {
+      carregarFinanceCostDefaults();
       const hasFreshCache =
         (eventosAdminCache.eventos || []).length > 0 &&
         Date.now() - Number(eventosAdminCache.updatedAt || 0) < EVENTOS_CACHE_TTL_MS;
@@ -492,6 +525,7 @@ export default function EventosPage() {
           Promise.allSettled([
             carregarPricing(),
             carregarContatos(),
+            carregarFinanceCostDefaults(),
           ]);
         } catch (error) {
           console.error('[EVENTOS] Falha inesperada ao carregar dados iniciais:', error);
@@ -537,7 +571,7 @@ export default function EventosPage() {
           hasSound: !!prev.has_sound,
           hasTransport: toNumber(value) > 0,
           transportPrice: value,
-          pricing,
+          pricing: financeCostDefaults,
         });
 
         return {
@@ -608,7 +642,7 @@ export default function EventosPage() {
       hasSound: !!nextHasSound,
       hasTransport: Boolean(form.has_transport),
       transportPrice: form.transport_price,
-      pricing,
+      pricing: financeCostDefaults,
     });
 
     setForm((prev) => ({
@@ -912,7 +946,10 @@ export default function EventosPage() {
 
         if (error) throw error;
       } else {
-        const { error } = await supabase.from('events').insert([payload]);
+        const { error } = await supabase.from('events').insert([{
+          ...payload,
+          costs_source: 'auto',
+        }]);
 
         if (error) throw error;
       }

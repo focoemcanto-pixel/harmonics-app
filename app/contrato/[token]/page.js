@@ -489,7 +489,7 @@ async function upsertEventFromSignature({
 }) {
   const { data: financeDefaults } = await supabase
     .from('finance_cost_defaults')
-    .select('musician_unit_cost, sound_default_cost, transport_default_cost, other_default_cost')
+    .select('musician_unit_cost, sound_default_cost, transport_default_cost, other_default_cost, custom_costs')
     .eq('slug', 'default')
     .maybeSingle();
 
@@ -646,7 +646,8 @@ async function upsertEventFromSignature({
     sound_cost: Number(automaticCosts.soundCost || 0),
     extra_transport_cost: Number(automaticCosts.extraTransportCost || 0),
     other_cost: Number(automaticCosts.otherCost || 0),
-    costs_source: 'auto',
+    cost_breakdown: automaticCosts.costBreakdown,
+    costs_source: 'default',
 
     whatsapp_name: String(form.full_name || '').trim() || null,
     whatsapp_phone: cleanDigits(form.whatsapp) || null,

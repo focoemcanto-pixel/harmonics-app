@@ -18,6 +18,11 @@ import {
   formatMoney,
   formatDateBR,
 } from '@/lib/eventos/eventos-format';
+import {
+  buildCostBreakdown,
+  getAutomaticCosts,
+  sanitizeCustomCosts,
+} from '@/lib/eventos/eventos-finance';
 import { resolveProofPreviewFromStoredUrl } from '@/lib/payments/payment-proof-storage';
 import { buildFinancialGroupingKey, resolveGrossFromEvents } from '@/lib/finance/gross-total';
 
@@ -176,10 +181,28 @@ function isPendingValidationStatus(status) {
 
 function resolveCostsSourceLabel(source) {
   const normalized = String(source || '').trim().toLowerCase();
-  if (normalized === 'auto' || normalized === 'automatico' || normalized === 'automático') {
+  if (normalized === 'bulk_default') return 'Custos padrão aplicados em massa';
+  if (
+    normalized === 'default' ||
+    normalized === 'auto' ||
+    normalized === 'automatico' ||
+    normalized === 'automático'
+  ) {
     return 'Custos aplicados automaticamente';
   }
   return 'Custos editados manualmente';
+}
+
+function isEventEligibleForBulkDefault(eventItem, today) {
+  const paymentStatus = String(eventItem?.payment_status || '').trim().toLowerCase();
+  const status = String(eventItem?.status || '').trim().toLowerCase();
+  const isSettled = ['paid', 'pago', 'quitado'].includes(paymentStatus);
+  if (isSettled) return false;
+
+  const isFutureOrToday = Boolean(eventItem?.event_date && String(eventItem.event_date) >= today);
+  const isPendingStatus = ['pendente', 'pending', 'rascunho', 'confirmado', 'confirmed'].includes(status);
+  const hasOpenStatus = !['pago', 'paid', 'quitado'].includes(paymentStatus);
+  return (isFutureOrToday || isPendingStatus) && hasOpenStatus;
 }
 
 export default function PagamentosPage() {
@@ -233,7 +256,21 @@ function PagamentosPageContent() {
     sound_default_cost: '',
     transport_default_cost: '',
     other_default_cost: '',
+    custom_costs: [],
     notes: '',
+  });
+  const [customCostDraft, setCustomCostDraft] = useState({ label: '', amount: '' });
+  const [editingCustomCostIndex, setEditingCustomCostIndex] = useState(null);
+  const [applyCostsModal, setApplyCostsModal] = useState({
+    open: false,
+    rows: [],
+    selectedIds: [],
+  });
+  const [costBreakdownModal, setCostBreakdownModal] = useState({
+    open: false,
+    eventId: '',
+    clientName: '',
+    breakdown: [],
   });
   const [deleting, setDeleting] = useState(false);
   const { selectedIds, selectedSet, setSelectedIds, clear, toggle } = useMultiSelect();
@@ -591,6 +628,12 @@ function PagamentosPageContent() {
     const soundCost = toNumber(costForm.sound_cost);
     const extraTransportCost = toNumber(costForm.extra_transport_cost);
     const otherCost = toNumber(costForm.other_cost);
+    const costBreakdown = buildCostBreakdown({
+      musicianCost,
+      soundCost,
+      extraTransportCost,
+      customCosts: otherCost > 0 ? [{ label: 'Outros custos', amount: otherCost }] : [],
+    });
 
     const event = events.find((ev) => String(ev.id) === eventId);
     const agreedAmount = toNumber(event?.agreed_amount);
@@ -605,6 +648,7 @@ function PagamentosPageContent() {
           sound_cost: soundCost,
           extra_transport_cost: extraTransportCost,
           other_cost: otherCost,
+          cost_breakdown: costBreakdown,
           profit_amount: profitAmount,
           costs_source: 'manual',
         })
@@ -626,7 +670,7 @@ function PagamentosPageContent() {
       const { data, error } = await supabase
         .from('finance_cost_defaults')
         .select(
-          'slug, musician_unit_cost, sound_default_cost, transport_default_cost, other_default_cost, notes'
+          'slug, musician_unit_cost, sound_default_cost, transport_default_cost, other_default_cost, custom_costs, notes'
         )
         .eq('slug', 'default')
         .maybeSingle();
@@ -638,8 +682,11 @@ function PagamentosPageContent() {
         sound_default_cost: String(data?.sound_default_cost ?? ''),
         transport_default_cost: String(data?.transport_default_cost ?? ''),
         other_default_cost: String(data?.other_default_cost ?? ''),
+        custom_costs: sanitizeCustomCosts(data?.custom_costs),
         notes: String(data?.notes || ''),
       });
+      setCustomCostDraft({ label: '', amount: '' });
+      setEditingCustomCostIndex(null);
       setDefaultCostsModalOpen(true);
     } catch (error) {
       const message = String(error?.message || '');
@@ -658,12 +705,18 @@ function PagamentosPageContent() {
   async function salvarCustosPadrao() {
     try {
       setProcessingAction('default-costs-save');
+      const customCosts = sanitizeCustomCosts(defaultCostsForm.custom_costs);
+      const customCostsTotal = customCosts.reduce((acc, item) => acc + toNumber(item.amount), 0);
       const payload = {
         slug: 'default',
         musician_unit_cost: toNumber(defaultCostsForm.musician_unit_cost),
         sound_default_cost: toNumber(defaultCostsForm.sound_default_cost),
         transport_default_cost: toNumber(defaultCostsForm.transport_default_cost),
-        other_default_cost: toNumber(defaultCostsForm.other_default_cost),
+        other_default_cost:
+          customCosts.length > 0
+            ? customCostsTotal
+            : toNumber(defaultCostsForm.other_default_cost),
+        custom_costs: customCosts,
         notes: String(defaultCostsForm.notes || '').trim() || null,
       };
 
@@ -672,25 +725,21 @@ function PagamentosPageContent() {
         .upsert(payload, { onConflict: 'slug' });
       if (error) throw error;
 
-      toast.success('Custos padrão automáticos salvos com sucesso.');
+      toast.success('Custos padrão salvos com sucesso.');
     } catch (error) {
-      toast.error(error?.message || 'Erro ao salvar custos padrão automáticos.');
+      console.error('[DEFAULT_COSTS_SAVE_ERROR]', error);
+      toast.error('Não foi possível salvar os custos padrão agora.');
     } finally {
       setProcessingAction('');
     }
   }
 
-  async function aplicarCustosEmEventosPendentes() {
-    const confirmed = window.confirm(
-      'Isso vai recalcular custos de eventos pendentes/futuros que ainda não foram quitados.'
-    );
-    if (!confirmed) return;
-
+  async function abrirAplicacaoCustosModal() {
     try {
-      setProcessingAction('default-costs-apply-pending');
+      setProcessingAction('default-costs-load-pending');
       const { data: defaults, error: defaultsError } = await supabase
         .from('finance_cost_defaults')
-        .select('musician_unit_cost, sound_default_cost, transport_default_cost, other_default_cost')
+        .select('musician_unit_cost, sound_default_cost, transport_default_cost, other_default_cost, custom_costs')
         .eq('slug', 'default')
         .single();
       if (defaultsError) throw defaultsError;
@@ -698,54 +747,108 @@ function PagamentosPageContent() {
       const today = new Date().toISOString().slice(0, 10);
       const { data: pendingEvents, error: pendingError } = await supabase
         .from('events')
-        .select('id, formation, has_sound, has_transport, transport_price, agreed_amount, payment_status, event_date')
-        .or(`event_date.gte.${today},payment_status.neq.Pago`);
+        .select('id, client_name, event_date, event_type, formation, has_sound, has_transport, transport_price, agreed_amount, payment_status, status, musician_cost, sound_cost, extra_transport_cost, other_cost, profit_amount')
+        .order('event_date', { ascending: true });
       if (pendingError) throw pendingError;
 
-      for (const eventItem of pendingEvents || []) {
-        const formationRaw = String(eventItem?.formation || '').trim().toLowerCase();
-        const formationCount =
-          formationRaw.startsWith('solo')
-            ? 1
-            : formationRaw.startsWith('duo')
-              ? 2
-              : formationRaw.startsWith('trio')
-                ? 3
-                : formationRaw.startsWith('quart')
-                  ? 4
-                  : formationRaw.startsWith('quint')
-                    ? 5
-                    : 0;
+      const eligibleRows = (pendingEvents || [])
+        .filter((eventItem) => isEventEligibleForBulkDefault(eventItem, today))
+        .map((eventItem) => {
+          const calculated = getAutomaticCosts({
+            formation: eventItem?.formation,
+            hasSound: !!eventItem?.has_sound,
+            hasTransport: !!eventItem?.has_transport,
+            transportPrice: eventItem?.transport_price,
+            pricing: defaults || {},
+          });
+          const currentCost =
+            toNumber(eventItem?.musician_cost) +
+            toNumber(eventItem?.sound_cost) +
+            toNumber(eventItem?.extra_transport_cost) +
+            toNumber(eventItem?.other_cost);
+          const currentNet = toNumber(eventItem?.profit_amount) || toNumber(eventItem?.agreed_amount) - currentCost;
+          const newCost =
+            toNumber(calculated.musicianCost) +
+            toNumber(calculated.soundCost) +
+            toNumber(calculated.extraTransportCost) +
+            toNumber(calculated.otherCost);
+          const newNet = toNumber(eventItem?.agreed_amount) - newCost;
+          return {
+            ...eventItem,
+            preview_cost: newCost,
+            preview_net: newNet,
+            current_cost: currentCost,
+            current_net: currentNet,
+            defaults,
+            calculated,
+          };
+        });
 
-        const musicianCost = formationCount * toNumber(defaults.musician_unit_cost);
-        const soundCost = eventItem?.has_sound ? toNumber(defaults.sound_default_cost) : 0;
-        const transportCost =
-          eventItem?.has_transport || toNumber(eventItem?.transport_price) > 0
-            ? toNumber(defaults.transport_default_cost)
-            : 0;
-        const otherCost = toNumber(defaults.other_default_cost);
-        const profitAmount =
-          toNumber(eventItem?.agreed_amount) - musicianCost - soundCost - transportCost - otherCost;
+      if (eligibleRows.length === 0) {
+        toast.warning('Nenhum evento elegível para aplicação em massa.');
+        return;
+      }
+
+      setApplyCostsModal({
+        open: true,
+        rows: eligibleRows,
+        selectedIds: eligibleRows.map((row) => String(row.id)),
+      });
+    } catch (error) {
+      console.error('[DEFAULT_COSTS_APPLY_MODAL_ERROR]', error);
+      toast.error('Não foi possível carregar os eventos para aplicação em massa.');
+    } finally {
+      setProcessingAction('');
+    }
+  }
+
+  async function aplicarCustosSelecionados() {
+    try {
+      const selectedSet = new Set(applyCostsModal.selectedIds.map((id) => String(id)));
+      const selectedRows = applyCostsModal.rows.filter((row) => selectedSet.has(String(row.id)));
+      if (selectedRows.length === 0) {
+        toast.warning('Selecione ao menos um evento para aplicar os custos.');
+        return;
+      }
+
+      setProcessingAction('default-costs-apply-pending');
+      for (const row of selectedRows) {
+        const calculated = getAutomaticCosts({
+          formation: row?.formation,
+          hasSound: !!row?.has_sound,
+          hasTransport: !!row?.has_transport,
+          transportPrice: row?.transport_price,
+          pricing: row.defaults || {},
+        });
+        const totalCost =
+          toNumber(calculated.musicianCost) +
+          toNumber(calculated.soundCost) +
+          toNumber(calculated.extraTransportCost) +
+          toNumber(calculated.otherCost);
+        const profitAmount = toNumber(row?.agreed_amount) - totalCost;
 
         const { error: updateError } = await supabase
           .from('events')
           .update({
-            musician_cost: musicianCost,
-            sound_cost: soundCost,
-            extra_transport_cost: transportCost,
-            other_cost: otherCost,
+            musician_cost: calculated.musicianCost,
+            sound_cost: calculated.soundCost,
+            extra_transport_cost: calculated.extraTransportCost,
+            other_cost: calculated.otherCost,
+            cost_breakdown: calculated.costBreakdown,
             profit_amount: profitAmount,
-            costs_source: 'auto',
+            costs_source: 'bulk_default',
           })
-          .eq('id', eventItem.id);
+          .eq('id', row.id);
 
         if (updateError) throw updateError;
       }
 
+      setApplyCostsModal({ open: false, rows: [], selectedIds: [] });
       await carregarTudo();
-      toast.success('Custos padrão aplicados aos eventos pendentes/futuros.');
+      toast.success('Custos padrão aplicados aos eventos selecionados.');
     } catch (error) {
-      toast.error(error?.message || 'Erro ao aplicar custos aos eventos pendentes.');
+      console.error('[DEFAULT_COSTS_APPLY_ERROR]', error);
+      toast.error('Não foi possível aplicar os custos em massa.');
     } finally {
       setProcessingAction('');
     }
@@ -755,6 +858,53 @@ function PagamentosPageContent() {
     toast.success(
       'Pronto! Esses valores serão usados automaticamente em novos eventos.'
     );
+  }
+
+  function salvarCustoPersonalizado() {
+    const label = String(customCostDraft.label || '').trim();
+    const amount = toNumber(customCostDraft.amount);
+    if (!label) {
+      toast.warning('Informe o nome do custo personalizado.');
+      return;
+    }
+    if (amount < 0) {
+      toast.warning('O valor do custo personalizado deve ser maior ou igual a zero.');
+      return;
+    }
+
+    setDefaultCostsForm((prev) => {
+      const list = [...(prev.custom_costs || [])];
+      const payload = { label, amount };
+      if (editingCustomCostIndex !== null && editingCustomCostIndex >= 0) {
+        list[editingCustomCostIndex] = payload;
+      } else {
+        list.push(payload);
+      }
+      return { ...prev, custom_costs: list };
+    });
+    setCustomCostDraft({ label: '', amount: '' });
+    setEditingCustomCostIndex(null);
+  }
+
+  function editarCustoPersonalizado(index) {
+    const item = defaultCostsForm.custom_costs[index];
+    if (!item) return;
+    setCustomCostDraft({
+      label: String(item.label || ''),
+      amount: String(item.amount ?? ''),
+    });
+    setEditingCustomCostIndex(index);
+  }
+
+  function removerCustoPersonalizado(index) {
+    setDefaultCostsForm((prev) => ({
+      ...prev,
+      custom_costs: (prev.custom_costs || []).filter((_, idx) => idx !== index),
+    }));
+    if (editingCustomCostIndex === index) {
+      setCustomCostDraft({ label: '', amount: '' });
+      setEditingCustomCostIndex(null);
+    }
   }
 
   const paymentsByEventId = useMemo(() => {
@@ -814,7 +964,7 @@ function PagamentosPageContent() {
         paymentEntries,
         totalHistorico,
         ultimoPagamento,
-        costsSource: String(ev.costs_source || '').trim().toLowerCase() === 'auto' ? 'auto' : 'manual',
+        costsSource: String(ev.costs_source || '').trim().toLowerCase() || 'manual',
       };
     });
     console.log('[PAYMENTS_PAGE][GROUPING_INPUT]', inputRows);
@@ -844,6 +994,7 @@ function PagamentosPageContent() {
           liquido: row.liquido,
           paymentStatusReferencia: row.paymentStatus,
           costsSource: row.costsSource,
+          cost_breakdown: Array.isArray(row.cost_breakdown) ? row.cost_breakdown : [],
           paymentEntries: [...row.paymentEntries],
         });
         continue;
@@ -860,6 +1011,9 @@ function PagamentosPageContent() {
       existing.abertoReferencia = Math.max(existing.abertoReferencia, row.aberto);
       existing.custos = Math.max(existing.custos, row.custos);
       existing.liquido = Math.max(existing.liquido, row.liquido);
+      if ((!existing.cost_breakdown || existing.cost_breakdown.length === 0) && Array.isArray(row.cost_breakdown)) {
+        existing.cost_breakdown = row.cost_breakdown;
+      }
       existing.paymentStatusReferencia =
         existing.paymentStatusReferencia === 'Pendente' || row.paymentStatus === 'Pendente'
           ? 'Pendente'
@@ -867,8 +1021,9 @@ function PagamentosPageContent() {
             ? 'Parcial'
             : 'Pago';
       existing.paymentEntries.push(...row.paymentEntries);
-      existing.costsSource =
-        existing.costsSource === 'manual' || row.costsSource === 'manual' ? 'manual' : 'auto';
+      if (existing.costsSource !== 'manual') {
+        existing.costsSource = row.costsSource || existing.costsSource;
+      }
     }
 
     const groupedRows = Array.from(grouped.values()).map((groupRow) => {
@@ -1323,6 +1478,23 @@ function PagamentosPageContent() {
                         Editar custos
                       </button>
 
+                      {Array.isArray(item.cost_breakdown) && item.cost_breakdown.length > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setCostBreakdownModal({
+                              open: true,
+                              eventId: String(item.primaryEventId || item.id || ''),
+                              clientName: item.client_name || 'Evento',
+                              breakdown: item.cost_breakdown,
+                            })
+                          }
+                          className="rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3 text-[14px] font-black text-[#0f172a]"
+                        >
+                          Ver detalhamento de custos
+                        </button>
+                      ) : null}
+
                       <Link
                         href="/eventos"
                         className="rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3 text-[14px] font-black text-[#0f172a]"
@@ -1729,49 +1901,115 @@ function PagamentosPageContent() {
               </button>
             </div>
 
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <input
-                value={defaultCostsForm.musician_unit_cost}
-                onChange={(e) =>
-                  setDefaultCostsForm((prev) => ({ ...prev, musician_unit_cost: e.target.value }))
-                }
-                placeholder="Custo por músico"
-                className="rounded-[12px] border border-[#dbe3ef] px-3 py-2 text-sm"
-              />
-              <input
-                value={defaultCostsForm.sound_default_cost}
-                onChange={(e) =>
-                  setDefaultCostsForm((prev) => ({ ...prev, sound_default_cost: e.target.value }))
-                }
-                placeholder="Custo padrão de som"
-                className="rounded-[12px] border border-[#dbe3ef] px-3 py-2 text-sm"
-              />
-              <input
-                value={defaultCostsForm.transport_default_cost}
-                onChange={(e) =>
-                  setDefaultCostsForm((prev) => ({ ...prev, transport_default_cost: e.target.value }))
-                }
-                placeholder="Custo padrão de transporte"
-                className="rounded-[12px] border border-[#dbe3ef] px-3 py-2 text-sm"
-              />
-              <input
-                value={defaultCostsForm.other_default_cost}
-                onChange={(e) =>
-                  setDefaultCostsForm((prev) => ({ ...prev, other_default_cost: e.target.value }))
-                }
-                placeholder="Outros custos padrão"
-                className="rounded-[12px] border border-[#dbe3ef] px-3 py-2 text-sm"
-              />
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <label className="space-y-1 text-sm font-semibold text-[#0f172a]">
+                <span>Custo por músico</span>
+                <input
+                  value={defaultCostsForm.musician_unit_cost}
+                  onChange={(e) =>
+                    setDefaultCostsForm((prev) => ({ ...prev, musician_unit_cost: e.target.value }))
+                  }
+                  placeholder="Ex.: 250"
+                  className="w-full rounded-[12px] border border-[#dbe3ef] px-3 py-2 text-sm"
+                />
+              </label>
+              <label className="space-y-1 text-sm font-semibold text-[#0f172a]">
+                <span>Custo padrão de som</span>
+                <input
+                  value={defaultCostsForm.sound_default_cost}
+                  onChange={(e) =>
+                    setDefaultCostsForm((prev) => ({ ...prev, sound_default_cost: e.target.value }))
+                  }
+                  placeholder="Ex.: 350"
+                  className="w-full rounded-[12px] border border-[#dbe3ef] px-3 py-2 text-sm"
+                />
+              </label>
+              <label className="space-y-1 text-sm font-semibold text-[#0f172a]">
+                <span>Custo padrão de transporte</span>
+                <input
+                  value={defaultCostsForm.transport_default_cost}
+                  onChange={(e) =>
+                    setDefaultCostsForm((prev) => ({ ...prev, transport_default_cost: e.target.value }))
+                  }
+                  placeholder="Ex.: 200"
+                  className="w-full rounded-[12px] border border-[#dbe3ef] px-3 py-2 text-sm"
+                />
+              </label>
+              <label className="space-y-1 text-sm font-semibold text-[#0f172a]">
+                <span>Outros custos (legado)</span>
+                <input
+                  value={defaultCostsForm.other_default_cost}
+                  onChange={(e) =>
+                    setDefaultCostsForm((prev) => ({ ...prev, other_default_cost: e.target.value }))
+                  }
+                  placeholder="Ex.: 100"
+                  className="w-full rounded-[12px] border border-[#dbe3ef] px-3 py-2 text-sm"
+                />
+              </label>
+            </div>
+
+            <div className="mt-4 rounded-[16px] border border-[#e8edf5] bg-[#f8fafc] p-4">
+              <div className="text-[13px] font-black uppercase tracking-[0.08em] text-violet-700">
+                Custos personalizados
+              </div>
+              <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-[1fr_180px_auto]">
+                <input
+                  value={customCostDraft.label}
+                  onChange={(e) => setCustomCostDraft((prev) => ({ ...prev, label: e.target.value }))}
+                  placeholder="Nome do custo (ex.: Alimentação)"
+                  className="rounded-[12px] border border-[#dbe3ef] bg-white px-3 py-2 text-sm"
+                />
+                <input
+                  value={customCostDraft.amount}
+                  onChange={(e) => setCustomCostDraft((prev) => ({ ...prev, amount: e.target.value }))}
+                  placeholder="Valor"
+                  className="rounded-[12px] border border-[#dbe3ef] bg-white px-3 py-2 text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={salvarCustoPersonalizado}
+                  className="rounded-[12px] bg-violet-600 px-4 py-2 text-sm font-black text-white"
+                >
+                  {editingCustomCostIndex !== null ? 'Salvar edição' : 'Adicionar custo'}
+                </button>
+              </div>
+
+              <div className="mt-3 flex flex-wrap gap-2">
+                {(defaultCostsForm.custom_costs || []).map((item, index) => (
+                  <div
+                    key={`${item.label}-${index}`}
+                    className="flex items-center gap-2 rounded-full border border-violet-100 bg-white px-3 py-2 text-xs font-semibold text-[#334155]"
+                  >
+                    <span>{item.label}: {formatMoney(item.amount)}</span>
+                    <button type="button" onClick={() => editarCustoPersonalizado(index)} className="text-violet-700">
+                      Editar
+                    </button>
+                    <button type="button" onClick={() => removerCustoPersonalizado(index)} className="text-red-600">
+                      Remover
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <label className="mt-4 block space-y-1 text-sm font-semibold text-[#0f172a]">
+              <span>Observações</span>
               <textarea
                 value={defaultCostsForm.notes}
                 onChange={(e) =>
                   setDefaultCostsForm((prev) => ({ ...prev, notes: e.target.value }))
                 }
-                placeholder="Observações"
-                className="rounded-[12px] border border-[#dbe3ef] px-3 py-2 text-sm md:col-span-2"
+                placeholder="Notas internas sobre a política de custos"
+                className="w-full rounded-[12px] border border-[#dbe3ef] px-3 py-2 text-sm"
                 rows={3}
               />
-            </div>
+            </label>
+
+            <p className="mt-3 text-xs font-semibold text-[#64748b]">
+              Total de custos personalizados: {formatMoney(
+                (defaultCostsForm.custom_costs || []).reduce((acc, item) => acc + toNumber(item.amount), 0)
+              )}
+            </p>
 
             <div className="mt-5 flex flex-wrap justify-end gap-3">
               <button
@@ -1787,18 +2025,147 @@ function PagamentosPageContent() {
                 onClick={aplicarNosProximosEventos}
                 className="rounded-[14px] border border-[#dbe3ef] bg-white px-4 py-3 text-sm font-black text-[#0f172a]"
               >
-                Aplicar aos próximos eventos
+                Usar em novos eventos
               </button>
               <button
                 type="button"
-                onClick={aplicarCustosEmEventosPendentes}
-                disabled={processingAction === 'default-costs-apply-pending'}
+                onClick={abrirAplicacaoCustosModal}
+                disabled={processingAction === 'default-costs-load-pending'}
                 className="rounded-[14px] border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-black text-amber-800 disabled:opacity-70"
               >
-                {processingAction === 'default-costs-apply-pending'
-                  ? 'Aplicando...'
-                  : 'Aplicar aos eventos pendentes'}
+                {processingAction === 'default-costs-load-pending'
+                  ? 'Carregando eventos...'
+                  : 'Aplicar a eventos selecionados'}
               </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {applyCostsModal.open ? (
+        <div className="fixed inset-0 z-[97] flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-5xl rounded-[24px] border border-[#dbe3ef] bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.3)]">
+            <div className="mb-1 text-[11px] font-black uppercase tracking-[0.14em] text-violet-600">
+              Aplicar custos a eventos
+            </div>
+            <p className="text-sm text-[#64748b]">
+              Escolha os eventos que receberão estes custos padrão.
+            </p>
+            <div className="mt-4 max-h-[52vh] overflow-auto rounded-[16px] border border-[#e8edf5]">
+              <table className="min-w-full text-left text-xs">
+                <thead className="bg-[#f8fafc] text-[#334155]">
+                  <tr>
+                    <th className="px-3 py-2">Sel.</th>
+                    <th className="px-3 py-2">Cliente</th>
+                    <th className="px-3 py-2">Data</th>
+                    <th className="px-3 py-2">Tipo</th>
+                    <th className="px-3 py-2">Bruto</th>
+                    <th className="px-3 py-2">Custo atual</th>
+                    <th className="px-3 py-2">Líquido atual</th>
+                    <th className="px-3 py-2">Novo custo</th>
+                    <th className="px-3 py-2">Novo líquido</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {applyCostsModal.rows.map((row) => {
+                    const selected = applyCostsModal.selectedIds.includes(String(row.id));
+                    return (
+                      <tr key={row.id} className="border-t border-[#eef2f7]">
+                        <td className="px-3 py-2">
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            onChange={() =>
+                              setApplyCostsModal((prev) => ({
+                                ...prev,
+                                selectedIds: selected
+                                  ? prev.selectedIds.filter((id) => String(id) !== String(row.id))
+                                  : [...prev.selectedIds, String(row.id)],
+                              }))
+                            }
+                          />
+                        </td>
+                        <td className="px-3 py-2 font-semibold">{row.client_name || '-'}</td>
+                        <td className="px-3 py-2">{formatDateBR(row.event_date)}</td>
+                        <td className="px-3 py-2">{row.event_type || '-'}</td>
+                        <td className="px-3 py-2">{formatMoney(row.agreed_amount)}</td>
+                        <td className="px-3 py-2">{formatMoney(row.current_cost)}</td>
+                        <td className="px-3 py-2">{formatMoney(row.current_net)}</td>
+                        <td className="px-3 py-2 font-semibold text-violet-700">{formatMoney(row.preview_cost)}</td>
+                        <td className="px-3 py-2 font-semibold text-violet-700">{formatMoney(row.preview_net)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  className="rounded-[12px] border border-[#dbe3ef] px-3 py-2 text-xs font-black"
+                  onClick={() =>
+                    setApplyCostsModal((prev) => ({
+                      ...prev,
+                      selectedIds: prev.rows.map((row) => String(row.id)),
+                    }))
+                  }
+                >
+                  Selecionar todos
+                </button>
+                <button
+                  type="button"
+                  className="rounded-[12px] border border-[#dbe3ef] px-3 py-2 text-xs font-black"
+                  onClick={() => setApplyCostsModal((prev) => ({ ...prev, selectedIds: [] }))}
+                >
+                  Limpar seleção
+                </button>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setApplyCostsModal({ open: false, rows: [], selectedIds: [] })}
+                  className="rounded-[12px] border border-[#dbe3ef] px-4 py-2 text-xs font-black"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={aplicarCustosSelecionados}
+                  disabled={processingAction === 'default-costs-apply-pending'}
+                  className="rounded-[12px] bg-violet-600 px-4 py-2 text-xs font-black text-white disabled:opacity-60"
+                >
+                  {processingAction === 'default-costs-apply-pending' ? 'Aplicando...' : 'Aplicar aos selecionados'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {costBreakdownModal.open ? (
+        <div className="fixed inset-0 z-[97] flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-lg rounded-[20px] bg-white p-5 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-lg font-black text-[#0f172a]">Detalhamento de custos</div>
+                <p className="text-xs text-[#64748b]">{costBreakdownModal.clientName}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCostBreakdownModal({ open: false, eventId: '', clientName: '', breakdown: [] })}
+                className="rounded-[12px] border border-[#dbe3ef] px-3 py-2 text-xs font-black"
+              >
+                Fechar
+              </button>
+            </div>
+            <div className="mt-4 space-y-2">
+              {costBreakdownModal.breakdown.map((item, index) => (
+                <div key={`${item.label}-${index}`} className="flex items-center justify-between rounded-[12px] border border-[#e8edf5] px-3 py-2 text-sm">
+                  <span className="font-semibold text-[#334155]">{item.label}</span>
+                  <span className="font-black text-[#0f172a]">{formatMoney(item.amount)}</span>
+                </div>
+              ))}
             </div>
           </div>
         </div>

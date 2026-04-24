@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { generatePdfBufferFromHtml } from '@/lib/contracts/htmlToPdfService';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -8,9 +7,12 @@ export const runtime = 'nodejs';
 const DEFAULT_BUCKET = 'contract-pdfs';
 
 function resolveContractServiceEnv() {
-  const contractServiceUrl = String(process.env.CONTRACT_SERVICE_URL || process.env.NEXT_PUBLIC_CONTRACT_SERVICE_URL || '').trim();
+  const contractServiceUrl = String(
+    process.env.CONTRACT_SERVICE_URL || process.env.NEXT_PUBLIC_CONTRACT_SERVICE_URL || ''
+  ).trim();
+  const contractServiceApiKey = String(process.env.CONTRACT_SERVICE_API_KEY || '').trim();
 
-  return { contractServiceUrl };
+  return { contractServiceUrl, contractServiceApiKey };
 }
 
 function stripHtmlWrapper(html) {
@@ -143,9 +145,9 @@ export async function POST(request) {
     const body = await request.json().catch(() => null);
     const contractId = String(body?.contractId || '').trim() || null;
     const precontractId = String(body?.precontractId || '').trim() || null;
-    const html = stripHtmlWrapper(body?.html || body?.signedHtml || '');
+    const signedHtml = stripHtmlWrapper(body?.html || body?.signedHtml || '');
 
-    if (!html) {
+    if (!signedHtml) {
       return NextResponse.json(
         { ok: false, message: 'HTML assinado é obrigatório para gerar o PDF interno.' },
         { status: 400 }
@@ -159,17 +161,59 @@ export async function POST(request) {
       precontractId,
     });
 
-    const { contractServiceUrl } = resolveContractServiceEnv();
+    const { contractServiceUrl, contractServiceApiKey } = resolveContractServiceEnv();
 
     if (!contractServiceUrl) {
-      throw new Error('CONTRACT_SERVICE_URL não configurada para gerar PDF interno.');
+      return NextResponse.json({
+        ok: false,
+        pending: true,
+        message: 'Serviço de PDF não configurado.',
+      });
     }
 
-    const pdfBuffer = await generatePdfBufferFromHtml({
-      html,
-      contractId: contract?.id || contractId,
-      precontractId: resolvedPrecontractId,
+    const htmlToPdfUrl = `${contractServiceUrl.replace(/\/+$/, '')}/api/contracts/html-to-pdf`;
+    const pdfResponse = await fetch(htmlToPdfUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': contractServiceApiKey,
+      },
+      body: JSON.stringify({
+        html: signedHtml,
+        fileName: `contrato-${contract?.id || contractId || resolvedPrecontractId}.pdf`,
+        responseFormat: 'base64',
+      }),
     });
+    const pdfPayload = await pdfResponse.json().catch(() => null);
+
+    if (!pdfResponse.ok) {
+      console.error('[CONTRACT_INTERNAL_PDF] erro no serviço de PDF:', {
+        status: pdfResponse.status,
+        statusText: pdfResponse.statusText,
+        payload: pdfPayload,
+      });
+      return NextResponse.json(
+        {
+          ok: false,
+          message: 'Não foi possível gerar o PDF do contrato neste momento. Tente novamente em instantes.',
+        },
+        { status: 502 }
+      );
+    }
+
+    const pdfBase64 = String(pdfPayload?.pdfBase64 || '').trim();
+    if (!pdfBase64) {
+      console.error('[CONTRACT_INTERNAL_PDF] resposta inválida do serviço de PDF:', pdfPayload);
+      return NextResponse.json(
+        {
+          ok: false,
+          message: 'Não foi possível gerar o PDF do contrato neste momento. Tente novamente em instantes.',
+        },
+        { status: 502 }
+      );
+    }
+
+    const pdfBuffer = Buffer.from(pdfBase64, 'base64');
 
     const bucketName = DEFAULT_BUCKET;
     const objectPath = `contracts/${resolvedPrecontractId || contract?.id || contractId}/contrato-assinado.pdf`;
@@ -199,7 +243,7 @@ export async function POST(request) {
       contractId: contract?.id || contractId,
       precontractId: resolvedPrecontractId,
       pdfUrl,
-      signedHtml: html,
+      signedHtml,
     });
 
     return NextResponse.json({
@@ -219,7 +263,7 @@ export async function POST(request) {
     return NextResponse.json(
       {
         ok: false,
-        message: error?.message || 'Erro ao gerar PDF interno do contrato.',
+        message: 'Não foi possível gerar o PDF do contrato neste momento. Tente novamente em instantes.',
       },
       { status: 500 }
     );

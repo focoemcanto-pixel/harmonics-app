@@ -158,7 +158,7 @@ async function resolveSigningContext({ supabase, token }) {
 
   const syncOps = [];
 
-  if (precontract.public_token !== token) {
+  if (precontract?.id && precontract.public_token !== token) {
     syncOps.push(
       supabase
         .from('precontracts')
@@ -184,7 +184,7 @@ async function resolveSigningContext({ supabase, token }) {
     if (syncError) throw syncError;
   }
 
-  if (!contract.precontract_id) {
+  if (precontract?.id && !contract.precontract_id) {
     const { error: patchContractError } = await supabase
       .from('contracts')
       .update({ precontract_id: precontract.id })

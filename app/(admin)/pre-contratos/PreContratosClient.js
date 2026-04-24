@@ -120,6 +120,22 @@ function formatDateBR(value) {
   return `${d}/${m}/${y}`;
 }
 
+function parseDateOnly(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+
+  const [year, month, day] = raw.split('-').map(Number);
+  if (!year || !month || !day) return null;
+
+  return new Date(year, month - 1, day, 0, 0, 0, 0);
+}
+
+function getTodayStart() {
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  return now;
+}
+
 function normalizeFormation(value) {
   const s = String(value || '').trim().toLowerCase();
   if (!s) return '';
@@ -558,6 +574,7 @@ export default function PreContratosClient() {
   const [contractEditorReadOnly, setContractEditorReadOnly] = useState(false);
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
   const [contractEditorSeed, setContractEditorSeed] = useState(0);
+  const todayISO = useMemo(() => new Date().toISOString().split('T')[0], []);
 
   const [form, setForm] = useState(getInitialForm());
 
@@ -1077,6 +1094,26 @@ async function carregarModelosContrato({ force = false } = {}) {
     });
   }, [form.event_date, form.event_time, eventos]);
 
+  const eventDateError = useMemo(() => {
+    if (!form.event_date) return '';
+
+    const selectedDate = parseDateOnly(form.event_date);
+    if (!selectedDate) return 'Selecione uma data futura para o evento';
+
+    const todayStart = getTodayStart();
+    if (selectedDate >= todayStart) return '';
+
+    if (editandoId) {
+      const existingItem = items.find((entry) => String(entry.id) === String(editandoId));
+      const originalDate = parseDateOnly(existingItem?.event_date);
+      if (originalDate && originalDate < todayStart && existingItem?.event_date === form.event_date) {
+        return '';
+      }
+    }
+
+    return 'Selecione uma data futura para o evento';
+  }, [editandoId, form.event_date, items]);
+
   function openShareModalFromItem(item) {
     const token = item.public_token;
     if (!token) return;
@@ -1110,6 +1147,11 @@ async function carregarModelosContrato({ force = false } = {}) {
 
     if (form.event_time && !isValidTime(form.event_time)) {
       showToast?.('Informe um horário válido no formato HH:mm.', 'warning');
+      return;
+    }
+
+    if (eventDateError) {
+      showToast?.('Não é possível criar eventos em datas passadas.', 'error');
       return;
     }
 
@@ -1180,40 +1222,31 @@ async function carregarModelosContrato({ force = false } = {}) {
       };
 
       let savedItem = null;
+      const existingItem = editandoId
+        ? items.find((entry) => String(entry.id) === String(editandoId))
+        : null;
+      const tokenFinal = existingItem?.public_token || finalToken || generateToken();
+      const linkFinal = existingItem?.generated_link || generatedLink || buildContractLink(tokenFinal);
 
-      if (editandoId) {
-        const existingItem = items.find((entry) => String(entry.id) === String(editandoId));
-        const tokenFinal = existingItem?.public_token || generateToken();
-        const linkFinal = existingItem?.generated_link || buildContractLink(tokenFinal);
+      const response = await fetch('/api/precontracts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: editandoId || null,
+          payload,
+          public_token: tokenFinal,
+          generated_link: linkFinal,
+        }),
+      });
+      const result = await response.json().catch(() => ({}));
 
-        const { data, error } = await supabase
-          .from('precontracts')
-          .update({
-            ...payload,
-            public_token: tokenFinal,
-            generated_link: linkFinal,
-          })
-          .eq('id', editandoId)
-          .select(PRECONTRACT_SELECT_FIELDS)
-          .single();
+      if (!response.ok || !result?.ok) {
+        throw new Error(result?.message || 'Não foi possível salvar o pré-contrato.');
+      }
 
-        if (error) throw error;
-        savedItem = sanitizeTimeFields(data);
-      } else {
-        const { data, error } = await supabase
-          .from('precontracts')
-          .insert([
-            {
-              ...payload,
-              public_token: finalToken,
-              generated_link: generatedLink,
-            },
-          ])
-          .select(PRECONTRACT_SELECT_FIELDS)
-          .single();
-
-        if (error) throw error;
-        savedItem = sanitizeTimeFields(data);
+      savedItem = sanitizeTimeFields(result?.data || null);
+      if (!savedItem?.id) {
+        throw new Error('Pré-contrato salvo sem retorno válido do servidor.');
       }
 
       setItems((prev) => {
@@ -1551,7 +1584,14 @@ async function carregarModelosContrato({ force = false } = {}) {
                     type="date"
                     value={form.event_date}
                     onChange={(e) => handleFormChange('event_date', e.target.value)}
+                    min={todayISO}
+                    className={eventDateError ? 'rounded-2xl border border-red-300 p-2' : ''}
                   />
+                  {eventDateError ? (
+                    <p className="-mt-2 text-xs font-medium text-red-600">
+                      Selecione uma data futura para o evento
+                    </p>
+                  ) : null}
 
                   <Input
                     label="Hora"

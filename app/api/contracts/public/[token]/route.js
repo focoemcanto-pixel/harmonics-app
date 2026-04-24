@@ -28,11 +28,12 @@ function extractTokenFromRequest(request, params) {
   }
 }
 
-export async function GET(request, { params }) {
-  const token = extractTokenFromRequest(request, params);
+export async function GET(request, context) {
+  const resolvedParams = await context?.params;
+  const token = extractTokenFromRequest(request, resolvedParams);
 
   devLog('[CONTRACT_PUBLIC_ROUTE] token recebido', {
-    paramsToken: params?.token || null,
+    paramsToken: resolvedParams?.token || null,
     requestUrl: request?.url || null,
     token,
   });

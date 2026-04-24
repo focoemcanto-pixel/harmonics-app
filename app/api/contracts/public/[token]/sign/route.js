@@ -197,8 +197,14 @@ async function resolveSigningContext({ supabase, token }) {
   return { contract, precontract };
 }
 
-export async function POST(request, { params }) {
-  const token = extractToken(params);
+export async function POST(request, context) {
+  const resolvedParams = await context?.params;
+  const token = extractToken(resolvedParams);
+
+  console.info('[CONTRACT_PUBLIC_SIGN][PARAMS_RESOLVED]', {
+    rawParams: resolvedParams,
+    token,
+  });
   if (!token) {
     return NextResponse.json({ ok: false, message: 'Token inválido.' }, { status: 400 });
   }

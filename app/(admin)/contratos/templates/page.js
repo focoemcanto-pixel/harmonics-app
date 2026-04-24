@@ -76,6 +76,28 @@ function normalizeSlug(value) {
     .replace(/-+/g, '-');
 }
 
+function formatDate(value) {
+  if (!value) return 'data não informada';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'data inválida';
+  return date.toLocaleDateString('pt-BR');
+}
+
+function formatPrecontractStatus(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (!normalized) return 'sem status';
+  const labels = {
+    draft: 'rascunho',
+    link_generated: 'link gerado',
+    sent: 'enviado',
+    viewed: 'visualizado',
+    accepted: 'aceito',
+    signed: 'assinado',
+    cancelled: 'cancelado',
+  };
+  return labels[normalized] || normalized;
+}
+
 export default function ContractTemplatesPage() {
   const toast = useAppToast();
   const { confirm } = useConfirm() || {};
@@ -347,25 +369,73 @@ export default function ContractTemplatesPage() {
       const [eventTypesUsage, precontractsUsage] = await Promise.all([
         supabase
           .from('event_types')
-          .select('id', { count: 'exact', head: true })
+          .select('id, name, slug')
           .eq('default_contract_template_id', template.id),
         supabase
           .from('precontracts')
-          .select('id', { count: 'exact', head: true })
+          .select('id, client_name, event_date, status')
           .eq('contract_template_id', template.id),
       ]);
 
       if (eventTypesUsage.error) throw eventTypesUsage.error;
       if (precontractsUsage.error) throw precontractsUsage.error;
 
-      const eventTypesCount = Number(eventTypesUsage.count || 0);
-      const precontractsCount = Number(precontractsUsage.count || 0);
+      const linkedEventTypes = eventTypesUsage.data || [];
+      const linkedPrecontracts = precontractsUsage.data || [];
+      const eventTypesCount = linkedEventTypes.length;
+      const precontractsCount = linkedPrecontracts.length;
       const totalUsages = eventTypesCount + precontractsCount;
 
       if (totalUsages > 0) {
-        toast.warning(
-          `Este template está vinculado (${eventTypesCount} tipo(s) de evento e ${precontractsCount} pré-contrato(s)). Desvincule antes de excluir.`
-        );
+        const eventTypeLines = linkedEventTypes
+          .map((item) => `• Tipo de evento: ${item.name || 'Sem nome'}${item.slug ? ` (/${item.slug})` : ''}`)
+          .join('\n');
+        const precontractLines = linkedPrecontracts
+          .map((item) => `• Pré-contrato: ${item.client_name || 'Sem cliente'} - ${formatDate(item.event_date)} - ${formatPrecontractStatus(item.status)}`)
+          .join('\n');
+
+        const details = [
+          'Este template está vinculado a:',
+          eventTypesCount > 0 ? eventTypeLines : '• Tipos de evento: nenhum',
+          precontractsCount > 0 ? precontractLines : '• Pré-contratos: nenhum',
+          'Desvincule antes de excluir.',
+        ].join('\n');
+
+        devLog('[TEMPLATE_EDITOR][DELETE_BLOCKED_DETAILS]', {
+          templateId: template.id,
+          eventTypesCount,
+          precontractsCount,
+          linkedEventTypes,
+          linkedPrecontracts,
+        });
+
+        if (eventTypesCount > 0 && precontractsCount === 0) {
+          const shouldUnlink = confirm
+            ? await confirm({
+              title: 'Template vinculado a tipos de evento',
+              description: `${details}\n\nDeseja desvincular este template de todos os tipos de evento vinculados agora?`,
+              confirmText: 'Desvincular deste template',
+              cancelText: 'Manter vínculos',
+              tone: 'default',
+            })
+            : window.confirm(`${details}\n\nDeseja desvincular este template dos tipos de evento vinculados agora?`);
+
+          if (shouldUnlink) {
+            const linkedIds = linkedEventTypes.map((item) => item.id).filter(Boolean);
+            if (linkedIds.length > 0) {
+              const { error: unlinkError } = await supabase
+                .from('event_types')
+                .update({ default_contract_template_id: null })
+                .in('id', linkedIds);
+
+              if (unlinkError) throw unlinkError;
+              toast.success('Template desvinculado dos tipos de evento. Tente excluir novamente.');
+              return;
+            }
+          }
+        }
+
+        toast.warning(details);
         return;
       }
 

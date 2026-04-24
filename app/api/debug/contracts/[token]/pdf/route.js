@@ -32,14 +32,44 @@ export async function GET(request, context) {
     });
   }
 
-  // 2. Simular chamada do PDF (SEM Render ainda)
+  // 2. Verificar contrato e HTML assinado
+  const { data: contractByToken } = await supabase
+    .from('contracts')
+    .select('*')
+    .eq('public_token', token)
+    .maybeSingle();
+
+  const { data: contractByPrecontract } = await supabase
+    .from('contracts')
+    .select('*')
+    .eq('precontract_id', precontract.id)
+    .maybeSingle();
+
+  const contract = contractByToken || contractByPrecontract;
+
+  const signedHtml =
+    contract?.signed_html ||
+    contract?.raw_payload?.signed_contract_html ||
+    contract?.raw_payload?.contract_html_snapshot ||
+    '';
+
   return Response.json({
     ok: true,
-    step: 'precontract_loaded',
+    step: 'contract_debug',
     token,
     precontractId: precontract.id,
-    client: precontract.client_name,
-    value: precontract.value,
-    eventDate: precontract.event_date,
+    foundContract: Boolean(contract?.id),
+    contractId: contract?.id || null,
+    contractStatus: contract?.status || null,
+    hasSignedAt: Boolean(contract?.signed_at),
+    hasDocumentHash: Boolean(contract?.document_hash),
+    hasPdfUrl: Boolean(contract?.pdf_url),
+    pdfUrl: contract?.pdf_url || null,
+    hasSignedHtml: Boolean(signedHtml),
+    signedHtmlLength: signedHtml.length,
+    hasContractServiceUrl: Boolean(
+      process.env.CONTRACT_SERVICE_URL || process.env.NEXT_PUBLIC_CONTRACT_SERVICE_URL
+    ),
+    hasContractServiceApiKey: Boolean(process.env.CONTRACT_SERVICE_API_KEY),
   });
 }

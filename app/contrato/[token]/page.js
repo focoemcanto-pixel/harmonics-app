@@ -729,6 +729,7 @@ export default function ContratoPublicoPage() {
     html: '',
     clientPanelUrl: '',
   });
+  const [internalPdfStatus, setInternalPdfStatus] = useState('idle');
 
   const addressStreetRef = useRef(null);
 const eventAddressRef = useRef(null);
@@ -1664,6 +1665,7 @@ const contratoFinalizado =
 
     try {
      setSalvando(true);
+     setInternalPdfStatus('idle');
 
 // salva em estado intermediário enquanto gera o contrato final
 await upsertContract('client_filling');
@@ -1769,8 +1771,41 @@ if (!generateRes.ok || !generateJson?.ok) {
         String(generateJson?.html || '').trim() ||
         contratoHtmlResolvido;
 
+      let internalPdfUrl = '';
+      if (modoGeracao === 'internal' && htmlAssinado) {
+        setInternalPdfStatus('generating');
+        try {
+          const internalPdfRes = await fetch('/api/contracts/internal/pdf', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              precontractId: precontract.id,
+              contractId: contractAtualizado?.id || null,
+              html: htmlAssinado,
+            }),
+          });
+
+          const internalPdfJson = await internalPdfRes.json().catch(() => null);
+          if (!internalPdfRes.ok || !internalPdfJson?.ok) {
+            throw new Error(
+              internalPdfJson?.message || 'Falha ao gerar PDF do contrato interno.'
+            );
+          }
+
+          internalPdfUrl = String(internalPdfJson?.pdfUrl || '').trim();
+          setInternalPdfStatus(internalPdfUrl ? 'ready' : 'failed');
+        } catch (internalPdfError) {
+          console.error('Erro ao gerar PDF interno:', internalPdfError);
+          setInternalPdfStatus('failed');
+        }
+      }
+
+      const resolvedPdfUrl =
+        internalPdfUrl ||
+        pdfUrlFinal;
+
       setResultadoFinal({
-        pdfUrl: pdfUrlFinal,
+        pdfUrl: resolvedPdfUrl,
         docUrl: docUrlFinal,
         html: htmlAssinado,
         clientPanelUrl: `${window.location.origin}/cliente/${token}`,
@@ -1819,7 +1854,7 @@ if (!generateRes.ok || !generateJson?.ok) {
     signature_name: form.signer_name.trim() || null,
     contact_id: contactId,
     event_id: eventId,
-    ...(modoGeracao === 'internal' ? { pdf_url: pdfUrlFinal || null } : {}),
+    ...(modoGeracao === 'internal' ? { pdf_url: resolvedPdfUrl || null } : {}),
     raw_payload: {
       ...(contractAtualizado?.raw_payload || {}),
       signed_contract_mode: modoGeracao,
@@ -1831,7 +1866,7 @@ if (!generateRes.ok || !generateJson?.ok) {
         : {}),
       final_generation: {
         mode: modoGeracao,
-        pdfUrl: pdfUrlFinal || null,
+        pdfUrl: resolvedPdfUrl || null,
         docUrl: docUrlFinal || null,
         generatedAt: new Date().toISOString(),
       },
@@ -1926,6 +1961,10 @@ if (contractSignedError) throw contractSignedError;
     const painelUrl =
       resultadoFinal.clientPanelUrl ||
       `${window.location.origin}/cliente/${token}`;
+    const internalPdfIsGenerating =
+      isInternalMode && !pdfUrl && internalPdfStatus === 'generating';
+    const internalPdfFailed =
+      isInternalMode && !pdfUrl && internalPdfStatus === 'failed' && !!signedHtml;
 
     return (
       <main className="min-h-screen bg-slate-100 px-4 py-6">
@@ -1942,7 +1981,7 @@ if (contractSignedError) throw contractSignedError;
 
               <p className="mx-auto max-w-2xl text-sm text-slate-500 md:text-base">
                 Seu contrato foi concluído com sucesso. {isInternalMode
-                  ? 'Seu documento assinado foi registrado internamente e o painel do cliente já está liberado.'
+                  ? 'Seu documento assinado está sendo finalizado com segurança e o painel do cliente já está liberado.'
                   : 'Abaixo você já pode acessar o PDF do contrato e também o seu painel do cliente, onde poderá acompanhar informações importantes do seu evento, financeiro e as próximas etapas.'}
               </p>
 
@@ -1955,7 +1994,7 @@ if (contractSignedError) throw contractSignedError;
         rel="noreferrer"
         className="inline-flex"
       >
-        <Button>Abrir PDF do contrato</Button>
+        <Button>Baixar contrato em PDF</Button>
       </a>
 
       <a
@@ -1967,9 +2006,33 @@ if (contractSignedError) throw contractSignedError;
         <Button variant="secondary">Abrir painel do cliente</Button>
       </a>
     </>
+  ) : internalPdfIsGenerating ? (
+    <>
+      <Button disabled>Gerando PDF do contrato...</Button>
+      <a
+        href={painelUrl}
+        target="_blank"
+        rel="noreferrer"
+        className="inline-flex"
+      >
+        <Button variant="secondary">Abrir painel do cliente</Button>
+      </a>
+    </>
+  ) : internalPdfFailed ? (
+    <>
+      <Button disabled>Contrato assinado. O PDF ainda está sendo preparado.</Button>
+      <a
+        href={painelUrl}
+        target="_blank"
+        rel="noreferrer"
+        className="inline-flex"
+      >
+        <Button variant="secondary">Abrir painel do cliente</Button>
+      </a>
+    </>
   ) : isInternalMode && signedHtml ? (
     <>
-      <Button disabled>Contrato assinado com snapshot interno</Button>
+      <Button disabled>Contrato assinado. O PDF ainda está sendo preparado.</Button>
       <a
         href={painelUrl}
         target="_blank"

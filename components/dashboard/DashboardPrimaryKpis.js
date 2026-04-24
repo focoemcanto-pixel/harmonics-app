@@ -11,26 +11,18 @@ function formatMoney(v) {
 
 export default function DashboardPrimaryKpis({ summary }) {
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
       <AdminSummaryCard
-        label="Bruto do mês"
-        value={formatMoney(summary?.bruto)}
-        helper="Total negociado no período"
-        size="highlight"
-      />
-
-      <AdminSummaryCard
-        label="Líquido estimado"
-        value={formatMoney(summary?.liquido)}
-        helper="Margem prevista da operação"
-        tone="accent"
+        label="Receita contratada"
+        value={formatMoney(summary?.receitaContratada)}
+        helper="Receita contratada do mês"
         size="highlight"
       />
 
       <AdminSummaryCard
         label="Recebido"
         value={formatMoney(summary?.recebido)}
-        helper="Valores já confirmados"
+        helper="Pagamentos confirmados do mês"
         tone="success"
         size="highlight"
       />
@@ -40,6 +32,22 @@ export default function DashboardPrimaryKpis({ summary }) {
         value={formatMoney(summary?.emAberto)}
         helper="Pendências financeiras do mês"
         tone="warning"
+        size="highlight"
+      />
+
+      <AdminSummaryCard
+        label="Custos totais"
+        value={formatMoney(summary?.custosTotais)}
+        helper="Custos dos eventos do mês"
+        tone="accent"
+        size="highlight"
+      />
+
+      <AdminSummaryCard
+        label="Lucro previsto"
+        value={formatMoney(summary?.lucroPrevisto)}
+        helper="Receita contratada - custos totais"
+        tone="accent"
         size="highlight"
       />
     </div>

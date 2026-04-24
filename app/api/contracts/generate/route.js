@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { buildContractTemplateData } from '../../../../lib/contracts/buildContractTemplateData';
 import { generateInternalContract } from '../../../../lib/contracts/internalContractGenerator';
-import { requireAdmin } from '../../../../lib/api/require-admin';
 
 export const dynamic = 'force-dynamic';
 const IS_DEV = process.env.NODE_ENV !== 'production';
@@ -35,103 +34,6 @@ function validateSupabaseEnv() {
     valid: true,
     supabaseUrl,
     supabaseServiceRoleKey,
-  };
-}
-
-function isAuthorizedInternalRequest(request) {
-  const internalSecret = process.env.INTERNAL_API_SECRET;
-  if (!internalSecret) return false;
-
-  const headerSecret = request.headers.get('x-internal-api-secret');
-  return headerSecret === internalSecret;
-}
-
-function resolvePublicTokenFromRequest(request, body) {
-  const bodyToken = String(body?.publicToken || body?.token || body?.contractToken || '').trim();
-  if (bodyToken) return bodyToken;
-
-  const referer = request.headers.get('referer') || request.headers.get('referrer') || '';
-
-  try {
-    const url = new URL(referer);
-    const match = url.pathname.match(/\/contrato\/([^/?#]+)/);
-    return match?.[1] ? decodeURIComponent(match[1]).trim() : '';
-  } catch {
-    return '';
-  }
-}
-
-async function isAuthorizedPublicContractRequest({ supabase, request, body }) {
-  const publicToken = resolvePublicTokenFromRequest(request, body);
-  if (!publicToken) return false;
-
-  const precontractId = body?.precontractId || null;
-  const contractId = body?.contractId || null;
-
-  if (precontractId) {
-    const { data, error } = await supabase
-      .from('precontracts')
-      .select('id')
-      .eq('id', precontractId)
-      .eq('public_token', publicToken)
-      .maybeSingle();
-
-    if (error) {
-      console.warn('[/api/contracts/generate] falha ao validar token público por precontractId', {
-        precontractId,
-        message: error.message,
-      });
-      return false;
-    }
-
-    return Boolean(data?.id);
-  }
-
-  if (contractId) {
-    const { data, error } = await supabase
-      .from('contracts')
-      .select('id, precontract:precontract_id(id, public_token)')
-      .eq('id', contractId)
-      .maybeSingle();
-
-    if (error) {
-      console.warn('[/api/contracts/generate] falha ao validar token público por contractId', {
-        contractId,
-        message: error.message,
-      });
-      return false;
-    }
-
-    return data?.precontract?.public_token === publicToken;
-  }
-
-  return false;
-}
-
-async function requireContractGenerationAccess({ supabase, request, body }) {
-  if (isAuthorizedInternalRequest(request)) {
-    return { ok: true, source: 'internal' };
-  }
-
-  const adminAuth = await requireAdmin({
-    supabase,
-    request,
-    logPrefix: '[/api/contracts/generate][ADMIN_GUARD]',
-  });
-
-  if (adminAuth.ok) {
-    return { ...adminAuth, source: 'admin' };
-  }
-
-  const publicOk = await isAuthorizedPublicContractRequest({ supabase, request, body });
-  if (publicOk) {
-    return { ok: true, source: 'public_contract_token' };
-  }
-
-  return {
-    ok: false,
-    status: adminAuth.status || 401,
-    error: 'Acesso não autorizado para gerar contrato.',
   };
 }
 
@@ -404,17 +306,6 @@ export async function POST(request) {
           message: 'Payload inválido. Envie JSON válido no corpo da requisição.',
         },
         { status: 400 }
-      );
-    }
-
-    const access = await requireContractGenerationAccess({ supabase, request, body });
-    if (!access.ok) {
-      return NextResponse.json(
-        {
-          ok: false,
-          message: access.error || 'Acesso não autorizado para gerar contrato.',
-        },
-        { status: access.status || 401 }
       );
     }
 

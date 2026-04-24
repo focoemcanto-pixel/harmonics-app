@@ -46,6 +46,7 @@ export default function ContractTemplateEditorModal({
   readOnly = false,
 }) {
   const [draft, setDraft] = useState(() => textToEditorHtml(initialText));
+  const [mobileTab, setMobileTab] = useState('edit');
   const editorApiRef = useRef(null);
 
   const parsed = useMemo(() => parseContractTemplateInput(draft), [draft]);
@@ -53,13 +54,17 @@ export default function ContractTemplateEditorModal({
     if (!String(draft || '').trim()) return '';
     return parsed.normalizedContent;
   }, [draft, parsed.normalizedContent]);
+  const handleClose = () => {
+    setMobileTab('edit');
+    onClose?.();
+  };
 
   if (!open) return null;
 
   return (
     <div
       className="fixed inset-0 z-[210] flex items-end justify-center bg-[rgba(15,23,42,0.66)] p-0 backdrop-blur-[4px] md:items-center md:p-4"
-      onClick={onClose}
+      onClick={handleClose}
     >
       <div
         className="flex h-[92dvh] w-full max-w-6xl flex-col overflow-hidden rounded-t-[28px] border border-white/10 bg-white shadow-[0_32px_90px_rgba(0,0,0,0.4)] md:h-[88vh] md:rounded-[30px]"
@@ -76,12 +81,44 @@ export default function ContractTemplateEditorModal({
                 Evento: <span className="font-semibold text-slate-700">{eventTypeName || 'Não informado'}</span>
               </p>
             </div>
-            <Button variant="soft" onClick={onClose}>Fechar</Button>
+            <Button variant="soft" onClick={handleClose}>Fechar</Button>
           </div>
         </div>
 
-        <div className="grid min-h-0 flex-1 grid-cols-1 gap-0 md:grid-cols-2">
-          <div className="flex min-h-0 flex-col border-b border-slate-200 bg-slate-50 md:border-b-0 md:border-r">
+        <div className="border-b border-slate-200 px-5 py-3 md:hidden">
+          <div className="inline-flex rounded-full border border-slate-200 bg-slate-100 p-1">
+            <button
+              type="button"
+              onClick={() => setMobileTab('edit')}
+              className={`rounded-full px-4 py-1.5 text-xs font-bold transition ${
+                mobileTab === 'edit'
+                  ? 'bg-white text-slate-900 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              Editar
+            </button>
+            <button
+              type="button"
+              onClick={() => setMobileTab('preview')}
+              className={`rounded-full px-4 py-1.5 text-xs font-bold transition ${
+                mobileTab === 'preview'
+                  ? 'bg-white text-slate-900 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              Preview
+            </button>
+          </div>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto md:overflow-hidden">
+          <div className="grid min-h-full md:h-full md:grid-cols-2">
+            <div
+              className={`min-h-0 flex-col border-slate-200 bg-slate-50 md:flex md:border-b-0 md:border-r ${
+                mobileTab === 'edit' ? 'flex' : 'hidden'
+              }`}
+            >
             <div className="border-b border-slate-200 px-5 py-3 md:px-6">
               <p className="text-xs font-bold uppercase tracking-[0.1em] text-slate-500">Edição</p>
             </div>
@@ -97,9 +134,13 @@ export default function ContractTemplateEditorModal({
                 }}
               />
             </div>
-          </div>
+            </div>
 
-          <div className="flex min-h-0 flex-col bg-gradient-to-b from-slate-100 to-slate-50">
+            <div
+              className={`min-h-0 flex-col bg-gradient-to-b from-slate-100 to-slate-50 md:flex ${
+                mobileTab === 'preview' ? 'flex' : 'hidden'
+              }`}
+            >
             <div className="border-b border-slate-200 px-5 py-3 md:px-6">
               <p className="text-xs font-bold uppercase tracking-[0.1em] text-slate-500">Preview</p>
             </div>
@@ -117,6 +158,7 @@ export default function ContractTemplateEditorModal({
               <p><span className="font-bold">Placeholders não reconhecidos:</span> {parsed.unknownPlaceholders.length}</p>
               <p><span className="font-bold">Condicionais:</span> {parsed.hasConditionals ? parsed.conditionals.join(', ') : 'Nenhum'}</p>
             </div>
+            </div>
           </div>
         </div>
 
@@ -131,7 +173,7 @@ export default function ContractTemplateEditorModal({
                   Restaurar modelo padrão
                 </Button>
               ) : null}
-              <Button variant="soft" onClick={onClose}>Cancelar</Button>
+              <Button variant="soft" onClick={handleClose}>Cancelar</Button>
               {!readOnly ? (
                 <Button onClick={() => onSave?.({ rawText: draft, processedContent: parsed.normalizedContent, sourceText: htmlToReadableText(draft) })}>
                   Salvar personalização

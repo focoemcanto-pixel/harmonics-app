@@ -170,6 +170,19 @@ export async function POST(request) {
 
     const { contractServiceUrl, contractServiceApiKey } = resolveContractServiceEnv();
 
+    let contractServiceHost = null;
+    try {
+      contractServiceHost = contractServiceUrl ? new URL(contractServiceUrl).host : null;
+    } catch {
+      contractServiceHost = null;
+    }
+
+    console.info('[CONTRACT_INTERNAL_PDF][SERVICE_CONFIG]', {
+      hasContractServiceUrl: Boolean(contractServiceUrl),
+      contractServiceHost,
+      hasContractServiceApiKey: Boolean(contractServiceApiKey),
+    });
+
     if (!contractServiceUrl) {
       return NextResponse.json({
         ok: false,
@@ -201,11 +214,24 @@ export async function POST(request) {
     });
 
     if (!pdfResponse.ok) {
-      console.error('[CONTRACT_INTERNAL_PDF] erro no serviço de PDF:', {
+      console.error('[CONTRACT_INTERNAL_PDF][SERVICE_ERROR]', {
         status: pdfResponse.status,
         statusText: pdfResponse.statusText,
+        message: pdfPayload?.message || null,
         payload: pdfPayload,
       });
+
+      if (pdfResponse.status === 401) {
+        return NextResponse.json(
+          {
+            ok: false,
+            code: 'CONTRACT_SERVICE_UNAUTHORIZED',
+            message: 'Serviço de PDF não autorizado. Verifique CONTRACT_SERVICE_API_KEY.',
+          },
+          { status: 401 }
+        );
+      }
+
       return NextResponse.json(
         {
           ok: false,

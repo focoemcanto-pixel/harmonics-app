@@ -318,6 +318,14 @@ export async function POST(request, context) {
     });
 
     const pdfJson = await pdfRes.json().catch(() => null);
+
+    if (!pdfRes.ok) {
+      console.error('[CONTRACT_PUBLIC_SIGN][PDF_FAILED]', {
+        status: pdfRes.status,
+        pdfJson,
+      });
+    }
+
     const pdfUrl = asString(pdfJson?.pdfUrl || contract.pdf_url);
 
     if (pdfUrl) {
@@ -346,7 +354,6 @@ export async function POST(request, context) {
       {
         ok: false,
         message: 'Contrato assinado. O PDF ainda está sendo preparado.',
-        technicalMessage: error?.message || 'Erro interno ao assinar contrato.',
       },
       { status: 500 }
     );

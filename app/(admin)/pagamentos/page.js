@@ -24,6 +24,7 @@ import {
 } from '@/lib/eventos/eventos-finance';
 import { resolveProofPreviewFromStoredUrl } from '@/lib/payments/payment-proof-storage';
 import { buildFinancialGroupingKey } from '@/lib/finance/gross-total';
+import { calculateFinancialSummary } from '@/lib/finance/calculateFinancialSummary';
 
 function normalizePaymentStatus(status, paidAmount, openAmount, agreedAmount) {
   const raw = String(status || '').trim().toLowerCase();
@@ -1191,61 +1192,20 @@ function PagamentosPageContent() {
   }, [pagamentos, busca, statusFiltro, somentePendentes, somenteAguardandoValidacao]);
 
   const resumo = useMemo(() => {
-    const brutoTotal = events.reduce((acc, ev) => acc + toNumber(ev?.agreed_amount), 0);
-    const recebidoTotal = payments.reduce((acc, payment) => {
-      if (!isSettledPaymentStatus(payment?.status)) return acc;
-      if (isRejectedStatus(payment?.status)) return acc;
-      return acc + toNumber(payment?.amount);
-    }, 0);
-    const emAberto = Math.max(brutoTotal - recebidoTotal, 0);
-    const custosTotal = events.reduce((acc, ev) => {
-      return (
-        acc +
-        toNumber(ev?.musician_cost) +
-        toNumber(ev?.sound_cost) +
-        toNumber(ev?.extra_transport_cost) +
-        toNumber(ev?.other_cost)
-      );
-    }, 0);
-
-    let lucroPrevisto = brutoTotal - custosTotal;
-    if (lucroPrevisto > brutoTotal) {
-      console.error('[FINANCE ERROR] lucro maior que bruto', {
-        lucroPrevisto,
-        brutoTotal,
-        custosTotal,
-      });
-      lucroPrevisto = Math.max(0, brutoTotal - custosTotal);
-    }
-
-    const receivedEventIds = new Set(
-      payments
-        .filter((payment) => isSettledPaymentStatus(payment?.status) && !isRejectedStatus(payment?.status))
-        .map((payment) => String(payment?.event_id || '').trim())
-        .filter(Boolean)
+    const eventIds = new Set(
+      pagamentosFiltrados.flatMap((item) =>
+        (item.sourceEventIds || []).map((id) => String(id))
+      )
     );
-    const custosEventosRecebidos = events.reduce((acc, ev) => {
-      if (!receivedEventIds.has(String(ev?.id))) return acc;
-      return (
-        acc +
-        toNumber(ev?.musician_cost) +
-        toNumber(ev?.sound_cost) +
-        toNumber(ev?.extra_transport_cost) +
-        toNumber(ev?.other_cost)
-      );
-    }, 0);
-    const lucroRealizado = recebidoTotal - custosEventosRecebidos;
+    const eventsFiltrados = events.filter((ev) => eventIds.has(String(ev?.id)));
+    const paymentsFiltradosResumo = payments.filter((payment) =>
+      eventIds.has(String(payment?.event_id))
+    );
 
-    return {
-      brutoTotal,
-      recebidoTotal,
-      emAberto,
-      custosTotal,
-      lucroPrevisto,
-      lucroRealizado,
-      hasRealizado: receivedEventIds.size > 0,
-    };
-  }, [events, payments]);
+    return calculateFinancialSummary(eventsFiltrados, paymentsFiltradosResumo, {
+      onError: (message, data) => console.error(message, data),
+    });
+  }, [events, payments, pagamentosFiltrados]);
 
   if (carregando) {
     return (
@@ -1270,7 +1230,7 @@ function PagamentosPageContent() {
         <AdminPageHero
           badge="Harmonics Admin"
           title="Pagamentos"
-          subtitle="Visão financeira premium com separação de receita contratada, caixa realizado, custos e resultado."
+          subtitle="Resumo do filtro atual."
         />
 
         {feedback ? (
@@ -1316,7 +1276,7 @@ function PagamentosPageContent() {
               <div className="snap-start">
                 <FinanceMetricCard
                   label="Receita contratada"
-                  value={formatMoney(resumo.brutoTotal)}
+                  value={formatMoney(resumo.receitaContratada)}
                   tooltip="Soma dos valores dos contratos"
                   tone="revenue"
                   highlight
@@ -1325,7 +1285,7 @@ function PagamentosPageContent() {
               <div className="snap-start">
                 <FinanceMetricCard
                   label="Recebido"
-                  value={formatMoney(resumo.recebidoTotal)}
+                  value={formatMoney(resumo.recebido)}
                   tooltip="Pagamentos confirmados"
                   tone="received"
                 />
@@ -1347,7 +1307,7 @@ function PagamentosPageContent() {
               <div className="snap-start md:col-span-1">
                 <FinanceMetricCard
                   label="Custos totais"
-                  value={formatMoney(resumo.custosTotal)}
+                  value={formatMoney(resumo.custosTotais)}
                   tooltip="Soma dos custos dos eventos"
                   tone="costs"
                 />
@@ -1371,7 +1331,7 @@ function PagamentosPageContent() {
                 <FinanceMetricCard
                   label="Lucro realizado"
                   value={formatMoney(resumo.lucroRealizado)}
-                  tooltip="Recebido - custos dos eventos com recebimento"
+                  tooltip="Recebido (base confirmada)"
                   tone="profit"
                 />
               </div>

@@ -8,7 +8,7 @@ import DashboardPrimaryKpis from '@/components/dashboard/DashboardPrimaryKpis';
 import DashboardSecondaryKpis from '@/components/dashboard/DashboardSecondaryKpis';
 import { supabase } from '@/lib/supabase';
 import { buildDashboardSummary } from '@/lib/dashboard/dashboard-summary';
-import { resolveGrossFromEvents } from '@/lib/finance/gross-total';
+import { calculateFinancialSummary } from '@/lib/finance/calculateFinancialSummary';
 import { logWarn, reportError } from '@/lib/observability/client-log';
 
 const DashboardRevenueChart = dynamic(() => import('@/components/dashboard/DashboardRevenueChart'));
@@ -18,8 +18,6 @@ const DashboardUpcomingEvents = dynamic(() => import('@/components/dashboard/Das
 
 const DASHBOARD_EVENTS_SELECT =
   'id, created_at, event_date, status, client_name, agreed_amount, paid_amount, open_amount, profit_amount';
-const DASHBOARD_MONTHLY_FINANCE_SELECT =
-  'id, event_date, status, client_name, location_name, event_type, agreed_amount, paid_amount, open_amount, profit_amount';
 const DASHBOARD_PRECONTRACTS_SELECT =
   'id, created_at, event_id, event_date, status, client_name, notes, public_token';
 const DASHBOARD_CONTRACTS_SELECT =
@@ -27,13 +25,28 @@ const DASHBOARD_CONTRACTS_SELECT =
 const DASHBOARD_EVENT_MUSICIANS_SELECT = 'id, created_at, status';
 const DASHBOARD_REPERTOIRE_CONFIG_SELECT = 'id, created_at, event_id, status, is_locked, submitted_at';
 const DASHBOARD_ADJUSTMENT_REQUESTS_SELECT = 'id, created_at, precontract_id, status';
-const DASHBOARD_PAYMENTS_SELECT = 'id, event_id, status, payment_date, created_at';
+const DASHBOARD_PAYMENTS_SELECT = 'id, event_id, status, payment_date, created_at, amount';
 const DASHBOARD_FETCH_LIMIT = 50;
 const DASHBOARD_HEAVY_FETCH_LIMIT = 30;
 
 const MAX_DISPLAYED_ACTIVITIES = 2;
 const DASHBOARD_CACHE_TTL_MS = 60 * 1000;
 let dashboardMemoryCache = null;
+
+function filterRowsByMonth(rows = [], dateField, referenceDate = new Date()) {
+  const month = referenceDate.getMonth();
+  const year = referenceDate.getFullYear();
+
+  return rows.filter((row) => {
+    const value = row?.[dateField];
+    if (!value) return false;
+
+    const parsed = new Date(`${value}T00:00:00`);
+    if (Number.isNaN(parsed.getTime())) return false;
+
+    return parsed.getMonth() === month && parsed.getFullYear() === year;
+  });
+}
 
 function DashboardLoading() {
   return (
@@ -829,34 +842,15 @@ export default function DashboardPage() {
       setHeavyReady(true);
 
       const monthStart = new Date();
-      monthStart.setDate(1);
-      monthStart.setHours(0, 0, 0, 0);
-      const nextMonthStart = new Date(monthStart);
-      nextMonthStart.setMonth(nextMonthStart.getMonth() + 1);
-      const monthStartIso = monthStart.toISOString().slice(0, 10);
-      const nextMonthStartIso = nextMonthStart.toISOString().slice(0, 10);
-
-      const monthlyFinanceRes = await supabase
-        .from('events')
-        .select(DASHBOARD_MONTHLY_FINANCE_SELECT)
-        .gte('event_date', monthStartIso)
-        .lt('event_date', nextMonthStartIso);
-
-      const monthlyFinanceEvents = Array.isArray(monthlyFinanceRes.data)
-        ? monthlyFinanceRes.data
-        : [];
-      const dashboardGross = resolveGrossFromEvents(monthlyFinanceEvents, {
-        referenceDate: monthStart,
-        restrictToMonth: false,
-      });
-
-      console.log('[DASHBOARD_FINANCE][BRUTO_INPUT]', {
-        monthStart: monthStartIso,
-        nextMonthStart: nextMonthStartIso,
-        eventCount: monthlyFinanceEvents.length,
-      });
-      console.log('[DASHBOARD_FINANCE][BRUTO_RESULT]', dashboardGross);
-      console.log('[FINANCE_COMPARE][EVENT_IDS_DASHBOARD]', dashboardGross.eventIds);
+      const monthlyFinanceEvents = filterRowsByMonth(eventsData, 'event_date', monthStart);
+      const monthlyFinancePayments = filterRowsByMonth(paymentsData, 'payment_date', monthStart);
+      const monthlyFinancialSummary = calculateFinancialSummary(
+        monthlyFinanceEvents,
+        monthlyFinancePayments,
+        {
+          onError: (message, data) => console.error(message, data),
+        }
+      );
 
       const nextSummary = buildDashboardSummary(
         eventsData,
@@ -867,6 +861,7 @@ export default function DashboardPage() {
         adjustmentRequestsData,
         {
           monthlyFinanceEvents,
+          monthlyFinancialSummary,
         }
       );
       setSummary(nextSummary);
@@ -1021,7 +1016,7 @@ export default function DashboardPage() {
           </MobileSlide>
           <MobileSlide wide>
             {heavyReady ? (
-              <DashboardFinanceBreakdown events={events} summary={summary} />
+              <DashboardFinanceBreakdown summary={summary} />
             ) : (
               <div className="h-[420px] animate-pulse rounded-[30px] border border-[#dbe3ef] bg-white" />
             )}
@@ -1091,7 +1086,7 @@ export default function DashboardPage() {
                 Bem-vindo de volta, Admin
               </h1>
               <p className="text-sm text-slate-600 mt-1">
-                {new Date().toLocaleDateString('pt-BR', {
+                Resumo do mês atual • {new Date().toLocaleDateString('pt-BR', {
                   weekday: 'long',
                   day: 'numeric',
                   month: 'long',
@@ -1285,7 +1280,7 @@ export default function DashboardPage() {
                   ? `R$${(summary.bruto / 1000).toFixed(0)}k`
                   : 'R$45k'}
               </div>
-              <div className="mt-1 text-xs font-medium text-slate-500">Receita do mês</div>
+              <div className="mt-1 text-xs font-medium text-slate-500">Receita contratada do mês</div>
               <div className="mt-2 text-[11px] font-semibold text-emerald-600">↑ Mês atual</div>
             </div>
 
@@ -1432,7 +1427,7 @@ export default function DashboardPage() {
                 {heavyReady ? (
                   <>
                     <DashboardRevenueChart events={events} />
-                    <DashboardFinanceBreakdown events={events} summary={summary} />
+                    <DashboardFinanceBreakdown summary={summary} />
                   </>
                 ) : (
                   <>

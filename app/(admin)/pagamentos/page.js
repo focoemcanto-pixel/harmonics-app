@@ -7,7 +7,6 @@ import AdminShell from '@/components/admin/AdminShell';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import AdminPageHero from '@/components/admin/AdminPageHero';
 import AdminSectionTitle from '@/components/admin/AdminSectionTitle';
-import AdminSummaryCard from '@/components/admin/AdminSummaryCard';
 import DeleteConfirmModal from '@/components/ui/DeleteConfirmModal';
 import BulkActionBar from '@/components/ui/BulkActionBar';
 import { useAppToast } from '@/components/ui/ToastProvider';
@@ -24,7 +23,7 @@ import {
   sanitizeCustomCosts,
 } from '@/lib/eventos/eventos-finance';
 import { resolveProofPreviewFromStoredUrl } from '@/lib/payments/payment-proof-storage';
-import { buildFinancialGroupingKey, resolveGrossFromEvents } from '@/lib/finance/gross-total';
+import { buildFinancialGroupingKey } from '@/lib/finance/gross-total';
 
 function normalizePaymentStatus(status, paidAmount, openAmount, agreedAmount) {
   const raw = String(status || '').trim().toLowerCase();
@@ -94,6 +93,51 @@ function PaymentPill({ tone = 'slate', children }) {
     >
       {children}
     </span>
+  );
+}
+
+function MetricTooltip({ text }) {
+  return (
+    <span
+      title={text}
+      aria-label={text}
+      className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-current/30 text-[10px] font-black opacity-70"
+    >
+      ?
+    </span>
+  );
+}
+
+function FinanceMetricCard({
+  label,
+  value,
+  tooltip,
+  tone = 'neutral',
+  highlight = false,
+}) {
+  const tones = {
+    neutral: 'text-slate-900',
+    revenue: 'text-blue-700',
+    received: 'text-emerald-700',
+    open: 'text-amber-700',
+    costs: 'text-rose-700',
+    profit: 'text-violet-700',
+  };
+
+  return (
+    <article
+      className={`rounded-2xl border border-[#e5e7eb] bg-white p-5 shadow-[0_10px_30px_rgba(0,0,0,0.04)] transition-transform duration-200 hover:scale-[1.02] ${
+        highlight ? 'min-w-[320px] md:min-w-0 md:col-span-2 xl:col-span-1' : 'min-w-[260px] md:min-w-0'
+      }`}
+    >
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <span>{label}</span>
+        <MetricTooltip text={tooltip} />
+      </div>
+      <div className={`mt-3 text-3xl font-bold tracking-tight ${tones[tone] || tones.neutral}`}>
+        {value}
+      </div>
+    </article>
   );
 }
 
@@ -251,6 +295,7 @@ function PagamentosPageContent() {
     other_cost: '',
   });
   const [defaultCostsModalOpen, setDefaultCostsModalOpen] = useState(false);
+  const [financeViewMode, setFinanceViewMode] = useState('previsto');
   const [defaultCostsForm, setDefaultCostsForm] = useState({
     musician_unit_cost: '',
     sound_default_cost: '',
@@ -1146,53 +1191,74 @@ function PagamentosPageContent() {
   }, [pagamentos, busca, statusFiltro, somentePendentes, somenteAguardandoValidacao]);
 
   const resumo = useMemo(() => {
-    const grossMonth = resolveGrossFromEvents(events, {
-      referenceDate: new Date(),
-      restrictToMonth: true,
-    });
-    const totalBruto = grossMonth.total;
-    const totalQuitado = pagamentos.reduce((acc, item) => acc + item.quitado, 0);
-    const totalAberto = pagamentos.reduce((acc, item) => acc + item.aberto, 0);
-    const totalLiquido = pagamentos.reduce((acc, item) => acc + item.liquido, 0);
-    const totalHistorico = pagamentos.reduce(
-      (acc, item) => acc + item.totalHistorico,
-      0
-    );
+    const brutoTotal = events.reduce((acc, ev) => acc + toNumber(ev?.agreed_amount), 0);
+    const recebidoTotal = payments.reduce((acc, payment) => {
+      if (!isSettledPaymentStatus(payment?.status)) return acc;
+      if (isRejectedStatus(payment?.status)) return acc;
+      return acc + toNumber(payment?.amount);
+    }, 0);
+    const emAberto = Math.max(brutoTotal - recebidoTotal, 0);
+    const custosTotal = events.reduce((acc, ev) => {
+      return (
+        acc +
+        toNumber(ev?.musician_cost) +
+        toNumber(ev?.sound_cost) +
+        toNumber(ev?.extra_transport_cost) +
+        toNumber(ev?.other_cost)
+      );
+    }, 0);
 
-    const pagos = pagamentos.filter((item) => item.paymentStatus === 'Pago').length;
-    const parciais = pagamentos.filter((item) => item.paymentStatus === 'Parcial').length;
-    const pendentes = pagamentos.filter((item) => item.paymentStatus === 'Pendente').length;
-    const aguardandoValidacao = pagamentos.reduce(
-      (acc, item) => acc + item.pendenciasValidacaoCount,
-      0
-    );
+    let lucroPrevisto = brutoTotal - custosTotal;
+    if (lucroPrevisto > brutoTotal) {
+      console.error('[FINANCE ERROR] lucro maior que bruto', {
+        lucroPrevisto,
+        brutoTotal,
+        custosTotal,
+      });
+      lucroPrevisto = Math.max(0, brutoTotal - custosTotal);
+    }
 
-    console.log('[PAYMENTS_PAGE][BRUTO_INPUT]', {
-      eventCount: events.length,
-      groupedRows: pagamentos.length,
-      referenceMonth: new Date().toISOString().slice(0, 7),
-    });
-    console.log('[PAYMENTS_PAGE][BRUTO_RESULT]', grossMonth);
-    console.log('[FINANCE_COMPARE][EVENT_IDS_PAYMENTS]', grossMonth.eventIds);
+    const receivedEventIds = new Set(
+      payments
+        .filter((payment) => isSettledPaymentStatus(payment?.status) && !isRejectedStatus(payment?.status))
+        .map((payment) => String(payment?.event_id || '').trim())
+        .filter(Boolean)
+    );
+    const custosEventosRecebidos = events.reduce((acc, ev) => {
+      if (!receivedEventIds.has(String(ev?.id))) return acc;
+      return (
+        acc +
+        toNumber(ev?.musician_cost) +
+        toNumber(ev?.sound_cost) +
+        toNumber(ev?.extra_transport_cost) +
+        toNumber(ev?.other_cost)
+      );
+    }, 0);
+    const lucroRealizado = recebidoTotal - custosEventosRecebidos;
 
     return {
-      totalBruto,
-      totalQuitado,
-      totalAberto,
-      totalLiquido,
-      totalHistorico,
-      pagos,
-      parciais,
-      pendentes,
-      aguardandoValidacao,
+      brutoTotal,
+      recebidoTotal,
+      emAberto,
+      custosTotal,
+      lucroPrevisto,
+      lucroRealizado,
+      hasRealizado: receivedEventIds.size > 0,
     };
-  }, [events, pagamentos]);
+  }, [events, payments]);
 
   if (carregando) {
     return (
       <AdminShell pageTitle="Pagamentos" activeItem="pagamentos">
         <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-6 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
-          <p className="text-center text-[#64748b]">Carregando pagamentos...</p>
+          <div className="animate-pulse space-y-4">
+            <div className="h-5 w-52 rounded bg-slate-200" />
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+              <div className="h-28 rounded-2xl bg-slate-100" />
+              <div className="h-28 rounded-2xl bg-slate-100" />
+              <div className="h-28 rounded-2xl bg-slate-100" />
+            </div>
+          </div>
         </section>
       </AdminShell>
     );
@@ -1204,7 +1270,7 @@ function PagamentosPageContent() {
         <AdminPageHero
           badge="Harmonics Admin"
           title="Pagamentos"
-          subtitle="Acompanhe recebimentos, histórico de entradas, pendências, bruto, custos e líquido por evento."
+          subtitle="Visão financeira premium com separação de receita contratada, caixa realizado, custos e resultado."
         />
 
         {feedback ? (
@@ -1214,66 +1280,108 @@ function PagamentosPageContent() {
           />
         ) : null}
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <AdminSummaryCard
-            label="Bruto do mês"
-            value={formatMoney(resumo.totalBruto)}
-            helper="Regra oficial compartilhada com o Dashboard"
-            size="highlight"
-          />
-          <AdminSummaryCard
-            label="Quitado"
-            value={formatMoney(resumo.totalQuitado)}
-            helper="Consolidado em eventos"
-            tone="success"
-            size="highlight"
-          />
-          <AdminSummaryCard
-            label="Em aberto"
-            value={formatMoney(resumo.totalAberto)}
-            helper="Saldo ainda pendente"
-            tone="warning"
-            size="highlight"
-          />
-          <AdminSummaryCard
-            label="Líquido"
-            value={formatMoney(resumo.totalLiquido)}
-            helper="Margem final da operação"
-            tone="accent"
-            size="highlight"
-          />
-        </div>
+        <section className="space-y-4 rounded-[28px] border border-[#dbe3ef] bg-white p-6 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold text-[#0f172a]">Resumo financeiro</h2>
+              <p className="text-sm text-muted-foreground">
+                Leitura orientada à decisão: receita contratada, caixa realizado, custos e resultado.
+              </p>
+            </div>
+            <div className="inline-flex rounded-xl border border-[#e5e7eb] bg-[#f8fafc] p-1">
+              <button
+                type="button"
+                onClick={() => setFinanceViewMode('previsto')}
+                className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
+                  financeViewMode === 'previsto' ? 'bg-white text-[#0f172a] shadow-sm' : 'text-slate-500'
+                }`}
+              >
+                Previsto
+              </button>
+              <button
+                type="button"
+                onClick={() => setFinanceViewMode('realizado')}
+                className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
+                  financeViewMode === 'realizado' ? 'bg-white text-[#0f172a] shadow-sm' : 'text-slate-500'
+                }`}
+              >
+                Realizado
+              </button>
+            </div>
+          </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
-          <AdminSummaryCard
-            label="Histórico em payments"
-            value={formatMoney(resumo.totalHistorico)}
-            helper="Soma das entradas registradas"
-          />
-          <AdminSummaryCard
-            label="Pagos"
-            value={String(resumo.pagos)}
-            helper="Eventos quitados"
-            tone="success"
-          />
-          <AdminSummaryCard
-            label="Parciais"
-            value={String(resumo.parciais)}
-            helper="Recebimento parcial"
-            tone="warning"
-          />
-          <AdminSummaryCard
-            label="Pendentes"
-            value={String(resumo.pendentes)}
-            helper="Sem quitação"
-          />
-          <AdminSummaryCard
-            label="Comprovantes em validação"
-            value={String(resumo.aguardandoValidacao)}
-            helper="Aguardando conferência"
-            tone="warning"
-          />
-        </div>
+          <div>
+            <h3 className="text-lg font-semibold text-[#0f172a]">🔵 Receita</h3>
+            <div className="-mx-1 mt-3 flex snap-x gap-3 overflow-x-auto px-1 pb-2 md:grid md:grid-cols-3 md:overflow-visible">
+              <div className="snap-start">
+                <FinanceMetricCard
+                  label="Receita contratada"
+                  value={formatMoney(resumo.brutoTotal)}
+                  tooltip="Soma dos valores dos contratos"
+                  tone="revenue"
+                  highlight
+                />
+              </div>
+              <div className="snap-start">
+                <FinanceMetricCard
+                  label="Recebido"
+                  value={formatMoney(resumo.recebidoTotal)}
+                  tooltip="Pagamentos confirmados"
+                  tone="received"
+                />
+              </div>
+              <div className="snap-start">
+                <FinanceMetricCard
+                  label="Em aberto"
+                  value={formatMoney(resumo.emAberto)}
+                  tooltip="Valor ainda não recebido"
+                  tone="open"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <h3 className="text-lg font-semibold text-[#0f172a]">🟡 Custos</h3>
+            <div className="-mx-1 mt-3 flex snap-x gap-3 overflow-x-auto px-1 pb-2 md:grid md:grid-cols-3 md:overflow-visible">
+              <div className="snap-start md:col-span-1">
+                <FinanceMetricCard
+                  label="Custos totais"
+                  value={formatMoney(resumo.custosTotal)}
+                  tooltip="Soma dos custos dos eventos"
+                  tone="costs"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <h3 className="text-lg font-semibold text-[#0f172a]">🟣 Resultado</h3>
+            <div className="-mx-1 mt-3 flex snap-x gap-3 overflow-x-auto px-1 pb-2 md:grid md:grid-cols-3 md:overflow-visible">
+              <div className="snap-start">
+                <FinanceMetricCard
+                  label="Lucro previsto"
+                  value={formatMoney(resumo.lucroPrevisto)}
+                  tooltip="Receita - custos"
+                  tone="profit"
+                  highlight
+                />
+              </div>
+              <div className="snap-start">
+                <FinanceMetricCard
+                  label="Lucro realizado"
+                  value={formatMoney(resumo.lucroRealizado)}
+                  tooltip="Recebido - custos dos eventos com recebimento"
+                  tone="profit"
+                />
+              </div>
+              <div className="hidden md:block" />
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Modo selecionado: {financeViewMode === 'previsto' ? 'Previsto (base contratos)' : 'Realizado (base pagamentos)'}.
+            </p>
+          </div>
+        </section>
 
         <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-6 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
           <AdminSectionTitle

@@ -48,6 +48,176 @@ async function updateContractWithFallbacks({ supabase, contractId, patchPayload 
   }
 }
 
+async function resolveSigningContext({ supabase, token }) {
+  console.info('[CONTRACT_PUBLIC_SIGN][TOKEN_RESOLVE_START]', { token });
+
+  let contract = null;
+  let precontract = null;
+
+  const { data: contractByToken, error: contractByTokenError } = await supabase
+    .from('contracts')
+    .select('*')
+    .eq('public_token', token)
+    .maybeSingle();
+
+  if (contractByTokenError) throw contractByTokenError;
+
+  if (contractByToken?.id) {
+    contract = contractByToken;
+    console.info('[CONTRACT_PUBLIC_SIGN][FOUND_CONTRACT_BY_PUBLIC_TOKEN]', {
+      token,
+      contractId: contract.id,
+      precontractId: contract.precontract_id || null,
+    });
+  }
+
+  if (contract?.precontract_id) {
+    const { data: preByContract, error: preByContractError } = await supabase
+      .from('precontracts')
+      .select('*')
+      .eq('id', contract.precontract_id)
+      .maybeSingle();
+
+    if (preByContractError) throw preByContractError;
+    precontract = preByContract || null;
+  }
+
+  if (!precontract) {
+    const { data: preByToken, error: preByTokenError } = await supabase
+      .from('precontracts')
+      .select('*')
+      .eq('public_token', token)
+      .maybeSingle();
+
+    if (preByTokenError) throw preByTokenError;
+
+    if (preByToken?.id) {
+      precontract = preByToken;
+      console.info('[CONTRACT_PUBLIC_SIGN][FOUND_PRECONTRACT_BY_PUBLIC_TOKEN]', {
+        token,
+        precontractId: precontract.id,
+      });
+    }
+  }
+
+  if (!contract && precontract?.id) {
+    const { data: contractByPrecontract, error: contractByPrecontractError } = await supabase
+      .from('contracts')
+      .select('*')
+      .eq('precontract_id', precontract.id)
+      .maybeSingle();
+
+    if (contractByPrecontractError) throw contractByPrecontractError;
+
+    if (contractByPrecontract?.id) {
+      contract = contractByPrecontract;
+      console.info('[CONTRACT_PUBLIC_SIGN][FOUND_CONTRACT_BY_PRECONTRACT]', {
+        token,
+        precontractId: precontract.id,
+        contractId: contract.id,
+      });
+    }
+  }
+
+  if (!precontract && contract?.precontract_id) {
+    const { data: preByContractId, error: preByContractIdError } = await supabase
+      .from('precontracts')
+      .select('*')
+      .eq('id', contract.precontract_id)
+      .maybeSingle();
+
+    if (preByContractIdError) throw preByContractIdError;
+    precontract = preByContractId || null;
+  }
+
+  if (!precontract?.id) {
+    return { contract: null, precontract: null };
+  }
+
+  if (!contract?.id) {
+    const minimalPayload = {
+      precontract_id: precontract.id,
+      public_token: token,
+      status: 'client_filling',
+      raw_payload: {
+        precontract_snapshot: precontract,
+      },
+    };
+
+    const { data: insertedContract, error: insertError } = await supabase
+      .from('contracts')
+      .insert([minimalPayload])
+      .select('*')
+      .maybeSingle();
+
+    if (insertError) {
+      const conflictMessage = String(insertError.message || '').toLowerCase();
+      if (
+        conflictMessage.includes('duplicate key') ||
+        conflictMessage.includes('unique') ||
+        conflictMessage.includes('violates')
+      ) {
+        const { data: contractAfterConflict, error: loadAfterConflictError } = await supabase
+          .from('contracts')
+          .select('*')
+          .eq('precontract_id', precontract.id)
+          .maybeSingle();
+
+        if (loadAfterConflictError) throw loadAfterConflictError;
+        contract = contractAfterConflict || null;
+      } else {
+        throw insertError;
+      }
+    } else {
+      contract = insertedContract || null;
+    }
+  }
+
+  if (!contract?.id) {
+    throw new Error('Não foi possível criar ou recuperar contrato vinculado ao precontract.');
+  }
+
+  const syncOps = [];
+
+  if (precontract.public_token !== token) {
+    syncOps.push(
+      supabase
+        .from('precontracts')
+        .update({ public_token: token })
+        .eq('id', precontract.id)
+    );
+    precontract = { ...precontract, public_token: token };
+  }
+
+  if (contract.public_token !== token) {
+    syncOps.push(
+      supabase
+        .from('contracts')
+        .update({ public_token: token })
+        .eq('id', contract.id)
+    );
+    contract = { ...contract, public_token: token };
+  }
+
+  if (syncOps.length > 0) {
+    const results = await Promise.all(syncOps);
+    const syncError = results.find((result) => result?.error)?.error;
+    if (syncError) throw syncError;
+  }
+
+  if (!contract.precontract_id) {
+    const { error: patchContractError } = await supabase
+      .from('contracts')
+      .update({ precontract_id: precontract.id })
+      .eq('id', contract.id);
+
+    if (patchContractError) throw patchContractError;
+    contract = { ...contract, precontract_id: precontract.id };
+  }
+
+  return { contract, precontract };
+}
+
 export async function POST(request, { params }) {
   const token = extractToken(params);
   if (!token) {
@@ -62,7 +232,7 @@ export async function POST(request, { params }) {
     const signerName = asString(body?.signerName) || 'Não informado';
     const signerCpf = asString(body?.signerCpf) || 'Não informado';
     const origin = resolveSignatureOrigin(body?.origin);
-    const contractHtml = asString(body?.html);
+    const contractHtml = asString(body?.html || body?.signedHtml);
 
     if (!contractHtml) {
       return NextResponse.json({ ok: false, message: 'HTML assinado é obrigatório.' }, { status: 400 });
@@ -70,16 +240,14 @@ export async function POST(request, { params }) {
 
     const supabase = getSupabaseAdmin();
 
-    const { data: contract, error: contractError } = await supabase
-      .from('contracts')
-      .select('*')
-      .eq('public_token', token)
-      .maybeSingle();
+    const { contract, precontract } = await resolveSigningContext({ supabase, token });
 
-    if (contractError) throw contractError;
-
-    if (!contract?.id) {
+    if (!precontract?.id) {
       return NextResponse.json({ ok: false, message: 'Contrato não encontrado para assinatura.' }, { status: 404 });
+    }
+
+    if (!contract?.id || !contract?.precontract_id) {
+      throw new Error('Contexto inválido: contract.id/precontract_id ausentes após resolução do token.');
     }
 
     if (contract.signed_at && contract.document_hash) {
@@ -87,6 +255,7 @@ export async function POST(request, { params }) {
         ok: true,
         alreadySigned: true,
         contractId: contract.id,
+        precontractId: contract.precontract_id,
         signedAt: contract.signed_at,
         documentHash: contract.document_hash,
         verificationToken: contract.verification_token || null,
@@ -129,6 +298,8 @@ export async function POST(request, { params }) {
       contractId: contract.id,
       patchPayload: {
         status: 'signed',
+        precontract_id: contract.precontract_id,
+        public_token: token,
         signed_html: signedDocument.signedHtml,
         document_hash: signedDocument.documentHash,
         signed_at: signedDocument.signedAtIso,
@@ -146,14 +317,18 @@ export async function POST(request, { params }) {
       },
     });
 
+    const pdfPayload = {
+      contractId: contract.id,
+      precontractId: contract.precontract_id,
+      html: signedDocument.signedHtml,
+    };
+
+    console.info('[CONTRACT_PUBLIC_SIGN][PDF_REQUEST_PAYLOAD]', pdfPayload);
+
     const pdfRes = await fetch(new URL('/api/contracts/internal/pdf', request.url), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contractId: contract.id,
-        precontractId: contract.precontract_id,
-        html: signedDocument.signedHtml,
-      }),
+      body: JSON.stringify(pdfPayload),
       cache: 'no-store',
     });
 
@@ -168,7 +343,7 @@ export async function POST(request, { params }) {
       ok: true,
       alreadySigned: false,
       contractId: contract.id,
-      precontractId: contract.precontract_id || null,
+      precontractId: contract.precontract_id,
       signedAt: signedDocument.signedAtIso,
       documentHash: signedDocument.documentHash,
       verificationToken,
@@ -185,7 +360,7 @@ export async function POST(request, { params }) {
     return NextResponse.json(
       {
         ok: false,
-        message: 'Contrato assinado. Não foi possível preparar o PDF agora.',
+        message: 'Contrato assinado. O PDF ainda está sendo preparado.',
         technicalMessage: error?.message || 'Erro interno ao assinar contrato.',
       },
       { status: 500 }

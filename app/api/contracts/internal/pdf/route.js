@@ -147,6 +147,13 @@ export async function POST(request) {
     const precontractId = String(body?.precontractId || '').trim() || null;
     const signedHtml = stripHtmlWrapper(body?.html || body?.signedHtml || '');
 
+    console.info('[CONTRACT_INTERNAL_PDF][REQUEST_CONTEXT]', {
+      contractId,
+      precontractId,
+      hasHtml: !!signedHtml,
+      htmlLength: signedHtml.length,
+    });
+
     if (!signedHtml) {
       return NextResponse.json(
         { ok: false, message: 'HTML assinado é obrigatório para gerar o PDF interno.' },
@@ -185,6 +192,13 @@ export async function POST(request) {
       }),
     });
     const pdfPayload = await pdfResponse.json().catch(() => null);
+
+    console.info('[CONTRACT_INTERNAL_PDF][SERVICE_RESPONSE]', {
+      status: pdfResponse.status,
+      ok: pdfResponse.ok,
+      hasPdfBase64: !!String(pdfPayload?.pdfBase64 || '').trim(),
+      message: pdfPayload?.message || null,
+    });
 
     if (!pdfResponse.ok) {
       console.error('[CONTRACT_INTERNAL_PDF] erro no serviço de PDF:', {

@@ -1833,6 +1833,11 @@ if (!generateRes.ok || !generateJson?.ok) {
 
           const internalSignJson = await internalSignRes.json().catch(() => null);
           if (!internalSignRes.ok || !internalSignJson?.ok) {
+            console.error('[CONTRACT_PUBLIC_UI] erro técnico na assinatura interna/PDF', {
+              status: internalSignRes.status,
+              message: internalSignJson?.message || null,
+              technicalMessage: internalSignJson?.technicalMessage || null,
+            });
             throw new Error(
               internalSignJson?.message || 'Falha ao assinar contrato interno.'
             );
@@ -2079,7 +2084,7 @@ if (contractSignedError) throw contractSignedError;
     </>
   ) : internalPdfFailed ? (
     <>
-      <Button disabled>PDF sendo preparado</Button>
+      <Button disabled>Contrato assinado. O PDF ainda está sendo preparado.</Button>
       <a
         href={painelUrl}
         target="_blank"

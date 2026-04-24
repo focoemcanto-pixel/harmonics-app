@@ -53,6 +53,9 @@ async function resolveSigningContext({ supabase, token }) {
 
   let contract = null;
   let precontract = null;
+  let foundContract = false;
+  let foundPrecontract = false;
+  let createdContract = false;
 
   const { data: contractByToken, error: contractByTokenError } = await supabase
     .from('contracts')
@@ -64,25 +67,10 @@ async function resolveSigningContext({ supabase, token }) {
 
   if (contractByToken?.id) {
     contract = contractByToken;
-    console.info('[CONTRACT_PUBLIC_SIGN][FOUND_CONTRACT_BY_PUBLIC_TOKEN]', {
-      token,
-      contractId: contract.id,
-      precontractId: contract.precontract_id || null,
-    });
+    foundContract = true;
   }
 
-  if (contract?.precontract_id) {
-    const { data: preByContract, error: preByContractError } = await supabase
-      .from('precontracts')
-      .select('*')
-      .eq('id', contract.precontract_id)
-      .maybeSingle();
-
-    if (preByContractError) throw preByContractError;
-    precontract = preByContract || null;
-  }
-
-  if (!precontract) {
+  if (!contract) {
     const { data: preByToken, error: preByTokenError } = await supabase
       .from('precontracts')
       .select('*')
@@ -93,30 +81,61 @@ async function resolveSigningContext({ supabase, token }) {
 
     if (preByToken?.id) {
       precontract = preByToken;
-      console.info('[CONTRACT_PUBLIC_SIGN][FOUND_PRECONTRACT_BY_PUBLIC_TOKEN]', {
-        token,
-        precontractId: precontract.id,
-      });
+      foundPrecontract = true;
     }
-  }
 
-  if (!contract && precontract?.id) {
-    const { data: contractByPrecontract, error: contractByPrecontractError } = await supabase
-      .from('contracts')
-      .select('*')
-      .eq('precontract_id', precontract.id)
-      .maybeSingle();
+    let contractFromPre = null;
 
-    if (contractByPrecontractError) throw contractByPrecontractError;
+    if (precontract?.id) {
+      const { data: contractByPrecontract, error: contractByPrecontractError } = await supabase
+        .from('contracts')
+        .select('*')
+        .eq('precontract_id', precontract.id)
+        .maybeSingle();
 
-    if (contractByPrecontract?.id) {
-      contract = contractByPrecontract;
-      console.info('[CONTRACT_PUBLIC_SIGN][FOUND_CONTRACT_BY_PRECONTRACT]', {
-        token,
-        precontractId: precontract.id,
-        contractId: contract.id,
-      });
+      if (contractByPrecontractError) throw contractByPrecontractError;
+      contractFromPre = contractByPrecontract || null;
     }
+
+    let newContract = null;
+
+    if (!contractFromPre && precontract?.id) {
+      const { data: insertedContract, error: insertError } = await supabase
+        .from('contracts')
+        .insert({
+          precontract_id: precontract.id,
+          public_token: token,
+          status: 'draft',
+        })
+        .select()
+        .single();
+
+      if (insertError) {
+        const conflictMessage = String(insertError.message || '').toLowerCase();
+        if (
+          conflictMessage.includes('duplicate key') ||
+          conflictMessage.includes('unique') ||
+          conflictMessage.includes('violates')
+        ) {
+          const { data: contractAfterConflict, error: loadAfterConflictError } = await supabase
+            .from('contracts')
+            .select('*')
+            .eq('precontract_id', precontract.id)
+            .maybeSingle();
+
+          if (loadAfterConflictError) throw loadAfterConflictError;
+          newContract = contractAfterConflict || null;
+        } else {
+          throw insertError;
+        }
+      } else {
+        newContract = insertedContract || null;
+        createdContract = Boolean(newContract?.id);
+      }
+    }
+
+    contract = contract || contractFromPre || newContract;
+    foundContract = foundContract || Boolean(contract?.id);
   }
 
   if (!precontract && contract?.precontract_id) {
@@ -128,50 +147,10 @@ async function resolveSigningContext({ supabase, token }) {
 
     if (preByContractIdError) throw preByContractIdError;
     precontract = preByContractId || null;
+    foundPrecontract = foundPrecontract || Boolean(precontract?.id);
   }
 
-  if (!precontract?.id) {
-    return { contract: null, precontract: null };
-  }
-
-  if (!contract?.id) {
-    const minimalPayload = {
-      precontract_id: precontract.id,
-      public_token: token,
-      status: 'client_filling',
-      raw_payload: {
-        precontract_snapshot: precontract,
-      },
-    };
-
-    const { data: insertedContract, error: insertError } = await supabase
-      .from('contracts')
-      .insert([minimalPayload])
-      .select('*')
-      .maybeSingle();
-
-    if (insertError) {
-      const conflictMessage = String(insertError.message || '').toLowerCase();
-      if (
-        conflictMessage.includes('duplicate key') ||
-        conflictMessage.includes('unique') ||
-        conflictMessage.includes('violates')
-      ) {
-        const { data: contractAfterConflict, error: loadAfterConflictError } = await supabase
-          .from('contracts')
-          .select('*')
-          .eq('precontract_id', precontract.id)
-          .maybeSingle();
-
-        if (loadAfterConflictError) throw loadAfterConflictError;
-        contract = contractAfterConflict || null;
-      } else {
-        throw insertError;
-      }
-    } else {
-      contract = insertedContract || null;
-    }
-  }
+  console.info('[TOKEN_FLOW]', { foundContract, foundPrecontract, createdContract });
 
   if (!contract?.id) {
     throw new Error('Não foi possível criar ou recuperar contrato vinculado ao precontract.');

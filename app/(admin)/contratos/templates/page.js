@@ -94,7 +94,7 @@ export default function ContractTemplatesPage() {
   const [preparingDynamicFields, setPreparingDynamicFields] = useState(false);
   const [prepareSnapshotText, setPrepareSnapshotText] = useState('');
   const [excluindoId, setExcluindoId] = useState(null);
-  const editorApiRef = useRef(null);
+  const richEditorRef = useRef(null);
 
   function devLog(label, data) {
     if (process.env.NODE_ENV !== 'development') return;
@@ -148,7 +148,7 @@ export default function ContractTemplatesPage() {
   }
 
   function getCurrentEditorHtml() {
-    if (editorApiRef.current?.getHtml) return String(editorApiRef.current.getHtml() || '');
+    if (richEditorRef.current?.getHtml) return String(richEditorRef.current.getHtml() || '');
     if (richContentHtml) return String(richContentHtml);
     if (form.source_rich_html) return String(form.source_rich_html);
     return '';
@@ -158,8 +158,9 @@ export default function ContractTemplatesPage() {
     setEditandoId(null);
     setForm(getInitialForm());
     setRichContentHtml('');
-    editorApiRef.current?.setHtml?.('');
+    richEditorRef.current?.setHtml?.('');
     setEditorTab('texto');
+    setEditSessionId(Date.now());
   }
 
   function iniciarNovo() {
@@ -193,13 +194,13 @@ export default function ContractTemplatesPage() {
       is_active: template.is_active !== false,
       is_default: template.is_default === true,
     });
-    let nextEditorHtml = '';
-    if (existingSourceRichHtml) nextEditorHtml = existingSourceRichHtml;
-    else if (existingSourceText) nextEditorHtml = textToEditorHtml(existingSourceText);
-    else nextEditorHtml = existingContent;
+    const nextEditorHtml =
+      existingSourceRichHtml ||
+      textToEditorHtml(existingSourceText) ||
+      existingContent ||
+      '';
 
     setRichContentHtml(nextEditorHtml);
-    editorApiRef.current?.setHtml?.(nextEditorHtml);
     devLog('[TEMPLATE_EDITOR][LOAD_FOR_EDIT]', {
       id: template.id,
       sourceRichHtmlLength: existingSourceRichHtml.length,
@@ -208,7 +209,7 @@ export default function ContractTemplatesPage() {
       loadedRichLength: nextEditorHtml.length,
     });
     setEditorTab('texto');
-    setEditSessionId((prev) => prev + 1);
+    setEditSessionId(template.id || Date.now());
     setMobileTab('form');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -227,13 +228,18 @@ export default function ContractTemplatesPage() {
       return;
     }
 
-    const htmlAtual = String(getCurrentEditorHtml() || '');
-    console.log('[SAVE_TEMPLATE]', {
-      htmlLength: htmlAtual.length,
+    const htmlFromRef = String(richEditorRef.current?.getHtml?.() || '');
+    const htmlFromState = String(richContentHtml || '');
+    const htmlAtual = htmlFromRef.trim() ? htmlFromRef : htmlFromState;
+
+    console.log('[SAVE_TEMPLATE_HTML_SOURCE]', {
+      htmlFromRefLength: htmlFromRef.length,
+      htmlFromStateLength: htmlFromState.length,
+      finalLength: htmlAtual.length,
       preview: htmlAtual.slice(0, 200),
     });
 
-    if (!htmlAtual || htmlAtual.trim().length < 20) {
+    if (!htmlAtual.trim()) {
       window.alert('Erro: conteúdo do contrato vazio');
       return;
     }
@@ -604,8 +610,8 @@ export default function ContractTemplatesPage() {
                   <label className="block">
                     <span className="mb-1 block text-xs font-bold uppercase tracking-[0.06em] text-[#64748b]">Texto do contrato</span>
                     <RichContractEditor
-                      ref={editorApiRef}
-                      sessionKey={editSessionId}
+                      ref={richEditorRef}
+                      editSessionId={editSessionId}
                       initialHtml={richContentHtml}
                       onChangeHtml={(nextHtml) => {
                         setRichContentHtml(nextHtml);
@@ -729,17 +735,17 @@ export default function ContractTemplatesPage() {
           onLiveChange={(nextText) => {
             const updatedHtml = looksLikeHtml(nextText) ? nextText : textToEditorHtml(nextText);
             setRichContentHtml(updatedHtml);
-            editorApiRef.current?.setHtml?.(updatedHtml);
+            richEditorRef.current?.setHtml?.(updatedHtml);
           }}
           onCancel={() => {
             setRichContentHtml(prepareSnapshotText);
-            editorApiRef.current?.setHtml?.(prepareSnapshotText);
+            richEditorRef.current?.setHtml?.(prepareSnapshotText);
             setPreparingDynamicFields(false);
           }}
           onConclude={(updatedText) => {
             const updatedHtml = looksLikeHtml(updatedText) ? updatedText : textToEditorHtml(updatedText);
             setRichContentHtml(updatedHtml);
-            editorApiRef.current?.setHtml?.(updatedHtml);
+            richEditorRef.current?.setHtml?.(updatedHtml);
             setPreparingDynamicFields(false);
             toast.success('Campos dinâmicos preparados no texto.');
           }}

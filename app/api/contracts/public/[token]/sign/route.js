@@ -26,6 +26,48 @@ function resolveSignatureOrigin(rawOrigin) {
   return 'Sistema Harmonics';
 }
 
+async function runPdfFlow({ signedHtml }) {
+  console.log('[PDF_FLOW] iniciado');
+
+  const contractServiceUrl = asString(
+    process.env.CONTRACT_SERVICE_URL || process.env.NEXT_PUBLIC_CONTRACT_SERVICE_URL
+  ).replace(/\/+$/, '');
+
+  if (!contractServiceUrl) {
+    throw new Error('CONTRACT_SERVICE_URL não configurado para geração de PDF pós-assinatura.');
+  }
+
+  const pdfRes = await fetch(`${contractServiceUrl}/api/contracts/html-to-pdf`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': process.env.CONTRACT_SERVICE_API_KEY,
+    },
+    body: JSON.stringify({
+      html: signedHtml,
+    }),
+    cache: 'no-store',
+  });
+
+  const pdfData = await pdfRes.json().catch(() => null);
+
+  if (!pdfRes.ok || !pdfData?.ok) {
+    throw new Error('Erro ao gerar PDF');
+  }
+
+  console.log('[PDF_FLOW] gerado');
+
+  const pdfUrl = asString(pdfData?.pdfUrl || pdfData?.pdf_url || pdfData?.data?.pdfUrl || pdfData?.data?.pdf_url);
+
+  if (!pdfUrl) {
+    throw new Error('Erro ao gerar PDF');
+  }
+
+  console.log('[PDF_FLOW] salvo no drive');
+
+  return pdfUrl;
+}
+
 async function updateContractWithFallbacks({ supabase, contractId, patchPayload }) {
   const missingColumns = [];
   let currentPayload = { ...patchPayload };
@@ -281,30 +323,18 @@ export async function POST(request, context) {
         });
       }
 
-      const pdfPayload = {
-        contractId: contract.id,
-        precontractId: contract.precontract_id,
-        html: signedHtml,
-      };
+      let recoveredPdfUrl = null;
+      try {
+        recoveredPdfUrl = await runPdfFlow({ signedHtml });
+      } catch (error) {
+        console.error('[CONTRACT_PUBLIC_SIGN][PDF_RECOVERY_FAILED]', {
+          contractId: contract.id,
+          precontractId: contract.precontract_id,
+          message: error?.message || String(error),
+        });
+      }
 
-      const pdfRes = await fetch(new URL('/api/contracts/internal/pdf', request.url), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(pdfPayload),
-        cache: 'no-store',
-      });
-
-      const pdfJson = await pdfRes.json().catch(() => null);
-
-      console.info('[CONTRACT_PUBLIC_SIGN][PDF_RECOVERY_RESPONSE]', {
-        status: pdfRes.status,
-        ok: pdfRes.ok,
-        pdfJson,
-      });
-
-      const recoveredPdfUrl = asString(pdfJson?.pdfUrl);
-
-      if (pdfRes.ok && recoveredPdfUrl) {
+      if (recoveredPdfUrl) {
         await supabase.from('contracts').update({ pdf_url: recoveredPdfUrl }).eq('id', contract.id);
 
         return NextResponse.json({
@@ -388,31 +418,17 @@ export async function POST(request, context) {
       },
     });
 
-    const pdfPayload = {
-      contractId: contract.id,
-      precontractId: contract.precontract_id,
-      html: signedDocument.signedHtml,
-    };
+    let pdfUrl = asString(contract.pdf_url);
 
-    console.info('[CONTRACT_PUBLIC_SIGN][PDF_REQUEST_PAYLOAD]', pdfPayload);
-
-    const pdfRes = await fetch(new URL('/api/contracts/internal/pdf', request.url), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(pdfPayload),
-      cache: 'no-store',
-    });
-
-    const pdfJson = await pdfRes.json().catch(() => null);
-
-    if (!pdfRes.ok) {
+    try {
+      pdfUrl = await runPdfFlow({ signedHtml: signedDocument.signedHtml });
+    } catch (error) {
       console.error('[CONTRACT_PUBLIC_SIGN][PDF_FAILED]', {
-        status: pdfRes.status,
-        pdfJson,
+        contractId: contract.id,
+        precontractId: contract.precontract_id,
+        message: error?.message || String(error),
       });
     }
-
-    const pdfUrl = asString(pdfJson?.pdfUrl || contract.pdf_url);
 
     if (pdfUrl) {
       await supabase.from('contracts').update({ pdf_url: pdfUrl }).eq('id', contract.id);

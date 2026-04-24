@@ -29,45 +29,31 @@ function resolveSignatureOrigin(rawOrigin) {
 async function runPdfFlow({ signedHtml }) {
   console.log('[PDF_FLOW] iniciado');
 
-  const contractServiceUrl = asString(
-    process.env.CONTRACT_SERVICE_URL || process.env.NEXT_PUBLIC_CONTRACT_SERVICE_URL
-  ).replace(/\/+$/, '');
+  const contractServiceUrl = process.env.CONTRACT_SERVICE_URL.replace(/\/+$/, '');
 
-  if (!contractServiceUrl) {
-    throw new Error('CONTRACT_SERVICE_URL não configurado para geração de PDF pós-assinatura.');
-  }
-
-  const pdfRes = await fetch(`${contractServiceUrl}/api/contracts/html-to-pdf`, {
+  const pdfRes = await fetch(`${contractServiceUrl}/generate-contract`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'x-api-key': process.env.CONTRACT_SERVICE_API_KEY,
     },
     body: JSON.stringify({
-      html: signedHtml,
+      contractHtml: signedHtml,
+      contractName: 'Contrato Assinado',
+      eventDate: new Date().toISOString().split('T')[0],
     }),
-    cache: 'no-store',
   });
 
-  const pdfData = await pdfRes.json().catch(() => null);
+  const pdfData = await pdfRes.json();
 
-  if (!pdfRes.ok || !pdfData?.ok) {
+  if (!pdfRes.ok || !pdfData?.pdfUrl) {
     throw new Error('Erro ao gerar PDF');
   }
 
   console.log('[PDF_FLOW] gerado');
 
-  const pdfUrl = asString(pdfData?.pdfUrl || pdfData?.pdf_url || pdfData?.data?.pdfUrl || pdfData?.data?.pdf_url);
-
-  if (!pdfUrl) {
-    throw new Error('Erro ao gerar PDF');
-  }
-
-  console.log('[PDF_FLOW] salvo no drive');
-
-  return pdfUrl;
+  return pdfData.pdfUrl;
 }
-
 async function updateContractWithFallbacks({ supabase, contractId, patchPayload }) {
   const missingColumns = [];
   let currentPayload = { ...patchPayload };

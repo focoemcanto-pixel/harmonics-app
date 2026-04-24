@@ -105,6 +105,7 @@ export default function ContractTemplatesPage() {
   const [excluindoId, setExcluindoId] = useState(null);
   const [editorSyncToken, setEditorSyncToken] = useState(0);
   const editorRef = useRef(null);
+  const latestEditorHtmlRef = useRef('');
   const pendingEditorHtmlRef = useRef(null);
 
   function devLog(label, data) {
@@ -182,6 +183,7 @@ export default function ContractTemplatesPage() {
 
   function getCurrentEditorHtml() {
     if (editorRef.current) return String(editorRef.current.innerHTML || '');
+    if (latestEditorHtmlRef.current) return String(latestEditorHtmlRef.current);
     if (richContent) return String(richContent);
     if (form.source_rich_html) return String(form.source_rich_html);
     return '';
@@ -191,6 +193,7 @@ export default function ContractTemplatesPage() {
     setEditandoId(null);
     setForm(getInitialForm());
     setRichContent('');
+    latestEditorHtmlRef.current = '';
     pendingEditorHtmlRef.current = null;
     if (editorRef.current) editorRef.current.innerHTML = '';
     setEditorTab('texto');
@@ -233,6 +236,7 @@ export default function ContractTemplatesPage() {
     else nextEditorHtml = existingContent;
 
     setRichContent(nextEditorHtml);
+    latestEditorHtmlRef.current = nextEditorHtml;
     devLog('[TEMPLATE_EDITOR][LOAD_FOR_EDIT]', {
       id: template.id,
       sourceRichHtmlLength: existingSourceRichHtml.length,
@@ -260,41 +264,40 @@ export default function ContractTemplatesPage() {
       return;
     }
 
-    const currentEditorHtml = getCurrentEditorHtml();
-    const hasCurrentEditorHtml = String(currentEditorHtml || '').trim().length > 0;
-    const shouldPersistFromRichEditor = editorTab === 'texto' || hasCurrentEditorHtml;
-    const sourceRichHtmlToPersist = shouldPersistFromRichEditor
-      ? currentEditorHtml
-      : String(form.source_rich_html || '');
-    const sourceTextToPersist = shouldPersistFromRichEditor
-      ? htmlToReadableText(currentEditorHtml)
-      : String(form.source_text || '');
-    const processedFromEditor = shouldPersistFromRichEditor
-      ? parseContractTemplateInput(currentEditorHtml).normalizedContent
-      : '';
-    const processedContent = shouldPersistFromRichEditor
-      ? processedFromEditor
-      : String(form.content || '');
+    const htmlAtual = String(editorRef.current?.innerHTML || latestEditorHtmlRef.current || richContent || form.source_rich_html || '');
+    console.log('[SAVE_TEMPLATE]', {
+      htmlLength: htmlAtual.length,
+      preview: htmlAtual.slice(0, 200),
+    });
+
+    if (!htmlAtual || htmlAtual.trim().length < 20) {
+      window.alert('Erro: conteúdo do contrato vazio');
+      return;
+    }
+
+    const parsed = parseContractTemplateInput(htmlAtual);
+    const sourceTextToPersist = htmlToReadableText(htmlAtual);
 
     const payload = {
       name,
       slug,
       description: String(form.description || '').trim(),
-      content: processedContent,
+      source_rich_html: htmlAtual,
       source_text: sourceTextToPersist,
+      content: parsed.normalizedContent,
       is_active: form.is_active !== false,
       is_default: form.is_default === true,
     };
 
-    if (supportsRichSourceColumn) {
-      payload.source_rich_html = sourceRichHtmlToPersist;
+    if (!supportsRichSourceColumn) {
+      delete payload.source_rich_html;
     }
     devLog('[TEMPLATE_EDITOR][BEFORE_SAVE_PAYLOAD]', {
       editandoId,
       richContentLength: richContent.length,
-      currentEditorHtmlLength: currentEditorHtml.length,
+      currentEditorHtmlLength: htmlAtual.length,
       sourceTextLength: sourceTextToPersist.length,
-      contentLength: processedContent.length,
+      contentLength: parsed.normalizedContent.length,
     });
 
     try {
@@ -318,6 +321,11 @@ export default function ContractTemplatesPage() {
         devLog('[TEMPLATE_EDITOR][SAVE_RESULT]', { mode: 'insert', ok: true });
         toast.success('Template criado com sucesso.');
       }
+      console.log('[TEMPLATE SAVED]', {
+        rich_len: htmlAtual.length,
+        text_len: payload.source_text.length,
+        content_len: payload.content.length,
+      });
 
       limparFormulario();
       setMobileTab('lista');
@@ -434,6 +442,7 @@ export default function ContractTemplatesPage() {
     editor.focus();
     document.execCommand(command, false, value);
     const nextHtml = editor.innerHTML || '';
+    latestEditorHtmlRef.current = nextHtml;
     devLog('[TEMPLATE_EDITOR][RICH_CONTENT_LENGTH]', { source: 'command', command, richContentLength: nextHtml.length });
     setRichContent(nextHtml);
   }
@@ -441,6 +450,7 @@ export default function ContractTemplatesPage() {
   function handleEditorInput() {
     if (!editorRef.current) return;
     const nextHtml = editorRef.current.innerHTML || '';
+    latestEditorHtmlRef.current = nextHtml;
     devLog('[TEMPLATE_EDITOR][RICH_CONTENT_LENGTH]', { source: 'input', richContentLength: nextHtml.length });
     setRichContent(nextHtml);
   }
@@ -466,6 +476,7 @@ export default function ContractTemplatesPage() {
 
     if (!editorRef.current) return;
     const nextHtml = editorRef.current.innerHTML || '';
+    latestEditorHtmlRef.current = nextHtml;
     devLog('[TEMPLATE_EDITOR][RICH_CONTENT_LENGTH]', { source: 'paste_commit', richContentLength: nextHtml.length });
     setRichContent(nextHtml);
   }
@@ -483,6 +494,7 @@ export default function ContractTemplatesPage() {
       });
       editor.innerHTML = nextHtml;
     }
+    latestEditorHtmlRef.current = nextHtml;
     pendingEditorHtmlRef.current = null;
   }, [editorSyncToken, editorTab]);
 
@@ -828,16 +840,19 @@ export default function ContractTemplatesPage() {
           onLiveChange={(nextText) => {
             const updatedHtml = looksLikeHtml(nextText) ? nextText : textToEditorHtml(nextText);
             setRichContent(updatedHtml);
+            latestEditorHtmlRef.current = updatedHtml;
             scheduleEditorHtmlApply(updatedHtml);
           }}
           onCancel={() => {
             setRichContent(prepareSnapshotText);
+            latestEditorHtmlRef.current = prepareSnapshotText;
             scheduleEditorHtmlApply(prepareSnapshotText);
             setPreparingDynamicFields(false);
           }}
           onConclude={(updatedText) => {
             const updatedHtml = looksLikeHtml(updatedText) ? updatedText : textToEditorHtml(updatedText);
             setRichContent(updatedHtml);
+            latestEditorHtmlRef.current = updatedHtml;
             scheduleEditorHtmlApply(updatedHtml);
             setPreparingDynamicFields(false);
             toast.success('Campos dinâmicos preparados no texto.');

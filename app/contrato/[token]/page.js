@@ -9,6 +9,7 @@ import Input from '../../../components/ui/Input';
 import Badge from '../../../components/ui/Badge';
 import { useGoogleMapsReady } from '../../../hooks/useGoogleMapsReady';
 import { normalizeTimeStrict, isValidTime, sanitizeTimeFields } from '../../../lib/time/normalize-time';
+import { getAutomaticCosts } from '../../../lib/eventos/eventos-finance';
 import { buildContractTemplateData } from '../../../lib/contracts/buildContractTemplateData';
 import { generateInternalContract } from '../../../lib/contracts/internalContractGenerator';
 import { renderContractHtmlWithData, resolveContractHtmlSource } from '../../../lib/contracts/resolveContractHtmlSource';
@@ -486,6 +487,27 @@ async function upsertEventFromSignature({
   contactId,
   form,
 }) {
+  const { data: financeDefaults } = await supabase
+    .from('finance_cost_defaults')
+    .select('musician_unit_cost, sound_default_cost, transport_default_cost, other_default_cost')
+    .eq('slug', 'default')
+    .maybeSingle();
+
+  const automaticCosts = getAutomaticCosts({
+    formation: precontract?.formation,
+    hasSound: !!precontract?.has_sound,
+    hasTransport: !!precontract?.has_transport,
+    transportPrice: precontract?.add_transport || 0,
+    pricing: financeDefaults || {},
+  });
+  const agreedAmount = Number(precontract?.agreed_amount || 0);
+  const totalCosts =
+    Number(automaticCosts.musicianCost || 0) +
+    Number(automaticCosts.soundCost || 0) +
+    Number(automaticCosts.extraTransportCost || 0) +
+    Number(automaticCosts.otherCost || 0);
+  const profitAmount = agreedAmount - totalCosts;
+
   let existing = null;
   let matchReason = '';
 
@@ -616,9 +638,15 @@ async function upsertEventFromSignature({
     transport_cost: Number(precontract?.add_transport || 0),
     base_amount: Number(precontract?.base_amount || 0),
 
-    agreed_amount: Number(precontract?.agreed_amount || 0),
-    gross_amount: Number(precontract?.agreed_amount || 0),
-    net_amount: Number(precontract?.agreed_amount || 0),
+    agreed_amount: agreedAmount,
+    gross_amount: agreedAmount,
+    net_amount: profitAmount,
+    profit_amount: profitAmount,
+    musician_cost: Number(automaticCosts.musicianCost || 0),
+    sound_cost: Number(automaticCosts.soundCost || 0),
+    extra_transport_cost: Number(automaticCosts.extraTransportCost || 0),
+    other_cost: Number(automaticCosts.otherCost || 0),
+    costs_source: 'auto',
 
     whatsapp_name: String(form.full_name || '').trim() || null,
     whatsapp_phone: cleanDigits(form.whatsapp) || null,

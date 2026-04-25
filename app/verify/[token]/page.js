@@ -138,6 +138,7 @@ export default async function VerifyContractPage({ params }) {
       signature_cpf,
       signer_ip,
       user_agent,
+      validation_token,
       verification_token,
       signature_metadata,
       created_at,
@@ -165,12 +166,13 @@ export default async function VerifyContractPage({ params }) {
         signature_cpf,
         signer_ip,
         user_agent,
+        validation_token,
         verification_token,
         signature_metadata,
         created_at,
         updated_at
       `)
-      .eq('verification_token', token)
+      .or(`validation_token.eq.${token},verification_token.eq.${token}`)
       .maybeSingle();
 
     contract = byVerificationToken || null;
@@ -191,12 +193,13 @@ export default async function VerifyContractPage({ params }) {
         signature_cpf,
         signer_ip,
         user_agent,
+        validation_token,
         verification_token,
         signature_metadata,
         created_at,
         updated_at
       `)
-      .filter('signature_metadata->>verification_token', 'eq', token)
+      .or(`signature_metadata->>validation_token.eq.${token},signature_metadata->>verification_token.eq.${token}`)
       .maybeSingle();
 
     contract = byMetadataToken || null;

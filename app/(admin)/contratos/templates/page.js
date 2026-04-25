@@ -199,7 +199,7 @@ export default function ContractTemplatesPage() {
     setIsDirty(false);
     richEditorRef.current?.setHtml?.('');
     setEditorTab('texto');
-    setEditSessionId(Date.now());
+    setEditSessionId(0);
   }
 
   function iniciarNovo() {
@@ -256,12 +256,17 @@ export default function ContractTemplatesPage() {
       loadedRichLength: nextEditorHtml.length,
     });
     setEditorTab('texto');
-    setEditSessionId(template.id || Date.now());
+    setEditSessionId(template.id);
     setMobileTab('form');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   async function salvarTemplate() {
+    if (!editandoId) {
+      toast.error('Erro interno: template sem ID para edição.');
+      return;
+    }
+
     const name = String(form.name || '').trim();
     const slug = normalizeSlug(form.slug || form.name);
 
@@ -318,69 +323,48 @@ export default function ContractTemplatesPage() {
       sourceTextLength: currentText.length,
       contentLength: payload.content.length,
     });
+    console.log('[SAVE TEMPLATE]', {
+      editandoId,
+      hasId: !!editandoId,
+      contentLen: payload.content.length,
+    });
 
     try {
       setSalvando(true);
 
-      if (editandoId) {
-        const response = await fetch(`/api/admin/contract-templates/${editandoId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-        const result = await response.json().catch(() => ({}));
-        if (!response.ok || result?.ok === false) {
-          throw new Error(result?.error || 'Falha ao atualizar template.');
-        }
-        const updatedTemplate = result.template;
-        setTemplates((prev) => prev.map((item) => (String(item.id) === String(updatedTemplate.id) ? updatedTemplate : item)));
-        setForm({
-          name: updatedTemplate.name || '',
-          slug: updatedTemplate.slug || '',
-          description: updatedTemplate.description || '',
-          content: updatedTemplate.content || '',
-          source_text: updatedTemplate.source_text || '',
-          source_rich_html: updatedTemplate.source_rich_html || '',
-          is_active: updatedTemplate.is_active !== false,
-          is_default: updatedTemplate.is_default === true,
-        });
-        setRichContentHtml(String(pickTemplateEditorHtml(updatedTemplate) || ''));
-        console.info('[TEMPLATE_AFTER_SAVE]', {
-          id: updatedTemplate.id,
-          sourceRichIncludesAssinatura: updatedTemplate.source_rich_html?.includes('ASSINATURA'),
-          contentIncludesAssinatura: updatedTemplate.content?.includes('ASSINATURA'),
-          sourceRichLen: updatedTemplate.source_rich_html?.length || 0,
-          contentLen: updatedTemplate.content?.length || 0,
-        });
-        setIsDirty(false);
-        devLog('[TEMPLATE_EDITOR][SAVE_RESULT]', { mode: 'update', id: editandoId, ok: true });
-        toast.success('Template atualizado com sucesso.');
-        await carregarTemplates(false);
-      } else {
-        const response = await fetch('/api/admin/contract-templates', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-        const result = await response.json().catch(() => ({}));
-        if (!response.ok || result?.ok === false) {
-          throw new Error(result?.error || 'Falha ao criar template.');
-        }
-        const insertedTemplate = result.template;
-        setTemplates((prev) => [insertedTemplate, ...prev]);
-        console.info('[TEMPLATE_AFTER_SAVE]', {
-          id: insertedTemplate.id,
-          sourceRichIncludesAssinatura: insertedTemplate.source_rich_html?.includes('ASSINATURA'),
-          contentIncludesAssinatura: insertedTemplate.content?.includes('ASSINATURA'),
-          sourceRichLen: insertedTemplate.source_rich_html?.length || 0,
-          contentLen: insertedTemplate.content?.length || 0,
-        });
-        devLog('[TEMPLATE_EDITOR][SAVE_RESULT]', { mode: 'insert', ok: true });
-        toast.success('Template criado com sucesso.');
-        await carregarTemplates(false);
-        limparFormulario();
-        setMobileTab('lista');
+      const response = await fetch(`/api/admin/contract-templates/${editandoId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || result?.ok === false) {
+        throw new Error(result?.error || 'Falha ao atualizar template.');
       }
+      const updatedTemplate = result.template;
+      setTemplates((prev) => prev.map((item) => (String(item.id) === String(updatedTemplate.id) ? updatedTemplate : item)));
+      setForm({
+        name: updatedTemplate.name || '',
+        slug: updatedTemplate.slug || '',
+        description: updatedTemplate.description || '',
+        content: updatedTemplate.content || '',
+        source_text: updatedTemplate.source_text || '',
+        source_rich_html: updatedTemplate.source_rich_html || '',
+        is_active: updatedTemplate.is_active !== false,
+        is_default: updatedTemplate.is_default === true,
+      });
+      setRichContentHtml(String(pickTemplateEditorHtml(updatedTemplate) || ''));
+      console.info('[TEMPLATE_AFTER_SAVE]', {
+        id: updatedTemplate.id,
+        sourceRichIncludesAssinatura: updatedTemplate.source_rich_html?.includes('ASSINATURA'),
+        contentIncludesAssinatura: updatedTemplate.content?.includes('ASSINATURA'),
+        sourceRichLen: updatedTemplate.source_rich_html?.length || 0,
+        contentLen: updatedTemplate.content?.length || 0,
+      });
+      setIsDirty(false);
+      devLog('[TEMPLATE_EDITOR][SAVE_RESULT]', { mode: 'update', id: editandoId, ok: true });
+      toast.success('Template atualizado com sucesso.');
+      await carregarTemplates(false);
       console.log('[TEMPLATE SAVED]', {
         rich_len: currentRichHtml.length,
         text_len: payload.source_text.length,

@@ -162,8 +162,8 @@ const MobileMoreSheet = memo(function MobileMoreSheet({ open, onClose, onNavigat
             aria-busy={isLoggingOut}
             className={`mt-3 flex w-full items-center justify-between rounded-[22px] border px-5 py-4 text-[15px] font-black transition duration-200 ${
               isLoggingOut
-                ? 'cursor-wait border-red-300/30 bg-[linear-gradient(135deg,rgba(127,29,29,0.56),rgba(69,10,10,0.46))] text-red-100 opacity-75'
-                : 'border-red-300/35 bg-[linear-gradient(135deg,rgba(153,27,27,0.28),rgba(127,29,29,0.2))] text-red-100 shadow-[0_14px_30px_rgba(220,38,38,0.22)] hover:scale-[1.01] hover:border-red-200/60 hover:shadow-[0_18px_38px_rgba(220,38,38,0.3)] active:scale-[0.995]'
+                ? 'cursor-wait border-red-400/40 bg-gradient-to-r from-red-500 to-red-600 text-white opacity-75'
+                : 'border-red-400/30 bg-gradient-to-r from-red-500 to-red-600 text-white opacity-100 shadow-[0_16px_34px_rgba(239,68,68,0.28)] hover:scale-[1.01] hover:shadow-[0_20px_42px_rgba(239,68,68,0.34)] active:scale-[0.995]'
             }`}
           >
             <span className="flex items-center gap-2">

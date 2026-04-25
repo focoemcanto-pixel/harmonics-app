@@ -93,11 +93,11 @@ function formatContractLabel(contractLabel) {
   return contractLabel;
 }
 
-function getScaleStatus(totalMusicians, confirmedMusicians) {
-  const total = Number(totalMusicians || 0);
-  const confirmed = Number(confirmedMusicians || 0);
+function getScaleStatus(totalScale, confirmedScale) {
+  const total = Number(totalScale || 0);
+  const confirmed = Number(confirmedScale || 0);
 
-  if (confirmed === 0) return 'empty';
+  if (total === 0) return 'empty';
   if (confirmed < total) return 'partial';
   return 'complete';
 }
@@ -140,6 +140,7 @@ function AdminEventCard({
   selectable = false,
   selected = false,
   onToggleSelect,
+  event,
 }) {
   const phoneDigits = String(whatsappNumero || '').replace(/\D/g, '');
   const whatsappHref = phoneDigits
@@ -151,7 +152,17 @@ function AdminEventCard({
     : contractLink
     ? 'Abrir contrato'
     : 'Gerar contrato';
-  const scaleStatus = getScaleStatus(totalMusicians, confirmedMusicians);
+  const totalScale =
+    Number(event?.event_musicians?.length) ||
+    Number(event?.scale_count) ||
+    Number(totalMusicians) ||
+    0;
+  const confirmedScale =
+    Number(event?.event_musicians?.filter((item) => item?.status === 'confirmed').length) ||
+    Number(event?.confirmed_scale_count) ||
+    Number(confirmedMusicians) ||
+    0;
+  const scaleStatus = getScaleStatus(totalScale, confirmedScale);
 
   return (
     <article

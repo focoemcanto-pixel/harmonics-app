@@ -13,6 +13,7 @@ import AdminSegmentTabs from '@/components/admin/AdminSegmentTabs';
 import AdminEventCard from '@/components/admin/AdminEventCard';
 import { Field, Input, Select } from '@/components/admin/AdminFormPrimitives';
 import Pill from '@/components/admin/AdminPill';
+import AppModal from '@/components/ui/AppModal';
 import { useAppToast } from '@/components/ui/ToastProvider';
 import EventosOperacaoTab from '@/components/eventos/EventosOperacaoTab';
 import EventosResumoTab from '@/components/eventos/EventosResumoTab';
@@ -243,24 +244,15 @@ function DeleteEventDialog({
   onCancel,
   onConfirm,
 }) {
-  if (!open) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#020617]/45 px-4">
-      <div className="w-full max-w-lg rounded-[24px] border border-[#e2e8f0] bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.24)]">
-        <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#ef4444]">
-          Confirmar exclusão
-        </p>
-        <h3 className="mt-2 text-[24px] font-black text-[#0f172a]">
-          Excluir este evento?
-        </h3>
-        <p className="mt-2 text-[14px] text-[#475569]">
-          {eventName
-            ? `Você está prestes a excluir “${eventName}”.`
-            : 'Você está prestes a excluir este evento.'}{' '}
-          Essa ação é definitiva e será bloqueada caso existam vínculos operacionais.
-        </p>
-        <div className="mt-6 flex flex-wrap justify-end gap-3">
+    <AppModal
+      open={open}
+      onClose={onCancel}
+      title="Excluir este evento?"
+      subtitle="Essa ação é definitiva e bloqueada quando houver vínculos operacionais."
+      maxWidthClass="max-w-lg"
+      footer={
+        <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
           <button
             type="button"
             onClick={onCancel}
@@ -278,8 +270,18 @@ function DeleteEventDialog({
             {loading ? 'Excluindo...' : 'Excluir evento'}
           </button>
         </div>
-      </div>
-    </div>
+      }
+    >
+        <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#ef4444]">
+          Confirmar exclusão
+        </p>
+        <p className="mt-2 text-[14px] text-[#475569]">
+          {eventName
+            ? `Você está prestes a excluir “${eventName}”.`
+            : 'Você está prestes a excluir este evento.'}{' '}
+          Revise antes de confirmar.
+        </p>
+    </AppModal>
   );
 }
 
@@ -290,22 +292,15 @@ function BulkDeleteDialog({
   onCancel,
   onConfirm,
 }) {
-  if (!open) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#020617]/45 px-4">
-      <div className="w-full max-w-xl rounded-[24px] border border-[#e2e8f0] bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.24)]">
-        <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#ef4444]">
-          Exclusão em massa
-        </p>
-        <h3 className="mt-2 text-[24px] font-black text-[#0f172a]">
-          Excluir {quantity} evento(s) selecionado(s)?
-        </h3>
-        <p className="mt-2 text-[14px] text-[#475569]">
-          Esta ação remove os eventos e seus vínculos operacionais (contratos, pré-contratos,
-          pagamentos, convites, escala e repertório). É uma ação definitiva.
-        </p>
-        <div className="mt-6 flex flex-wrap justify-end gap-3">
+    <AppModal
+      open={open}
+      onClose={onCancel}
+      title={`Excluir ${quantity} evento(s) selecionado(s)?`}
+      subtitle="Esta ação remove eventos e todos os vínculos operacionais."
+      maxWidthClass="max-w-xl"
+      footer={
+        <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
           <button
             type="button"
             onClick={onCancel}
@@ -323,8 +318,16 @@ function BulkDeleteDialog({
             {loading ? 'Excluindo eventos...' : 'Confirmar exclusão em massa'}
           </button>
         </div>
-      </div>
-    </div>
+      }
+    >
+        <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#ef4444]">
+          Exclusão em massa
+        </p>
+        <p className="mt-2 text-[14px] text-[#475569]">
+          Esta ação remove os eventos e seus vínculos operacionais (contratos, pré-contratos,
+          pagamentos, convites, escala e repertório). É uma ação definitiva.
+        </p>
+    </AppModal>
   );
 }
 
@@ -1659,6 +1662,7 @@ export default function EventosPage() {
   operationalStatus={ev.status || 'Rascunho'}
   timelineText={timeline.text}
   timelineTone={timeline.tone}
+  event={ev}
   totalMusicians={scaleSummary.totalMusicians}
   confirmedMusicians={scaleSummary.confirmedMusicians}
   contractLabel={contractInfo?.label || 'Sem contrato'}

@@ -841,13 +841,8 @@ export default function EventoEscalaTab({ eventId }) {
       })
     );
   }
-  async function persistirEscala() {
-  const escalaLocalDedupe = dedupeByMusician(escalaLocal);
-  const escalaSalvaDedupe = dedupeByMusician(escalaSalva);
-  const { removidos } = diffEscala(escalaSalvaDedupe, escalaLocalDedupe);
-
-  const payload = escalaLocalDedupe.map((item) => ({
-    event_id: eventId,
+async function persistirEscala() {
+  const escalaLocalDedupe = dedupeByMusician(escalaLocal).map((item) => ({
     musician_id: item.musician_id,
     role: item.role || item.contact_tag_text || null,
     status: item.status || 'pending',
@@ -858,149 +853,18 @@ export default function EventoEscalaTab({ eventId }) {
         : null,
   }));
 
-  const { error: deleteError } = await supabase
-    .from('event_musicians')
-    .delete()
-    .eq('event_id', eventId);
+  const response = await fetch(`/api/events/${eventId}/scale`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ escalaLocal: escalaLocalDedupe }),
+  });
 
-  if (deleteError) throw deleteError;
+  const data = await response.json().catch(() => ({}));
 
-  if (payload.length > 0) {
-    const { error: insertError } = await supabase
-      .from('event_musicians')
-      .insert(payload);
-
-    if (insertError) throw insertError;
-  }
-
-  const { data: invitesExistentes, error: invitesError } = await supabase
-    .from('invites')
-    .select('*')
-    .eq('event_id', eventId)
-    .order('created_at', { ascending: false })
-    .order('id', { ascending: false });
-
-  if (invitesError) throw invitesError;
-
-  const invitesByContact = new Map();
-  for (const invite of invitesExistentes || []) {
-    const key = String(invite?.contact_id || '');
-    if (!key) continue;
-    if (!invitesByContact.has(key)) {
-      invitesByContact.set(key, []);
-    }
-    invitesByContact.get(key).push(invite);
-  }
-
-  const inviteMap = new Map();
-  const duplicateInviteIds = [];
-  for (const [contactId, rows] of invitesByContact.entries()) {
-    if (!Array.isArray(rows) || rows.length === 0) continue;
-    inviteMap.set(contactId, rows[0]);
-    rows.slice(1).forEach((row) => {
-      if (row?.id) duplicateInviteIds.push(row.id);
-    });
-  }
-
-  if (duplicateInviteIds.length > 0) {
-    const { error: dedupeInviteError } = await supabase
-      .from('invites')
-      .update({ status: 'removed' })
-      .in('id', duplicateInviteIds);
-
-    if (dedupeInviteError) throw dedupeInviteError;
-  }
-
-  const novosParaCriar = [];
-  const existentesParaReativar = [];
-
-  for (const item of escalaLocalDedupe) {
-    const existing = inviteMap.get(String(item.musician_id));
-    if (!existing) {
-      novosParaCriar.push(item);
-      continue;
-    }
-
-    if (String(existing.status || '').toLowerCase() === 'removed') {
-      existentesParaReativar.push({
-        id: existing.id,
-        suggested_role_name: item.role || item.contact_tag_text || null,
-      });
-    }
-  }
-
-  if (novosParaCriar.length > 0) {
-    const invitesPayload = novosParaCriar.map((item) => ({
-      event_id: eventId,
-      contact_id: item.musician_id,
-      suggested_role_name: item.role || item.contact_tag_text || null,
-      status: 'pending',
-      invite_token:
-        typeof crypto !== 'undefined' && crypto.randomUUID
-          ? crypto.randomUUID()
-          : `${Date.now()}-${item.musician_id}`,
-    }));
-
-    const { error: insertInviteError } = await supabase
-      .from('invites')
-      .insert(invitesPayload);
-
-    if (insertInviteError) throw insertInviteError;
-  }
-
-  if (existentesParaReativar.length > 0) {
-    const existingIds = existentesParaReativar.map((item) => item.id);
-
-    const { error: reactivateError } = await supabase
-      .from('invites')
-      .update({
-        status: 'pending',
-        responded_at: null,
-        whatsapp_sent_at: null,
-        whatsapp_last_error: null,
-      })
-      .in('id', existingIds);
-
-    if (reactivateError) throw reactivateError;
-
-    for (const invite of existentesParaReativar) {
-      const { error: updateRoleError } = await supabase
-        .from('invites')
-        .update({ suggested_role_name: invite.suggested_role_name })
-        .eq('id', invite.id);
-
-      if (updateRoleError) throw updateRoleError;
-    }
-  }
-
-  for (const item of escalaLocalDedupe) {
-    const existing = inviteMap.get(String(item.musician_id));
-    if (!existing) continue;
-
-    const shouldRole = item.role || item.contact_tag_text || null;
-    if (String(existing.suggested_role_name || '') === String(shouldRole || '')) continue;
-
-    const { error: roleError } = await supabase
-      .from('invites')
-      .update({ suggested_role_name: shouldRole })
-      .eq('id', existing.id);
-
-    if (roleError) throw roleError;
-  }
-
-  const removidosIds = removidos.map((item) => item.musician_id);
-
-  if (removidosIds.length > 0) {
-    const { error: updateError } = await supabase
-      .from('invites')
-      .update({
-        status: 'removed',
-        responded_at: null,
-      })
-      .eq('event_id', eventId)
-      .in('contact_id', removidosIds);
-
-    if (updateError) throw updateError;
+  if (!response.ok || data?.ok === false) {
+    throw new Error(data?.error || 'Não foi possível salvar a escala.');
   }
 
   await carregarTudo();
@@ -1008,7 +872,7 @@ export default function EventoEscalaTab({ eventId }) {
   setTemplateAplicado(null);
 
   return {
-    novos: novosParaCriar.length,
+    novos: Number(data?.stats?.novosConvites || 0),
   };
 }
 

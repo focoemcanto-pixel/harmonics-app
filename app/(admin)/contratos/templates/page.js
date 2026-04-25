@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { supabase } from '@/lib/supabase';
 import AdminShell from '@/components/admin/AdminShell';
 import AdminPageHero from '@/components/admin/AdminPageHero';
 import AdminSegmentTabs from '@/components/admin/AdminSegmentTabs';
@@ -112,28 +111,6 @@ function normalizeSlug(value) {
     .replace(/-+/g, '-');
 }
 
-function formatDate(value) {
-  if (!value) return 'data não informada';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return 'data inválida';
-  return date.toLocaleDateString('pt-BR');
-}
-
-function formatPrecontractStatus(value) {
-  const normalized = String(value || '').trim().toLowerCase();
-  if (!normalized) return 'sem status';
-  const labels = {
-    draft: 'rascunho',
-    link_generated: 'link gerado',
-    sent: 'enviado',
-    viewed: 'visualizado',
-    accepted: 'aceito',
-    signed: 'assinado',
-    cancelled: 'cancelado',
-  };
-  return labels[normalized] || normalized;
-}
-
 export default function ContractTemplatesPage() {
   const toast = useAppToast();
   const { confirm } = useConfirm() || {};
@@ -176,19 +153,12 @@ export default function ContractTemplatesPage() {
       if (showLoading) setCarregando(true);
       setErro('');
 
-      const richResult = await supabase
-        .from('contract_templates')
-        .select('id, name, slug, description, content, source_text, source_rich_html, is_active, is_default, created_at, updated_at')
-        .order('updated_at', { ascending: false, nullsFirst: false })
-        .order('created_at', { ascending: false });
-
-      if (richResult.error) {
-        if (String(richResult.error?.message || '').toLowerCase().includes('source_rich_html')) {
-          throw new Error('Coluna source_rich_html não existe. Rode a migration.');
-        }
-        throw richResult.error;
+      const response = await fetch('/api/admin/contract-templates', { cache: 'no-store' });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || result?.ok === false) {
+        throw new Error(result?.error || 'Falha ao carregar templates.');
       }
-      setTemplates(richResult.data || []);
+      setTemplates(result.templates || []);
     } catch (loadError) {
       console.error('Erro ao carregar templates de contrato:', loadError);
       setErro('Não foi possível carregar os templates de contrato.');
@@ -306,7 +276,7 @@ export default function ContractTemplatesPage() {
     const parsed = parseContractTemplateInput(currentRichHtml || currentText);
 
     if (!hasVisibleText(currentRichHtml)) {
-      window.alert('Erro: conteúdo do contrato vazio');
+      toast.error('Erro: conteúdo do contrato vazio');
       return;
     }
 
@@ -323,18 +293,18 @@ export default function ContractTemplatesPage() {
       description: String(form.description || '').trim(),
       source_rich_html: currentRichHtml,
       source_text: currentText,
-      content: parsed.normalizedContent || currentRichHtml || currentText,
+      content: parsed.normalizedContent,
       is_active: form.is_active !== false,
       is_default: form.is_default === true,
     };
 
     console.log('[TEMPLATE_SAVE_PAYLOAD]', {
       id: editandoId || null,
-      richLen: currentRichHtml?.length || 0,
-      textLen: currentText?.length || 0,
-      contentLen: payload.content?.length || 0,
-      includesCertificacao: payload.content?.includes('CERTIFICAÇÃO DE ASSINATURA ELETRÔNICA'),
-      includesRegistroTecnico: payload.content?.includes('REGISTRO TÉCNICO DE ASSINATURA ELETRÔNICA'),
+      source_rich_html_len: currentRichHtml?.length || 0,
+      source_text_len: currentText?.length || 0,
+      content_len: payload.content?.length || 0,
+      is_active: payload.is_active,
+      is_default: payload.is_default,
     });
 
     devLog('[TEMPLATE_EDITOR][BEFORE_SAVE_PAYLOAD]', {
@@ -349,14 +319,16 @@ export default function ContractTemplatesPage() {
       setSalvando(true);
 
       if (editandoId) {
-        const { data: updatedTemplate, error } = await supabase
-          .from('contract_templates')
-          .update(payload)
-          .eq('id', editandoId)
-          .select('id, name, slug, description, content, source_text, source_rich_html, is_active, is_default, created_at, updated_at')
-          .single();
-
-        if (error) throw error;
+        const response = await fetch(`/api/admin/contract-templates/${editandoId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || result?.ok === false) {
+          throw new Error(result?.error || 'Falha ao atualizar template.');
+        }
+        const updatedTemplate = result.template;
         setTemplates((prev) => prev.map((item) => (String(item.id) === String(updatedTemplate.id) ? updatedTemplate : item)));
         setForm({
           name: updatedTemplate.name || '',
@@ -379,17 +351,22 @@ export default function ContractTemplatesPage() {
         setIsDirty(false);
         devLog('[TEMPLATE_EDITOR][SAVE_RESULT]', { mode: 'update', id: editandoId, ok: true });
         toast.success('Template atualizado com sucesso.');
+        await carregarTemplates(false);
       } else {
-        const { data: insertedTemplate, error } = await supabase
-          .from('contract_templates')
-          .insert([payload])
-          .select('id, name, slug, description, content, source_text, source_rich_html, is_active, is_default, created_at, updated_at')
-          .single();
-
-        if (error) throw error;
+        const response = await fetch('/api/admin/contract-templates', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || result?.ok === false) {
+          throw new Error(result?.error || 'Falha ao criar template.');
+        }
+        const insertedTemplate = result.template;
         setTemplates((prev) => [insertedTemplate, ...prev]);
         devLog('[TEMPLATE_EDITOR][SAVE_RESULT]', { mode: 'insert', ok: true });
         toast.success('Template criado com sucesso.');
+        await carregarTemplates(false);
       }
       console.log('[TEMPLATE SAVED]', {
         rich_len: currentRichHtml.length,
@@ -415,12 +392,17 @@ export default function ContractTemplatesPage() {
   async function alternarStatus(template) {
     try {
       const nextActive = template.is_active === false;
-      const { error } = await supabase
-        .from('contract_templates')
-        .update({ is_active: nextActive })
-        .eq('id', template.id);
-
-      if (error) throw error;
+      const response = await fetch(`/api/admin/contract-templates/${template.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_active: nextActive }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || result?.ok === false) {
+        throw new Error(result?.error || 'Falha ao alterar status.');
+      }
+      const updatedTemplate = result.template;
+      setTemplates((prev) => prev.map((item) => (String(item.id) === String(updatedTemplate.id) ? updatedTemplate : item)));
 
       toast.success(nextActive ? 'Template ativado.' : 'Template inativado.');
       await carregarTemplates(false);
@@ -447,90 +429,14 @@ export default function ContractTemplatesPage() {
       setExcluindoId(template.id);
       devLog('[TEMPLATE_EDITOR][DELETE_REQUEST]', { id: template.id, name: template.name });
 
-      const [eventTypesUsage, precontractsUsage] = await Promise.all([
-        supabase
-          .from('event_types')
-          .select('id, name, slug')
-          .eq('default_contract_template_id', template.id),
-        supabase
-          .from('precontracts')
-          .select('id, client_name, event_date, status')
-          .eq('contract_template_id', template.id),
-      ]);
-
-      if (eventTypesUsage.error) throw eventTypesUsage.error;
-      if (precontractsUsage.error) throw precontractsUsage.error;
-
-      const linkedEventTypes = eventTypesUsage.data || [];
-      const linkedPrecontracts = precontractsUsage.data || [];
-      const eventTypesCount = linkedEventTypes.length;
-      const precontractsCount = linkedPrecontracts.length;
-      const totalUsages = eventTypesCount + precontractsCount;
-
-      if (totalUsages > 0) {
-        const eventTypeLines = linkedEventTypes
-          .map((item) => `• Tipo de evento: ${item.name || 'Sem nome'}${item.slug ? ` (/${item.slug})` : ''}`)
-          .join('\n');
-        const precontractLines = linkedPrecontracts
-          .map((item) => `• Pré-contrato: ${item.client_name || 'Sem cliente'} - ${formatDate(item.event_date)} - ${formatPrecontractStatus(item.status)}`)
-          .join('\n');
-
-        const details = [
-          'Este template está vinculado a:',
-          eventTypesCount > 0 ? eventTypeLines : '• Tipos de evento: nenhum',
-          precontractsCount > 0 ? precontractLines : '• Pré-contratos: nenhum',
-          'Desvincule antes de excluir.',
-        ].join('\n');
-
-        devLog('[TEMPLATE_EDITOR][DELETE_BLOCKED_DETAILS]', {
-          templateId: template.id,
-          eventTypesCount,
-          precontractsCount,
-          linkedEventTypes,
-          linkedPrecontracts,
-        });
-
-        if (eventTypesCount > 0 && precontractsCount === 0) {
-          const shouldUnlink = confirm
-            ? await confirm({
-              title: 'Template vinculado a tipos de evento',
-              description: `${details}\n\nDeseja desvincular este template de todos os tipos de evento vinculados agora?`,
-              confirmText: 'Desvincular deste template',
-              cancelText: 'Manter vínculos',
-              tone: 'default',
-            })
-            : window.confirm(`${details}\n\nDeseja desvincular este template dos tipos de evento vinculados agora?`);
-
-          if (shouldUnlink) {
-            const linkedIds = linkedEventTypes.map((item) => item.id).filter(Boolean);
-            if (linkedIds.length > 0) {
-              const { error: unlinkError } = await supabase
-                .from('event_types')
-                .update({ default_contract_template_id: null })
-                .in('id', linkedIds);
-
-              if (unlinkError) throw unlinkError;
-              toast.success('Template desvinculado dos tipos de evento. Tente excluir novamente.');
-              return;
-            }
-          }
-        }
-
-        toast.warning(details);
-        return;
+      const response = await fetch(`/api/admin/contract-templates/${template.id}`, {
+        method: 'DELETE',
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || result?.ok === false) {
+        throw new Error(result?.error || 'Falha ao excluir template.');
       }
-
-      const { data: deletedRows, error } = await supabase
-        .from('contract_templates')
-        .delete()
-        .eq('id', template.id)
-        .select('id');
-
-      if (error) throw error;
-      if (!deletedRows || deletedRows.length === 0) {
-        throw new Error('Nenhum registro foi excluído. Verifique permissões/políticas de exclusão.');
-      }
-      devLog('[TEMPLATE_EDITOR][DELETE_RESULT]', { id: template.id, ok: true, deletedRows: deletedRows.length });
+      devLog('[TEMPLATE_EDITOR][DELETE_RESULT]', { id: template.id, ok: true });
 
       if (String(editandoId || '') === String(template.id)) {
         limparFormulario();

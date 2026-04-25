@@ -17,6 +17,8 @@ export function AuthProvider({ children }) {
   const bootstrapResolvedRef = useRef(false);
   const lastSessionFingerprintRef = useRef(null);
   const initializedRef = useRef(false);
+  const manualSignOutRef = useRef(false);
+  const [sessionEndReason, setSessionEndReason] = useState(null);
 
   useEffect(() => {
     initializedRef.current = initialized;
@@ -53,6 +55,7 @@ export function AuthProvider({ children }) {
     if (session?.user) {
       setUser(session.user);
       setProfileResolved(false);
+      setSessionEndReason(null);
       return session.user;
     }
 
@@ -148,6 +151,11 @@ export function AuthProvider({ children }) {
           return;
         }
 
+        if (event === 'SIGNED_OUT' && !session?.user) {
+          setSessionEndReason(manualSignOutRef.current ? 'manual' : 'expired');
+          manualSignOutRef.current = false;
+        }
+
         await runSessionFlow(session, `listener:${event}`);
       }
     );
@@ -204,6 +212,8 @@ export function AuthProvider({ children }) {
     let success = false;
 
     try {
+      manualSignOutRef.current = true;
+      setSessionEndReason('manual');
       if (typeof window !== 'undefined' && profile?.email) {
         try {
           const existing = JSON.parse(localStorage.getItem('accessHistory') || '[]');
@@ -243,6 +253,7 @@ export function AuthProvider({ children }) {
     loading,
     initialized,
     authError,
+    sessionEndReason,
     signIn,
     signOut,
   };

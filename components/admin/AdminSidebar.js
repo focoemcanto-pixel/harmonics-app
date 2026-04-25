@@ -133,11 +133,23 @@ export default function AdminSidebar({ activeItem = 'eventos' }) {
           type="button"
           onClick={handleLogout}
           disabled={isLoggingOut}
-          className={`mb-3 w-full rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-[14px] font-bold text-red-300 transition hover:bg-red-500/20 ${isLoggingOut ? 'cursor-wait opacity-70' : ''}`}
+          aria-busy={isLoggingOut}
+          className={`group mb-3 w-full rounded-2xl border px-4 py-3 text-[14px] font-bold transition duration-200 ${
+            isLoggingOut
+              ? 'cursor-wait border-red-400/30 bg-[linear-gradient(135deg,rgba(127,29,29,0.56),rgba(69,10,10,0.42))] text-red-100 opacity-75'
+              : 'border-red-400/30 bg-[linear-gradient(135deg,rgba(127,29,29,0.28),rgba(69,10,10,0.18))] text-red-100 shadow-[0_8px_24px_rgba(239,68,68,0.16)] hover:scale-[1.01] hover:border-red-300/60 hover:shadow-[0_12px_32px_rgba(239,68,68,0.24)] active:scale-[0.995]'
+          }`}
         >
           <span className="flex items-center justify-center gap-2">
             {isLoggingOut && <span className="h-4 w-4 animate-spin rounded-full border-2 border-red-200/70 border-t-red-300" />}
-            {isLoggingOut ? 'Saindo...' : 'Sair da conta'}
+            {!isLoggingOut && (
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
+              </svg>
+            )}
+            {isLoggingOut ? 'Encerrando sessão...' : 'Sair da conta'}
           </span>
         </button>
 

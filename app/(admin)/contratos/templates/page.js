@@ -84,6 +84,14 @@ function textToEditorHtml(value) {
     .join('');
 }
 
+function hasVisibleText(value) {
+  return String(value || '')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\u00a0/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim().length > 0;
+}
+
 function formatDateTime(value) {
   if (!value) return '—';
   const date = new Date(value);
@@ -201,7 +209,6 @@ export default function ContractTemplatesPage() {
   function getCurrentEditorHtml() {
     if (richEditorRef.current?.getHtml) return String(richEditorRef.current.getHtml() || '');
     if (richContentHtml) return String(richContentHtml);
-    if (form.source_rich_html) return String(form.source_rich_html);
     return '';
   }
 
@@ -259,7 +266,6 @@ export default function ContractTemplatesPage() {
     const nextEditorHtml =
       existingSourceRichHtml ||
       textToEditorHtml(existingSourceText) ||
-      existingContent ||
       '';
 
     setRichContentHtml(nextEditorHtml);
@@ -292,7 +298,8 @@ export default function ContractTemplatesPage() {
 
     const htmlFromRef = String(richEditorRef.current?.getHtml?.() || '');
     const htmlFromState = String(richContentHtml || '');
-    const htmlAtual = htmlFromRef.trim() ? htmlFromRef : htmlFromState;
+    const advancedHtml = looksLikeHtml(form.content) ? String(form.content || '') : '';
+    const htmlAtual = htmlFromRef.trim() ? htmlFromRef : (htmlFromState.trim() ? htmlFromState : advancedHtml);
 
     console.log('[SAVE_TEMPLATE_HTML_SOURCE]', {
       htmlFromRefLength: htmlFromRef.length,
@@ -301,13 +308,19 @@ export default function ContractTemplatesPage() {
       preview: htmlAtual.slice(0, 200),
     });
 
-    if (!htmlAtual.trim()) {
+    if (!hasVisibleText(htmlAtual)) {
       window.alert('Erro: conteúdo do contrato vazio');
       return;
     }
 
     const parsed = parseContractTemplateInput(htmlAtual);
     const sourceTextToPersist = htmlToReadableText(htmlAtual);
+    const visualHasText = hasVisibleText(htmlAtual);
+
+    if (visualHasText && !hasVisibleText(parsed.normalizedContent)) {
+      toast.error('O conteúdo processado não pode ficar vazio quando o editor contém texto.');
+      return;
+    }
 
     const payload = {
       name,
@@ -319,6 +332,13 @@ export default function ContractTemplatesPage() {
       is_active: form.is_active !== false,
       is_default: form.is_default === true,
     };
+
+    console.log('[TEMPLATE_SAVE_PAYLOAD]', {
+      source_rich_html_len: payload.source_rich_html.length,
+      source_text_len: payload.source_text.length,
+      content_len: payload.content.length,
+      editing_id: editandoId || null,
+    });
 
     devLog('[TEMPLATE_EDITOR][BEFORE_SAVE_PAYLOAD]', {
       editandoId,
@@ -332,20 +352,26 @@ export default function ContractTemplatesPage() {
       setSalvando(true);
 
       if (editandoId) {
-        const { error } = await supabase
+        const { data: updatedTemplate, error } = await supabase
           .from('contract_templates')
           .update(payload)
-          .eq('id', editandoId);
+          .eq('id', editandoId)
+          .select('id, name, slug, description, content, source_text, source_rich_html, is_active, is_default, created_at, updated_at')
+          .single();
 
         if (error) throw error;
+        setTemplates((prev) => prev.map((item) => (String(item.id) === String(updatedTemplate.id) ? updatedTemplate : item)));
         devLog('[TEMPLATE_EDITOR][SAVE_RESULT]', { mode: 'update', id: editandoId, ok: true });
         toast.success('Template atualizado com sucesso.');
       } else {
-        const { error } = await supabase
+        const { data: insertedTemplate, error } = await supabase
           .from('contract_templates')
-          .insert([payload]);
+          .insert([payload])
+          .select('id, name, slug, description, content, source_text, source_rich_html, is_active, is_default, created_at, updated_at')
+          .single();
 
         if (error) throw error;
+        setTemplates((prev) => [insertedTemplate, ...prev]);
         devLog('[TEMPLATE_EDITOR][SAVE_RESULT]', { mode: 'insert', ok: true });
         toast.success('Template criado com sucesso.');
       }

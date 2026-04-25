@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import Card from '@/components/ui/Card';
-import Button from '../../../components/ui/Button.js';
+import Button from '@/components/ui/Button';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');

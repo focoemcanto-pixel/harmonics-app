@@ -133,54 +133,49 @@ export default async function VerifyContractPage({ params }) {
     .eq('public_token', token)
     .maybeSingle();
 
-  const contractQuery = supabase
-    .from('contracts')
-    .select(`
-      id,
-      public_token,
-      precontract_id,
-      status,
-      signed_at,
-      document_hash,
-      pdf_url,
-      signature_name,
-      signature_cpf,
-      signer_ip,
-      user_agent,
-      validation_token,
-      verification_token,
-      signature_metadata,
-      created_at,
-      updated_at
-    `);
+  const contractSelect = `
+    id,
+    public_token,
+    precontract_id,
+    status,
+    signed_at,
+    document_hash,
+    pdf_url,
+    signature_name,
+    signature_cpf,
+    signer_ip,
+    user_agent,
+    validation_token,
+    verification_token,
+    signature_metadata,
+    created_at,
+    updated_at
+  `;
 
-  const { data: contractByPublicToken } = (precontract?.id
-    ? await contractQuery.or(`public_token.eq.${token},precontract_id.eq.${precontract.id}`).maybeSingle()
-    : await contractQuery.eq('public_token', token).maybeSingle());
+  let contract = null;
 
-  let contract = contractByPublicToken || null;
+  if (precontract?.id) {
+    const { data: contractByPrecontractId } = await supabase
+      .from('contracts')
+      .select(contractSelect)
+      .eq('precontract_id', precontract.id)
+      .maybeSingle();
+    contract = contractByPrecontractId || null;
+  }
+
+  if (!contract?.id) {
+    const { data: contractByPublicToken } = await supabase
+      .from('contracts')
+      .select(contractSelect)
+      .eq('public_token', token)
+      .maybeSingle();
+    contract = contractByPublicToken || null;
+  }
 
   if (!contract?.id) {
     const { data: byVerificationToken } = await supabase
       .from('contracts')
-      .select(`
-        id,
-        public_token,
-        precontract_id,
-        status,
-        signed_at,
-        document_hash,
-        pdf_url,
-        signature_name,
-        signature_cpf,
-        signer_ip,
-        user_agent,
-        validation_token,
-        verification_token,
-        signature_metadata,
-        created_at,
-        updated_at
-      `)
+      .select(contractSelect)
       .or(`validation_token.eq.${token},verification_token.eq.${token},document_hash.eq.${token}`)
       .maybeSingle();
 
@@ -191,24 +186,7 @@ export default async function VerifyContractPage({ params }) {
     try {
       const { data: byMetadataToken, error: metadataError } = await supabase
         .from('contracts')
-        .select(`
-          id,
-          public_token,
-          precontract_id,
-          status,
-          signed_at,
-          document_hash,
-          pdf_url,
-          signature_name,
-          signature_cpf,
-          signer_ip,
-          user_agent,
-          validation_token,
-          verification_token,
-          signature_metadata,
-          created_at,
-          updated_at
-        `)
+        .select(contractSelect)
         .or(`signature_metadata->>validation_token.eq.${token},signature_metadata->>verification_token.eq.${token}`)
         .maybeSingle();
 

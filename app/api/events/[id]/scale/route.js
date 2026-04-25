@@ -28,7 +28,7 @@ function dedupeByMusician(list = []) {
 export async function POST(request, context) {
   const supabase = getSupabaseAdmin();
   const routeParams = await context?.params;
-  const eventId = String(routeParams?.eventId || '').trim();
+  const eventId = String(routeParams?.id || '').trim();
 
   try {
     const auth = await requireAdmin({ supabase, request, logPrefix: '[EVENT_SCALE_API]' });

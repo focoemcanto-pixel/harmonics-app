@@ -27,10 +27,13 @@ function resolveSignatureOrigin(rawOrigin) {
   return 'Sistema Harmonics';
 }
 
-function resolveVerificationTokenFromContract(contract) {
+function resolveValidationTokenFromContract(contract) {
   return asString(
-    contract?.verification_token
+    contract?.validation_token
+    || contract?.verification_token
+    || contract?.signature_metadata?.validation_token
     || contract?.signature_metadata?.verification_token
+    || contract?.raw_payload?.signature_metadata?.validation_token
     || contract?.raw_payload?.signature_metadata?.verification_token
   );
 }
@@ -257,14 +260,14 @@ export async function POST(request, context) {
     }
 
     if (contract.signed_at && contract.document_hash) {
-      if (!asString(contract.verification_token)) {
-        const recoveredVerificationToken = resolveVerificationTokenFromContract(contract) || generateVerificationToken();
+      if (!asString(contract.validation_token || contract.verification_token)) {
+        const recoveredValidationToken = resolveValidationTokenFromContract(contract) || generateVerificationToken();
         await updateContractWithFallbacks({
           supabase,
           contractId: contract.id,
-          patchPayload: { verification_token: recoveredVerificationToken },
+          patchPayload: { validation_token: recoveredValidationToken, verification_token: recoveredValidationToken },
         });
-        contract = { ...contract, verification_token: recoveredVerificationToken };
+        contract = { ...contract, validation_token: recoveredValidationToken, verification_token: recoveredValidationToken };
       }
 
       if (contract.pdf_url) {
@@ -275,7 +278,8 @@ export async function POST(request, context) {
           precontractId: contract.precontract_id,
           signedAt: contract.signed_at,
           documentHash: contract.document_hash,
-          verificationToken: contract.verification_token || null,
+          validationToken: contract.validation_token || contract.verification_token || null,
+          verificationToken: contract.validation_token || contract.verification_token || null,
           pdfUrl: contract.pdf_url || null,
         });
       }
@@ -306,7 +310,8 @@ export async function POST(request, context) {
           precontractId: contract.precontract_id,
           signedAt: contract.signed_at,
           documentHash: contract.document_hash,
-          verificationToken: contract.verification_token || null,
+          validationToken: contract.validation_token || contract.verification_token || null,
+          verificationToken: contract.validation_token || contract.verification_token || null,
           pdfUrl: null,
           message: 'Contrato assinado. O PDF ainda está sendo preparado.',
         });
@@ -339,7 +344,8 @@ export async function POST(request, context) {
           precontractId: contract.precontract_id,
           signedAt: contract.signed_at,
           documentHash: contract.document_hash,
-          verificationToken: contract.verification_token || null,
+          validationToken: contract.validation_token || contract.verification_token || null,
+          verificationToken: contract.validation_token || contract.verification_token || null,
           pdfUrl: recoveredPdfUrl,
         });
       }
@@ -352,13 +358,14 @@ export async function POST(request, context) {
         precontractId: contract.precontract_id,
         signedAt: contract.signed_at,
         documentHash: contract.document_hash,
-        verificationToken: contract.verification_token || null,
+        validationToken: contract.validation_token || contract.verification_token || null,
+        verificationToken: contract.validation_token || contract.verification_token || null,
         pdfUrl: null,
         message: 'Contrato assinado. O PDF ainda está sendo preparado.',
       });
     }
 
-    const verificationToken = resolveVerificationTokenFromContract(contract) || generateVerificationToken();
+    const validationToken = resolveValidationTokenFromContract(contract) || generateVerificationToken();
 
     const signedDocument = await buildSignedContractHtml({
       contractHtml,
@@ -369,8 +376,7 @@ export async function POST(request, context) {
       userAgent,
       origin,
       contractId: contract.id,
-      verificationToken,
-      publicToken: contract.public_token || token,
+      validationToken,
     });
 
     const signatureMetadata = {
@@ -383,7 +389,8 @@ export async function POST(request, context) {
       signed_at_br: signedDocument.signedAtBr,
       signed_at_utc: signedDocument.signedAtIso,
       document_hash: signedDocument.documentHash,
-      verification_token: verificationToken,
+      validation_token: validationToken,
+      verification_token: validationToken,
       verify_url: signedDocument.verifyUrl,
       contract_id: contract.id,
       signature_provider: 'Harmonics Internal Signature',
@@ -401,7 +408,8 @@ export async function POST(request, context) {
         signed_at: signedDocument.signedAtIso,
         signer_ip: signerIp,
         user_agent: userAgent,
-        verification_token: verificationToken,
+        validation_token: validationToken,
+        verification_token: validationToken,
         signature_metadata: signatureMetadata,
         signature_name: signerName,
         raw_payload: {
@@ -441,7 +449,8 @@ export async function POST(request, context) {
       precontractId: contract.precontract_id,
       signedAt: signedDocument.signedAtIso,
       documentHash: signedDocument.documentHash,
-      verificationToken,
+      validationToken,
+      verificationToken: validationToken,
       verifyUrl: signedDocument.verifyUrl,
       pdfUrl: pdfUrl || null,
       pdfPending: !pdfUrl,

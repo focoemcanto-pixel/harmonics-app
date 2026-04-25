@@ -200,7 +200,9 @@ export function AuthProvider({ children }) {
     return data;
   }
 
-  async function signOut() {
+  async function signOut(onAfterSignOut) {
+    let success = false;
+
     try {
       if (typeof window !== 'undefined' && profile?.email) {
         try {
@@ -215,12 +217,22 @@ export function AuthProvider({ children }) {
         }
       }
       await supabase.auth.signOut();
+      success = true;
     } catch (error) {
       console.error('Erro ao fazer logout:', error);
     } finally {
       setUser(null);
       setProfile(null);
+      setProfileResolved(true);
+      setInitialized(true);
+      setLoading(false);
+
+      if (typeof onAfterSignOut === 'function') {
+        onAfterSignOut(success);
+      }
     }
+
+    return success;
   }
 
   const value = {

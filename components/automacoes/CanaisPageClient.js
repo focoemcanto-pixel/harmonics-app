@@ -6,6 +6,8 @@ import AutomationBackLink from '@/components/automacoes/AutomationBackLink';
 import { cachedPromise, invalidateCache, readCachedValue } from '@/lib/client/light-cache';
 import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
 import { useAppToast } from '@/components/ui/ToastProvider';
+import Button from '@/components/ui/Button';
+import AppModal from '@/components/ui/AppModal';
 
 const FORM_INICIAL = {
   name: '',
@@ -300,13 +302,24 @@ export default function CanaisPageClient() {
         </section>
       )}
 
-      {modalAberto && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
-          <div className="absolute inset-0 bg-black/40" onClick={fecharModal} />
-          <div className="relative z-10 w-full max-w-lg rounded-t-[28px] bg-white p-6 sm:m-4 sm:rounded-[28px]">
-            <h2 className="text-[20px] font-black text-[#0f172a]">{editandoId ? 'Editar canal' : 'Novo canal'}</h2>
-
-            <div className="mt-5 space-y-4">
+      <AppModal
+        open={modalAberto}
+        onClose={fecharModal}
+        title={editandoId ? 'Editar canal' : 'Novo canal'}
+        maxWidthClass="max-w-lg"
+        footer={(
+          <div className="flex gap-3 justify-end">
+            <Button variant="ghost" onClick={fecharModal}>Cancelar</Button>
+            <Button variant="secondary" onClick={testarConexao} disabled={testandoConexao}>
+              {testandoConexao ? 'Testando...' : 'Salvar'}
+            </Button>
+            <Button variant="primary" onClick={salvarCanal} disabled={salvando}>
+              {salvando ? 'Salvando...' : 'Salvar e enviar'}
+            </Button>
+          </div>
+        )}
+      >
+        <div className="space-y-4">
               <div>
                 <label className="block text-[13px] font-bold text-[#0f172a]">Nome *</label>
                 <input type="text" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className="mt-1.5 w-full rounded-xl border border-[#e2e8f0] px-4 py-2.5 text-[14px]" />
@@ -339,56 +352,47 @@ export default function CanaisPageClient() {
                 <label className="text-[13px] font-semibold"><input type="checkbox" checked={form.is_default} onChange={(e) => setForm((f) => ({ ...f, is_default: e.target.checked }))} className="mr-2" />Padrão</label>
               </div>
             </div>
+      </AppModal>
 
-            <div className="mt-6 flex flex-wrap justify-end gap-3">
-              <button onClick={testarConexao} disabled={testandoConexao} className="rounded-full border border-sky-200 bg-sky-50 px-5 py-2.5 text-[14px] font-bold text-sky-700">
-                {testandoConexao ? 'Testando...' : 'Testar conexão'}
-              </button>
-              <button onClick={fecharModal} className="rounded-full border border-[#e2e8f0] px-5 py-2.5 text-[14px] font-bold text-[#475569]">Cancelar</button>
-              <button onClick={salvarCanal} disabled={salvando} className="rounded-full bg-violet-600 px-5 py-2.5 text-[14px] font-bold text-white">{salvando ? 'Salvando...' : 'Salvar'}</button>
-            </div>
+      <AppModal
+        open={Boolean(canalParaTestar)}
+        onClose={() => setCanalParaTestar(null)}
+        title="Testar envio"
+        subtitle={canalParaTestar?.name}
+        maxWidthClass="max-w-md"
+        footer={(
+          <div className="flex gap-3 justify-end">
+            <Button variant="ghost" onClick={() => setCanalParaTestar(null)}>Cancelar</Button>
+            <Button
+              variant="primary"
+              disabled={enviandoTeste || !telefoneTest.trim()}
+              onClick={async () => {
+                setEnviandoTeste(true);
+                setToastTest(null);
+                try {
+                  const res = await fetch('/api/automation/test-channel', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ channelId: canalParaTestar.id, phone: telefoneTest.trim() }),
+                  });
+                  const data = await res.json();
+                  if (!res.ok) throw new Error(data.error || 'Erro ao enviar teste');
+                  setToastTest({ message: 'Mensagem de teste enviada com sucesso!', type: 'success' });
+                } catch (err) {
+                  setToastTest({ message: err.message, type: 'error' });
+                } finally {
+                  setEnviandoTeste(false);
+                }
+              }}
+            >
+              {enviandoTeste ? 'Enviando...' : 'Salvar e enviar'}
+            </Button>
           </div>
-        </div>
-      )}
-
-      {canalParaTestar && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setCanalParaTestar(null)} />
-          <div className="relative z-10 w-full max-w-md rounded-t-[28px] bg-white p-6 sm:m-4 sm:rounded-[28px]">
-            <h2 className="text-[20px] font-black text-[#0f172a]">Testar envio</h2>
-            <p className="mt-0.5 text-[13px] text-[#64748b]"><span className="font-bold">{canalParaTestar.name}</span></p>
+        )}
+      >
             <input type="tel" value={telefoneTest} onChange={(e) => setTelefoneTest(e.target.value)} placeholder="Ex: 5511999999999" className="mt-4 w-full rounded-xl border border-[#e2e8f0] px-4 py-2.5 text-[14px]" />
             {toastTest && <div className={`mt-3 rounded-xl px-4 py-3 text-[13px] font-semibold ${toastTest.type === 'success' ? 'border border-emerald-200 bg-emerald-50 text-emerald-700' : 'border border-red-200 bg-red-50 text-red-700'}`}>{toastTest.message}</div>}
-            <div className="mt-6 flex justify-end gap-3">
-              <button onClick={() => setCanalParaTestar(null)} className="rounded-full border border-[#e2e8f0] px-5 py-2.5 text-[14px] font-bold text-[#475569]">Cancelar</button>
-              <button
-                disabled={enviandoTeste || !telefoneTest.trim()}
-                onClick={async () => {
-                  setEnviandoTeste(true);
-                  setToastTest(null);
-                  try {
-                    const res = await fetch('/api/automation/test-channel', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ channelId: canalParaTestar.id, phone: telefoneTest.trim() }),
-                    });
-                    const data = await res.json();
-                    if (!res.ok) throw new Error(data.error || 'Erro ao enviar teste');
-                    setToastTest({ message: 'Mensagem de teste enviada com sucesso!', type: 'success' });
-                  } catch (err) {
-                    setToastTest({ message: err.message, type: 'error' });
-                  } finally {
-                    setEnviandoTeste(false);
-                  }
-                }}
-                className="rounded-full bg-sky-600 px-5 py-2.5 text-[14px] font-bold text-white"
-              >
-                {enviandoTeste ? 'Enviando...' : 'Enviar teste'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      </AppModal>
     </div>
   );
 }

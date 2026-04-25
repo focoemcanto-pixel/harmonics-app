@@ -5,6 +5,8 @@ import AdminSummaryCard from '@/components/admin/AdminSummaryCard';
 import AutomationBackLink from '@/components/automacoes/AutomationBackLink';
 import { cachedPromise, invalidateCache, readCachedValue } from '@/lib/client/light-cache';
 import { useAppToast } from '@/components/ui/ToastProvider';
+import Button from '@/components/ui/Button';
+import AppModal from '@/components/ui/AppModal';
 
 const VARIAVEIS = [
   '{nome_empresa}',
@@ -441,21 +443,24 @@ export default function TemplatesPageClient() {
       )}
 
       {/* Modal */}
-      {modalAberto && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
-          {/* Backdrop */}
-          <div
-            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-            onClick={fecharModal}
-          />
-
-          {/* Panel */}
-          <div className="relative z-10 w-full max-w-2xl overflow-y-auto rounded-t-[28px] bg-white p-6 shadow-2xl sm:rounded-[28px] sm:m-4 max-h-[92vh]">
-            <h2 className="text-[20px] font-black tracking-[-0.02em] text-[#0f172a]">
-              {editandoId ? 'Editar template' : 'Novo template'}
-            </h2>
-
-            <div className="mt-5 space-y-4">
+      <AppModal
+        open={modalAberto}
+        onClose={fecharModal}
+        title={editandoId ? 'Editar template' : 'Novo template'}
+        maxWidthClass="max-w-2xl"
+        footer={(
+          <div className="flex gap-3 justify-end">
+            <Button variant="ghost" onClick={fecharModal}>Cancelar</Button>
+            <Button variant="secondary" onClick={salvarTemplate} disabled={salvando}>
+              {salvando ? 'Salvando...' : 'Salvar'}
+            </Button>
+            <Button variant="primary" onClick={salvarTemplate} disabled={salvando}>
+              {salvando ? 'Salvando...' : 'Salvar e enviar'}
+            </Button>
+          </div>
+        )}
+      >
+        <div className="space-y-4">
               {/* Nome */}
               <div>
                 <label className="block text-[13px] font-bold text-[#0f172a]">
@@ -605,27 +610,8 @@ export default function TemplatesPageClient() {
                   Template ativo
                 </label>
               </div>
-            </div>
-
-            {/* Footer actions */}
-            <div className="mt-6 flex justify-end gap-3">
-              <button
-                onClick={fecharModal}
-                className="rounded-full border border-[#e2e8f0] px-5 py-2.5 text-[14px] font-bold text-[#475569] transition hover:bg-[#f8fafc]"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={salvarTemplate}
-                disabled={salvando}
-                className="rounded-full bg-violet-600 px-5 py-2.5 text-[14px] font-bold text-white shadow-sm transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {salvando ? 'Salvando...' : 'Salvar'}
-              </button>
-            </div>
-          </div>
         </div>
-      )}
+      </AppModal>
 
       {/* Modal de preview / teste de template */}
       {templateParaTestar && (

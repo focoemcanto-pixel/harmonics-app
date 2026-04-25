@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase } from '../../../lib/supabase';
 import Card from '../../../components/ui/Card';
@@ -931,6 +931,45 @@ const mapsLoaded = useGoogleMapsReady();
       });
   }
 
+  const fetchPublicContract = useCallback(async () => {
+    if (!token) {
+      throw new Error('Token do contrato não encontrado.');
+    }
+
+    const response = await fetch(`/api/contracts/public/${token}`, {
+      method: 'GET',
+      cache: 'no-store',
+    });
+    const payload = await response.json();
+
+    if (!response.ok || !payload?.found) {
+      throw new Error(payload?.error || 'Contrato não encontrado.');
+    }
+
+    const contractFromApi = payload?.contract || payload?.contracts || null;
+
+    return {
+      precontract: payload?.precontract || null,
+      contract: contractFromApi
+        ? {
+            ...contractFromApi,
+            pdf_url: contractFromApi?.pdf_url || payload?.contracts?.pdf_url || null,
+          }
+        : null,
+      contact: payload?.contact || null,
+      event: payload?.event || null,
+    };
+  }, [token]);
+
+  const refetchContract = useCallback(async () => {
+    const latest = await fetchPublicContract();
+    setPrecontract(sanitizeTimeFields(latest.precontract || null));
+    setContract(latest.contract || null);
+    setContactData(latest.contact || null);
+    setEventData(latest.event || null);
+    return latest;
+  }, [fetchPublicContract]);
+
   useEffect(() => {
   async function carregar() {
     if (!token) return;
@@ -946,21 +985,11 @@ const mapsLoaded = useGoogleMapsReady();
         token,
       });
 
-      const response = await fetch(`/api/contracts/public/${token}`, {
-        method: 'GET',
-        cache: 'no-store',
-      });
-
-      const payload = await response.json();
-
-      if (!response.ok || !payload?.found) {
-        throw new Error(payload?.error || 'Contrato não encontrado.');
-      }
-
-      preData = payload?.precontract || null;
-      contractData = payload?.contract || null;
-      const contactData = payload?.contact || null;
-      const eventLoadedData = payload?.event || null;
+      const latest = await fetchPublicContract();
+      preData = latest.precontract || null;
+      contractData = latest.contract || null;
+      const contactData = latest.contact || null;
+      const eventLoadedData = latest.event || null;
       setContactData(contactData || null);
       setEventData(eventLoadedData || null);
 
@@ -1139,7 +1168,34 @@ const mapsLoaded = useGoogleMapsReady();
   }
 
   carregar();
-}, [token]);
+}, [token, fetchPublicContract]);
+
+useEffect(() => {
+  if (!enviado || !token) return undefined;
+  if (resultadoFinal.pdfUrl || contract?.pdf_url) return undefined;
+
+  const interval = setInterval(async () => {
+    try {
+      const latest = await refetchContract();
+      const latestPdfUrl = latest?.contract?.pdf_url || '';
+      if (latestPdfUrl) {
+        setResultadoFinal((prev) => ({
+          ...prev,
+          pdfUrl: prev.pdfUrl || latestPdfUrl,
+        }));
+        clearInterval(interval);
+      }
+    } catch (error) {
+      console.warn('[CONTRACT_PUBLIC_UI] polling pdf_url falhou', {
+        token,
+        message: error?.message,
+      });
+    }
+  }, 3000);
+
+  return () => clearInterval(interval);
+}, [enviado, token, resultadoFinal.pdfUrl, contract?.pdf_url, refetchContract]);
+
  useEffect(() => {
   if (!mapsLoaded) return;
   if (typeof window === 'undefined') return;
@@ -1933,6 +1989,15 @@ if (!generateRes.ok || !generateJson?.ok) {
 
 if (contractSignedError) throw contractSignedError;
 
+      const refreshedAfterSign = await refetchContract();
+      const refreshedPdfUrl = refreshedAfterSign?.contract?.pdf_url || '';
+      if (refreshedPdfUrl) {
+        setResultadoFinal((prev) => ({
+          ...prev,
+          pdfUrl: prev.pdfUrl || refreshedPdfUrl,
+        }));
+      }
+
       const { error: precontractUpdateError } = await supabase
         .from('precontracts')
         .update({
@@ -2058,7 +2123,7 @@ if (contractSignedError) throw contractSignedError;
         rel="noreferrer"
         className="inline-flex"
       >
-        <Button>Baixar contrato assinado</Button>
+        <Button>Baixar contrato PDF</Button>
       </a>
 
       <a

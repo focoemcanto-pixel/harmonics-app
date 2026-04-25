@@ -450,6 +450,19 @@ export async function POST(request, context) {
 
     if (finalUpdateError) throw finalUpdateError;
 
+    const { missingColumns: finalMissingColumns } = await updateContractWithFallbacks({
+      supabase,
+      contractId: contract.id,
+      patchPayload: finalPatch,
+    });
+
+    console.info('[CONTRACT_PUBLIC_SIGN][FINAL_PATCH_OK]', {
+      contractId: contract.id,
+      finalMissingColumns,
+      hasPdfUrl: Boolean(pdfUrl),
+      publicToken,
+    });
+
     return NextResponse.json({
       ok: true,
       alreadySigned: false,
@@ -463,6 +476,7 @@ export async function POST(request, context) {
       pdfUrl: pdfUrl || null,
       pdfPending: !pdfUrl,
       missingColumns,
+      finalMissingColumns,
       message: pdfUrl
         ? 'Contrato assinado e PDF final gerado com sucesso.'
         : 'Contrato assinado. O PDF ainda está sendo preparado.',

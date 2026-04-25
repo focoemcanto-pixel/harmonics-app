@@ -110,6 +110,13 @@ function formatDateTime(value) {
   });
 }
 
+
+function getTemplateEditSessionId(template) {
+  if (!template?.id) return 0;
+  const updatedAt = String(template.updated_at || template.created_at || '').trim();
+  return updatedAt ? `${template.id}:${updatedAt}` : String(template.id);
+}
+
 function normalizeSlug(value) {
   return String(value || '')
     .normalize('NFD')
@@ -256,7 +263,7 @@ export default function ContractTemplatesPage() {
       loadedRichLength: nextEditorHtml.length,
     });
     setEditorTab('texto');
-    setEditSessionId(template.id);
+    setEditSessionId(getTemplateEditSessionId(template));
     setMobileTab('form');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -354,6 +361,7 @@ export default function ContractTemplatesPage() {
         is_default: updatedTemplate.is_default === true,
       });
       setRichContentHtml(String(pickTemplateEditorHtml(updatedTemplate) || ''));
+      setEditSessionId(getTemplateEditSessionId(updatedTemplate));
       console.info('[TEMPLATE_AFTER_SAVE]', {
         id: updatedTemplate.id,
         sourceRichIncludesAssinatura: updatedTemplate.source_rich_html?.includes('ASSINATURA'),
@@ -365,6 +373,27 @@ export default function ContractTemplatesPage() {
       devLog('[TEMPLATE_EDITOR][SAVE_RESULT]', { mode: 'update', id: editandoId, ok: true });
       toast.success('Template atualizado com sucesso.');
       await carregarTemplates(false);
+      const refreshResponse = await fetch('/api/admin/contract-templates', { cache: 'no-store' });
+      const refreshResult = await refreshResponse.json().catch(() => ({}));
+      if (refreshResponse.ok && refreshResult?.ok !== false) {
+        const refreshedTemplates = refreshResult.templates || [];
+        setTemplates(refreshedTemplates);
+        const refreshedTemplate = refreshedTemplates.find((item) => String(item?.id) === String(updatedTemplate.id));
+        if (refreshedTemplate) {
+          setForm({
+            name: refreshedTemplate.name || '',
+            slug: refreshedTemplate.slug || '',
+            description: refreshedTemplate.description || '',
+            content: refreshedTemplate.content || '',
+            source_text: refreshedTemplate.source_text || '',
+            source_rich_html: refreshedTemplate.source_rich_html || '',
+            is_active: refreshedTemplate.is_active !== false,
+            is_default: refreshedTemplate.is_default === true,
+          });
+          setRichContentHtml(String(pickTemplateEditorHtml(refreshedTemplate) || ''));
+          setEditSessionId(getTemplateEditSessionId(refreshedTemplate));
+        }
+      }
       console.log('[TEMPLATE SAVED]', {
         rich_len: currentRichHtml.length,
         text_len: payload.source_text.length,

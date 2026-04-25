@@ -700,6 +700,27 @@ async function carregarModelosContrato({ force = false } = {}) {
     return templates;
   }
 
+
+  async function fetchContractTemplateFresh(templateId) {
+    if (!templateId) return null;
+
+    const richResult = await supabase
+      .from('contract_templates')
+      .select('id, name, content, source_text, source_rich_html')
+      .eq('id', templateId)
+      .eq('is_active', true)
+      .single();
+
+    if (richResult.error) {
+      if (String(richResult.error?.message || '').toLowerCase().includes('source_rich_html')) {
+        throw new Error('Coluna source_rich_html não existe. Rode a migration.');
+      }
+      throw richResult.error;
+    }
+
+    return richResult.data || null;
+  }
+
   useEffect(() => {
     async function carregar() {
       try {
@@ -750,34 +771,27 @@ async function carregarModelosContrato({ force = false } = {}) {
     const currentContent = String(nextFormState?.custom_contract_content || '').trim();
     if (currentContent) return;
 
+    const hasExistingSnapshot =
+      String(nextFormState?.custom_contract_rich_html || '').trim().length > 0 ||
+      String(nextFormState?.custom_contract_content || '').trim().length > 0;
+    if (editandoId && hasExistingSnapshot) return;
+
     const selectedEventType = eventTypes.find((item) => String(item?.id) === String(eventTypeId));
     const defaultTemplateId = selectedEventType?.default_contract_template_id;
     if (!defaultTemplateId) return;
-    let template = contractTemplates.find((item) => String(item?.id) === String(defaultTemplateId));
-    if (!template) {
-      try {
-        const loadedTemplates = await carregarModelosContrato();
-        template = loadedTemplates.find((item) => String(item?.id) === String(defaultTemplateId));
-      } catch {
-        template = null;
-      }
-    }
-    if (!template) {
-      const richResult = await supabase
-        .from('contract_templates')
-        .select('id, name, content, source_text, source_rich_html')
-        .eq('id', defaultTemplateId)
-        .single();
 
-      if (!richResult.error) {
-        template = richResult.data;
-      } else {
-        if (String(richResult.error?.message || '').toLowerCase().includes('source_rich_html')) {
-          showToast?.('Coluna source_rich_html não existe. Rode a migration.', 'error');
-        }
-        return;
+    let template = null;
+    try {
+      template = await fetchContractTemplateFresh(defaultTemplateId);
+    } catch (templateError) {
+      if (String(templateError?.message || '').toLowerCase().includes('source_rich_html')) {
+        showToast?.('Coluna source_rich_html não existe. Rode a migration.', 'error');
       }
+      return;
     }
+
+    if (!template) return;
+
     const resolvedTemplate = resolveContractHtmlSource(template);
     if (!resolvedTemplate.html) return;
 
@@ -785,6 +799,7 @@ async function carregarModelosContrato({ force = false } = {}) {
       ...prev,
       custom_contract_enabled: true,
       custom_contract_content: resolvedTemplate.html,
+      custom_contract_rich_html: template.source_rich_html || '',
       contract_template_id: template.id,
     }));
 
@@ -798,15 +813,18 @@ async function carregarModelosContrato({ force = false } = {}) {
   }
 
   async function applyContractTemplate(templateId) {
-    let availableTemplates = contractTemplates;
-    if (!availableTemplates.length) {
-      try {
-        availableTemplates = await carregarModelosContrato();
-      } catch {
-        return;
+    if (!templateId) return;
+
+    let template = null;
+    try {
+      template = await fetchContractTemplateFresh(templateId);
+    } catch (templateError) {
+      if (String(templateError?.message || '').toLowerCase().includes('source_rich_html')) {
+        showToast?.('Coluna source_rich_html não existe. Rode a migration.', 'error');
       }
+      return;
     }
-    const template = availableTemplates.find((item) => String(item?.id) === String(templateId));
+
     if (!template?.id) return;
 
     const hasManualContent = String(form.custom_contract_content || '').trim().length > 0;
@@ -825,7 +843,14 @@ async function carregarModelosContrato({ force = false } = {}) {
       contract_template_id: template.id,
       custom_contract_enabled: true,
       custom_contract_content: resolveContractHtmlSource(template).html || '',
+      custom_contract_rich_html: template.source_rich_html || '',
     }));
+
+    setContractTemplates((prev) => {
+      const others = prev.filter((item) => String(item?.id) !== String(template.id));
+      return [...others, template].sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || '')));
+    });
+
     setAppliedTemplateName(getTemplateDisplayName(template));
   }
 

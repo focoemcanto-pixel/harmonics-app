@@ -100,6 +100,7 @@ const EVENTOS_LIST_SUBTITLE = 'Pesquise, filtre e acompanhe sua operação.';
 let eventosAdminCache = {
   updatedAt: 0,
   eventos: [],
+  scaleSummaryByEventId: new Map(),
   precontracts: [],
   contracts: [],
   contatos: [],
@@ -115,6 +116,30 @@ function logLoadError(scope, error) {
     code: error?.code,
     full: error,
   });
+}
+
+function buildScaleSummaryByEvent(eventMusicians = []) {
+  const summaryMap = new Map();
+
+  eventMusicians.forEach((item) => {
+    const eventId = String(item?.event_id || '');
+    if (!eventId) return;
+
+    const current = summaryMap.get(eventId) || {
+      totalMusicians: 0,
+      confirmedMusicians: 0,
+    };
+    const status = String(item?.status || '').trim().toLowerCase();
+
+    current.totalMusicians += 1;
+    if (status === 'confirmed' || status === 'confirmado') {
+      current.confirmedMusicians += 1;
+    }
+
+    summaryMap.set(eventId, current);
+  });
+
+  return summaryMap;
 }
 
 function getContractStatus(ev, contractsByEventId) {
@@ -337,6 +362,7 @@ export default function EventosPage() {
   const [busca, setBusca] = useState('');
 
   const [showPricing, setShowPricing] = useState(false);
+  const [scaleSummaryByEventId, setScaleSummaryByEventId] = useState(new Map());
   const [pricingId, setPricingId] = useState(null);
   const [pricing, setPricing] = useState(getDefaultPricing());
   const [financeCostDefaults, setFinanceCostDefaults] = useState({
@@ -370,8 +396,25 @@ export default function EventosPage() {
 
       if (error) throw error;
       const sanitized = (data || []).map((item) => sanitizeTimeFields(item));
+      const eventIds = sanitized
+        .map((item) => String(item?.id || '').trim())
+        .filter(Boolean);
+      let scaleSummaryMap = new Map();
+
+      if (eventIds.length > 0) {
+        const { data: eventMusiciansData, error: eventMusiciansError } = await supabase
+          .from('event_musicians')
+          .select('event_id, status')
+          .in('event_id', eventIds);
+
+        if (eventMusiciansError) throw eventMusiciansError;
+        scaleSummaryMap = buildScaleSummaryByEvent(eventMusiciansData || []);
+      }
+
+      setScaleSummaryByEventId(scaleSummaryMap);
       setEventos(sanitized);
       eventosAdminCache.eventos = sanitized;
+      eventosAdminCache.scaleSummaryByEventId = scaleSummaryMap;
       eventosAdminCache.updatedAt = Date.now();
     } catch (error) {
       logLoadError('eventos', error);
@@ -540,6 +583,7 @@ export default function EventosPage() {
 
     if ((eventosAdminCache.eventos || []).length > 0) {
       setEventos(eventosAdminCache.eventos || []);
+      setScaleSummaryByEventId(eventosAdminCache.scaleSummaryByEventId || new Map());
       setPrecontracts(eventosAdminCache.precontracts || []);
       setContracts(eventosAdminCache.contracts || []);
       setContatos(eventosAdminCache.contatos || []);
@@ -1578,6 +1622,10 @@ export default function EventosPage() {
             eventosFiltrados.map((ev) => {
               const timeline = getTimelineLabel(ev.event_date);
               const contractInfo = contractsByEventId.get(String(ev.id));
+              const scaleSummary = scaleSummaryByEventId.get(String(ev.id)) || {
+                totalMusicians: 0,
+                confirmedMusicians: 0,
+              };
 
               return (
                <AdminEventCard
@@ -1611,6 +1659,8 @@ export default function EventosPage() {
   operationalStatus={ev.status || 'Rascunho'}
   timelineText={timeline.text}
   timelineTone={timeline.tone}
+  totalMusicians={scaleSummary.totalMusicians}
+  confirmedMusicians={scaleSummary.confirmedMusicians}
   contractLabel={contractInfo?.label || 'Sem contrato'}
   contractTone={contractInfo?.tone || 'default'}
   contractLink={contractInfo?.link || ''}

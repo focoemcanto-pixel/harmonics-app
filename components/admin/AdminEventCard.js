@@ -93,6 +93,15 @@ function formatContractLabel(contractLabel) {
   return contractLabel;
 }
 
+function getScaleStatus(totalMusicians, confirmedMusicians) {
+  const total = Number(totalMusicians || 0);
+  const confirmed = Number(confirmedMusicians || 0);
+
+  if (confirmed === 0) return 'empty';
+  if (confirmed < total) return 'partial';
+  return 'complete';
+}
+
 function AdminEventCard({
   id,
   cliente,
@@ -115,6 +124,8 @@ function AdminEventCard({
   operationalStatus,
   timelineText,
   timelineTone,
+  totalMusicians = 0,
+  confirmedMusicians = 0,
   contractLabel,
   contractTone,
   contractLink,
@@ -140,6 +151,7 @@ function AdminEventCard({
     : contractLink
     ? 'Abrir contrato'
     : 'Gerar contrato';
+  const scaleStatus = getScaleStatus(totalMusicians, confirmedMusicians);
 
   return (
     <article
@@ -184,6 +196,18 @@ function AdminEventCard({
             <Pill tone={getOperationalTone(operationalStatus)}>
               {`Status: ${formatOperationalStatus(operationalStatus)}`}
             </Pill>
+
+            {scaleStatus === 'empty' ? (
+              <Pill tone="red">Escala pendente</Pill>
+            ) : null}
+
+            {scaleStatus === 'partial' ? (
+              <Pill tone="amber">Escala parcial</Pill>
+            ) : null}
+
+            {scaleStatus === 'complete' ? (
+              <Pill tone="emerald">Escala completa</Pill>
+            ) : null}
 
             <Pill tone={getPaymentTone(paymentStatus)}>
               {`Financeiro: ${formatPaymentStatus(paymentStatus)}`}
@@ -345,6 +369,8 @@ function areEventCardPropsEqual(prev, next) {
     prev.operationalStatus === next.operationalStatus &&
     prev.timelineText === next.timelineText &&
     prev.timelineTone === next.timelineTone &&
+    prev.totalMusicians === next.totalMusicians &&
+    prev.confirmedMusicians === next.confirmedMusicians &&
     prev.contractLabel === next.contractLabel &&
     prev.contractTone === next.contractTone &&
     prev.contractLink === next.contractLink &&

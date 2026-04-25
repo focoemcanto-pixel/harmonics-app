@@ -103,9 +103,24 @@ export default function MembroPerfilTab({
       <button
         type="button"
         onClick={onLogout}
-        className="w-full rounded-[20px] border border-red-300/15 bg-red-400/10 px-5 py-4 text-[15px] font-black text-red-100 shadow-[0_10px_24px_rgba(127,29,29,0.18)]"
+        className="group flex w-full items-center justify-center gap-2 rounded-[20px] border border-red-400/30 bg-gradient-to-r from-red-500 to-red-600 px-5 py-4 text-[15px] font-bold text-white shadow-lg shadow-red-900/35 transition duration-200 hover:brightness-110 hover:shadow-[0_12px_30px_rgba(239,68,68,0.38)] active:scale-95"
       >
-        Sair da conta
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="h-5 w-5 drop-shadow-[0_0_8px_rgba(255,255,255,0.25)]"
+          aria-hidden="true"
+        >
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+          <polyline points="16 17 21 12 16 7" />
+          <line x1="21" y1="12" x2="9" y2="12" />
+        </svg>
+        <span className="tracking-[0.01em]">Sair da conta</span>
       </button>
     </section>
   );

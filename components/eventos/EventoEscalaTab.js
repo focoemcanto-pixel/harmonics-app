@@ -437,6 +437,7 @@ export default function EventoEscalaTab({ eventId }) {
   const [busca, setBusca] = useState('');
   const [editando, setEditando] = useState(false);
   const [enviandoConvites, setEnviandoConvites] = useState(false);
+  const [inviteProgress, setInviteProgress] = useState({ current: 0, total: 0 });
   const toast = useAppToast();
 
   const buscaRef = useRef(null);
@@ -1028,6 +1029,18 @@ function summarizeInviteDispatchResults(data) {
   };
 }
 
+async function fetchPendingInviteCount(eventId) {
+  const { data, error } = await supabase
+    .from('invites')
+    .select('id, whatsapp_sent_at, status')
+    .eq('event_id', eventId)
+    .neq('status', 'removed');
+
+  if (error) throw error;
+
+  return (data || []).filter((invite) => !invite.whatsapp_sent_at).length;
+}
+
 async function salvarEscala() {
   try {
     setSalvando(true);
@@ -1088,6 +1101,8 @@ async function salvarEEnviarConvites() {
     setSucesso('');
 
     await persistirEscala();
+    const totalPendentes = await fetchPendingInviteCount(eventId);
+    setInviteProgress({ current: 0, total: totalPendentes });
 
     const response = await fetch('/api/whatsapp/send-event-invites', {
       method: 'POST',
@@ -1098,6 +1113,7 @@ async function salvarEEnviarConvites() {
     const data = await response.json();
 
     const { total, sentCount, failedCount } = summarizeInviteDispatchResults(data);
+    setInviteProgress({ current: total, total });
 
     if (!response.ok && sentCount === 0) {
       throw new Error(
@@ -1127,6 +1143,7 @@ async function salvarEEnviarConvites() {
   } finally {
     setSalvando(false);
     setEnviandoConvites(false);
+    setInviteProgress((prev) => ({ current: prev.total, total: prev.total }));
   }
 }
 
@@ -1568,8 +1585,10 @@ async function salvarEEnviarConvites() {
   disabled={salvando || enviandoConvites}
   className="rounded-[18px] bg-violet-600 px-5 py-4 text-[15px] font-black text-white shadow-[0_12px_28px_rgba(124,58,237,0.18)] disabled:opacity-60"
 >
-  {enviandoConvites ? 'Enviando convites...' : 'Salvar e enviar convites'}
-</button>
+  {enviandoConvites
+    ? `Enviando convites... (${inviteProgress.current}/${inviteProgress.total})`
+    : 'Salvar e enviar convites'}
+              </button>
               </div>
             </div>
 

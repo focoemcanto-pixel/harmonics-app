@@ -1,6 +1,22 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '../../../../lib/supabase-admin';
+import { processQueue } from '../../../../lib/utils/asyncQueue';
 import { sendInviteService } from '../../../../lib/whatsapp/send-invite-service';
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function resolveProviderStatus(inviteResult = {}) {
+  const data = inviteResult?.data || {};
+
+  return (
+    data?.providerStatus ??
+    data?.providerError?.status ??
+    data?.executions?.find?.((execution) => execution?.providerError?.status)?.providerError?.status ??
+    null
+  );
+}
 
 export async function POST(request) {
   const supabaseAdmin = getSupabaseAdmin();
@@ -33,47 +49,76 @@ export async function POST(request) {
     });
 
     const results = [];
-    for (const invite of pendentes) {
-      console.info('[batch_send_invites] invite_started', {
-        eventId,
-        inviteId: invite.id,
-      });
 
-      const inviteResult = await sendInviteService({
-        inviteId: invite.id,
-        supabaseAdmin,
-      });
+    await processQueue(
+      pendentes,
+      async (invite) => {
+        const sendInvite = async (item, attempt = 1) => {
+          console.info('[batch_send_invites] invite_started', {
+            eventId,
+            inviteId: item.id,
+            attempt,
+          });
 
-      const resultItem = {
-        inviteId: invite.id,
-        ok: inviteResult.ok,
-        status: inviteResult.status,
-        response: inviteResult.data || null,
-      };
+          const inviteResult = await sendInviteService({
+            inviteId: item.id,
+            supabaseAdmin,
+          });
 
-      if (inviteResult.ok) {
-        console.info('[batch_send_invites] invite_finished', {
-          eventId,
-          inviteId: invite.id,
-          status: inviteResult.status,
-        });
-      } else {
-        const failureData = inviteResult.data || {};
-        resultItem.error = failureData.error || failureData.cause || inviteResult.error || 'Falha ao enviar convite';
-        resultItem.cause = failureData.cause || resultItem.error;
-        resultItem.providerStatus = failureData.providerStatus ?? failureData.providerError?.status ?? null;
-        resultItem.providerEndpoint = failureData.providerEndpoint ?? failureData.providerError?.endpoint ?? null;
-        resultItem.providerResponse = failureData.providerResponse ?? failureData.providerError?.response ?? null;
-        console.error('[batch_send_invites] invite_failed', {
-          eventId,
-          inviteId: invite.id,
-          status: inviteResult.status,
-          error: resultItem.error,
-        });
-      }
+          const providerStatus = resolveProviderStatus(inviteResult);
+          const isRateLimit = Number(providerStatus) === 429;
 
-      results.push(resultItem);
-    }
+          if (isRateLimit && attempt === 1) {
+            console.info('[batch_send_invites] retry', {
+              status: 'retry',
+              eventId,
+              inviteId: item.id,
+              providerStatus,
+              waitMs: 7000,
+            });
+            await wait(7000);
+            return sendInvite(item, attempt + 1);
+          }
+
+          const resultItem = {
+            inviteId: item.id,
+            ok: inviteResult.ok,
+            status: inviteResult.status,
+            response: inviteResult.data || null,
+          };
+
+          if (inviteResult.ok) {
+            console.info('[batch_send_invites] invite_finished', {
+              status: 'success',
+              eventId,
+              inviteId: item.id,
+              statusCode: inviteResult.status,
+              attempt,
+            });
+          } else {
+            const failureData = inviteResult.data || {};
+            resultItem.error = failureData.error || failureData.cause || inviteResult.error || 'Falha ao enviar convite';
+            resultItem.cause = failureData.cause || resultItem.error;
+            resultItem.providerStatus = failureData.providerStatus ?? failureData.providerError?.status ?? providerStatus ?? null;
+            resultItem.providerEndpoint = failureData.providerEndpoint ?? failureData.providerError?.endpoint ?? null;
+            resultItem.providerResponse = failureData.providerResponse ?? failureData.providerError?.response ?? null;
+            console.error('[batch_send_invites] invite_failed', {
+              status: 'failed',
+              eventId,
+              inviteId: item.id,
+              statusCode: inviteResult.status,
+              error: resultItem.error,
+              attempt,
+            });
+          }
+
+          results.push(resultItem);
+        };
+
+        await sendInvite(invite);
+      },
+      5500
+    );
 
     const successCount = results.filter((result) => result.ok === true).length;
     const failedCount = results.length - successCount;

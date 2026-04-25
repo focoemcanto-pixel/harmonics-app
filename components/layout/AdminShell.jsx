@@ -54,19 +54,19 @@ const MobileMoreSheet = memo(function MobileMoreSheet({ open, onClose, onNavigat
     if (!open) return undefined;
 
     function handleEscape(event) {
-      if (event.key === 'Escape') onClose?.();
+      if (event.key === 'Escape' && !isLoggingOut) onClose?.();
     }
 
     window.addEventListener('keydown', handleEscape);
     return () => {
       window.removeEventListener('keydown', handleEscape);
     };
-  }, [open, onClose]);
+  }, [isLoggingOut, open, onClose]);
 
   if (!open) return null;
 
   function handleBackdropClick(e) {
-    if (e.target === e.currentTarget) onClose?.();
+    if (e.target === e.currentTarget && !isLoggingOut) onClose?.();
   }
 
   async function handleLogout() {
@@ -74,8 +74,8 @@ const MobileMoreSheet = memo(function MobileMoreSheet({ open, onClose, onNavigat
     setIsLoggingOut(true);
 
     try {
-      onClose();
       await signOut();
+      onClose?.();
       router.replace('/login');
       router.refresh();
       setTimeout(() => {
@@ -115,7 +115,8 @@ const MobileMoreSheet = memo(function MobileMoreSheet({ open, onClose, onNavigat
 
             <button
               type="button"
-              onClick={onClose}
+              onClick={() => !isLoggingOut && onClose?.()}
+              disabled={isLoggingOut}
               className="rounded-[16px] border border-[#e5e7eb] bg-white px-4 py-2 text-[13px] font-black text-[#111827]"
             >
               Fechar
@@ -163,11 +164,16 @@ const MobileMoreSheet = memo(function MobileMoreSheet({ open, onClose, onNavigat
             type="button"
             onClick={handleLogout}
             disabled={isLoggingOut}
-            className={`mt-3 flex w-full items-center justify-between rounded-[22px] bg-gradient-to-r from-red-500 to-red-600 px-5 py-4 text-[15px] font-black text-white shadow-lg transition active:scale-[0.99] ${isLoggingOut ? 'cursor-wait opacity-70' : ''}`}
+            aria-busy={isLoggingOut}
+            className={`mt-3 flex w-full items-center justify-between rounded-[22px] border px-5 py-4 text-[15px] font-black transition duration-200 ${
+              isLoggingOut
+                ? 'cursor-wait border-red-300/30 bg-[linear-gradient(135deg,rgba(127,29,29,0.56),rgba(69,10,10,0.46))] text-red-100 opacity-75'
+                : 'border-red-300/35 bg-[linear-gradient(135deg,rgba(153,27,27,0.28),rgba(127,29,29,0.2))] text-red-100 shadow-[0_14px_30px_rgba(220,38,38,0.22)] hover:scale-[1.01] hover:border-red-200/60 hover:shadow-[0_18px_38px_rgba(220,38,38,0.3)] active:scale-[0.995]'
+            }`}
           >
             <span className="flex items-center gap-2">
               {isLoggingOut && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/70 border-t-white" />}
-              {isLoggingOut ? 'Saindo...' : 'Sair da conta'}
+              {isLoggingOut ? 'Encerrando sessão...' : 'Sair da conta'}
             </span>
             {!isLoggingOut && (
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
@@ -177,6 +183,12 @@ const MobileMoreSheet = memo(function MobileMoreSheet({ open, onClose, onNavigat
               </svg>
             )}
           </button>
+
+          {isLoggingOut && (
+            <div className="mt-3 rounded-2xl border border-violet-300/30 bg-violet-50 px-4 py-3 text-center text-[12px] font-semibold text-violet-700">
+              Saindo...
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -191,7 +203,7 @@ export default function AdminShell({
   mobileSubtitle = '',
 }) {
   const router = useRouter();
-  const { user, initialized, loading } = useAuth();
+  const { user, initialized, loading, sessionEndReason } = useAuth();
   const [moreOpen, setMoreOpen] = useState(false);
 
   const mobileActiveItem = (() => {
@@ -223,11 +235,31 @@ export default function AdminShell({
   }, [initialized, loading, router, user]);
 
   if (initialized && !loading && !user) {
+    const isExpiredSession = sessionEndReason === 'expired';
     return (
-      <div className="min-h-screen bg-[#f4f6fa] text-[#111827] flex items-center justify-center">
-        <div className="text-center">
-          <div className="mx-auto h-10 w-10 animate-spin rounded-full border-2 border-violet-200 border-t-violet-600" />
-          <p className="mt-3 text-sm font-semibold text-slate-600">Encerrando sessão...</p>
+      <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_top,rgba(76,29,149,0.28),transparent_45%),linear-gradient(180deg,#050814_0%,#070b1a_55%,#060912_100%)] px-6 text-white">
+        <div className="absolute -left-24 top-14 h-64 w-64 rounded-full bg-violet-600/20 blur-3xl" />
+        <div className="absolute -right-24 bottom-12 h-64 w-64 rounded-full bg-red-500/20 blur-3xl" />
+
+        <div className="relative w-full max-w-[520px] rounded-[32px] border border-white/10 bg-white/[0.04] px-8 py-10 text-center shadow-[0_32px_80px_rgba(5,8,20,0.55),inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-xl">
+          <div className="mx-auto flex h-14 w-14 animate-pulse items-center justify-center rounded-2xl border border-white/20 bg-white/10 text-xl font-black text-white shadow-[0_0_28px_rgba(167,139,250,0.55)]">
+            H
+          </div>
+
+          <span className="mt-5 inline-flex rounded-full border border-violet-200/20 bg-violet-500/15 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-violet-100">
+            Harmonics Admin
+          </span>
+
+          <h1 className="mt-5 text-[28px] font-black tracking-[-0.03em] text-white">
+            {isExpiredSession ? 'Sessão encerrada' : 'Encerrando sessão'}
+          </h1>
+          <p className="mx-auto mt-3 max-w-[380px] text-sm font-medium leading-relaxed text-slate-200/90">
+            {isExpiredSession
+              ? 'Por segurança, faça login novamente para continuar.'
+              : 'Estamos protegendo seu acesso e redirecionando você para o login.'}
+          </p>
+
+          <div className="mx-auto mt-7 h-10 w-10 animate-spin rounded-full border-2 border-violet-200/30 border-t-violet-200 shadow-[0_0_30px_rgba(196,181,253,0.55)]" />
         </div>
       </div>
     );

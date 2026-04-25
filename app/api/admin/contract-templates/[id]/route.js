@@ -14,6 +14,16 @@ const ALLOWED_PATCH_FIELDS = [
   'is_default',
 ];
 
+
+function includesCertificacaoText(value) {
+  const normalized = String(value || '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase();
+
+  return normalized.includes('certificacao');
+}
+
 function buildPatchPayload(body = {}) {
   return ALLOWED_PATCH_FIELDS.reduce((acc, field) => {
     if (!Object.prototype.hasOwnProperty.call(body, field)) return acc;
@@ -96,6 +106,16 @@ export async function PATCH(request, context) {
       .single();
 
     if (fetchFinalError) throw fetchFinalError;
+
+    console.info('[TEMPLATE_PATCH_FINAL]', {
+      id: finalTemplate?.id || id,
+      contentLen: String(finalTemplate?.content || '').length,
+      sourceRichLen: String(finalTemplate?.source_rich_html || '').length,
+      updatedAt: finalTemplate?.updated_at || null,
+      includesCertificacao:
+        includesCertificacaoText(finalTemplate?.source_rich_html) ||
+        includesCertificacaoText(finalTemplate?.content),
+    });
 
     return NextResponse.json({ ok: true, template: finalTemplate });
   } catch (error) {

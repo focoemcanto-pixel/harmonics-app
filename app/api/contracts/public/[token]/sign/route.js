@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { buildSignedContractHtml, extractSignerIp, generateVerificationToken } from '@/lib/contracts/premiumSignature';
+import { generateAndSaveInternalContractPdf } from '@/lib/contracts/internalPdfFlow';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -26,33 +27,17 @@ function resolveSignatureOrigin(rawOrigin) {
   return 'Sistema Harmonics';
 }
 
-async function runPdfFlow({ signedHtml }) {
+async function runPdfFlow({ supabase, contractId, precontractId, signedHtml }) {
   console.log('[PDF_FLOW] iniciado');
-
-  const contractServiceUrl = process.env.CONTRACT_SERVICE_URL.replace(/\/+$/, '');
-
-  const pdfRes = await fetch(`${contractServiceUrl}/generate-contract`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': process.env.CONTRACT_SERVICE_API_KEY,
-    },
-    body: JSON.stringify({
-      contractHtml: signedHtml,
-      contractName: 'Contrato Assinado',
-      eventDate: new Date().toISOString().split('T')[0],
-    }),
+  const pdfData = await generateAndSaveInternalContractPdf({
+    supabase,
+    contractId,
+    precontractId,
+    html: signedHtml,
   });
 
-  const pdfData = await pdfRes.json();
-
-  if (!pdfRes.ok || !pdfData?.pdfUrl) {
-    throw new Error('Erro ao gerar PDF');
-  }
-
   console.log('[PDF_FLOW] gerado');
-
-  return pdfData.pdfUrl;
+  return pdfData?.pdfUrl || null;
 }
 async function updateContractWithFallbacks({ supabase, contractId, patchPayload }) {
   const missingColumns = [];
@@ -311,7 +296,12 @@ export async function POST(request, context) {
 
       let recoveredPdfUrl = null;
       try {
-        recoveredPdfUrl = await runPdfFlow({ signedHtml });
+        recoveredPdfUrl = await runPdfFlow({
+          supabase,
+          contractId: contract.id,
+          precontractId: contract.precontract_id,
+          signedHtml,
+        });
       } catch (error) {
         console.error('[CONTRACT_PUBLIC_SIGN][PDF_RECOVERY_FAILED]', {
           contractId: contract.id,
@@ -407,7 +397,12 @@ export async function POST(request, context) {
     let pdfUrl = asString(contract.pdf_url);
 
     try {
-      pdfUrl = await runPdfFlow({ signedHtml: signedDocument.signedHtml });
+      pdfUrl = await runPdfFlow({
+        supabase,
+        contractId: contract.id,
+        precontractId: contract.precontract_id,
+        signedHtml: signedDocument.signedHtml,
+      });
     } catch (error) {
       console.error('[CONTRACT_PUBLIC_SIGN][PDF_FAILED]', {
         contractId: contract.id,

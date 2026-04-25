@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { generateAndSaveInternalContractPdf } from '@/lib/contracts/internalPdfFlow';
 
 export async function GET(request, context) {
   const resolvedParams = await context?.params;
@@ -185,26 +186,17 @@ export async function POST(request, context) {
       );
     }
 
-    const origin = new URL(request.url).origin;
-    const pdfRes = await fetch(`${origin}/api/contracts/internal/pdf`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contractId: contract.id,
-        precontractId: precontract.id,
-        html: signedHtml,
-      }),
-      cache: 'no-store',
+    const internalPdf = await generateAndSaveInternalContractPdf({
+      supabase,
+      contractId: contract.id,
+      precontractId: precontract.id,
+      html: signedHtml,
     });
 
-    const pdfJson = await pdfRes.json().catch(() => null);
-
     return Response.json({
-      ok: pdfRes.ok && pdfJson?.ok,
+      ok: true,
       step: 'internal_pdf_flow',
-      internalPdfStatus: pdfRes.status,
-      internalPdfResponse: pdfJson,
-      pdfUrl: pdfJson?.pdfUrl || pdfJson?.pdf_url || pdfJson?.publicUrl || null,
+      pdfUrl: internalPdf?.pdfUrl || null,
     });
   } catch (err) {
     return Response.json({

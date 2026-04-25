@@ -7,6 +7,17 @@ function asString(value) {
   return String(value || '').trim();
 }
 
+function resolveContractToken(contract) {
+  const validationToken =
+    contract?.signature_metadata?.validation_token ||
+    contract?.signature_metadata?.verification_token ||
+    contract?.raw_payload?.signature_metadata?.validation_token ||
+    contract?.raw_payload?.signature_metadata?.verification_token ||
+    null;
+
+  return validationToken;
+}
+
 export async function GET(request, context) {
   const resolvedParams = await context?.params;
   const token = asString(Array.isArray(resolvedParams?.token) ? resolvedParams.token[0] : resolvedParams?.token);
@@ -23,12 +34,15 @@ export async function GET(request, context) {
 
   const contractFields = `
     id,
-    precontract_id,
     public_token,
-    validation_token,
-    verification_token,
+    precontract_id,
     document_hash,
-    pdf_url
+    pdf_url,
+    status,
+    signed_at,
+    signature_metadata,
+    raw_payload,
+    created_at
   `;
 
   const { data: precontract } = await supabase
@@ -46,29 +60,35 @@ export async function GET(request, context) {
   const { data: contractByValidationOrVerificationOrHash } = await supabase
     .from('contracts')
     .select(contractFields)
-    .or(`validation_token.eq.${token},verification_token.eq.${token},document_hash.eq.${token}`)
+    .eq('document_hash', token)
     .maybeSingle();
 
+  const contractCandidates = [contractByPublicToken, contractByValidationOrVerificationOrHash].filter(Boolean);
+
   const contractByValidationToken =
-    asString(contractByValidationOrVerificationOrHash?.validation_token) === token
-      ? contractByValidationOrVerificationOrHash
-      : null;
+    contractCandidates.find((contract) => asString(resolveContractToken(contract)) === token) || null;
   const contractByVerificationToken =
-    asString(contractByValidationOrVerificationOrHash?.verification_token) === token
-      ? contractByValidationOrVerificationOrHash
-      : null;
+    contractCandidates.find((contract) => asString(resolveContractToken(contract)) === token) || null;
   const contractByDocumentHash =
     asString(contractByValidationOrVerificationOrHash?.document_hash) === token
       ? contractByValidationOrVerificationOrHash
       : null;
 
-  const { data: contractByPrecontract, error: contractByPrecontractError } = await supabase
-    .from('contracts')
-    .select('id, public_token, precontract_id, validation_token, verification_token, document_hash, pdf_url, status, signed_at')
-    .eq('precontract_id', precontract.id)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  let contractByPrecontract = null;
+  let contractByPrecontractError = null;
+
+  if (precontract?.id) {
+    const { data, error } = await supabase
+      .from('contracts')
+      .select(contractFields)
+      .eq('precontract_id', precontract.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    contractByPrecontract = data;
+    contractByPrecontractError = error;
+  }
 
   const finalContract =
     contractByPublicToken ||
@@ -91,8 +111,8 @@ export async function GET(request, context) {
     byDocumentHash: Boolean(contractByDocumentHash?.id),
     contractId: finalContract?.id || null,
     publicToken: finalContract?.public_token || null,
-    validationToken: finalContract?.validation_token || null,
-    verificationToken: finalContract?.verification_token || null,
+    validationToken: resolveContractToken(finalContract),
+    verificationToken: resolveContractToken(finalContract),
     documentHash: finalContract?.document_hash || null,
     pdfUrl: finalContract?.pdf_url || null,
   });

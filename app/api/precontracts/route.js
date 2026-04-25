@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requireAdmin } from '@/lib/api/require-admin';
+import {
+  calculateEventFinance,
+  syncEventFinanceSnapshot,
+  toMoneyNumber,
+} from '@/lib/finance/event-finance';
+import { createPaymentScheduleForPrecontract } from '@/lib/finance/create-payment-schedule';
 
 const PRECONTRACT_SELECT_FIELDS = [
   'id',
@@ -25,6 +31,13 @@ const PRECONTRACT_SELECT_FIELDS = [
   'add_sound',
   'add_transport',
   'agreed_amount',
+  'signal_amount',
+  'remaining_amount',
+  'payment_method',
+  'signal_due_date',
+  'balance_due_date',
+  'card_due_date',
+  'payment_card',
   'notes',
   'status',
   'public_token',
@@ -34,6 +47,7 @@ const PRECONTRACT_SELECT_FIELDS = [
   'custom_contract_rich_html',
   'contract_template_id',
   'contract_mode',
+  'event_id',
 ].join(', ');
 
 function parseDateOnly(value) {
@@ -48,6 +62,70 @@ function getTodayStart() {
   const now = new Date();
   now.setHours(0, 0, 0, 0);
   return now;
+}
+
+function normalizePrecontractFinancialPayload(payload = {}) {
+  const agreedAmount = Math.max(toMoneyNumber(payload?.agreed_amount), 0);
+  const signalAmount = Math.max(toMoneyNumber(payload?.signal_amount), 0);
+  const remainingAmount = Math.max(toMoneyNumber(payload?.remaining_amount) || agreedAmount - signalAmount, 0);
+
+  return {
+    ...payload,
+    agreed_amount: agreedAmount,
+    signal_amount: signalAmount,
+    remaining_amount: remainingAmount,
+    payment_method: payload?.payment_method || null,
+    signal_due_date: payload?.signal_due_date || null,
+    balance_due_date: payload?.balance_due_date || null,
+    card_due_date: payload?.card_due_date || null,
+    payment_card: payload?.payment_card === true,
+  };
+}
+
+async function syncEventSnapshotFromPrecontract({ supabase, precontract }) {
+  const eventId = String(precontract?.event_id || '').trim();
+  if (!eventId) return;
+
+  const { data: eventRow, error: eventError } = await supabase
+    .from('events')
+    .select('id, paid_amount')
+    .eq('id', eventId)
+    .maybeSingle();
+  if (eventError) throw eventError;
+
+  const agreedAmount = Math.max(toMoneyNumber(precontract?.agreed_amount), 0);
+  const paidAmount = Math.max(toMoneyNumber(eventRow?.paid_amount), 0);
+  const summary = calculateEventFinance({
+    agreedAmount,
+    payments: [{ amount: paidAmount, status: paidAmount > 0 ? 'paid' : 'pending' }],
+  });
+
+  const { error: updateEventError } = await supabase
+    .from('events')
+    .update({
+      agreed_amount: agreedAmount,
+      paid_amount: paidAmount,
+      open_amount: summary.openAmount,
+      payment_status: summary.paymentStatus,
+      signal_due_date: precontract?.signal_due_date || null,
+      balance_due_date: precontract?.balance_due_date || null,
+      card_due_date: precontract?.card_due_date || null,
+    })
+    .eq('id', eventId);
+
+  if (updateEventError) throw updateEventError;
+
+  await createPaymentScheduleForPrecontract({
+    supabase,
+    eventId,
+    precontract,
+  });
+
+  await syncEventFinanceSnapshot({
+    supabase,
+    eventId,
+    precontractId: precontract?.id || null,
+  });
 }
 
 export async function POST(request) {
@@ -105,29 +183,39 @@ export async function POST(request) {
       );
     }
 
-    const writePayload = {
+    const writePayload = normalizePrecontractFinancialPayload({
       ...payload,
       public_token: body?.public_token || null,
       generated_link: body?.generated_link || null,
-    };
+    });
 
+    let data = null;
     if (id) {
-      const { data, error } = await supabase
+      const response = await supabase
         .from('precontracts')
         .update(writePayload)
         .eq('id', id)
         .select(PRECONTRACT_SELECT_FIELDS)
         .single();
-      if (error) throw error;
-      return NextResponse.json({ ok: true, data });
+      if (response.error) throw response.error;
+      data = response.data;
+    } else {
+      const response = await supabase
+        .from('precontracts')
+        .insert([writePayload])
+        .select(PRECONTRACT_SELECT_FIELDS)
+        .single();
+      if (response.error) throw response.error;
+      data = response.data;
     }
 
-    const { data, error } = await supabase
-      .from('precontracts')
-      .insert([writePayload])
-      .select(PRECONTRACT_SELECT_FIELDS)
-      .single();
-    if (error) throw error;
+    if (data?.event_id) {
+      await syncEventSnapshotFromPrecontract({
+        supabase,
+        precontract: data,
+      });
+    }
+
     return NextResponse.json({ ok: true, data });
   } catch (error) {
     console.error('[PRECONTRACTS_API][POST][ERROR]', {

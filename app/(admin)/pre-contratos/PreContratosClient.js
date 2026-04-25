@@ -59,6 +59,13 @@ const PRECONTRACT_SELECT_FIELDS = [
   'add_sound',
   'add_transport',
   'agreed_amount',
+  'signal_amount',
+  'remaining_amount',
+  'payment_method',
+  'signal_due_date',
+  'balance_due_date',
+  'card_due_date',
+  'payment_card',
   'notes',
   'status',
   'public_token',
@@ -206,6 +213,13 @@ function getInitialForm() {
     add_sound: '',
     add_transport: '',
     agreed_amount: '',
+    signal_amount: '',
+    remaining_amount: '',
+    payment_method: '',
+    signal_due_date: '',
+    balance_due_date: '',
+    card_due_date: '',
+    payment_card: false,
 
     notes: '',
     status: 'draft',
@@ -936,6 +950,13 @@ async function carregarModelosContrato({ force = false } = {}) {
       add_sound: String(item.add_sound ?? ''),
       add_transport: String(item.add_transport ?? ''),
       agreed_amount: String(item.agreed_amount ?? ''),
+      signal_amount: String(item.signal_amount ?? ''),
+      remaining_amount: String(item.remaining_amount ?? ''),
+      payment_method: item.payment_method || '',
+      signal_due_date: item.signal_due_date || '',
+      balance_due_date: item.balance_due_date || '',
+      card_due_date: item.card_due_date || '',
+      payment_card: item.payment_card === true,
 
       notes: item.notes || '',
       status: item.status || 'draft',
@@ -1087,6 +1108,9 @@ async function carregarModelosContrato({ force = false } = {}) {
     const calculado = base + addReception + addSound + addTransport;
     const agreed = form.agreed_amount === '' ? calculado : toNumber(form.agreed_amount);
 
+    const signalAmount = toNumber(form.signal_amount);
+    const remainingAmount = Math.max(agreed - signalAmount, 0);
+
     return {
       base,
       addReception,
@@ -1094,6 +1118,8 @@ async function carregarModelosContrato({ force = false } = {}) {
       addTransport,
       calculado,
       agreed,
+      signalAmount,
+      remainingAmount,
     };
   }, [form]);
 
@@ -1230,6 +1256,13 @@ async function carregarModelosContrato({ force = false } = {}) {
         add_sound: financeiro.addSound,
         add_transport: financeiro.addTransport,
         agreed_amount: financeiro.agreed,
+        signal_amount: financeiro.signalAmount,
+        remaining_amount: financeiro.remainingAmount,
+        payment_method: form.payment_method || null,
+        signal_due_date: form.signal_due_date || null,
+        balance_due_date: form.balance_due_date || null,
+        card_due_date: form.card_due_date || null,
+        payment_card: form.payment_card === true,
 
         notes: form.notes.trim() || null,
         status: statusToSave,

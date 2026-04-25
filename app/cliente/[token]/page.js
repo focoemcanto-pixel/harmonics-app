@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
 import ClienteHome from '../../../components/cliente/ClienteHome';
 import { resolveSupportWhatsAppConfig } from '../../../lib/whatsapp/support-config';
+import { calculateEventFinance, isConfirmedPayment, normalizeFinanceStatus, toMoneyNumber } from '../../../lib/finance/event-finance';
 
 const IS_DEV = process.env.NODE_ENV !== 'production';
 const CLIENT_EVENT_SELECT_FIELDS = [
@@ -453,290 +454,104 @@ function pickFirstPositiveNumber(candidates = []) {
   return 0;
 }
 
-function readPath(source, path) {
-  if (!source || !path) return null;
-
-  return path.split('.').reduce((acc, segment) => {
-    if (acc == null) return null;
-    return acc[segment];
-  }, source);
+function formatFinanceStatusLabel(status) {
+  const normalized = normalizeFinanceStatus(status);
+  if (normalized === 'paid') return 'Pago';
+  if (normalized === 'partial') return 'Parcialmente pago';
+  if (normalized === 'pending') return 'Pagamento pendente';
+  if (normalized === 'cancelled') return 'Cancelado';
+  return 'Pagamento pendente';
 }
 
-function collectPositiveValueCandidates(sourceName, source, paths = []) {
-  return paths.map((path) => ({
-    source: `${sourceName}.${path}`,
-    value: readPath(source, path),
-  }));
-}
-
-function normalizePaymentStatus(status = '') {
-  const raw = String(status || '').trim().toLowerCase();
-  if (['confirmed', 'confirmado', 'paid', 'pago'].includes(raw)) return 'PAGO';
-  if (['pending', 'pendente', 'em_analise', 'pending_admin_validation'].includes(raw)) {
-    return 'PENDENTE';
-  }
-  if (['cancelled', 'cancelado', 'canceled'].includes(raw)) return 'CANCELADO';
-  if (['analyzing', 'analysis'].includes(raw)) return 'EM_ANALISE';
-  return raw ? raw.toUpperCase() : '';
-}
-
-function buildFinancialData({ event, precontract, contract, payments = [] }) {
-  const contractRawPayload = contract?.raw_payload || {};
-
-  const amountFieldPaths = [
-    'agreed_amount',
-    'total_price',
-    'amount',
-    'total_amount',
-    'final_amount',
-    'contract_amount',
-    'agreed_value',
-    'total_value',
-    'valor_total',
-    'valor_acordado',
-    'amount_total',
-    'price',
-    'value',
-    'base_value',
-    'event_value',
-    'total',
-  ];
-
-  const contractSnapshotAmount = pickFirstPositiveNumber([
-    ...amountFieldPaths.map((path) => readPath(contractRawPayload?.precontract_snapshot, path)),
-    ...amountFieldPaths.map((path) => readPath(contractRawPayload?.event_snapshot, path)),
-    ...amountFieldPaths.map((path) => readPath(contractRawPayload?.client_form, path)),
-    ...amountFieldPaths.map((path) => readPath(contractRawPayload, path)),
-  ]);
-
-  if (contractSnapshotAmount > 0) {
-    console.log('[CLIENTE PAGE][FINANCE_CONTRACT_VALUE_FALLBACK]', {
-      contractId: contract?.id || null,
-      source: 'contracts.raw_payload snapshots/forms',
-      value: contractSnapshotAmount,
-    });
-  }
-
-  const precontractComposedAmount =
-    toPositiveNumber(precontract?.base_amount) +
-    toPositiveNumber(precontract?.add_sound) +
-    toPositiveNumber(precontract?.add_transport);
-
-  const totalValueCandidates = [
-    ...collectPositiveValueCandidates('events', event, amountFieldPaths),
-    ...collectPositiveValueCandidates('precontracts', precontract, amountFieldPaths),
-    ...collectPositiveValueCandidates('contracts.raw_payload', contractRawPayload, amountFieldPaths),
-    ...collectPositiveValueCandidates(
-      'contracts.raw_payload.precontract_snapshot',
-      contractRawPayload?.precontract_snapshot,
-      amountFieldPaths
-    ),
-    ...collectPositiveValueCandidates(
-      'contracts.raw_payload.event_snapshot',
-      contractRawPayload?.event_snapshot,
-      amountFieldPaths
-    ),
-    ...collectPositiveValueCandidates(
-      'contracts.raw_payload.client_form',
-      contractRawPayload?.client_form,
-      amountFieldPaths
-    ),
-    ...collectPositiveValueCandidates(
-      'contracts.raw_payload.precontract',
-      contractRawPayload?.precontract,
-      amountFieldPaths
-    ),
-    ...collectPositiveValueCandidates(
-      'contracts.raw_payload.event',
-      contractRawPayload?.event,
-      amountFieldPaths
-    ),
-    ...collectPositiveValueCandidates(
-      'contracts.raw_payload.precontractData',
-      contractRawPayload?.precontractData,
-      amountFieldPaths
-    ),
-    ...collectPositiveValueCandidates(
-      'contracts.raw_payload.eventData',
-      contractRawPayload?.eventData,
-      amountFieldPaths
-    ),
-    ...collectPositiveValueCandidates('contracts.raw_payload.form', contractRawPayload?.form, amountFieldPaths),
-    ...collectPositiveValueCandidates(
-      'contracts.raw_payload.clientForm',
-      contractRawPayload?.clientForm,
-      amountFieldPaths
-    ),
-    {
-      source: 'contracts.raw_payload snapshots/forms (first positive)',
-      value: contractSnapshotAmount,
-    },
-    {
-      source: 'precontracts.base_amount+add_sound+add_transport',
-      value: precontractComposedAmount,
-    },
-  ];
-
-  const totalValueResolution =
-    totalValueCandidates.find((candidate) => toPositiveNumber(candidate.value) > 0) || {
-      source: 'none',
-      value: 0,
-    };
-
-  console.log('[CLIENTE PAGE][FINANCE_VALUE_SOURCE]', {
-    selectedSource: totalValueResolution.source,
-    selectedValue: toPositiveNumber(totalValueResolution.value),
-    candidates: totalValueCandidates.map((candidate) => ({
-      source: candidate.source,
-      value: toPositiveNumber(candidate.value),
-    })),
-  });
-
-  const baseTotalAmount = toPositiveNumber(totalValueResolution.value);
-  const hasApprovedAntesala = Boolean(
-    event?.has_antesala ??
-      event?.antesala_enabled ??
-      false
-  );
-  const beforeRoomIncrement =
-    hasApprovedAntesala ? toPositiveNumber(event?.antesala_price_increment) : 0;
-  const totalAmount = baseTotalAmount + beforeRoomIncrement;
+function buildFinancialData({ event, precontract, payments = [] }) {
+  const totalAmount = pickFirstPositiveNumber([precontract?.agreed_amount, event?.agreed_amount]);
 
   const normalizedPayments = (Array.isArray(payments) ? payments : []).map((entry) => {
-    const normalizedStatus = normalizePaymentStatus(entry?.status);
+    const amountValue = Math.max(toMoneyNumber(entry?.amount), 0);
+    const normalizedStatus = normalizeFinanceStatus(entry?.status);
+    const dueDateRaw = entry?.due_date || entry?.payment_date || null;
+    const dueDateValue = parseLocalDate(dueDateRaw);
+
     return {
       ...entry,
+      amountValue,
       normalizedStatus,
-      amountValue: toPositiveNumber(entry?.amount),
-      paymentDateValue: parseLocalDate(entry?.payment_date),
+      dueDateRaw,
+      dueDateValue,
     };
   });
 
-  const confirmedPaidFromPayments = normalizedPayments.reduce((acc, entry) => {
-    if (entry.normalizedStatus === 'PAGO') return acc + entry.amountValue;
-    return acc;
+  const paidFromPayments = normalizedPayments.reduce((acc, entry) => {
+    if (!isConfirmedPayment(entry?.status)) return acc;
+    return acc + entry.amountValue;
   }, 0);
 
-  const paidAmount = Math.max(
-    pickFirstPositiveNumber([
-      event?.paid_amount,
-      event?.amount_paid,
-      contractRawPayload?.precontract_snapshot?.paid_amount,
-      contractRawPayload?.event_snapshot?.paid_amount,
-      contractRawPayload?.paid_amount,
-      contractRawPayload?.amount_paid,
-    ]),
-    confirmedPaidFromPayments
-  );
+  const fallbackPaidAmount = Math.max(toMoneyNumber(event?.paid_amount), 0);
+  const paidAmount = paidFromPayments > 0 ? paidFromPayments : fallbackPaidAmount;
 
-  const openAmountFromEvent = toNonNegativeNumber(
-    event?.open_amount ??
-      contractRawPayload?.precontract_snapshot?.open_amount ??
-      contractRawPayload?.event_snapshot?.open_amount ??
-      contractRawPayload?.open_amount
-  );
-  const rawSaldo = openAmountFromEvent ?? totalAmount - paidAmount;
-  const saldoAmount = Math.max(rawSaldo, 0);
-  const normalizedEventPaymentStatus = normalizePaymentStatus(
-    event?.payment_status ??
-      contractRawPayload?.precontract_snapshot?.payment_status ??
-      contractRawPayload?.event_snapshot?.payment_status ??
-      contractRawPayload?.payment_status
-  );
+  const eventOpenAmount = toNonNegativeNumber(event?.open_amount);
+  const calculatedOpenAmount = Math.max(totalAmount - paidAmount, 0);
+  const openAmount =
+    totalAmount > 0 && eventOpenAmount !== null && paidFromPayments <= 0
+      ? Math.max(eventOpenAmount, 0)
+      : calculatedOpenAmount;
 
-  let financialStatus = 'Consulte a equipe';
-  if (normalizedEventPaymentStatus === 'PAGO') {
-    financialStatus = 'Pago';
-  } else if (normalizedEventPaymentStatus === 'PENDENTE') {
-    financialStatus = 'Pagamento pendente';
-  } else if (normalizedEventPaymentStatus === 'EM_ANALISE') {
-    financialStatus = 'Em análise';
-  } else if (totalAmount > 0) {
-    if (paidAmount <= 0) financialStatus = 'Pagamento pendente';
-    else if (rawSaldo <= 0) financialStatus = 'Pago';
-    else financialStatus = 'Parcialmente pago';
-  } else if (paidAmount > 0) {
-    financialStatus = 'Parcialmente pago';
-  }
+  const computedStatus = calculateEventFinance({
+    agreedAmount: totalAmount,
+    payments: [{ amount: paidAmount, status: paidAmount > 0 ? 'paid' : 'pending' }],
+  }).paymentStatus;
 
-  const upcomingFromPayments = normalizedPayments
+  const statusSource = normalizeFinanceStatus(event?.payment_status);
+  const financialStatus = formatFinanceStatusLabel(statusSource || computedStatus);
+
+  const pendingFromPayments = normalizedPayments
     .filter((entry) => {
-      if (!entry.paymentDateValue) return false;
-      if (entry.normalizedStatus === 'PAGO' || entry.normalizedStatus === 'CANCELADO') return false;
-      return true;
+      if (!entry?.dueDateValue) return false;
+      return ['pending', 'partial'].includes(entry.normalizedStatus);
     })
-    .sort((a, b) => a.paymentDateValue.getTime() - b.paymentDateValue.getTime())
+    .sort((a, b) => a.dueDateValue.getTime() - b.dueDateValue.getTime())
     .map((entry, index) => ({
       title: entry?.notes ? `Parcela ${index + 1}` : `Pagamento ${index + 1}`,
-      dueDate: formatDateToBR(entry.payment_date),
+      dueDate: formatDateToBR(entry.dueDateRaw),
       amount: entry.amountValue > 0 ? formatCurrencyBRL(entry.amountValue) : 'Não informado',
-      status: entry.normalizedStatus || 'PENDENTE',
+      status: String(entry.normalizedStatus || 'pending').toUpperCase(),
       description: entry?.notes || '',
     }));
 
-  const eventDate = parseLocalDate(event?.event_date);
-  const fallbackSignalDate = eventDate ? formatDateToBR(addDays(eventDate, -14)) : '';
-  const fallbackBalanceDate = eventDate ? formatDateToBR(addDays(eventDate, -2)) : '';
+  const signalAmount = Math.max(toMoneyNumber(precontract?.signal_amount), 0);
+  const remainingAmount = Math.max(
+    toMoneyNumber(precontract?.remaining_amount) || Math.max(totalAmount - signalAmount, 0),
+    0
+  );
+  const signalDueDate = formatDateToBR(precontract?.signal_due_date || event?.signal_due_date);
+  const balanceDueDate = formatDateToBR(precontract?.balance_due_date || event?.balance_due_date);
 
-  const explicitSignalDueDate = formatDateToBR(precontract?.signal_due_date || event?.signal_due_date);
-  const explicitBalanceDueDate = formatDateToBR(precontract?.balance_due_date || event?.balance_due_date);
-
-  const explicitVencimentos = [];
-  if (explicitSignalDueDate) {
-    explicitVencimentos.push({
+  const fallbackFromPrecontract = [];
+  if (signalAmount > 0 && signalDueDate) {
+    fallbackFromPrecontract.push({
       title: 'Sinal',
-      dueDate: explicitSignalDueDate,
-      amount: totalAmount > 0 ? formatCurrencyBRL(totalAmount / 2) : 'Não informado',
-      status: paidAmount > 0 ? 'PAGO' : 'PENDENTE',
+      dueDate: signalDueDate,
+      amount: formatCurrencyBRL(signalAmount),
+      status: paidAmount >= signalAmount ? 'PAGO' : 'PENDENTE',
       description: 'Pagamento inicial para reserva da data.',
     });
   }
 
-  if (explicitBalanceDueDate) {
-    explicitVencimentos.push({
+  if (remainingAmount > 0 && balanceDueDate) {
+    fallbackFromPrecontract.push({
       title: 'Saldo final',
-      dueDate: explicitBalanceDueDate,
-      amount: saldoAmount > 0 ? formatCurrencyBRL(saldoAmount) : formatCurrencyBRL(0),
-      status: saldoAmount <= 0 && totalAmount > 0 ? 'PAGO' : 'PENDENTE',
+      dueDate: balanceDueDate,
+      amount: formatCurrencyBRL(remainingAmount),
+      status: openAmount <= 0 ? 'PAGO' : 'PENDENTE',
       description: 'Pagamento final conforme condições do evento.',
     });
   }
 
-  const fallbackVencimentos =
-    totalAmount > 0
-      ? [
-          {
-            title: 'Primeira parcela',
-            dueDate: explicitSignalDueDate || fallbackSignalDate || 'Não informado',
-            amount: formatCurrencyBRL(totalAmount / 2),
-            status: paidAmount >= totalAmount / 2 ? 'PAGO' : 'PENDENTE',
-            description: '50% do valor total até 14 dias antes do evento.',
-          },
-          {
-            title: 'Parcela final',
-            dueDate: explicitBalanceDueDate || fallbackBalanceDate || 'Não informado',
-            amount: formatCurrencyBRL(Math.max(totalAmount - totalAmount / 2, 0)),
-            status: saldoAmount <= 0 ? 'PAGO' : 'PENDENTE',
-            description: 'Saldo final até 48 horas antes do evento.',
-          },
-        ]
-      : [];
-
-  const vencimentos =
-    upcomingFromPayments.length > 0
-      ? upcomingFromPayments
-      : explicitVencimentos.length > 0
-      ? explicitVencimentos
-      : fallbackVencimentos;
+  const vencimentos = pendingFromPayments.length > 0 ? pendingFromPayments : fallbackFromPrecontract;
 
   const rules = [];
-
-  if (explicitSignalDueDate) {
-    rules.push(`Sinal previsto para ${explicitSignalDueDate}.`);
-  }
-  if (explicitBalanceDueDate) {
-    rules.push(`Saldo final previsto para ${explicitBalanceDueDate}.`);
-  }
+  if (signalDueDate) rules.push(`Sinal previsto para ${signalDueDate}.`);
+  if (balanceDueDate) rules.push(`Saldo final previsto para ${balanceDueDate}.`);
 
   const cardDueDate = formatDateToBR(precontract?.card_due_date || event?.card_due_date);
   if (precontract?.payment_card && cardDueDate) {
@@ -747,9 +562,8 @@ function buildFinancialData({ event, precontract, contract, payments = [] }) {
 
   if (rules.length === 0) {
     rules.push(
-      '50% do valor deve ser quitado até 14 dias antes do evento.',
-      'O saldo final deve ser quitado até 48 horas antes da data do evento.',
-      'Após o envio de comprovante, o pagamento fica em análise até confirmação.'
+      'Após o envio de comprovante, o pagamento fica em análise até confirmação.',
+      'Em caso de dúvidas sobre vencimentos, fale com nossa equipe.'
     );
   }
 
@@ -757,9 +571,9 @@ function buildFinancialData({ event, precontract, contract, payments = [] }) {
     resumo: {
       valorTotal: totalAmount > 0 ? formatCurrencyBRL(totalAmount) : 'Não informado',
       valorPago: paidAmount > 0 ? formatCurrencyBRL(paidAmount) : 'Sem lançamento ainda',
-      saldo: totalAmount > 0 ? formatCurrencyBRL(saldoAmount) : 'Em definição com a equipe',
+      saldo: totalAmount > 0 ? formatCurrencyBRL(openAmount) : 'Em definição com a equipe',
       status: financialStatus,
-      overpaidAmount: rawSaldo < 0 ? formatCurrencyBRL(Math.abs(rawSaldo)) : null,
+      overpaidAmount: null,
     },
     vencimentos,
     regras: rules,
@@ -1119,7 +933,7 @@ export default async function ClienteTokenPage({ params, searchParams }) {
       const { data: precontractFinancialData, error: precontractFinancialError } = await supabase
         .from('precontracts')
         .select(
-          'id, agreed_amount, base_amount, add_sound, add_transport, signal_due_date, balance_due_date, card_due_date, payment_card'
+          'id, agreed_amount, signal_amount, remaining_amount, payment_method, base_amount, add_sound, add_transport, signal_due_date, balance_due_date, card_due_date, payment_card'
         )
         .eq('id', precontract.id)
         .maybeSingle();

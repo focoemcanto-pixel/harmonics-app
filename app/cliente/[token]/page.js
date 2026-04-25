@@ -13,6 +13,8 @@ const CLIENT_EVENT_SELECT_FIELDS = [
   'location_name',
   'formation',
   'instruments',
+  'formation_text',
+  'instrument_text',
   'status',
   'observations',
   'agreed_amount',
@@ -40,6 +42,8 @@ const CLIENT_EVENT_SELECT_FIELDS_FALLBACK = [
   'location_name',
   'formation',
   'instruments',
+  'formation_text',
+  'instrument_text',
   'status',
   'observations',
   'agreed_amount',
@@ -64,6 +68,8 @@ const CLIENT_EVENT_SELECT_FIELDS_MINIMAL_FALLBACK = [
   'location_name',
   'formation',
   'instruments',
+  'formation_text',
+  'instrument_text',
   'status',
   'observations',
 ].join(', ');
@@ -256,6 +262,23 @@ function normalizeRepertoireSection(section) {
   if (normalizedWithoutSpaces === 'saida') return 'saida';
   if (normalizedWithoutSpaces === 'antesala' || normalizedWithoutSpaces === 'antessala') return 'antesala';
   if (normalizedWithoutSpaces === 'receptivo') return 'receptivo';
+
+  return '';
+}
+
+function extractInstrumentsFromSoloText(text) {
+  const normalized = String(text || '').trim();
+  if (!normalized) return '';
+
+  const soloWithSeparator = normalized.match(/^solo[\s:,\-–—]+(.+)$/i);
+  if (soloWithSeparator?.[1]) {
+    return soloWithSeparator[1].trim();
+  }
+
+  const soloWithSpace = normalized.match(/^solo\s+(.+)$/i);
+  if (soloWithSpace?.[1]) {
+    return soloWithSpace[1].trim();
+  }
 
   return '';
 }
@@ -815,7 +838,9 @@ export default async function ClienteTokenPage({ params, searchParams }) {
   try {
     const { data: precontractData, error: precontractError } = await supabase
       .from('precontracts')
-      .select('id, public_token, event_id, reception_hours, has_sound, has_transport')
+      .select(
+        'id, public_token, event_id, reception_hours, has_sound, has_transport, formation, instruments, formation_text, instrument_text, selected_instruments'
+      )
       .eq('public_token', normalizedToken)
       .maybeSingle();
 
@@ -902,7 +927,9 @@ export default async function ClienteTokenPage({ params, searchParams }) {
     try {
       const { data: precontractByEvent, error: precontractByEventError } = await supabase
         .from('precontracts')
-        .select('id, public_token, event_id, reception_hours, has_sound, has_transport')
+        .select(
+          'id, public_token, event_id, reception_hours, has_sound, has_transport, formation, instruments, formation_text, instrument_text, selected_instruments'
+        )
         .eq('event_id', eventId)
         .maybeSingle();
 
@@ -933,7 +960,7 @@ export default async function ClienteTokenPage({ params, searchParams }) {
       const { data: precontractFinancialData, error: precontractFinancialError } = await supabase
         .from('precontracts')
         .select(
-          'id, agreed_amount, signal_amount, remaining_amount, payment_method, base_amount, add_sound, add_transport, signal_due_date, balance_due_date, card_due_date, payment_card'
+          'id, agreed_amount, signal_amount, remaining_amount, payment_method, base_amount, add_sound, add_transport, signal_due_date, balance_due_date, card_due_date, payment_card, formation, instruments, formation_text, instrument_text, selected_instruments'
         )
         .eq('id', precontract.id)
         .maybeSingle();
@@ -1434,6 +1461,44 @@ export default async function ClienteTokenPage({ params, searchParams }) {
     dueDatesCount: Array.isArray(financialData?.vencimentos) ? financialData.vencimentos.length : 0,
   });
 
+  console.log('[CLIENTE_HOME][FORMATION_SOURCES]', {
+    eventFormation: event?.formation,
+    eventInstruments: event?.instruments,
+    eventFormationText: event?.formation_text,
+    eventInstrumentText: event?.instrument_text,
+    precontractFormation: precontract?.formation,
+    precontractInstruments: precontract?.instruments,
+    precontractFormationText: precontract?.formation_text,
+    precontractInstrumentText: precontract?.instrument_text,
+    precontractRaw: precontract,
+  });
+
+  let resolvedFormation =
+    event?.formation ||
+    precontract?.formation ||
+    precontract?.formation_text ||
+    '';
+
+  let resolvedInstruments =
+    event?.instruments ||
+    precontract?.instruments ||
+    precontract?.instrument_text ||
+    precontract?.selected_instruments ||
+    '';
+
+  if (String(resolvedFormation).trim().toLowerCase() === 'solo' && !String(resolvedInstruments).trim()) {
+    const soloInstrument =
+      extractInstrumentsFromSoloText(event?.formation_text) ||
+      extractInstrumentsFromSoloText(precontract?.formation_text) ||
+      extractInstrumentsFromSoloText(precontract?.instrument_text) ||
+      extractInstrumentsFromSoloText(event?.instrument_text);
+
+    if (soloInstrument) {
+      resolvedFormation = 'Solo';
+      resolvedInstruments = soloInstrument;
+    }
+  }
+
   const data = {
     token: clientToken,
     clienteNome: event.client_name || 'Cliente',
@@ -1443,8 +1508,8 @@ export default async function ClienteTokenPage({ params, searchParams }) {
     dataEvento: event.event_date || '',
     horarioEvento: event.event_time || '',
     localEvento: event.location_name || '',
-    formacao: event.formation || '',
-    instrumentos: event.instruments || '',
+    formacao: resolvedFormation,
+    instrumentos: resolvedInstruments,
     statusContrato: contract?.signed_at ? 'Contrato assinado' : 'Contrato pendente',
     statusEvento: event.status || 'Confirmado',
     observacoes:

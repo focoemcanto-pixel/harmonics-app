@@ -863,8 +863,28 @@ function buildFallbackData(token = '') {
   };
 }
 
-export default async function ClienteTokenPage({ params }) {
+function normalizeClientInitialTab(tabValue) {
+  const normalized = String(tabValue || "").trim().toLowerCase();
+  if (!normalized) return "inicio";
+
+  const aliases = {
+    inicio: "inicio",
+    home: "inicio",
+    repertorio: "repertorio",
+    sugestoes: "sugestoes",
+    sugestoeses: "sugestoes",
+    financeiro: "financeiro",
+    pagamentos: "financeiro",
+    pagamento: "financeiro",
+  };
+
+  return aliases[normalized] || "inicio";
+}
+
+export default async function ClienteTokenPage({ params, searchParams }) {
   const { token } = await params;
+  const resolvedSearchParams = (await searchParams) || {};
+  const initialTab = normalizeClientInitialTab(resolvedSearchParams?.tab);
   const supabase = getAdminSupabase();
   const normalizedToken = String(token || '').trim();
 
@@ -878,7 +898,7 @@ export default async function ClienteTokenPage({ params }) {
       reason: 'SUPABASE_CLIENT_MISSING',
       normalizedToken,
     });
-    return <ClienteHome data={buildFallbackData(token)} />;
+    return <ClienteHome data={buildFallbackData(token)} initialTab={initialTab} />;
   }
 
   let precontract = null;
@@ -1021,7 +1041,7 @@ export default async function ClienteTokenPage({ params }) {
       reason: 'EVENT_ID_NOT_FOUND',
       normalizedToken,
     });
-    return <ClienteHome data={buildFallbackData(token)} />;
+    return <ClienteHome data={buildFallbackData(token)} initialTab={initialTab} />;
   }
 
   let eventResp = { data: null, error: null };
@@ -1260,7 +1280,7 @@ export default async function ClienteTokenPage({ params }) {
       eventRespData: eventResp?.data || null,
       eventId,
     });
-    return <ClienteHome data={buildFallbackData(token)} />;
+    return <ClienteHome data={buildFallbackData(token)} initialTab={initialTab} />;
   }
 
   const sanitizedObservations = sanitizeResolvedAdjustmentFromObservations(
@@ -1580,5 +1600,5 @@ export default async function ClienteTokenPage({ params }) {
     fullData: data,
   });
 
-  return <ClienteHome data={data} />;
+  return <ClienteHome data={data} initialTab={initialTab} />;
 }

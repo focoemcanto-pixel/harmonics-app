@@ -1081,33 +1081,27 @@ export default function MembroPage() {
       setLoadingKey(key);
       setError('');
 
-      const nowIso = new Date().toISOString();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
-      const { error: inviteError } = await supabase
-        .from('invites')
-        .update({
-          status: nextStatus,
-          responded_at: nowIso,
-        })
-        .eq('id', item.id);
+      const action = nextStatus === 'confirmed' ? 'accept' : 'decline';
+      const response = await fetch(`/api/member/invites/${item.id}/respond`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token
+            ? { Authorization: `Bearer ${session.access_token}` }
+            : {}),
+        },
+        body: JSON.stringify({ action }),
+      });
 
-      if (inviteError) throw inviteError;
+      const result = await response.json().catch(() => ({}));
 
-      const musicianUpdate = {
-        status: nextStatus,
-      };
-
-      if (nextStatus === 'confirmed') {
-        musicianUpdate.confirmed_at = nowIso;
+      if (!response.ok || !result?.ok) {
+        throw new Error(result?.error || 'Não foi possível responder o convite.');
       }
-
-      const { error: musicianError } = await supabase
-        .from('event_musicians')
-        .update(musicianUpdate)
-        .eq('event_id', item.eventId)
-        .eq('musician_id', member?.id);
-
-      if (musicianError) throw musicianError;
 
       await loadDashboardData(member);
 

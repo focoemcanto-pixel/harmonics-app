@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { buildSignedContractHtml, extractSignerIp, generateVerificationToken } from '@/lib/contracts/premiumSignature';
+import { buildSignedContractHtml, extractSignerIp } from '@/lib/contracts/premiumSignature';
 import { generateAndSaveInternalContractPdf } from '@/lib/contracts/internalPdfFlow';
 
 export const dynamic = 'force-dynamic';
@@ -25,17 +25,6 @@ function resolveSignatureOrigin(rawOrigin) {
   const normalized = asString(rawOrigin).toLowerCase();
   if (normalized === 'cliente') return 'CLIENTE';
   return 'Sistema Harmonics';
-}
-
-function resolveValidationTokenFromContract(contract) {
-  return asString(
-    contract?.validation_token
-    || contract?.verification_token
-    || contract?.signature_metadata?.validation_token
-    || contract?.signature_metadata?.verification_token
-    || contract?.raw_payload?.signature_metadata?.validation_token
-    || contract?.raw_payload?.signature_metadata?.verification_token
-  );
 }
 
 async function runPdfFlow({ supabase, contractId, precontractId, signedHtml }) {
@@ -261,7 +250,7 @@ export async function POST(request, context) {
 
     if (contract.signed_at && contract.document_hash) {
       if (!asString(contract.validation_token || contract.verification_token)) {
-        const recoveredValidationToken = resolveValidationTokenFromContract(contract) || generateVerificationToken();
+        const recoveredValidationToken = token;
         await updateContractWithFallbacks({
           supabase,
           contractId: contract.id,
@@ -365,7 +354,7 @@ export async function POST(request, context) {
       });
     }
 
-    const validationToken = resolveValidationTokenFromContract(contract) || generateVerificationToken();
+    const validationToken = token;
 
     const signedDocument = await buildSignedContractHtml({
       contractHtml,

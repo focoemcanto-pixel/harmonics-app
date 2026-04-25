@@ -213,6 +213,7 @@ async function resolveSigningContext({ supabase, token }) {
 export async function POST(request, context) {
   const resolvedParams = await context?.params;
   const token = extractToken(resolvedParams);
+  let signedContractContext = null;
 
   console.info('[CONTRACT_PUBLIC_SIGN][PARAMS_RESOLVED]', {
     rawParams: resolvedParams,
@@ -241,6 +242,7 @@ export async function POST(request, context) {
     const supabase = getSupabaseAdmin();
 
     let { contract, precontract } = await resolveSigningContext({ supabase, token });
+    signedContractContext = { contract, precontract };
 
     if (!precontract?.id) {
       return NextResponse.json({ ok: false, message: 'Contrato não encontrado para assinatura.' }, { status: 404 });
@@ -316,6 +318,12 @@ export async function POST(request, context) {
           precontractId: contract.precontract_id,
           signedHtml,
         });
+        console.info('[CONTRACT_PUBLIC_SIGN][PDF_URL_RESULT]', {
+          contractId: contract.id,
+          precontractId: contract.precontract_id,
+          hasPdfUrl: Boolean(recoveredPdfUrl),
+          mode: 'already-signed-recovery',
+        });
       } catch (error) {
         console.error('[CONTRACT_PUBLIC_SIGN][PDF_RECOVERY_FAILED]', {
           contractId: contract.id,
@@ -325,7 +333,20 @@ export async function POST(request, context) {
       }
 
       if (recoveredPdfUrl) {
-        await supabase.from('contracts').update({ pdf_url: recoveredPdfUrl }).eq('id', contract.id);
+        try {
+          await updateContractWithFallbacks({
+            supabase,
+            contractId: contract.id,
+            patchPayload: { pdf_url: recoveredPdfUrl },
+          });
+        } catch (error) {
+          console.warn('[CONTRACT_PUBLIC_SIGN][FINAL_UPDATE_FAILED_NON_BLOCKING]', {
+            contractId: contract.id,
+            precontractId: contract.precontract_id,
+            mode: 'already-signed-recovery',
+            message: error?.message || String(error),
+          });
+        }
 
         return NextResponse.json({
           ok: true,
@@ -415,6 +436,15 @@ export async function POST(request, context) {
         },
       },
     });
+    signedContractContext = {
+      contract: {
+        ...contract,
+        signed_html: signedDocument.signedHtml,
+        document_hash: signedDocument.documentHash,
+        signed_at: signedDocument.signedAtIso,
+      },
+      precontract,
+    };
 
     let pdfUrl = asString(contract.pdf_url);
 
@@ -424,6 +454,12 @@ export async function POST(request, context) {
         contractId: contract.id,
         precontractId: contract.precontract_id,
         signedHtml: signedDocument.signedHtml,
+      });
+      console.info('[CONTRACT_PUBLIC_SIGN][PDF_URL_RESULT]', {
+        contractId: contract.id,
+        precontractId: contract.precontract_id,
+        hasPdfUrl: Boolean(pdfUrl),
+        mode: 'fresh-sign',
       });
     } catch (error) {
       console.error('[CONTRACT_PUBLIC_SIGN][PDF_FAILED]', {
@@ -443,18 +479,23 @@ export async function POST(request, context) {
       document_hash: signedDocument.documentHash,
     };
 
-    const { error: finalUpdateError } = await supabase
-      .from('contracts')
-      .update(finalPatch)
-      .eq('id', contract.id);
-
-    if (finalUpdateError) throw finalUpdateError;
-
-    const { missingColumns: finalMissingColumns } = await updateContractWithFallbacks({
-      supabase,
-      contractId: contract.id,
-      patchPayload: finalPatch,
-    });
+    let finalMissingColumns = [];
+    try {
+      const finalResult = await updateContractWithFallbacks({
+        supabase,
+        contractId: contract.id,
+        patchPayload: finalPatch,
+      });
+      finalMissingColumns = finalResult?.missingColumns || [];
+    } catch (error) {
+      console.warn('[CONTRACT_PUBLIC_SIGN][FINAL_UPDATE_FAILED_NON_BLOCKING]', {
+        contractId: contract.id,
+        precontractId: contract.precontract_id,
+        mode: 'fresh-sign',
+        hasPdfUrl: Boolean(pdfUrl),
+        message: error?.message || String(error),
+      });
+    }
 
     console.info('[CONTRACT_PUBLIC_SIGN][FINAL_PATCH_OK]', {
       contractId: contract.id,
@@ -483,6 +524,26 @@ export async function POST(request, context) {
     });
   } catch (error) {
     console.error('[CONTRACT_PUBLIC_SIGN] erro ao assinar contrato interno', error);
+
+    const fallbackContractId = signedContractContext?.contract?.id || null;
+    const fallbackPrecontractId = signedContractContext?.precontract?.id || signedContractContext?.contract?.precontract_id || null;
+    const alreadyHasSignature =
+      Boolean(signedContractContext?.contract?.document_hash)
+      && Boolean(signedContractContext?.contract?.signed_at || signedContractContext?.contract?.signed_html);
+
+    if (fallbackContractId && alreadyHasSignature) {
+      return NextResponse.json(
+        {
+          ok: true,
+          pdfPending: true,
+          contractId: fallbackContractId,
+          precontractId: fallbackPrecontractId,
+          message: 'Contrato assinado. O PDF ainda está sendo preparado.',
+        },
+        { status: 200 }
+      );
+    }
+
     return NextResponse.json(
       {
         ok: false,

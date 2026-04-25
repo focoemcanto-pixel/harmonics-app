@@ -27,6 +27,14 @@ function resolveSignatureOrigin(rawOrigin) {
   return 'Sistema Harmonics';
 }
 
+function resolveVerificationTokenFromContract(contract) {
+  return asString(
+    contract?.verification_token
+    || contract?.signature_metadata?.verification_token
+    || contract?.raw_payload?.signature_metadata?.verification_token
+  );
+}
+
 async function runPdfFlow({ supabase, contractId, precontractId, signedHtml }) {
   console.log('[PDF_FLOW] iniciado');
   const pdfData = await generateAndSaveInternalContractPdf({
@@ -250,7 +258,7 @@ export async function POST(request, context) {
 
     if (contract.signed_at && contract.document_hash) {
       if (!asString(contract.verification_token)) {
-        const recoveredVerificationToken = generateVerificationToken();
+        const recoveredVerificationToken = resolveVerificationTokenFromContract(contract) || generateVerificationToken();
         await updateContractWithFallbacks({
           supabase,
           contractId: contract.id,
@@ -350,7 +358,7 @@ export async function POST(request, context) {
       });
     }
 
-    const verificationToken = asString(contract.verification_token) || generateVerificationToken();
+    const verificationToken = resolveVerificationTokenFromContract(contract) || generateVerificationToken();
 
     const signedDocument = await buildSignedContractHtml({
       contractHtml,

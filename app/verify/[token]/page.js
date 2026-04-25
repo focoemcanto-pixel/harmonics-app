@@ -50,7 +50,7 @@ export default async function VerifyContractPage({ params }) {
   }
 
   const supabase = getSupabaseAdmin();
-  const contractFields = 'id, public_token, pdf_url, signed_at, document_hash, verification_token, signature_metadata, signer_ip, user_agent, signature_name, status';
+  const contractFields = 'id, public_token, verification_token, status, signed_at, document_hash, pdf_url, signature_metadata, signature_name, signer_ip, user_agent';
 
   const { data: contractByVerificationToken } = await supabase
     .from('contracts')
@@ -58,15 +58,25 @@ export default async function VerifyContractPage({ params }) {
     .eq('verification_token', token)
     .maybeSingle();
 
-  const contract = contractByVerificationToken?.id
-    ? contractByVerificationToken
-    : (
-      await supabase
-        .from('contracts')
-        .select(contractFields)
-        .eq('public_token', token)
-        .maybeSingle()
-    ).data;
+  let contract = contractByVerificationToken || null;
+
+  if (!contract?.id) {
+    const { data: contractByPublicToken } = await supabase
+      .from('contracts')
+      .select(contractFields)
+      .eq('public_token', token)
+      .maybeSingle();
+    contract = contractByPublicToken || null;
+  }
+
+  if (!contract?.id) {
+    const { data: contractByRawPayloadToken } = await supabase
+      .from('contracts')
+      .select(contractFields)
+      .filter('raw_payload->signature_metadata->>verification_token', 'eq', token)
+      .maybeSingle();
+    contract = contractByRawPayloadToken || null;
+  }
 
   if (!contract?.id) {
     return <NotFoundCard />;

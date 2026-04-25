@@ -152,13 +152,16 @@ function AdminEventCard({
     : contractLink
     ? 'Abrir contrato'
     : 'Gerar contrato';
+  const eventMusicians = Array.isArray(event?.event_musicians)
+    ? event.event_musicians
+    : [];
   const totalScale =
-    Number(event?.event_musicians?.length) ||
+    eventMusicians.length ||
     Number(event?.scale_count) ||
     Number(totalMusicians) ||
     0;
   const confirmedScale =
-    Number(event?.event_musicians?.filter((item) => item?.status === 'confirmed').length) ||
+    eventMusicians.filter((item) => item?.status === 'confirmed').length ||
     Number(event?.confirmed_scale_count) ||
     Number(confirmedMusicians) ||
     0;

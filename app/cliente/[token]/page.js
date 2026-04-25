@@ -13,8 +13,6 @@ const CLIENT_EVENT_SELECT_FIELDS = [
   'location_name',
   'formation',
   'instruments',
-  'formation_text',
-  'instrument_text',
   'status',
   'observations',
   'agreed_amount',
@@ -42,8 +40,6 @@ const CLIENT_EVENT_SELECT_FIELDS_FALLBACK = [
   'location_name',
   'formation',
   'instruments',
-  'formation_text',
-  'instrument_text',
   'status',
   'observations',
   'agreed_amount',
@@ -68,10 +64,18 @@ const CLIENT_EVENT_SELECT_FIELDS_MINIMAL_FALLBACK = [
   'location_name',
   'formation',
   'instruments',
-  'formation_text',
-  'instrument_text',
   'status',
   'observations',
+].join(', ');
+const CLIENT_PRECONTRACT_BASE_SELECT_FIELDS = [
+  'id',
+  'public_token',
+  'event_id',
+  'reception_hours',
+  'has_sound',
+  'has_transport',
+  'formation',
+  'instruments',
 ].join(', ');
 const CLIENT_REPERTOIRE_CONFIG_SELECT_FIELDS = [
   'id',
@@ -838,14 +842,15 @@ export default async function ClienteTokenPage({ params, searchParams }) {
   try {
     const { data: precontractData, error: precontractError } = await supabase
       .from('precontracts')
-      .select(
-        'id, public_token, event_id, reception_hours, has_sound, has_transport, formation, instruments, formation_text, instrument_text, selected_instruments'
-      )
+      .select(CLIENT_PRECONTRACT_BASE_SELECT_FIELDS)
       .eq('public_token', normalizedToken)
       .maybeSingle();
 
     if (precontractError) {
-      console.error('[CLIENTE PAGE] Erro ao buscar precontract:', precontractError);
+      console.error('[CLIENTE PAGE][QUERY_ERROR]', {
+        scope: 'precontracts.public_token',
+        error: precontractError,
+      });
     } else {
       precontract = precontractData || null;
       eventId = precontractData?.event_id || null;
@@ -927,14 +932,15 @@ export default async function ClienteTokenPage({ params, searchParams }) {
     try {
       const { data: precontractByEvent, error: precontractByEventError } = await supabase
         .from('precontracts')
-        .select(
-          'id, public_token, event_id, reception_hours, has_sound, has_transport, formation, instruments, formation_text, instrument_text, selected_instruments'
-        )
+        .select(CLIENT_PRECONTRACT_BASE_SELECT_FIELDS)
         .eq('event_id', eventId)
         .maybeSingle();
 
       if (precontractByEventError) {
-        console.error('[CLIENTE PAGE] Erro ao buscar precontract por event_id:', precontractByEventError);
+        console.error('[CLIENTE PAGE][QUERY_ERROR]', {
+          scope: 'precontracts.event_id',
+          error: precontractByEventError,
+        });
       } else {
         precontract = precontractByEvent || null;
       }
@@ -960,7 +966,7 @@ export default async function ClienteTokenPage({ params, searchParams }) {
       const { data: precontractFinancialData, error: precontractFinancialError } = await supabase
         .from('precontracts')
         .select(
-          'id, agreed_amount, signal_amount, remaining_amount, payment_method, base_amount, add_sound, add_transport, signal_due_date, balance_due_date, card_due_date, payment_card, formation, instruments, formation_text, instrument_text, selected_instruments'
+          'id, agreed_amount, signal_amount, remaining_amount, payment_method, base_amount, add_sound, add_transport, signal_due_date, balance_due_date, card_due_date, payment_card, formation, instruments'
         )
         .eq('id', precontract.id)
         .maybeSingle();
@@ -981,6 +987,33 @@ export default async function ClienteTokenPage({ params, searchParams }) {
         '[CLIENTE PAGE] Falha inesperada ao buscar campos financeiros opcionais de precontract:',
         error
       );
+    }
+  }
+
+  if (precontract?.id) {
+    try {
+      const { data: precontractOptionalData, error: precontractOptionalError } = await supabase
+        .from('precontracts')
+        .select('id, formation_text, instrument_text, selected_instruments')
+        .eq('id', precontract.id)
+        .maybeSingle();
+
+      if (precontractOptionalError) {
+        console.warn('[CLIENTE PAGE][QUERY_ERROR]', {
+          scope: 'precontracts.optional_text_fields',
+          error: precontractOptionalError,
+        });
+      } else if (precontractOptionalData) {
+        precontract = {
+          ...precontract,
+          ...precontractOptionalData,
+        };
+      }
+    } catch (error) {
+      console.warn('[CLIENTE PAGE][QUERY_ERROR]', {
+        scope: 'precontracts.optional_text_fields',
+        error,
+      });
     }
   }
 
@@ -1137,7 +1170,12 @@ export default async function ClienteTokenPage({ params, searchParams }) {
     }
   }
 
-  if (eventResp?.error) console.error('[CLIENTE PAGE] Erro em events:', eventResp.error);
+  if (eventResp?.error) {
+    console.error('[CLIENTE PAGE][QUERY_ERROR]', {
+      scope: 'events.by_id',
+      error: eventResp.error,
+    });
+  }
   if (configResp?.error) console.error('[CLIENTE PAGE] Erro em repertoire_config:', configResp.error);
   if (itemsResp?.error) console.error('[CLIENTE PAGE] Erro em repertoire_items:', itemsResp.error);
   if (contractsResp?.error) console.error('[CLIENTE PAGE] Erro em contracts:', contractsResp.error);
@@ -1155,7 +1193,7 @@ export default async function ClienteTokenPage({ params, searchParams }) {
     console.error('[CLIENTE PAGE] Erro em contract_adjustment_requests:', adjustmentResp.error);
   }
 
-  const event = eventResp?.data || null;
+  let event = eventResp?.data || null;
   const config = configResp?.data || null;
   let items = Array.isArray(itemsResp?.data) ? itemsResp.data : [];
   let contract = contractsResp?.data || null;
@@ -1189,6 +1227,33 @@ export default async function ClienteTokenPage({ params, searchParams }) {
   let payments = Array.isArray(paymentsResp?.data) ? paymentsResp.data : [];
   const pricing = pricingResp?.data || {};
   const latestAdjustmentRequest = adjustmentResp?.data || null;
+
+  if (event?.id) {
+    try {
+      const { data: eventOptionalData, error: eventOptionalError } = await supabase
+        .from('events')
+        .select('id, formation_text, instrument_text')
+        .eq('id', event.id)
+        .maybeSingle();
+
+      if (eventOptionalError) {
+        console.warn('[CLIENTE PAGE][QUERY_ERROR]', {
+          scope: 'events.optional_text_fields',
+          error: eventOptionalError,
+        });
+      } else if (eventOptionalData) {
+        event = {
+          ...event,
+          ...eventOptionalData,
+        };
+      }
+    } catch (error) {
+      console.warn('[CLIENTE PAGE][QUERY_ERROR]', {
+        scope: 'events.optional_text_fields',
+        error,
+      });
+    }
+  }
 
   if (event?.id) {
     try {

@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import CopyHashButton from './CopyHashButton';
 
@@ -365,9 +364,6 @@ export default async function VerifyContractPage({ params }) {
             </a>
           ) : null}
           <CopyHashButton hash={hash} />
-          <Link href="/" className="rounded-2xl border border-slate-300 px-5 py-3 text-sm font-bold text-slate-700">
-            Voltar ao início
-          </Link>
         </div>
       </div>
     </ValidationShell>

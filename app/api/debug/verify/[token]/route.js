@@ -23,11 +23,30 @@ export async function GET(request, context) {
 
   const contractFields = `
     id,
+    precontract_id,
     public_token,
     validation_token,
     verification_token,
-    document_hash
+    document_hash,
+    pdf_url
   `;
+
+  const { data: precontract } = await supabase
+    .from('precontracts')
+    .select('id, public_token, client_name, event_date, event_time, location_name, location_address')
+    .eq('public_token', token)
+    .maybeSingle();
+
+  let byPrecontractPublicToken = null;
+  if (precontract?.id) {
+    const { data: contractByPrecontract } = await supabase
+      .from('contracts')
+      .select(contractFields)
+      .eq('precontract_id', precontract.id)
+      .maybeSingle();
+
+    byPrecontractPublicToken = contractByPrecontract || null;
+  }
 
   const { data: byPublicToken } = await supabase
     .from('contracts')
@@ -41,11 +60,13 @@ export async function GET(request, context) {
     .or(`validation_token.eq.${token},verification_token.eq.${token},document_hash.eq.${token}`)
     .maybeSingle();
 
-  const contract = byPublicToken || byValidationOrVerificationOrHash || null;
+  const contract = byPrecontractPublicToken || byPublicToken || byValidationOrVerificationOrHash || null;
 
   return Response.json({
     ok: true,
     token,
+    precontractId: precontract?.id || null,
+    byPrecontractPublicToken: Boolean(precontract?.id && byPrecontractPublicToken?.id),
     byPublicToken: Boolean(byPublicToken?.id),
     byValidationToken: asString(contract?.validation_token) === token,
     byVerificationToken: asString(contract?.verification_token) === token,
@@ -55,5 +76,6 @@ export async function GET(request, context) {
     validationToken: contract?.validation_token || null,
     verificationToken: contract?.verification_token || null,
     documentHash: contract?.document_hash || null,
+    pdfUrl: contract?.pdf_url || null,
   });
 }

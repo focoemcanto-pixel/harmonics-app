@@ -222,6 +222,8 @@ export async function POST(request, context) {
     return NextResponse.json({ ok: false, message: 'Token inválido.' }, { status: 400 });
   }
 
+  const publicToken = token;
+
   try {
     const body = await request.json().catch(() => null);
     const signedAt = new Date().toISOString();
@@ -250,7 +252,7 @@ export async function POST(request, context) {
 
     if (contract.signed_at && contract.document_hash) {
       if (!asString(contract.validation_token || contract.verification_token)) {
-        const recoveredValidationToken = token;
+        const recoveredValidationToken = publicToken;
         await updateContractWithFallbacks({
           supabase,
           contractId: contract.id,
@@ -354,7 +356,7 @@ export async function POST(request, context) {
       });
     }
 
-    const validationToken = token;
+    const validationToken = publicToken;
 
     const signedDocument = await buildSignedContractHtml({
       contractHtml,
@@ -385,13 +387,17 @@ export async function POST(request, context) {
       signature_provider: 'Harmonics Internal Signature',
     };
 
+    if (!asString(contract.public_token)) {
+      console.error('[CRITICAL] contract sem public_token', contract.id);
+    }
+
     const { missingColumns } = await updateContractWithFallbacks({
       supabase,
       contractId: contract.id,
       patchPayload: {
         status: 'signed',
         precontract_id: contract.precontract_id,
-        public_token: token,
+        public_token: publicToken,
         signed_html: signedDocument.signedHtml,
         document_hash: signedDocument.documentHash,
         signed_at: signedDocument.signedAtIso,
@@ -427,9 +433,22 @@ export async function POST(request, context) {
       });
     }
 
-    if (pdfUrl) {
-      await supabase.from('contracts').update({ pdf_url: pdfUrl }).eq('id', contract.id);
-    }
+    const finalSignedAt = signedDocument.signedAtIso || new Date().toISOString();
+    const finalPatch = {
+      public_token: publicToken,
+      validation_token: publicToken,
+      verification_token: publicToken,
+      pdf_url: pdfUrl || null,
+      signed_at: finalSignedAt,
+      document_hash: signedDocument.documentHash,
+    };
+
+    const { error: finalUpdateError } = await supabase
+      .from('contracts')
+      .update(finalPatch)
+      .eq('id', contract.id);
+
+    if (finalUpdateError) throw finalUpdateError;
 
     return NextResponse.json({
       ok: true,

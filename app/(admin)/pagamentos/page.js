@@ -25,6 +25,7 @@ import {
 import { resolveProofPreviewFromStoredUrl } from '@/lib/payments/payment-proof-storage';
 import { buildFinancialGroupingKey } from '@/lib/finance/gross-total';
 import { calculateFinancialSummary } from '@/lib/finance/calculateFinancialSummary';
+import { syncEventFinanceSnapshot } from '@/lib/finance/event-finance';
 
 function normalizePaymentStatus(status, paidAmount, openAmount, agreedAmount) {
   const raw = String(status || '').trim().toLowerCase();
@@ -391,33 +392,10 @@ function PagamentosPageContent() {
     const eventRef = String(eventId || '');
     if (!eventRef) return;
 
-    const [eventRes, paymentsRes] = await Promise.all([
-      supabase.from('events').select('id, agreed_amount').eq('id', eventRef).single(),
-      supabase.from('payments').select('amount, status').eq('event_id', eventRef),
-    ]);
-
-    if (eventRes.error) throw eventRes.error;
-    if (paymentsRes.error) throw paymentsRes.error;
-
-    const agreedAmount = toNumber(eventRes.data?.agreed_amount);
-    const paidAmount = (paymentsRes.data || []).reduce((acc, item) => {
-      if (isRejectedStatus(item?.status)) return acc;
-      if (!isSettledPaymentStatus(item?.status)) return acc;
-      return acc + toNumber(item?.amount);
-    }, 0);
-    const openAmount = Math.max(agreedAmount - paidAmount, 0);
-    const paymentStatus = openAmount <= 0 && agreedAmount > 0 ? 'Pago' : paidAmount > 0 ? 'Parcial' : 'Pendente';
-
-    const { error: updateError } = await supabase
-      .from('events')
-      .update({
-        paid_amount: paidAmount,
-        open_amount: openAmount,
-        payment_status: paymentStatus,
-      })
-      .eq('id', eventRef);
-
-    if (updateError) throw updateError;
+    await syncEventFinanceSnapshot({
+      supabase,
+      eventId: eventRef,
+    });
   }
 
   async function atualizarStatusComprovante(entry, nextStatus) {

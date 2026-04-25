@@ -8,6 +8,16 @@ function asString(value) {
   return String(value || '').trim();
 }
 
+function resolveContractToken(contract) {
+  return (
+    contract?.signature_metadata?.validation_token ||
+    contract?.signature_metadata?.verification_token ||
+    contract?.raw_payload?.signature_metadata?.validation_token ||
+    contract?.raw_payload?.signature_metadata?.verification_token ||
+    null
+  );
+}
+
 function maskCpf(cpf) {
   const digits = asString(cpf).replace(/\D/g, '');
   if (digits.length !== 11) return '***.***.***-**';
@@ -137,74 +147,57 @@ export default async function VerifyContractPage({ params }) {
     id,
     public_token,
     precontract_id,
-    status,
-    signed_at,
     document_hash,
     pdf_url,
-    signature_name,
-    signature_cpf,
-    signer_ip,
-    user_agent,
-    validation_token,
-    verification_token,
+    status,
+    signed_at,
     signature_metadata,
+    raw_payload,
     created_at,
-    updated_at
   `;
 
-  let contract = null;
+  const { data: contractByPublicToken } = await supabase
+    .from('contracts')
+    .select(contractSelect)
+    .eq('public_token', token)
+    .maybeSingle();
 
+  const { data: contractByValidationOrVerificationOrHash } = await supabase
+    .from('contracts')
+    .select(contractSelect)
+    .eq('document_hash', token)
+    .maybeSingle();
+
+  const contractCandidates = [contractByPublicToken, contractByValidationOrVerificationOrHash].filter(Boolean);
+
+  const contractByValidationToken =
+    contractCandidates.find((candidate) => asString(resolveContractToken(candidate)) === token) || null;
+  const contractByVerificationToken =
+    contractCandidates.find((candidate) => asString(resolveContractToken(candidate)) === token) || null;
+  const contractByDocumentHash =
+    asString(contractByValidationOrVerificationOrHash?.document_hash) === token
+      ? contractByValidationOrVerificationOrHash
+      : null;
+
+  let contractByPrecontract = null;
   if (precontract?.id) {
-    const { data: contractByPrecontractId } = await supabase
+    const { data } = await supabase
       .from('contracts')
       .select(contractSelect)
       .eq('precontract_id', precontract.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
       .maybeSingle();
-    contract = contractByPrecontractId || null;
+    contractByPrecontract = data || null;
   }
 
-  if (!contract?.id) {
-    const { data: contractByPublicToken } = await supabase
-      .from('contracts')
-      .select(contractSelect)
-      .eq('public_token', token)
-      .maybeSingle();
-    contract = contractByPublicToken || null;
-  }
-
-  if (!contract?.id) {
-    const { data: byVerificationToken } = await supabase
-      .from('contracts')
-      .select(contractSelect)
-      .or(`validation_token.eq.${token},verification_token.eq.${token},document_hash.eq.${token}`)
-      .maybeSingle();
-
-    contract = byVerificationToken || null;
-  }
-
-  if (!contract?.id) {
-    try {
-      const { data: byMetadataToken, error: metadataError } = await supabase
-        .from('contracts')
-        .select(contractSelect)
-        .or(`signature_metadata->>validation_token.eq.${token},signature_metadata->>verification_token.eq.${token}`)
-        .maybeSingle();
-
-      if (metadataError) {
-        console.warn('[VERIFY_PAGE][METADATA_FALLBACK_ERROR]', {
-          token,
-          error: metadataError,
-        });
-      } else {
-        contract = byMetadataToken || null;
-      }
-    } catch (error) {
-      console.warn('[VERIFY_PAGE][METADATA_FALLBACK_EXCEPTION]', {
-        token,
-        error,
-      });
-    }
-  }
+  const contract =
+    contractByPublicToken ||
+    contractByValidationToken ||
+    contractByVerificationToken ||
+    contractByDocumentHash ||
+    contractByPrecontract ||
+    null;
 
   let resolvedPrecontract = precontract || null;
   if (!resolvedPrecontract?.id && contract?.precontract_id) {
@@ -227,28 +220,12 @@ export default async function VerifyContractPage({ params }) {
   }
 
   const metadata = contract.signature_metadata || {};
-  const isSigned = asString(contract.status).toLowerCase() === 'signed' && !!contract.signed_at;
+  const rawMetadata = contract.raw_payload?.signature_metadata || {};
 
-  if (!isSigned) {
-    return (
-      <ValidationShell
-        tone="amber"
-        title="Documento encontrado, mas ainda não assinado."
-        subtitle="Este contrato existe no sistema, porém a assinatura eletrônica ainda não foi concluída."
-      >
-        <InfoCard title="Status do documento">
-          <p><strong>Status:</strong> {asString(contract.status) || 'Pendente'}</p>
-          <p><strong>ID do contrato:</strong> {contract.id}</p>
-          <p><strong>Cliente:</strong> {asString(resolvedPrecontract?.client_name) || 'Não informado'}</p>
-        </InfoCard>
-      </ValidationShell>
-    );
-  }
-
-  const signerName = asString(contract.signature_name || metadata.signer_name) || 'Não informado';
-  const signerCpf = maskCpf(contract.signature_cpf || metadata.signer_cpf || '');
-  const signedAt = formatDateTimeBR(contract.signed_at || metadata.signed_at_utc);
-  const hash = asString(contract.document_hash || metadata.document_hash);
+  const signerName = asString(metadata.signer_name || rawMetadata.signer_name) || 'Não informado';
+  const signerCpf = maskCpf(metadata.signer_cpf || rawMetadata.signer_cpf || '');
+  const signedAt = formatDateTimeBR(contract.signed_at || metadata.signed_at_utc || rawMetadata.signed_at_utc);
+  const hash = asString(contract.document_hash || metadata.document_hash || rawMetadata.document_hash);
   const eventLocation =
     asString(resolvedPrecontract?.event_location) ||
     [asString(resolvedPrecontract?.location_name), asString(resolvedPrecontract?.location_address)]
@@ -277,8 +254,8 @@ export default async function VerifyContractPage({ params }) {
         <InfoCard title="Dados técnicos">
           <p><strong>ID do contrato:</strong> {contract.id}</p>
           <p className="whitespace-pre-wrap break-all"><strong>Hash SHA256:</strong> {breakHash(hash)}</p>
-          <p><strong>IP:</strong> {maskIp(contract.signer_ip || metadata.signer_ip)}</p>
-          <p><strong>User Agent:</strong> {summarizeUserAgent(contract.user_agent || metadata.user_agent)}</p>
+          <p><strong>IP:</strong> {maskIp(metadata.signer_ip || rawMetadata.signer_ip)}</p>
+          <p><strong>User Agent:</strong> {summarizeUserAgent(metadata.user_agent || rawMetadata.user_agent)}</p>
           <p><strong>Origem:</strong> Sistema Harmonics</p>
         </InfoCard>
 

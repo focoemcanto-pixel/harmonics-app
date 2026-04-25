@@ -84,29 +84,132 @@ export async function POST(request, context) {
   }
 
   try {
-    const res = await fetch(`${process.env.CONTRACT_SERVICE_URL}/api/contracts/html-to-pdf`, {
+    const supabase = getSupabaseAdmin();
+
+    const { data: precontract, error: precontractError } = await supabase
+      .from('precontracts')
+      .select('*')
+      .eq('public_token', token)
+      .maybeSingle();
+
+    if (precontractError) {
+      return Response.json(
+        {
+          ok: false,
+          step: 'precontract_lookup_error',
+          error: precontractError,
+        },
+        { status: 500 }
+      );
+    }
+
+    const { data: contractByToken, error: contractByTokenError } = await supabase
+      .from('contracts')
+      .select('*')
+      .eq('public_token', token)
+      .maybeSingle();
+
+    if (contractByTokenError) {
+      return Response.json(
+        {
+          ok: false,
+          step: 'contract_lookup_by_token_error',
+          error: contractByTokenError,
+        },
+        { status: 500 }
+      );
+    }
+
+    let contractByPrecontract = null;
+    if (!contractByToken && precontract?.id) {
+      const { data, error } = await supabase
+        .from('contracts')
+        .select('*')
+        .eq('precontract_id', precontract.id)
+        .maybeSingle();
+
+      if (error) {
+        return Response.json(
+          {
+            ok: false,
+            step: 'contract_lookup_by_precontract_error',
+            error,
+          },
+          { status: 500 }
+        );
+      }
+
+      contractByPrecontract = data;
+    }
+
+    const contract = contractByToken || contractByPrecontract;
+    const signedHtml =
+      contract?.signed_html ||
+      contract?.raw_payload?.signed_contract_html ||
+      contract?.raw_payload?.contract_html_snapshot ||
+      '';
+
+    if (!precontract?.id) {
+      return Response.json(
+        {
+          ok: false,
+          step: 'missing_precontract',
+          token,
+        },
+        { status: 404 }
+      );
+    }
+
+    if (!contract?.id) {
+      return Response.json(
+        {
+          ok: false,
+          step: 'missing_contract',
+          token,
+          precontractId: precontract.id,
+        },
+        { status: 404 }
+      );
+    }
+
+    if (!signedHtml) {
+      return Response.json(
+        {
+          ok: false,
+          step: 'missing_signed_html',
+          token,
+          precontractId: precontract.id,
+          contractId: contract.id,
+        },
+        { status: 400 }
+      );
+    }
+
+    const origin = new URL(request.url).origin;
+    const pdfRes = await fetch(`${origin}/api/contracts/internal/pdf`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.CONTRACT_SERVICE_API_KEY,
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        html: '<h1>TESTE PDF</h1>',
+        contractId: contract.id,
+        precontractId: precontract.id,
+        html: signedHtml,
       }),
+      cache: 'no-store',
     });
 
-    const text = await res.text();
+    const pdfJson = await pdfRes.json().catch(() => null);
 
     return Response.json({
-      ok: true,
-      step: 'render_call',
-      status: res.status,
-      response: text,
+      ok: pdfRes.ok && pdfJson?.ok,
+      step: 'internal_pdf_flow',
+      internalPdfStatus: pdfRes.status,
+      internalPdfResponse: pdfJson,
+      pdfUrl: pdfJson?.pdfUrl || pdfJson?.pdf_url || pdfJson?.publicUrl || null,
     });
   } catch (err) {
     return Response.json({
       ok: false,
-      step: 'render_call_error',
+      step: 'internal_pdf_flow_error',
       error: String(err),
     });
   }

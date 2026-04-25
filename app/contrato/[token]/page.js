@@ -961,6 +961,11 @@ const mapsLoaded = useGoogleMapsReady();
     };
   }, [token]);
 
+  const fetchContract = useCallback(async () => {
+    const latest = await fetchPublicContract();
+    return latest.contract || null;
+  }, [fetchPublicContract]);
+
   const refetchContract = useCallback(async () => {
     const latest = await fetchPublicContract();
     setPrecontract(sanitizeTimeFields(latest.precontract || null));
@@ -1171,7 +1176,10 @@ const mapsLoaded = useGoogleMapsReady();
 }, [token, fetchPublicContract]);
 
 useEffect(() => {
-  if (!enviado || !token) return undefined;
+  if (!token) return undefined;
+  const hasSignedContract =
+    contract?.status === 'signed' || precontract?.status === 'signed' || enviado;
+  if (!hasSignedContract) return undefined;
   if (resultadoFinal.pdfUrl || contract?.pdf_url) return undefined;
 
   const interval = setInterval(async () => {
@@ -1194,7 +1202,15 @@ useEffect(() => {
   }, 3000);
 
   return () => clearInterval(interval);
-}, [enviado, token, resultadoFinal.pdfUrl, contract?.pdf_url, refetchContract]);
+}, [
+  token,
+  enviado,
+  precontract?.status,
+  contract?.status,
+  resultadoFinal.pdfUrl,
+  contract?.pdf_url,
+  refetchContract,
+]);
 
  useEffect(() => {
   if (!mapsLoaded) return;
@@ -1809,6 +1825,7 @@ await upsertContract('client_filling');
       if (preError) throw preError;
       const generateRes = await fetch('/api/contracts/generate', {
         method: 'POST',
+        cache: 'no-store',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           precontractId: precontract.id,
@@ -1876,6 +1893,7 @@ if (!generateRes.ok || !generateJson?.ok) {
         try {
           const internalSignRes = await fetch(`/api/contracts/public/${token}/sign`, {
             method: 'POST',
+            cache: 'no-store',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               precontractId: precontract.id,
@@ -1989,8 +2007,9 @@ if (!generateRes.ok || !generateJson?.ok) {
 
 if (contractSignedError) throw contractSignedError;
 
-      const refreshedAfterSign = await refetchContract();
-      const refreshedPdfUrl = refreshedAfterSign?.contract?.pdf_url || '';
+      const contractAfterSign = await fetchContract();
+      setContract(contractAfterSign || null);
+      const refreshedPdfUrl = contractAfterSign?.pdf_url || '';
       if (refreshedPdfUrl) {
         setResultadoFinal((prev) => ({
           ...prev,
@@ -2018,6 +2037,7 @@ if (contractSignedError) throw contractSignedError;
       try {
   await fetch('/api/whatsapp/send-contract-signed', {
     method: 'POST',
+    cache: 'no-store',
     headers: {
       'Content-Type': 'application/json',
     },
@@ -2113,6 +2133,11 @@ if (contractSignedError) throw contractSignedError;
                   Documento validado com hash SHA256
                 </div>
               ) : null}
+              {pdfUrl ? (
+                <div className="mx-auto inline-flex rounded-full bg-emerald-50 px-4 py-2 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">
+                  Documento validado e disponível
+                </div>
+              ) : null}
 
               <div className="flex flex-col justify-center gap-3 pt-2 sm:flex-row">
   {pdfUrl ? (
@@ -2162,7 +2187,7 @@ if (contractSignedError) throw contractSignedError;
     </>
   ) : isInternalMode && signedHtml ? (
     <>
-      <Button disabled>Contrato assinado. O PDF está sendo preparado e ficará disponível em instantes.</Button>
+      <p className="text-sm text-slate-500">PDF sendo preparado...</p>
       <a
         href={painelUrl}
         target="_blank"
@@ -2174,7 +2199,7 @@ if (contractSignedError) throw contractSignedError;
     </>
   ) : (
     <>
-      <Button disabled>PDF ainda indisponível</Button>
+      <p className="text-sm text-slate-500">PDF sendo preparado...</p>
       <Button variant="secondary" disabled>
         Painel liberado após PDF
       </Button>

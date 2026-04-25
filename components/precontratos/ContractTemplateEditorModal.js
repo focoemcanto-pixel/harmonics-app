@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useRef, useState } from 'react';
-import Button from '@/components/ui/Button';
+import Button from '../ui/Button.js';
 import RichContractEditor from '@/components/contracts/RichContractEditor';
 import { parseContractTemplateInput, looksLikeHtml } from '@/lib/contracts/templateImport';
 

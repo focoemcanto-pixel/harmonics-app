@@ -241,7 +241,7 @@ export default function CanaisPageClient() {
             <div className="text-[12px] font-black uppercase tracking-[0.14em] text-violet-600">Canais</div>
             <h1 className="mt-1 text-[28px] font-black tracking-[-0.03em] text-[#0f172a]">Canais WhatsApp</h1>
           </div>
-          <button onClick={abrirModalNovo} className="rounded-full bg-violet-600 px-5 py-2.5 text-[14px] font-bold text-white">+ Novo canal</button>
+          <button type="button" onClick={abrirModalNovo} className="rounded-full bg-violet-600 px-5 py-2.5 text-[14px] font-bold text-white">+ Novo canal</button>
         </div>
       </section>
 
@@ -281,6 +281,7 @@ export default function CanaisPageClient() {
 
                 <div className="flex shrink-0 flex-wrap items-center gap-2">
                   <button
+                    type="button"
                     onClick={() => {
                       setCanalParaTestar(canal);
                       setTelefoneTest('');
@@ -290,10 +291,10 @@ export default function CanaisPageClient() {
                   >
                     Testar envio
                   </button>
-                  {!canal.is_default && <button onClick={() => definirPadrao(canal.id)} className="rounded-full border border-violet-200 px-4 py-1.5 text-[13px] font-bold text-violet-700">Definir padrão</button>}
-                  <button onClick={() => abrirModalEditar(canal)} className="rounded-full border border-[#e2e8f0] px-4 py-1.5 text-[13px] font-bold text-[#475569]">Editar</button>
-                  <button onClick={() => toggleAtivo(canal.id, canal.is_active)} className="rounded-full border border-gray-200 px-4 py-1.5 text-[13px] font-bold text-gray-600">{canal.is_active ? 'Desativar' : 'Ativar'}</button>
-                  <button onClick={() => excluirCanal(canal.id)} className="rounded-full border border-red-200 px-4 py-1.5 text-[13px] font-bold text-red-700">Excluir</button>
+                  {!canal.is_default && <button type="button" onClick={() => definirPadrao(canal.id)} className="rounded-full border border-violet-200 px-4 py-1.5 text-[13px] font-bold text-violet-700">Definir padrão</button>}
+                  <button type="button" onClick={() => abrirModalEditar(canal)} className="rounded-full border border-[#e2e8f0] px-4 py-1.5 text-[13px] font-bold text-[#475569]">Editar</button>
+                  <button type="button" onClick={() => toggleAtivo(canal.id, canal.is_active)} className="rounded-full border border-gray-200 px-4 py-1.5 text-[13px] font-bold text-gray-600">{canal.is_active ? 'Desativar' : 'Ativar'}</button>
+                  <button type="button" onClick={() => excluirCanal(canal.id)} className="rounded-full border border-red-200 px-4 py-1.5 text-[13px] font-bold text-red-700">Excluir</button>
                 </div>
               </div>
             </div>

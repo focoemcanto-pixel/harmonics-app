@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import Card from '@/components/ui/Card';
-import Button from '@/components/ui/Button';
+import Button from '../../../../components/ui/Button.js';
 import ProtectedRoute from '@/components/ProtectedRoute';
 
 function NovoEventoPageContent() {

@@ -370,6 +370,7 @@ export async function POST(request, context) {
       origin,
       contractId: contract.id,
       verificationToken,
+      publicToken: contract.public_token || token,
     });
 
     const signatureMetadata = {

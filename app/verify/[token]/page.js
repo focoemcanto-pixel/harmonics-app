@@ -129,7 +129,7 @@ export default async function VerifyContractPage({ params }) {
 
   const { data: precontract } = await supabase
     .from('precontracts')
-    .select('id, public_token, client_name, client_email, client_phone, event_date, event_time, event_location')
+    .select('id, public_token, client_name, client_email, client_phone, event_date, event_time, event_location, location_name, location_address')
     .eq('public_token', token)
     .maybeSingle();
 
@@ -210,7 +210,7 @@ export default async function VerifyContractPage({ params }) {
   if (!resolvedPrecontract?.id && contract?.precontract_id) {
     const { data: byId } = await supabase
       .from('precontracts')
-      .select('id, public_token, client_name, client_email, client_phone, event_date, event_time, event_location')
+      .select('id, public_token, client_name, client_email, client_phone, event_date, event_time, event_location, location_name, location_address')
       .eq('id', contract.precontract_id)
       .maybeSingle();
     resolvedPrecontract = byId || null;
@@ -249,6 +249,11 @@ export default async function VerifyContractPage({ params }) {
   const signerCpf = maskCpf(contract.signature_cpf || metadata.signer_cpf || '');
   const signedAt = formatDateTimeBR(contract.signed_at || metadata.signed_at_utc);
   const hash = asString(contract.document_hash || metadata.document_hash);
+  const eventLocation =
+    asString(resolvedPrecontract?.event_location) ||
+    [asString(resolvedPrecontract?.location_name), asString(resolvedPrecontract?.location_address)]
+      .filter(Boolean)
+      .join(' - ');
 
   return (
     <ValidationShell
@@ -281,7 +286,7 @@ export default async function VerifyContractPage({ params }) {
           <p><strong>Cliente:</strong> {asString(resolvedPrecontract?.client_name) || 'Não informado'}</p>
           <p><strong>Data:</strong> {formatDateBR(resolvedPrecontract?.event_date)}</p>
           <p><strong>Horário:</strong> {asString(resolvedPrecontract?.event_time) || 'Não informado'}</p>
-          <p><strong>Local:</strong> {asString(resolvedPrecontract?.event_location) || 'Não informado'}</p>
+          <p><strong>Local:</strong> {eventLocation || 'Não informado'}</p>
         </InfoCard>
 
         <div className="flex flex-wrap gap-3 pt-2">

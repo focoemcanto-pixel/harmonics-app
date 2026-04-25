@@ -137,11 +137,18 @@ export default async function VerifyContractPage({ params }) {
 
   const supabase = getSupabaseAdmin();
 
-  const { data: precontract } = await supabase
+  const { data: precontract, error: precontractError } = await supabase
     .from('precontracts')
     .select('id, public_token, client_name, client_email, client_phone, event_date, event_time, event_location, location_name, location_address')
     .eq('public_token', token)
     .maybeSingle();
+
+  if (precontractError) {
+    console.error('[VERIFY_PAGE][QUERY_ERROR]', {
+      step: 'precontract',
+      message: precontractError.message,
+    });
+  }
 
   const contractSelect = `
     id,
@@ -153,20 +160,37 @@ export default async function VerifyContractPage({ params }) {
     signed_at,
     signature_metadata,
     raw_payload,
-    created_at,
+    created_at
   `;
 
-  const { data: contractByPublicToken } = await supabase
+  const { data: contractByPublicToken, error: contractByPublicTokenError } = await supabase
     .from('contracts')
     .select(contractSelect)
     .eq('public_token', token)
     .maybeSingle();
 
-  const { data: contractByValidationOrVerificationOrHash } = await supabase
+  if (contractByPublicTokenError) {
+    console.error('[VERIFY_PAGE][QUERY_ERROR]', {
+      step: 'contractByPublicToken',
+      message: contractByPublicTokenError.message,
+    });
+  }
+
+  const {
+    data: contractByValidationOrVerificationOrHash,
+    error: contractByValidationOrVerificationOrHashError,
+  } = await supabase
     .from('contracts')
     .select(contractSelect)
     .eq('document_hash', token)
     .maybeSingle();
+
+  if (contractByValidationOrVerificationOrHashError) {
+    console.error('[VERIFY_PAGE][QUERY_ERROR]', {
+      step: 'contractByValidationOrVerificationOrHash',
+      message: contractByValidationOrVerificationOrHashError.message,
+    });
+  }
 
   const contractCandidates = [contractByPublicToken, contractByValidationOrVerificationOrHash].filter(Boolean);
 
@@ -181,13 +205,21 @@ export default async function VerifyContractPage({ params }) {
 
   let contractByPrecontract = null;
   if (precontract?.id) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('contracts')
       .select(contractSelect)
       .eq('precontract_id', precontract.id)
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
+
+    if (error) {
+      console.error('[VERIFY_PAGE][QUERY_ERROR]', {
+        step: 'contractByPrecontract',
+        message: error.message,
+      });
+    }
+
     contractByPrecontract = data || null;
   }
 

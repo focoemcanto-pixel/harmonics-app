@@ -38,6 +38,7 @@ const RECIPIENT_TYPES = [
 const RULES_CACHE_KEY = 'automation:rules';
 const TEMPLATES_CACHE_KEY = 'automation:templates';
 const CHANNELS_CACHE_KEY = 'automation:channels';
+const PAYMENT_REMINDER_VARIABLES = ['{{client_name}}', '{{event_date}}', '{{event_time}}', '{{payment_link}}'];
 
 const QUICK_SECTIONS = [
   {
@@ -467,6 +468,13 @@ export default function RegrasPageClient() {
   const [manualModalAberto, setManualModalAberto] = useState(false);
   const [manualForm, setManualForm] = useState(MANUAL_FORM);
   const [enviandoManual, setEnviandoManual] = useState(false);
+  const [paymentReminderConfig, setPaymentReminderConfig] = useState({
+    isEnabled: true,
+    message: '',
+    defaultMessage: '',
+  });
+  const [salvandoPaymentReminder, setSalvandoPaymentReminder] = useState(false);
+  const [executandoPaymentReminder, setExecutandoPaymentReminder] = useState(false);
   const toast = useAppToast();
 
   const carregarDados = useCallback(async ({ force = false } = {}) => {
@@ -528,6 +536,25 @@ export default function RegrasPageClient() {
   useEffect(() => {
     carregarDados();
   }, [carregarDados]);
+
+  const carregarPaymentReminderConfig = useCallback(async () => {
+    try {
+      const response = await fetch('/api/automation/payment-reminders/config');
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || 'Erro ao carregar configuração do lembrete');
+      setPaymentReminderConfig({
+        isEnabled: payload.isEnabled !== false,
+        message: payload.message || '',
+        defaultMessage: payload.defaultMessage || '',
+      });
+    } catch (error) {
+      toast.error(error.message || 'Não foi possível carregar o lembrete de quitação');
+    }
+  }, [toast]);
+
+  useEffect(() => {
+    carregarPaymentReminderConfig();
+  }, [carregarPaymentReminderConfig]);
 
   const regrasAtivas = useMemo(() => regras.filter((r) => r.is_active), [regras]);
   const gatilhosInstantaneos = useMemo(() => regras.filter((r) => !isScheduledRule(r)), [regras]);
@@ -801,6 +828,52 @@ export default function RegrasPageClient() {
     }
   }
 
+  async function salvarPaymentReminderConfig() {
+    try {
+      setSalvandoPaymentReminder(true);
+      const response = await fetch('/api/automation/payment-reminders/config', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          isEnabled: paymentReminderConfig.isEnabled,
+          message: paymentReminderConfig.message,
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || 'Erro ao salvar lembrete');
+      setPaymentReminderConfig((prev) => ({
+        ...prev,
+        isEnabled: payload.isEnabled !== false,
+        message: payload.message || prev.message,
+      }));
+      toast.success('Configuração do lembrete de quitação salva com sucesso.');
+    } catch (error) {
+      toast.error(error.message || 'Não foi possível salvar o lembrete');
+    } finally {
+      setSalvandoPaymentReminder(false);
+    }
+  }
+
+  async function executarPaymentReminderAgora() {
+    try {
+      setExecutandoPaymentReminder(true);
+      const response = await fetch('/api/automation/payment-reminders/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || 'Falha ao executar lembrete');
+      toast.success(
+        `Lembrete processado. Enviados: ${payload.sent ?? 0}, duplicados ignorados: ${payload.skippedDuplicates ?? 0}, falhas: ${payload.failed ?? 0}.`
+      );
+    } catch (error) {
+      toast.error(error.message || 'Não foi possível executar o lembrete');
+    } finally {
+      setExecutandoPaymentReminder(false);
+    }
+  }
+
   if (carregando) {
     return (
       <div className="space-y-6">
@@ -874,6 +947,80 @@ export default function RegrasPageClient() {
         <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4 shadow-sm">
           <div className="text-xs font-bold uppercase tracking-[0.22em] text-sky-700">Envio manual disponível</div>
           <div className="mt-2 text-sm font-bold text-sky-900">Sempre ativo para disparos sob demanda</div>
+        </div>
+      </section>
+
+      <section className="rounded-3xl border border-violet-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-2xl font-black text-slate-950">Lembrete de quitação 2 dias antes</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Disparo diário via cron para eventos em D+2 com link direto para a aba <strong>Pagamentos</strong>.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() =>
+              setPaymentReminderConfig((prev) => ({ ...prev, isEnabled: !prev.isEnabled }))
+            }
+            className={classNames(
+              'rounded-full px-4 py-2 text-sm font-bold',
+              paymentReminderConfig.isEnabled
+                ? 'bg-emerald-100 text-emerald-700'
+                : 'bg-slate-100 text-slate-600'
+            )}
+          >
+            {paymentReminderConfig.isEnabled ? 'Ativado' : 'Desativado'}
+          </button>
+        </div>
+
+        <div className="mt-4">
+          <label className="mb-2 block text-sm font-bold text-slate-700">Mensagem do WhatsApp</label>
+          <textarea
+            value={paymentReminderConfig.message}
+            onChange={(e) => setPaymentReminderConfig((prev) => ({ ...prev, message: e.target.value }))}
+            rows={10}
+            className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-800 focus:border-violet-500 focus:outline-none"
+          />
+          <div className="mt-2 text-xs text-slate-500">
+            Variáveis disponíveis:{' '}
+            {PAYMENT_REMINDER_VARIABLES.map((item) => (
+              <span key={item} className="mr-2 inline-flex rounded-full bg-slate-100 px-2 py-1 font-semibold text-slate-700">
+                {item}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-5 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={salvarPaymentReminderConfig}
+            disabled={salvandoPaymentReminder}
+            className="rounded-full bg-violet-600 px-4 py-2 text-sm font-bold text-white hover:bg-violet-700 disabled:opacity-60"
+          >
+            {salvandoPaymentReminder ? 'Salvando...' : 'Salvar configuração'}
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              setPaymentReminderConfig((prev) => ({
+                ...prev,
+                message: prev.defaultMessage || prev.message,
+              }))
+            }
+            className="rounded-full border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+          >
+            Restaurar texto padrão
+          </button>
+          <button
+            type="button"
+            onClick={executarPaymentReminderAgora}
+            disabled={executandoPaymentReminder}
+            className="rounded-full border border-sky-300 bg-sky-50 px-4 py-2 text-sm font-bold text-sky-700 disabled:opacity-60"
+          >
+            {executandoPaymentReminder ? 'Executando...' : 'Testar lembrete 2 dias antes'}
+          </button>
         </div>
       </section>
 

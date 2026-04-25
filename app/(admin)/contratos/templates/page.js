@@ -145,6 +145,7 @@ export default function ContractTemplatesPage() {
   const [editandoId, setEditandoId] = useState(null);
   const [form, setForm] = useState(getInitialForm());
   const [richContentHtml, setRichContentHtml] = useState('');
+  const [isDirty, setIsDirty] = useState(false);
   const [editorTab, setEditorTab] = useState('texto');
   const [editSessionId, setEditSessionId] = useState(0);
   const [busca, setBusca] = useState('');
@@ -216,6 +217,7 @@ export default function ContractTemplatesPage() {
     setEditandoId(null);
     setForm(getInitialForm());
     setRichContentHtml('');
+    setIsDirty(false);
     richEditorRef.current?.setHtml?.('');
     setEditorTab('texto');
     setEditSessionId(Date.now());
@@ -263,12 +265,15 @@ export default function ContractTemplatesPage() {
       is_active: template.is_active !== false,
       is_default: template.is_default === true,
     });
-    const nextEditorHtml =
+    const nextEditorHtml = String(
       existingSourceRichHtml ||
+      existingContent ||
       textToEditorHtml(existingSourceText) ||
-      '';
+      ''
+    );
 
     setRichContentHtml(nextEditorHtml);
+    setIsDirty(false);
     devLog('[TEMPLATE_EDITOR][LOAD_FOR_EDIT]', {
       id: template.id,
       sourceRichHtmlLength: existingSourceRichHtml.length,
@@ -296,26 +301,16 @@ export default function ContractTemplatesPage() {
       return;
     }
 
-    const htmlFromRef = String(richEditorRef.current?.getHtml?.() || '');
-    const htmlFromState = String(richContentHtml || '');
-    const advancedHtml = looksLikeHtml(form.content) ? String(form.content || '') : '';
-    const htmlAtual = htmlFromRef.trim() ? htmlFromRef : (htmlFromState.trim() ? htmlFromState : advancedHtml);
+    const currentRichHtml = String(getCurrentEditorHtml() || '');
+    const currentText = htmlToReadableText(currentRichHtml);
+    const parsed = parseContractTemplateInput(currentRichHtml || currentText);
 
-    console.log('[SAVE_TEMPLATE_HTML_SOURCE]', {
-      htmlFromRefLength: htmlFromRef.length,
-      htmlFromStateLength: htmlFromState.length,
-      finalLength: htmlAtual.length,
-      preview: htmlAtual.slice(0, 200),
-    });
-
-    if (!hasVisibleText(htmlAtual)) {
+    if (!hasVisibleText(currentRichHtml)) {
       window.alert('Erro: conteúdo do contrato vazio');
       return;
     }
 
-    const parsed = parseContractTemplateInput(htmlAtual);
-    const sourceTextToPersist = htmlToReadableText(htmlAtual);
-    const visualHasText = hasVisibleText(htmlAtual);
+    const visualHasText = hasVisibleText(currentRichHtml);
 
     if (visualHasText && !hasVisibleText(parsed.normalizedContent)) {
       toast.error('O conteúdo processado não pode ficar vazio quando o editor contém texto.');
@@ -326,26 +321,28 @@ export default function ContractTemplatesPage() {
       name,
       slug,
       description: String(form.description || '').trim(),
-      source_rich_html: htmlAtual,
-      source_text: sourceTextToPersist,
-      content: parsed.normalizedContent,
+      source_rich_html: currentRichHtml,
+      source_text: currentText,
+      content: parsed.normalizedContent || currentRichHtml || currentText,
       is_active: form.is_active !== false,
       is_default: form.is_default === true,
     };
 
     console.log('[TEMPLATE_SAVE_PAYLOAD]', {
-      source_rich_html_len: payload.source_rich_html.length,
-      source_text_len: payload.source_text.length,
-      content_len: payload.content.length,
-      editing_id: editandoId || null,
+      id: editandoId || null,
+      richLen: currentRichHtml?.length || 0,
+      textLen: currentText?.length || 0,
+      contentLen: payload.content?.length || 0,
+      includesCertificacao: payload.content?.includes('CERTIFICAÇÃO DE ASSINATURA ELETRÔNICA'),
+      includesRegistroTecnico: payload.content?.includes('REGISTRO TÉCNICO DE ASSINATURA ELETRÔNICA'),
     });
 
     devLog('[TEMPLATE_EDITOR][BEFORE_SAVE_PAYLOAD]', {
       editandoId,
       richContentLength: richContentHtml.length,
-      currentEditorHtmlLength: htmlAtual.length,
-      sourceTextLength: sourceTextToPersist.length,
-      contentLength: parsed.normalizedContent.length,
+      currentEditorHtmlLength: currentRichHtml.length,
+      sourceTextLength: currentText.length,
+      contentLength: payload.content.length,
     });
 
     try {
@@ -361,6 +358,25 @@ export default function ContractTemplatesPage() {
 
         if (error) throw error;
         setTemplates((prev) => prev.map((item) => (String(item.id) === String(updatedTemplate.id) ? updatedTemplate : item)));
+        setForm({
+          name: updatedTemplate.name || '',
+          slug: updatedTemplate.slug || '',
+          description: updatedTemplate.description || '',
+          content: updatedTemplate.content || '',
+          source_text: updatedTemplate.source_text || '',
+          source_rich_html: updatedTemplate.source_rich_html || '',
+          is_active: updatedTemplate.is_active !== false,
+          is_default: updatedTemplate.is_default === true,
+        });
+        setRichContentHtml(
+          String(
+            updatedTemplate.source_rich_html ||
+            updatedTemplate.content ||
+            textToEditorHtml(updatedTemplate.source_text) ||
+            ''
+          )
+        );
+        setIsDirty(false);
         devLog('[TEMPLATE_EDITOR][SAVE_RESULT]', { mode: 'update', id: editandoId, ok: true });
         toast.success('Template atualizado com sucesso.');
       } else {
@@ -376,14 +392,13 @@ export default function ContractTemplatesPage() {
         toast.success('Template criado com sucesso.');
       }
       console.log('[TEMPLATE SAVED]', {
-        rich_len: htmlAtual.length,
+        rich_len: currentRichHtml.length,
         text_len: payload.source_text.length,
         content_len: payload.content.length,
       });
 
       limparFormulario();
       setMobileTab('lista');
-      await carregarTemplates(false);
     } catch (saveError) {
       if (String(saveError?.message || '').toLowerCase().includes('source_rich_html')) {
         toast.error('Coluna source_rich_html não existe. Rode a migration.');
@@ -741,8 +756,10 @@ export default function ContractTemplatesPage() {
                       ref={richEditorRef}
                       editSessionId={editSessionId}
                       initialHtml={richContentHtml}
+                      canHydrate={!isDirty}
                       onChangeHtml={(nextHtml) => {
                         setRichContentHtml(nextHtml);
+                        setIsDirty(true);
                         devLog('[TEMPLATE_EDITOR][RICH_CONTENT_LENGTH]', {
                           source: 'editor_change',
                           richContentLength: String(nextHtml || '').length,
@@ -853,6 +870,7 @@ export default function ContractTemplatesPage() {
           onLiveChange={(nextText) => {
             const updatedHtml = textToEditorHtml(nextText);
             setRichContentHtml(updatedHtml);
+            setIsDirty(true);
             richEditorRef.current?.setHtml?.(updatedHtml);
             setForm((prev) => ({
               ...prev,
@@ -868,6 +886,7 @@ export default function ContractTemplatesPage() {
           onConclude={(updatedText) => {
             const updatedHtml = textToEditorHtml(updatedText);
             setRichContentHtml(updatedHtml);
+            setIsDirty(true);
             richEditorRef.current?.setHtml?.(updatedHtml);
             setForm((prev) => ({
               ...prev,

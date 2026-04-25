@@ -38,6 +38,7 @@ const RichContractEditor = forwardRef(function RichContractEditor(
     sessionKey,
     onChangeHtml,
     readOnly = false,
+    canHydrate = true,
     minHeightClass = 'min-h-[260px]',
   },
   ref
@@ -46,13 +47,14 @@ const RichContractEditor = forwardRef(function RichContractEditor(
   const latestHtmlRef = useRef(String(initialHtml || ''));
 
   useEffect(() => {
+    if (!canHydrate) return;
     const nextHtml = String(initialHtml || '');
     latestHtmlRef.current = nextHtml;
     if (editorRef.current) {
       editorRef.current.innerHTML = nextHtml;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editSessionId, sessionKey]);
+  }, [editSessionId, sessionKey, canHydrate]);
 
   function commitHtml(nextHtml) {
     const normalized = String(nextHtml || '');

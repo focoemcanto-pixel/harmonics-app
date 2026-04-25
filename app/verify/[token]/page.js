@@ -104,7 +104,16 @@ function InfoCard({ title, children }) {
 }
 
 export default async function VerifyContractPage({ params }) {
-  const token = asString(Array.isArray(params?.token) ? params.token[0] : params?.token);
+  const resolvedParams = await params;
+  const rawToken = Array.isArray(resolvedParams?.token)
+    ? resolvedParams.token[0]
+    : resolvedParams?.token;
+  const token = asString(rawToken);
+
+  console.info('[VERIFY_PAGE][TOKEN]', {
+    rawParams: resolvedParams,
+    token,
+  });
 
   if (!token) {
     return (
@@ -172,37 +181,51 @@ export default async function VerifyContractPage({ params }) {
         created_at,
         updated_at
       `)
-      .or(`validation_token.eq.${token},verification_token.eq.${token}`)
+      .or(`validation_token.eq.${token},verification_token.eq.${token},document_hash.eq.${token}`)
       .maybeSingle();
 
     contract = byVerificationToken || null;
   }
 
   if (!contract?.id) {
-    const { data: byMetadataToken } = await supabase
-      .from('contracts')
-      .select(`
-        id,
-        public_token,
-        precontract_id,
-        status,
-        signed_at,
-        document_hash,
-        pdf_url,
-        signature_name,
-        signature_cpf,
-        signer_ip,
-        user_agent,
-        validation_token,
-        verification_token,
-        signature_metadata,
-        created_at,
-        updated_at
-      `)
-      .or(`signature_metadata->>validation_token.eq.${token},signature_metadata->>verification_token.eq.${token}`)
-      .maybeSingle();
+    try {
+      const { data: byMetadataToken, error: metadataError } = await supabase
+        .from('contracts')
+        .select(`
+          id,
+          public_token,
+          precontract_id,
+          status,
+          signed_at,
+          document_hash,
+          pdf_url,
+          signature_name,
+          signature_cpf,
+          signer_ip,
+          user_agent,
+          validation_token,
+          verification_token,
+          signature_metadata,
+          created_at,
+          updated_at
+        `)
+        .or(`signature_metadata->>validation_token.eq.${token},signature_metadata->>verification_token.eq.${token}`)
+        .maybeSingle();
 
-    contract = byMetadataToken || null;
+      if (metadataError) {
+        console.warn('[VERIFY_PAGE][METADATA_FALLBACK_ERROR]', {
+          token,
+          error: metadataError,
+        });
+      } else {
+        contract = byMetadataToken || null;
+      }
+    } catch (error) {
+      console.warn('[VERIFY_PAGE][METADATA_FALLBACK_EXCEPTION]', {
+        token,
+        error,
+      });
+    }
   }
 
   let resolvedPrecontract = precontract || null;

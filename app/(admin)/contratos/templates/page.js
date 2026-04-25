@@ -5,7 +5,7 @@ import AdminShell from '@/components/admin/AdminShell';
 import AdminPageHero from '@/components/admin/AdminPageHero';
 import AdminSegmentTabs from '@/components/admin/AdminSegmentTabs';
 import { useAppToast } from '@/components/ui/ToastProvider';
-import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
+import { useConfirm } from '@/hooks/useConfirm';
 import PrepareDynamicFieldsModal from '@/components/contratos/PrepareDynamicFieldsModal';
 import RichContractEditor from '@/components/contracts/RichContractEditor';
 import { looksLikeHtml, parseContractTemplateInput } from '@/lib/contracts/templateImport';
@@ -437,16 +437,14 @@ export default function ContractTemplatesPage() {
   }
 
   async function excluirTemplate(template) {
-    const confirmou = confirm
-      ? await confirm({
+    const confirmou = await confirm({
         title: 'Excluir template?',
         description:
           'Essa ação removerá este template. Se ele estiver vinculado a tipos de evento ou pré-contratos, o sistema deve impedir exclusão física ou avisar corretamente.',
         confirmText: 'Excluir template',
         cancelText: 'Cancelar',
-        tone: 'destructive',
-      })
-      : window.confirm('Excluir template? Esta ação não pode ser desfeita.');
+        variant: 'danger',
+      });
     if (!confirmou) return;
 
     try {

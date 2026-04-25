@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import AdminSummaryCard from '@/components/admin/AdminSummaryCard';
 import AutomationBackLink from '@/components/automacoes/AutomationBackLink';
 import { cachedPromise, invalidateCache, readCachedValue } from '@/lib/client/light-cache';
+import { useConfirm } from '@/hooks/useConfirm';
 
 const MESSAGE_PREVIEW_LENGTH = 120;
 const PAGE_SIZE = 50;
@@ -452,6 +453,7 @@ function LogCard({ log, onVerDetalhes, onRetrySuccess, isSelected, onToggle }) {
 // ---------- Componente principal ----------
 export default function LogsPageClient() {
   const searchParams = useSearchParams();
+  const { confirm } = useConfirm() || {};
 
   const [logs, setLogs] = useState([]);
   const [carregando, setCarregando] = useState(true);
@@ -590,7 +592,13 @@ export default function LogsPageClient() {
 
   async function handleDeleteSelected() {
     if (selectedIds.length === 0 || isProcessing) return;
-    if (!window.confirm(`Excluir ${selectedIds.length} log(s) selecionado(s)? Essa ação é definitiva.`)) return;
+    const shouldDelete = await confirm({
+      title: 'Excluir logs selecionados?',
+      description: `Excluir ${selectedIds.length} log(s) selecionado(s)? Essa ação é definitiva.`,
+      confirmText: 'Excluir logs',
+      variant: 'danger',
+    });
+    if (!shouldDelete) return;
 
     try {
       setIsProcessing(true);
@@ -616,7 +624,13 @@ export default function LogsPageClient() {
   async function handleCleanupLogs(status = '') {
     if (isProcessing) return;
     const statusLabel = status === 'failed' ? 'falhas' : status === 'sent' ? 'enviados' : 'logs';
-    if (!window.confirm(`Limpar ${statusLabel} com mais de 30 dias?`)) return;
+    const shouldCleanup = await confirm({
+      title: 'Limpar logs antigos?',
+      description: `Limpar ${statusLabel} com mais de 30 dias?`,
+      confirmText: 'Limpar logs',
+      variant: 'danger',
+    });
+    if (!shouldCleanup) return;
 
     try {
       setIsProcessing(true);

@@ -7,6 +7,7 @@ import AdminPageHero from '@/components/admin/AdminPageHero';
 import AdminSummaryCard from '@/components/admin/AdminSummaryCard';
 import { Field, Input, Select, Textarea, Checkbox } from '@/components/admin/AdminFormPrimitives';
 import { useAppToast } from '@/components/ui/ToastProvider';
+import { useConfirm } from '@/hooks/useConfirm';
 
 function getInitialForm() {
   return {
@@ -57,6 +58,7 @@ export default function EventTypesPage() {
   const [form, setForm] = useState(getInitialForm());
   const [editingId, setEditingId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
+  const { confirm } = useConfirm() || {};
 
   function devLog(label, data) {
     if (process.env.NODE_ENV !== 'development') return;
@@ -283,9 +285,12 @@ export default function EventTypesPage() {
   }
 
   async function deleteEventType(item) {
-    const confirmed = window.confirm(
-      `Excluir o tipo "${item?.name || 'sem nome'}"? Essa ação só será permitida se não houver vínculo com eventos e pré-contratos.`,
-    );
+    const confirmed = await confirm({
+      title: 'Excluir tipo de evento?',
+      description: `Excluir o tipo "${item?.name || 'sem nome'}"? Essa ação só será permitida se não houver vínculo com eventos e pré-contratos.`,
+      confirmText: 'Excluir tipo',
+      variant: 'danger',
+    });
     if (!confirmed) return;
 
     try {

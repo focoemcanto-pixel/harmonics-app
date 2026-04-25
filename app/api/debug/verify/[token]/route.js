@@ -37,45 +37,63 @@ export async function GET(request, context) {
     .eq('public_token', token)
     .maybeSingle();
 
-  let byPrecontractPublicToken = null;
-  if (precontract?.id) {
-    const { data: contractByPrecontract } = await supabase
-      .from('contracts')
-      .select(contractFields)
-      .eq('precontract_id', precontract.id)
-      .maybeSingle();
-
-    byPrecontractPublicToken = contractByPrecontract || null;
-  }
-
-  const { data: byPublicToken } = await supabase
+  const { data: contractByPublicToken } = await supabase
     .from('contracts')
     .select(contractFields)
     .eq('public_token', token)
     .maybeSingle();
 
-  const { data: byValidationOrVerificationOrHash } = await supabase
+  const { data: contractByValidationOrVerificationOrHash } = await supabase
     .from('contracts')
     .select(contractFields)
     .or(`validation_token.eq.${token},verification_token.eq.${token},document_hash.eq.${token}`)
     .maybeSingle();
 
-  const contract = byPrecontractPublicToken || byPublicToken || byValidationOrVerificationOrHash || null;
+  const contractByValidationToken =
+    asString(contractByValidationOrVerificationOrHash?.validation_token) === token
+      ? contractByValidationOrVerificationOrHash
+      : null;
+  const contractByVerificationToken =
+    asString(contractByValidationOrVerificationOrHash?.verification_token) === token
+      ? contractByValidationOrVerificationOrHash
+      : null;
+  const contractByDocumentHash =
+    asString(contractByValidationOrVerificationOrHash?.document_hash) === token
+      ? contractByValidationOrVerificationOrHash
+      : null;
+
+  const { data: contractByPrecontract, error: contractByPrecontractError } = await supabase
+    .from('contracts')
+    .select('id, public_token, precontract_id, validation_token, verification_token, document_hash, pdf_url, status, signed_at')
+    .eq('precontract_id', precontract.id)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const finalContract =
+    contractByPublicToken ||
+    contractByValidationToken ||
+    contractByVerificationToken ||
+    contractByDocumentHash ||
+    contractByPrecontract ||
+    null;
 
   return Response.json({
     ok: true,
     token,
     precontractId: precontract?.id || null,
-    byPrecontractPublicToken: Boolean(precontract?.id && byPrecontractPublicToken?.id),
-    byPublicToken: Boolean(byPublicToken?.id),
-    byValidationToken: asString(contract?.validation_token) === token,
-    byVerificationToken: asString(contract?.verification_token) === token,
-    byDocumentHash: asString(contract?.document_hash) === token,
-    contractId: contract?.id || null,
-    publicToken: contract?.public_token || null,
-    validationToken: contract?.validation_token || null,
-    verificationToken: contract?.verification_token || null,
-    documentHash: contract?.document_hash || null,
-    pdfUrl: contract?.pdf_url || null,
+    contractByPrecontractError: contractByPrecontractError?.message || null,
+    contractByPrecontractId: contractByPrecontract?.id || null,
+    byPrecontractPublicToken: Boolean(precontract?.id && contractByPrecontract?.id),
+    byPublicToken: Boolean(contractByPublicToken?.id),
+    byValidationToken: Boolean(contractByValidationToken?.id),
+    byVerificationToken: Boolean(contractByVerificationToken?.id),
+    byDocumentHash: Boolean(contractByDocumentHash?.id),
+    contractId: finalContract?.id || null,
+    publicToken: finalContract?.public_token || null,
+    validationToken: finalContract?.validation_token || null,
+    verificationToken: finalContract?.verification_token || null,
+    documentHash: finalContract?.document_hash || null,
+    pdfUrl: finalContract?.pdf_url || null,
   });
 }

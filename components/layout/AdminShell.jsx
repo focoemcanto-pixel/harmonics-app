@@ -36,6 +36,8 @@ function getInitials(name) {
 
 const MobileMoreSheet = memo(function MobileMoreSheet({ open, onClose, onNavigate }) {
   const { signOut, profile } = useAuth();
+  const router = useRouter();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -68,8 +70,20 @@ const MobileMoreSheet = memo(function MobileMoreSheet({ open, onClose, onNavigat
   }
 
   async function handleLogout() {
-    onClose();
-    await signOut();
+    if (isLoggingOut) return;
+    setIsLoggingOut(true);
+
+    try {
+      onClose();
+      await signOut();
+      router.replace('/login');
+      router.refresh();
+      setTimeout(() => {
+        window.location.assign('/login');
+      }, 300);
+    } finally {
+      setIsLoggingOut(false);
+    }
   }
 
   return (
@@ -148,14 +162,20 @@ const MobileMoreSheet = memo(function MobileMoreSheet({ open, onClose, onNavigat
           <button
             type="button"
             onClick={handleLogout}
-            className="mt-3 flex w-full items-center justify-between rounded-[22px] bg-gradient-to-r from-red-500 to-red-600 px-5 py-4 text-[15px] font-black text-white shadow-lg transition active:scale-[0.99]"
+            disabled={isLoggingOut}
+            className={`mt-3 flex w-full items-center justify-between rounded-[22px] bg-gradient-to-r from-red-500 to-red-600 px-5 py-4 text-[15px] font-black text-white shadow-lg transition active:scale-[0.99] ${isLoggingOut ? 'cursor-wait opacity-70' : ''}`}
           >
-            <span>Sair da conta</span>
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-              <polyline points="16 17 21 12 16 7" />
-              <line x1="21" y1="12" x2="9" y2="12" />
-            </svg>
+            <span className="flex items-center gap-2">
+              {isLoggingOut && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/70 border-t-white" />}
+              {isLoggingOut ? 'Saindo...' : 'Sair da conta'}
+            </span>
+            {!isLoggingOut && (
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
+              </svg>
+            )}
           </button>
         </div>
       </div>
@@ -171,6 +191,7 @@ export default function AdminShell({
   mobileSubtitle = '',
 }) {
   const router = useRouter();
+  const { user, initialized, loading } = useAuth();
   const [moreOpen, setMoreOpen] = useState(false);
 
   const mobileActiveItem = (() => {
@@ -190,6 +211,27 @@ export default function AdminShell({
   const handleCloseMore = useCallback(() => {
     setMoreOpen(false);
   }, []);
+
+  useEffect(() => {
+    if (initialized && !loading && !user) {
+      router.replace('/login');
+      router.refresh();
+      setTimeout(() => {
+        window.location.assign('/login');
+      }, 300);
+    }
+  }, [initialized, loading, router, user]);
+
+  if (initialized && !loading && !user) {
+    return (
+      <div className="min-h-screen bg-[#f4f6fa] text-[#111827] flex items-center justify-center">
+        <div className="text-center">
+          <div className="mx-auto h-10 w-10 animate-spin rounded-full border-2 border-violet-200 border-t-violet-600" />
+          <p className="mt-3 text-sm font-semibold text-slate-600">Encerrando sessão...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#f4f6fa] text-[#111827]">

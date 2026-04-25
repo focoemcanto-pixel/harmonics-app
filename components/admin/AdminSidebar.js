@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 
 function navClass(active) {
@@ -12,7 +13,9 @@ function navClass(active) {
 
 export default function AdminSidebar({ activeItem = 'eventos' }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { signOut, profile } = useAuth();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const automationOpen = pathname?.startsWith('/automacoes');
   const contractsOpen = pathname?.startsWith('/contratos');
   const eventsOpen = pathname?.startsWith('/eventos');
@@ -49,6 +52,22 @@ export default function AdminSidebar({ activeItem = 'eventos' }) {
     { label: 'Visão geral', href: '/eventos' },
     { label: 'Tipos de evento', href: '/eventos/tipos' },
   ];
+
+  async function handleLogout() {
+    if (isLoggingOut) return;
+    setIsLoggingOut(true);
+
+    try {
+      await signOut();
+      router.replace('/login');
+      router.refresh();
+      setTimeout(() => {
+        window.location.assign('/login');
+      }, 300);
+    } finally {
+      setIsLoggingOut(false);
+    }
+  }
   return (
     <aside className="sticky top-0 flex min-h-screen w-[280px] shrink-0 flex-col bg-[#020b2c] px-5 py-6 text-white">
       <div className="flex items-center gap-3 px-2">
@@ -110,8 +129,16 @@ export default function AdminSidebar({ activeItem = 'eventos' }) {
           </div>
         )}
 
-        <button type="button" onClick={signOut} className="mb-3 w-full rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-[14px] font-bold text-red-300 transition hover:bg-red-500/20">
-          Sair da conta
+        <button
+          type="button"
+          onClick={handleLogout}
+          disabled={isLoggingOut}
+          className={`mb-3 w-full rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-[14px] font-bold text-red-300 transition hover:bg-red-500/20 ${isLoggingOut ? 'cursor-wait opacity-70' : ''}`}
+        >
+          <span className="flex items-center justify-center gap-2">
+            {isLoggingOut && <span className="h-4 w-4 animate-spin rounded-full border-2 border-red-200/70 border-t-red-300" />}
+            {isLoggingOut ? 'Saindo...' : 'Sair da conta'}
+          </span>
         </button>
 
         <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4">

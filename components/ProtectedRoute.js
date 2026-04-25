@@ -21,6 +21,10 @@ export default function ProtectedRoute({ children, requiredRole = null }) {
       console.info('[ProtectedRoute] bloqueado: sem sessão', { pathname });
       redirectingRef.current = true;
       router.replace('/login');
+      router.refresh();
+      setTimeout(() => {
+        window.location.assign('/login');
+      }, 300);
       return;
     }
 

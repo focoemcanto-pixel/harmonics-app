@@ -23,46 +23,65 @@ function formatSignedAt(value) {
   }).format(date);
 }
 
+function NotFoundCard() {
+  return (
+    <main className="min-h-screen bg-gradient-to-b from-slate-100 via-slate-50 to-white p-4 sm:p-6">
+      <section className="mx-auto max-w-2xl rounded-3xl border border-slate-200 bg-white p-6 shadow-xl sm:p-8">
+        <div className="mb-5 flex items-center gap-3">
+          <div className="rounded-full bg-rose-100 p-2 text-rose-700">⚠️</div>
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-wide text-rose-700">Validação pública</p>
+            <h1 className="text-2xl font-black text-slate-900">Documento não encontrado ou token inválido.</h1>
+          </div>
+        </div>
+        <p className="text-sm text-slate-600">
+          Confira se o link foi copiado completo. Se necessário, solicite um novo PDF assinado.
+        </p>
+      </section>
+    </main>
+  );
+}
+
 export default async function VerifyContractPage({ params }) {
   const token = asString(Array.isArray(params?.token) ? params.token[0] : params?.token);
 
   if (!token) {
-    return (
-      <main className="min-h-screen bg-slate-100 p-4">
-        <div className="mx-auto max-w-xl rounded-3xl bg-white p-6 text-center shadow-sm">
-          Documento não encontrado ou token inválido.
-        </div>
-      </main>
-    );
+    return <NotFoundCard />;
   }
 
   const supabase = getSupabaseAdmin();
-  const { data: contract } = await supabase
+  const contractFields = 'id, public_token, pdf_url, signed_at, document_hash, verification_token, signature_metadata, signer_ip, user_agent, signature_name, status';
+
+  const { data: contractByVerificationToken } = await supabase
     .from('contracts')
-    .select('id, pdf_url, signature_metadata, signed_at, document_hash, signature_name, verification_token')
+    .select(contractFields)
     .eq('verification_token', token)
     .maybeSingle();
 
+  const contract = contractByVerificationToken?.id
+    ? contractByVerificationToken
+    : (
+      await supabase
+        .from('contracts')
+        .select(contractFields)
+        .eq('public_token', token)
+        .maybeSingle()
+    ).data;
+
   if (!contract?.id) {
-    return (
-      <main className="min-h-screen bg-slate-100 p-4">
-        <div className="mx-auto max-w-xl rounded-3xl bg-white p-6 text-center shadow-sm">
-          Documento não encontrado ou token inválido.
-        </div>
-      </main>
-    );
+    return <NotFoundCard />;
   }
 
   const metadata = contract.signature_metadata || {};
 
   return (
-    <main className="min-h-screen bg-slate-100 p-4 sm:p-6">
+    <main className="min-h-screen bg-gradient-to-b from-emerald-50 via-slate-50 to-white p-4 sm:p-6">
       <section className="mx-auto max-w-2xl rounded-3xl border border-emerald-100 bg-white p-6 shadow-xl sm:p-8">
         <div className="mb-6 flex items-center gap-3">
           <div className="rounded-full bg-emerald-100 p-2 text-emerald-700">✅</div>
           <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700">Status: Contrato válido</p>
-            <h1 className="text-2xl font-black text-slate-900">Documento verificado pelo sistema Harmonics</h1>
+            <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700">Status da validação</p>
+            <h1 className="text-2xl font-black text-slate-900">Documento verificado</h1>
           </div>
         </div>
 
@@ -73,12 +92,14 @@ export default async function VerifyContractPage({ params }) {
           <p><strong>ID do contrato:</strong> {contract.id}</p>
           <p className="break-all"><strong>Hash SHA256:</strong> {asString(contract.document_hash || metadata.document_hash) || 'Não disponível'}</p>
           <p><strong>Origem da assinatura:</strong> {asString(metadata.origin) || 'Sistema Harmonics'}</p>
+          <p><strong>Status:</strong> {asString(contract.status) || 'Não informado'}</p>
+          <p>Este documento foi assinado eletronicamente pelo sistema Harmonics.</p>
         </div>
 
         {contract.pdf_url ? (
           <div className="mt-6 flex flex-col gap-3 sm:flex-row">
             <a href={contract.pdf_url} target="_blank" rel="noreferrer" className="rounded-xl bg-emerald-600 px-4 py-3 text-center font-semibold text-white">
-              Abrir/Baixar PDF assinado
+              Abrir PDF assinado
             </a>
             <Link href="/" className="rounded-xl border border-slate-200 px-4 py-3 text-center font-semibold text-slate-700">
               Voltar ao início

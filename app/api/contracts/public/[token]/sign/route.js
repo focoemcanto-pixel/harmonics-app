@@ -238,7 +238,7 @@ export async function POST(request, context) {
 
     const supabase = getSupabaseAdmin();
 
-    const { contract, precontract } = await resolveSigningContext({ supabase, token });
+    let { contract, precontract } = await resolveSigningContext({ supabase, token });
 
     if (!precontract?.id) {
       return NextResponse.json({ ok: false, message: 'Contrato não encontrado para assinatura.' }, { status: 404 });
@@ -249,6 +249,16 @@ export async function POST(request, context) {
     }
 
     if (contract.signed_at && contract.document_hash) {
+      if (!asString(contract.verification_token)) {
+        const recoveredVerificationToken = generateVerificationToken();
+        await updateContractWithFallbacks({
+          supabase,
+          contractId: contract.id,
+          patchPayload: { verification_token: recoveredVerificationToken },
+        });
+        contract = { ...contract, verification_token: recoveredVerificationToken };
+      }
+
       if (contract.pdf_url) {
         return NextResponse.json({
           ok: true,

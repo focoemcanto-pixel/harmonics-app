@@ -3,6 +3,26 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import CopyHashButton from './CopyHashButton';
 
 export const dynamic = 'force-dynamic';
+const precontractSelect = `
+  id,
+  public_token,
+  client_name,
+  nome_cliente,
+  client_email,
+  client_phone,
+  event_date,
+  data_evento,
+  event_time,
+  hora_evento,
+  event_location,
+  location_name,
+  location_address,
+  local,
+  address,
+  venue,
+  event_type,
+  tipo_evento
+`;
 
 function asString(value) {
   return String(value || '').trim();
@@ -71,6 +91,28 @@ function breakHash(hash) {
   return value.match(/.{1,32}/g)?.join('\n') || value;
 }
 
+function shouldFallbackToWildcard(error) {
+  const message = asString(error?.message).toLowerCase();
+  return message.includes('could not find') || message.includes('column') || message.includes('schema cache');
+}
+
+async function fetchPrecontractWithFallback({ supabase, filterColumn, filterValue }) {
+  let query = supabase.from('precontracts').select(precontractSelect).eq(filterColumn, filterValue);
+  query = filterColumn === 'id' ? query.maybeSingle() : query.maybeSingle();
+
+  const { data, error } = await query;
+  if (!error) return { data, error: null };
+  if (!shouldFallbackToWildcard(error)) return { data: null, error };
+
+  const fallback = await supabase
+    .from('precontracts')
+    .select('*')
+    .eq(filterColumn, filterValue)
+    .maybeSingle();
+
+  return fallback;
+}
+
 function ValidationShell({ tone = 'emerald', title, subtitle, children }) {
   const toneClasses = {
     emerald: 'bg-emerald-50 text-emerald-700 border-emerald-200',
@@ -137,11 +179,11 @@ export default async function VerifyContractPage({ params }) {
 
   const supabase = getSupabaseAdmin();
 
-  const { data: precontract, error: precontractError } = await supabase
-    .from('precontracts')
-    .select('id, public_token, client_name, client_email, client_phone, event_date, event_time, event_location, location_name, location_address')
-    .eq('public_token', token)
-    .maybeSingle();
+  const { data: precontract, error: precontractError } = await fetchPrecontractWithFallback({
+    supabase,
+    filterColumn: 'public_token',
+    filterValue: token,
+  });
 
   if (precontractError) {
     console.error('[VERIFY_PAGE][QUERY_ERROR]', {
@@ -233,11 +275,11 @@ export default async function VerifyContractPage({ params }) {
 
   let resolvedPrecontract = precontract || null;
   if (!resolvedPrecontract?.id && contract?.precontract_id) {
-    const { data: byId } = await supabase
-      .from('precontracts')
-      .select('id, public_token, client_name, client_email, client_phone, event_date, event_time, event_location, location_name, location_address')
-      .eq('id', contract.precontract_id)
-      .maybeSingle();
+    const { data: byId } = await fetchPrecontractWithFallback({
+      supabase,
+      filterColumn: 'id',
+      filterValue: contract.precontract_id,
+    });
     resolvedPrecontract = byId || null;
   }
 
@@ -258,11 +300,24 @@ export default async function VerifyContractPage({ params }) {
   const signerCpf = maskCpf(metadata.signer_cpf || rawMetadata.signer_cpf || '');
   const signedAt = formatDateTimeBR(contract.signed_at || metadata.signed_at_utc || rawMetadata.signed_at_utc);
   const hash = asString(contract.document_hash || metadata.document_hash || rawMetadata.document_hash);
+  const clientName =
+    asString(resolvedPrecontract?.client_name) ||
+    asString(resolvedPrecontract?.nome_cliente) ||
+    asString(metadata.signer_name) ||
+    'Não informado';
+  const eventDate = resolvedPrecontract?.event_date || resolvedPrecontract?.data_evento || null;
+  const eventTime =
+    asString(resolvedPrecontract?.event_time) ||
+    asString(resolvedPrecontract?.hora_evento) ||
+    'Não informado';
   const eventLocation =
     asString(resolvedPrecontract?.event_location) ||
-    [asString(resolvedPrecontract?.location_name), asString(resolvedPrecontract?.location_address)]
-      .filter(Boolean)
-      .join(' - ');
+    asString(resolvedPrecontract?.location_name) ||
+    asString(resolvedPrecontract?.location_address) ||
+    asString(resolvedPrecontract?.local) ||
+    asString(resolvedPrecontract?.address) ||
+    asString(resolvedPrecontract?.venue) ||
+    'Não informado';
 
   return (
     <ValidationShell
@@ -292,10 +347,10 @@ export default async function VerifyContractPage({ params }) {
         </InfoCard>
 
         <InfoCard title="Evento">
-          <p><strong>Cliente:</strong> {asString(resolvedPrecontract?.client_name) || 'Não informado'}</p>
-          <p><strong>Data:</strong> {formatDateBR(resolvedPrecontract?.event_date)}</p>
-          <p><strong>Horário:</strong> {asString(resolvedPrecontract?.event_time) || 'Não informado'}</p>
-          <p><strong>Local:</strong> {eventLocation || 'Não informado'}</p>
+          <p><strong>Cliente:</strong> {clientName}</p>
+          <p><strong>Data:</strong> {formatDateBR(eventDate)}</p>
+          <p><strong>Horário:</strong> {eventTime}</p>
+          <p><strong>Local:</strong> {eventLocation}</p>
         </InfoCard>
 
         <div className="flex flex-wrap gap-3 pt-2">

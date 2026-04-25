@@ -1,11 +1,12 @@
 'use client';
 
 import { memo, useCallback, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import AdminSidebar from '../admin/AdminSidebar';
 import AdminMobileTopbar from '../admin/AdminMobileTopbar';
 import AdminBottomNav from '../admin/AdminBottomNav';
 import { useAuth } from '@/contexts/AuthContext';
+import { redirectToLogin } from '@/lib/auth/logoutRedirect';
 
 const MORE_ITEMS = [
   { label: 'Financeiro', href: '/financeiro', icon: '💸', helper: 'Pagamentos e caixa' },
@@ -36,7 +37,6 @@ function getInitials(name) {
 
 const MobileMoreSheet = memo(function MobileMoreSheet({ open, onClose, onNavigate }) {
   const { signOut, profile } = useAuth();
-  const router = useRouter();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   useEffect(() => {
@@ -74,13 +74,8 @@ const MobileMoreSheet = memo(function MobileMoreSheet({ open, onClose, onNavigat
     setIsLoggingOut(true);
 
     try {
-      await signOut();
+      await signOut({ redirect: true });
       onClose?.();
-      router.replace('/login');
-      router.refresh();
-      setTimeout(() => {
-        window.location.assign('/login');
-      }, 300);
     } finally {
       setIsLoggingOut(false);
     }
@@ -203,6 +198,7 @@ export default function AdminShell({
   mobileSubtitle = '',
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const { user, initialized, loading, sessionEndReason } = useAuth();
   const [moreOpen, setMoreOpen] = useState(false);
 
@@ -225,14 +221,10 @@ export default function AdminShell({
   }, []);
 
   useEffect(() => {
-    if (initialized && !loading && !user) {
-      router.replace('/login');
-      router.refresh();
-      setTimeout(() => {
-        window.location.assign('/login');
-      }, 300);
+    if (initialized && !loading && !user && pathname !== '/login') {
+      redirectToLogin();
     }
-  }, [initialized, loading, router, user]);
+  }, [initialized, loading, pathname, user]);
 
   if (initialized && !loading && !user) {
     const isExpiredSession = sessionEndReason === 'expired';

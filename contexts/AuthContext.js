@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { redirectToLogin } from '@/lib/auth/logoutRedirect';
 
 const AuthContext = createContext(null);
 
@@ -208,7 +209,7 @@ export function AuthProvider({ children }) {
     return data;
   }
 
-  async function signOut(onAfterSignOut) {
+  async function signOut({ redirect = false, onAfterSignOut } = {}) {
     let success = false;
 
     try {
@@ -236,6 +237,10 @@ export function AuthProvider({ children }) {
       setProfileResolved(true);
       setInitialized(true);
       setLoading(false);
+
+      if (redirect) {
+        redirectToLogin();
+      }
 
       if (typeof onAfterSignOut === 'function') {
         onAfterSignOut(success);

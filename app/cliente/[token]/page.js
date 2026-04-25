@@ -453,6 +453,22 @@ function pickFirstPositiveNumber(candidates = []) {
   return 0;
 }
 
+function readPath(source, path) {
+  if (!source || !path) return null;
+
+  return path.split('.').reduce((acc, segment) => {
+    if (acc == null) return null;
+    return acc[segment];
+  }, source);
+}
+
+function collectPositiveValueCandidates(sourceName, source, paths = []) {
+  return paths.map((path) => ({
+    source: `${sourceName}.${path}`,
+    value: readPath(source, path),
+  }));
+}
+
 function normalizePaymentStatus(status = '') {
   const raw = String(status || '').trim().toLowerCase();
   if (['confirmed', 'confirmado', 'paid', 'pago'].includes(raw)) return 'PAGO';
@@ -466,25 +482,37 @@ function normalizePaymentStatus(status = '') {
 
 function buildFinancialData({ event, precontract, contract, payments = [] }) {
   const contractRawPayload = contract?.raw_payload || {};
+
+  const amountFieldPaths = [
+    'agreed_amount',
+    'total_price',
+    'amount',
+    'total_amount',
+    'final_amount',
+    'contract_amount',
+    'agreed_value',
+    'total_value',
+    'valor_total',
+    'valor_acordado',
+    'amount_total',
+    'price',
+    'value',
+    'base_value',
+    'event_value',
+    'total',
+  ];
+
   const contractSnapshotAmount = pickFirstPositiveNumber([
-    contractRawPayload?.precontract_snapshot?.agreed_amount,
-    contractRawPayload?.precontract_snapshot?.total_price,
-    contractRawPayload?.precontract_snapshot?.amount,
-    contractRawPayload?.event_snapshot?.total_price,
-    contractRawPayload?.event_snapshot?.amount,
-    contractRawPayload?.event_snapshot?.agreed_amount,
-    contractRawPayload?.agreed_amount,
-    contractRawPayload?.total_price,
-    contractRawPayload?.amount,
-    contractRawPayload?.client_form?.agreed_amount,
-    contractRawPayload?.client_form?.total_price,
-    contractRawPayload?.client_form?.amount,
+    ...amountFieldPaths.map((path) => readPath(contractRawPayload?.precontract_snapshot, path)),
+    ...amountFieldPaths.map((path) => readPath(contractRawPayload?.event_snapshot, path)),
+    ...amountFieldPaths.map((path) => readPath(contractRawPayload?.client_form, path)),
+    ...amountFieldPaths.map((path) => readPath(contractRawPayload, path)),
   ]);
 
   if (contractSnapshotAmount > 0) {
     console.log('[CLIENTE PAGE][FINANCE_CONTRACT_VALUE_FALLBACK]', {
       contractId: contract?.id || null,
-      source: 'contracts.raw_payload snapshot/agreed_amount',
+      source: 'contracts.raw_payload snapshots/forms',
       value: contractSnapshotAmount,
     });
   }
@@ -495,24 +523,52 @@ function buildFinancialData({ event, precontract, contract, payments = [] }) {
     toPositiveNumber(precontract?.add_transport);
 
   const totalValueCandidates = [
+    ...collectPositiveValueCandidates('events', event, amountFieldPaths),
+    ...collectPositiveValueCandidates('precontracts', precontract, amountFieldPaths),
+    ...collectPositiveValueCandidates('contracts.raw_payload', contractRawPayload, amountFieldPaths),
+    ...collectPositiveValueCandidates(
+      'contracts.raw_payload.precontract_snapshot',
+      contractRawPayload?.precontract_snapshot,
+      amountFieldPaths
+    ),
+    ...collectPositiveValueCandidates(
+      'contracts.raw_payload.event_snapshot',
+      contractRawPayload?.event_snapshot,
+      amountFieldPaths
+    ),
+    ...collectPositiveValueCandidates(
+      'contracts.raw_payload.client_form',
+      contractRawPayload?.client_form,
+      amountFieldPaths
+    ),
+    ...collectPositiveValueCandidates(
+      'contracts.raw_payload.precontract',
+      contractRawPayload?.precontract,
+      amountFieldPaths
+    ),
+    ...collectPositiveValueCandidates(
+      'contracts.raw_payload.event',
+      contractRawPayload?.event,
+      amountFieldPaths
+    ),
+    ...collectPositiveValueCandidates(
+      'contracts.raw_payload.precontractData',
+      contractRawPayload?.precontractData,
+      amountFieldPaths
+    ),
+    ...collectPositiveValueCandidates(
+      'contracts.raw_payload.eventData',
+      contractRawPayload?.eventData,
+      amountFieldPaths
+    ),
+    ...collectPositiveValueCandidates('contracts.raw_payload.form', contractRawPayload?.form, amountFieldPaths),
+    ...collectPositiveValueCandidates(
+      'contracts.raw_payload.clientForm',
+      contractRawPayload?.clientForm,
+      amountFieldPaths
+    ),
     {
-      source: 'events.agreed_amount',
-      value: event?.agreed_amount,
-    },
-    {
-      source: 'events.total_price',
-      value: event?.total_price,
-    },
-    {
-      source: 'events.amount',
-      value: event?.amount,
-    },
-    {
-      source: 'precontracts.agreed_amount',
-      value: precontract?.agreed_amount,
-    },
-    {
-      source: 'contracts.raw_payload snapshot/agreed_amount',
+      source: 'contracts.raw_payload snapshots/forms (first positive)',
       value: contractSnapshotAmount,
     },
     {
@@ -521,9 +577,11 @@ function buildFinancialData({ event, precontract, contract, payments = [] }) {
     },
   ];
 
-  const totalValueResolution = totalValueCandidates.find(
-    (candidate) => toPositiveNumber(candidate.value) > 0
-  ) || { source: 'none', value: 0 };
+  const totalValueResolution =
+    totalValueCandidates.find((candidate) => toPositiveNumber(candidate.value) > 0) || {
+      source: 'none',
+      value: 0,
+    };
 
   console.log('[CLIENTE PAGE][FINANCE_VALUE_SOURCE]', {
     selectedSource: totalValueResolution.source,
@@ -1532,6 +1590,20 @@ export default async function ClienteTokenPage({ params, searchParams }) {
       payment_card: precontract?.payment_card ?? null,
     },
     paymentsCount: payments.length,
+  });
+
+  console.log('[CLIENTE_FINANCE][RAW_SOURCES_DEBUG]', {
+    eventId: event?.id,
+    eventKeys: event ? Object.keys(event) : [],
+    event,
+    precontractId: precontract?.id,
+    precontractKeys: precontract ? Object.keys(precontract) : [],
+    precontract,
+    contractId: contract?.id,
+    contractRawPayloadKeys: contract?.raw_payload ? Object.keys(contract.raw_payload) : [],
+    contractRawPayload: contract?.raw_payload || null,
+    paymentsCount: payments.length,
+    payments,
   });
 
   const financialData = buildFinancialData({

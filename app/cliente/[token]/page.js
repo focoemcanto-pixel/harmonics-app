@@ -943,9 +943,7 @@ export default async function ClienteTokenPage({ params, searchParams }) {
   try {
     const { data: precontractData, error: precontractError } = await supabase
       .from('precontracts')
-      .select(
-        'id, public_token, event_id, reception_hours, has_sound, has_transport, agreed_amount, base_amount, add_sound, add_transport, signal_due_date, balance_due_date, card_due_date, payment_card'
-      )
+      .select('id, public_token, event_id, reception_hours, has_sound, has_transport')
       .eq('public_token', normalizedToken)
       .maybeSingle();
 
@@ -1032,9 +1030,7 @@ export default async function ClienteTokenPage({ params, searchParams }) {
     try {
       const { data: precontractByEvent, error: precontractByEventError } = await supabase
         .from('precontracts')
-        .select(
-          'id, public_token, event_id, reception_hours, has_sound, has_transport, agreed_amount, base_amount, add_sound, add_transport, signal_due_date, balance_due_date, card_due_date, payment_card'
-        )
+        .select('id, public_token, event_id, reception_hours, has_sound, has_transport')
         .eq('event_id', eventId)
         .maybeSingle();
 
@@ -1065,7 +1061,7 @@ export default async function ClienteTokenPage({ params, searchParams }) {
       const { data: precontractFinancialData, error: precontractFinancialError } = await supabase
         .from('precontracts')
         .select(
-          'id, public_token, event_id, agreed_amount, base_amount, add_sound, add_transport, signal_due_date, balance_due_date, card_due_date, payment_card'
+          'id, agreed_amount, base_amount, add_sound, add_transport, signal_due_date, balance_due_date, card_due_date, payment_card'
         )
         .eq('id', precontract.id)
         .maybeSingle();

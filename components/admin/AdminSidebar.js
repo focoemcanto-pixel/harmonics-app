@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -13,7 +13,6 @@ function navClass(active) {
 
 export default function AdminSidebar({ activeItem = 'eventos' }) {
   const pathname = usePathname();
-  const router = useRouter();
   const { signOut, profile } = useAuth();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const automationOpen = pathname?.startsWith('/automacoes');
@@ -58,12 +57,7 @@ export default function AdminSidebar({ activeItem = 'eventos' }) {
     setIsLoggingOut(true);
 
     try {
-      await signOut();
-      router.replace('/login');
-      router.refresh();
-      setTimeout(() => {
-        window.location.assign('/login');
-      }, 300);
+      await signOut({ redirect: true });
     } finally {
       setIsLoggingOut(false);
     }

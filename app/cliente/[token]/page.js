@@ -15,7 +15,9 @@ const CLIENT_EVENT_SELECT_FIELDS = [
   'status',
   'observations',
   'agreed_amount',
+  'open_amount',
   'paid_amount',
+  'payment_status',
   'signal_due_date',
   'balance_due_date',
   'card_due_date',
@@ -43,6 +45,9 @@ const CLIENT_EVENT_SELECT_FIELDS_FALLBACK = [
   'open_amount',
   'paid_amount',
   'payment_status',
+  'signal_due_date',
+  'balance_due_date',
+  'card_due_date',
   'total_price',
   'amount',
   'amount_paid',
@@ -451,9 +456,11 @@ function pickFirstPositiveNumber(candidates = []) {
 function normalizePaymentStatus(status = '') {
   const raw = String(status || '').trim().toLowerCase();
   if (['confirmed', 'confirmado', 'paid', 'pago'].includes(raw)) return 'PAGO';
-  if (['pending', 'pendente'].includes(raw)) return 'PENDENTE';
+  if (['pending', 'pendente', 'em_analise', 'pending_admin_validation'].includes(raw)) {
+    return 'PENDENTE';
+  }
   if (['cancelled', 'cancelado', 'canceled'].includes(raw)) return 'CANCELADO';
-  if (['em_analise', 'analyzing', 'analysis'].includes(raw)) return 'EM_ANALISE';
+  if (['analyzing', 'analysis'].includes(raw)) return 'EM_ANALISE';
   return raw ? raw.toUpperCase() : '';
 }
 
@@ -461,9 +468,17 @@ function buildFinancialData({ event, precontract, contract, payments = [] }) {
   const contractRawPayload = contract?.raw_payload || {};
   const contractSnapshotAmount = pickFirstPositiveNumber([
     contractRawPayload?.precontract_snapshot?.agreed_amount,
+    contractRawPayload?.precontract_snapshot?.total_price,
+    contractRawPayload?.precontract_snapshot?.amount,
+    contractRawPayload?.event_snapshot?.total_price,
+    contractRawPayload?.event_snapshot?.amount,
     contractRawPayload?.event_snapshot?.agreed_amount,
     contractRawPayload?.agreed_amount,
+    contractRawPayload?.total_price,
+    contractRawPayload?.amount,
     contractRawPayload?.client_form?.agreed_amount,
+    contractRawPayload?.client_form?.total_price,
+    contractRawPayload?.client_form?.amount,
   ]);
 
   if (contractSnapshotAmount > 0) {
@@ -545,14 +560,31 @@ function buildFinancialData({ event, precontract, contract, payments = [] }) {
   }, 0);
 
   const paidAmount = Math.max(
-    pickFirstPositiveNumber([event?.paid_amount, event?.amount_paid]),
+    pickFirstPositiveNumber([
+      event?.paid_amount,
+      event?.amount_paid,
+      contractRawPayload?.precontract_snapshot?.paid_amount,
+      contractRawPayload?.event_snapshot?.paid_amount,
+      contractRawPayload?.paid_amount,
+      contractRawPayload?.amount_paid,
+    ]),
     confirmedPaidFromPayments
   );
 
-  const openAmountFromEvent = toNonNegativeNumber(event?.open_amount);
+  const openAmountFromEvent = toNonNegativeNumber(
+    event?.open_amount ??
+      contractRawPayload?.precontract_snapshot?.open_amount ??
+      contractRawPayload?.event_snapshot?.open_amount ??
+      contractRawPayload?.open_amount
+  );
   const rawSaldo = openAmountFromEvent ?? totalAmount - paidAmount;
   const saldoAmount = Math.max(rawSaldo, 0);
-  const normalizedEventPaymentStatus = normalizePaymentStatus(event?.payment_status);
+  const normalizedEventPaymentStatus = normalizePaymentStatus(
+    event?.payment_status ??
+      contractRawPayload?.precontract_snapshot?.payment_status ??
+      contractRawPayload?.event_snapshot?.payment_status ??
+      contractRawPayload?.payment_status
+  );
 
   let financialStatus = 'Consulte a equipe';
   if (normalizedEventPaymentStatus === 'PAGO') {
@@ -892,6 +924,10 @@ export default async function ClienteTokenPage({ params, searchParams }) {
     rawToken: token,
     normalizedToken,
   });
+  console.log('[CLIENTE_FINANCE][TOKEN]', {
+    rawToken: token,
+    normalizedToken,
+  });
 
   if (!supabase) {
     console.log('[CLIENTE PAGE][FALLBACK_TRIGGER]', {
@@ -907,7 +943,9 @@ export default async function ClienteTokenPage({ params, searchParams }) {
   try {
     const { data: precontractData, error: precontractError } = await supabase
       .from('precontracts')
-      .select('id, public_token, event_id, reception_hours, has_sound, has_transport')
+      .select(
+        'id, public_token, event_id, reception_hours, has_sound, has_transport, agreed_amount, base_amount, add_sound, add_transport, signal_due_date, balance_due_date, card_due_date, payment_card'
+      )
       .eq('public_token', normalizedToken)
       .maybeSingle();
 
@@ -920,6 +958,13 @@ export default async function ClienteTokenPage({ params, searchParams }) {
     console.log('[CLIENTE PAGE][PRECONTRACT]', {
       error: precontractError || null,
       precontract: precontractData || null,
+    });
+    console.log('[CLIENTE_FINANCE][PRECONTRACT_RESOLVED]', {
+      source: 'precontracts.public_token',
+      error: precontractError || null,
+      precontractId: precontractData?.id || null,
+      eventId: precontractData?.event_id || null,
+      publicToken: precontractData?.public_token || null,
     });
     console.log('[CLIENTE PAGE][EVENT_ID]', {
       source: 'precontracts.public_token',
@@ -987,7 +1032,9 @@ export default async function ClienteTokenPage({ params, searchParams }) {
     try {
       const { data: precontractByEvent, error: precontractByEventError } = await supabase
         .from('precontracts')
-        .select('id, public_token, event_id, reception_hours, has_sound, has_transport')
+        .select(
+          'id, public_token, event_id, reception_hours, has_sound, has_transport, agreed_amount, base_amount, add_sound, add_transport, signal_due_date, balance_due_date, card_due_date, payment_card'
+        )
         .eq('event_id', eventId)
         .maybeSingle();
 
@@ -1001,6 +1048,13 @@ export default async function ClienteTokenPage({ params, searchParams }) {
         error: precontractByEventError || null,
         precontract: precontractByEvent || null,
       });
+      console.log('[CLIENTE_FINANCE][PRECONTRACT_RESOLVED]', {
+        source: 'precontracts.event_id',
+        error: precontractByEventError || null,
+        precontractId: precontractByEvent?.id || null,
+        eventId: precontractByEvent?.event_id || null,
+        publicToken: precontractByEvent?.public_token || null,
+      });
     } catch (error) {
       console.error('[CLIENTE PAGE] Falha inesperada ao buscar precontract por event_id:', error);
     }
@@ -1011,7 +1065,7 @@ export default async function ClienteTokenPage({ params, searchParams }) {
       const { data: precontractFinancialData, error: precontractFinancialError } = await supabase
         .from('precontracts')
         .select(
-          'id, agreed_amount, base_amount, add_sound, add_transport, signal_due_date, balance_due_date, card_due_date, payment_card'
+          'id, public_token, event_id, agreed_amount, base_amount, add_sound, add_transport, signal_due_date, balance_due_date, card_due_date, payment_card'
         )
         .eq('id', precontract.id)
         .maybeSingle();
@@ -1117,7 +1171,7 @@ export default async function ClienteTokenPage({ params, searchParams }) {
 
       supabase
         .from('payments')
-        .select('id, amount, payment_date, payment_method, status, notes, proof_file_url')
+        .select('*')
         .eq('event_id', eventId)
         .order('payment_date', { ascending: false }),
 
@@ -1209,18 +1263,84 @@ export default async function ClienteTokenPage({ params, searchParams }) {
   const event = eventResp?.data || null;
   const config = configResp?.data || null;
   let items = Array.isArray(itemsResp?.data) ? itemsResp.data : [];
-  const contract = contractsResp?.data || null;
+  let contract = contractsResp?.data || null;
+  if (!contract?.id && precontract?.id) {
+    try {
+      const contractByPrecontractResp = await supabase
+        .from('contracts')
+        .select('id, event_id, precontract_id, pdf_url, doc_url, signed_at, raw_payload')
+        .eq('precontract_id', precontract.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (contractByPrecontractResp?.error) {
+        console.error(
+          '[CLIENTE PAGE] Erro ao buscar contract por precontract_id:',
+          contractByPrecontractResp.error
+        );
+      } else if (contractByPrecontractResp?.data) {
+        contract = contractByPrecontractResp.data;
+      }
+    } catch (error) {
+      console.error('[CLIENTE PAGE] Falha inesperada ao buscar contract por precontract_id:', error);
+    }
+  }
+
   const hasContractedReception = deriveHasContractedReception(config, event, precontract);
   const contractedReceptionHours = deriveContractedReceptionHours(config, event, precontract);
   const repertoireToken = repertoireTokenResp?.data || null;
   const routeToken = routeTokenResp?.data || null;
-  const payments = Array.isArray(paymentsResp?.data) ? paymentsResp.data : [];
+  let payments = Array.isArray(paymentsResp?.data) ? paymentsResp.data : [];
   const pricing = pricingResp?.data || {};
   const latestAdjustmentRequest = adjustmentResp?.data || null;
+
+  if (event?.id) {
+    try {
+      const resolvedPaymentsResp = await supabase
+        .from('payments')
+        .select('*')
+        .eq('event_id', event.id)
+        .order('payment_date', { ascending: false });
+
+      if (resolvedPaymentsResp?.error) {
+        console.error('[CLIENTE PAGE] Erro ao recarregar payments por event.id:', resolvedPaymentsResp.error);
+      } else {
+        payments = Array.isArray(resolvedPaymentsResp?.data) ? resolvedPaymentsResp.data : payments;
+      }
+    } catch (error) {
+      console.error('[CLIENTE PAGE] Falha inesperada ao recarregar payments por event.id:', error);
+    }
+  }
+
+  console.log('[CLIENTE_FINANCE][EVENT_RESOLVED]', {
+    eventId: event?.id || eventId || null,
+    agreed_amount: event?.agreed_amount ?? null,
+    total_price: event?.total_price ?? null,
+    amount: event?.amount ?? null,
+    paid_amount: event?.paid_amount ?? null,
+    amount_paid: event?.amount_paid ?? null,
+    open_amount: event?.open_amount ?? null,
+    payment_status: event?.payment_status ?? null,
+    signal_due_date: event?.signal_due_date ?? null,
+    balance_due_date: event?.balance_due_date ?? null,
+    card_due_date: event?.card_due_date ?? null,
+  });
 
   console.log('[CLIENTE PAGE][EVENT_DATA]', {
     eventId,
     event,
+  });
+  console.log('[CLIENTE_FINANCE][CONTRACT_RESOLVED]', {
+    contractId: contract?.id || null,
+    eventId: contract?.event_id || null,
+    precontractId: contract?.precontract_id || null,
+    hasRawPayload: Boolean(contract?.raw_payload),
+  });
+  console.log('[CLIENTE_FINANCE][PAYMENTS_RESOLVED]', {
+    resolvedEventId: event?.id || eventId || null,
+    count: payments.length,
+    statuses: payments.map((entry) => String(entry?.status || '').trim()).filter(Boolean),
   });
   console.log('[CLIENTE PAGE][FINANCE_EVENT_FIELDS]', {
     eventId,
@@ -1425,6 +1545,12 @@ export default async function ClienteTokenPage({ params, searchParams }) {
     payments,
   });
   console.log('[CLIENTE PAGE][FINANCE_SUMMARY_OUTPUT]', financialData?.resumo || null);
+  console.log('[CLIENTE_FINANCE][SUMMARY_BUILT]', {
+    token: normalizedToken,
+    eventId: event?.id || eventId || null,
+    summary: financialData?.resumo || null,
+    dueDatesCount: Array.isArray(financialData?.vencimentos) ? financialData.vencimentos.length : 0,
+  });
 
   const data = {
     token: clientToken,

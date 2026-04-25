@@ -31,7 +31,7 @@ function buildPatchPayload(body = {}) {
   }, {});
 }
 
-export async function PATCH(request, { params }) {
+export async function PATCH(request, context) {
   const supabaseAdmin = getSupabaseAdmin();
 
   const auth = await requireAdmin({
@@ -45,7 +45,12 @@ export async function PATCH(request, { params }) {
   }
 
   try {
-    const id = String(params?.id || '').trim();
+    const resolvedParams = await context?.params;
+    const id = String(resolvedParams?.id || '').trim();
+    console.info('[CONTRACT_TEMPLATE_API][ROUTE_PARAMS]', {
+      rawParams: resolvedParams,
+      id,
+    });
     if (!id) {
       return NextResponse.json({ ok: false, error: 'ID do template é obrigatório.' }, { status: 400 });
     }
@@ -107,7 +112,7 @@ export async function PATCH(request, { params }) {
   }
 }
 
-export async function DELETE(request, { params }) {
+export async function DELETE(request, context) {
   const supabaseAdmin = getSupabaseAdmin();
 
   const auth = await requireAdmin({
@@ -121,7 +126,12 @@ export async function DELETE(request, { params }) {
   }
 
   try {
-    const id = String(params?.id || '').trim();
+    const resolvedParams = await context?.params;
+    const id = String(resolvedParams?.id || '').trim();
+    console.info('[CONTRACT_TEMPLATE_API][ROUTE_PARAMS]', {
+      rawParams: resolvedParams,
+      id,
+    });
     if (!id) {
       return NextResponse.json({ ok: false, error: 'ID do template é obrigatório.' }, { status: 400 });
     }

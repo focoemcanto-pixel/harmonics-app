@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import Card from '@/components/ui/Card';
-import Button from '@/components/ui/Button';
+import Button from '../../components/ui/Button.js';
 import { ShieldAlertIcon } from 'lucide-react';
 
 export default function AcessoNegadoPage() {

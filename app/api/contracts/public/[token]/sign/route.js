@@ -438,13 +438,17 @@ export async function POST(request, context) {
       public_token: publicToken,
       validation_token: publicToken,
       verification_token: publicToken,
+      pdf_url: pdfUrl || null,
       signed_at: finalSignedAt,
       document_hash: signedDocument.documentHash,
     };
 
-    if (pdfUrl) {
-      finalPatch.pdf_url = pdfUrl;
-    }
+    const { error: finalUpdateError } = await supabase
+      .from('contracts')
+      .update(finalPatch)
+      .eq('id', contract.id);
+
+    if (finalUpdateError) throw finalUpdateError;
 
     const { missingColumns: finalMissingColumns } = await updateContractWithFallbacks({
       supabase,

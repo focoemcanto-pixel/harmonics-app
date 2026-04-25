@@ -5,7 +5,6 @@ import AdminSummaryCard from '@/components/admin/AdminSummaryCard';
 import AutomationBackLink from '@/components/automacoes/AutomationBackLink';
 import { cachedPromise, invalidateCache, readCachedValue } from '@/lib/client/light-cache';
 import { useAppToast } from '@/components/ui/ToastProvider';
-import Button from '@/components/ui/Button';
 import AppModal from '@/components/ui/AppModal';
 
 const VARIAVEIS = [
@@ -450,13 +449,29 @@ export default function TemplatesPageClient() {
         maxWidthClass="max-w-2xl"
         footer={(
           <div className="flex gap-3 justify-end">
-            <Button variant="ghost" onClick={fecharModal}>Cancelar</Button>
-            <Button variant="secondary" onClick={salvarTemplate} disabled={salvando}>
+            <button
+              type="button"
+              onClick={fecharModal}
+              className="rounded-full border border-[#e2e8f0] bg-white px-4 py-2 text-[13px] font-bold text-[#475569]"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={salvarTemplate}
+              disabled={salvando}
+              className="rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-[13px] font-bold text-violet-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
               {salvando ? 'Salvando...' : 'Salvar'}
-            </Button>
-            <Button variant="primary" onClick={salvarTemplate} disabled={salvando}>
+            </button>
+            <button
+              type="button"
+              onClick={salvarTemplate}
+              disabled={salvando}
+              className="rounded-full bg-violet-600 px-4 py-2 text-[13px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
+            >
               {salvando ? 'Salvando...' : 'Salvar e enviar'}
-            </Button>
+            </button>
           </div>
         )}
       >

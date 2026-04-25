@@ -6,7 +6,6 @@ import AutomationBackLink from '@/components/automacoes/AutomationBackLink';
 import { cachedPromise, invalidateCache, readCachedValue } from '@/lib/client/light-cache';
 import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
 import { useAppToast } from '@/components/ui/ToastProvider';
-import Button from '@/components/ui/Button';
 import AppModal from '@/components/ui/AppModal';
 
 const FORM_INICIAL = {
@@ -309,13 +308,29 @@ export default function CanaisPageClient() {
         maxWidthClass="max-w-lg"
         footer={(
           <div className="flex gap-3 justify-end">
-            <Button variant="ghost" onClick={fecharModal}>Cancelar</Button>
-            <Button variant="secondary" onClick={testarConexao} disabled={testandoConexao}>
+            <button
+              type="button"
+              onClick={fecharModal}
+              className="rounded-full border border-[#e2e8f0] bg-white px-4 py-2 text-[13px] font-bold text-[#475569]"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={testarConexao}
+              disabled={testandoConexao}
+              className="rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-[13px] font-bold text-violet-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
               {testandoConexao ? 'Testando...' : 'Salvar'}
-            </Button>
-            <Button variant="primary" onClick={salvarCanal} disabled={salvando}>
+            </button>
+            <button
+              type="button"
+              onClick={salvarCanal}
+              disabled={salvando}
+              className="rounded-full bg-violet-600 px-4 py-2 text-[13px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
+            >
               {salvando ? 'Salvando...' : 'Salvar e enviar'}
-            </Button>
+            </button>
           </div>
         )}
       >
@@ -362,9 +377,15 @@ export default function CanaisPageClient() {
         maxWidthClass="max-w-md"
         footer={(
           <div className="flex gap-3 justify-end">
-            <Button variant="ghost" onClick={() => setCanalParaTestar(null)}>Cancelar</Button>
-            <Button
-              variant="primary"
+            <button
+              type="button"
+              onClick={() => setCanalParaTestar(null)}
+              className="rounded-full border border-[#e2e8f0] bg-white px-4 py-2 text-[13px] font-bold text-[#475569]"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
               disabled={enviandoTeste || !telefoneTest.trim()}
               onClick={async () => {
                 setEnviandoTeste(true);
@@ -384,9 +405,10 @@ export default function CanaisPageClient() {
                   setEnviandoTeste(false);
                 }
               }}
+              className="rounded-full bg-violet-600 px-4 py-2 text-[13px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
             >
               {enviandoTeste ? 'Enviando...' : 'Salvar e enviar'}
-            </Button>
+            </button>
           </div>
         )}
       >

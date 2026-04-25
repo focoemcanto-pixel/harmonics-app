@@ -268,6 +268,68 @@ function getInitialForm() {
   };
 }
 
+function normalizeContractData(data) {
+  const payload = data && typeof data === 'object' ? data : {};
+  const contract = payload?.contract || payload?.contracts || null;
+  const precontract = payload?.precontract || null;
+  const signed =
+    payload?.signed === true ||
+    contract?.status === 'signed' ||
+    precontract?.status === 'signed';
+  const pdfUrl =
+    contract?.pdf_url ||
+    payload?.pdf_url ||
+    payload?.signature?.pdf_url ||
+    null;
+
+  return {
+    signed,
+    pdf_url: pdfUrl,
+    contract: contract
+      ? {
+          ...contract,
+          pdf_url: contract?.pdf_url || pdfUrl || null,
+        }
+      : null,
+    precontract,
+    event: payload?.event || null,
+    contact: payload?.contact || null,
+  };
+}
+
+async function fetchPublicContract(token) {
+  const safeToken = String(token || '').trim();
+  if (!safeToken) {
+    throw new Error('Token do contrato não encontrado.');
+  }
+
+  const response = await fetch(`/api/public/contracts/${safeToken}`, {
+    method: 'GET',
+    cache: 'no-store',
+  });
+
+  let payload = null;
+  try {
+    payload = await response.json();
+  } catch {
+    payload = null;
+  }
+
+  if (response.status === 404) {
+    return null;
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      payload?.message ||
+        payload?.error ||
+        `Falha ao consultar contrato público (status ${response.status}).`
+    );
+  }
+
+  return normalizeContractData(payload);
+}
+
 function SummaryItem({ label, value }) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
@@ -765,8 +827,9 @@ export default function ContratoPublicoPage() {
 
   const addressStreetRef = useRef(null);
 const eventAddressRef = useRef(null);
-const clientAutocompleteRef = useRef(null);
-const eventAutocompleteRef = useRef(null);
+  const clientAutocompleteRef = useRef(null);
+  const eventAutocompleteRef = useRef(null);
+  const pdfReadyLoggedRef = useRef('');
 
 const mapsLoaded = useGoogleMapsReady();
 
@@ -931,49 +994,141 @@ const mapsLoaded = useGoogleMapsReady();
       });
   }
 
-  const fetchPublicContract = useCallback(async () => {
+  const fetchLegacyContract = useCallback(async () => {
     if (!token) {
       throw new Error('Token do contrato não encontrado.');
     }
 
-    const response = await fetch(`/api/contracts/public/${token}`, {
-      method: 'GET',
-      cache: 'no-store',
-    });
-    const payload = await response.json();
+    let precontractData = null;
+    let contractData = null;
 
-    if (!response.ok || !payload?.found) {
-      throw new Error(payload?.error || 'Contrato não encontrado.');
+    const { data: preByToken, error: preByTokenError } = await supabase
+      .from('precontracts')
+      .select('*')
+      .eq('public_token', token)
+      .maybeSingle();
+    if (preByTokenError) throw preByTokenError;
+    precontractData = preByToken || null;
+
+    if (!precontractData) {
+      const { data: contractByToken, error: contractByTokenError } = await supabase
+        .from('contracts')
+        .select('*')
+        .eq('public_token', token)
+        .maybeSingle();
+      if (contractByTokenError) throw contractByTokenError;
+      contractData = contractByToken || null;
+
+      if (contractData?.precontract_id) {
+        const { data: preById, error: preByIdError } = await supabase
+          .from('precontracts')
+          .select('*')
+          .eq('id', contractData.precontract_id)
+          .maybeSingle();
+        if (preByIdError) throw preByIdError;
+        precontractData = preById || null;
+      }
     }
 
-    const contractFromApi = payload?.contract || payload?.contracts || null;
+    if (!precontractData) {
+      return null;
+    }
 
-    return {
-      precontract: payload?.precontract || null,
-      contract: contractFromApi
-        ? {
-            ...contractFromApi,
-            pdf_url: contractFromApi?.pdf_url || payload?.contracts?.pdf_url || null,
-          }
-        : null,
-      contact: payload?.contact || null,
-      event: payload?.event || null,
-    };
+    if (!contractData && precontractData?.id) {
+      const { data: contractByPreId, error: contractByPreIdError } = await supabase
+        .from('contracts')
+        .select('*')
+        .eq('precontract_id', precontractData.id)
+        .maybeSingle();
+      if (contractByPreIdError) throw contractByPreIdError;
+      contractData = contractByPreId || null;
+    }
+
+    const contactId = contractData?.contact_id || precontractData?.contact_id || null;
+    const eventId = contractData?.event_id || precontractData?.event_id || null;
+    let contact = null;
+    let event = null;
+
+    if (contactId) {
+      const { data: contactData, error: contactError } = await supabase
+        .from('contacts')
+        .select('*')
+        .eq('id', contactId)
+        .maybeSingle();
+      if (contactError) {
+        console.warn('[CONTRACT_PUBLIC_UI] falha não fatal ao buscar contact no legado', {
+          token,
+          contactId,
+          message: contactError.message,
+        });
+      } else {
+        contact = contactData || null;
+      }
+    }
+
+    if (eventId) {
+      const { data: eventData, error: eventError } = await supabase
+        .from('events')
+        .select('*')
+        .eq('id', eventId)
+        .maybeSingle();
+      if (eventError) {
+        console.warn('[CONTRACT_PUBLIC_UI] falha não fatal ao buscar event no legado', {
+          token,
+          eventId,
+          message: eventError.message,
+        });
+      } else {
+        event = eventData || null;
+      }
+    }
+
+    return normalizeContractData({
+      precontract: precontractData,
+      contract: contractData,
+      contact,
+      event,
+    });
   }, [token]);
 
   const fetchContract = useCallback(async () => {
-    const latest = await fetchPublicContract();
-    return latest.contract || null;
-  }, [fetchPublicContract]);
+    let latest = null;
+    try {
+      latest = await fetchPublicContract(token);
+      if (latest) {
+        return latest.contract || null;
+      }
+      console.info('[CONTRACT_PUBLIC_UI][FALLBACK_TO_LEGACY]', { token, reason: 'not_found' });
+    } catch (error) {
+      console.warn('[CONTRACT_PUBLIC_UI][FALLBACK_TO_LEGACY]', { token, reason: error?.message || 'public_api_error' });
+    }
+
+    const legacy = await fetchLegacyContract();
+    return legacy?.contract || null;
+  }, [fetchLegacyContract, token]);
 
   const refetchContract = useCallback(async () => {
-    const latest = await fetchPublicContract();
-    setPrecontract(sanitizeTimeFields(latest.precontract || null));
-    setContract(latest.contract || null);
-    setContactData(latest.contact || null);
-    setEventData(latest.event || null);
-    return latest;
-  }, [fetchPublicContract]);
+    let latest = null;
+    try {
+      latest = await fetchPublicContract(token);
+      if (latest) {
+        console.info('[CONTRACT_PUBLIC_UI][USING_PUBLIC_API]', { token });
+      }
+    } catch (error) {
+      console.warn('[CONTRACT_PUBLIC_UI][FALLBACK_TO_LEGACY]', { token, reason: error?.message || 'public_api_error' });
+    }
+
+    if (!latest) {
+      console.info('[CONTRACT_PUBLIC_UI][FALLBACK_TO_LEGACY]', { token, reason: 'empty_or_not_found' });
+      latest = await fetchLegacyContract();
+    }
+
+    setPrecontract(sanitizeTimeFields(latest?.precontract || null));
+    setContract(latest?.contract || null);
+    setContactData(latest?.contact || null);
+    setEventData(latest?.event || null);
+    return latest || null;
+  }, [fetchLegacyContract, token]);
 
   useEffect(() => {
   async function carregar() {
@@ -990,11 +1145,31 @@ const mapsLoaded = useGoogleMapsReady();
         token,
       });
 
-      const latest = await fetchPublicContract();
-      preData = latest.precontract || null;
-      contractData = latest.contract || null;
-      const contactData = latest.contact || null;
-      const eventLoadedData = latest.event || null;
+      let latest = null;
+      try {
+        latest = await fetchPublicContract(token);
+        if (latest) {
+          console.info('[CONTRACT_PUBLIC_UI][USING_PUBLIC_API]', { token });
+        }
+      } catch (error) {
+        console.warn('[CONTRACT_PUBLIC_UI][FALLBACK_TO_LEGACY]', {
+          token,
+          reason: error?.message || 'public_api_error',
+        });
+      }
+
+      if (!latest) {
+        console.info('[CONTRACT_PUBLIC_UI][FALLBACK_TO_LEGACY]', {
+          token,
+          reason: 'empty_or_not_found',
+        });
+        latest = await fetchLegacyContract();
+      }
+
+      preData = latest?.precontract || null;
+      contractData = latest?.contract || null;
+      const contactData = latest?.contact || null;
+      const eventLoadedData = latest?.event || null;
       setContactData(contactData || null);
       setEventData(eventLoadedData || null);
 
@@ -1173,7 +1348,7 @@ const mapsLoaded = useGoogleMapsReady();
   }
 
   carregar();
-}, [token, fetchPublicContract]);
+}, [token, fetchLegacyContract]);
 
 useEffect(() => {
   if (!token) return undefined;
@@ -1210,6 +1385,32 @@ useEffect(() => {
   resultadoFinal.pdfUrl,
   contract?.pdf_url,
   refetchContract,
+]);
+
+useEffect(() => {
+  const signedContract =
+    contract?.status === 'signed' || precontract?.status === 'signed';
+  const pdfUrl = resultadoFinal.pdfUrl || contract?.pdf_url || '';
+  if (!token || !signedContract || !pdfUrl) return;
+
+  const fingerprint = `${token}:${pdfUrl}`;
+  if (pdfReadyLoggedRef.current === fingerprint) return;
+  pdfReadyLoggedRef.current = fingerprint;
+
+  console.info('[CONTRACT_PUBLIC_UI][PDF_READY]', {
+    token,
+    contractId: contract?.id || null,
+    precontractId: precontract?.id || null,
+    pdfUrl,
+  });
+}, [
+  token,
+  contract?.id,
+  contract?.status,
+  contract?.pdf_url,
+  precontract?.id,
+  precontract?.status,
+  resultadoFinal.pdfUrl,
 ]);
 
  useEffect(() => {
@@ -2148,7 +2349,7 @@ if (contractSignedError) throw contractSignedError;
         rel="noreferrer"
         className="inline-flex"
       >
-        <Button>Baixar contrato PDF</Button>
+        <Button>Abrir PDF</Button>
       </a>
 
       <a

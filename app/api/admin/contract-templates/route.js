@@ -87,21 +87,20 @@ export async function POST(request) {
     const { data: inserted, error } = await supabaseAdmin
       .from('contract_templates')
       .insert(payload)
-      .select(SELECT_FIELDS)
+      .select('id')
       .single();
 
     if (error) throw error;
 
-    if (payload.is_default) {
-      const { error: clearAfterError } = await supabaseAdmin
-        .from('contract_templates')
-        .update({ is_default: false })
-        .neq('id', inserted.id);
+    const { data: finalTemplate, error: fetchFinalError } = await supabaseAdmin
+      .from('contract_templates')
+      .select(SELECT_FIELDS)
+      .eq('id', inserted.id)
+      .single();
 
-      if (clearAfterError) throw clearAfterError;
-    }
+    if (fetchFinalError) throw fetchFinalError;
 
-    return NextResponse.json({ ok: true, template: inserted }, { status: 201 });
+    return NextResponse.json({ ok: true, template: finalTemplate }, { status: 201 });
   } catch (error) {
     console.error('[CONTRACT_TEMPLATE_API][POST][ERROR]', {
       message: error?.message,

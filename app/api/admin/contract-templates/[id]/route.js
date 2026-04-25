@@ -75,25 +75,24 @@ export async function PATCH(request, { params }) {
       if (clearBeforeError) throw clearBeforeError;
     }
 
-    const { data: updated, error } = await supabaseAdmin
+    const { error: updateError } = await supabaseAdmin
       .from('contract_templates')
       .update(payload)
       .eq('id', id)
-      .select(SELECT_FIELDS)
+      .select('id')
       .single();
 
-    if (error) throw error;
+    if (updateError) throw updateError;
 
-    if (payload.is_default === true) {
-      const { error: clearAfterError } = await supabaseAdmin
-        .from('contract_templates')
-        .update({ is_default: false })
-        .neq('id', id);
+    const { data: finalTemplate, error: fetchFinalError } = await supabaseAdmin
+      .from('contract_templates')
+      .select(SELECT_FIELDS)
+      .eq('id', id)
+      .single();
 
-      if (clearAfterError) throw clearAfterError;
-    }
+    if (fetchFinalError) throw fetchFinalError;
 
-    return NextResponse.json({ ok: true, template: updated });
+    return NextResponse.json({ ok: true, template: finalTemplate });
   } catch (error) {
     console.error('[CONTRACT_TEMPLATE_API][PATCH][ERROR]', {
       message: error?.message,

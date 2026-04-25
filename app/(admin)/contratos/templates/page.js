@@ -91,6 +91,15 @@ function hasVisibleText(value) {
     .trim().length > 0;
 }
 
+function pickTemplateEditorHtml(template) {
+  const rich = String(template?.source_rich_html || '');
+  const content = String(template?.content || '');
+  const text = String(template?.source_text || '');
+  if (hasVisibleText(rich)) return rich;
+  if (hasVisibleText(content)) return content;
+  return textToEditorHtml(text);
+}
+
 function formatDateTime(value) {
   if (!value) return '—';
   const date = new Date(value);
@@ -235,12 +244,7 @@ export default function ContractTemplatesPage() {
       is_active: template.is_active !== false,
       is_default: template.is_default === true,
     });
-    const nextEditorHtml = String(
-      existingSourceRichHtml ||
-      existingContent ||
-      textToEditorHtml(existingSourceText) ||
-      ''
-    );
+    const nextEditorHtml = String(pickTemplateEditorHtml(template) || '');
 
     setRichContentHtml(nextEditorHtml);
     setIsDirty(false);
@@ -340,14 +344,14 @@ export default function ContractTemplatesPage() {
           is_active: updatedTemplate.is_active !== false,
           is_default: updatedTemplate.is_default === true,
         });
-        setRichContentHtml(
-          String(
-            updatedTemplate.source_rich_html ||
-            updatedTemplate.content ||
-            textToEditorHtml(updatedTemplate.source_text) ||
-            ''
-          )
-        );
+        setRichContentHtml(String(pickTemplateEditorHtml(updatedTemplate) || ''));
+        console.info('[TEMPLATE_AFTER_SAVE]', {
+          id: updatedTemplate.id,
+          sourceRichIncludesAssinatura: updatedTemplate.source_rich_html?.includes('ASSINATURA'),
+          contentIncludesAssinatura: updatedTemplate.content?.includes('ASSINATURA'),
+          sourceRichLen: updatedTemplate.source_rich_html?.length || 0,
+          contentLen: updatedTemplate.content?.length || 0,
+        });
         setIsDirty(false);
         devLog('[TEMPLATE_EDITOR][SAVE_RESULT]', { mode: 'update', id: editandoId, ok: true });
         toast.success('Template atualizado com sucesso.');
@@ -364,9 +368,18 @@ export default function ContractTemplatesPage() {
         }
         const insertedTemplate = result.template;
         setTemplates((prev) => [insertedTemplate, ...prev]);
+        console.info('[TEMPLATE_AFTER_SAVE]', {
+          id: insertedTemplate.id,
+          sourceRichIncludesAssinatura: insertedTemplate.source_rich_html?.includes('ASSINATURA'),
+          contentIncludesAssinatura: insertedTemplate.content?.includes('ASSINATURA'),
+          sourceRichLen: insertedTemplate.source_rich_html?.length || 0,
+          contentLen: insertedTemplate.content?.length || 0,
+        });
         devLog('[TEMPLATE_EDITOR][SAVE_RESULT]', { mode: 'insert', ok: true });
         toast.success('Template criado com sucesso.');
         await carregarTemplates(false);
+        limparFormulario();
+        setMobileTab('lista');
       }
       console.log('[TEMPLATE SAVED]', {
         rich_len: currentRichHtml.length,
@@ -374,8 +387,6 @@ export default function ContractTemplatesPage() {
         content_len: payload.content.length,
       });
 
-      limparFormulario();
-      setMobileTab('lista');
     } catch (saveError) {
       if (String(saveError?.message || '').toLowerCase().includes('source_rich_html')) {
         toast.error('Coluna source_rich_html não existe. Rode a migration.');

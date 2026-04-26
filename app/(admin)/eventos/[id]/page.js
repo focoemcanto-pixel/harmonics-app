@@ -221,11 +221,10 @@ export default function EventoDetalhePage() {
           }, new Map());
         }
 
-        const nextWithoutScale = candidates.find((item) => {
+        const nextCandidate = candidates.find((item) => {
           const summary = scaleSummary.get(String(item?.id || '')) || { total: 0 };
           return Number(summary.total || 0) === 0;
         });
-        const nextCandidate = nextWithoutScale || candidates[0];
 
         if (!nextCandidate?.id) {
           setFallbackNextEventHref('');

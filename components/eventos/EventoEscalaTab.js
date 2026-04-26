@@ -25,6 +25,13 @@ function formatDateTimeBR(dateValue, timeValue) {
   return `${date} • ${time}`;
 }
 
+function formatMoney(value) {
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  }).format(Number(value || 0));
+}
+
 function getContactTagText(contact) {
   const candidates = [
     contact?.tags,
@@ -455,7 +462,6 @@ export default function EventoEscalaTab({ eventId }) {
   const [contatos, setContatos] = useState([]);
   const [escalaSalva, setEscalaSalva] = useState([]);
   const [escalaLocal, setEscalaLocal] = useState([]);
-  const [templateAplicado, setTemplateAplicado] = useState(null);
   const [templateSugerido, setTemplateSugerido] = useState(null);
   const [outrasSugestoes, setOutrasSugestoes] = useState([]);
   const [repertorioStatus, setRepertorioStatus] = useState('');
@@ -487,7 +493,7 @@ export default function EventoEscalaTab({ eventId }) {
         await Promise.all([
           supabase
             .from('events')
-            .select('id, client_name, event_date, event_time, location_name, formation, instruments, open_amount')
+            .select('id, client_name, event_date, event_time, location_name, formation, instruments, status, open_amount, payment_status, repertoire_status')
             .eq('id', eventId)
             .single(),
           supabase
@@ -546,7 +552,6 @@ export default function EventoEscalaTab({ eventId }) {
       });
 
       let escalaInicial = escalaData;
-      let templateSelecionado = null;
       let templateSugeridoAtual = null;
       setRepertorioStatus(String(repertorioResp?.data?.status || ''));
 
@@ -585,7 +590,6 @@ export default function EventoEscalaTab({ eventId }) {
       setContatos(contatosData);
       setEscalaSalva(escalaData);
       setEscalaLocal(escalaInicial);
-      setTemplateAplicado(templateSelecionado);
       setTemplateSugerido(templateSugeridoAtual);
       if (escalaData.length > 0) setOutrasSugestoes([]);
     } catch (e) {
@@ -754,6 +758,17 @@ export default function EventoEscalaTab({ eventId }) {
     [repertorioStatus]
   );
 
+  const statusTela = useMemo(() => {
+    if (coverage.missing.length === 0 && resumoStatus.pendentes === 0) return 'Confirmado';
+    if (resumoStatus.total > 0) return 'Atenção';
+    return 'Pendente';
+  }, [coverage.missing.length, resumoStatus.pendentes, resumoStatus.total]);
+
+  const repertorioStatus = useMemo(() => {
+    const value = String(evento?.repertoire_status || '').trim();
+    return value || 'Pendente';
+  }, [evento?.repertoire_status]);
+
   const diffResumo = useMemo(() => {
     const { novos, removidos } = diffEscala(escalaSalva, escalaLocal);
     const pendentes = escalaLocal.filter((item) => item.status === 'pending').length;
@@ -781,8 +796,15 @@ export default function EventoEscalaTab({ eventId }) {
     setEditando(true);
   }
 
+  function aplicarTemplateSugerido() {
+    if (!templateSugerido || itensTemplateSugerido.length === 0) return;
+    setEscalaLocal([...itensTemplateSugerido]);
+    setTemplateSugerido(null);
+    setEditando(true);
+    setSucesso('');
+  }
+
   function iniciarMontagemManual() {
-    setTemplateAplicado(null);
     setTemplateSugerido(null);
     setEscalaLocal([]);
     setEditando(true);
@@ -1037,90 +1059,97 @@ async function salvarEEnviarConvites() {
   }
 
   return (
-    <div className="space-y-5 md:space-y-6">
-      <section className="space-y-3 rounded-[24px] border border-[#dbe3ef] bg-white p-4 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
+    <div className="space-y-4 md:space-y-5">
+      <section className="space-y-3 rounded-[24px] border border-[#dbe3ef] bg-white p-4 shadow-[0_10px_26px_rgba(17,24,39,0.04)] md:p-5">
         <div>
-          <h3 className="text-[20px] font-black text-[#0f172a]">{evento?.client_name || 'Evento'}</h3>
-          <p className="text-[13px] font-semibold text-[#64748b]">
+          <h3 className="text-[22px] font-black tracking-[-0.03em] text-[#0f172a]">{evento?.client_name || 'Evento'}</h3>
+          <p className="mt-1 text-[13px] font-semibold text-[#64748b]">
             {formatDateTimeBR(evento?.event_date, evento?.event_time)}
             {evento?.location_name ? ` • ${evento.location_name}` : ''}
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          <SummaryChip tone={estadoEvento.tone}>{estadoEvento.label}</SummaryChip>
-          <SummaryChip>{resumoStatus.total} músicos</SummaryChip>
-          <SummaryChip tone="emerald">{resumoStatus.confirmados} confirmados</SummaryChip>
-          <SummaryChip tone="amber">{resumoStatus.pendentes} pendentes</SummaryChip>
+        <div className="rounded-2xl border border-[#e2e8f0] bg-[#f8fafc] px-3 py-2">
+          <div className="text-[11px] font-black uppercase tracking-[0.08em] text-[#64748b]">Status</div>
+          <div className="mt-1 text-[14px] font-black text-[#0f172a]">{statusTela}</div>
         </div>
 
-        <div className="rounded-[16px] border border-violet-200 bg-violet-50 px-4 py-3">
-          <div className="text-[12px] font-black text-violet-700">Sugestão de formação</div>
-          <div className="text-[14px] font-semibold text-violet-900">
-            {templateSugerido ? formatTemplateDisplay(templateSugerido) : sugestaoFormacao}
-          </div>
-          {templateAplicado?.name ? (
-            <div className="text-[12px] font-semibold text-violet-700">Base aplicada: {templateAplicado.name}</div>
-          ) : null}
+        <div className="rounded-2xl border border-[#e2e8f0] bg-[#f8fafc] px-3 py-2 text-[13px] font-semibold text-[#0f172a]">
+          {resumoStatus.total} músicos • {resumoStatus.confirmados} confirmados • {resumoStatus.pendentes} pendentes
+        </div>
+
+        <div className="rounded-2xl border border-violet-200 bg-violet-50 px-3 py-3">
+          <div className="text-[11px] font-black uppercase tracking-[0.08em] text-violet-700">Sugestão de formação</div>
+          <div className="mt-1 text-[14px] font-black text-violet-900">{formatTemplateDisplay(templateSugerido) || sugestaoFormacao}</div>
           <div className="text-[12px] font-semibold text-violet-700">Recomendado para este evento</div>
           <div className="mt-3 flex flex-wrap gap-2">
-            {!editando && escalaSalva.length === 0 ? (
-              <button
-                type="button"
-                onClick={iniciarMontagemManual}
-                className="rounded-[14px] border border-[#dbe3ef] bg-white px-4 py-2 text-[13px] font-black text-[#0f172a]"
-              >
-                Montagem manual
-              </button>
-            ) : null}
-            {!editando ? (
-              <button
-                type="button"
-                onClick={iniciarEdicao}
-                className="rounded-[14px] bg-violet-600 px-4 py-2 text-[13px] font-black text-white"
-              >
-                Ajustar escala
-              </button>
-            ) : null}
+            <button
+              type="button"
+              onClick={iniciarMontagemManual}
+              className="rounded-[14px] border border-[#dbe3ef] bg-white px-4 py-2 text-[13px] font-black text-[#0f172a]"
+            >
+              Montagem manual
+            </button>
+            <button
+              type="button"
+              onClick={iniciarEdicao}
+              className="rounded-[14px] bg-violet-600 px-4 py-2 text-[13px] font-black text-white"
+            >
+              Ajustar escala
+            </button>
           </div>
         </div>
 
-        {!editando && escalaSalva.length === 0 && !templateSugerido ? (
-          <div className="rounded-[16px] border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] font-semibold text-amber-800">
-            Nenhuma sugestão automática
-          </div>
-        ) : null}
-
         {!editando && escalaSalva.length === 0 && outrasSugestoes.length > 0 ? (
-          <div className="rounded-[16px] border border-[#dbe3ef] bg-[#f8fafc] px-4 py-3">
-            <div className="text-[12px] font-black text-[#475569]">Outras opções</div>
-            <div className="mt-1 space-y-1 text-[13px] text-[#334155]">
-              {outrasSugestoes.slice(0, 2).map((suggestion, index) => (
-                <div key={suggestion.id}>
-                  {index === 0 ? 'Trio — formação mais completa' : 'Quarteto — experiência mais rica'}
-                </div>
+          <div className="rounded-2xl border border-[#e2e8f0] bg-white px-3 py-3">
+            <div className="text-[11px] font-black uppercase tracking-[0.08em] text-[#64748b]">Outras opções</div>
+            <div className="mt-2 space-y-1 text-[13px] font-semibold text-[#334155]">
+              {outrasSugestoes.map((suggestion) => (
+                <div key={suggestion.id}>{formatTemplateDisplay(suggestion)}</div>
               ))}
             </div>
           </div>
         ) : null}
 
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <div className="rounded-[16px] border border-[#dbe3ef] px-4 py-3">
-            <div className="text-[12px] font-black text-[#475569]">Financeiro</div>
-            <div className="text-[14px] font-semibold text-[#0f172a]">
-              Valor pendente: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(evento?.open_amount || 0))}
-            </div>
-            <Link href={`/eventos/${eventId}?tab=financeiro`} className="mt-2 inline-block text-[13px] font-black text-violet-700">
+          <div className="rounded-2xl border border-[#e2e8f0] bg-white px-3 py-3">
+            <div className="text-[11px] font-black uppercase tracking-[0.08em] text-[#64748b]">Financeiro</div>
+            <div className="mt-1 text-[14px] font-black text-[#0f172a]">{formatMoney(evento?.open_amount)} pendente</div>
+            <Link href="/pagamentos" className="mt-2 inline-flex rounded-[12px] border border-[#dbe3ef] px-3 py-1.5 text-[12px] font-black text-[#0f172a]">
               Ver pagamentos
             </Link>
           </div>
-          <div className="rounded-[16px] border border-[#dbe3ef] px-4 py-3">
-            <div className="text-[12px] font-black text-[#475569]">Repertório</div>
-            <div className="text-[14px] font-semibold text-[#0f172a]">Status: {repertorioLabel}</div>
-            <Link href="/repertorios" className="mt-2 inline-block text-[13px] font-black text-violet-700">
+          <div className="rounded-2xl border border-[#e2e8f0] bg-white px-3 py-3">
+            <div className="text-[11px] font-black uppercase tracking-[0.08em] text-[#64748b]">Repertório</div>
+            <div className="mt-1 text-[14px] font-black text-[#0f172a]">{repertorioStatus}</div>
+            <Link href="/repertorios" className="mt-2 inline-flex rounded-[12px] border border-[#dbe3ef] px-3 py-1.5 text-[12px] font-black text-[#0f172a]">
               Ver repertório
             </Link>
           </div>
+        </div>
+
+        <div className="mt-1 flex flex-wrap gap-3">
+          {!editando && escalaSalva.length === 0 && templateSugerido && itensTemplateSugerido.length > 0 ? (
+            <button
+              type="button"
+              onClick={aplicarTemplateSugerido}
+              className="rounded-[18px] bg-violet-600 px-5 py-3 text-[14px] font-black text-white shadow-[0_12px_28px_rgba(124,58,237,0.18)] transition hover:translate-y-[-1px]"
+            >
+              Aplicar template sugerido
+            </button>
+          ) : null}
+
+          {editando ? (
+            <div className="rounded-[18px] border border-violet-200 bg-violet-50 px-4 py-3 text-[13px] font-black text-violet-700">
+              Modo edição ativo
+            </div>
+          ) : null}
+
+          {sucesso ? (
+            <div className="rounded-[18px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-[13px] font-black text-emerald-700">
+              {sucesso}
+            </div>
+          ) : null}
         </div>
         {sucesso ? (
           <div className="rounded-[16px] border border-emerald-200 bg-emerald-50 px-4 py-2 text-[13px] font-black text-emerald-700">

@@ -142,6 +142,28 @@ function formatTemplateDisplay(template) {
   return composicao ? `${formacao} — ${composicao}` : formacao;
 }
 
+function getEventoEstadoResumo({ total, confirmados, pendentes, recusados, missing }) {
+  if (!total || pendentes >= total) {
+    return { label: 'Pendente', tone: 'amber' };
+  }
+  if (recusados > 0 || missing > 0 || pendentes > 0) {
+    return { label: 'Atenção', tone: 'red' };
+  }
+  if (confirmados > 0) {
+    return { label: 'Confirmado', tone: 'emerald' };
+  }
+  return { label: 'Pendente', tone: 'amber' };
+}
+
+function getRepertorioStatusLabel(status) {
+  const normalized = String(status || '').trim().toUpperCase();
+  if (!normalized) return 'Pendente';
+  if (normalized === 'FINALIZADO') return 'Finalizado';
+  if (normalized === 'EM_REVISAO' || normalized === 'AGUARDANDO_REVISAO') return 'Em revisão';
+  if (normalized === 'NAO_INICIADO') return 'Pendente';
+  return 'Pendente';
+}
+
 function SummaryChip({ children, tone = 'default' }) {
   const classes = {
     default: 'border-[#dbe3ef] bg-white text-[#0f172a]',
@@ -436,7 +458,7 @@ export default function EventoEscalaTab({ eventId }) {
   const [templateAplicado, setTemplateAplicado] = useState(null);
   const [templateSugerido, setTemplateSugerido] = useState(null);
   const [outrasSugestoes, setOutrasSugestoes] = useState([]);
-  const [itensTemplateSugerido, setItensTemplateSugerido] = useState([]);
+  const [repertorioStatus, setRepertorioStatus] = useState('');
 
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
@@ -461,11 +483,11 @@ export default function EventoEscalaTab({ eventId }) {
       setCarregando(true);
       setErro('');
 
-      const [eventoResp, contatosResp, escalaResp, templatesResp, templateItemsResp] =
+      const [eventoResp, contatosResp, escalaResp, templatesResp, templateItemsResp, repertorioResp] =
         await Promise.all([
           supabase
             .from('events')
-            .select('id, client_name, event_date, event_time, location_name, formation, instruments')
+            .select('id, client_name, event_date, event_time, location_name, formation, instruments, open_amount')
             .eq('id', eventId)
             .single(),
           supabase
@@ -485,6 +507,11 @@ export default function EventoEscalaTab({ eventId }) {
             .from('scale_template_items')
             .select('*')
             .order('sort_order', { ascending: true }),
+          supabase
+            .from('repertoire_config')
+            .select('status')
+            .eq('event_id', eventId)
+            .maybeSingle(),
         ]);
 
       if (eventoResp.error) throw eventoResp.error;
@@ -492,6 +519,7 @@ export default function EventoEscalaTab({ eventId }) {
       if (escalaResp.error) throw escalaResp.error;
       if (templatesResp.error) throw templatesResp.error;
       if (templateItemsResp.error) throw templateItemsResp.error;
+      if (repertorioResp.error) throw repertorioResp.error;
 
       const eventoData = eventoResp.data || null;
       const contatosData = filterOperationalTeamContacts(contatosResp.data || []);
@@ -520,7 +548,7 @@ export default function EventoEscalaTab({ eventId }) {
       let escalaInicial = escalaData;
       let templateSelecionado = null;
       let templateSugeridoAtual = null;
-      let suggestedItems = [];
+      setRepertorioStatus(String(repertorioResp?.data?.status || ''));
 
       if (escalaData.length === 0 && eventoData) {
         const suggestion = matchTemplatesForEvent(
@@ -533,46 +561,13 @@ export default function EventoEscalaTab({ eventId }) {
         );
 
         const bestTemplate = suggestion.bestTemplate;
-        const templateItemsByTemplate = new Map();
-        for (const templateItem of templateItemsResp.data || []) {
-          const key = String(templateItem.template_id || '');
-          if (!templateItemsByTemplate.has(key)) templateItemsByTemplate.set(key, []);
-          templateItemsByTemplate.get(key).push(templateItem);
-        }
 
         if (bestTemplate) {
-          const templateItems = (templateItemsByTemplate.get(String(bestTemplate.id)) || [])
-            .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
-
-          const mappedSuggestedItems = templateItems
-            .map((item) => {
-              const contact = contatosMap.get(String(item.contact_id)) || null;
-              if (!contact) return null;
-
-              const tagText = getContactTagText(contact);
-
-              return {
-                id: undefined,
-                event_id: eventId,
-                musician_id: item.contact_id,
-                role: item.role || tagText || '',
-                status: 'pending',
-                notes: '',
-                confirmed_at: null,
-                musician_name: contact.name || '',
-                musician_phone: contact.phone || '',
-                musician_email: contact.email || '',
-                contact_tag_text: tagText,
-              };
-            })
-            .filter(Boolean);
-
           templateSugeridoAtual = {
             ...bestTemplate,
             match_explanation: suggestion.suggestions?.[0]?.explanation || '',
             match_score: suggestion.suggestions?.[0]?.score || 0,
           };
-          suggestedItems = mappedSuggestedItems;
         }
 
         const suggestions = (suggestion.suggestions || []).map((item) => ({
@@ -593,7 +588,6 @@ export default function EventoEscalaTab({ eventId }) {
       setTemplateAplicado(templateSelecionado);
       setTemplateSugerido(templateSugeridoAtual);
       if (escalaData.length > 0) setOutrasSugestoes([]);
-      setItensTemplateSugerido(suggestedItems);
     } catch (e) {
       console.error('Erro ao carregar escala do evento:', e);
       setErro(
@@ -744,6 +738,21 @@ export default function EventoEscalaTab({ eventId }) {
       missing,
     };
   }, [instrumentosEsperados, escalaParaExibir]);
+  const estadoEvento = useMemo(
+    () =>
+      getEventoEstadoResumo({
+        total: resumoStatus.total,
+        confirmados: resumoStatus.confirmados,
+        pendentes: resumoStatus.pendentes,
+        recusados: resumoStatus.recusados,
+        missing: coverage.missing.length,
+      }),
+    [resumoStatus, coverage.missing.length]
+  );
+  const repertorioLabel = useMemo(
+    () => getRepertorioStatusLabel(repertorioStatus),
+    [repertorioStatus]
+  );
 
   const diffResumo = useMemo(() => {
     const { novos, removidos } = diffEscala(escalaSalva, escalaLocal);
@@ -770,15 +779,6 @@ export default function EventoEscalaTab({ eventId }) {
     setBusca('');
     setSucesso('');
     setEditando(true);
-  }
-
-  function aplicarTemplateSugerido() {
-    if (!templateSugerido || itensTemplateSugerido.length === 0) return;
-    setEscalaLocal([...itensTemplateSugerido]);
-    setTemplateAplicado(templateSugerido);
-    setTemplateSugerido(null);
-    setEditando(true);
-    setSucesso('');
   }
 
   function iniciarMontagemManual() {
@@ -1038,155 +1038,101 @@ async function salvarEEnviarConvites() {
 
   return (
     <div className="space-y-5 md:space-y-6">
-      <section className="rounded-[28px] border border-[#dbe3ef] bg-gradient-to-br from-[#fcfcff] via-white to-[#f8fafc] p-5 shadow-[0_10px_26px_rgba(17,24,39,0.04)] md:p-6">
-        <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-          <div className="min-w-0">
-            <div className="text-[12px] font-black uppercase tracking-[0.14em] text-violet-600">
-              Escala do evento
-            </div>
+      <section className="space-y-3 rounded-[24px] border border-[#dbe3ef] bg-white p-4 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
+        <div>
+          <h3 className="text-[20px] font-black text-[#0f172a]">{evento?.client_name || 'Evento'}</h3>
+          <p className="text-[13px] font-semibold text-[#64748b]">
+            {formatDateTimeBR(evento?.event_date, evento?.event_time)}
+            {evento?.location_name ? ` • ${evento.location_name}` : ''}
+          </p>
+        </div>
 
-            <h3 className="mt-2 text-[28px] font-black tracking-[-0.04em] text-[#0f172a] md:text-[34px]">
-              {evento?.client_name || 'Evento'}
-            </h3>
+        <div className="flex flex-wrap gap-2">
+          <SummaryChip tone={estadoEvento.tone}>{estadoEvento.label}</SummaryChip>
+          <SummaryChip>{resumoStatus.total} músicos</SummaryChip>
+          <SummaryChip tone="emerald">{resumoStatus.confirmados} confirmados</SummaryChip>
+          <SummaryChip tone="amber">{resumoStatus.pendentes} pendentes</SummaryChip>
+        </div>
 
-            <div className="mt-3 text-[15px] font-semibold leading-7 text-[#64748b]">
-              {formatDateTimeBR(evento?.event_date, evento?.event_time)}
-              {evento?.location_name ? ` • ${evento.location_name}` : ''}
-            </div>
-
-            <div className="mt-2 text-[15px] font-semibold leading-7 text-[#64748b]">
-              <span className="font-black text-[#0f172a]">
-                {evento?.formation || 'Sem formação definida'}
-              </span>
-              {instrumentosEsperados.length > 0 ? (
-                <span>{` — ${instrumentosEsperados.join(', ')}`}</span>
-              ) : null}
-            </div>
+        <div className="rounded-[16px] border border-violet-200 bg-violet-50 px-4 py-3">
+          <div className="text-[12px] font-black text-violet-700">Sugestão de formação</div>
+          <div className="text-[14px] font-semibold text-violet-900">
+            {templateSugerido ? formatTemplateDisplay(templateSugerido) : sugestaoFormacao}
           </div>
-
-          <div className="flex flex-wrap gap-2 xl:max-w-[380px] xl:justify-end">
-            <SummaryChip>{resumoStatus.total} músico(s)</SummaryChip>
-            <SummaryChip tone="emerald">{resumoStatus.confirmados} confirmados</SummaryChip>
-            <SummaryChip tone="amber">{resumoStatus.pendentes} pendentes</SummaryChip>
-            {resumoStatus.recusados > 0 ? (
-              <SummaryChip tone="red">{resumoStatus.recusados} recusados</SummaryChip>
+          {templateAplicado?.name ? (
+            <div className="text-[12px] font-semibold text-violet-700">Base aplicada: {templateAplicado.name}</div>
+          ) : null}
+          <div className="text-[12px] font-semibold text-violet-700">Recomendado para este evento</div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {!editando && escalaSalva.length === 0 ? (
+              <button
+                type="button"
+                onClick={iniciarMontagemManual}
+                className="rounded-[14px] border border-[#dbe3ef] bg-white px-4 py-2 text-[13px] font-black text-[#0f172a]"
+              >
+                Montagem manual
+              </button>
             ) : null}
-            {resumoStatus.reservas > 0 ? (
-              <SummaryChip tone="sky">{resumoStatus.reservas} reservas</SummaryChip>
+            {!editando ? (
+              <button
+                type="button"
+                onClick={iniciarEdicao}
+                className="rounded-[14px] bg-violet-600 px-4 py-2 text-[13px] font-black text-white"
+              >
+                Ajustar escala
+              </button>
             ) : null}
           </div>
         </div>
-
-        {templateAplicado && escalaSalva.length === 0 ? (
-          <div className="mt-5 rounded-[22px] border border-violet-200 bg-violet-50 px-4 py-4">
-            <div className="text-[12px] font-black uppercase tracking-[0.08em] text-violet-700">
-              Pré-escala sugerida
-            </div>
-            <div className="mt-1 text-[15px] font-semibold text-violet-800">
-              Template aplicado: {templateAplicado.name}
-            </div>
-            <div className="mt-1 text-[14px] leading-6 text-violet-700">
-              A equipe-base foi sugerida automaticamente com base na formação e nos instrumentos do evento.
-              Revise, ajuste e salve quando estiver pronta.
-            </div>
-          </div>
-        ) : null}
-
-        {!editando && escalaSalva.length === 0 && templateSugerido ? (
-          <div className="mt-4 rounded-[18px] border border-violet-200 bg-violet-50 px-4 py-3">
-            <div className="text-[12px] font-black uppercase tracking-[0.08em] text-violet-700">
-              Sugestão de formação
-            </div>
-            <div className="mt-1 text-[14px] font-semibold text-violet-800">
-              {formatTemplateDisplay(templateSugerido)}
-            </div>
-          </div>
-        ) : null}
 
         {!editando && escalaSalva.length === 0 && !templateSugerido ? (
-          <div className="mt-5 rounded-[22px] border border-amber-200 bg-amber-50 px-4 py-4">
-            <div className="text-[12px] font-black uppercase tracking-[0.08em] text-amber-700">
-              Sem sugestão automática
-            </div>
-            <div className="mt-1 text-[14px] leading-6 text-amber-800">
-              Nenhum template encontrado para a formação e funções/instrumentos deste evento.
-            </div>
-            <Link
-              href="/escalas/templates"
-              className="mt-3 inline-flex rounded-[14px] border border-amber-300 bg-white px-4 py-2 text-[13px] font-black text-amber-800"
-            >
-              Criar template a partir deste evento
-            </Link>
+          <div className="rounded-[16px] border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] font-semibold text-amber-800">
+            Nenhuma sugestão automática
           </div>
         ) : null}
 
-        <div className="mt-5 flex flex-wrap gap-3">
-          {!editando && escalaSalva.length === 0 && templateSugerido && itensTemplateSugerido.length > 0 ? (
-            <button
-              type="button"
-              onClick={aplicarTemplateSugerido}
-              className="rounded-[18px] bg-violet-600 px-5 py-3 text-[14px] font-black text-white shadow-[0_12px_28px_rgba(124,58,237,0.18)] transition hover:translate-y-[-1px]"
-            >
-              Aplicar template sugerido
-            </button>
-          ) : null}
-
-          {!editando && escalaSalva.length === 0 && outrasSugestoes.length > 0 ? (
-            <div className="w-full rounded-[18px] border border-[#dbe3ef] bg-white p-4">
-              <div className="text-[12px] font-black uppercase tracking-[0.12em] text-[#64748b]">
-                Outras sugestões
-              </div>
-              <div className="mt-3 space-y-2">
-                {outrasSugestoes.map((suggestion) => (
-                  <div
-                    key={suggestion.id}
-                    className="rounded-[14px] border border-[#e5e7eb] bg-[#f8fafc] px-3 py-2"
-                  >
-                    <div className="text-[14px] font-black text-[#0f172a]">
-                      {formatTemplateDisplay(suggestion)}
-                    </div>
-                  </div>
-                ))}
-              </div>
+        {!editando && escalaSalva.length === 0 && outrasSugestoes.length > 0 ? (
+          <div className="rounded-[16px] border border-[#dbe3ef] bg-[#f8fafc] px-4 py-3">
+            <div className="text-[12px] font-black text-[#475569]">Outras opções</div>
+            <div className="mt-1 space-y-1 text-[13px] text-[#334155]">
+              {outrasSugestoes.slice(0, 2).map((suggestion, index) => (
+                <div key={suggestion.id}>
+                  {index === 0 ? 'Trio — formação mais completa' : 'Quarteto — experiência mais rica'}
+                </div>
+              ))}
             </div>
-          ) : null}
+          </div>
+        ) : null}
 
-          {!editando && escalaSalva.length === 0 ? (
-            <button
-              type="button"
-              onClick={iniciarMontagemManual}
-              className="rounded-[18px] border border-[#dbe3ef] bg-white px-5 py-3 text-[14px] font-black text-[#0f172a] transition hover:bg-[#f8fafc]"
-            >
-              Montagem manual
-            </button>
-          ) : null}
-
-          {!editando ? (
-            <button
-              type="button"
-              onClick={iniciarEdicao}
-              className="rounded-[18px] bg-violet-600 px-5 py-3 text-[14px] font-black text-white shadow-[0_12px_28px_rgba(124,58,237,0.18)] transition hover:translate-y-[-1px]"
-            >
-              {escalaParaExibir.length > 0 ? 'Editar escala' : 'Ajustar escala'}
-            </button>
-          ) : (
-            <div className="rounded-[18px] border border-violet-200 bg-violet-50 px-4 py-3 text-[13px] font-black text-violet-700">
-              Modo edição ativo
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <div className="rounded-[16px] border border-[#dbe3ef] px-4 py-3">
+            <div className="text-[12px] font-black text-[#475569]">Financeiro</div>
+            <div className="text-[14px] font-semibold text-[#0f172a]">
+              Valor pendente: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(evento?.open_amount || 0))}
             </div>
-          )}
-
-          {sucesso ? (
-            <div className="rounded-[18px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-[13px] font-black text-emerald-700">
-              {sucesso}
-            </div>
-          ) : null}
+            <Link href={`/eventos/${eventId}?tab=financeiro`} className="mt-2 inline-block text-[13px] font-black text-violet-700">
+              Ver pagamentos
+            </Link>
+          </div>
+          <div className="rounded-[16px] border border-[#dbe3ef] px-4 py-3">
+            <div className="text-[12px] font-black text-[#475569]">Repertório</div>
+            <div className="text-[14px] font-semibold text-[#0f172a]">Status: {repertorioLabel}</div>
+            <Link href="/repertorios" className="mt-2 inline-block text-[13px] font-black text-violet-700">
+              Ver repertório
+            </Link>
+          </div>
         </div>
+        {sucesso ? (
+          <div className="rounded-[16px] border border-emerald-200 bg-emerald-50 px-4 py-2 text-[13px] font-black text-emerald-700">
+            {sucesso}
+          </div>
+        ) : null}
       </section>
 
       <SectionCard
         eyebrow="Cobertura da equipe"
-        title="Radar da escala"
-        subtitle="Veja rapidamente o que já está coberto, o que ainda está pendente e o que falta para fechar esta equipe."
+        title="Situação da equipe"
+        subtitle="Resumo rápido do que já está completo e do que ainda precisa de ajuste."
       >
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <MetricCard

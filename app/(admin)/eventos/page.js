@@ -425,9 +425,13 @@ export default function EventosPage() {
         ? 'operacao'
         : requestedTab || 'visao';
 
-    setViewMode((current) =>
-      queryViewMode && queryViewMode !== current ? queryViewMode : current
-    );
+    setViewMode((current) => {
+      const resolvedViewMode =
+        queryMonth && queryMonth !== 'all'
+          ? 'Todos'
+          : queryViewMode || current;
+      return resolvedViewMode !== current ? resolvedViewMode : current;
+    });
     setSortMode((current) =>
       querySortMode && querySortMode !== current ? querySortMode : current
     );
@@ -700,15 +704,16 @@ export default function EventosPage() {
   }, []);
 
   useEffect(() => {
-    if (viewMode === 'Mês atual' && monthFilter !== 'all') {
-      setMonthFilter('all');
-    }
-  }, [viewMode, monthFilter]);
-
-  useEffect(() => {
     const existingIds = new Set(eventos.map((ev) => String(ev.id)));
     setSelectedEventIds((prev) => prev.filter((id) => existingIds.has(String(id))));
   }, [eventos]);
+
+  function handleMonthFilterChange(value) {
+    setMonthFilter(value);
+    if (value !== 'all') {
+      setViewMode((current) => (current === 'Mês atual' ? 'Todos' : current));
+    }
+  }
 
   function handleFormChange(field, value) {
     if (field === 'transport_price') {
@@ -1665,7 +1670,7 @@ export default function EventosPage() {
             ))}
           </Select>
 
-          <Select value={monthFilter} onChange={(e) => setMonthFilter(e.target.value)}>
+          <Select value={monthFilter} onChange={(e) => handleMonthFilterChange(e.target.value)}>
             <option value="all">Todos os meses</option>
             {availableMonthOptions.map((option) => (
               <option key={option.value} value={option.value}>

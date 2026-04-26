@@ -702,6 +702,11 @@ export default function EventoEscalaTab({ eventId }) {
 
     return { total, confirmados, pendentes, recusados, reservas };
   }, [escalaParaExibir]);
+  const sugestaoFormacao = useMemo(() => {
+    const base = (evento?.formation || templateSugerido?.name || 'Formação sugerida').trim();
+    if (!instrumentosEsperados.length) return base;
+    return `${base} — ${instrumentosEsperados.slice(0, 2).join(' + ')}`;
+  }, [evento?.formation, templateSugerido?.name, instrumentosEsperados]);
 
   const coverage = useMemo(() => {
     const expected = instrumentosEsperados;

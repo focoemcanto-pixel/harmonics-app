@@ -1000,7 +1000,7 @@ export default function RegrasPageClient() {
                   const channelName = regra?.channel?.name || 'Canal padrão';
                   const active = isPaymentReminderPreset ? paymentReminderConfig.isEnabled : regra?.is_active || false;
                   return (
-                    <article key={preset.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <article key={preset.id} className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm">
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <h3 className="text-lg font-black text-slate-900">{preset.title}</h3>

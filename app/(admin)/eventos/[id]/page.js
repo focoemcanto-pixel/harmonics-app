@@ -105,6 +105,7 @@ export default function EventoDetalhePage() {
   const id = params?.id;
 
   const [evento, setEvento] = useState(null);
+  const [repertoireStatus, setRepertoireStatus] = useState('');
   const [teamMetrics, setTeamMetrics] = useState({ total: 0, confirmed: 0 });
   const [carregando, setCarregando] = useState(true);
   const [excluindo, setExcluindo] = useState(false);
@@ -132,15 +133,22 @@ export default function EventoDetalhePage() {
 
       try {
         setCarregando(true);
-        const [eventResp, teamResp] = await Promise.all([
+        const [eventResp, teamResp, repertoireResp] = await Promise.all([
           supabase.from('events').select('*').eq('id', id).single(),
           supabase.from('event_musicians').select('id, status').eq('event_id', id),
+          supabase
+            .from('repertoire_config')
+            .select('status')
+            .eq('event_id', id)
+            .maybeSingle(),
         ]);
 
         if (eventResp.error) throw eventResp.error;
         if (teamResp.error) throw teamResp.error;
+        if (repertoireResp.error) throw repertoireResp.error;
 
         setEvento(eventResp.data || null);
+        setRepertoireStatus(String(repertoireResp?.data?.status || ''));
         const musicians = teamResp.data || [];
         setTeamMetrics({
           total: musicians.length,
@@ -269,13 +277,13 @@ export default function EventoDetalhePage() {
     const items = [];
 
     if (teamSummary.total === 0) items.push('Definir escala');
-    if (String(evento?.repertoire_status || '').toLowerCase() !== 'approved') {
+    if (String(repertoireStatus || '').toLowerCase() !== 'approved') {
       items.push('Cliente ainda não enviou repertório');
     }
     if (Number(evento?.open_amount || 0) > 0) items.push('Pagamento pendente');
 
     return items;
-  }, [evento, teamSummary.total]);
+  }, [evento, repertoireStatus, teamSummary.total]);
 
   const suggestionTitle = useMemo(() => {
     if (!evento) return '-';
@@ -402,7 +410,7 @@ export default function EventoDetalhePage() {
                 <section className="space-y-3 rounded-2xl border border-[#e2e8f0] bg-white px-4 py-4">
                   <div className="flex items-center justify-between text-sm">
                     <p className="font-black text-slate-900">Repertório</p>
-                    <p className="text-slate-700">{getRepertoireStatusLabel(evento?.repertoire_status)}</p>
+                    <p className="text-slate-700">{getRepertoireStatusLabel(repertoireStatus)}</p>
                   </div>
                   <Link
                     href="/repertorios"

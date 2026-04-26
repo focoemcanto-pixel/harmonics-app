@@ -889,6 +889,25 @@ export default function EventoEscalaTab({ eventId, nextEventHref = '' }) {
       })
     );
   }
+
+  function enrichScaleItems(items = []) {
+    const contatosMap = new Map(
+      (Array.isArray(contatos) ? contatos : []).map((contact) => [String(contact.id), contact])
+    );
+
+    return (Array.isArray(items) ? items : []).map((item) => {
+      const contact = contatosMap.get(String(item?.musician_id || '')) || null;
+
+      return {
+        ...item,
+        musician_name: item?.musician_name || contact?.name || '',
+        musician_phone: item?.musician_phone || contact?.phone || '',
+        musician_email: item?.musician_email || contact?.email || '',
+        contact_tag_text: item?.contact_tag_text || getContactTagText(contact),
+      };
+    });
+  }
+
 async function persistirEscala() {
   const escalaLocalDedupe = dedupeByMusician(escalaLocalSegura).map((item) => ({
     musician_id: item.musician_id,
@@ -936,9 +955,10 @@ async function persistirEscala() {
   });
 
   const escalaNormalizada = Array.isArray(novaEscala) ? novaEscala : [];
+  const escalaVisual = enrichScaleItems(escalaNormalizada);
   if (isMountedRef.current) {
-    setEscalaSalva(escalaNormalizada);
-    setEscalaLocal(escalaNormalizada);
+    setEscalaSalva(escalaVisual);
+    setEscalaLocal(escalaVisual);
     setBusca('');
     setEditando(false);
     setSucesso('Escala salva com sucesso.');

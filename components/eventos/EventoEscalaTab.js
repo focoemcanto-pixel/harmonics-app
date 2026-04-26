@@ -457,7 +457,7 @@ function SearchResultCard({ contact, onAdd }) {
   );
 }
 
-export default function EventoEscalaTab({ eventId }) {
+export default function EventoEscalaTab({ eventId, nextEventHref = '' }) {
   const [evento, setEvento] = useState(null);
   const [contatos, setContatos] = useState([]);
   const [escalaSalva, setEscalaSalva] = useState([]);
@@ -1149,6 +1149,16 @@ async function salvarEEnviarConvites() {
         {sucesso ? (
           <div className="rounded-[16px] border border-emerald-200 bg-emerald-50 px-4 py-2 text-[13px] font-black text-emerald-700">
             {sucesso}
+          </div>
+        ) : null}
+        {sucesso && nextEventHref ? (
+          <div>
+            <Link
+              href={nextEventHref}
+              className="inline-flex rounded-[14px] bg-violet-600 px-4 py-2 text-[13px] font-black text-white"
+            >
+              Próximo evento
+            </Link>
           </div>
         ) : null}
       </section>

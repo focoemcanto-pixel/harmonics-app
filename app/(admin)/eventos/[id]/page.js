@@ -127,6 +127,43 @@ export default function EventoDetalhePage() {
     setActiveTab('resumo');
   }, [searchParams]);
 
+  const backHref = useMemo(() => {
+    const params = new URLSearchParams();
+    const returnTab = searchParams.get('retorno') || searchParams.get('tab') || 'resumo';
+    const status = searchParams.get('status');
+    const data = searchParams.get('data');
+    const busca = searchParams.get('busca');
+    const ordem = searchParams.get('ordem');
+
+    if (returnTab) params.set('tab', returnTab);
+    if (status) params.set('status', status);
+    if (data) params.set('data', data);
+    if (busca) params.set('busca', busca);
+    if (ordem) params.set('ordem', ordem);
+
+    const query = params.toString();
+    return query ? `/eventos?${query}` : '/eventos';
+  }, [searchParams]);
+
+  const nextEventHref = useMemo(() => {
+    if (!id) return '';
+
+    const listRaw = searchParams.get('lista') || '';
+    const ids = listRaw
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+    const currentIndex = ids.findIndex((item) => String(item) === String(id));
+    if (currentIndex < 0 || currentIndex >= ids.length - 1) return '';
+
+    const nextId = ids[currentIndex + 1];
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('tab', 'escala');
+    params.set('retorno', 'escala');
+
+    return `/eventos/${nextId}?${params.toString()}`;
+  }, [id, searchParams]);
+
   useEffect(() => {
     async function carregarEvento() {
       if (!id) return;
@@ -321,7 +358,7 @@ export default function EventoDetalhePage() {
       <div className="space-y-5">
         <header className="space-y-3">
           <div className="flex flex-wrap gap-2">
-            <Link href="/eventos" className="rounded-xl border border-[#dbe3ef] bg-white px-3 py-2 text-xs font-bold text-[#0f172a]">Voltar</Link>
+            <Link href={backHref} className="rounded-xl border border-[#dbe3ef] bg-white px-3 py-2 text-xs font-bold text-[#0f172a]">Voltar</Link>
             {evento?.id ? (
               <Link href={`/eventos?edit=${evento.id}`} className="rounded-xl border border-[#dbe3ef] bg-white px-3 py-2 text-xs font-bold text-[#0f172a]">Editar</Link>
             ) : null}
@@ -488,7 +525,7 @@ export default function EventoDetalhePage() {
 
             {activeTab === 'escala' && (
               <section id="escala-section" className="rounded-[24px] border border-[#dbe3ef] bg-white p-4 md:p-5">
-                <EventoEscalaTab eventId={evento.id} />
+                <EventoEscalaTab eventId={evento.id} nextEventHref={nextEventHref} />
               </section>
             )}
           </>

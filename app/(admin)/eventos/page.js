@@ -411,34 +411,43 @@ export default function EventosPage() {
   }, [busca]);
 
   useEffect(() => {
-    const queryViewMode = VIEW_MODE_BY_QUERY[searchParams.get('status')];
-    const queryMonth = searchParams.get('data');
-    const queryBusca = searchParams.get('busca');
-    const querySortMode = SORT_MODE_BY_QUERY[searchParams.get('ordem')];
-    const requestedTab = searchParams.get('tab');
+    const params = new URLSearchParams(currentParamsValue);
+    const queryViewMode = VIEW_MODE_BY_QUERY[params.get('status')];
+    const queryMonth = params.get('data');
+    const queryBusca = params.get('busca');
+    const querySortMode = SORT_MODE_BY_QUERY[params.get('ordem')];
+    const requestedTab = params.get('tab');
     const normalizedTab =
       requestedTab === 'escala' || requestedTab === 'operacao'
         ? 'operacao'
         : requestedTab || 'visao';
 
-    if (queryViewMode && queryViewMode !== viewMode) setViewMode(queryViewMode);
-    if (querySortMode && querySortMode !== sortMode) setSortMode(querySortMode);
+    setViewMode((current) =>
+      queryViewMode && queryViewMode !== current ? queryViewMode : current
+    );
+    setSortMode((current) =>
+      querySortMode && querySortMode !== current ? querySortMode : current
+    );
     if (normalizedTab === 'operacao') {
-      if (desktopTab !== 'operacao') setDesktopTab('operacao');
-      if (mobileTab !== 'operacao') setMobileTab('operacao');
+      setDesktopTab((current) => (current !== 'operacao' ? 'operacao' : current));
+      setMobileTab((current) => (current !== 'operacao' ? 'operacao' : current));
     }
 
-    if (queryMonth && queryMonth !== monthFilter) setMonthFilter(queryMonth);
-    if (!queryMonth && monthFilter !== 'all') setMonthFilter('all');
-
-    if ((queryBusca || '') !== busca) setBusca(queryBusca || '');
-  }, [searchParams, busca, desktopTab, mobileTab, monthFilter, sortMode, viewMode]);
+    setMonthFilter((current) => {
+      const next = queryMonth || 'all';
+      return next !== current ? next : current;
+    });
+    setBusca((current) => {
+      const next = queryBusca || '';
+      return next !== current ? next : current;
+    });
+  }, [currentParamsValue]);
 
   useEffect(() => {
-    const nextParams = new URLSearchParams(searchParams.toString());
+    const nextParams = new URLSearchParams(currentParamsValue);
     const statusQuery = VIEW_MODE_TO_QUERY[viewMode];
     const sortQuery = SORT_MODE_TO_QUERY[sortMode];
-    const requestedTab = searchParams.get('tab');
+    const requestedTab = nextParams.get('tab');
     const shouldUseOperacaoTab =
       requestedTab === 'escala' ||
       requestedTab === 'operacao' ||
@@ -460,7 +469,7 @@ export default function EventosPage() {
     if (nextValue !== currentValue) {
       router.replace(nextValue ? `/eventos?${nextValue}` : '/eventos', { scroll: false });
     }
-  }, [viewMode, sortMode, monthFilter, debouncedBusca, router, searchParams, desktopTab, mobileTab, currentParamsValue]);
+  }, [viewMode, sortMode, monthFilter, debouncedBusca, router, desktopTab, mobileTab, currentParamsValue]);
 
   useEffect(() => {
     console.info('[EVENTOS][TITLE_SOURCE]', {

@@ -133,6 +133,15 @@ function dedupeByMusician(list = []) {
   return Array.from(map.values());
 }
 
+function formatTemplateDisplay(template) {
+  if (!template) return 'Formação sugerida';
+
+  const formacao = String(template.formation || '').trim() || String(template.name || '').trim() || 'Formação sugerida';
+  const composicao = String(template.instruments || '').trim();
+
+  return composicao ? `${formacao} — ${composicao}` : formacao;
+}
+
 function SummaryChip({ children, tone = 'default' }) {
   const classes = {
     default: 'border-[#dbe3ef] bg-white text-[#0f172a]',
@@ -427,7 +436,6 @@ export default function EventoEscalaTab({ eventId }) {
   const [templateAplicado, setTemplateAplicado] = useState(null);
   const [templateSugerido, setTemplateSugerido] = useState(null);
   const [outrasSugestoes, setOutrasSugestoes] = useState([]);
-  const [templateSuggestionStrategy, setTemplateSuggestionStrategy] = useState('none');
   const [itensTemplateSugerido, setItensTemplateSugerido] = useState([]);
 
   const [carregando, setCarregando] = useState(true);
@@ -512,7 +520,6 @@ export default function EventoEscalaTab({ eventId }) {
       let escalaInicial = escalaData;
       let templateSelecionado = null;
       let templateSugeridoAtual = null;
-      let suggestionStrategy = 'none';
       let suggestedItems = [];
 
       if (escalaData.length === 0 && eventoData) {
@@ -526,8 +533,6 @@ export default function EventoEscalaTab({ eventId }) {
         );
 
         const bestTemplate = suggestion.bestTemplate;
-        suggestionStrategy = suggestion.strategy;
-
         const templateItemsByTemplate = new Map();
         for (const templateItem of templateItemsResp.data || []) {
           const key = String(templateItem.template_id || '');
@@ -588,7 +593,6 @@ export default function EventoEscalaTab({ eventId }) {
       setTemplateAplicado(templateSelecionado);
       setTemplateSugerido(templateSugeridoAtual);
       if (escalaData.length > 0) setOutrasSugestoes([]);
-      setTemplateSuggestionStrategy(suggestionStrategy);
       setItensTemplateSugerido(suggestedItems);
     } catch (e) {
       console.error('Erro ao carregar escala do evento:', e);
@@ -1084,23 +1088,13 @@ async function salvarEEnviarConvites() {
         ) : null}
 
         {!editando && escalaSalva.length === 0 && templateSugerido ? (
-          <div className="mt-5 rounded-[22px] border border-violet-200 bg-violet-50 px-4 py-4">
+          <div className="mt-4 rounded-[18px] border border-violet-200 bg-violet-50 px-4 py-3">
             <div className="text-[12px] font-black uppercase tracking-[0.08em] text-violet-700">
-              Template sugerido automaticamente
+              Sugestão de formação
             </div>
-            <div className="mt-1 text-[15px] font-semibold text-violet-800">
-              {templateSugerido.name}
+            <div className="mt-1 text-[14px] font-semibold text-violet-800">
+              {formatTemplateDisplay(templateSugerido)}
             </div>
-            <div className="mt-1 text-[14px] leading-6 text-violet-700">
-              Estratégia: {templateSuggestionStrategy === 'formation_weighted_score'
-                ? 'formação + score ponderado (fase 2)'
-                : 'match por formação'}.
-            </div>
-            {templateSugerido?.match_explanation ? (
-              <div className="mt-3 rounded-[16px] border border-violet-200 bg-white px-4 py-3 text-[13px] font-semibold text-violet-700">
-                Score {templateSugerido.match_score ?? 0}: {templateSugerido.match_explanation}
-              </div>
-            ) : null}
           </div>
         ) : null}
 
@@ -1144,16 +1138,8 @@ async function salvarEEnviarConvites() {
                     className="rounded-[14px] border border-[#e5e7eb] bg-[#f8fafc] px-3 py-2"
                   >
                     <div className="text-[14px] font-black text-[#0f172a]">
-                      {suggestion.name}
+                      {formatTemplateDisplay(suggestion)}
                     </div>
-                    <div className="text-[12px] font-semibold text-[#64748b]">
-                      Score {suggestion.match_score ?? 0}
-                    </div>
-                    {suggestion.match_explanation ? (
-                      <div className="mt-1 text-[12px] leading-5 text-[#64748b]">
-                        {suggestion.match_explanation}
-                      </div>
-                    ) : null}
                   </div>
                 ))}
               </div>

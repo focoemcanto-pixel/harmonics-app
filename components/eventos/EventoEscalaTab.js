@@ -202,13 +202,13 @@ function MetricCard({ label, value, tone = 'default', helper }) {
   };
 
   return (
-    <div className={`rounded-[22px] border p-4 ${tones[tone] || tones.default}`}>
+    <div className={`max-w-full rounded-[22px] border p-4 ${tones[tone] || tones.default}`}>
       <div className="text-[11px] font-black uppercase tracking-[0.1em] opacity-75">
         {label}
       </div>
       <div className="mt-2 text-[28px] font-black tracking-[-0.04em]">{value}</div>
       {helper ? (
-        <div className="mt-1 text-[13px] font-semibold opacity-80">{helper}</div>
+        <div className="mt-1 break-words text-[13px] font-semibold opacity-80">{helper}</div>
       ) : null}
     </div>
   );
@@ -216,7 +216,7 @@ function MetricCard({ label, value, tone = 'default', helper }) {
 
 function SectionCard({ eyebrow, title, subtitle, right, children }) {
   return (
-    <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_26px_rgba(17,24,39,0.04)] md:p-6">
+    <section className="w-full max-w-full overflow-hidden rounded-[28px] border border-[#dbe3ef] bg-white p-4 shadow-[0_10px_26px_rgba(17,24,39,0.04)] md:p-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
           {eyebrow ? (
@@ -224,11 +224,11 @@ function SectionCard({ eyebrow, title, subtitle, right, children }) {
               {eyebrow}
             </div>
           ) : null}
-          <h3 className="mt-1 text-[24px] font-black tracking-[-0.03em] text-[#0f172a] md:text-[28px]">
+          <h3 className="mt-1 break-words text-[24px] font-black tracking-[-0.03em] text-[#0f172a] md:text-[28px]">
             {title}
           </h3>
           {subtitle ? (
-            <p className="mt-2 max-w-3xl text-[15px] leading-7 text-[#64748b]">
+            <p className="mt-2 max-w-3xl break-words text-[15px] leading-7 text-[#64748b]">
               {subtitle}
             </p>
           ) : null}
@@ -1141,7 +1141,7 @@ async function salvarEEnviarConvites() {
   }
 
   return (
-    <div className="space-y-4 md:space-y-5">
+    <div className="space-y-4 px-4 md:space-y-5 md:px-0">
       <section className="space-y-3 rounded-[24px] border border-[#dbe3ef] bg-white p-4 shadow-[0_10px_26px_rgba(17,24,39,0.04)] md:p-5">
         <div>
           <h3 className="text-[22px] font-black tracking-[-0.03em] text-[#0f172a]">{evento?.client_name || 'Evento'}</h3>
@@ -1255,35 +1255,43 @@ async function salvarEEnviarConvites() {
         title="Situação da equipe"
         subtitle="Resumo rápido do que já está completo e do que ainda precisa de ajuste."
       >
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <MetricCard
-            label="Equipe atual"
-            value={resumoStatus.total}
-            tone="default"
-            helper="músico(s) na escala"
-          />
-          <MetricCard
-            label="Confirmados"
-            value={resumoStatus.confirmados}
-            tone="emerald"
-            helper="já responderam positivamente"
-          />
-          <MetricCard
-            label="Pendentes"
-            value={resumoStatus.pendentes}
-            tone="amber"
-            helper="ainda aguardando resposta"
-          />
-          <MetricCard
-            label="Lacunas"
-            value={coverage.missing.length}
-            tone={coverage.missing.length > 0 ? 'red' : 'sky'}
-            helper={
-              coverage.missing.length > 0
-                ? 'funções ainda sem cobertura'
-                : 'sem lacunas críticas'
-            }
-          />
+        <div className="flex gap-3 overflow-x-auto pb-1 snap-x snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:grid md:grid-cols-2 md:overflow-visible xl:grid-cols-4">
+          <div className="min-w-[78%] snap-start md:min-w-0">
+            <MetricCard
+              label="Equipe atual"
+              value={resumoStatus.total}
+              tone="default"
+              helper="músico(s) na escala"
+            />
+          </div>
+          <div className="min-w-[78%] snap-start md:min-w-0">
+            <MetricCard
+              label="Confirmados"
+              value={resumoStatus.confirmados}
+              tone="emerald"
+              helper="já responderam positivamente"
+            />
+          </div>
+          <div className="min-w-[78%] snap-start md:min-w-0">
+            <MetricCard
+              label="Pendentes"
+              value={resumoStatus.pendentes}
+              tone="amber"
+              helper="ainda aguardando resposta"
+            />
+          </div>
+          <div className="min-w-[78%] snap-start md:min-w-0">
+            <MetricCard
+              label="Lacunas"
+              value={coverage.missing.length}
+              tone={coverage.missing.length > 0 ? 'red' : 'sky'}
+              helper={
+                coverage.missing.length > 0
+                  ? 'funções ainda sem cobertura'
+                  : 'sem lacunas críticas'
+              }
+            />
+          </div>
         </div>
 
         <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -1362,7 +1370,7 @@ async function salvarEEnviarConvites() {
         </>
       ) : (
         <>
-          <div className="grid gap-5 xl:grid-cols-[0.95fr_1.05fr]">
+          <div className="grid max-w-full gap-5 xl:grid-cols-[0.95fr_1.05fr]">
             <SectionCard
               eyebrow="Montagem da equipe"
               title="Adicionar músicos"
@@ -1373,8 +1381,8 @@ async function salvarEEnviarConvites() {
                 </div>
               }
             >
-              <div className="space-y-4">
-                <div className="rounded-[22px] border border-[#e7edf5] bg-[#fafbff] p-4">
+              <div className="w-full max-w-full space-y-4 overflow-hidden">
+                <div className="w-full max-w-full rounded-[22px] border border-[#e7edf5] bg-[#fafbff] p-3 md:p-4">
                   <label className="mb-2 block text-[12px] font-black uppercase tracking-[0.08em] text-[#64748b]">
                     Buscar músico
                   </label>
@@ -1389,7 +1397,7 @@ async function salvarEEnviarConvites() {
                 </div>
 
                 {!busca.trim() ? (
-                  <div className="rounded-[22px] border border-violet-200 bg-violet-50 p-4">
+                  <div className="w-full max-w-full overflow-hidden rounded-[22px] border border-violet-200 bg-violet-50 p-3 md:p-4">
                     <div className="text-[12px] font-black uppercase tracking-[0.08em] text-violet-700">
                       Sugestões rápidas
                     </div>
@@ -1397,14 +1405,15 @@ async function salvarEEnviarConvites() {
                       Contatos com maior chance de encaixe para esta formação.
                     </div>
 
-                    <div className="mt-4 space-y-3">
+                    <div className="mt-4 flex gap-3 overflow-x-auto pb-1 snap-x snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:block md:space-y-3 md:overflow-visible">
                       {suggestedContacts.length > 0 ? (
                         suggestedContacts.map((contact) => (
-                          <SearchResultCard
-                            key={`suggested-${contact.id}`}
-                            contact={contact}
-                            onAdd={adicionarMusico}
-                          />
+                          <div key={`suggested-${contact.id}`} className="min-w-[85%] max-w-[85%] snap-start md:min-w-0 md:max-w-full">
+                            <SearchResultCard
+                              contact={contact}
+                              onAdd={adicionarMusico}
+                            />
+                          </div>
                         ))
                       ) : (
                         <div className="rounded-[18px] bg-white px-4 py-4 text-[14px] font-semibold text-[#64748b]">
@@ -1415,7 +1424,7 @@ async function salvarEEnviarConvites() {
                   </div>
                 ) : null}
 
-                <div className="rounded-[22px] border border-[#e7edf5] bg-white p-4">
+                <div className="w-full max-w-full overflow-hidden rounded-[22px] border border-[#e7edf5] bg-white p-3 md:p-4">
                   <div className="text-[12px] font-black uppercase tracking-[0.08em] text-[#64748b]">
                     Resultados
                   </div>
@@ -1464,7 +1473,7 @@ async function salvarEEnviarConvites() {
             </SectionCard>
           </div>
 
-          <div className="sticky bottom-0 z-10 -mx-5 border-t border-[#e6ebf2] bg-white/95 px-5 py-4 backdrop-blur md:-mx-6 md:px-6">
+          <div className="sticky bottom-[calc(80px+env(safe-area-inset-bottom))] z-10 -mx-4 border-t border-[#e6ebf2] bg-white/95 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-4 backdrop-blur md:bottom-0 md:-mx-6 md:px-6 md:pb-4">
             <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
               <div className="flex flex-wrap gap-2">
                 <SummaryChip>{diffResumo.total} músico(s)</SummaryChip>

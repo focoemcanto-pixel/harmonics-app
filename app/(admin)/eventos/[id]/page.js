@@ -129,15 +129,12 @@ export default function EventoDetalhePage() {
 
   const backHref = useMemo(() => {
     const params = new URLSearchParams();
-    const requestedReturnTab = searchParams.get('retorno') || searchParams.get('tab') || 'resumo';
-    const returnTab =
-      requestedReturnTab === 'escala' ? 'operacao' : requestedReturnTab;
     const status = searchParams.get('status');
     const data = searchParams.get('data');
     const busca = searchParams.get('busca');
     const ordem = searchParams.get('ordem');
 
-    if (returnTab) params.set('tab', returnTab);
+    params.set('tab', 'operacao');
     if (status) params.set('status', status);
     if (data) params.set('data', data);
     if (busca) params.set('busca', busca);

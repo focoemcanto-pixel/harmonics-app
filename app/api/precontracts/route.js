@@ -100,18 +100,26 @@ async function syncEventSnapshotFromPrecontract({ supabase, precontract }) {
     payments: [{ amount: paidAmount, status: paidAmount > 0 ? 'paid' : 'pending' }],
   });
 
-  const { error: updateEventError } = await supabase
-    .from('events')
-    .update({
-      agreed_amount: agreedAmount,
-      paid_amount: paidAmount,
-      open_amount: summary.openAmount,
-      payment_status: summary.paymentStatus,
-      signal_due_date: precontract?.signal_due_date || null,
-      balance_due_date: precontract?.balance_due_date || null,
-      card_due_date: precontract?.card_due_date || null,
-    })
-    .eq('id', eventId);
+  const eventUpdatePayload = {
+  agreed_amount: agreedAmount,
+  paid_amount: paidAmount,
+  open_amount: summary.openAmount,
+  payment_status: summary.paymentStatus,
+  signal_due_date: precontract?.signal_due_date || null,
+  balance_due_date: precontract?.balance_due_date || null,
+  card_due_date: precontract?.card_due_date || null,
+};
+
+const precontractEventType = String(precontract?.event_type || '').trim();
+
+if (precontractEventType) {
+  eventUpdatePayload.event_type = precontractEventType;
+}
+
+const { error: updateEventError } = await supabase
+  .from('events')
+  .update(eventUpdatePayload)
+  .eq('id', eventId);
 
   if (updateEventError) throw updateEventError;
 

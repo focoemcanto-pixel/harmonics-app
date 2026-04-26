@@ -5,7 +5,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import AdminShell from '@/components/admin/AdminShell';
-import AdminPageHero from '@/components/admin/AdminPageHero';
 import AdminSegmentTabs from '@/components/admin/AdminSegmentTabs';
 import EventoEscalaTab from '@/components/eventos/EventoEscalaTab';
 import { useAppToast } from '@/components/ui/ToastProvider';
@@ -79,6 +78,26 @@ function MetricCard({ label, value, tone = 'default' }) {
   );
 }
 
+function formatTeamSummary(team) {
+  const total = Number(team?.total || 0);
+  const confirmed = Number(team?.confirmed || 0);
+  const pending = Math.max(0, total - confirmed);
+  return {
+    total,
+    confirmed,
+    pending,
+  };
+}
+
+function getRepertoireStatusLabel(status) {
+  const value = String(status || '').trim().toLowerCase();
+  if (!value || value === 'pending') return 'Aguardando envio';
+  if (value === 'in_review') return 'Em revisão';
+  if (value === 'approved') return 'Aprovado';
+  if (value === 'rejected') return 'Precisa de ajustes';
+  return 'Aguardando envio';
+}
+
 export default function EventoDetalhePage() {
   const params = useParams();
   const router = useRouter();
@@ -86,6 +105,7 @@ export default function EventoDetalhePage() {
   const id = params?.id;
 
   const [evento, setEvento] = useState(null);
+  const [teamMetrics, setTeamMetrics] = useState({ total: 0, confirmed: 0 });
   const [carregando, setCarregando] = useState(true);
   const [excluindo, setExcluindo] = useState(false);
   const [processandoAntesala, setProcessandoAntesala] = useState('');
@@ -112,9 +132,20 @@ export default function EventoDetalhePage() {
 
       try {
         setCarregando(true);
-        const { data, error } = await supabase.from('events').select('*').eq('id', id).single();
-        if (error) throw error;
-        setEvento(data || null);
+        const [eventResp, teamResp] = await Promise.all([
+          supabase.from('events').select('*').eq('id', id).single(),
+          supabase.from('event_musicians').select('id, status').eq('event_id', id),
+        ]);
+
+        if (eventResp.error) throw eventResp.error;
+        if (teamResp.error) throw teamResp.error;
+
+        setEvento(eventResp.data || null);
+        const musicians = teamResp.data || [];
+        setTeamMetrics({
+          total: musicians.length,
+          confirmed: musicians.filter((item) => String(item?.status || '').toLowerCase() === 'confirmed').length,
+        });
       } catch (error) {
         console.error('Erro ao carregar detalhe do evento:', error);
       } finally {
@@ -231,6 +262,45 @@ export default function EventoDetalhePage() {
     };
   }, [evento]);
 
+  const teamSummary = useMemo(() => formatTeamSummary(teamMetrics), [teamMetrics]);
+
+  const attentionItems = useMemo(() => {
+    if (!evento) return [];
+    const items = [];
+
+    if (teamSummary.total === 0) items.push('Definir escala');
+    if (String(evento?.repertoire_status || '').toLowerCase() !== 'approved') {
+      items.push('Cliente ainda não enviou repertório');
+    }
+    if (Number(evento?.open_amount || 0) > 0) items.push('Pagamento pendente');
+
+    return items;
+  }, [evento, teamSummary.total]);
+
+  const suggestionTitle = useMemo(() => {
+    if (!evento) return '-';
+    const formation = String(evento.formation || '').trim();
+    const instruments = String(evento.instruments || '').trim();
+    if (formation && instruments) return `${formation} — ${instruments}`;
+    if (formation) return formation;
+    if (instruments) return instruments;
+    return 'Defina a formação ideal';
+  }, [evento]);
+
+  const otherOptions = useMemo(() => {
+    const formation = String(evento?.formation || '').trim().toLowerCase();
+    if (formation.includes('duo')) {
+      return ['Trio — formação mais completa', 'Quarteto — experiência mais rica'];
+    }
+    if (formation.includes('trio')) {
+      return ['Duo — opção mais enxuta', 'Quarteto — experiência mais rica'];
+    }
+    if (formation.includes('quarteto')) {
+      return ['Trio — formação mais objetiva', 'Duo — opção mais enxuta'];
+    }
+    return ['Trio — formação mais completa', 'Quarteto — experiência mais rica'];
+  }, [evento?.formation]);
+
   const tabs = [
     { key: 'resumo', label: 'Resumo' },
     { key: 'detalhes', label: 'Detalhes' },
@@ -241,24 +311,31 @@ export default function EventoDetalhePage() {
   return (
     <AdminShell pageTitle="Detalhe do evento" activeItem="eventos">
       <div className="space-y-5">
-        <AdminPageHero
-          badge="Harmonics Admin"
-          title={evento?.client_name || (carregando ? 'Carregando...' : 'Evento não encontrado')}
-          subtitle={evento ? `${formatDateBR(evento.event_date)} • ${String(evento.event_time || '--:--').slice(0, 5)}${evento.location_name ? ` • ${evento.location_name}` : ''}` : 'Hub oficial do evento, incluindo escala premium e financeiro.'}
-          actions={
-            <div className="flex flex-wrap gap-3">
-              <Link href="/eventos" className="rounded-[18px] border border-[#dbe3ef] bg-white px-5 py-4 text-[14px] font-black text-[#0f172a]">Voltar</Link>
-              {evento?.id ? (
-                <Link href={`/eventos?edit=${evento.id}`} className="rounded-[18px] border border-[#dbe3ef] bg-white px-5 py-4 text-[14px] font-black text-[#0f172a]">Editar</Link>
-              ) : null}
-              {evento?.id ? (
-                <button type="button" onClick={excluirEvento} disabled={excluindo} className="rounded-[18px] bg-red-600 px-5 py-4 text-[14px] font-black text-white disabled:opacity-60">
-                  {excluindo ? 'Excluindo...' : 'Excluir'}
-                </button>
-              ) : null}
-            </div>
-          }
-        />
+        <header className="space-y-3">
+          <div className="flex flex-wrap gap-2">
+            <Link href="/eventos" className="rounded-xl border border-[#dbe3ef] bg-white px-3 py-2 text-xs font-bold text-[#0f172a]">Voltar</Link>
+            {evento?.id ? (
+              <Link href={`/eventos?edit=${evento.id}`} className="rounded-xl border border-[#dbe3ef] bg-white px-3 py-2 text-xs font-bold text-[#0f172a]">Editar</Link>
+            ) : null}
+            {evento?.id ? (
+              <button type="button" onClick={excluirEvento} disabled={excluindo} className="rounded-xl bg-red-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-60">
+                {excluindo ? 'Excluindo...' : 'Excluir'}
+              </button>
+            ) : null}
+          </div>
+
+          <div className="space-y-1">
+            <h1 className="text-2xl font-black text-slate-900">
+              {evento?.client_name || (carregando ? 'Carregando...' : 'Evento não encontrado')}
+            </h1>
+            <p className="text-sm text-slate-600">
+              {evento
+                ? `${formatDateBR(evento.event_date)} • ${String(evento.event_time || '--:--').slice(0, 5)}`
+                : '-'}
+            </p>
+            <p className="text-sm text-slate-600">{evento?.location_name || '-'}</p>
+          </div>
+        </header>
 
         <div className="rounded-[24px] border border-[#dbe3ef] bg-white p-2 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
           <AdminSegmentTabs items={tabs} active={activeTab} onChange={setActiveTab} />
@@ -272,44 +349,82 @@ export default function EventoDetalhePage() {
           <>
             {activeTab === 'resumo' && (
               <section className="space-y-4">
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-                  <MetricCard label="Formação" value={evento.formation || '-'} tone="blue" />
-                  <MetricCard label="Instrumentos" value={evento.instruments || '-'} tone="default" />
-                  <MetricCard label="Status" value={evento.status || 'Rascunho'} tone="amber" />
-                  <MetricCard label="Pagamento" value={evento.payment_status || 'Pendente'} tone="emerald" />
-                </div>
+                <section className="rounded-2xl border border-[#e2e8f0] bg-white px-4 py-4">
+                  <h3 className="text-sm font-black text-slate-900">Atenção necessária</h3>
+                  {attentionItems.length ? (
+                    <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700">
+                      {attentionItems.map((item) => (
+                        <li key={item}>{item}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="mt-2 text-sm text-emerald-700">Tudo certo para este evento.</p>
+                  )}
+                </section>
 
-                <section className="rounded-[24px] border border-[#dbe3ef] bg-white p-5">
-                  <h3 className="text-[16px] font-black text-slate-900">Extras do evento</h3>
-                  <div className="mt-3 space-y-2 text-sm text-slate-700">
-                    <div>• Receptivo: {evento?.reception_hours ? `${evento.reception_hours}h` : 'Não'}</div>
-                    <div>
-                      • Antesala:{' '}
-                      {evento?.has_antesala
-                        ? evento?.antesala_duration_minutes
-                          ? `${evento.antesala_duration_minutes} min`
-                          : 'Incluída'
-                        : 'Não'}
-                    </div>
-                    <div>
-                      • Acréscimo total:{' '}
-                      {formatMoney(
-                        Number(evento?.before_room_price || 0) +
-                          Number(evento?.reception_price || 0) +
-                          Number(evento?.antesala_price_increment || 0)
-                      )}
-                    </div>
+                <section className="rounded-2xl border border-[#dbeafe] bg-[#f8fbff] px-4 py-4">
+                  <h3 className="text-base font-black text-slate-900">Sugestão de formação</h3>
+                  <p className="mt-1 text-sm font-semibold text-slate-800">{suggestionTitle}</p>
+                  <p className="mt-1 text-xs text-slate-500">Recomendado para este evento</p>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('escala')}
+                    className="mt-3 rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white"
+                  >
+                    Ajustar escala
+                  </button>
+                </section>
+
+                <section className="space-y-3 rounded-2xl border border-[#e2e8f0] bg-white px-4 py-4">
+                  <div className="flex items-center justify-between text-sm">
+                    <p className="font-black text-slate-900">Equipe</p>
+                    <p className="text-slate-700">{teamSummary.total} músicos</p>
                   </div>
+                  <p className="text-sm text-slate-600">
+                    {teamSummary.confirmed} confirmados / {teamSummary.pending} pendentes
+                  </p>
+                </section>
+
+                <section className="space-y-3 rounded-2xl border border-[#e2e8f0] bg-white px-4 py-4">
+                  <div className="flex items-center justify-between text-sm">
+                    <p className="font-black text-slate-900">Financeiro</p>
+                    <p className="font-semibold text-amber-700">{formatMoney(evento?.open_amount || 0)} pendente</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('financeiro')}
+                    className="rounded-xl border border-[#dbe3ef] bg-white px-3 py-2 text-sm font-bold text-slate-900"
+                  >
+                    Ver pagamentos
+                  </button>
+                </section>
+
+                <section className="space-y-3 rounded-2xl border border-[#e2e8f0] bg-white px-4 py-4">
+                  <div className="flex items-center justify-between text-sm">
+                    <p className="font-black text-slate-900">Repertório</p>
+                    <p className="text-slate-700">{getRepertoireStatusLabel(evento?.repertoire_status)}</p>
+                  </div>
+                  <Link
+                    href="/repertorios"
+                    className="inline-flex rounded-xl border border-[#dbe3ef] bg-white px-3 py-2 text-sm font-bold text-slate-900"
+                  >
+                    Ver repertório
+                  </Link>
+                </section>
+
+                <section className="rounded-2xl border border-[#e2e8f0] bg-white px-4 py-4">
+                  <h3 className="text-sm font-black text-slate-900">Outras opções</h3>
+                  <ul className="mt-2 space-y-1 text-sm text-slate-700">
+                    {otherOptions.map((option) => (
+                      <li key={option}>• {option}</li>
+                    ))}
+                  </ul>
                 </section>
 
                 {evento?.antesala_requested_by_client ? (
-                  <section className="rounded-[24px] border border-amber-200 bg-amber-50 p-5">
-                    <h3 className="text-[16px] font-black text-amber-800">Solicitação do cliente</h3>
-                    <p className="mt-2 text-sm font-semibold text-amber-700">
-                      Antesala solicitada
-                    </p>
-                    <p className="text-sm text-amber-700">
-                      {getAntesalaStatusLabel(evento?.antesala_request_status)}
+                  <section className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4">
+                    <p className="text-sm font-semibold text-amber-700">
+                      Solicitação do cliente: {getAntesalaStatusLabel(evento?.antesala_request_status)}
                     </p>
                     {normalizeAntesalaStatus(evento?.antesala_request_status) === 'pending' ? (
                       <div className="mt-3 flex flex-wrap gap-2">
@@ -319,7 +434,7 @@ export default function EventoDetalhePage() {
                           disabled={processandoAntesala !== ''}
                           className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-black text-white disabled:opacity-60"
                         >
-                          {processandoAntesala === 'approved' ? 'Aprovando...' : 'Aprovar antesala'}
+                          {processandoAntesala === 'approved' ? 'Aprovando...' : 'Aprovar'}
                         </button>
                         <button
                           type="button"

@@ -25,6 +25,13 @@ function formatDateTimeBR(dateValue, timeValue) {
   return `${date} • ${time}`;
 }
 
+function formatMoney(value) {
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  }).format(Number(value || 0));
+}
+
 function getContactTagText(contact) {
   const candidates = [
     contact?.tags,
@@ -433,7 +440,6 @@ export default function EventoEscalaTab({ eventId }) {
   const [contatos, setContatos] = useState([]);
   const [escalaSalva, setEscalaSalva] = useState([]);
   const [escalaLocal, setEscalaLocal] = useState([]);
-  const [templateAplicado, setTemplateAplicado] = useState(null);
   const [templateSugerido, setTemplateSugerido] = useState(null);
   const [outrasSugestoes, setOutrasSugestoes] = useState([]);
   const [itensTemplateSugerido, setItensTemplateSugerido] = useState([]);
@@ -465,7 +471,7 @@ export default function EventoEscalaTab({ eventId }) {
         await Promise.all([
           supabase
             .from('events')
-            .select('id, client_name, event_date, event_time, location_name, formation, instruments')
+            .select('id, client_name, event_date, event_time, location_name, formation, instruments, status, open_amount, payment_status, repertoire_status')
             .eq('id', eventId)
             .single(),
           supabase
@@ -518,7 +524,6 @@ export default function EventoEscalaTab({ eventId }) {
       });
 
       let escalaInicial = escalaData;
-      let templateSelecionado = null;
       let templateSugeridoAtual = null;
       let suggestedItems = [];
 
@@ -590,7 +595,6 @@ export default function EventoEscalaTab({ eventId }) {
       setContatos(contatosData);
       setEscalaSalva(escalaData);
       setEscalaLocal(escalaInicial);
-      setTemplateAplicado(templateSelecionado);
       setTemplateSugerido(templateSugeridoAtual);
       if (escalaData.length > 0) setOutrasSugestoes([]);
       setItensTemplateSugerido(suggestedItems);
@@ -745,6 +749,17 @@ export default function EventoEscalaTab({ eventId }) {
     };
   }, [instrumentosEsperados, escalaParaExibir]);
 
+  const statusTela = useMemo(() => {
+    if (coverage.missing.length === 0 && resumoStatus.pendentes === 0) return 'Confirmado';
+    if (resumoStatus.total > 0) return 'Atenção';
+    return 'Pendente';
+  }, [coverage.missing.length, resumoStatus.pendentes, resumoStatus.total]);
+
+  const repertorioStatus = useMemo(() => {
+    const value = String(evento?.repertoire_status || '').trim();
+    return value || 'Pendente';
+  }, [evento?.repertoire_status]);
+
   const diffResumo = useMemo(() => {
     const { novos, removidos } = diffEscala(escalaSalva, escalaLocal);
     const pendentes = escalaLocal.filter((item) => item.status === 'pending').length;
@@ -775,14 +790,12 @@ export default function EventoEscalaTab({ eventId }) {
   function aplicarTemplateSugerido() {
     if (!templateSugerido || itensTemplateSugerido.length === 0) return;
     setEscalaLocal([...itensTemplateSugerido]);
-    setTemplateAplicado(templateSugerido);
     setTemplateSugerido(null);
     setEditando(true);
     setSucesso('');
   }
 
   function iniciarMontagemManual() {
-    setTemplateAplicado(null);
     setTemplateSugerido(null);
     setEscalaLocal([]);
     setEditando(true);
@@ -1037,90 +1050,76 @@ async function salvarEEnviarConvites() {
   }
 
   return (
-    <div className="space-y-5 md:space-y-6">
-      <section className="rounded-[28px] border border-[#dbe3ef] bg-gradient-to-br from-[#fcfcff] via-white to-[#f8fafc] p-5 shadow-[0_10px_26px_rgba(17,24,39,0.04)] md:p-6">
-        <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-          <div className="min-w-0">
-            <div className="text-[12px] font-black uppercase tracking-[0.14em] text-violet-600">
-              Escala do evento
-            </div>
+    <div className="space-y-4 md:space-y-5">
+      <section className="space-y-3 rounded-[24px] border border-[#dbe3ef] bg-white p-4 shadow-[0_10px_26px_rgba(17,24,39,0.04)] md:p-5">
+        <div>
+          <h3 className="text-[22px] font-black tracking-[-0.03em] text-[#0f172a]">{evento?.client_name || 'Evento'}</h3>
+          <p className="mt-1 text-[13px] font-semibold text-[#64748b]">
+            {formatDateTimeBR(evento?.event_date, evento?.event_time)}
+            {evento?.location_name ? ` • ${evento.location_name}` : ''}
+          </p>
+        </div>
 
-            <h3 className="mt-2 text-[28px] font-black tracking-[-0.04em] text-[#0f172a] md:text-[34px]">
-              {evento?.client_name || 'Evento'}
-            </h3>
+        <div className="rounded-2xl border border-[#e2e8f0] bg-[#f8fafc] px-3 py-2">
+          <div className="text-[11px] font-black uppercase tracking-[0.08em] text-[#64748b]">Status</div>
+          <div className="mt-1 text-[14px] font-black text-[#0f172a]">{statusTela}</div>
+        </div>
 
-            <div className="mt-3 text-[15px] font-semibold leading-7 text-[#64748b]">
-              {formatDateTimeBR(evento?.event_date, evento?.event_time)}
-              {evento?.location_name ? ` • ${evento.location_name}` : ''}
-            </div>
+        <div className="rounded-2xl border border-[#e2e8f0] bg-[#f8fafc] px-3 py-2 text-[13px] font-semibold text-[#0f172a]">
+          {resumoStatus.total} músicos • {resumoStatus.confirmados} confirmados • {resumoStatus.pendentes} pendentes
+        </div>
 
-            <div className="mt-2 text-[15px] font-semibold leading-7 text-[#64748b]">
-              <span className="font-black text-[#0f172a]">
-                {evento?.formation || 'Sem formação definida'}
-              </span>
-              {instrumentosEsperados.length > 0 ? (
-                <span>{` — ${instrumentosEsperados.join(', ')}`}</span>
-              ) : null}
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-2 xl:max-w-[380px] xl:justify-end">
-            <SummaryChip>{resumoStatus.total} músico(s)</SummaryChip>
-            <SummaryChip tone="emerald">{resumoStatus.confirmados} confirmados</SummaryChip>
-            <SummaryChip tone="amber">{resumoStatus.pendentes} pendentes</SummaryChip>
-            {resumoStatus.recusados > 0 ? (
-              <SummaryChip tone="red">{resumoStatus.recusados} recusados</SummaryChip>
-            ) : null}
-            {resumoStatus.reservas > 0 ? (
-              <SummaryChip tone="sky">{resumoStatus.reservas} reservas</SummaryChip>
-            ) : null}
+        <div className="rounded-2xl border border-violet-200 bg-violet-50 px-3 py-3">
+          <div className="text-[11px] font-black uppercase tracking-[0.08em] text-violet-700">Sugestão de formação</div>
+          <div className="mt-1 text-[14px] font-black text-violet-900">{formatTemplateDisplay(templateSugerido) || sugestaoFormacao}</div>
+          <div className="text-[12px] font-semibold text-violet-700">Recomendado para este evento</div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={iniciarMontagemManual}
+              className="rounded-[14px] border border-[#dbe3ef] bg-white px-4 py-2 text-[13px] font-black text-[#0f172a]"
+            >
+              Montagem manual
+            </button>
+            <button
+              type="button"
+              onClick={iniciarEdicao}
+              className="rounded-[14px] bg-violet-600 px-4 py-2 text-[13px] font-black text-white"
+            >
+              Ajustar escala
+            </button>
           </div>
         </div>
 
-        {templateAplicado && escalaSalva.length === 0 ? (
-          <div className="mt-5 rounded-[22px] border border-violet-200 bg-violet-50 px-4 py-4">
-            <div className="text-[12px] font-black uppercase tracking-[0.08em] text-violet-700">
-              Pré-escala sugerida
-            </div>
-            <div className="mt-1 text-[15px] font-semibold text-violet-800">
-              Template aplicado: {templateAplicado.name}
-            </div>
-            <div className="mt-1 text-[14px] leading-6 text-violet-700">
-              A equipe-base foi sugerida automaticamente com base na formação e nos instrumentos do evento.
-              Revise, ajuste e salve quando estiver pronta.
+        {!editando && escalaSalva.length === 0 && outrasSugestoes.length > 0 ? (
+          <div className="rounded-2xl border border-[#e2e8f0] bg-white px-3 py-3">
+            <div className="text-[11px] font-black uppercase tracking-[0.08em] text-[#64748b]">Outras opções</div>
+            <div className="mt-2 space-y-1 text-[13px] font-semibold text-[#334155]">
+              {outrasSugestoes.map((suggestion) => (
+                <div key={suggestion.id}>{formatTemplateDisplay(suggestion)}</div>
+              ))}
             </div>
           </div>
         ) : null}
 
-        {!editando && escalaSalva.length === 0 && templateSugerido ? (
-          <div className="mt-4 rounded-[18px] border border-violet-200 bg-violet-50 px-4 py-3">
-            <div className="text-[12px] font-black uppercase tracking-[0.08em] text-violet-700">
-              Sugestão de formação
-            </div>
-            <div className="mt-1 text-[14px] font-semibold text-violet-800">
-              {formatTemplateDisplay(templateSugerido)}
-            </div>
-          </div>
-        ) : null}
-
-        {!editando && escalaSalva.length === 0 && !templateSugerido ? (
-          <div className="mt-5 rounded-[22px] border border-amber-200 bg-amber-50 px-4 py-4">
-            <div className="text-[12px] font-black uppercase tracking-[0.08em] text-amber-700">
-              Sem sugestão automática
-            </div>
-            <div className="mt-1 text-[14px] leading-6 text-amber-800">
-              Nenhum template encontrado para a formação e funções/instrumentos deste evento.
-            </div>
-            <Link
-              href="/escalas/templates"
-              className="mt-3 inline-flex rounded-[14px] border border-amber-300 bg-white px-4 py-2 text-[13px] font-black text-amber-800"
-            >
-              Criar template a partir deste evento
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <div className="rounded-2xl border border-[#e2e8f0] bg-white px-3 py-3">
+            <div className="text-[11px] font-black uppercase tracking-[0.08em] text-[#64748b]">Financeiro</div>
+            <div className="mt-1 text-[14px] font-black text-[#0f172a]">{formatMoney(evento?.open_amount)} pendente</div>
+            <Link href="/pagamentos" className="mt-2 inline-flex rounded-[12px] border border-[#dbe3ef] px-3 py-1.5 text-[12px] font-black text-[#0f172a]">
+              Ver pagamentos
             </Link>
           </div>
-        ) : null}
+          <div className="rounded-2xl border border-[#e2e8f0] bg-white px-3 py-3">
+            <div className="text-[11px] font-black uppercase tracking-[0.08em] text-[#64748b]">Repertório</div>
+            <div className="mt-1 text-[14px] font-black text-[#0f172a]">{repertorioStatus}</div>
+            <Link href="/repertorios" className="mt-2 inline-flex rounded-[12px] border border-[#dbe3ef] px-3 py-1.5 text-[12px] font-black text-[#0f172a]">
+              Ver repertório
+            </Link>
+          </div>
+        </div>
 
-        <div className="mt-5 flex flex-wrap gap-3">
+        <div className="mt-1 flex flex-wrap gap-3">
           {!editando && escalaSalva.length === 0 && templateSugerido && itensTemplateSugerido.length > 0 ? (
             <button
               type="button"
@@ -1131,49 +1130,11 @@ async function salvarEEnviarConvites() {
             </button>
           ) : null}
 
-          {!editando && escalaSalva.length === 0 && outrasSugestoes.length > 0 ? (
-            <div className="w-full rounded-[18px] border border-[#dbe3ef] bg-white p-4">
-              <div className="text-[12px] font-black uppercase tracking-[0.12em] text-[#64748b]">
-                Outras sugestões
-              </div>
-              <div className="mt-3 space-y-2">
-                {outrasSugestoes.map((suggestion) => (
-                  <div
-                    key={suggestion.id}
-                    className="rounded-[14px] border border-[#e5e7eb] bg-[#f8fafc] px-3 py-2"
-                  >
-                    <div className="text-[14px] font-black text-[#0f172a]">
-                      {formatTemplateDisplay(suggestion)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : null}
-
-          {!editando && escalaSalva.length === 0 ? (
-            <button
-              type="button"
-              onClick={iniciarMontagemManual}
-              className="rounded-[18px] border border-[#dbe3ef] bg-white px-5 py-3 text-[14px] font-black text-[#0f172a] transition hover:bg-[#f8fafc]"
-            >
-              Montagem manual
-            </button>
-          ) : null}
-
-          {!editando ? (
-            <button
-              type="button"
-              onClick={iniciarEdicao}
-              className="rounded-[18px] bg-violet-600 px-5 py-3 text-[14px] font-black text-white shadow-[0_12px_28px_rgba(124,58,237,0.18)] transition hover:translate-y-[-1px]"
-            >
-              {escalaParaExibir.length > 0 ? 'Editar escala' : 'Ajustar escala'}
-            </button>
-          ) : (
+          {editando ? (
             <div className="rounded-[18px] border border-violet-200 bg-violet-50 px-4 py-3 text-[13px] font-black text-violet-700">
               Modo edição ativo
             </div>
-          )}
+          ) : null}
 
           {sucesso ? (
             <div className="rounded-[18px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-[13px] font-black text-emerald-700">

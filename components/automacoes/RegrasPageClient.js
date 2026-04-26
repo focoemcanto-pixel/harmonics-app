@@ -213,6 +213,19 @@ const QUICK_SECTIONS = [
     description: 'Automatize cobrança, aviso de saldo e confirmação.',
     presets: [
       {
+        id: 'payment_due_2_days_reminder',
+        key: 'lembrete_quitacao_2_dias',
+        name: 'Lembrete de quitação 2 dias antes',
+        title: 'Lembrete de quitação 2 dias antes',
+        subtitle: 'Disparo automático D-2 com mensagem editável',
+        event_type: 'payment_pending_2_days_client',
+        recipient_type: 'financial',
+        triggerType: 'scheduled',
+        badge: 'Programado',
+        days_before: 2,
+        send_time: '10:00',
+      },
+      {
         id: 'payment_pending_2_days_client',
         key: 'lembrete_pagamento_rapido',
         name: 'Lembrete de pagamento',
@@ -981,10 +994,11 @@ export default function RegrasPageClient() {
               <p className="mt-1 text-base text-slate-500">{section.description}</p>
               <div className="mt-5 grid gap-3 lg:grid-cols-2">
                 {section.presets.map((preset) => {
+                  const isPaymentReminderPreset = preset.id === 'payment_due_2_days_reminder';
                   const regra = rulesByPreset.get(preset.id);
                   const templateName = regra?.template?.name || 'Padrão do sistema';
                   const channelName = regra?.channel?.name || 'Canal padrão';
-                  const active = regra?.is_active || false;
+                  const active = isPaymentReminderPreset ? paymentReminderConfig.isEnabled : regra?.is_active || false;
                   return (
                     <article key={preset.id} className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm">
                       <div className="flex items-start justify-between gap-3">
@@ -1005,8 +1019,8 @@ export default function RegrasPageClient() {
                       </div>
 
                       <div className="mt-3 grid gap-1 text-sm text-slate-600">
-                        <div>Template: <span className="font-semibold text-slate-800">{templateName}</span></div>
-                        <div>Canal: <span className="font-semibold text-slate-800">{channelName}</span></div>
+                        <div>Template: <span className="font-semibold text-slate-800">{isPaymentReminderPreset ? 'Lembrete de quitação D-2' : templateName}</span></div>
+                        <div>Canal: <span className="font-semibold text-slate-800">{isPaymentReminderPreset ? 'WhatsApp' : channelName}</span></div>
                         <div>
                           Envio manual: <span className="font-semibold text-sky-700">permitido</span>
                         </div>
@@ -1019,44 +1033,38 @@ export default function RegrasPageClient() {
                         )}
                       </div>
 
-                      {preset.id === 'payment_pending_2_days_client' ? (
-                        <div className="mt-3 space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <div className="text-xs font-semibold text-slate-600">Lembrete de quitação 2 dias antes</div>
+                      {isPaymentReminderPreset ? (
+                        <>
+                          <div className="mt-3">
+                            <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-slate-500">Mensagem do WhatsApp</label>
+                            <textarea
+                              value={paymentReminderConfig.message}
+                              onChange={(e) => setPaymentReminderConfig((prev) => ({ ...prev, message: e.target.value }))}
+                              rows={5}
+                              className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-800 focus:border-violet-500 focus:outline-none"
+                            />
+                            <div className="mt-2 text-xs text-slate-500">Variáveis: {PAYMENT_REMINDER_VARIABLES.join(', ')}</div>
+                          </div>
+                          <div className="mt-4 flex flex-wrap gap-2">
                             <button
                               type="button"
                               onClick={() =>
                                 setPaymentReminderConfig((prev) => ({ ...prev, isEnabled: !prev.isEnabled }))
                               }
                               className={classNames(
-                                'rounded-full px-3 py-1 text-xs font-bold',
+                                'rounded-full px-3 py-1.5 text-xs font-bold',
                                 paymentReminderConfig.isEnabled
                                   ? 'bg-emerald-100 text-emerald-700'
-                                  : 'bg-slate-200 text-slate-600'
+                                  : 'bg-slate-100 text-slate-600'
                               )}
                             >
-                              {paymentReminderConfig.isEnabled ? 'Ativado' : 'Desativado'}
+                              {paymentReminderConfig.isEnabled ? 'Ativo' : 'Inativo'}
                             </button>
-                          </div>
-                          <textarea
-                            value={paymentReminderConfig.message}
-                            onChange={(e) => setPaymentReminderConfig((prev) => ({ ...prev, message: e.target.value }))}
-                            rows={4}
-                            className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs text-slate-800 focus:border-violet-500 focus:outline-none"
-                          />
-                          <div className="flex flex-wrap gap-1.5 text-[11px] text-slate-500">
-                            {PAYMENT_REMINDER_VARIABLES.map((item) => (
-                              <span key={item} className="inline-flex rounded-full bg-white px-2 py-0.5 font-semibold text-slate-600">
-                                {item}
-                              </span>
-                            ))}
-                          </div>
-                          <div className="flex flex-wrap gap-2">
                             <button
                               type="button"
                               onClick={salvarPaymentReminderConfig}
                               disabled={salvandoPaymentReminder}
-                              className="rounded-full bg-violet-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-violet-700 disabled:opacity-60"
+                              className="rounded-full bg-violet-100 px-3 py-1.5 text-xs font-bold text-violet-700 hover:bg-violet-200 disabled:opacity-60"
                             >
                               {salvandoPaymentReminder ? 'Salvando...' : 'Salvar'}
                             </button>
@@ -1068,9 +1076,9 @@ export default function RegrasPageClient() {
                                   message: prev.defaultMessage || prev.message,
                                 }))
                               }
-                              className="rounded-full border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100"
+                              className="rounded-full border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50"
                             >
-                              Restaurar
+                              Restaurar padrão
                             </button>
                             <button
                               type="button"
@@ -1081,39 +1089,39 @@ export default function RegrasPageClient() {
                               {executandoPaymentReminder ? 'Executando...' : 'Testar'}
                             </button>
                           </div>
-                        </div>
-                      ) : null}
-
-                      <div className="mt-4 flex flex-wrap gap-2">
-                        <button onClick={() => abrirCriarPreset(preset.id)} className="rounded-full bg-violet-100 px-3 py-1.5 text-xs font-bold text-violet-700 hover:bg-violet-200">
-                          Configurar
-                        </button>
-                        <button onClick={() => enviarTeste(preset)} className="rounded-full border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50">
-                          Testar
-                        </button>
-                        {preset.showManualAction && (
-                          <button
-                            onClick={() => {
-                              setManualForm((prev) => ({ ...prev, eventType: preset.event_type }));
-                              setManualModalAberto(true);
-                            }}
-                            className="rounded-full border border-sky-300 bg-sky-50 px-3 py-1.5 text-xs font-bold text-sky-700"
-                          >
-                            Enviar manualmente
+                        </>
+                      ) : (
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          <button onClick={() => abrirCriarPreset(preset.id)} className="rounded-full bg-violet-100 px-3 py-1.5 text-xs font-bold text-violet-700 hover:bg-violet-200">
+                            Configurar
                           </button>
-                        )}
-                        <button
-                          onClick={() => regra && toggleAtivo(regra)}
-                          disabled={!regra}
-                          className={classNames(
-                            'rounded-full px-3 py-1.5 text-xs font-bold',
-                            active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600',
-                            !regra && 'opacity-50'
+                          <button onClick={() => enviarTeste(preset)} className="rounded-full border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50">
+                            Testar
+                          </button>
+                          {preset.showManualAction && (
+                            <button
+                              onClick={() => {
+                                setManualForm((prev) => ({ ...prev, eventType: preset.event_type }));
+                                setManualModalAberto(true);
+                              }}
+                              className="rounded-full border border-sky-300 bg-sky-50 px-3 py-1.5 text-xs font-bold text-sky-700"
+                            >
+                              Enviar manualmente
+                            </button>
                           )}
-                        >
-                          {active ? 'Ativo' : 'Inativo'}
-                        </button>
-                      </div>
+                          <button
+                            onClick={() => regra && toggleAtivo(regra)}
+                            disabled={!regra}
+                            className={classNames(
+                              'rounded-full px-3 py-1.5 text-xs font-bold',
+                              active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600',
+                              !regra && 'opacity-50'
+                            )}
+                          >
+                            {active ? 'Ativo' : 'Inativo'}
+                          </button>
+                        </div>
+                      )}
                     </article>
                   );
                 })}

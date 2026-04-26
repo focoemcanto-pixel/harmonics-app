@@ -129,7 +129,9 @@ export default function EventoDetalhePage() {
 
   const backHref = useMemo(() => {
     const params = new URLSearchParams();
-    const returnTab = searchParams.get('retorno') || searchParams.get('tab') || 'resumo';
+    const requestedReturnTab = searchParams.get('retorno') || searchParams.get('tab') || 'resumo';
+    const returnTab =
+      requestedReturnTab === 'escala' ? 'operacao' : requestedReturnTab;
     const status = searchParams.get('status');
     const data = searchParams.get('data');
     const busca = searchParams.get('busca');
@@ -159,7 +161,7 @@ export default function EventoDetalhePage() {
     const nextId = ids[currentIndex + 1];
     const params = new URLSearchParams(searchParams.toString());
     params.set('tab', 'escala');
-    params.set('retorno', 'escala');
+    params.set('retorno', 'operacao');
 
     return `/eventos/${nextId}?${params.toString()}`;
   }, [id, searchParams]);

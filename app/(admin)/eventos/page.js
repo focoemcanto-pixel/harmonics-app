@@ -382,6 +382,7 @@ export default function EventosPage() {
   const [monthFilter, setMonthFilter] = useState('all');
   const [sortMode, setSortMode] = useState('Data do evento');
   const [busca, setBusca] = useState('');
+  const [debouncedBusca, setDebouncedBusca] = useState('');
 
   const [showPricing, setShowPricing] = useState(false);
   const [scaleSummaryByEventId, setScaleSummaryByEventId] = useState(new Map());
@@ -399,17 +400,30 @@ export default function EventosPage() {
   const [form, setForm] = useState(getInitialForm());
   const [mobileTab, setMobileTab] = useState('resumo');
   const [desktopTab, setDesktopTab] = useState('visao');
+  const currentParamsValue = searchParams.toString();
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedBusca(busca.trim());
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [busca]);
 
   useEffect(() => {
     const queryViewMode = VIEW_MODE_BY_QUERY[searchParams.get('status')];
     const queryMonth = searchParams.get('data');
     const queryBusca = searchParams.get('busca');
     const querySortMode = SORT_MODE_BY_QUERY[searchParams.get('ordem')];
-    const queryTab = searchParams.get('tab');
+    const requestedTab = searchParams.get('tab');
+    const normalizedTab =
+      requestedTab === 'escala' || requestedTab === 'operacao'
+        ? 'operacao'
+        : requestedTab || 'visao';
 
     if (queryViewMode && queryViewMode !== viewMode) setViewMode(queryViewMode);
     if (querySortMode && querySortMode !== sortMode) setSortMode(querySortMode);
-    if (queryTab === 'operacao' || queryTab === 'escala') {
+    if (normalizedTab === 'operacao') {
       if (desktopTab !== 'operacao') setDesktopTab('operacao');
       if (mobileTab !== 'operacao') setMobileTab('operacao');
     }
@@ -424,20 +438,29 @@ export default function EventosPage() {
     const nextParams = new URLSearchParams(searchParams.toString());
     const statusQuery = VIEW_MODE_TO_QUERY[viewMode];
     const sortQuery = SORT_MODE_TO_QUERY[sortMode];
+    const requestedTab = searchParams.get('tab');
+    const shouldUseOperacaoTab =
+      requestedTab === 'escala' ||
+      requestedTab === 'operacao' ||
+      desktopTab === 'operacao' ||
+      mobileTab === 'operacao';
 
     if (statusQuery) nextParams.set('status', statusQuery);
     if (sortQuery) nextParams.set('ordem', sortQuery);
     if (monthFilter && monthFilter !== 'all') nextParams.set('data', monthFilter);
     else nextParams.delete('data');
-    if (busca.trim()) nextParams.set('busca', busca.trim());
+    if (debouncedBusca) nextParams.set('busca', debouncedBusca);
     else nextParams.delete('busca');
+    if (shouldUseOperacaoTab) nextParams.set('tab', 'operacao');
+    else if (requestedTab) nextParams.set('tab', requestedTab);
+    else nextParams.delete('tab');
 
     const nextValue = nextParams.toString();
-    const currentValue = searchParams.toString();
+    const currentValue = currentParamsValue;
     if (nextValue !== currentValue) {
       router.replace(nextValue ? `/eventos?${nextValue}` : '/eventos', { scroll: false });
     }
-  }, [viewMode, sortMode, monthFilter, busca, router, searchParams]);
+  }, [viewMode, sortMode, monthFilter, debouncedBusca, router, searchParams, desktopTab, mobileTab, currentParamsValue]);
 
   useEffect(() => {
     console.info('[EVENTOS][TITLE_SOURCE]', {
@@ -895,9 +918,11 @@ export default function EventosPage() {
   function abrirEscala(evento) {
     if (!evento?.id) return;
     const params = new URLSearchParams(searchParams.toString());
-    params.set('tab', 'escala');
-    params.set('retorno', 'escala');
-    params.set('lista', visibleEventIds.join(','));
+    params.set('tab', 'operacao');
+    params.set('retorno', 'operacao');
+    if (visibleEventIds.length > 0) {
+      params.set('lista', visibleEventIds.join(','));
+    }
     router.push(`/eventos/${evento.id}?${params.toString()}`);
   }
 

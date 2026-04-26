@@ -895,7 +895,7 @@ async function persistirEscala() {
 
   await carregarTudo();
   setEditando(false);
-  setTemplateAplicado(null);
+  setTemplateSugerido(null);
 
   return {
     novos: Number(data?.stats?.novosConvites || 0),

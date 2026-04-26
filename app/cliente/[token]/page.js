@@ -8,6 +8,7 @@ const IS_DEV = process.env.NODE_ENV !== 'production';
 const CLIENT_EVENT_SELECT_FIELDS = [
   'id',
   'client_name',
+  'event_type',
   'event_date',
   'event_time',
   'location_name',
@@ -35,6 +36,7 @@ const CLIENT_EVENT_SELECT_FIELDS = [
 const CLIENT_EVENT_SELECT_FIELDS_FALLBACK = [
   'id',
   'client_name',
+  'event_type',
   'event_date',
   'event_time',
   'location_name',
@@ -59,6 +61,7 @@ const CLIENT_EVENT_SELECT_FIELDS_FALLBACK = [
 const CLIENT_EVENT_SELECT_FIELDS_MINIMAL_FALLBACK = [
   'id',
   'client_name',
+  'event_type',
   'event_date',
   'event_time',
   'location_name',
@@ -404,6 +407,29 @@ function mapItemsToInitialState(items) {
     safeItems
       .filter((item) => normalizeRepertoireSection(item.section) === 'receptivo')
       .sort((a, b) => (a.item_order || 0) - (b.item_order || 0))[0] || null;
+  const customEventItems = safeItems
+    .filter((item) => String(item.section || '').trim().toLowerCase() === 'custom_event')
+    .sort((a, b) => (a.item_order || 0) - (b.item_order || 0));
+  const customEventMetaItem =
+    customEventItems.find((item) => String(item.type || '').trim() === 'custom_event_meta') ||
+    customEventItems[0] ||
+    null;
+  const customSongs = customEventItems
+    .filter((item) => String(item.type || '').trim() === 'custom_event_song')
+    .slice(0, 8)
+    .map((item) => ({
+      song_name: item.song_name || '',
+      reference_link: item.reference_link || '',
+      reference_title: item.reference_title || '',
+      reference_channel: item.reference_channel || '',
+      reference_thumbnail: item.reference_thumbnail || '',
+      reference_video_id: item.reference_video_id || '',
+      notes: item.notes || '',
+    }));
+  const customStyles = String(customEventMetaItem?.genres || '')
+    .split(',')
+    .map((style) => style.trim())
+    .filter(Boolean);
 
   const mappedState = {
     cortejo: cortejo.length > 0 ? cortejo : [],
@@ -423,6 +449,11 @@ function mapItemsToInitialState(items) {
       generos: receptivoItem?.genres || '',
       artistas: receptivoItem?.artists || '',
       observacao: receptivoItem?.notes || '',
+    },
+    customEvent: {
+      selected_styles: customStyles,
+      preferred_artists: customEventMetaItem?.artists || '',
+      custom_songs: customSongs,
     },
   };
 
@@ -639,6 +670,24 @@ function deriveHasContractedReception(...sources) {
   return false;
 }
 
+function normalizeClientEventType(value) {
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+  if (!normalized) return '';
+  if (normalized.includes('casamento') || normalized.includes('wedding')) return 'casamento';
+  if (normalized.includes('cha')) return 'cha';
+  if (normalized.includes('show')) return 'show';
+  if (normalized.includes('receptivo')) return 'receptivo';
+  if (normalized.includes('aniversario')) return 'aniversario';
+  if (normalized.includes('corporativo')) return 'corporativo';
+  if (normalized.includes('igreja')) return 'igreja';
+  return normalized;
+}
+
 function sanitizeResolvedAdjustmentFromObservations(observations, latestAdjustmentRequest) {
   const rawObservation = String(observations || '').trim();
   if (!rawObservation) return '';
@@ -735,6 +784,9 @@ function buildFallbackData(token = '') {
     suporteWhatsappMensagem: supportConfig.message,
     reviewSubmitted: false,
     repertorio: {
+      eventType: 'casamento',
+      isWedding: true,
+      isCustomEvent: false,
       status: 'NAO_INICIADO',
       isLocked: false,
       etapasPreenchidas: 0,
@@ -756,6 +808,10 @@ function buildFallbackData(token = '') {
       pdfUrl: null,
       repertoireToken: safeToken,
       initialState: {
+        mode: 'wedding',
+        selected_styles: [],
+        preferred_artists: '',
+        custom_songs: [],
         querAntessala: null,
         antessala: {
           estilo: '',
@@ -1444,6 +1500,13 @@ export default async function ClienteTokenPage({ params, searchParams }) {
   const repertorioPdfUrl = repertorioPdfToken
     ? `/api/cliente/repertorio/pdf/${repertorioPdfToken}`
     : null;
+  const rawEventType =
+    event?.event_type ||
+    precontract?.event_type ||
+    '';
+  const eventType = normalizeClientEventType(rawEventType);
+  const isWedding = eventType === 'casamento' || !eventType;
+  const isCustomEvent = !isWedding;
 
   if (IS_DEV) {
     console.log('[CLIENTE PAGE] token da rota do cliente:', token || '(vazio)');
@@ -1586,6 +1649,9 @@ export default async function ClienteTokenPage({ params, searchParams }) {
     reviewSubmitted: false,
 
     repertorio: {
+      eventType,
+      isWedding,
+      isCustomEvent,
       status: mapStatusToUi(config?.status, config?.is_locked),
       isLocked: Boolean(config?.is_locked),
       etapasPreenchidas: computeEtapasPreenchidas(config, items),
@@ -1615,6 +1681,10 @@ export default async function ClienteTokenPage({ params, searchParams }) {
       repertoireToken: repertorioTokenValue,
 
       initialState: {
+        mode: isWedding ? 'wedding' : 'custom',
+        selected_styles: initialLists.customEvent?.selected_styles || [],
+        preferred_artists: initialLists.customEvent?.preferred_artists || '',
+        custom_songs: initialLists.customEvent?.custom_songs || [],
         querAntessala: config?.has_ante_room ?? null,
         antessala: {
           ...initialLists.antessala,

@@ -637,6 +637,7 @@ export default function EventoEscalaTab({ eventId, nextEventHref = '' }) {
     if (!sucesso) return;
 
     const timer = setTimeout(() => {
+      if (!isMountedRef.current) return;
       setSucesso('');
     }, 2600);
 
@@ -654,6 +655,8 @@ export default function EventoEscalaTab({ eventId, nextEventHref = '' }) {
     : escalaSalva.length > 0
       ? escalaSalva
       : escalaLocal;
+  const escalaLocalSegura = Array.isArray(escalaLocal) ? escalaLocal : [];
+  const escalaSalvaSegura = Array.isArray(escalaSalva) ? escalaSalva : [];
   const escalaParaExibir = Array.isArray(escalaBase) ? escalaBase : [];
 
   const escalaOrdenadaPreview = useMemo(() => {
@@ -667,7 +670,8 @@ export default function EventoEscalaTab({ eventId, nextEventHref = '' }) {
   }, [escalaParaExibir]);
 
   const contatosDisponiveis = useMemo(() => {
-    const usados = new Set(escalaLocal.map((item) => String(item.musician_id)));
+    const baseLocal = Array.isArray(escalaLocal) ? escalaLocal : [];
+    const usados = new Set(baseLocal.map((item) => String(item.musician_id)));
     return contatos.filter((contact) => !usados.has(String(contact.id)));
   }, [contatos, escalaLocal]);
 
@@ -781,14 +785,16 @@ export default function EventoEscalaTab({ eventId, nextEventHref = '' }) {
   }, [coverage.missing.length, resumoStatus.pendentes, resumoStatus.total]);
 
   const diffResumo = useMemo(() => {
-    const { novos, removidos } = diffEscala(escalaSalva, escalaLocal);
-    const pendentes = escalaLocal.filter((item) => item.status === 'pending').length;
-    const recusados = escalaLocal.filter((item) => item.status === 'declined').length;
-    const reservas = escalaLocal.filter((item) => item.status === 'backup').length;
-    const funcoesVazias = escalaLocal.filter((item) => !String(item.role || '').trim()).length;
+    const localSafe = Array.isArray(escalaLocal) ? escalaLocal : [];
+    const savedSafe = Array.isArray(escalaSalva) ? escalaSalva : [];
+    const { novos, removidos } = diffEscala(savedSafe, localSafe);
+    const pendentes = localSafe.filter((item) => item.status === 'pending').length;
+    const recusados = localSafe.filter((item) => item.status === 'declined').length;
+    const reservas = localSafe.filter((item) => item.status === 'backup').length;
+    const funcoesVazias = localSafe.filter((item) => !String(item.role || '').trim()).length;
 
     return {
-      total: escalaLocal.length,
+      total: localSafe.length,
       novos: novos.length,
       removidos: removidos.length,
       pendentes,
@@ -824,7 +830,7 @@ export default function EventoEscalaTab({ eventId, nextEventHref = '' }) {
   }
 
   function cancelarEdicao() {
-    setEscalaLocal(escalaSalva.length > 0 ? [...escalaSalva] : [...escalaLocal]);
+    setEscalaLocal(Array.isArray(escalaSalva) ? escalaSalva : []);
     setBusca('');
     setEditando(false);
   }
@@ -884,7 +890,7 @@ export default function EventoEscalaTab({ eventId, nextEventHref = '' }) {
     );
   }
 async function persistirEscala() {
-  const escalaLocalDedupe = dedupeByMusician(escalaLocal).map((item) => ({
+  const escalaLocalDedupe = dedupeByMusician(escalaLocalSegura).map((item) => ({
     musician_id: item.musician_id,
     role: item.role || item.contact_tag_text || null,
     status: item.status || 'pending',
@@ -902,16 +908,42 @@ async function persistirEscala() {
     },
     body: JSON.stringify({ escalaLocal: escalaLocalDedupe }),
   });
+  if (!isMountedRef.current) return { novos: 0 };
 
   const data = await response.json().catch(() => ({}));
+  if (!isMountedRef.current) return { novos: 0 };
 
   if (!response.ok || data?.ok === false) {
     throw new Error(data?.error || 'Não foi possível salvar a escala.');
   }
+  const novaEscala = Array.isArray(data?.escala) ? data.escala : escalaLocalDedupe.map((item) => {
+    const original = escalaLocalSegura.find(
+      (localItem) => String(localItem?.musician_id) === String(item?.musician_id)
+    );
+    return {
+      id: original?.id,
+      event_id: eventId,
+      musician_id: item.musician_id,
+      role: item.role || '',
+      status: item.status || 'pending',
+      notes: item.notes || '',
+      confirmed_at: item.confirmed_at || null,
+      musician_name: original?.musician_name || '',
+      musician_phone: original?.musician_phone || '',
+      musician_email: original?.musician_email || '',
+      contact_tag_text: original?.contact_tag_text || '',
+    };
+  });
 
-  await carregarTudo();
-  setEditando(false);
-  setTemplateSugerido(null);
+  const escalaNormalizada = Array.isArray(novaEscala) ? novaEscala : [];
+  if (isMountedRef.current) {
+    setEscalaSalva(escalaNormalizada);
+    setEscalaLocal(escalaNormalizada);
+    setBusca('');
+    setEditando(false);
+    setSucesso('Escala salva com sucesso.');
+    setTemplateSugerido(null);
+  }
 
   return {
     novos: Number(data?.stats?.novosConvites || 0),
@@ -941,6 +973,7 @@ async function fetchPendingInviteCount(eventId) {
     .select('id, whatsapp_sent_at, status')
     .eq('event_id', eventId)
     .neq('status', 'removed');
+  if (!isMountedRef.current) return 0;
 
   if (error) throw error;
 
@@ -954,6 +987,7 @@ async function salvarEscala() {
     console.info('[automation][step] salvar_escala_started', { eventId });
 
     await persistirEscala();
+    if (!isMountedRef.current) return;
     console.info('[automation][step] salvar_escala_persisted', { eventId });
 
     const response = await fetch('/api/whatsapp/send-event-invites', {
@@ -961,6 +995,7 @@ async function salvarEscala() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ eventId }),
     });
+    if (!isMountedRef.current) return;
     console.info('[automation][step] send_event_invites_called', {
       eventId,
       responseStatus: response.status,
@@ -968,6 +1003,7 @@ async function salvarEscala() {
     });
 
     const data = await response.json().catch(() => ({}));
+    if (!isMountedRef.current) return;
     const { total, sentCount, failedCount } = summarizeInviteDispatchResults(data);
 
     if (!response.ok && sentCount === 0) {
@@ -978,6 +1014,7 @@ async function salvarEscala() {
     }
 
     if (failedCount > 0 && sentCount > 0) {
+      if (!isMountedRef.current) return;
       setSucesso(
         `Escala salva. Envio parcial: ${sentCount} convite(s) enviado(s) e ${failedCount} falha(s) no envio automático.`
       );
@@ -988,6 +1025,7 @@ async function salvarEscala() {
       throw new Error(`Escala salva, mas ${failedCount} convite(s) falharam no envio automático.`);
     }
 
+    if (!isMountedRef.current) return;
     setSucesso(
       total > 0
         ? `Escala salva e ${sentCount} convite(s) enviado(s) automaticamente.`
@@ -995,9 +1033,12 @@ async function salvarEscala() {
     );
   } catch (e) {
     console.error('[automation][step] salvar_escala_failed', e);
+    if (!isMountedRef.current) return;
     toast.error(e?.message || 'Erro ao salvar escala.');
   } finally {
-    setSalvando(false);
+    if (isMountedRef.current) {
+      setSalvando(false);
+    }
   }
 }
 async function salvarEEnviarConvites() {
@@ -1007,7 +1048,9 @@ async function salvarEEnviarConvites() {
     setSucesso('');
 
     await persistirEscala();
+    if (!isMountedRef.current) return;
     const totalPendentes = await fetchPendingInviteCount(eventId);
+    if (!isMountedRef.current) return;
     setInviteProgress({ current: 0, total: totalPendentes });
 
     const response = await fetch('/api/whatsapp/send-event-invites', {
@@ -1015,10 +1058,13 @@ async function salvarEEnviarConvites() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ eventId }),
     });
+    if (!isMountedRef.current) return;
 
     const data = await response.json();
+    if (!isMountedRef.current) return;
 
     const { total, sentCount, failedCount } = summarizeInviteDispatchResults(data);
+    if (!isMountedRef.current) return;
     setInviteProgress({ current: total, total });
 
     if (!response.ok && sentCount === 0) {
@@ -1029,6 +1075,7 @@ async function salvarEEnviarConvites() {
     }
 
     if (failedCount > 0 && sentCount > 0) {
+      if (!isMountedRef.current) return;
       setSucesso(`Escala salva. Envio parcial: ${sentCount} convite(s) enviado(s) e ${failedCount} falha(s).`);
       return;
     }
@@ -1037,6 +1084,7 @@ async function salvarEEnviarConvites() {
       throw new Error(`Escala salva, mas ${failedCount} convite(s) falharam no envio.`);
     }
 
+    if (!isMountedRef.current) return;
     setSucesso(
       total > 0
         ? `Escala salva e ${sentCount} convite(s) enviado(s).`
@@ -1045,11 +1093,14 @@ async function salvarEEnviarConvites() {
 
   } catch (e) {
     console.error(e);
+    if (!isMountedRef.current) return;
     toast.error(e?.message || 'Erro ao enviar convites');
   } finally {
-    setSalvando(false);
-    setEnviandoConvites(false);
-    setInviteProgress((prev) => ({ current: prev.total, total: prev.total }));
+    if (isMountedRef.current) {
+      setSalvando(false);
+      setEnviandoConvites(false);
+      setInviteProgress((prev) => ({ current: prev.total, total: prev.total }));
+    }
   }
 }
 
@@ -1111,7 +1162,7 @@ async function salvarEEnviarConvites() {
           </div>
         </div>
 
-        {!editando && escalaSalva.length === 0 && outrasSugestoes.length > 0 ? (
+      {!editando && escalaSalvaSegura.length === 0 && outrasSugestoes.length > 0 ? (
           <div className="rounded-2xl border border-[#e2e8f0] bg-white px-3 py-3">
             <div className="text-[11px] font-black uppercase tracking-[0.08em] text-[#64748b]">Outras opções</div>
             <div className="mt-2 space-y-1 text-[13px] font-semibold text-[#334155]">
@@ -1140,7 +1191,7 @@ async function salvarEEnviarConvites() {
         </div>
 
         <div className="mt-1 flex flex-wrap gap-3">
-          {!editando && escalaSalva.length === 0 && templateSugerido && itensTemplateSugerido.length > 0 ? (
+          {!editando && escalaSalvaSegura.length === 0 && templateSugerido && itensTemplateSugerido.length > 0 ? (
             <button
               type="button"
               onClick={aplicarTemplateSugerido}
@@ -1373,9 +1424,9 @@ async function salvarEEnviarConvites() {
               title="Músicos selecionados"
               subtitle="Ajuste função, status e observações antes de salvar a escala."
             >
-              {escalaLocal.length > 0 ? (
+              {escalaLocalSegura.length > 0 ? (
                 <div className="space-y-4">
-                  {escalaLocal.map((item, index) => (
+                  {escalaLocalSegura.map((item, index) => (
                     <SelectedMusicianCard
                       key={`${item.musician_id}-${index}`}
                       item={item}

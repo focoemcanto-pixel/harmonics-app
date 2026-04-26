@@ -149,6 +149,28 @@ function formatTemplateDisplay(template) {
   return composicao ? `${formacao} — ${composicao}` : formacao;
 }
 
+function getEventoEstadoResumo({ total, confirmados, pendentes, recusados, missing }) {
+  if (!total || pendentes >= total) {
+    return { label: 'Pendente', tone: 'amber' };
+  }
+  if (recusados > 0 || missing > 0 || pendentes > 0) {
+    return { label: 'Atenção', tone: 'red' };
+  }
+  if (confirmados > 0) {
+    return { label: 'Confirmado', tone: 'emerald' };
+  }
+  return { label: 'Pendente', tone: 'amber' };
+}
+
+function getRepertorioStatusLabel(status) {
+  const normalized = String(status || '').trim().toUpperCase();
+  if (!normalized) return 'Pendente';
+  if (normalized === 'FINALIZADO') return 'Finalizado';
+  if (normalized === 'EM_REVISAO' || normalized === 'AGUARDANDO_REVISAO') return 'Em revisão';
+  if (normalized === 'NAO_INICIADO') return 'Pendente';
+  return 'Pendente';
+}
+
 function SummaryChip({ children, tone = 'default' }) {
   const classes = {
     default: 'border-[#dbe3ef] bg-white text-[#0f172a]',
@@ -442,7 +464,7 @@ export default function EventoEscalaTab({ eventId }) {
   const [escalaLocal, setEscalaLocal] = useState([]);
   const [templateSugerido, setTemplateSugerido] = useState(null);
   const [outrasSugestoes, setOutrasSugestoes] = useState([]);
-  const [itensTemplateSugerido, setItensTemplateSugerido] = useState([]);
+  const [repertorioStatus, setRepertorioStatus] = useState('');
 
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
@@ -467,7 +489,7 @@ export default function EventoEscalaTab({ eventId }) {
       setCarregando(true);
       setErro('');
 
-      const [eventoResp, contatosResp, escalaResp, templatesResp, templateItemsResp] =
+      const [eventoResp, contatosResp, escalaResp, templatesResp, templateItemsResp, repertorioResp] =
         await Promise.all([
           supabase
             .from('events')
@@ -491,6 +513,11 @@ export default function EventoEscalaTab({ eventId }) {
             .from('scale_template_items')
             .select('*')
             .order('sort_order', { ascending: true }),
+          supabase
+            .from('repertoire_config')
+            .select('status')
+            .eq('event_id', eventId)
+            .maybeSingle(),
         ]);
 
       if (eventoResp.error) throw eventoResp.error;
@@ -498,6 +525,7 @@ export default function EventoEscalaTab({ eventId }) {
       if (escalaResp.error) throw escalaResp.error;
       if (templatesResp.error) throw templatesResp.error;
       if (templateItemsResp.error) throw templateItemsResp.error;
+      if (repertorioResp.error) throw repertorioResp.error;
 
       const eventoData = eventoResp.data || null;
       const contatosData = filterOperationalTeamContacts(contatosResp.data || []);
@@ -525,7 +553,7 @@ export default function EventoEscalaTab({ eventId }) {
 
       let escalaInicial = escalaData;
       let templateSugeridoAtual = null;
-      let suggestedItems = [];
+      setRepertorioStatus(String(repertorioResp?.data?.status || ''));
 
       if (escalaData.length === 0 && eventoData) {
         const suggestion = matchTemplatesForEvent(
@@ -538,46 +566,13 @@ export default function EventoEscalaTab({ eventId }) {
         );
 
         const bestTemplate = suggestion.bestTemplate;
-        const templateItemsByTemplate = new Map();
-        for (const templateItem of templateItemsResp.data || []) {
-          const key = String(templateItem.template_id || '');
-          if (!templateItemsByTemplate.has(key)) templateItemsByTemplate.set(key, []);
-          templateItemsByTemplate.get(key).push(templateItem);
-        }
 
         if (bestTemplate) {
-          const templateItems = (templateItemsByTemplate.get(String(bestTemplate.id)) || [])
-            .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
-
-          const mappedSuggestedItems = templateItems
-            .map((item) => {
-              const contact = contatosMap.get(String(item.contact_id)) || null;
-              if (!contact) return null;
-
-              const tagText = getContactTagText(contact);
-
-              return {
-                id: undefined,
-                event_id: eventId,
-                musician_id: item.contact_id,
-                role: item.role || tagText || '',
-                status: 'pending',
-                notes: '',
-                confirmed_at: null,
-                musician_name: contact.name || '',
-                musician_phone: contact.phone || '',
-                musician_email: contact.email || '',
-                contact_tag_text: tagText,
-              };
-            })
-            .filter(Boolean);
-
           templateSugeridoAtual = {
             ...bestTemplate,
             match_explanation: suggestion.suggestions?.[0]?.explanation || '',
             match_score: suggestion.suggestions?.[0]?.score || 0,
           };
-          suggestedItems = mappedSuggestedItems;
         }
 
         const suggestions = (suggestion.suggestions || []).map((item) => ({
@@ -597,7 +592,6 @@ export default function EventoEscalaTab({ eventId }) {
       setEscalaLocal(escalaInicial);
       setTemplateSugerido(templateSugeridoAtual);
       if (escalaData.length > 0) setOutrasSugestoes([]);
-      setItensTemplateSugerido(suggestedItems);
     } catch (e) {
       console.error('Erro ao carregar escala do evento:', e);
       setErro(
@@ -748,6 +742,21 @@ export default function EventoEscalaTab({ eventId }) {
       missing,
     };
   }, [instrumentosEsperados, escalaParaExibir]);
+  const estadoEvento = useMemo(
+    () =>
+      getEventoEstadoResumo({
+        total: resumoStatus.total,
+        confirmados: resumoStatus.confirmados,
+        pendentes: resumoStatus.pendentes,
+        recusados: resumoStatus.recusados,
+        missing: coverage.missing.length,
+      }),
+    [resumoStatus, coverage.missing.length]
+  );
+  const repertorioLabel = useMemo(
+    () => getRepertorioStatusLabel(repertorioStatus),
+    [repertorioStatus]
+  );
 
   const statusTela = useMemo(() => {
     if (coverage.missing.length === 0 && resumoStatus.pendentes === 0) return 'Confirmado';
@@ -1142,12 +1151,17 @@ async function salvarEEnviarConvites() {
             </div>
           ) : null}
         </div>
+        {sucesso ? (
+          <div className="rounded-[16px] border border-emerald-200 bg-emerald-50 px-4 py-2 text-[13px] font-black text-emerald-700">
+            {sucesso}
+          </div>
+        ) : null}
       </section>
 
       <SectionCard
         eyebrow="Cobertura da equipe"
-        title="Radar da escala"
-        subtitle="Veja rapidamente o que já está coberto, o que ainda está pendente e o que falta para fechar esta equipe."
+        title="Situação da equipe"
+        subtitle="Resumo rápido do que já está completo e do que ainda precisa de ajuste."
       >
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <MetricCard

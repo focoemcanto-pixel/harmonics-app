@@ -134,7 +134,6 @@ export default function EventoDetalhePage() {
     const busca = searchParams.get('busca');
     const ordem = searchParams.get('ordem');
 
-    params.set('tab', 'operacao');
     if (status) params.set('status', status);
     if (data) params.set('data', data);
     if (busca) params.set('busca', busca);

@@ -477,15 +477,25 @@ export default function EventoEscalaTab({ eventId, nextEventHref = '' }) {
   const toast = useAppToast();
 
   const buscaRef = useRef(null);
+  const isMountedRef = useRef(false);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   async function carregarTudo() {
     if (!eventId) {
+      if (!isMountedRef.current) return;
       setCarregando(false);
       setErro('Evento inválido para carregar a escala.');
       return;
     }
 
     try {
+      if (!isMountedRef.current) return;
       setCarregando(true);
       setErro('');
 
@@ -520,6 +530,7 @@ export default function EventoEscalaTab({ eventId, nextEventHref = '' }) {
             .maybeSingle(),
         ]);
 
+      if (!isMountedRef.current) return;
       if (eventoResp.error) throw eventoResp.error;
       if (contatosResp.error) throw contatosResp.error;
       if (escalaResp.error) throw escalaResp.error;
@@ -586,6 +597,7 @@ export default function EventoEscalaTab({ eventId, nextEventHref = '' }) {
           : suggestions.slice(0, 3));
       }
 
+      if (!isMountedRef.current) return;
       setEvento(eventoData);
       setContatos(contatosData);
       setEscalaSalva(escalaData);
@@ -594,13 +606,16 @@ export default function EventoEscalaTab({ eventId, nextEventHref = '' }) {
       if (escalaData.length > 0) setOutrasSugestoes([]);
     } catch (e) {
       console.error('Erro ao carregar escala do evento:', e);
+      if (!isMountedRef.current) return;
       setErro(
         e?.message
           ? `Não foi possível carregar a escala deste evento. ${e.message}`
           : 'Não foi possível carregar a escala deste evento.'
       );
     } finally {
-      setCarregando(false);
+      if (isMountedRef.current) {
+        setCarregando(false);
+      }
     }
   }
 
@@ -634,11 +649,12 @@ export default function EventoEscalaTab({ eventId, nextEventHref = '' }) {
     return splitCsvLike(evento?.formation);
   }, [evento]);
 
-  const escalaParaExibir = editando
+  const escalaBase = editando
     ? escalaLocal
     : escalaSalva.length > 0
       ? escalaSalva
       : escalaLocal;
+  const escalaParaExibir = Array.isArray(escalaBase) ? escalaBase : [];
 
   const escalaOrdenadaPreview = useMemo(() => {
     return [...escalaParaExibir].sort((a, b) => {

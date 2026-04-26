@@ -148,30 +148,11 @@ export default function EventoDetalhePage() {
     return query ? `/eventos?${query}` : '/eventos';
   }, [searchParams]);
 
-  const nextEventHref = useMemo(() => {
-    if (!id) return '';
-
-    const listRaw = searchParams.get('lista') || '';
-    const ids = listRaw
-      .split(',')
-      .map((item) => item.trim())
-      .filter(Boolean);
-    const currentIndex = ids.findIndex((item) => String(item) === String(id));
-    if (currentIndex < 0 || currentIndex >= ids.length - 1) return '';
-
-    const nextId = ids[currentIndex + 1];
-    const params = new URLSearchParams(searchParams.toString());
-    params.set('tab', 'escala');
-    params.delete('retorno');
-
-    return `/eventos/${nextId}?${params.toString()}`;
-  }, [id, searchParams]);
-
-  const effectiveNextEventHref = nextEventHref || fallbackNextEventHref;
+  const effectiveNextEventHref = fallbackNextEventHref;
 
   useEffect(() => {
     async function carregarProximaEscala() {
-      if (!evento?.id || nextEventHref) {
+      if (!evento?.id) {
         setFallbackNextEventHref('');
         return;
       }
@@ -251,7 +232,7 @@ export default function EventoDetalhePage() {
     }
 
     carregarProximaEscala();
-  }, [evento?.id, evento?.event_date, evento?.event_time, nextEventHref, searchParams]);
+  }, [evento?.id, evento?.event_date, evento?.event_time, searchParams]);
 
   useEffect(() => {
     async function carregarEvento() {

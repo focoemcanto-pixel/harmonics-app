@@ -2,6 +2,7 @@
 import { useToast } from '../ui/ToastProvider';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ReferenceSearchInput from '../repertorio/ReferenceSearchInput';
+import YouTubeReferencePreview from '../repertorio/YouTubeReferencePreview';
 import {
   formatDateBR,
   formatLongDateBR,
@@ -32,6 +33,8 @@ const ANTESALA_DURATION_OPTIONS = [
   { minutes: 180, label: '3h' },
 ];
 const ANTESALA_STYLE_OPTIONS = ['Gospel', 'Internacional', 'MPB', 'Sertanejo'];
+const CUSTOM_EVENT_STYLE_OPTIONS = ['Gospel', 'Internacional', 'MPB', 'Sertanejo'];
+const CUSTOM_EVENT_MAX_SONGS = 8;
 
 
 function classNames(...classes) {
@@ -53,6 +56,17 @@ function getDefaultAntesalaState() {
     quoteMinutes: null,
     quotePriceIncrement: 0,
     requestedByClient: false,
+  };
+}
+
+function getDefaultCustomSongState() {
+  return {
+    song_name: '',
+    reference_link: '',
+    reference_title: '',
+    reference_channel: '',
+    reference_thumbnail: '',
+    reference_video_id: '',
   };
 }
 
@@ -202,11 +216,35 @@ function hasInitialRepertorioFromBackend(initialState = {}) {
       hasFilledField(initialState.receptivo.generos) ||
       hasFilledField(initialState.receptivo.artistas) ||
       hasFilledField(initialState.receptivo.observacao));
+  const hasCustomStyles =
+    Array.isArray(initialState.selected_styles) && initialState.selected_styles.length > 0;
+  const hasCustomArtists = hasFilledField(initialState.preferred_artists);
+  const hasCustomSongs =
+    Array.isArray(initialState.custom_songs) &&
+    initialState.custom_songs.some(
+      (item) =>
+        hasFilledField(item?.song_name) ||
+        hasFilledField(item?.reference_link) ||
+        hasFilledField(item?.reference_title) ||
+        hasFilledField(item?.reference_channel) ||
+        hasFilledField(item?.reference_thumbnail) ||
+        hasFilledField(item?.reference_video_id)
+    );
 
-  return hasCortejo || hasCerimonia || hasSaida || hasAntessala || hasReceptivo;
+  return (
+    hasCortejo ||
+    hasCerimonia ||
+    hasSaida ||
+    hasAntessala ||
+    hasReceptivo ||
+    hasCustomStyles ||
+    hasCustomArtists ||
+    hasCustomSongs
+  );
 }
 
 function buildRepertorioSnapshot({
+  mode,
   querAntessala,
   temReceptivo,
   antessala,
@@ -216,8 +254,12 @@ function buildRepertorioSnapshot({
   receptivo,
   desiredSongs,
   generalNotes,
+  selected_styles,
+  preferred_artists,
+  custom_songs,
 }) {
   return {
+    mode,
     querAntessala,
     temReceptivo,
     antessala,
@@ -227,6 +269,9 @@ function buildRepertorioSnapshot({
     receptivo,
     desiredSongs,
     generalNotes,
+    selected_styles,
+    preferred_artists,
+    custom_songs,
   };
 }
 
@@ -642,17 +687,24 @@ function TimelineItem({ title, status }) {
   );
 }
 
-function FooterNav({ activeTab, setActiveTab }) {
+function FooterNav({ activeTab, setActiveTab, hideSuggestions = false }) {
   const items = [
     { key: 'inicio', icon: '🏠', label: 'Início' },
     { key: 'repertorio', icon: '🎼', label: 'Repertório' },
-    { key: 'sugestoes', icon: '✨', label: 'Sugestões' },
     { key: 'financeiro', icon: '💰', label: 'Financeiro' },
   ];
+  if (!hideSuggestions) {
+    items.splice(2, 0, { key: 'sugestoes', icon: '✨', label: 'Sugestões' });
+  }
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-[#eadfd6] bg-[rgba(248,244,239,0.94)] px-3 pb-[calc(env(safe-area-inset-bottom)+12px)] pt-3 shadow-[0_-10px_30px_rgba(36,26,20,0.06)] backdrop-blur-xl">
-      <div className="mx-auto grid w-full max-w-[520px] grid-cols-4 gap-2">
+      <div
+        className={classNames(
+          'mx-auto grid w-full max-w-[520px] gap-2',
+          hideSuggestions ? 'grid-cols-3' : 'grid-cols-4'
+        )}
+      >
         {items.map((item) => {
           const active = activeTab === item.key;
 
@@ -1328,6 +1380,8 @@ function RepertorioTab({
 }) {
   const { showToast } = useToast();
   const statusNormalizado = String(data.repertorio.status || '').toUpperCase();
+  const isWedding = data?.repertorio?.isWedding !== false;
+  const isCustomEvent = !isWedding;
   const travado = isRepertorioTravado(statusNormalizado, data.repertorio.isLocked);
   const aguardandoRevisao = statusNormalizado === 'AGUARDANDO_REVISAO';
   const receptivoContratadoHoras = Number(data?.repertorio?.receptivoContratadoHoras || 0);
@@ -1381,6 +1435,10 @@ function RepertorioTab({
     : null;
   const restoredState =
     persistedState && typeof persistedState === 'object' ? persistedState : null;
+  const initialMode = initialState?.mode || (isWedding ? 'wedding' : 'custom');
+  const [mode] = useState(
+    restoredState?.mode || initialMode || (isWedding ? 'wedding' : 'custom')
+  );
 
 const [querAntessala, setQuerAntessala] = useState(
   restoredState?.querAntessala ?? initialState.querAntessala ?? null
@@ -1465,6 +1523,23 @@ const [desiredSongs, setDesiredSongs] = useState(
 const [generalNotes, setGeneralNotes] = useState(
   restoredState?.generalNotes ?? (initialState.generalNotes || '')
 );
+const [selectedStyles, setSelectedStyles] = useState(
+  Array.isArray(restoredState?.selected_styles)
+    ? restoredState.selected_styles
+    : Array.isArray(initialState?.selected_styles)
+    ? initialState.selected_styles
+    : []
+);
+const [preferredArtists, setPreferredArtists] = useState(
+  restoredState?.preferred_artists ?? initialState?.preferred_artists ?? ''
+);
+const [customSongs, setCustomSongs] = useState(
+  Array.isArray(restoredState?.custom_songs)
+    ? restoredState.custom_songs.slice(0, CUSTOM_EVENT_MAX_SONGS)
+    : Array.isArray(initialState?.custom_songs)
+    ? initialState.custom_songs.slice(0, CUSTOM_EVENT_MAX_SONGS)
+    : []
+);
 
   const isAntesalaApproved = querAntessala === true;
   const isAntesalaPending =
@@ -1479,6 +1554,7 @@ const [generalNotes, setGeneralNotes] = useState(
   const hadLocalDraftOnHydrationRef = useRef(false);
   const repertorioStateRef = useRef(
     buildRepertorioSnapshot({
+      mode,
       querAntessala,
       temReceptivo,
       antessala,
@@ -1488,6 +1564,9 @@ const [generalNotes, setGeneralNotes] = useState(
       receptivo,
       desiredSongs,
       generalNotes,
+      selected_styles: selectedStyles,
+      preferred_artists: preferredArtists,
+      custom_songs: customSongs,
     })
   );
   const appliedSuggestionKeysRef = useRef(new Set());
@@ -1546,6 +1625,7 @@ const [generalNotes, setGeneralNotes] = useState(
 
   useEffect(() => {
     const nextSnapshot = buildRepertorioSnapshot({
+      mode,
       querAntessala,
       temReceptivo,
       antessala,
@@ -1555,6 +1635,9 @@ const [generalNotes, setGeneralNotes] = useState(
       receptivo,
       desiredSongs,
       generalNotes,
+      selected_styles: selectedStyles,
+      preferred_artists: preferredArtists,
+      custom_songs: customSongs,
     });
     repertorioStateRef.current = nextSnapshot;
     onPersistState?.(nextSnapshot);
@@ -1569,6 +1652,10 @@ const [generalNotes, setGeneralNotes] = useState(
     receptivo,
     desiredSongs,
     generalNotes,
+    mode,
+    selectedStyles,
+    preferredArtists,
+    customSongs,
     onPersistState,
   ]);
 
@@ -1639,8 +1726,21 @@ const [generalNotes, setGeneralNotes] = useState(
     const shouldUseDraftCortejo = parsedCortejo.length > 0;
     const shouldUseDraftCerimonia = parsedCerimonia.length > 0;
     const shouldUseDraftAntesala = hasUsefulAntesalaState(parsedAntesalaRaw);
+    const parsedSelectedStyles = Array.isArray(parsed?.selected_styles)
+      ? parsed.selected_styles.filter((item) => hasFilledField(item))
+      : [];
+    const parsedCustomSongs = Array.isArray(parsed?.custom_songs)
+      ? parsed.custom_songs
+          .slice(0, CUSTOM_EVENT_MAX_SONGS)
+          .filter((item) =>
+            hasFilledField(item?.song_name) ||
+            hasFilledField(item?.reference_link) ||
+            hasFilledField(item?.reference_video_id)
+          )
+      : [];
 
     const restoredState = {
+      mode: parsed?.mode || mode,
       querAntessala: parsed?.querAntessala ?? currentSnapshot.querAntessala ?? null,
       temReceptivo: parsed?.temReceptivo ?? !!data.repertorio.temReceptivo,
       cortejo:
@@ -1669,6 +1769,21 @@ const [generalNotes, setGeneralNotes] = useState(
       generalNotes: hasFilledField(parsed?.generalNotes)
         ? parsed?.generalNotes
         : currentSnapshot?.generalNotes || '',
+      selected_styles:
+        parsedSelectedStyles.length > 0
+          ? parsedSelectedStyles
+          : Array.isArray(currentSnapshot?.selected_styles)
+          ? currentSnapshot.selected_styles
+          : [],
+      preferred_artists: hasFilledField(parsed?.preferred_artists)
+        ? parsed.preferred_artists
+        : currentSnapshot?.preferred_artists || '',
+      custom_songs:
+        parsedCustomSongs.length > 0
+          ? parsedCustomSongs
+          : Array.isArray(currentSnapshot?.custom_songs)
+          ? currentSnapshot.custom_songs
+          : [],
     };
 
     console.log('[ANTESALA_REOPEN][MERGED_STATE]', {
@@ -1694,9 +1809,13 @@ const [generalNotes, setGeneralNotes] = useState(
     );
     setDesiredSongs(restoredState.desiredSongs);
     setGeneralNotes(restoredState.generalNotes);
+    setSelectedStyles(restoredState.selected_styles);
+    setPreferredArtists(restoredState.preferred_artists);
+    setCustomSongs(restoredState.custom_songs);
   }, [
     data.repertorio.temReceptivo,
     hasBackendRepertorio,
+    mode,
     setAntessalaWithLog,
     setCerimoniaWithLog,
     setCortejoWithLog,
@@ -1724,11 +1843,25 @@ const [generalNotes, setGeneralNotes] = useState(
         const hasUsefulDraftCortejo = parsedCortejo.length > 0;
         const hasUsefulDraftCerimonia = parsedCerimonia.length > 0;
         const hasUsefulDraftAntesala = hasUsefulAntesalaState(parsedAntesalaRaw);
+        const hasUsefulDraftCustomStyles =
+          Array.isArray(parsed?.selected_styles) && parsed.selected_styles.length > 0;
+        const hasUsefulDraftCustomArtists = hasFilledField(parsed?.preferred_artists);
+        const hasUsefulDraftCustomSongs =
+          Array.isArray(parsed?.custom_songs) &&
+          parsed.custom_songs.some(
+            (item) =>
+              hasFilledField(item?.song_name) ||
+              hasFilledField(item?.reference_link) ||
+              hasFilledField(item?.reference_video_id)
+          );
         const shouldHydrateFromLocalDraft =
           !hasBackendRepertorio ||
           hasUsefulDraftCortejo ||
           hasUsefulDraftCerimonia ||
-          hasUsefulDraftAntesala;
+          hasUsefulDraftAntesala ||
+          hasUsefulDraftCustomStyles ||
+          hasUsefulDraftCustomArtists ||
+          hasUsefulDraftCustomSongs;
 
         debugClientHome('[CLIENT_HOME][STATE_BEFORE_MERGE]', repertorioStateRef.current || {});
         debugClientHome('[CLIENT_HOME][LOCAL_DRAFT_DECISION]', {
@@ -1736,6 +1869,9 @@ const [generalNotes, setGeneralNotes] = useState(
           hasUsefulDraftCortejo,
           hasUsefulDraftCerimonia,
           hasUsefulDraftAntesala,
+          hasUsefulDraftCustomStyles,
+          hasUsefulDraftCustomArtists,
+          hasUsefulDraftCustomSongs,
           shouldHydrateFromLocalDraft,
         });
 
@@ -1815,6 +1951,7 @@ const [generalNotes, setGeneralNotes] = useState(
     }
 
     const draftPayload = {
+      mode,
       querAntessala,
       temReceptivo,
       antessala,
@@ -1824,6 +1961,9 @@ const [generalNotes, setGeneralNotes] = useState(
       receptivo,
       desiredSongs,
       generalNotes,
+      selected_styles: selectedStyles,
+      preferred_artists: preferredArtists,
+      custom_songs: customSongs,
     };
 
     localStorage.setItem(draftStorageKey, JSON.stringify(draftPayload));
@@ -1852,10 +1992,15 @@ const [generalNotes, setGeneralNotes] = useState(
     receptivo,
     desiredSongs,
     generalNotes,
+    mode,
+    selectedStyles,
+    preferredArtists,
+    customSongs,
     draftStorageKey,
   ]);
 
   useEffect(() => {
+    if (isCustomEvent) return;
     if (!Array.isArray(selectedSongs) || selectedSongs.length === 0) return;
 
     const pendingSuggestions = selectedSongs.filter((item) => {
@@ -1919,6 +2064,7 @@ const [generalNotes, setGeneralNotes] = useState(
     setSaida(nextSnapshot.saida);
     setReceptivo(nextSnapshot.receptivo);
   }, [
+    isCustomEvent,
     getSuggestionSelectionKey,
     selectedSongs,
     setAntessalaWithLog,
@@ -2022,7 +2168,8 @@ const [generalNotes, setGeneralNotes] = useState(
     'Noiva 👰',
   ];
 
-  const visibleSteps = [
+  const visibleSteps = isWedding
+    ? [
     { id: 1, label: 'Boas-vindas' },
     { id: 2, label: 'Antessala' },
     { id: 3, label: 'Cortejo' },
@@ -2030,10 +2177,55 @@ const [generalNotes, setGeneralNotes] = useState(
     { id: 5, label: 'Saída' },
     { id: 6, label: 'Receptivo', locked: !data.repertorio.temReceptivo },
     { id: 7, label: 'Revisão' },
-  ];
+  ]
+    : [{ id: 1, label: 'Repertório do evento' }];
 
-  const progresso = Math.round((step / visibleSteps.length) * 100);
+  const progresso = Math.round((Math.min(step, visibleSteps.length) / visibleSteps.length) * 100);
 function buildItemsPayload() {
+  if (isCustomEvent) {
+    const customEventItems = [
+      {
+        section: 'custom_event',
+        item_order: 0,
+        who_enters: '',
+        moment: 'Repertório do evento',
+        song_name: '',
+        reference_link: '',
+        notes: '',
+        type: 'custom_event_meta',
+        group_name: '',
+        label: 'Repertório do evento',
+        genres: Array.isArray(selectedStyles) ? selectedStyles.join(', ') : '',
+        artists: preferredArtists || '',
+      },
+    ];
+
+    (Array.isArray(customSongs) ? customSongs : [])
+      .slice(0, CUSTOM_EVENT_MAX_SONGS)
+      .forEach((song, index) => {
+        customEventItems.push({
+          section: 'custom_event',
+          item_order: index + 1,
+          who_enters: '',
+          moment: `Música ${index + 1}`,
+          song_name: String(song?.song_name || '').trim(),
+          reference_link: String(song?.reference_link || '').trim(),
+          reference_title: String(song?.reference_title || '').trim(),
+          reference_channel: String(song?.reference_channel || '').trim(),
+          reference_thumbnail: String(song?.reference_thumbnail || '').trim(),
+          reference_video_id: String(song?.reference_video_id || '').trim(),
+          notes: '',
+          type: 'custom_event_song',
+          group_name: '',
+          label: `Música ${index + 1}`,
+          genres: '',
+          artists: '',
+        });
+      });
+
+    return customEventItems;
+  }
+
   const items = [];
   const repertorioItems = buildUnifiedRepertorioItems({ cortejo, cerimonia, saida });
   const cortejoItems = repertorioItems.filter((item) => item.section === 'cortejo');
@@ -2178,6 +2370,28 @@ function buildItemsPayload() {
 }
 
 function buildConfigPayload() {
+  if (isCustomEvent) {
+    return {
+      has_ante_room: false,
+      ante_room_style: '',
+      ante_room_notes: '',
+      has_reception: false,
+      reception_duration: '',
+      reception_genres: '',
+      reception_artists: '',
+      reception_notes: '',
+      exit_song: '',
+      exit_reference: '',
+      exit_reference_title: '',
+      exit_reference_channel: '',
+      exit_reference_thumbnail: '',
+      exit_reference_video_id: '',
+      exit_notes: '',
+      desired_songs: '',
+      general_notes: '',
+    };
+  }
+
   const exitReferenceFields = normalizeReferenceFields(saida);
   const antesalaIncluded = querAntessala === true;
   const mergedGenres =
@@ -2229,6 +2443,10 @@ async function saveRepertorio(mode = 'draft') {
       repertoireToken: data.repertorio?.repertoireToken || '',
       clientToken: data.token || '',
       mode,
+      eventMode: isCustomEvent ? 'custom' : 'wedding',
+      selected_styles: isCustomEvent ? selectedStyles : undefined,
+      preferred_artists: isCustomEvent ? preferredArtists : undefined,
+      custom_songs: isCustomEvent ? customSongs.slice(0, CUSTOM_EVENT_MAX_SONGS) : undefined,
       config: configPayload,
       items: builtItemsPayload,
       antesalaFlow: {
@@ -2562,10 +2780,14 @@ async function handleRequestReview() {
         </section>
       ) : null}
 
-      <TabHero
+<TabHero
   badge="Repertório"
   title="Monte a trilha sonora do seu evento"
-  text="Preencha com calma, revise tudo antes do envio final e acompanhe o que já veio das sugestões."
+  text={
+    isCustomEvent
+      ? 'Escolha os estilos, artistas e músicas específicas do seu evento.'
+      : 'Preencha com calma, revise tudo antes do envio final e acompanhe o que já veio das sugestões.'
+  }
 >
   {!travado ? (
     <div>
@@ -2586,23 +2808,225 @@ async function handleRequestReview() {
     </div>
   )}
 </TabHero>
-<SectionCard>
-  <div className="flex gap-3 overflow-x-auto pb-1">
-    {visibleSteps.map((item) => (
-      <MiniStep
-        key={item.id}
-        step={item.id}
-        title={item.label}
-        active={step === item.id}
-        done={step > item.id}
-        onClick={() => setStep(item.id)}
-        disabled={false}
-      />
-    ))}
-  </div>
-</SectionCard>
+{isWedding ? (
+  <SectionCard>
+    <div className="flex gap-3 overflow-x-auto pb-1">
+      {visibleSteps.map((item) => (
+        <MiniStep
+          key={item.id}
+          step={item.id}
+          title={item.label}
+          active={step === item.id}
+          done={step > item.id}
+          onClick={() => setStep(item.id)}
+          disabled={false}
+        />
+      ))}
+    </div>
+  </SectionCard>
+) : null}
 
-      {!travado && step === 1 && (
+      {isCustomEvent ? (
+        <SectionCard>
+          <div className="text-[22px] font-black text-[#241a14]">Repertório do evento</div>
+          <div className="mt-2 text-[14px] leading-6 text-[#6f5d51]">
+            Escolha os estilos musicais desejados e adicione até 8 músicas específicas.
+          </div>
+
+          <div className="mt-5">
+            <div className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#9b8576]">
+              Estilos musicais (obrigatório)
+            </div>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {CUSTOM_EVENT_STYLE_OPTIONS.map((style) => {
+                const selected = selectedStyles.includes(style);
+                return (
+                  <button
+                    key={style}
+                    type="button"
+                    onClick={() =>
+                      setSelectedStyles((prev) =>
+                        selected
+                          ? prev.filter((item) => item !== style)
+                          : [...prev, style]
+                      )
+                    }
+                    className={classNames(
+                      'rounded-full border px-3 py-2 text-[12px] font-bold',
+                      selected
+                        ? 'border-violet-200 bg-violet-50 text-violet-700'
+                        : 'border-[#eadfd6] bg-white text-[#6f5d51]'
+                    )}
+                  >
+                    {style}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="mt-5">
+            <InputField
+              label="Artistas desejados"
+              placeholder="Ex: Aline Barros, Hillsong, Isadora Pompeo"
+              value={preferredArtists}
+              onChange={(e) => setPreferredArtists(e.target.value)}
+            />
+          </div>
+
+          <div className="mt-5">
+            <div className="flex items-center justify-between">
+              <div className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#9b8576]">
+                Músicas específicas
+              </div>
+              <div className="text-[11px] font-bold text-[#9b8576]">
+                {customSongs.length}/{CUSTOM_EVENT_MAX_SONGS}
+              </div>
+            </div>
+
+            <div className="mt-3 space-y-4">
+              {customSongs.map((song, index) => (
+                <div key={`custom-song-${index}`} className="rounded-[16px] border border-[#eadfd6] p-3">
+                  <InputField
+                    label={`Música ${index + 1}`}
+                    placeholder="Nome da música"
+                    value={song.song_name || ''}
+                    onChange={(e) =>
+                      setCustomSongs((prev) => {
+                        const next = [...prev];
+                        next[index] = { ...(next[index] || getDefaultCustomSongState()), song_name: e.target.value };
+                        return next;
+                      })
+                    }
+                  />
+                  <ReferenceSearchInput
+                    searchValue={song.song_name || ''}
+                    referenceValue={song.reference_link || ''}
+                    selectedReference={
+                      song.reference_video_id
+                        ? {
+                            videoId: song.reference_video_id || '',
+                            title: song.reference_title || '',
+                            channelTitle: song.reference_channel || '',
+                            thumbnail: song.reference_thumbnail || '',
+                          }
+                        : null
+                    }
+                    onSearchValueChange={(value) =>
+                      setCustomSongs((prev) => {
+                        const next = [...prev];
+                        next[index] = { ...(next[index] || getDefaultCustomSongState()), song_name: value };
+                        return next;
+                      })
+                    }
+                    onReferenceValueChange={(e) =>
+                      setCustomSongs((prev) => {
+                        const next = [...prev];
+                        next[index] = {
+                          ...(next[index] || getDefaultCustomSongState()),
+                          reference_link: e.target.value,
+                          reference_title: '',
+                          reference_channel: '',
+                          reference_thumbnail: '',
+                          reference_video_id: '',
+                        };
+                        return next;
+                      })
+                    }
+                    onSelectResult={(result) =>
+                      setCustomSongs((prev) => {
+                        const next = [...prev];
+                        next[index] = {
+                          ...(next[index] || getDefaultCustomSongState()),
+                          reference_link: result.url,
+                          song_name: result.title || next[index]?.song_name || '',
+                          reference_title: result.title || '',
+                          reference_channel: result.channelTitle || '',
+                          reference_thumbnail: result.thumbnail || '',
+                          reference_video_id: result.videoId || '',
+                        };
+                        return next;
+                      })
+                    }
+                    onClearReference={() =>
+                      setCustomSongs((prev) => {
+                        const next = [...prev];
+                        next[index] = {
+                          ...(next[index] || getDefaultCustomSongState()),
+                          reference_link: '',
+                          reference_title: '',
+                          reference_channel: '',
+                          reference_thumbnail: '',
+                          reference_video_id: '',
+                        };
+                        return next;
+                      })
+                    }
+                  />
+                  <YouTubeReferencePreview
+                    url={song.reference_link || ''}
+                    title={song.reference_title || song.song_name || ''}
+                    channelTitle={song.reference_channel || ''}
+                    thumbnail={song.reference_thumbnail || ''}
+                    onClear={() =>
+                      setCustomSongs((prev) => {
+                        const next = [...prev];
+                        next[index] = {
+                          ...(next[index] || getDefaultCustomSongState()),
+                          reference_link: '',
+                          reference_title: '',
+                          reference_channel: '',
+                          reference_thumbnail: '',
+                          reference_video_id: '',
+                        };
+                        return next;
+                      })
+                    }
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setCustomSongs((prev) => prev.filter((_, itemIndex) => itemIndex !== index))}
+                    className="mt-2 text-[12px] font-bold text-rose-600"
+                  >
+                    Remover música
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              disabled={customSongs.length >= CUSTOM_EVENT_MAX_SONGS}
+              onClick={() => setCustomSongs((prev) => [...prev, getDefaultCustomSongState()])}
+              className="mt-4 w-full rounded-[16px] border border-dashed border-[#d9c8f7] px-4 py-3 text-[13px] font-black text-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              + Adicionar música específica
+            </button>
+          </div>
+
+          <div className="mt-5 space-y-3">
+            <button
+              type="button"
+              onClick={() => saveRepertorio('draft')}
+              disabled={savingMode !== '' || selectedStyles.length === 0}
+              className="w-full rounded-[20px] border border-[#f1ddb1] bg-[#fff7e8] px-4 py-4 text-[15px] font-black text-[#9b6a17] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {savingMode === 'draft' ? 'Salvando rascunho...' : '💾 Salvar rascunho'}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => saveRepertorio('final')}
+              disabled={savingMode !== '' || selectedStyles.length === 0}
+              className="w-full rounded-[20px] bg-[linear-gradient(135deg,#16a34a_0%,#22c55e_100%)] px-4 py-4 text-[15px] font-black text-white shadow-[0_12px_28px_rgba(34,197,94,0.24)] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {savingMode === 'final' ? 'Finalizando repertório...' : '✨ Finalizar repertório'}
+            </button>
+          </div>
+        </SectionCard>
+      ) : null}
+
+      {isWedding && !travado && step === 1 && (
         <SectionCard>
           <div className="text-[22px] font-black text-[#241a14]">Bem-vindo! 💒</div>
           <div className="mt-2 text-[14px] leading-6 text-[#6f5d51]">
@@ -2622,7 +3046,7 @@ async function handleRequestReview() {
         </SectionCard>
       )}
 
-     {!travado && step === 2 && (
+     {isWedding && !travado && step === 2 && (
       <SectionCard>
         <div className="text-[22px] font-black text-[#241a14]">Antesala 🎶</div>
         <div className="mt-2 text-[14px] leading-6 text-[#6f5d51]">
@@ -2829,7 +3253,7 @@ async function handleRequestReview() {
       </SectionCard>
 )}
 
-      {!travado && step === 3 && (
+      {isWedding && !travado && step === 3 && (
         <SectionCard>
           <div className="text-[22px] font-black text-[#241a14]">Cortejo 💒</div>
           <div className="mt-2 text-[14px] leading-6 text-[#6f5d51]">
@@ -2877,7 +3301,7 @@ async function handleRequestReview() {
         </SectionCard>
       )}
 
-      {!travado && step === 4 && (
+      {isWedding && !travado && step === 4 && (
         <SectionCard>
           <div className="text-[22px] font-black text-[#241a14]">Cerimônia ⛪</div>
           <div className="mt-2 text-[14px] leading-6 text-[#6f5d51]">
@@ -2920,7 +3344,7 @@ async function handleRequestReview() {
         </SectionCard>
       )}
 
-      {!travado && step === 5 && (
+      {isWedding && !travado && step === 5 && (
         <SectionCard>
           <div className="text-[22px] font-black text-[#241a14]">Saída dos noivos 🎉</div>
           <div className="mt-2 text-[14px] leading-6 text-[#6f5d51]">
@@ -3005,7 +3429,7 @@ async function handleRequestReview() {
         </SectionCard>
       )}
 
-      {!travado && step === 6 && (
+      {isWedding && !travado && step === 6 && (
         <>
           {data.repertorio.temReceptivo ? (
             <SectionCard>
@@ -3058,7 +3482,7 @@ async function handleRequestReview() {
         </>
       )}
 
-      {!travado && step === 7 && (
+      {isWedding && !travado && step === 7 && (
         <div className="space-y-4">
           <SectionCard>
             <div className="text-[22px] font-black text-[#241a14]">Revisão final 📋</div>
@@ -3118,7 +3542,7 @@ async function handleRequestReview() {
         </div>
       )}
 
-      {travado && (
+      {isWedding && travado && (
         <div className="space-y-4">
           <SectionCard className="bg-[linear-gradient(180deg,#ffffff_0%,#f8fff9_100%)]">
             <div className="flex items-start gap-3">
@@ -3217,7 +3641,7 @@ async function handleRequestReview() {
         </div>
       )}
 
-      {!travado && (
+      {isWedding && !travado && (
   <div className="flex gap-3">
     <button
       type="button"
@@ -4975,6 +5399,9 @@ export default function ClienteHome({ data, initialTab = 'inicio' }) {
   );
   const [dismissedRepertoireAlert, setDismissedRepertoireAlert] = useState(false);
   const [repertorioDraftState, setRepertorioDraftState] = useState(null);
+  const isCustomEvent = Boolean(panelData?.repertorio?.isCustomEvent);
+  const resolvedActiveTab =
+    isCustomEvent && activeTab === 'sugestoes' ? 'repertorio' : activeTab;
 
   const handleRepertorioSaved = useCallback(
     ({ mode, result }) => {
@@ -5166,7 +5593,7 @@ export default function ClienteHome({ data, initialTab = 'inicio' }) {
         </section>
 
         <div className="mt-4">
-          {activeTab === 'inicio' && (
+          {resolvedActiveTab === 'inicio' && (
             <InicioTab
               data={panelData}
               setActiveTab={setActiveTab}
@@ -5174,7 +5601,7 @@ export default function ClienteHome({ data, initialTab = 'inicio' }) {
             />
           )}
 
-          {activeTab === 'repertorio' && (
+          {resolvedActiveTab === 'repertorio' && (
             <RepertorioTab
               data={panelData}
               selectedSongs={selectedSongs}
@@ -5186,7 +5613,7 @@ export default function ClienteHome({ data, initialTab = 'inicio' }) {
             />
           )}
 
-          {activeTab === 'sugestoes' && (
+          {!isCustomEvent && resolvedActiveTab === 'sugestoes' && (
             <SugestoesTab
               selectedSongs={selectedSongs}
               setSelectedSongs={setSelectedSongs}
@@ -5197,7 +5624,7 @@ export default function ClienteHome({ data, initialTab = 'inicio' }) {
             />
           )}
 
-          {activeTab === 'financeiro' && (
+          {resolvedActiveTab === 'financeiro' && (
             <FinanceiroTab
               data={panelData}
               paymentHistory={paymentHistory}
@@ -5208,7 +5635,11 @@ export default function ClienteHome({ data, initialTab = 'inicio' }) {
         </div>
       </div>
 
-      <FooterNav activeTab={activeTab} setActiveTab={setActiveTab} />
+        <FooterNav
+        activeTab={resolvedActiveTab}
+        setActiveTab={setActiveTab}
+        hideSuggestions={isCustomEvent}
+      />
     </main>
   );
 }

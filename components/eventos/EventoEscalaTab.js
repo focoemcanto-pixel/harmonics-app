@@ -493,7 +493,7 @@ export default function EventoEscalaTab({ eventId }) {
         await Promise.all([
           supabase
             .from('events')
-            .select('id, client_name, event_date, event_time, location_name, formation, instruments, status, open_amount, payment_status, repertoire_status')
+            .select('id, client_name, event_date, event_time, location_name, formation, instruments, status, open_amount, payment_status')
             .eq('id', eventId)
             .single(),
           supabase
@@ -763,11 +763,6 @@ export default function EventoEscalaTab({ eventId }) {
     if (resumoStatus.total > 0) return 'Atenção';
     return 'Pendente';
   }, [coverage.missing.length, resumoStatus.pendentes, resumoStatus.total]);
-
-  const repertorioStatus = useMemo(() => {
-    const value = String(evento?.repertoire_status || '').trim();
-    return value || 'Pendente';
-  }, [evento?.repertoire_status]);
 
   const diffResumo = useMemo(() => {
     const { novos, removidos } = diffEscala(escalaSalva, escalaLocal);
@@ -1121,7 +1116,7 @@ async function salvarEEnviarConvites() {
           </div>
           <div className="rounded-2xl border border-[#e2e8f0] bg-white px-3 py-3">
             <div className="text-[11px] font-black uppercase tracking-[0.08em] text-[#64748b]">Repertório</div>
-            <div className="mt-1 text-[14px] font-black text-[#0f172a]">{repertorioStatus}</div>
+            <div className="mt-1 text-[14px] font-black text-[#0f172a]">{repertorioLabel}</div>
             <Link href="/repertorios" className="mt-2 inline-flex rounded-[12px] border border-[#dbe3ef] px-3 py-1.5 text-[12px] font-black text-[#0f172a]">
               Ver repertório
             </Link>

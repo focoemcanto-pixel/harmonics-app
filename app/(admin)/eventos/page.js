@@ -409,14 +409,16 @@ export default function EventosPage() {
 
     if (queryViewMode && queryViewMode !== viewMode) setViewMode(queryViewMode);
     if (querySortMode && querySortMode !== sortMode) setSortMode(querySortMode);
-    if (queryTab === 'operacao' && desktopTab !== 'operacao') setDesktopTab('operacao');
-    if (queryTab === 'escala' && desktopTab !== 'operacao') setDesktopTab('operacao');
+    if (queryTab === 'operacao' || queryTab === 'escala') {
+      if (desktopTab !== 'operacao') setDesktopTab('operacao');
+      if (mobileTab !== 'operacao') setMobileTab('operacao');
+    }
 
     if (queryMonth && queryMonth !== monthFilter) setMonthFilter(queryMonth);
     if (!queryMonth && monthFilter !== 'all') setMonthFilter('all');
 
     if ((queryBusca || '') !== busca) setBusca(queryBusca || '');
-  }, [searchParams, busca, desktopTab, monthFilter, sortMode, viewMode]);
+  }, [searchParams, busca, desktopTab, mobileTab, monthFilter, sortMode, viewMode]);
 
   useEffect(() => {
     const nextParams = new URLSearchParams(searchParams.toString());

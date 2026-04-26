@@ -5399,7 +5399,7 @@ export default function ClienteHome({ data, initialTab = 'inicio' }) {
   );
   const [dismissedRepertoireAlert, setDismissedRepertoireAlert] = useState(false);
   const [repertorioDraftState, setRepertorioDraftState] = useState(null);
-  const isCustomEvent = Boolean(panelData?.repertorio?.isCustomEvent);
+  const isCustomEvent = panelData?.repertorio?.isCustomEvent === true;
   const resolvedActiveTab =
     isCustomEvent && activeTab === 'sugestoes' ? 'repertorio' : activeTab;
 
@@ -5635,10 +5635,10 @@ export default function ClienteHome({ data, initialTab = 'inicio' }) {
         </div>
       </div>
 
-        <FooterNav
+      <FooterNav
         activeTab={resolvedActiveTab}
         setActiveTab={setActiveTab}
-        hideSuggestions={isCustomEvent}
+        hideSuggestions={panelData?.repertorio?.isCustomEvent === true}
       />
     </main>
   );

@@ -427,7 +427,6 @@ export default function EventoEscalaTab({ eventId }) {
   const [templateAplicado, setTemplateAplicado] = useState(null);
   const [templateSugerido, setTemplateSugerido] = useState(null);
   const [outrasSugestoes, setOutrasSugestoes] = useState([]);
-  const [templateSuggestionStrategy, setTemplateSuggestionStrategy] = useState('none');
   const [itensTemplateSugerido, setItensTemplateSugerido] = useState([]);
 
   const [carregando, setCarregando] = useState(true);
@@ -512,7 +511,6 @@ export default function EventoEscalaTab({ eventId }) {
       let escalaInicial = escalaData;
       let templateSelecionado = null;
       let templateSugeridoAtual = null;
-      let suggestionStrategy = 'none';
       let suggestedItems = [];
 
       if (escalaData.length === 0 && eventoData) {
@@ -526,8 +524,6 @@ export default function EventoEscalaTab({ eventId }) {
         );
 
         const bestTemplate = suggestion.bestTemplate;
-        suggestionStrategy = suggestion.strategy;
-
         const templateItemsByTemplate = new Map();
         for (const templateItem of templateItemsResp.data || []) {
           const key = String(templateItem.template_id || '');
@@ -588,7 +584,6 @@ export default function EventoEscalaTab({ eventId }) {
       setTemplateAplicado(templateSelecionado);
       setTemplateSugerido(templateSugeridoAtual);
       if (escalaData.length > 0) setOutrasSugestoes([]);
-      setTemplateSuggestionStrategy(suggestionStrategy);
       setItensTemplateSugerido(suggestedItems);
     } catch (e) {
       console.error('Erro ao carregar escala do evento:', e);
@@ -698,6 +693,11 @@ export default function EventoEscalaTab({ eventId }) {
 
     return { total, confirmados, pendentes, recusados, reservas };
   }, [escalaParaExibir]);
+  const sugestaoFormacao = useMemo(() => {
+    const base = (evento?.formation || templateSugerido?.name || 'Formação sugerida').trim();
+    if (!instrumentosEsperados.length) return base;
+    return `${base} — ${instrumentosEsperados.slice(0, 2).join(' + ')}`;
+  }, [evento?.formation, templateSugerido?.name, instrumentosEsperados]);
 
   const coverage = useMemo(() => {
     const expected = instrumentosEsperados;
@@ -1086,21 +1086,11 @@ async function salvarEEnviarConvites() {
         {!editando && escalaSalva.length === 0 && templateSugerido ? (
           <div className="mt-5 rounded-[22px] border border-violet-200 bg-violet-50 px-4 py-4">
             <div className="text-[12px] font-black uppercase tracking-[0.08em] text-violet-700">
-              Template sugerido automaticamente
+              Sugestão de formação
             </div>
             <div className="mt-1 text-[15px] font-semibold text-violet-800">
-              {templateSugerido.name}
+              {sugestaoFormacao}
             </div>
-            <div className="mt-1 text-[14px] leading-6 text-violet-700">
-              Estratégia: {templateSuggestionStrategy === 'formation_weighted_score'
-                ? 'formação + score ponderado (fase 2)'
-                : 'match por formação'}.
-            </div>
-            {templateSugerido?.match_explanation ? (
-              <div className="mt-3 rounded-[16px] border border-violet-200 bg-white px-4 py-3 text-[13px] font-semibold text-violet-700">
-                Score {templateSugerido.match_score ?? 0}: {templateSugerido.match_explanation}
-              </div>
-            ) : null}
           </div>
         ) : null}
 
@@ -1146,14 +1136,6 @@ async function salvarEEnviarConvites() {
                     <div className="text-[14px] font-black text-[#0f172a]">
                       {suggestion.name}
                     </div>
-                    <div className="text-[12px] font-semibold text-[#64748b]">
-                      Score {suggestion.match_score ?? 0}
-                    </div>
-                    {suggestion.match_explanation ? (
-                      <div className="mt-1 text-[12px] leading-5 text-[#64748b]">
-                        {suggestion.match_explanation}
-                      </div>
-                    ) : null}
                   </div>
                 ))}
               </div>

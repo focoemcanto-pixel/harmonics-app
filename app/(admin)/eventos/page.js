@@ -400,6 +400,9 @@ export default function EventosPage() {
   const [form, setForm] = useState(getInitialForm());
   const [mobileTab, setMobileTab] = useState('resumo');
   const [desktopTab, setDesktopTab] = useState('visao');
+  const safeMobileTab = ['resumo', 'evento', 'lista', 'precos'].includes(mobileTab)
+    ? mobileTab
+    : 'lista';
   const currentParamsValue = searchParams.toString();
 
   useEffect(() => {
@@ -430,7 +433,7 @@ export default function EventosPage() {
     );
     if (normalizedTab === 'operacao') {
       setDesktopTab((current) => (current !== 'operacao' ? 'operacao' : current));
-      setMobileTab((current) => (current !== 'operacao' ? 'operacao' : current));
+      setMobileTab((current) => (current !== 'lista' ? 'lista' : current));
     }
 
     setMonthFilter((current) => {
@@ -451,8 +454,7 @@ export default function EventosPage() {
     const shouldUseOperacaoTab =
       requestedTab === 'escala' ||
       requestedTab === 'operacao' ||
-      desktopTab === 'operacao' ||
-      mobileTab === 'operacao';
+      desktopTab === 'operacao';
 
     if (statusQuery) nextParams.set('status', statusQuery);
     if (sortQuery) nextParams.set('ordem', sortQuery);
@@ -460,16 +462,20 @@ export default function EventosPage() {
     else nextParams.delete('data');
     if (debouncedBusca) nextParams.set('busca', debouncedBusca);
     else nextParams.delete('busca');
-    if (shouldUseOperacaoTab) nextParams.set('tab', 'operacao');
-    else if (requestedTab) nextParams.set('tab', requestedTab);
-    else nextParams.delete('tab');
+    if (shouldUseOperacaoTab) {
+      nextParams.set('tab', 'operacao');
+    } else if (desktopTab && desktopTab !== 'visao') {
+      nextParams.set('tab', desktopTab);
+    } else {
+      nextParams.delete('tab');
+    }
 
     const nextValue = nextParams.toString();
     const currentValue = currentParamsValue;
     if (nextValue !== currentValue) {
       router.replace(nextValue ? `/eventos?${nextValue}` : '/eventos', { scroll: false });
     }
-  }, [viewMode, sortMode, monthFilter, debouncedBusca, router, desktopTab, mobileTab, currentParamsValue]);
+  }, [viewMode, sortMode, monthFilter, debouncedBusca, router, desktopTab, currentParamsValue]);
 
   useEffect(() => {
     console.info('[EVENTOS][TITLE_SOURCE]', {
@@ -1979,13 +1985,13 @@ export default function EventosPage() {
         <div className="md:hidden">
           <AdminSegmentTabs
             items={mobileTabs}
-            active={mobileTab}
+            active={safeMobileTab}
             onChange={setMobileTab}
           />
         </div>
 
         <div className="space-y-5 md:hidden">
-          {mobileTab === 'resumo' && (
+          {safeMobileTab === 'resumo' && (
             <EventosResumoTab
               resumo={resumo}
               resumoOperacao={resumoOperacao}
@@ -1999,7 +2005,7 @@ export default function EventosPage() {
             />
           )}
 
-          {mobileTab === 'evento' && (
+          {safeMobileTab === 'evento' && (
             <EventosFormularioTab
               editandoId={editandoId}
               contatos={contatos}
@@ -2017,9 +2023,9 @@ export default function EventosPage() {
             />
           )}
 
-          {mobileTab === 'lista' && renderLista()}
+          {safeMobileTab === 'lista' && renderLista()}
 
-          {mobileTab === 'precos' && (
+          {safeMobileTab === 'precos' && (
             <EventosPricingTab
               pricing={pricing}
               setPricing={setPricing}

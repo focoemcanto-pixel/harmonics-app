@@ -356,7 +356,7 @@ export default function EventoDetalhePage() {
       <div className="space-y-5">
         <header className="space-y-3">
           <div className="flex flex-wrap gap-2">
-            <Link href={backHref} className="rounded-xl border border-[#dbe3ef] bg-white px-3 py-2 text-xs font-bold text-[#0f172a]">Voltar</Link>
+            <a href={backHref} className="rounded-xl border border-[#dbe3ef] bg-white px-3 py-2 text-xs font-bold text-[#0f172a]">Voltar</a>
             {evento?.id ? (
               <Link href={`/eventos?edit=${evento.id}`} className="rounded-xl border border-[#dbe3ef] bg-white px-3 py-2 text-xs font-bold text-[#0f172a]">Editar</Link>
             ) : null}

@@ -376,6 +376,29 @@ function mapItemsToInitialState(items) {
     safeItems
       .filter((item) => normalizeRepertoireSection(item.section) === 'receptivo')
       .sort((a, b) => (a.item_order || 0) - (b.item_order || 0))[0] || null;
+  const customEventItems = safeItems
+    .filter((item) => normalizeRepertoireSection(item.section) === 'custom_event')
+    .sort((a, b) => (a.item_order || 0) - (b.item_order || 0));
+  const customEventMetaItem =
+    customEventItems.find((item) => String(item?.type || '').trim() === 'custom_event_meta') ||
+    customEventItems[0] ||
+    null;
+  const customSongs = customEventItems
+    .filter((item) => String(item?.type || '').trim() === 'custom_event_song')
+    .slice(0, 8)
+    .map((item) => ({
+      song_name: item.song_name || '',
+      reference_link: item.reference_link || '',
+      reference_title: item.reference_title || '',
+      reference_channel: item.reference_channel || '',
+      reference_thumbnail: item.reference_thumbnail || '',
+      reference_video_id: item.reference_video_id || '',
+      notes: item.notes || '',
+    }));
+  const customStyles = String(customEventMetaItem?.genres || '')
+    .split(',')
+    .map((style) => style.trim())
+    .filter(Boolean);
 
   const usedFallbackCortejo = cortejo.length === 0;
   const usedFallbackCerimonia = cerimonia.length === 0;
@@ -399,11 +422,30 @@ function mapItemsToInitialState(items) {
       artistas: receptivoItem?.artists || '',
       observacao: receptivoItem?.notes || '',
     },
+    customEvent: {
+      selected_styles: customStyles,
+      preferred_artists: customEventMetaItem?.artists || '',
+      custom_songs: customSongs,
+    },
     meta: {
       usedFallbackCortejo,
       usedFallbackCerimonia,
     },
   };
+}
+
+function normalizeEventType(value) {
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+  if (!normalized) return '';
+  if (normalized.includes('casamento') || normalized.includes('wedding')) {
+    return 'casamento';
+  }
+  return normalized;
 }
 
 function deriveContractedReceptionHours(...sources) {
@@ -506,7 +548,7 @@ export default async function ClienteRepertorioPage({ params }) {
   const { data: precontractByClientToken, error: precontractByClientTokenError } =
     await supabase
       .from('precontracts')
-      .select('id, public_token, event_id')
+      .select('id, public_token, event_id, event_type, contract_mode')
       .eq('public_token', token)
       .maybeSingle();
 
@@ -603,7 +645,7 @@ export default async function ClienteRepertorioPage({ params }) {
 
       supabase
         .from('precontracts')
-        .select('id, public_token, event_id, reception_hours, has_sound, has_transport')
+        .select('id, public_token, event_id, event_type, contract_mode, reception_hours, has_sound, has_transport')
         .eq('event_id', eventId)
         .maybeSingle(),
 
@@ -655,6 +697,15 @@ export default async function ClienteRepertorioPage({ params }) {
     console.log('[LOAD][SAIDA_FROM_DB]', saidaFromDb);
   }
   const precontract = precontractsResp?.data || null;
+  const eventTypeRaw =
+    precontract?.event_type ||
+    precontractByClientToken?.event_type ||
+    precontract?.contract_mode ||
+    precontractByClientToken?.contract_mode ||
+    '';
+  const eventType = normalizeEventType(eventTypeRaw);
+  const isWedding = eventType === 'casamento';
+  const isCustomEvent = !isWedding;
   const contract = contractsResp?.data || null;
   const pricing = pricingResp?.data || {};
   let latestAdjustmentRequest = null;
@@ -801,6 +852,7 @@ export default async function ClienteRepertorioPage({ params }) {
       repertoireToken: tokenRow?.token || '',
 
       initialState: {
+        mode: isWedding ? 'wedding' : 'custom',
         querAntessala: config?.has_ante_room ?? null,
         antessala: {
           ...initialLists.antessala,
@@ -840,7 +892,13 @@ export default async function ClienteRepertorioPage({ params }) {
         },
         desiredSongs: config?.desired_songs || '',
         generalNotes: config?.general_notes || '',
+        selected_styles: initialLists.customEvent?.selected_styles || [],
+        preferred_artists: initialLists.customEvent?.preferred_artists || '',
+        custom_songs: initialLists.customEvent?.custom_songs || [],
       },
+      eventType,
+      isWedding,
+      isCustomEvent,
     },
 
     financeiro: {

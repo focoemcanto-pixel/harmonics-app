@@ -50,6 +50,10 @@ function resolvePaymentStatusFromTotals({ agreedAmount, paidAmount }) {
   return 'Pendente';
 }
 
+function buildDateTimeKey(eventDate, eventTime) {
+  return `${String(eventDate || '')} ${String(eventTime || '00:00').slice(0, 5)}`;
+}
+
 function InfoItem({ label, value, full = false }) {
   return (
     <div className={full ? 'md:col-span-2 min-w-0' : 'min-w-0'}>
@@ -105,6 +109,7 @@ export default function EventoDetalhePage() {
   const id = params?.id;
 
   const [evento, setEvento] = useState(null);
+  const [fallbackNextEventHref, setFallbackNextEventHref] = useState('');
   const [repertoireStatus, setRepertoireStatus] = useState('');
   const [teamMetrics, setTeamMetrics] = useState({ total: 0, confirmed: 0 });
   const [carregando, setCarregando] = useState(true);
@@ -157,10 +162,97 @@ export default function EventoDetalhePage() {
     const nextId = ids[currentIndex + 1];
     const params = new URLSearchParams(searchParams.toString());
     params.set('tab', 'escala');
-    params.set('retorno', 'operacao');
+    params.delete('retorno');
 
     return `/eventos/${nextId}?${params.toString()}`;
   }, [id, searchParams]);
+
+  const effectiveNextEventHref = nextEventHref || fallbackNextEventHref;
+
+  useEffect(() => {
+    async function carregarProximaEscala() {
+      if (!evento?.id || nextEventHref) {
+        setFallbackNextEventHref('');
+        return;
+      }
+
+      try {
+        const currentKey = buildDateTimeKey(evento.event_date, evento.event_time);
+        const { data: eventsData, error: eventsError } = await supabase
+          .from('events')
+          .select('id, event_date, event_time')
+          .gte('event_date', evento.event_date || '1900-01-01')
+          .order('event_date', { ascending: true })
+          .order('event_time', { ascending: true })
+          .limit(100);
+
+        if (eventsError) throw eventsError;
+
+        const candidates = (eventsData || [])
+          .filter((item) => String(item?.id || '') !== String(evento.id))
+          .filter((item) => buildDateTimeKey(item?.event_date, item?.event_time) > currentKey);
+
+        if (!candidates.length) {
+          setFallbackNextEventHref('');
+          return;
+        }
+
+        const candidateIds = candidates
+          .map((item) => String(item?.id || '').trim())
+          .filter(Boolean);
+        let scaleSummary = new Map();
+
+        if (candidateIds.length) {
+          const { data: musiciansData, error: musiciansError } = await supabase
+            .from('event_musicians')
+            .select('event_id, status')
+            .in('event_id', candidateIds);
+
+          if (musiciansError) throw musiciansError;
+
+          scaleSummary = (musiciansData || []).reduce((map, item) => {
+            const key = String(item?.event_id || '');
+            if (!key) return map;
+            const current = map.get(key) || { total: 0, confirmed: 0 };
+            current.total += 1;
+            if (String(item?.status || '').toLowerCase() === 'confirmed') current.confirmed += 1;
+            map.set(key, current);
+            return map;
+          }, new Map());
+        }
+
+        const nextWithoutScale = candidates.find((item) => {
+          const summary = scaleSummary.get(String(item?.id || '')) || { total: 0 };
+          return Number(summary.total || 0) === 0;
+        });
+        const nextCandidate = nextWithoutScale || candidates[0];
+
+        if (!nextCandidate?.id) {
+          setFallbackNextEventHref('');
+          return;
+        }
+
+        const params = new URLSearchParams();
+        const status = searchParams.get('status');
+        const data = searchParams.get('data');
+        const busca = searchParams.get('busca');
+        const ordem = searchParams.get('ordem');
+
+        params.set('tab', 'escala');
+        if (status) params.set('status', status);
+        if (data) params.set('data', data);
+        if (busca) params.set('busca', busca);
+        if (ordem) params.set('ordem', ordem);
+
+        setFallbackNextEventHref(`/eventos/${nextCandidate.id}?${params.toString()}`);
+      } catch (error) {
+        console.error('[EVENTO_DETALHE][NEXT_ESCALA][ERROR]', error);
+        setFallbackNextEventHref('');
+      }
+    }
+
+    carregarProximaEscala();
+  }, [evento?.id, evento?.event_date, evento?.event_time, nextEventHref, searchParams]);
 
   useEffect(() => {
     async function carregarEvento() {
@@ -522,8 +614,24 @@ export default function EventoDetalhePage() {
             )}
 
             {activeTab === 'escala' && (
-              <section id="escala-section" className="rounded-[24px] border border-[#dbe3ef] bg-white p-4 md:p-5">
-                <EventoEscalaTab eventId={evento.id} nextEventHref={nextEventHref} />
+              <section id="escala-section" className="space-y-4 rounded-[24px] border border-[#dbe3ef] bg-white p-4 md:p-5">
+                <EventoEscalaTab eventId={evento.id} nextEventHref={effectiveNextEventHref} />
+                {effectiveNextEventHref ? (
+                  <div className="rounded-[22px] border border-violet-200 bg-violet-50 p-4">
+                    <p className="text-[12px] font-black uppercase tracking-[0.12em] text-violet-700">
+                      Fluxo de escala
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-slate-700">
+                      Continue montando as próximas escalas sem voltar para a lista.
+                    </p>
+                    <a
+                      href={effectiveNextEventHref}
+                      className="mt-3 inline-flex w-full items-center justify-center rounded-[18px] bg-violet-600 px-5 py-3 text-sm font-black text-white shadow-[0_16px_34px_rgba(124,58,237,0.22)] md:w-auto"
+                    >
+                      Próxima escala
+                    </a>
+                  </div>
+                ) : null}
               </section>
             )}
           </>

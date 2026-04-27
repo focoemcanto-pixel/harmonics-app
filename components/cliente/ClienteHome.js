@@ -2,7 +2,6 @@
 import { useToast } from '../ui/ToastProvider';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ReferenceSearchInput from '../repertorio/ReferenceSearchInput';
-import YouTubeReferencePreview from '../repertorio/YouTubeReferencePreview';
 import {
   formatDateBR,
   formatLongDateBR,
@@ -184,6 +183,21 @@ function hasFilledField(value) {
   return String(value || '').trim().length > 0;
 }
 
+function hasUsefulCustomSongItem(item = {}) {
+  return hasFilledField(item?.song_name) || hasFilledField(item?.reference_link);
+}
+
+function hasUsefulCustomEventContent(initialState = {}) {
+  const hasCustomStyles =
+    Array.isArray(initialState.selected_styles) && initialState.selected_styles.length > 0;
+  const hasCustomArtists = hasFilledField(initialState.preferred_artists);
+  const hasCustomSongs =
+    Array.isArray(initialState.custom_songs) &&
+    initialState.custom_songs.some((item) => hasUsefulCustomSongItem(item));
+
+  return hasCustomStyles || hasCustomArtists || hasCustomSongs;
+}
+
 function hasInitialRepertorioFromBackend(initialState = {}) {
   const hasCortejo =
     Array.isArray(initialState.cortejo) &&
@@ -216,20 +230,7 @@ function hasInitialRepertorioFromBackend(initialState = {}) {
       hasFilledField(initialState.receptivo.generos) ||
       hasFilledField(initialState.receptivo.artistas) ||
       hasFilledField(initialState.receptivo.observacao));
-  const hasCustomStyles =
-    Array.isArray(initialState.selected_styles) && initialState.selected_styles.length > 0;
-  const hasCustomArtists = hasFilledField(initialState.preferred_artists);
-  const hasCustomSongs =
-    Array.isArray(initialState.custom_songs) &&
-    initialState.custom_songs.some(
-      (item) =>
-        hasFilledField(item?.song_name) ||
-        hasFilledField(item?.reference_link) ||
-        hasFilledField(item?.reference_title) ||
-        hasFilledField(item?.reference_channel) ||
-        hasFilledField(item?.reference_thumbnail) ||
-        hasFilledField(item?.reference_video_id)
-    );
+  const hasCustomEventContent = hasUsefulCustomEventContent(initialState);
 
   return (
     hasCortejo ||
@@ -237,9 +238,7 @@ function hasInitialRepertorioFromBackend(initialState = {}) {
     hasSaida ||
     hasAntessala ||
     hasReceptivo ||
-    hasCustomStyles ||
-    hasCustomArtists ||
-    hasCustomSongs
+    hasCustomEventContent
   );
 }
 
@@ -1385,6 +1384,7 @@ function RepertorioTab({
     data?.repertorio?.initialState?.mode !== 'custom';
   const isCustomEvent = !isWedding;
   const travado = isRepertorioTravado(statusNormalizado, data.repertorio.isLocked);
+  const shouldShowFinalState = travado;
   const aguardandoRevisao = statusNormalizado === 'AGUARDANDO_REVISAO';
   const receptivoContratadoHoras = Number(data?.repertorio?.receptivoContratadoHoras || 0);
   const receptivoDuracaoTravada = Boolean(data?.repertorio?.receptivoDuracaoTravada);
@@ -1850,12 +1850,7 @@ const [customSongs, setCustomSongs] = useState(
         const hasUsefulDraftCustomArtists = hasFilledField(parsed?.preferred_artists);
         const hasUsefulDraftCustomSongs =
           Array.isArray(parsed?.custom_songs) &&
-          parsed.custom_songs.some(
-            (item) =>
-              hasFilledField(item?.song_name) ||
-              hasFilledField(item?.reference_link) ||
-              hasFilledField(item?.reference_video_id)
-          );
+          parsed.custom_songs.some((item) => hasUsefulCustomSongItem(item));
         const shouldHydrateFromLocalDraft =
           !hasBackendRepertorio ||
           hasUsefulDraftCortejo ||
@@ -2743,6 +2738,15 @@ async function handleRequestReview() {
     );
   }
 
+  const customSongsWithContent = (Array.isArray(customSongs) ? customSongs : []).filter((item) =>
+    hasUsefulCustomSongItem(item)
+  );
+  const repertorioPdfUrl =
+    data?.repertorio?.repertoire_pdf_url ||
+    data?.repertorio?.repertoirePdfUrl ||
+    data?.repertorio?.pdfUrl ||
+    '';
+
   return (
     <div className="space-y-4">
       {!hasBackendRepertorio && showLocalDraftBanner ? (
@@ -2828,7 +2832,7 @@ async function handleRequestReview() {
   </SectionCard>
 ) : null}
 
-      {isCustomEvent ? (
+      {isCustomEvent && !shouldShowFinalState ? (
         <SectionCard>
           <div className="text-[22px] font-black text-[#241a14]">Repertório do evento</div>
           <div className="mt-2 text-[14px] leading-6 text-[#6f5d51]">
@@ -2952,26 +2956,6 @@ async function handleRequestReview() {
                       })
                     }
                     onClearReference={() =>
-                      setCustomSongs((prev) => {
-                        const next = [...prev];
-                        next[index] = {
-                          ...(next[index] || getDefaultCustomSongState()),
-                          reference_link: '',
-                          reference_title: '',
-                          reference_channel: '',
-                          reference_thumbnail: '',
-                          reference_video_id: '',
-                        };
-                        return next;
-                      })
-                    }
-                  />
-                  <YouTubeReferencePreview
-                    url={song.reference_link || ''}
-                    title={song.reference_title || song.song_name || ''}
-                    channelTitle={song.reference_channel || ''}
-                    thumbnail={song.reference_thumbnail || ''}
-                    onClear={() =>
                       setCustomSongs((prev) => {
                         const next = [...prev];
                         next[index] = {
@@ -3545,7 +3529,7 @@ async function handleRequestReview() {
         </div>
       )}
 
-      {isWedding && travado && (
+      {shouldShowFinalState && (
         <div className="space-y-4">
           <SectionCard className="bg-[linear-gradient(180deg,#ffffff_0%,#f8fff9_100%)]">
             <div className="flex items-start gap-3">
@@ -3554,7 +3538,7 @@ async function handleRequestReview() {
               </div>
               <div>
                 <div className="text-[22px] font-black text-[#241a14]">
-                  {aguardandoRevisao ? 'Revisão solicitada' : 'Repertório finalizado'}
+                  {aguardandoRevisao ? 'Revisão solicitada' : 'Repertório enviado'}
                 </div>
                 <div className="mt-2 text-[14px] leading-6 text-[#6f5d51]">
                   {aguardandoRevisao
@@ -3565,70 +3549,93 @@ async function handleRequestReview() {
             </div>
           </SectionCard>
 
-          <SectionCard>
-            <div className="mb-4 text-[18px] font-black text-[#241a14]">Resumo do cortejo</div>
-            {renderResumoCortejo()}
-          </SectionCard>
-          {renderedRepertorioItems.length > 0 && (
-  <SectionCard>
-    <div className="mb-4 text-[18px] font-black text-[#241a14]">
-      Músicas no repertório
-    </div>
+          {isWedding ? (
+            <SectionCard>
+              <div className="mb-4 text-[18px] font-black text-[#241a14]">Resumo do cortejo</div>
+              {renderResumoCortejo()}
+            </SectionCard>
+          ) : (
+            <SectionCard>
+              <div className="mb-4 text-[18px] font-black text-[#241a14]">Resumo do evento</div>
+              <div className="space-y-3">
+                <RowInfo
+                  icon="🎼"
+                  label="Estilos selecionados"
+                  value={
+                    Array.isArray(selectedStyles) && selectedStyles.length > 0
+                      ? selectedStyles.join(', ')
+                      : 'Não informado'
+                  }
+                />
+                <RowInfo
+                  icon="🎤"
+                  label="Artistas desejados"
+                  value={preferredArtists || 'Não informado'}
+                />
+                <RowInfo
+                  icon="🎵"
+                  label="Músicas específicas"
+                  value={String(customSongsWithContent.length)}
+                />
+              </div>
+            </SectionCard>
+          )}
+          {isWedding && renderedRepertorioItems.length > 0 && (
+            <SectionCard>
+              <div className="mb-4 text-[18px] font-black text-[#241a14]">
+                Músicas no repertório
+              </div>
 
-    <div className="space-y-3">
-      {renderedRepertorioItems.map((item) => (
-        <div
-          key={item.key}
-          className="rounded-[18px] border border-[#eadfd6] bg-white px-4 py-4"
-        >
-          <div className="text-[15px] font-black text-[#241a14]">
-            {item.title}
-          </div>
-          <div className="mt-1 text-[13px] font-semibold text-[#7a6a5e]">
-            {item.subtitle || item.section}
-          </div>
-          <div className="mt-2 flex flex-wrap gap-2">
-            <span className="rounded-full bg-[#faf7f3] px-2 py-1 text-[10px] font-black text-[#7a6a5e]">
-              {item.section}
-            </span>
-            {item.label ? (
-              <span className="rounded-full bg-violet-50 px-2 py-1 text-[10px] font-black text-violet-700">
-                {item.label}
-              </span>
-            ) : null}
-          </div>
-          {item.notes ? (
-            <div className="mt-2 text-[13px] leading-5 text-[#8a796d]">
-              {item.notes}
-            </div>
-          ) : null}
-        </div>
-      ))}
-    </div>
-  </SectionCard>
-)}
+              <div className="space-y-3">
+                {renderedRepertorioItems.map((item) => (
+                  <div
+                    key={item.key}
+                    className="rounded-[18px] border border-[#eadfd6] bg-white px-4 py-4"
+                  >
+                    <div className="text-[15px] font-black text-[#241a14]">
+                      {item.title}
+                    </div>
+                    <div className="mt-1 text-[13px] font-semibold text-[#7a6a5e]">
+                      {item.subtitle || item.section}
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <span className="rounded-full bg-[#faf7f3] px-2 py-1 text-[10px] font-black text-[#7a6a5e]">
+                        {item.section}
+                      </span>
+                      {item.label ? (
+                        <span className="rounded-full bg-violet-50 px-2 py-1 text-[10px] font-black text-violet-700">
+                          {item.label}
+                        </span>
+                      ) : null}
+                    </div>
+                    {item.notes ? (
+                      <div className="mt-2 text-[13px] leading-5 text-[#8a796d]">
+                        {item.notes}
+                      </div>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </SectionCard>
+          )}
 
           <div className="space-y-3">
-            <a
-              href={data.repertorio.pdfUrl || undefined}
-              target="_blank"
-              rel="noreferrer"
-              onClick={(event) => {
-                if (!data.repertorio.pdfUrl) {
-                  event.preventDefault();
-                  console.info('[UI][ACTION_ERROR_TOAST]', { source: 'cliente.repertorio.pdf' });
-                  showToast('PDF do repertório ainda não disponível.', 'warning');
-                  return;
-                }
-                debugClientHome(
-                  '[CLIENTE REPERTORIO UI] URL usada no botão Baixar PDF:',
-                  data.repertorio.pdfUrl || '(vazio)'
-                );
-              }}
-              className="flex w-full items-center justify-center rounded-[20px] border border-[#e6d8ff] bg-violet-50 px-4 py-4 text-center text-[15px] font-black text-violet-700"
-            >
-              📄 Baixar PDF do repertório
-            </a>
+            {repertorioPdfUrl ? (
+              <a
+                href={repertorioPdfUrl}
+                target="_blank"
+                rel="noreferrer"
+                onClick={() => {
+                  debugClientHome(
+                    '[CLIENTE REPERTORIO UI] URL usada no botão Baixar PDF:',
+                    repertorioPdfUrl || '(vazio)'
+                  );
+                }}
+                className="flex w-full items-center justify-center rounded-[20px] border border-[#e6d8ff] bg-violet-50 px-4 py-4 text-center text-[15px] font-black text-violet-700"
+              >
+                📄 Baixar PDF do repertório
+              </a>
+            ) : null}
 
             <button
               type="button"
@@ -5417,24 +5424,28 @@ export default function ClienteHome({ data, initialTab = 'inicio' }) {
         if (!prev) return prev;
 
         const nextStatus = result?.status || prev.repertorio?.status || '';
-        const isFinalized =
-          mode === 'final' ||
-          result?.locked === true ||
-          String(nextStatus || '').trim().toUpperCase() === 'ENVIADO';
+        const isLockedByBackend = result?.locked === true;
+        const isFinalizedByStatus = isRepertoireFinalizedStatus(nextStatus, isLockedByBackend);
+        const isFinalized = mode === 'final' || isFinalizedByStatus;
+        const nextPdfUrl =
+          result?.repertoire_pdf_url ||
+          result?.pdfUrl ||
+          prev.repertorio?.repertoire_pdf_url ||
+          prev.repertorio?.pdfUrl ||
+          (prev.token ? `/api/cliente/repertorio/pdf/${prev.token}` : '');
 
         return {
           ...prev,
           repertorio: {
             ...prev.repertorio,
             status: nextStatus,
-            isLocked: isFinalized,
+            isLocked: isLockedByBackend || isFinalizedByStatus,
             liberadoParaEdicao: !isFinalized,
             enviadoEm: isFinalized
               ? new Date().toISOString()
               : prev.repertorio?.enviadoEm || null,
-            pdfUrl:
-              prev.repertorio?.pdfUrl ||
-              (prev.token ? `/api/cliente/repertorio/pdf/${prev.token}` : ''),
+            pdfUrl: nextPdfUrl,
+            repertoire_pdf_url: nextPdfUrl,
             podeSolicitarCorrecao: isFinalized,
           },
         };

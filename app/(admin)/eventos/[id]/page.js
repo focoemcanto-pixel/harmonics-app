@@ -143,28 +143,6 @@ export default function EventoDetalhePage() {
     return query ? `/eventos?${query}` : '/eventos';
   }, [searchParams]);
 
-  const nextScaleHref = useMemo(() => {
-    const filaRaw = searchParams.get('filaEscala') || '';
-    const fila = filaRaw
-      .split(',')
-      .map((item) => item.trim())
-      .filter(Boolean);
-
-    if (!id || fila.length === 0) return '';
-
-    const currentIndex = fila.findIndex((item) => String(item) === String(id));
-    if (currentIndex < 0) return '';
-
-    const nextId = fila[currentIndex + 1];
-    if (!nextId) return '';
-
-    const params = new URLSearchParams();
-    params.set('tab', 'escala');
-    params.set('filaEscala', fila.join(','));
-
-    return `/eventos/${nextId}?${params.toString()}`;
-  }, [id, searchParams]);
-
   useEffect(() => {
     async function carregarEvento() {
       if (!id) return;
@@ -526,22 +504,6 @@ export default function EventoDetalhePage() {
 
             {activeTab === 'escala' && (
               <section id="escala-section" className="space-y-4 rounded-[24px] border border-[#dbe3ef] bg-white p-4 md:p-5">
-                {nextScaleHref ? (
-                  <div className="rounded-[22px] border border-violet-200 bg-violet-50 p-4">
-                    <p className="text-[12px] font-black uppercase tracking-[0.12em] text-violet-700">
-                      Fluxo de escala
-                    </p>
-                    <p className="mt-1 text-sm font-semibold text-slate-700">
-                      Continue montando as próximas escalas da lista atual.
-                    </p>
-                    <a
-                      href={nextScaleHref}
-                      className="mt-3 inline-flex w-full items-center justify-center rounded-[18px] bg-violet-600 px-5 py-3 text-sm font-black text-white md:w-auto"
-                    >
-                      Próxima escala
-                    </a>
-                  </div>
-                ) : null}
                 <EventoEscalaTab eventId={evento.id} />
               </section>
             )}

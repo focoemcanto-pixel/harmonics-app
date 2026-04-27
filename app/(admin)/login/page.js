@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/lib/supabase';
 
 const SAVED_LOGIN_KEY = 'harmonics_saved_admin_login';
 
@@ -115,12 +114,16 @@ export default function LoginPage() {
     setResettingPassword(true);
 
     try {
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: `${window.location.origin}/auth/reset-password`,
+      const response = await fetch('/api/auth/request-password-reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim() }),
       });
 
-      if (resetError) {
-        throw resetError;
+      const result = await response.json();
+
+      if (!response.ok || !result.ok) {
+        throw new Error(result?.error || 'Não foi possível enviar o link agora.');
       }
 
       setFeedback('Enviamos um link para redefinir sua senha.');

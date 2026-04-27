@@ -19,6 +19,7 @@ export async function POST(request) {
     const payload = {
       ok: true,
       inviteSent: Boolean(result.inviteSent),
+      provider: result.provider || 'resend',
       email,
     };
 

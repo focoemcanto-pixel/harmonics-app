@@ -232,20 +232,28 @@ export async function POST(request) {
 
     let inviteSent = false;
     let inviteError = null;
+    let inviteProvider = null;
 
     if (normalizedRole === 'admin') {
       console.info('[ADMIN_USERS][INVITE_AUTO_START]', { email: normalizedEmail, userId });
       const inviteResult = await sendAdminAccessInvite({ email: normalizedEmail });
+      inviteProvider = inviteResult.provider || 'resend';
 
       if (inviteResult.ok) {
         inviteSent = true;
-        console.info('[ADMIN_USERS][INVITE_AUTO_RESULT]', { ok: true, email: normalizedEmail, userId });
+        console.info('[ADMIN_USERS][INVITE_AUTO_RESULT]', {
+          ok: true,
+          email: normalizedEmail,
+          userId,
+          provider: inviteProvider,
+        });
       } else {
         inviteError = inviteResult.error || 'Falha ao enviar convite.';
         console.warn('[ADMIN_USERS][INVITE_AUTO_RESULT]', {
           ok: false,
           email: normalizedEmail,
           userId,
+          provider: inviteProvider,
           error: inviteError,
         });
       }
@@ -256,6 +264,7 @@ export async function POST(request) {
       userId,
       authUserExisted,
       inviteSent,
+      ...(inviteProvider ? { provider: inviteProvider } : {}),
       ...(inviteError ? { inviteError } : {}),
     });
   } catch (error) {

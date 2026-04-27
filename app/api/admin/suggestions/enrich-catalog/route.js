@@ -1,8 +1,14 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { backfillSuggestionSongsMetadata } from '@/lib/sugestoes/backfill-suggestion-songs-metadata';
+import { requireAdminServer } from '@/lib/api/require-admin-server';
 
-export async function POST() {
+export async function POST(request) {
+  const adminGuard = await requireAdminServer(request);
+  if (!adminGuard.ok) {
+    return adminGuard.response;
+  }
+
   try {
     const supabase = getSupabaseAdmin();
     const result = await backfillSuggestionSongsMetadata(supabase, { logger: console });

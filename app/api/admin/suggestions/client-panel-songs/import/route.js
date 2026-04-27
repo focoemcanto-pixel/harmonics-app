@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { requireAdminServer } from '@/lib/api/require-admin-server';
 
 function normalizeText(value) {
   const text = String(value || '').trim();
@@ -34,6 +35,11 @@ async function findExistingCatalogSong(supabase, { title, artist, youtubeId }) {
 }
 
 export async function POST(request) {
+  const adminGuard = await requireAdminServer(request);
+  if (!adminGuard.ok) {
+    return adminGuard.response;
+  }
+
   try {
     const supabase = getSupabaseAdmin();
     const body = await request.json();

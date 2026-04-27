@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { requireAdminServer } from '@/lib/api/require-admin-server';
 
 const DEFAULT_IMPORT_ARTIST = 'não informado';
 const CATALOG_SOURCE_TYPES = ['admin', 'imported'];
@@ -24,7 +25,12 @@ function toTimestamp(value) {
   return Number.isNaN(date.getTime()) ? 0 : date.getTime();
 }
 
-export async function GET() {
+export async function GET(request) {
+  const adminGuard = await requireAdminServer(request);
+  if (!adminGuard.ok) {
+    return adminGuard.response;
+  }
+
   try {
     const supabase = getSupabaseAdmin();
 

@@ -1,11 +1,16 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { executeAutomationEvent } from '@/lib/automation/execute-automation-event';
+import { requireAdminServer } from '@/lib/api/require-admin-server';
 
 export async function POST(request) {
+  const adminGuard = await requireAdminServer(request);
+  if (!adminGuard.ok) {
+    return adminGuard.response;
+  }
+
   try {
     const body = await request.json().catch(() => ({}));
-    console.log('[ANTESALA_REOPEN][REVIEW_RELEASED_PAYLOAD]', body || {});
     const eventId = String(body?.eventId || '').trim();
 
     if (!eventId) {

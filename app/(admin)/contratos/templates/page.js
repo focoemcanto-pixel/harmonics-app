@@ -392,7 +392,6 @@ export default function ContractTemplatesPage() {
       setIsDirty(false);
       devLog('[TEMPLATE_EDITOR][SAVE_RESULT]', { mode: isEditing ? 'update' : 'create', id: savedTemplate.id, ok: true });
       toast.success(isEditing ? 'Template atualizado com sucesso.' : 'Template criado com sucesso.');
-      await carregarTemplates(false);
       console.log('[TEMPLATE SAVED]', {
         rich_len: currentRichHtml.length,
         text_len: payload.source_text.length,

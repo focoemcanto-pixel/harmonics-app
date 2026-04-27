@@ -15,10 +15,18 @@ function extractTokenFromUrl(request, params) {
   }
 }
 
+function maskToken(token) {
+  const cleanToken = String(token || '').trim();
+  if (!cleanToken) return '';
+  if (cleanToken.length <= 8) return `${cleanToken.slice(0, 2)}***`;
+  return `${cleanToken.slice(0, 4)}***${cleanToken.slice(-4)}`;
+}
+
 export async function GET(request, { params }) {
   try {
     const token = extractTokenFromUrl(request, params);
-    console.log('[PDF PROXY] token recebido:', token);
+    const maskedToken = maskToken(token);
+    console.log('[PDF PROXY] token recebido (preview):', maskedToken);
 
     if (!token) {
       return NextResponse.json(
@@ -28,7 +36,10 @@ export async function GET(request, { params }) {
     }
 
     const contractServiceUrl = String(process.env.CONTRACT_SERVICE_URL || '').trim();
-    console.log('[PDF PROXY] CONTRACT_SERVICE_URL:', contractServiceUrl);
+    const contractServiceApiKey = String(process.env.CONTRACT_SERVICE_API_KEY || '').trim();
+
+    console.log('[PDF PROXY] CONTRACT_SERVICE_URL configurada:', Boolean(contractServiceUrl));
+    console.log('[PDF PROXY] hasContractServiceApiKey:', Boolean(contractServiceApiKey));
 
     if (!contractServiceUrl) {
       return NextResponse.json(
@@ -37,14 +48,22 @@ export async function GET(request, { params }) {
       );
     }
 
+    if (!contractServiceApiKey) {
+      return NextResponse.json(
+        { ok: false, error: 'CONTRACT_SERVICE_API_KEY não configurada.' },
+        { status: 500 }
+      );
+    }
+
     const renderUrl = `${contractServiceUrl.replace(/\/+$/, '')}/api/repertoire/pdf/${encodeURIComponent(token)}`;
-    console.log('[PDF PROXY] chamando Render:', renderUrl);
+    console.log('[PDF PROXY] chamando Render:', renderUrl, 'token:', maskedToken);
 
     const response = await fetch(renderUrl, {
       method: 'GET',
       cache: 'no-store',
       headers: {
         Accept: 'application/pdf,application/json,text/plain,*/*',
+        'x-api-key': contractServiceApiKey,
       },
     });
 

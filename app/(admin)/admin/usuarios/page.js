@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import AdminShell from '@/components/admin/AdminShell';
@@ -17,6 +17,7 @@ const AREAS_SISTEMA = [
 const USERS_LIST_LIMIT = 200;
 const USERS_SELECT_FIELDS = 'id, created_at, name, email, role';
 const CANONICAL_ROLES = new Set(['admin', 'member']);
+const SELF_DELETE_ERROR = 'Você não pode excluir o próprio usuário logado.';
 
 function normalizeRoleValue(value) {
   const role = String(value || '').trim().toLowerCase();
@@ -65,13 +66,14 @@ function GestaoUsuariosContent() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [editingId, setEditingId] = useState(null);
-  const [editingRole, setEditingRole] = useState('member');
   const [permissoes, setPermissoes] = useState({ acesso_total: true });
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [editForm, setEditForm] = useState({ name: '' });
-  const [inviteLoadingByEmail, setInviteLoadingByEmail] = useState({});
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deletingUser, setDeletingUser] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  const [loggedUserId, setLoggedUserId] = useState(null);
 
   const [novoUsuario, setNovoUsuario] = useState({
     email: '',
@@ -81,6 +83,13 @@ function GestaoUsuariosContent() {
 
   useEffect(() => {
     carregarUsuarios();
+
+    async function carregarUsuarioLogado() {
+      const { data } = await supabase.auth.getUser();
+      setLoggedUserId(data?.user?.id || null);
+    }
+
+    carregarUsuarioLogado();
   }, []);
 
   async function carregarUsuarios() {
@@ -172,55 +181,6 @@ function GestaoUsuariosContent() {
   }
 
 
-  async function reenviarConviteAdmin(email) {
-    if (!email) return;
-
-    setError('');
-    setSuccess('');
-    setInviteLoadingByEmail((prev) => ({ ...prev, [email]: true }));
-
-    try {
-      const response = await fetch('/api/admin/usuarios/invite', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result?.error || 'Erro ao reenviar convite.');
-      }
-
-      if (result.inviteSent) {
-        setSuccess('Convite de primeiro acesso reenviado com sucesso.');
-      } else {
-        setError('Usuário criado, mas o convite não foi enviado. Verifique configuração de e-mail ou reenvie manualmente.');
-      }
-    } catch (e) {
-      setError('Erro ao reenviar convite: ' + (e?.message || 'Erro desconhecido'));
-    } finally {
-      setInviteLoadingByEmail((prev) => ({ ...prev, [email]: false }));
-    }
-  }
-
-  async function atualizarRole(userId, novoRole) {
-    setError('');
-    try {
-      const { error: err } = await supabase
-        .from('profiles')
-        .update({ role: novoRole })
-        .eq('id', userId);
-
-      if (err) throw err;
-      setUsuarios((prev) =>
-        prev.map((u) => (u.id === userId ? { ...u, role: novoRole } : u))
-      );
-      setEditingId(null);
-    } catch (e) {
-      setError('Erro ao atualizar usuário: ' + (e.message || 'Erro desconhecido'));
-    }
-  }
 
   async function salvarEdicao() {
     if (!editingUser?.id || !editForm.name.trim()) {
@@ -265,6 +225,61 @@ function GestaoUsuariosContent() {
     setEditModalOpen(false);
     setEditingUser(null);
     setEditForm({ name: '' });
+  }
+
+  const canDeleteUser = useMemo(() => (userId) => userId && loggedUserId && userId !== loggedUserId, [loggedUserId]);
+
+  function openDeleteModal(user) {
+    if (!canDeleteUser(user?.id)) {
+      setError(SELF_DELETE_ERROR);
+      return;
+    }
+
+    setDeletingUser(user);
+    setDeleteModalOpen(true);
+  }
+
+  function closeDeleteModal() {
+    if (deleting) return;
+    setDeleteModalOpen(false);
+    setDeletingUser(null);
+  }
+
+  async function confirmarExclusaoUsuario() {
+    if (!deletingUser?.id) return;
+
+    if (!canDeleteUser(deletingUser.id)) {
+      setError(SELF_DELETE_ERROR);
+      closeDeleteModal();
+      return;
+    }
+
+    setDeleting(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      const response = await fetch(`/api/admin/usuarios/${deletingUser.id}`, {
+        method: 'DELETE',
+        headers: {
+          'x-requester-id': loggedUserId || '',
+        },
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Erro ao excluir usuário.');
+      }
+
+      setUsuarios((prev) => prev.filter((u) => u.id !== deletingUser.id));
+      setSuccess(result.message || 'Usuário excluído com sucesso!');
+      closeDeleteModal();
+    } catch (e) {
+      setError('Erro ao excluir usuário: ' + (e.message || 'Erro desconhecido'));
+    } finally {
+      setDeleting(false);
+    }
   }
 
   return (
@@ -465,6 +480,16 @@ function GestaoUsuariosContent() {
                     >
                       <PencilIcon className="h-4 w-4" />
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => openDeleteModal(user)}
+                      disabled={!canDeleteUser(user.id) || deleting}
+                      className="rounded-lg border border-red-200 bg-white p-2 text-red-500 transition hover:border-red-300 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50"
+                      aria-label="Excluir usuário"
+                      title={!canDeleteUser(user.id) ? 'Você não pode excluir seu próprio usuário.' : 'Excluir usuário'}
+                    >
+                      <TrashIcon className="h-4 w-4" />
+                    </button>
                   </div>
                 </div>
               ))}
@@ -530,6 +555,54 @@ function GestaoUsuariosContent() {
           </div>
         </div>
       )}
+
+      {deleteModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 backdrop-blur-sm"
+          onClick={(e) => { if (e.target === e.currentTarget) closeDeleteModal(); }}
+          onKeyDown={(e) => { if (e.key === 'Escape') closeDeleteModal(); }}
+          role="presentation"
+        >
+          <div
+            className="w-full max-w-md rounded-[28px] border border-white/20 bg-white/95 p-6 shadow-2xl"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-user-modal-title"
+          >
+            <h3 id="delete-user-modal-title" className="text-xl font-black text-slate-900">
+              Excluir usuário
+            </h3>
+            <p className="mt-3 text-sm text-slate-600">
+              Tem certeza que deseja excluir este usuário? Essa ação remove o acesso ao painel.
+            </p>
+
+            <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-sm font-bold text-slate-900">{deletingUser?.name || '(sem nome)'}</p>
+              <p className="text-xs text-slate-500 mt-1">{deletingUser?.email}</p>
+            </div>
+
+            <div className="mt-6 flex gap-3">
+              <button
+                type="button"
+                onClick={closeDeleteModal}
+                disabled={deleting}
+                className="flex-1 rounded-[16px] border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmarExclusaoUsuario}
+                disabled={deleting}
+                className="flex-1 rounded-[16px] bg-red-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-red-700 disabled:opacity-60"
+              >
+                {deleting ? 'Excluindo...' : 'Excluir usuário'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </AdminShell>
   );
 }

@@ -1,21 +1,21 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 
-const SAVED_LOGIN_KEY = 'harmonics_saved_login';
+const SAVED_LOGIN_KEY = 'harmonics_saved_admin_login';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberLogin, setRememberLogin] = useState(false);
   const [error, setError] = useState('');
-  const [info, setInfo] = useState('');
+  const [feedback, setFeedback] = useState('');
   const [loading, setLoading] = useState(false);
-  const [resetLoading, setResetLoading] = useState(false);
+  const [resettingPassword, setResettingPassword] = useState(false);
+  const [saveAccess, setSaveAccess] = useState(false);
   const [accessHistory, setAccessHistory] = useState([]);
 
   const { signIn, user, profile } = useAuth();
@@ -26,22 +26,21 @@ export default function LoginPage() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    try {
-      const history = JSON.parse(localStorage.getItem('accessHistory') || '[]');
-      setAccessHistory(Array.isArray(history) ? history : []);
-    } catch {
-      setAccessHistory([]);
-    }
+    const history = JSON.parse(localStorage.getItem('accessHistory') || '[]');
+    setAccessHistory(history);
+
+    const savedCredentialsRaw = localStorage.getItem(SAVED_LOGIN_KEY);
+    if (!savedCredentialsRaw) return;
 
     try {
-      const savedLogin = JSON.parse(localStorage.getItem(SAVED_LOGIN_KEY) || 'null');
-      if (savedLogin?.email && savedLogin?.password) {
-        setEmail(savedLogin.email);
-        setPassword(savedLogin.password);
-        setRememberLogin(true);
+      const savedCredentials = JSON.parse(savedCredentialsRaw);
+      if (savedCredentials?.email && savedCredentials?.password) {
+        setEmail(savedCredentials.email);
+        setPassword(savedCredentials.password);
+        setSaveAccess(true);
       }
     } catch {
-      // Ignore corrupted localStorage data
+      localStorage.removeItem(SAVED_LOGIN_KEY);
     }
   }, []);
 
@@ -51,38 +50,37 @@ export default function LoginPage() {
     }
   }, [user, profile, router, nextTarget]);
 
-  const canSubmit = useMemo(() => email.trim() && password, [email, password]);
-
-  function persistSavedLogin(nextRememberState, nextEmail, nextPassword) {
-    if (typeof window === 'undefined') return;
-
-    // Observação: armazenar senha em localStorage reduz segurança.
-    // Em produção, prefira sessão persistente segura ou password manager.
-    if (!nextRememberState) {
-      localStorage.removeItem(SAVED_LOGIN_KEY);
-      return;
-    }
-
-    localStorage.setItem(
-      SAVED_LOGIN_KEY,
-      JSON.stringify({
-        email: nextEmail,
-        password: nextPassword,
-      })
-    );
-  }
+  const gradientButtonClass = useMemo(
+    () =>
+      'w-full rounded-2xl px-6 py-4 text-sm font-black text-white shadow-[0_14px_30px_rgba(99,102,241,0.35)] transition focus:outline-none focus:ring-2 focus:ring-violet-300 disabled:cursor-not-allowed disabled:opacity-60 bg-gradient-to-r from-violet-600 via-fuchsia-600 to-purple-700 hover:from-violet-500 hover:via-fuchsia-500 hover:to-purple-600',
+    []
+  );
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (loading || !canSubmit) return;
+    if (loading) return;
 
     setError('');
-    setInfo('');
+    setFeedback('');
     setLoading(true);
 
     try {
-      await signIn(email.trim(), password);
-      persistSavedLogin(rememberLogin, email.trim(), password);
+      await signIn(email, password);
+
+      if (typeof window !== 'undefined') {
+        if (saveAccess) {
+          localStorage.setItem(
+            SAVED_LOGIN_KEY,
+            JSON.stringify({
+              email,
+              password,
+              savedAt: new Date().toISOString(),
+            })
+          );
+        } else {
+          localStorage.removeItem(SAVED_LOGIN_KEY);
+        }
+      }
     } catch (err) {
       setError(err?.message || 'Erro ao fazer login.');
     } finally {
@@ -90,37 +88,47 @@ export default function LoginPage() {
     }
   }
 
-  async function handleResetPassword() {
-    if (resetLoading) return;
-
+  function handleQuickLogin(histEmail) {
+    if (loading) return;
+    setEmail(histEmail);
+    setPassword('');
+    setFeedback('');
     setError('');
-    setInfo('');
+  }
+
+  function handleToggleSaveAccess(checked) {
+    setSaveAccess(checked);
+    if (!checked && typeof window !== 'undefined') {
+      localStorage.removeItem(SAVED_LOGIN_KEY);
+    }
+  }
+
+  async function handleForgotPassword() {
+    setError('');
+    setFeedback('');
 
     if (!email.trim()) {
-      setError('Informe seu e-mail para receber o link de redefinição.');
+      setError('Informe seu email para enviar o link de redefinição de senha.');
       return;
     }
 
-    setResetLoading(true);
+    setResettingPassword(true);
 
     try {
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
         redirectTo: `${window.location.origin}/auth/reset-password`,
       });
 
-      if (resetError) throw resetError;
+      if (resetError) {
+        throw resetError;
+      }
 
-      setInfo('Enviamos um link para redefinir sua senha.');
-    } catch (err) {
-      setError(err?.message || 'Não foi possível enviar o link de redefinição.');
+      setFeedback('Enviamos um link para redefinir sua senha.');
+    } catch {
+      setError('Não foi possível enviar o link agora. Verifique o email e tente novamente.');
     } finally {
-      setResetLoading(false);
+      setResettingPassword(false);
     }
-  }
-
-  function handleQuickLogin(historyEmail) {
-    if (loading) return;
-    setEmail(historyEmail);
   }
 
   function getInitials(name) {
@@ -134,117 +142,156 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#05050c] text-slate-100">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(124,58,237,0.24),_transparent_45%),radial-gradient(circle_at_80%_20%,_rgba(59,130,246,0.2),_transparent_32%),radial-gradient(circle_at_50%_100%,_rgba(245,158,11,0.16),_transparent_40%)]" />
-
-      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-5xl items-center justify-center p-4 sm:p-8">
-        <div className="w-full max-w-md rounded-[28px] border border-white/20 bg-white/10 p-6 shadow-[0_18px_80px_rgba(0,0,0,0.45)] backdrop-blur-xl sm:p-8">
-          <div className="mb-6 text-center">
-            <p className="text-xs font-black uppercase tracking-[0.25em] text-violet-200">Banda Harmonics</p>
-            <h1 className="mt-2 text-3xl font-black tracking-[-0.03em] text-white">Painel Administrativo</h1>
-            <p className="mt-2 text-sm text-slate-300">
-              Gestão profissional de eventos, contratos, escalas e repertórios
-            </p>
-          </div>
-
-          {accessHistory.length > 0 && (
-            <div className="mb-6 rounded-2xl border border-white/10 bg-black/20 p-3">
-              <p className="mb-2 text-[11px] font-black uppercase tracking-[0.08em] text-slate-300">Acessos recentes</p>
-              <div className="space-y-2">
-                {accessHistory.slice(0, 3).map((access) => (
-                  <button
-                    key={access.email}
-                    type="button"
-                    onClick={() => handleQuickLogin(access.email)}
-                    className="flex w-full items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left transition hover:border-violet-300/40"
-                  >
-                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-violet-400/20 text-xs font-black text-violet-100">
-                      {getInitials(access.name)}
-                    </span>
-                    <span className="min-w-0">
-                      <span className="block truncate text-xs font-bold text-white">{access.name}</span>
-                      <span className="block truncate text-[11px] text-slate-300">{access.email}</span>
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {error && <div className="rounded-xl border border-red-300/40 bg-red-500/10 px-4 py-3 text-sm text-red-100">{error}</div>}
-            {info && <div className="rounded-xl border border-emerald-300/40 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">{info}</div>}
-
-            <div>
-              <label className="mb-1 block text-sm font-semibold text-slate-200">E-mail</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="seu@email.com"
-                autoComplete="email"
-                required
-                className="w-full rounded-xl border border-white/20 bg-black/30 px-4 py-3 text-sm text-white placeholder:text-slate-400 focus:border-violet-300 focus:outline-none focus:ring-2 focus:ring-violet-400/30"
-              />
-            </div>
-
-            <div>
-              <label className="mb-1 block text-sm font-semibold text-slate-200">Senha</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                autoComplete="current-password"
-                required
-                className="w-full rounded-xl border border-white/20 bg-black/30 px-4 py-3 text-sm text-white placeholder:text-slate-400 focus:border-violet-300 focus:outline-none focus:ring-2 focus:ring-violet-400/30"
-              />
-            </div>
-
-            <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-200">
-              <input
-                type="checkbox"
-                checked={rememberLogin}
-                onChange={(e) => {
-                  const checked = e.target.checked;
-                  setRememberLogin(checked);
-                  if (!checked && typeof window !== 'undefined') {
-                    localStorage.removeItem(SAVED_LOGIN_KEY);
-                  }
-                }}
-                className="h-4 w-4 rounded border-white/30 bg-transparent accent-violet-400"
-              />
-              Salvar meus dados neste dispositivo
-            </label>
-
-            <button
-              type="submit"
-              disabled={!canSubmit || loading}
-              className="w-full rounded-xl bg-gradient-to-r from-violet-500 via-indigo-500 to-amber-400 px-4 py-3 text-sm font-black text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {loading ? 'Entrando...' : 'Entrar no painel'}
-            </button>
-          </form>
-
-          <div className="mt-5 space-y-2 text-center">
-            <button
-              type="button"
-              onClick={handleResetPassword}
-              disabled={resetLoading}
-              className="text-sm font-semibold text-violet-200 transition hover:text-violet-100 disabled:opacity-60"
-            >
-              {resetLoading ? 'Enviando...' : 'Esqueci minha senha'}
-            </button>
-
-            <p className="text-xs text-slate-300">
-              Primeiro acesso? Peça ao administrador para reenviar seu convite.
-            </p>
-            <Link href="/" className="text-xs text-slate-400 hover:text-slate-200">
-              Voltar para o site
-            </Link>
-          </div>
-        </div>
+    <div className="relative min-h-screen overflow-hidden bg-slate-950 text-white">
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute -top-32 left-1/2 h-80 w-80 -translate-x-1/2 rounded-full bg-violet-700/25 blur-3xl" />
+        <div className="absolute bottom-0 right-0 h-96 w-96 rounded-full bg-fuchsia-600/20 blur-3xl" />
+        <div className="absolute left-0 top-1/3 h-80 w-80 rounded-full bg-indigo-600/20 blur-3xl" />
       </div>
+
+      <main className="relative z-10 mx-auto flex min-h-screen w-full max-w-6xl flex-col items-center justify-center px-4 py-10 md:px-8">
+        <div className="grid w-full overflow-hidden rounded-[34px] border border-white/15 bg-white/[0.06] shadow-[0_35px_120px_rgba(2,6,23,0.65)] backdrop-blur-xl lg:grid-cols-[1.06fr_0.94fr]">
+          <section className="hidden p-10 lg:flex lg:flex-col lg:justify-between">
+            <div>
+              <p className="inline-flex rounded-full border border-white/20 bg-white/10 px-4 py-1 text-xs font-black uppercase tracking-[0.12em] text-violet-100">
+                Banda Harmonics
+              </p>
+              <h1 className="mt-8 text-4xl font-black leading-tight text-white">
+                Harmonics Admin
+              </h1>
+              <p className="mt-4 max-w-md text-sm text-slate-200/90">
+                Gestão profissional de eventos, contratos, escalas e repertórios.
+              </p>
+            </div>
+
+            <ul className="space-y-4 text-sm text-slate-200/90">
+              {[
+                'Gestão centralizada de equipe e produção.',
+                'Acompanhamento de contratos e pagamentos em um único painel.',
+                'Fluxos organizados para uma operação mais previsível.',
+              ].map((item) => (
+                <li key={item} className="flex items-start gap-3">
+                  <span className="mt-1 h-2 w-2 rounded-full bg-violet-300" />
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <section className="p-6 sm:p-8 md:p-10">
+            <div className="mx-auto w-full max-w-md">
+              <div className="text-center lg:hidden">
+                <p className="text-xs font-black uppercase tracking-[0.12em] text-violet-200">Banda Harmonics</p>
+              </div>
+
+              <h2 className="mt-2 text-center text-3xl font-black tracking-tight text-white">
+                Harmonics Admin
+              </h2>
+              <p className="mt-2 text-center text-sm text-slate-300">
+                Gestão profissional de eventos, contratos, escalas e repertórios.
+              </p>
+
+              {accessHistory.length > 0 && (
+                <div className="mt-6 rounded-2xl border border-white/15 bg-slate-900/45 p-4">
+                  <p className="text-[11px] font-black uppercase tracking-[0.08em] text-slate-300">Acessos recentes</p>
+                  <div className="mt-3 space-y-2">
+                    {accessHistory.slice(0, 2).map((access) => (
+                      <button
+                        key={access.email}
+                        type="button"
+                        onClick={() => handleQuickLogin(access.email)}
+                        disabled={loading}
+                        className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left transition hover:border-violet-300/50 hover:bg-violet-400/10 disabled:opacity-50"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-violet-500/25 text-xs font-black text-violet-100">
+                            {getInitials(access.name)}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-white">{access.name}</p>
+                            <p className="truncate text-xs text-slate-300">{access.email}</p>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+                {error && (
+                  <div className="rounded-2xl border border-red-400/35 bg-red-500/10 px-4 py-3 text-sm text-red-100">
+                    {error}
+                  </div>
+                )}
+
+                {feedback && (
+                  <div className="rounded-2xl border border-emerald-400/35 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+                    {feedback}
+                  </div>
+                )}
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-slate-200">Email</label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    disabled={loading}
+                    className="w-full rounded-2xl border border-white/15 bg-white/10 px-4 py-4 text-sm text-white placeholder:text-slate-400 focus:border-violet-300 focus:outline-none focus:ring-2 focus:ring-violet-500/40 disabled:opacity-60"
+                    placeholder="seu@email.com"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-slate-200">Senha</label>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    disabled={loading}
+                    className="w-full rounded-2xl border border-white/15 bg-white/10 px-4 py-4 text-sm text-white placeholder:text-slate-400 focus:border-violet-300 focus:outline-none focus:ring-2 focus:ring-violet-500/40 disabled:opacity-60"
+                    placeholder="••••••••"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between gap-3">
+                  <label className="flex cursor-pointer items-center gap-2 text-xs text-slate-300">
+                    <input
+                      type="checkbox"
+                      checked={saveAccess}
+                      onChange={(e) => handleToggleSaveAccess(e.target.checked)}
+                      className="h-4 w-4 rounded border-white/20 bg-transparent accent-violet-500"
+                    />
+                    Salvar acesso neste dispositivo
+                  </label>
+
+                  <button
+                    type="button"
+                    onClick={handleForgotPassword}
+                    disabled={resettingPassword || loading}
+                    className="text-xs font-semibold text-violet-200 transition hover:text-violet-100 disabled:opacity-50"
+                  >
+                    {resettingPassword ? 'Enviando...' : 'Esqueci minha senha'}
+                  </button>
+                </div>
+
+                {/* Este recurso salva a senha localmente por escolha de comodidade em dispositivo privado. Em ambiente multiusuário, preferir gerenciador de senhas. */}
+
+                <button type="submit" disabled={loading} className={gradientButtonClass}>
+                  {loading ? 'Entrando...' : 'Entrar no painel'}
+                </button>
+              </form>
+
+              <p className="mt-5 text-center text-xs text-slate-400">
+                Acesso restrito a administradores autorizados.
+              </p>
+            </div>
+          </section>
+        </div>
+      </main>
     </div>
   );
 }

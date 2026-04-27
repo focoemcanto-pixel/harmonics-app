@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requireAdminServer } from '@/lib/api/require-admin-server';
 import { logError, logInfo } from '@/lib/observability/server-log';
+import { getRequestIp, getUserAgent } from '@/lib/api/request-meta';
+import { writeAuditLog } from '@/lib/audit/audit-log';
 
 function isAuthUserMissing(error) {
   const message = String(error?.message || '').toLowerCase();
@@ -16,6 +18,8 @@ function isAuthUserMissing(error) {
 
 export async function DELETE(request, context) {
   const adminGuard = await requireAdminServer(request);
+  const requestIp = getRequestIp(request);
+  const userAgent = getUserAgent(request);
 
   if (!adminGuard.ok) {
     return adminGuard.response;
@@ -117,12 +121,47 @@ export async function DELETE(request, context) {
       logInfo('ADMIN_USERS', 'DELETE_AUTH_OK', { userId });
     }
 
+    await writeAuditLog({
+      supabase,
+      actorUserId: adminGuard.user.id,
+      actorEmail: adminGuard.user.email || null,
+      action: 'admin.user.delete',
+      entityType: 'profile',
+      entityId: userId,
+      status: 'success',
+      ip: requestIp,
+      userAgent,
+      metadata: {
+        deletedEmailDomain: String(profile.email || '').split('@')[1] || null,
+        deletedRole: profile.role || null,
+      },
+    });
+
     return NextResponse.json({
       ok: true,
       deletedUserId: userId,
       deletedEmail: profile.email || null,
     });
   } catch (error) {
+    try {
+      const supabase = getSupabaseAdmin();
+      await writeAuditLog({
+        supabase,
+        actorUserId: adminGuard.user?.id || null,
+        actorEmail: adminGuard.user?.email || null,
+        action: 'admin.user.delete',
+        entityType: 'profile',
+        entityId: userId || null,
+        status: 'failed',
+        ip: requestIp,
+        userAgent,
+        metadata: {
+          error: error?.message || 'Erro interno ao excluir usuário.',
+        },
+      });
+    } catch {
+      // no-op: auditoria é best effort
+    }
     logError('ADMIN_USERS', 'DELETE_ERROR', error, { userId });
     return NextResponse.json(
       { ok: false, error: error?.message || 'Erro interno ao excluir usuário.' },

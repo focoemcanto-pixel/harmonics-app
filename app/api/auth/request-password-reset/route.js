@@ -3,6 +3,9 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { sendPasswordResetEmail } from '@/lib/email/sendPasswordResetEmail';
 import { logError, logInfo, maskEmail } from '@/lib/observability/server-log';
 import { validateRequiredEnv } from '@/lib/config/validate-env';
+import { getRequestIp, getUserAgent } from '@/lib/api/request-meta';
+import { checkRateLimit } from '@/lib/api/rate-limit';
+import { writeAuditLog } from '@/lib/audit/audit-log';
 
 const FALLBACK_APP_BASE_URL = 'https://app.bandaharmonics.com';
 
@@ -23,16 +26,33 @@ function getAppBaseUrl() {
 }
 
 export async function POST(request) {
+  const requestIp = getRequestIp(request);
+  const userAgent = getUserAgent(request);
   try {
     validateRequiredEnv('auth/request-password-reset');
 
     const body = await request.json();
     const email = normalizeEmail(body?.email);
+    const rateLimitResult = checkRateLimit({
+      key: `auth-reset:${requestIp || 'ip-na'}:${email || 'email-na'}`,
+      limit: 5,
+      windowMs: 15 * 60 * 1000,
+    });
 
     logInfo('AUTH_RESET', 'REQUEST_START', {
       hasEmail: Boolean(email),
       email: maskEmail(email),
     });
+
+    if (!rateLimitResult.ok) {
+      return NextResponse.json(
+        { ok: false, error: 'Muitas tentativas. Tente novamente em alguns minutos.' },
+        {
+          status: 429,
+          headers: { 'Retry-After': String(rateLimitResult.retryAfterSeconds || 60) },
+        }
+      );
+    }
 
     if (!email || !isValidEmail(email)) {
       return NextResponse.json({ error: 'Informe um e-mail válido.' }, { status: 400 });
@@ -70,6 +90,19 @@ export async function POST(request) {
     }
 
     if (!profile) {
+      await writeAuditLog({
+        supabase,
+        action: 'auth.password_reset.request',
+        entityType: 'profile',
+        entityId: email,
+        status: 'success',
+        ip: requestIp,
+        userAgent,
+        metadata: {
+          profileFound: false,
+          email: maskEmail(email),
+        },
+      });
       return NextResponse.json({
         ok: true,
         emailSent: true,
@@ -114,11 +147,59 @@ export async function POST(request) {
     });
 
     if (!emailResult.ok) {
+      await writeAuditLog({
+        supabase,
+        actorUserId: profile?.id || null,
+        actorEmail: email,
+        action: 'auth.password_reset.request',
+        entityType: 'profile',
+        entityId: profile?.id || null,
+        status: 'failed',
+        ip: requestIp,
+        userAgent,
+        metadata: {
+          email: maskEmail(email),
+          emailProviderOk: false,
+        },
+      });
       throw new Error(emailResult.error || 'Falha ao enviar e-mail de redefinição.');
     }
 
+    await writeAuditLog({
+      supabase,
+      actorUserId: profile?.id || null,
+      actorEmail: email,
+      action: 'auth.password_reset.request',
+      entityType: 'profile',
+      entityId: profile?.id || null,
+      status: 'success',
+      ip: requestIp,
+      userAgent,
+      metadata: {
+        profileFound: true,
+        email: maskEmail(email),
+        emailSent: true,
+      },
+    });
+
     return NextResponse.json({ ok: true, emailSent: true });
   } catch (error) {
+    try {
+      const supabase = getSupabaseAdmin();
+      await writeAuditLog({
+        supabase,
+        action: 'auth.password_reset.request',
+        entityType: 'profile',
+        status: 'failed',
+        ip: requestIp,
+        userAgent,
+        metadata: {
+          error: error?.message || 'Erro interno do servidor',
+        },
+      });
+    } catch {
+      // no-op: auditoria é best effort
+    }
     logError('AUTH_RESET', 'ERROR', error);
 
     return NextResponse.json(

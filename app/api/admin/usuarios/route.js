@@ -4,6 +4,8 @@ import { sendAdminAccessInvite } from '@/lib/admin/admin-access-invite';
 import { requireAdminServer } from '@/lib/api/require-admin-server';
 import { validateRequiredEnv } from '@/lib/config/validate-env';
 import { logError, logInfo, logWarn, maskEmail } from '@/lib/observability/server-log';
+import { getRequestIp, getUserAgent } from '@/lib/api/request-meta';
+import { writeAuditLog } from '@/lib/audit/audit-log';
 
 const CANONICAL_ROLES = new Set(['admin', 'member']);
 
@@ -74,6 +76,8 @@ async function findAuthUserByEmail(supabase, email) {
 
 export async function POST(request) {
   const adminGuard = await requireAdminServer(request);
+  const requestIp = getRequestIp(request);
+  const userAgent = getUserAgent(request);
 
   if (!adminGuard.ok) {
     return adminGuard.response;
@@ -271,6 +275,25 @@ export async function POST(request) {
       }
     }
 
+    await writeAuditLog({
+      supabase,
+      actorUserId: adminGuard.user.id,
+      actorEmail: adminGuard.user.email || null,
+      action: 'admin.user.create',
+      entityType: 'profile',
+      entityId: userId,
+      status: 'success',
+      ip: requestIp,
+      userAgent,
+      metadata: {
+        createdRole: normalizedRole,
+        authUserExisted,
+        inviteSent,
+        inviteError: inviteError ? String(inviteError).slice(0, 180) : null,
+        email: maskEmail(normalizedEmail),
+      },
+    });
+
     return NextResponse.json({
       ok: true,
       userId,
@@ -280,6 +303,24 @@ export async function POST(request) {
       ...(inviteError ? { inviteError } : {}),
     });
   } catch (error) {
+    try {
+      const supabase = getSupabaseAdmin();
+      await writeAuditLog({
+        supabase,
+        actorUserId: adminGuard.user?.id || null,
+        actorEmail: adminGuard.user?.email || null,
+        action: 'admin.user.create',
+        entityType: 'profile',
+        status: 'failed',
+        ip: requestIp,
+        userAgent,
+        metadata: {
+          error: error?.message || 'Erro interno do servidor',
+        },
+      });
+    } catch {
+      // no-op: auditoria é best effort
+    }
     logError('ADMIN_USERS', 'CREATE_ERROR', error);
     return NextResponse.json(
       { ok: false, error: error?.message || 'Erro interno do servidor' },

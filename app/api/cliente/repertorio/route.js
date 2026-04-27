@@ -4,6 +4,8 @@ import { getYoutubeVideoId } from '../../../../lib/youtube/getYoutubeVideoId';
 import { randomUUID } from 'node:crypto';
 import { sendAdminWhatsAppAlert } from '@/lib/whatsapp/send-admin-alert';
 import { logError, logInfo, logWarn, safeError } from '@/lib/observability/server-log';
+import { generateRepertoirePdf } from '@/lib/repertorio/generateRepertoirePdf';
+import { saveRepertoirePdf } from '@/lib/repertorio/saveRepertoirePdf';
 
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
@@ -554,8 +556,11 @@ export async function POST(request) {
       last_saved_at: nowIso,
     };
 
+    const fallbackRouteUrl =
+      mode === 'final' ? `/api/cliente/repertorio/pdf/${tokenRow.token}` : null;
+
     if (mode === 'final') {
-      configPayload.repertoire_pdf_url = `/api/cliente/repertorio/pdf/${tokenRow.token}`;
+      configPayload.repertoire_pdf_url = fallbackRouteUrl;
     }
 
     const antesalaIncludedFromPayload = normalizeBool(antesalaFlow.included);
@@ -788,6 +793,44 @@ export async function POST(request) {
         eventId,
         insertedCount: 0,
       });
+    }
+
+    if (mode === 'final') {
+      let resolvedPdfUrl = fallbackRouteUrl;
+
+      try {
+        const pdfResult = await generateRepertoirePdf({
+          supabase,
+          eventId,
+          token: tokenRow.token,
+          clientToken: resolvedClientPublicToken,
+        });
+
+        if (pdfResult?.pdfBuffer) {
+          const saveResult = await saveRepertoirePdf({
+            supabase,
+            eventId,
+            pdfBuffer: pdfResult.pdfBuffer,
+          });
+
+          if (saveResult?.publicUrl) {
+            resolvedPdfUrl = saveResult.publicUrl;
+          }
+        }
+      } catch (error) {
+        logError('REPERTOIRE_PDF', 'FAILED_FALLBACK', error, { eventId });
+      }
+
+      if (resolvedPdfUrl) {
+        const { error: updatePdfUrlError } = await supabase
+          .from('repertoire_config')
+          .update({ repertoire_pdf_url: resolvedPdfUrl })
+          .eq('event_id', eventId);
+
+        if (updatePdfUrlError) {
+          logError('REPERTOIRE_PDF', 'URL_UPDATE_FAILED', updatePdfUrlError, { eventId });
+        }
+      }
     }
 
     if (mode === 'final') {

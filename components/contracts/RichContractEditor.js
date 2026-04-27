@@ -93,6 +93,12 @@ const RichContractEditor = forwardRef(function RichContractEditor(
   }
 
   useImperativeHandle(ref, () => ({
+    flush: () => {
+      const html = String(editorRef.current?.innerHTML || '');
+      latestHtmlRef.current = html;
+      onChangeHtml?.(html);
+      return html;
+    },
     getHtml: () => String(editorRef.current?.innerHTML || latestHtmlRef.current || ''),
     setHtml: (nextHtml) => {
       const normalized = String(nextHtml || '');

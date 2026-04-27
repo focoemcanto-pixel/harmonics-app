@@ -303,6 +303,37 @@ async function attachCatalogSongIds(supabase, items = []) {
   return normalizedItems;
 }
 
+async function upsertRepertoireConfigWithFallback(supabase, payload) {
+  let currentPayload = { ...payload };
+  const removedColumns = [];
+
+  while (true) {
+    const { error } = await supabase
+      .from('repertoire_config')
+      .upsert(currentPayload, { onConflict: 'event_id' });
+
+    if (!error) return { removedColumns };
+
+    const message = String(error.message || '');
+    const match =
+      message.match(/Could not find the '([^']+)' column/i) ||
+      message.match(/column "([^"]+)" of relation "repertoire_config" does not exist/i);
+
+    const column = match?.[1];
+
+    if (!column || !Object.prototype.hasOwnProperty.call(currentPayload, column)) {
+      throw error;
+    }
+
+    delete currentPayload[column];
+    removedColumns.push(column);
+    logWarn('CLIENTE_REPERTORIO', 'CONFIG_COLUMN_FALLBACK_REMOVED', {
+      eventId: payload.event_id,
+      column,
+    });
+  }
+}
+
 
 function formatDateBR(value) {
   if (!value) return '—';
@@ -507,17 +538,42 @@ export async function POST(request) {
     });
 
     const incomingItems = normalizeItems(rawItems);
-    const incomingBySection = countItemsBySection(incomingItems);
+    const customSongItems = parseCustomSongs(config.custom_songs).map((song, index) => ({
+      section: 'custom',
+      item_order: index,
+      who_enters: null,
+      moment: 'Música específica',
+      song_name: song.song_name,
+      reference_link: song.reference_link,
+      reference_title: song.reference_title,
+      reference_channel: song.reference_channel,
+      reference_thumbnail: null,
+      reference_video_id: song.reference_video_id,
+      notes: song.notes,
+      type: 'custom_song',
+      group_name: null,
+      label: 'Música específica',
+      genres: null,
+      artists: song.artists,
+    }));
+    const hasCustomItemsInRaw = incomingItems.some(
+      (item) => String(item?.section || '').trim() === 'custom'
+    );
+    const effectiveIncomingItems = hasCustomItemsInRaw
+      ? incomingItems
+      : [...incomingItems, ...customSongItems];
+    const incomingBySection = countItemsBySection(effectiveIncomingItems);
     logInfo('CLIENTE_REPERTORIO', 'ITEMS_RECEIVED', {
       eventId,
       mode,
       incomingBySection,
-      itemsCount: incomingItems.length,
+      itemsCount: effectiveIncomingItems.length,
+      rawItemsCount: incomingItems.length,
     });
     logRepertorioDetail('PAYLOAD_CONFIG', config);
-    logRepertorioDetail('PAYLOAD_ITEMS', incomingItems);
-    logRepertorioDetail('TRACE_CORTEJO_API_INCOMING', pickTraceSectionItem(incomingItems, 'cortejo'));
-    logRepertorioDetail('TRACE_CERIMONIA_API_INCOMING', pickTraceSectionItem(incomingItems, 'cerimonia'));
+    logRepertorioDetail('PAYLOAD_ITEMS', effectiveIncomingItems);
+    logRepertorioDetail('TRACE_CORTEJO_API_INCOMING', pickTraceSectionItem(effectiveIncomingItems, 'cortejo'));
+    logRepertorioDetail('TRACE_CERIMONIA_API_INCOMING', pickTraceSectionItem(effectiveIncomingItems, 'cerimonia'));
 
     const status = mode === 'final' ? 'ENVIADO' : 'RASCUNHO';
     const isLocked = mode === 'final';
@@ -587,7 +643,6 @@ export async function POST(request) {
         .map((entry) => normalizeText(entry))
         .filter(Boolean),
       preferred_artists: normalizeText(config.preferred_artists),
-      custom_songs: parseCustomSongs(config.custom_songs),
       status,
       is_locked: isLocked,
       submitted_at: mode === 'final' ? nowIso : null,
@@ -648,20 +703,16 @@ export async function POST(request) {
       ante_room_notes: configPayload?.ante_room_notes ?? '',
     });
 
-    const { error: upsertConfigError } = await supabase
-      .from('repertoire_config')
-      .upsert(configPayload, {
-        onConflict: 'event_id',
-      });
-
-    if (upsertConfigError) {
-      throw upsertConfigError;
-    }
+    const { removedColumns } = await upsertRepertoireConfigWithFallback(
+      supabase,
+      configPayload
+    );
     logInfo('CLIENTE_REPERTORIO', 'CONFIG_UPSERT_OK', {
       eventId,
       mode,
       status,
       locked: isLocked,
+      removedColumns,
     });
 
     if (mode === 'final') {
@@ -698,25 +749,27 @@ export async function POST(request) {
     if (existingItemsError) throw existingItemsError;
 
     const existingBySection = countItemsBySection(existingItems || []);
-    const incomingSections = new Set(incomingItems.map((item) => String(item.section || '').trim()).filter(Boolean));
+    const incomingSections = new Set(
+      effectiveIncomingItems.map((item) => String(item.section || '').trim()).filter(Boolean)
+    );
     const missingSectionsFromIncoming = Object.keys(existingBySection).filter(
       (section) => !incomingSections.has(section)
     );
 
-    let itemsToPersist = incomingItems;
+    let itemsToPersist = effectiveIncomingItems;
 
     if (missingSectionsFromIncoming.length > 0) {
       const preservedItems = (existingItems || []).filter((item) =>
         missingSectionsFromIncoming.includes(String(item.section || '').trim())
       );
-      itemsToPersist = [...incomingItems, ...preservedItems];
+      itemsToPersist = [...effectiveIncomingItems, ...preservedItems];
       logWarn('CLIENTE_REPERTORIO', 'PARTIAL_PAYLOAD_PRESERVE_SECTIONS', {
         eventId,
         missingSectionsFromIncoming,
       });
     }
 
-    if (incomingItems.length === 0 && (existingItems || []).length > 0) {
+    if (effectiveIncomingItems.length === 0 && (existingItems || []).length > 0) {
       logError(
         'CLIENTE_REPERTORIO',
         'DESTRUCTIVE_OVERWRITE_BLOCKED',
@@ -737,7 +790,7 @@ export async function POST(request) {
     const sectionsPreservedByInvalidPayload = [];
 
     protectedSections.forEach((section) => {
-      const incomingSectionItems = incomingItems.filter(
+      const incomingSectionItems = effectiveIncomingItems.filter(
         (item) => String(item?.section || '').trim() === section
       );
       if (incomingSectionItems.length === 0) return;

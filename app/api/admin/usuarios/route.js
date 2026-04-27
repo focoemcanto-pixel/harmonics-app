@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { sendAdminAccessInvite } from '@/lib/admin/admin-access-invite';
 import { requireAdminServer } from '@/lib/api/require-admin-server';
-import { validateRequiredEnv } from '@/lib/config/validate-env';
+import { requireRequiredEnv } from '@/lib/config/validate-env';
 import { logError, logInfo, logWarn, maskEmail } from '@/lib/observability/server-log';
 import { getRequestIp, getUserAgent } from '@/lib/api/request-meta';
 import { writeAuditLog } from '@/lib/audit/audit-log';
@@ -84,7 +84,7 @@ export async function POST(request) {
   }
 
   try {
-    validateRequiredEnv('admin/usuarios');
+    requireRequiredEnv('admin/usuarios');
 
     const body = await request.json();
     const { email, name, role } = body;

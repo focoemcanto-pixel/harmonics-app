@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { buildSignedContractHtml, extractSignerIp } from '@/lib/contracts/premiumSignature';
 import { generateAndSaveInternalContractPdf } from '@/lib/contracts/internalPdfFlow';
-import { validateRequiredEnv } from '@/lib/config/validate-env';
+import { requireRequiredEnv } from '@/lib/config/validate-env';
 import { logError, logInfo, logWarn, maskToken } from '@/lib/observability/server-log';
 import { getRequestIp, getUserAgent } from '@/lib/api/request-meta';
 import { checkRateLimit } from '@/lib/api/rate-limit';
@@ -226,8 +226,6 @@ export async function POST(request, context) {
   const requestUserAgent = getUserAgent(request);
   let signedContractContext = null;
 
-  validateRequiredEnv('contracts/public-sign');
-
   logInfo('CONTRACT_PUBLIC_SIGN', 'START', {
     hasToken: Boolean(token),
     token: maskToken(token),
@@ -255,6 +253,8 @@ export async function POST(request, context) {
   const publicToken = token;
 
   try {
+    requireRequiredEnv('contracts/public-sign');
+
     const body = await request.json().catch(() => null);
     const signedAt = new Date().toISOString();
     const signerIp = extractSignerIp(request.headers);

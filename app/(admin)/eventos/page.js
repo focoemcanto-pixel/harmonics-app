@@ -938,8 +938,11 @@ export default function EventosPage() {
   function abrirEscala(evento) {
     if (!evento?.id) return;
     const params = new URLSearchParams(searchParams.toString());
-    params.set('tab', 'operacao');
+    params.set('tab', 'escala');
     params.set('retorno', 'operacao');
+    if (filaEscalaIds.length > 0) {
+      params.set('filaEscala', filaEscalaIds.join(','));
+    }
     if (visibleEventIds.length > 0) {
       params.set('lista', visibleEventIds.join(','));
     }
@@ -1461,6 +1464,14 @@ export default function EventosPage() {
 
   const visibleEventIds = useMemo(
     () => eventosFiltrados.map((ev) => String(ev.id)),
+    [eventosFiltrados]
+  );
+
+  const filaEscalaIds = useMemo(
+    () =>
+      eventosFiltrados
+        .map((evento) => String(evento.id || '').trim())
+        .filter(Boolean),
     [eventosFiltrados]
   );
 

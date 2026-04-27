@@ -33,6 +33,19 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Informe um e-mail válido.' }, { status: 400 });
     }
 
+    console.info('[AUTH_RESET][ENV_CHECK]', {
+      hasResendApiKey: Boolean(process.env.RESEND_API_KEY),
+      hasResendFromEmail: Boolean(process.env.RESEND_FROM_EMAIL),
+      hasSupabaseServiceRole: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
+    });
+
+    if (!process.env.RESEND_API_KEY || !process.env.RESEND_FROM_EMAIL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return NextResponse.json(
+        { error: 'Serviço de e-mail não configurado corretamente.' },
+        { status: 500 }
+      );
+    }
+
     const supabase = getSupabaseAdmin();
 
     const { data: profile, error: profileError } = await supabase

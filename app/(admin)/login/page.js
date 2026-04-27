@@ -127,8 +127,9 @@ export default function LoginPage() {
       }
 
       setFeedback('Enviamos um link para redefinir sua senha.');
-    } catch {
-      setError('Não foi possível enviar o link agora. Verifique o email e tente novamente.');
+    } catch (err) {
+      console.error('[LOGIN][FORGOT_PASSWORD_ERROR]', err);
+      setError(err?.message || 'Não foi possível enviar o link agora.');
     } finally {
       setResettingPassword(false);
     }

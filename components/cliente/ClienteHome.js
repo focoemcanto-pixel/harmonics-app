@@ -1380,7 +1380,9 @@ function RepertorioTab({
 }) {
   const { showToast } = useToast();
   const statusNormalizado = String(data.repertorio.status || '').toUpperCase();
-  const isWedding = data?.repertorio?.isWedding !== false;
+  const isWedding =
+    data?.repertorio?.isWedding !== false &&
+    data?.repertorio?.initialState?.mode !== 'custom';
   const isCustomEvent = !isWedding;
   const travado = isRepertorioTravado(statusNormalizado, data.repertorio.isLocked);
   const aguardandoRevisao = statusNormalizado === 'AGUARDANDO_REVISAO';

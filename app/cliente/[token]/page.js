@@ -9,6 +9,7 @@ const CLIENT_EVENT_SELECT_FIELDS = [
   'id',
   'client_name',
   'event_type',
+  'event_type_id',
   'event_date',
   'event_time',
   'location_name',
@@ -37,6 +38,7 @@ const CLIENT_EVENT_SELECT_FIELDS_FALLBACK = [
   'id',
   'client_name',
   'event_type',
+  'event_type_id',
   'event_date',
   'event_time',
   'location_name',
@@ -62,6 +64,7 @@ const CLIENT_EVENT_SELECT_FIELDS_MINIMAL_FALLBACK = [
   'id',
   'client_name',
   'event_type',
+  'event_type_id',
   'event_date',
   'event_time',
   'location_name',
@@ -252,6 +255,29 @@ function computeEtapasPreenchidas(config, items) {
 
   if (hasReception) total += 1;
 
+  return total;
+}
+
+function computeCustomEventStepsFilled(customEventState = {}) {
+  const selectedStyles = Array.isArray(customEventState?.selected_styles)
+    ? customEventState.selected_styles.filter((entry) => String(entry || '').trim())
+    : [];
+  const preferredArtists = String(customEventState?.preferred_artists || '').trim();
+  const customSongs = Array.isArray(customEventState?.custom_songs)
+    ? customEventState.custom_songs
+        .slice(0, 8)
+        .filter(
+          (song) =>
+            String(song?.song_name || '').trim() ||
+            String(song?.reference_link || '').trim() ||
+            String(song?.notes || '').trim()
+        )
+    : [];
+
+  let total = 0;
+  if (selectedStyles.length > 0) total += 1;
+  if (preferredArtists) total += 1;
+  if (customSongs.length > 0) total += 1;
   return total;
 }
 
@@ -1500,13 +1526,53 @@ export default async function ClienteTokenPage({ params, searchParams }) {
   const repertorioPdfUrl = repertorioPdfToken
     ? `/api/cliente/repertorio/pdf/${repertorioPdfToken}`
     : null;
-  const rawEventType =
+  let eventTypeRow = null;
+  if (event?.event_type_id) {
+    try {
+      const eventTypeResp = await supabase
+        .from('event_types')
+        .select('id, name, slug')
+        .eq('id', event.event_type_id)
+        .maybeSingle();
+
+      if (eventTypeResp?.error) {
+        console.warn('[CLIENTE PAGE][QUERY_ERROR]', {
+          scope: 'event_types.by_id',
+          eventTypeId: event.event_type_id,
+          error: eventTypeResp.error,
+        });
+      } else {
+        eventTypeRow = eventTypeResp?.data || null;
+      }
+    } catch (error) {
+      console.warn('[CLIENTE PAGE][QUERY_ERROR]', {
+        scope: 'event_types.by_id',
+        eventTypeId: event.event_type_id,
+        error,
+      });
+    }
+  }
+
+  const resolvedEventTypeRaw =
+    eventTypeRow?.slug ||
+    eventTypeRow?.name ||
     event?.event_type ||
     precontract?.event_type ||
     '';
-  const eventType = normalizeClientEventType(rawEventType);
-  const isWedding = eventType === 'casamento' || !eventType;
+
+  const normalizedEventType = normalizeClientEventType(resolvedEventTypeRaw);
+  const isWedding = normalizedEventType === 'casamento';
   const isCustomEvent = !isWedding;
+  const totalEtapas = isWedding ? 7 : 3;
+  const etapasPreenchidas = isWedding
+    ? computeEtapasPreenchidas(config, items)
+    : computeCustomEventStepsFilled(initialLists.customEvent);
+  const resolvedEventTitleType =
+    (eventTypeRow?.name || eventTypeRow?.slug || event?.event_type || precontract?.event_type || '').trim();
+  const eventoTituloPrefix =
+    resolvedEventTitleType && resolvedEventTitleType.toLowerCase() !== 'evento'
+      ? resolvedEventTitleType
+      : 'Evento';
 
   if (IS_DEV) {
     console.log('[CLIENTE PAGE] token da rota do cliente:', token || '(vazio)');
@@ -1631,7 +1697,7 @@ export default async function ClienteTokenPage({ params, searchParams }) {
     token: clientToken,
     clienteNome: event.client_name || 'Cliente',
     eventoTitulo: event.client_name
-      ? `Evento • ${event.client_name}`
+      ? `${eventoTituloPrefix} • ${event.client_name}`
       : 'Evento',
     dataEvento: event.event_date || '',
     horarioEvento: event.event_time || '',
@@ -1649,13 +1715,13 @@ export default async function ClienteTokenPage({ params, searchParams }) {
     reviewSubmitted: false,
 
     repertorio: {
-      eventType,
+      eventType: normalizedEventType || resolvedEventTypeRaw,
       isWedding,
       isCustomEvent,
       status: mapStatusToUi(config?.status, config?.is_locked),
       isLocked: Boolean(config?.is_locked),
-      etapasPreenchidas: computeEtapasPreenchidas(config, items),
-      totalEtapas: 7,
+      etapasPreenchidas,
+      totalEtapas,
       liberadoParaEdicao: !config?.is_locked,
       enviadoEm: config?.submitted_at || null,
       linkPreenchimento: `/cliente/${clientToken}/repertorio`,

@@ -261,19 +261,21 @@ function GestaoUsuariosContent() {
     try {
       const response = await fetch(`/api/admin/usuarios/${deletingUser.id}`, {
         method: 'DELETE',
-        headers: {
-          'x-requester-id': loggedUserId || '',
-        },
       });
 
-      const result = await response.json();
+      let result = null;
+      try {
+        result = await response.json();
+      } catch {
+        result = null;
+      }
 
       if (!response.ok) {
-        throw new Error(result.error || 'Erro ao excluir usuário.');
+        throw new Error(result?.error || 'Erro ao excluir usuário.');
       }
 
       setUsuarios((prev) => prev.filter((u) => u.id !== deletingUser.id));
-      setSuccess(result.message || 'Usuário excluído com sucesso!');
+      setSuccess('Usuário excluído com sucesso!');
       closeDeleteModal();
     } catch (e) {
       setError('Erro ao excluir usuário: ' + (e.message || 'Erro desconhecido'));

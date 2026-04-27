@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { sendPasswordResetEmail } from '@/lib/email/sendPasswordResetEmail';
 import { logError, logInfo, maskEmail } from '@/lib/observability/server-log';
+import { validateRequiredEnv } from '@/lib/config/validate-env';
 
 const FALLBACK_APP_BASE_URL = 'https://app.bandaharmonics.com';
 
@@ -23,6 +24,8 @@ function getAppBaseUrl() {
 
 export async function POST(request) {
   try {
+    validateRequiredEnv('auth/request-password-reset');
+
     const body = await request.json();
     const email = normalizeEmail(body?.email);
 

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { buildSignedContractHtml, extractSignerIp } from '@/lib/contracts/premiumSignature';
 import { generateAndSaveInternalContractPdf } from '@/lib/contracts/internalPdfFlow';
+import { validateRequiredEnv } from '@/lib/config/validate-env';
 import { logError, logInfo, logWarn, maskToken } from '@/lib/observability/server-log';
 
 export const dynamic = 'force-dynamic';
@@ -219,6 +220,8 @@ export async function POST(request, context) {
   const resolvedParams = await context?.params;
   const token = extractToken(resolvedParams);
   let signedContractContext = null;
+
+  validateRequiredEnv('contracts/public-sign');
 
   logInfo('CONTRACT_PUBLIC_SIGN', 'START', {
     hasToken: Boolean(token),

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { validateRequiredEnv } from '@/lib/config/validate-env';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -20,6 +21,8 @@ function extractToken(params) {
 export async function POST(_request, context) {
   const params = await context?.params;
   const token = extractToken(params);
+
+  validateRequiredEnv('public/contracts-sign');
 
   if (!token) {
     return NextResponse.json({ ok: false, message: 'Token inválido.' }, { status: 400 });

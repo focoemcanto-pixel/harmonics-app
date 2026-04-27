@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { buildContractTemplateData } from '../../../../lib/contracts/buildContractTemplateData';
 import { generateInternalContract } from '../../../../lib/contracts/internalContractGenerator';
+import { validateRequiredEnv } from '@/lib/config/validate-env';
 import { logError, logInfo, logWarn, safeError } from '@/lib/observability/server-log';
 
 export const dynamic = 'force-dynamic';
@@ -283,6 +284,8 @@ export async function GET() {
 
 export async function POST(request) {
   try {
+    validateRequiredEnv('contracts/generate');
+
     logInfo('CONTRACT_GENERATE', 'START');
     const supabaseEnv = validateSupabaseEnv();
 

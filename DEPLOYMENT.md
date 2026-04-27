@@ -1,110 +1,137 @@
-# Deployment Guide - Cloudflare Workers
+# Deployment Guide (Cloudflare Workers + OpenNext)
 
-## Prerequisites
+Este projeto utiliza **Next.js com OpenNext** para deploy em **Cloudflare Workers**, integrações com **Supabase** (auth/database), **Resend** (e-mail transacional) e serviço de contratos em **Render**.
+
+## 1) Pré-requisitos
 
 - Node.js 18+
-- Wrangler CLI (`npm install -g wrangler` or use `npx wrangler`)
-- Cloudflare account
+- npm
+- Conta Cloudflare com acesso a Workers
+- Wrangler CLI (`npx wrangler ...` já funciona sem instalação global)
 
-## Initial Setup
+## 2) Variáveis de ambiente
 
-### 1. Login to Wrangler
+Antes de qualquer deploy, configure as variáveis obrigatórias do projeto (ver `ENV_SETUP.md`):
+
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `NEXT_PUBLIC_APP_URL`
+- `APP_BASE_URL`
+- `RESEND_API_KEY`
+- `RESEND_FROM_EMAIL`
+- `GOOGLE_OAUTH_CLIENT_ID`
+- `GOOGLE_OAUTH_CLIENT_SECRET`
+- `GOOGLE_OAUTH_REFRESH_TOKEN`
+- `CONTRACT_TEMPLATE_DOC_ID`
+- `CONTRACTS_DRIVE_FOLDER_ID`
+- `NEXT_PUBLIC_CONTRACT_SERVICE_URL`
+
+### Segredos (Wrangler)
+
+Use `wrangler secret put` para chaves sensíveis (exemplos):
 
 ```bash
-npx wrangler login
+npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY
+npx wrangler secret put RESEND_API_KEY
+npx wrangler secret put GOOGLE_OAUTH_CLIENT_SECRET
+npx wrangler secret put GOOGLE_OAUTH_REFRESH_TOKEN
 ```
 
-### 2. Configure Secrets
+### Variáveis públicas (`wrangler.toml`)
 
-Add sensitive environment variables via CLI:
-
-```bash
-wrangler secret put SUPABASE_ANON_KEY
-wrangler secret put GOOGLE_CLIENT_SECRET
-wrangler secret put GOOGLE_CLIENT_ID
-```
-
-### 3. Update wrangler.toml
-
-Add public environment variables in `[vars]` section:
+Defina em `[vars]` as variáveis que podem ir no bundle/runtime público do Worker, por exemplo:
 
 ```toml
 [vars]
-NEXT_PUBLIC_SUPABASE_URL = "https://your-project.supabase.co"
+NEXT_PUBLIC_SUPABASE_URL = "https://seu-projeto.supabase.co"
+NEXT_PUBLIC_SUPABASE_ANON_KEY = "sua_anon_key"
+NEXT_PUBLIC_APP_URL = "https://app.bandaharmonics.com"
+APP_BASE_URL = "https://app.bandaharmonics.com"
+NEXT_PUBLIC_CONTRACT_SERVICE_URL = "https://harmonics-contract-service.onrender.com"
 ```
 
-## Deployment
+## 3) Fluxo de deploy
 
-### Production Deploy
+### Build OpenNext
+
+```bash
+npm run build:worker
+```
+
+### Deploy produção
 
 ```bash
 npm run deploy
 ```
 
-### Preview Deploy
+### Deploy preview
 
 ```bash
 npm run deploy:preview
 ```
 
-### Local Testing
+### Preview local (Worker)
 
 ```bash
 npm run build:worker
 npm run preview:local
 ```
 
-Then visit http://localhost:8787
+Abrir: `http://localhost:8787`
 
-## Build Output
+## 4) Integrações críticas
 
-After `npm run build:worker`:
+### Supabase
 
-```
-.open-next/
-├── worker.mjs          # Entry point
-├── server/             # Server functions (SSR/API)
-├── assets/             # Static assets
-└── cache/              # Cache handlers
-```
+- Auth + dados administrativos dependem de `SUPABASE_SERVICE_ROLE_KEY`.
+- Fluxos de login, reset de senha e APIs admin dependem de conexão ativa com o projeto.
 
-## Custom Domain
+### Resend
 
-1. Go to Cloudflare Dashboard
-2. Navigate to: Workers & Pages → harmonics-app → Settings → Triggers
-3. Add custom domain: `harmonics.yourdomain.com`
+- Fluxo de recuperação de senha depende de `RESEND_API_KEY` e `RESEND_FROM_EMAIL`.
+- O domínio/sender do `from` precisa estar validado no painel do Resend.
 
-## Optional: KV Cache Setup
+### Serviço de contratos (Render)
 
-If using ISR or caching:
+- Geração/assinatura de contratos depende de `NEXT_PUBLIC_CONTRACT_SERVICE_URL`.
+- Serviço precisa estar online e respondendo antes do deploy ir para produção.
 
-```bash
-# Create KV namespace
-wrangler kv:namespace create "NEXT_CACHE_KV"
+## 5) Checklist de deploy
 
-# Add returned ID to wrangler.toml:
-# [[kv_namespaces]]
-# binding = "NEXT_CACHE_KV"
-# id = "your-kv-id-here"
-```
+- [ ] Todas envs configuradas
+- [ ] Domínio verificado no Resend
+- [ ] SUPABASE_SERVICE_ROLE_KEY configurado
+- [ ] CONTRACT SERVICE online
+- [ ] Build rodando sem erro
+- [ ] Login funcionando
+- [ ] Reset password funcionando
 
-## Troubleshooting
+## 6) Troubleshooting
 
-### Build fails
-- Delete `.next`, `.open-next`, `node_modules`
-- Run `npm install`
-- Run `npm run build:worker`
+### Build falha
 
-### Deploy fails
-- Check Wrangler is logged in: `wrangler whoami`
-- Verify `main = ".open-next/worker.mjs"` exists
+1. Limpar artefatos:
+   - `.next/`
+   - `.open-next/`
+2. Reinstalar dependências: `npm install`
+3. Reexecutar: `npm run build:worker`
 
-### 404 errors
-- Ensure `compatibility_flags = ["nodejs_compat"]` is in wrangler.toml
-- Check `.open-next/assets` folder exists
+### Deploy falha no Worker
 
-## References
+- Verificar autenticação Cloudflare: `npx wrangler whoami`
+- Conferir se o build gerou `.open-next/worker.mjs`
+- Revisar variáveis e secrets por ambiente
 
-- [OpenNext Cloudflare Docs](https://opennext.js.org/cloudflare)
-- [Wrangler CLI Docs](https://developers.cloudflare.com/workers/wrangler/)
-- [Cloudflare Workers Docs](https://developers.cloudflare.com/workers/)
+### Erros em APIs após deploy
+
+- Conferir logs de runtime do Worker
+- Validar presença das envs obrigatórias
+- Confirmar disponibilidade do Supabase, Resend e serviço de contratos
+
+## Referências
+
+- OpenNext for Cloudflare: https://opennext.js.org/cloudflare
+- Cloudflare Workers + Wrangler: https://developers.cloudflare.com/workers/wrangler/
+- Resend Docs: https://resend.com/docs
+- Supabase Docs: https://supabase.com/docs

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { sendAdminAccessInvite } from '@/lib/admin/admin-access-invite';
 import { requireAdminServer } from '@/lib/api/require-admin-server';
+import { validateRequiredEnv } from '@/lib/config/validate-env';
 import { logError, logInfo, logWarn, maskEmail } from '@/lib/observability/server-log';
 
 const CANONICAL_ROLES = new Set(['admin', 'member']);
@@ -79,6 +80,8 @@ export async function POST(request) {
   }
 
   try {
+    validateRequiredEnv('admin/usuarios');
+
     const body = await request.json();
     const { email, name, role } = body;
 

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { requireAdminServer } from '@/lib/api/require-admin-server';
 
 function normalizeText(value) {
   const text = String(value || '').trim();
@@ -15,7 +16,12 @@ function buildSongKey({ title = '', artist = '', youtubeId = '' }) {
   return `txt:${normalizedTitle}::${normalizedArtist}`;
 }
 
-export async function GET() {
+export async function GET(request) {
+  const adminGuard = await requireAdminServer(request);
+  if (!adminGuard.ok) {
+    return adminGuard.response;
+  }
+
   try {
     const supabase = getSupabaseAdmin();
     const { data: catalogSongs, error } = await supabase

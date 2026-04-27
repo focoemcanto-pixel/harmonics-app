@@ -70,21 +70,20 @@ export default function EventTypesPage() {
       if (showLoading) setLoading(true);
 
       const [eventTypesResp, templatesResp] = await Promise.all([
-        supabase
-          .from('event_types')
-          .select('id, name, slug, description, is_active, sort_order, color, icon, default_contract_template_id, created_at, updated_at')
-          .order('sort_order', { ascending: true, nullsFirst: false })
-          .order('name', { ascending: true }),
+        fetch('/api/admin/event-types', { cache: 'no-store' }),
         supabase
           .from('contract_templates')
           .select('id, name, is_active')
           .order('name', { ascending: true }),
       ]);
 
-      if (eventTypesResp.error) throw eventTypesResp.error;
+      const eventTypesJson = await eventTypesResp.json();
+      if (!eventTypesResp.ok || eventTypesJson?.ok === false) {
+        throw new Error(eventTypesJson?.error || 'Falha ao carregar tipos de evento');
+      }
       if (templatesResp.error) throw templatesResp.error;
 
-      const rawEventTypes = eventTypesResp.data || [];
+      const rawEventTypes = eventTypesJson?.eventTypes || [];
       const uniqueEventTypes = dedupeById(rawEventTypes);
       if (rawEventTypes.length !== uniqueEventTypes.length) {
         console.warn('[EVENT_TYPES] Registros duplicados detectados na consulta. Mantendo apenas 1 por id.');
@@ -214,12 +213,16 @@ export default function EventTypesPage() {
           default_contract_template_id: payload.default_contract_template_id,
         });
 
-        const { data, error } = await supabase
-          .from('event_types')
-          .update(payload)
-          .eq('id', tipoSelecionado.id)
-          .select('id, name, default_contract_template_id, updated_at')
-          .maybeSingle();
+        const response = await fetch(`/api/admin/event-types/${tipoSelecionado.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const dataJson = await response.json();
+        const data = dataJson?.eventType;
+        const error = !response.ok || dataJson?.ok === false
+          ? { message: dataJson?.error || 'Falha ao atualizar tipo de evento' }
+          : null;
 
         devLog('[EVENT_TYPES][UPDATE_RESULT]', {
           editingId: String(tipoSelecionado.id),
@@ -247,8 +250,15 @@ export default function EventTypesPage() {
         await loadData(false);
         resetForm();
       } else {
-        const { error } = await supabase.from('event_types').insert([payload]);
-        if (error) throw error;
+        const response = await fetch('/api/admin/event-types', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const dataJson = await response.json();
+        if (!response.ok || dataJson?.ok === false) {
+          throw new Error(dataJson?.error || 'Falha ao criar tipo de evento');
+        }
         toast.success('Tipo de evento criado com sucesso.');
         await loadData(false);
         resetForm();
@@ -269,12 +279,15 @@ export default function EventTypesPage() {
   async function toggleStatus(item) {
     try {
       const next = item.is_active === false;
-      const { error } = await supabase
-        .from('event_types')
-        .update({ is_active: next })
-        .eq('id', item.id);
-
-      if (error) throw error;
+      const response = await fetch(`/api/admin/event-types/${item.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_active: next }),
+      });
+      const dataJson = await response.json();
+      if (!response.ok || dataJson?.ok === false) {
+        throw new Error(dataJson?.error || 'Falha ao alterar status');
+      }
 
       toast.success(next ? 'Tipo ativado.' : 'Tipo inativado.');
       await loadData(false);
@@ -296,29 +309,17 @@ export default function EventTypesPage() {
     try {
       setDeletingId(item.id);
 
-      const [eventsById, eventsByName, precontractsById, precontractsByName] = await Promise.all([
-        supabase.from('events').select('id', { head: true, count: 'exact' }).eq('event_type_id', item.id),
-        supabase.from('events').select('id', { head: true, count: 'exact' }).eq('event_type', item.name),
-        supabase.from('precontracts').select('id', { head: true, count: 'exact' }).eq('event_type_id', item.id),
-        supabase.from('precontracts').select('id', { head: true, count: 'exact' }).eq('event_type', item.name),
-      ]);
-
-      const checkErrors = [eventsById.error, eventsByName.error, precontractsById.error, precontractsByName.error]
-        .filter(Boolean);
-      if (checkErrors.length > 0) throw checkErrors[0];
-
-      const totalLinks = Number(eventsById.count || 0)
-        + Number(eventsByName.count || 0)
-        + Number(precontractsById.count || 0)
-        + Number(precontractsByName.count || 0);
-
-      if (totalLinks > 0) {
+      const response = await fetch(`/api/admin/event-types/${item.id}`, {
+        method: 'DELETE',
+      });
+      const dataJson = await response.json();
+      if (response.status === 409) {
         toast.warning('Este tipo já está em uso. Inative para não aparecer em novos pré-contratos.');
         return;
       }
-
-      const { error: deleteError } = await supabase.from('event_types').delete().eq('id', item.id);
-      if (deleteError) throw deleteError;
+      if (!response.ok || dataJson?.ok === false) {
+        throw new Error(dataJson?.error || 'Falha ao excluir tipo de evento');
+      }
 
       if (editingId && String(editingId) === String(item.id)) {
         resetForm();

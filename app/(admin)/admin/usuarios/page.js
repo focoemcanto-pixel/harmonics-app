@@ -71,6 +71,7 @@ function GestaoUsuariosContent() {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [editForm, setEditForm] = useState({ name: '' });
+  const [inviteLoadingByEmail, setInviteLoadingByEmail] = useState({});
 
   const [novoUsuario, setNovoUsuario] = useState({
     email: '',
@@ -146,7 +147,15 @@ function GestaoUsuariosContent() {
         userId: result?.userId || null,
       });
 
-      setSuccess('Usuário cadastrado com sucesso! Um e-mail de confirmação foi enviado.');
+      if (normalizedRole === 'admin') {
+        if (result.inviteSent) {
+          setSuccess('Administrador cadastrado. Convite de primeiro acesso enviado para o e-mail.');
+        } else {
+          setSuccess('Usuário criado, mas o convite não foi enviado. Verifique configuração de e-mail ou reenvie manualmente.');
+        }
+      } else {
+        setSuccess('Usuário cadastrado com sucesso!');
+      }
       setNovoUsuario({ email: '', name: '', role: 'member' });
       setPermissoes({ acesso_total: true });
       await carregarUsuarios();
@@ -159,6 +168,39 @@ function GestaoUsuariosContent() {
       setError('Erro ao cadastrar usuário: ' + (e.message || 'Erro desconhecido'));
     } finally {
       setSaving(false);
+    }
+  }
+
+
+  async function reenviarConviteAdmin(email) {
+    if (!email) return;
+
+    setError('');
+    setSuccess('');
+    setInviteLoadingByEmail((prev) => ({ ...prev, [email]: true }));
+
+    try {
+      const response = await fetch('/api/admin/usuarios/invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result?.error || 'Erro ao reenviar convite.');
+      }
+
+      if (result.inviteSent) {
+        setSuccess('Convite de primeiro acesso reenviado com sucesso.');
+      } else {
+        setError('Usuário criado, mas o convite não foi enviado. Verifique configuração de e-mail ou reenvie manualmente.');
+      }
+    } catch (e) {
+      setError('Erro ao reenviar convite: ' + (e?.message || 'Erro desconhecido'));
+    } finally {
+      setInviteLoadingByEmail((prev) => ({ ...prev, [email]: false }));
     }
   }
 
@@ -405,6 +447,16 @@ function GestaoUsuariosContent() {
                     >
                       {user.role === 'admin' ? '🔑 Admin' : '👤 Membro'}
                     </span>
+                    {user.role === 'admin' && (
+                      <button
+                        type="button"
+                        onClick={() => reenviarConviteAdmin(user.email)}
+                        disabled={Boolean(inviteLoadingByEmail[user.email])}
+                        className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-bold text-violet-700 transition hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {inviteLoadingByEmail[user.email] ? 'Enviando...' : 'Reenviar convite'}
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => openEditModal(user)}

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { sendAdminAccessInvite } from '@/lib/admin/admin-access-invite';
 
 const CANONICAL_ROLES = new Set(['admin', 'member']);
 
@@ -229,7 +230,34 @@ export async function POST(request) {
       authUserExisted,
     });
 
-    return NextResponse.json({ ok: true, userId, authUserExisted });
+    let inviteSent = false;
+    let inviteError = null;
+
+    if (normalizedRole === 'admin') {
+      console.info('[ADMIN_USERS][INVITE_AUTO_START]', { email: normalizedEmail, userId });
+      const inviteResult = await sendAdminAccessInvite({ email: normalizedEmail });
+
+      if (inviteResult.ok) {
+        inviteSent = true;
+        console.info('[ADMIN_USERS][INVITE_AUTO_RESULT]', { ok: true, email: normalizedEmail, userId });
+      } else {
+        inviteError = inviteResult.error || 'Falha ao enviar convite.';
+        console.warn('[ADMIN_USERS][INVITE_AUTO_RESULT]', {
+          ok: false,
+          email: normalizedEmail,
+          userId,
+          error: inviteError,
+        });
+      }
+    }
+
+    return NextResponse.json({
+      ok: true,
+      userId,
+      authUserExisted,
+      inviteSent,
+      ...(inviteError ? { inviteError } : {}),
+    });
   } catch (error) {
     console.error('[ADMIN_USERS][CREATE_ERROR]', {
       message: error?.message || 'Erro interno do servidor',

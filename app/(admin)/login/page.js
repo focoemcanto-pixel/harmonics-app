@@ -1,61 +1,126 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import Card from '@/components/ui/Card';
-import Button from '@/components/ui/Button';
+import { supabase } from '@/lib/supabase';
+
+const SAVED_LOGIN_KEY = 'harmonics_saved_login';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberLogin, setRememberLogin] = useState(false);
   const [error, setError] = useState('');
+  const [info, setInfo] = useState('');
   const [loading, setLoading] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
   const [accessHistory, setAccessHistory] = useState([]);
+
   const { signIn, user, profile } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const nextTarget = searchParams.get('next') || '/dashboard';
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
+    if (typeof window === 'undefined') return;
+
+    try {
       const history = JSON.parse(localStorage.getItem('accessHistory') || '[]');
-      setAccessHistory(history);
+      setAccessHistory(Array.isArray(history) ? history : []);
+    } catch {
+      setAccessHistory([]);
+    }
+
+    try {
+      const savedLogin = JSON.parse(localStorage.getItem(SAVED_LOGIN_KEY) || 'null');
+      if (savedLogin?.email && savedLogin?.password) {
+        setEmail(savedLogin.email);
+        setPassword(savedLogin.password);
+        setRememberLogin(true);
+      }
+    } catch {
+      // Ignore corrupted localStorage data
     }
   }, []);
 
-  // Redirecionamento controlado pela página
   useEffect(() => {
     if (user && profile?.role === 'admin') {
       router.push(nextTarget);
     }
   }, [user, profile, router, nextTarget]);
 
+  const canSubmit = useMemo(() => email.trim() && password, [email, password]);
+
+  function persistSavedLogin(nextRememberState, nextEmail, nextPassword) {
+    if (typeof window === 'undefined') return;
+
+    // Observação: armazenar senha em localStorage reduz segurança.
+    // Em produção, prefira sessão persistente segura ou password manager.
+    if (!nextRememberState) {
+      localStorage.removeItem(SAVED_LOGIN_KEY);
+      return;
+    }
+
+    localStorage.setItem(
+      SAVED_LOGIN_KEY,
+      JSON.stringify({
+        email: nextEmail,
+        password: nextPassword,
+      })
+    );
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
-
-    // Prevenir double submit
-    if (loading) return;
+    if (loading || !canSubmit) return;
 
     setError('');
+    setInfo('');
     setLoading(true);
 
     try {
-      await signIn(email, password);
-      // Redirecionamento acontece no useEffect acima
+      await signIn(email.trim(), password);
+      persistSavedLogin(rememberLogin, email.trim(), password);
     } catch (err) {
-      setError(err.message || 'Erro ao fazer login');
+      setError(err?.message || 'Erro ao fazer login.');
     } finally {
       setLoading(false);
     }
   }
 
-  function handleQuickLogin(histEmail) {
-    // Prevenir quick login se já está processando
-    if (loading) return;
+  async function handleResetPassword() {
+    if (resetLoading) return;
 
-    setEmail(histEmail);
-    setPassword('');
+    setError('');
+    setInfo('');
+
+    if (!email.trim()) {
+      setError('Informe seu e-mail para receber o link de redefinição.');
+      return;
+    }
+
+    setResetLoading(true);
+
+    try {
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: `${window.location.origin}/auth/reset-password`,
+      });
+
+      if (resetError) throw resetError;
+
+      setInfo('Enviamos um link para redefinir sua senha.');
+    } catch (err) {
+      setError(err?.message || 'Não foi possível enviar o link de redefinição.');
+    } finally {
+      setResetLoading(false);
+    }
+  }
+
+  function handleQuickLogin(historyEmail) {
+    if (loading) return;
+    setEmail(historyEmail);
   }
 
   function getInitials(name) {
@@ -69,93 +134,117 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-violet-50 via-white to-purple-50 flex items-center justify-center p-4">
-      <Card className="w-full max-w-md">
-        <div className="p-8">
-          <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-slate-900 mb-2">
-              Harmonics Admin
-            </h1>
-            <p className="text-slate-600">
-              Entre com suas credenciais
+    <div className="relative min-h-screen overflow-hidden bg-[#05050c] text-slate-100">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(124,58,237,0.24),_transparent_45%),radial-gradient(circle_at_80%_20%,_rgba(59,130,246,0.2),_transparent_32%),radial-gradient(circle_at_50%_100%,_rgba(245,158,11,0.16),_transparent_40%)]" />
+
+      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-5xl items-center justify-center p-4 sm:p-8">
+        <div className="w-full max-w-md rounded-[28px] border border-white/20 bg-white/10 p-6 shadow-[0_18px_80px_rgba(0,0,0,0.45)] backdrop-blur-xl sm:p-8">
+          <div className="mb-6 text-center">
+            <p className="text-xs font-black uppercase tracking-[0.25em] text-violet-200">Banda Harmonics</p>
+            <h1 className="mt-2 text-3xl font-black tracking-[-0.03em] text-white">Painel Administrativo</h1>
+            <p className="mt-2 text-sm text-slate-300">
+              Gestão profissional de eventos, contratos, escalas e repertórios
             </p>
           </div>
 
           {accessHistory.length > 0 && (
-            <div className="mb-6">
-              <p className="text-xs font-black uppercase tracking-[0.08em] text-slate-500 mb-3">
-                Acessos recentes
-              </p>
+            <div className="mb-6 rounded-2xl border border-white/10 bg-black/20 p-3">
+              <p className="mb-2 text-[11px] font-black uppercase tracking-[0.08em] text-slate-300">Acessos recentes</p>
               <div className="space-y-2">
-                {accessHistory.map((access) => (
+                {accessHistory.slice(0, 3).map((access) => (
                   <button
                     key={access.email}
                     type="button"
                     onClick={() => handleQuickLogin(access.email)}
-                    disabled={loading}
-                    className="w-full flex items-center gap-3 p-3 rounded-xl border border-slate-200 hover:border-violet-300 hover:bg-violet-50 transition text-left disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex w-full items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left transition hover:border-violet-300/40"
                   >
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-violet-100 text-[13px] font-black text-violet-700">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-violet-400/20 text-xs font-black text-violet-100">
                       {getInitials(access.name)}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-bold text-slate-900 truncate">{access.name}</p>
-                      <p className="text-xs text-slate-500 truncate">{access.email}</p>
-                    </div>
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block truncate text-xs font-bold text-white">{access.name}</span>
+                      <span className="block truncate text-[11px] text-slate-300">{access.email}</span>
+                    </span>
                   </button>
                 ))}
               </div>
-              <div className="mt-4 h-px bg-slate-100" />
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {error && (
-              <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                <p className="text-sm text-red-600">{error}</p>
-              </div>
-            )}
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {error && <div className="rounded-xl border border-red-300/40 bg-red-500/10 px-4 py-3 text-sm text-red-100">{error}</div>}
+            {info && <div className="rounded-xl border border-emerald-300/40 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">{info}</div>}
 
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">
-                Email
-              </label>
+              <label className="mb-1 block text-sm font-semibold text-slate-200">E-mail</label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                required
-                disabled={loading}
-                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
                 placeholder="seu@email.com"
+                autoComplete="email"
+                required
+                className="w-full rounded-xl border border-white/20 bg-black/30 px-4 py-3 text-sm text-white placeholder:text-slate-400 focus:border-violet-300 focus:outline-none focus:ring-2 focus:ring-violet-400/30"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">
-                Senha
-              </label>
+              <label className="mb-1 block text-sm font-semibold text-slate-200">Senha</label>
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                required
-                disabled={loading}
-                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
                 placeholder="••••••••"
+                autoComplete="current-password"
+                required
+                className="w-full rounded-xl border border-white/20 bg-black/30 px-4 py-3 text-sm text-white placeholder:text-slate-400 focus:border-violet-300 focus:outline-none focus:ring-2 focus:ring-violet-400/30"
               />
             </div>
 
-            <Button
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-200">
+              <input
+                type="checkbox"
+                checked={rememberLogin}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  setRememberLogin(checked);
+                  if (!checked && typeof window !== 'undefined') {
+                    localStorage.removeItem(SAVED_LOGIN_KEY);
+                  }
+                }}
+                className="h-4 w-4 rounded border-white/30 bg-transparent accent-violet-400"
+              />
+              Salvar meus dados neste dispositivo
+            </label>
+
+            <button
               type="submit"
-              disabled={loading}
-              className="w-full"
+              disabled={!canSubmit || loading}
+              className="w-full rounded-xl bg-gradient-to-r from-violet-500 via-indigo-500 to-amber-400 px-4 py-3 text-sm font-black text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {loading ? 'Entrando...' : 'Entrar'}
-            </Button>
+              {loading ? 'Entrando...' : 'Entrar no painel'}
+            </button>
           </form>
+
+          <div className="mt-5 space-y-2 text-center">
+            <button
+              type="button"
+              onClick={handleResetPassword}
+              disabled={resetLoading}
+              className="text-sm font-semibold text-violet-200 transition hover:text-violet-100 disabled:opacity-60"
+            >
+              {resetLoading ? 'Enviando...' : 'Esqueci minha senha'}
+            </button>
+
+            <p className="text-xs text-slate-300">
+              Primeiro acesso? Peça ao administrador para reenviar seu convite.
+            </p>
+            <Link href="/" className="text-xs text-slate-400 hover:text-slate-200">
+              Voltar para o site
+            </Link>
+          </div>
         </div>
-      </Card>
+      </div>
     </div>
   );
 }

@@ -156,7 +156,15 @@ function GestaoUsuariosContent() {
         userId: result?.userId || null,
       });
 
-      setSuccess('Usuário cadastrado com sucesso! Um e-mail de confirmação foi enviado.');
+      if (normalizedRole === 'admin') {
+        if (result.inviteSent) {
+          setSuccess('Administrador cadastrado. Convite de primeiro acesso enviado para o e-mail.');
+        } else {
+          setSuccess('Usuário criado, mas o convite não foi enviado. Verifique configuração de e-mail ou reenvie manualmente.');
+        }
+      } else {
+        setSuccess('Usuário cadastrado com sucesso!');
+      }
       setNovoUsuario({ email: '', name: '', role: 'member' });
       setPermissoes({ acesso_total: true });
       await carregarUsuarios();
@@ -454,6 +462,16 @@ function GestaoUsuariosContent() {
                     >
                       {user.role === 'admin' ? '🔑 Admin' : '👤 Membro'}
                     </span>
+                    {user.role === 'admin' && (
+                      <button
+                        type="button"
+                        onClick={() => reenviarConviteAdmin(user.email)}
+                        disabled={Boolean(inviteLoadingByEmail[user.email])}
+                        className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-bold text-violet-700 transition hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {inviteLoadingByEmail[user.email] ? 'Enviando...' : 'Reenviar convite'}
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => openEditModal(user)}

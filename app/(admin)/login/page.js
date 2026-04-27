@@ -10,6 +10,7 @@ const SAVED_LOGIN_KEY = 'harmonics_saved_admin_login';
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberLogin, setRememberLogin] = useState(false);
   const [error, setError] = useState('');
   const [feedback, setFeedback] = useState('');
   const [loading, setLoading] = useState(false);
@@ -81,7 +82,7 @@ export default function LoginPage() {
         }
       }
     } catch (err) {
-      setError(err.message || 'Erro ao fazer login');
+      setError(err?.message || 'Erro ao fazer login.');
     } finally {
       setLoading(false);
     }

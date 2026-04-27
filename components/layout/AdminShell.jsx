@@ -9,7 +9,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { redirectToLogin } from '@/lib/auth/logoutRedirect';
 
 const MORE_ITEMS = [
-  { label: 'Financeiro', href: '/financeiro', icon: '💸', helper: 'Pagamentos e caixa' },
   { label: 'Escalas', href: '/escalas', icon: '🎼', helper: 'Operação musical' },
   { label: 'Convites', href: '/convites', icon: '✉️', helper: 'Chamadas e respostas' },
   { label: 'Contratos', href: '/contratos', icon: '📝', helper: 'Fluxo contratual' },

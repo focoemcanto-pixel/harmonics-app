@@ -2904,6 +2904,7 @@ async function handleRequestReview() {
                   <ReferenceSearchInput
                     searchValue={song.song_name || ''}
                     referenceValue={song.reference_link || ''}
+                    showManualInput={false}
                     selectedReference={
                       song.reference_video_id
                         ? {

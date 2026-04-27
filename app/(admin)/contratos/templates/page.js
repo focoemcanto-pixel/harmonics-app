@@ -288,11 +288,12 @@ export default function ContractTemplatesPage() {
       return;
     }
 
+    const flushedHtml = richEditorRef.current?.flush?.();
     let currentRichHtml = '';
     if (editorTab === 'avancado') {
       currentRichHtml = textToEditorHtml(form.content || form.source_text || '');
     } else {
-      currentRichHtml = String(getCurrentEditorHtml() || richContentHtml || '');
+      currentRichHtml = String(flushedHtml || richEditorRef.current?.getHtml?.() || richContentHtml || '');
     }
     const currentText = htmlToReadableText(currentRichHtml);
     const parsed = parseContractTemplateInput(currentRichHtml || currentText);

@@ -1,11 +1,18 @@
 import { NextResponse } from 'next/server';
 import { sendAdminAccessInvite } from '@/lib/admin/admin-access-invite';
+import { requireAdminServer } from '@/lib/api/require-admin-server';
 
 function normalizeEmail(email) {
   return String(email || '').trim().toLowerCase();
 }
 
 export async function POST(request) {
+  const adminGuard = await requireAdminServer(request);
+
+  if (!adminGuard.ok) {
+    return adminGuard.response;
+  }
+
   try {
     const body = await request.json();
     const email = normalizeEmail(body?.email);

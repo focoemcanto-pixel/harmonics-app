@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { requireAdminServer } from '@/lib/api/require-admin-server';
 
 function isAuthUserMissing(error) {
   const message = String(error?.message || '').toLowerCase();
@@ -13,10 +14,22 @@ function isAuthUserMissing(error) {
 }
 
 export async function DELETE(request, context) {
+  const adminGuard = await requireAdminServer(request);
+
+  if (!adminGuard.ok) {
+    return adminGuard.response;
+  }
   const params = await context.params;
   const userId = params?.id;
 
   console.info('[ADMIN_USERS][DELETE_START]', { userId });
+
+  if (adminGuard.user.id === userId) {
+    return NextResponse.json(
+      { ok: false, error: 'Você não pode excluir o próprio usuário logado.' },
+      { status: 400 }
+    );
+  }
 
   if (!userId) {
     console.error('[ADMIN_USERS][DELETE_ERROR]', { error: 'ID do usuário não informado.' });

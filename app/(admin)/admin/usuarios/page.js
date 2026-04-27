@@ -74,6 +74,7 @@ function GestaoUsuariosContent() {
   const [deletingUser, setDeletingUser] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [loggedUserId, setLoggedUserId] = useState(null);
+  const [inviteLoadingByEmail, setInviteLoadingByEmail] = useState({});
 
   const [novoUsuario, setNovoUsuario] = useState({
     email: '',
@@ -284,6 +285,43 @@ function GestaoUsuariosContent() {
     }
   }
 
+  async function reenviarConviteAdmin(email) {
+    const normalizedEmail = String(email || '').trim().toLowerCase();
+
+    if (!normalizedEmail) {
+      setError('E-mail do administrador não encontrado.');
+      return;
+    }
+
+    setError('');
+    setSuccess('');
+    setInviteLoadingByEmail((prev) => ({ ...prev, [normalizedEmail]: true }));
+
+    try {
+      const response = await fetch('/api/admin/usuarios/invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: normalizedEmail }),
+      });
+
+      const result = await response.json().catch(() => null);
+
+      if (!response.ok || !result?.ok) {
+        throw new Error(result?.error || result?.inviteError || 'Não foi possível reenviar o convite.');
+      }
+
+      setSuccess(`Convite reenviado para ${normalizedEmail}.`);
+    } catch (e) {
+      setError('Erro ao reenviar convite: ' + (e.message || 'Erro desconhecido'));
+    } finally {
+      setInviteLoadingByEmail((prev) => {
+        const next = { ...prev };
+        delete next[normalizedEmail];
+        return next;
+      });
+    }
+  }
+
   return (
     <AdminShell pageTitle="Gestão de Usuários" activeItem="usuarios">
       <div className="max-w-4xl mx-auto px-0 py-2 space-y-6">
@@ -437,11 +475,14 @@ function GestaoUsuariosContent() {
             </p>
           ) : (
             <div className="space-y-3">
-              {usuarios.map((user) => (
-                <div
-                  key={user.id}
-                  className="flex items-center justify-between rounded-[18px] border border-slate-100 bg-slate-50 px-4 py-3"
-                >
+              {usuarios.map((user) => {
+                const userEmailKey = String(user.email || '').trim().toLowerCase();
+
+                return (
+                  <div
+                    key={user.id}
+                    className="flex items-center justify-between rounded-[18px] border border-slate-100 bg-slate-50 px-4 py-3"
+                  >
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-violet-100 text-[13px] font-black text-violet-700">
                       {getInitials(user.name || user.email)}
@@ -465,15 +506,15 @@ function GestaoUsuariosContent() {
                       {user.role === 'admin' ? '🔑 Admin' : '👤 Membro'}
                     </span>
                     {user.role === 'admin' && (
-                      <button
-                        type="button"
-                        onClick={() => reenviarConviteAdmin(user.email)}
-                        disabled={Boolean(inviteLoadingByEmail[user.email])}
-                        className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-bold text-violet-700 transition hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        {inviteLoadingByEmail[user.email] ? 'Enviando...' : 'Reenviar convite'}
-                      </button>
-                    )}
+                        <button
+                          type="button"
+                          onClick={() => reenviarConviteAdmin(user.email)}
+                          disabled={Boolean(inviteLoadingByEmail[userEmailKey])}
+                          className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-bold text-violet-700 transition hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {inviteLoadingByEmail[userEmailKey] ? 'Enviando...' : 'Reenviar convite'}
+                        </button>
+                      )}
                     <button
                       type="button"
                       onClick={() => openEditModal(user)}
@@ -493,8 +534,9 @@ function GestaoUsuariosContent() {
                       <TrashIcon className="h-4 w-4" />
                     </button>
                   </div>
-                </div>
-              ))}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

@@ -9,7 +9,6 @@ const CLIENT_EVENT_SELECT_FIELDS = [
   'id',
   'client_name',
   'event_type',
-  'event_type_id',
   'event_date',
   'event_time',
   'location_name',
@@ -38,7 +37,6 @@ const CLIENT_EVENT_SELECT_FIELDS_FALLBACK = [
   'id',
   'client_name',
   'event_type',
-  'event_type_id',
   'event_date',
   'event_time',
   'location_name',
@@ -64,7 +62,6 @@ const CLIENT_EVENT_SELECT_FIELDS_MINIMAL_FALLBACK = [
   'id',
   'client_name',
   'event_type',
-  'event_type_id',
   'event_date',
   'event_time',
   'location_name',
@@ -74,6 +71,19 @@ const CLIENT_EVENT_SELECT_FIELDS_MINIMAL_FALLBACK = [
   'observations',
 ].join(', ');
 const CLIENT_PRECONTRACT_BASE_SELECT_FIELDS = [
+  'id',
+  'public_token',
+  'event_id',
+  'event_type_id',
+  'event_type',
+  'contract_template_id',
+  'reception_hours',
+  'has_sound',
+  'has_transport',
+  'formation',
+  'instruments',
+].join(', ');
+const CLIENT_PRECONTRACT_BASE_SELECT_FIELDS_FALLBACK = [
   'id',
   'public_token',
   'event_id',
@@ -894,6 +904,40 @@ function normalizeClientInitialTab(tabValue) {
   return aliases[normalized] || "inicio";
 }
 
+async function fetchPrecontractWithFallback(supabase, matchColumn, matchValue) {
+  const primaryResp = await supabase
+    .from('precontracts')
+    .select(CLIENT_PRECONTRACT_BASE_SELECT_FIELDS)
+    .eq(matchColumn, matchValue)
+    .maybeSingle();
+
+  if (!primaryResp?.error) return primaryResp;
+
+  console.warn('[CLIENTE PAGE][QUERY_ERROR]', {
+    scope: `precontracts.${matchColumn}.primary_select`,
+    fields: CLIENT_PRECONTRACT_BASE_SELECT_FIELDS,
+    error: primaryResp.error,
+  });
+
+  const fallbackResp = await supabase
+    .from('precontracts')
+    .select(CLIENT_PRECONTRACT_BASE_SELECT_FIELDS_FALLBACK)
+    .eq(matchColumn, matchValue)
+    .maybeSingle();
+
+  console.log('[CLIENTE PAGE][PRECONTRACT][FALLBACK_SELECT]', {
+    scope: `precontracts.${matchColumn}.fallback_select`,
+    fields: CLIENT_PRECONTRACT_BASE_SELECT_FIELDS_FALLBACK,
+    error: fallbackResp?.error || null,
+  });
+
+  if (!fallbackResp?.error) {
+    return fallbackResp;
+  }
+
+  return primaryResp;
+}
+
 export default async function ClienteTokenPage({ params, searchParams }) {
   const { token } = await params;
   const resolvedSearchParams = (await searchParams) || {};
@@ -922,11 +966,11 @@ export default async function ClienteTokenPage({ params, searchParams }) {
   let eventId = null;
 
   try {
-    const { data: precontractData, error: precontractError } = await supabase
-      .from('precontracts')
-      .select(CLIENT_PRECONTRACT_BASE_SELECT_FIELDS)
-      .eq('public_token', normalizedToken)
-      .maybeSingle();
+    const { data: precontractData, error: precontractError } = await fetchPrecontractWithFallback(
+      supabase,
+      'public_token',
+      normalizedToken
+    );
 
     if (precontractError) {
       console.error('[CLIENTE PAGE][QUERY_ERROR]', {
@@ -1012,11 +1056,8 @@ export default async function ClienteTokenPage({ params, searchParams }) {
 
   if (!precontract?.id && eventId) {
     try {
-      const { data: precontractByEvent, error: precontractByEventError } = await supabase
-        .from('precontracts')
-        .select(CLIENT_PRECONTRACT_BASE_SELECT_FIELDS)
-        .eq('event_id', eventId)
-        .maybeSingle();
+      const { data: precontractByEvent, error: precontractByEventError } =
+        await fetchPrecontractWithFallback(supabase, 'event_id', eventId);
 
       if (precontractByEventError) {
         console.error('[CLIENTE PAGE][QUERY_ERROR]', {
@@ -1527,18 +1568,18 @@ export default async function ClienteTokenPage({ params, searchParams }) {
     ? `/api/cliente/repertorio/pdf/${repertorioPdfToken}`
     : null;
   let eventTypeRow = null;
-  if (event?.event_type_id) {
+  if (precontract?.event_type_id) {
     try {
       const eventTypeResp = await supabase
         .from('event_types')
         .select('id, name, slug')
-        .eq('id', event.event_type_id)
+        .eq('id', precontract.event_type_id)
         .maybeSingle();
 
       if (eventTypeResp?.error) {
         console.warn('[CLIENTE PAGE][QUERY_ERROR]', {
           scope: 'event_types.by_id',
-          eventTypeId: event.event_type_id,
+          eventTypeId: precontract.event_type_id,
           error: eventTypeResp.error,
         });
       } else {
@@ -1547,7 +1588,7 @@ export default async function ClienteTokenPage({ params, searchParams }) {
     } catch (error) {
       console.warn('[CLIENTE PAGE][QUERY_ERROR]', {
         scope: 'event_types.by_id',
-        eventTypeId: event.event_type_id,
+        eventTypeId: precontract.event_type_id,
         error,
       });
     }
@@ -1556,19 +1597,20 @@ export default async function ClienteTokenPage({ params, searchParams }) {
   const resolvedEventTypeRaw =
     eventTypeRow?.slug ||
     eventTypeRow?.name ||
-    event?.event_type ||
     precontract?.event_type ||
+    event?.event_type ||
     '';
 
   const normalizedEventType = normalizeClientEventType(resolvedEventTypeRaw);
   const isWedding = normalizedEventType === 'casamento';
-  const isCustomEvent = !isWedding;
-  const totalEtapas = isWedding ? 7 : 3;
-  const etapasPreenchidas = isWedding
+  const finalIsWedding = normalizedEventType ? isWedding : true;
+  const isCustomEvent = !finalIsWedding;
+  const totalEtapas = finalIsWedding ? 7 : 3;
+  const etapasPreenchidas = finalIsWedding
     ? computeEtapasPreenchidas(config, items)
     : computeCustomEventStepsFilled(initialLists.customEvent);
   const resolvedEventTitleType =
-    (eventTypeRow?.name || eventTypeRow?.slug || event?.event_type || precontract?.event_type || '').trim();
+    (eventTypeRow?.name || eventTypeRow?.slug || precontract?.event_type || event?.event_type || '').trim();
   const eventoTituloPrefix =
     resolvedEventTitleType && resolvedEventTitleType.toLowerCase() !== 'evento'
       ? resolvedEventTitleType
@@ -1715,8 +1757,8 @@ export default async function ClienteTokenPage({ params, searchParams }) {
     reviewSubmitted: false,
 
     repertorio: {
-      eventType: normalizedEventType || resolvedEventTypeRaw,
-      isWedding,
+      eventType: normalizedEventType || resolvedEventTypeRaw || 'casamento',
+      isWedding: finalIsWedding,
       isCustomEvent,
       status: mapStatusToUi(config?.status, config?.is_locked),
       isLocked: Boolean(config?.is_locked),
@@ -1747,7 +1789,7 @@ export default async function ClienteTokenPage({ params, searchParams }) {
       repertoireToken: repertorioTokenValue,
 
       initialState: {
-        mode: isWedding ? 'wedding' : 'custom',
+        mode: finalIsWedding ? 'wedding' : 'custom',
         selected_styles: initialLists.customEvent?.selected_styles || [],
         preferred_artists: initialLists.customEvent?.preferred_artists || '',
         custom_songs: initialLists.customEvent?.custom_songs || [],

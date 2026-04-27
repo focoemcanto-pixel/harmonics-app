@@ -15,22 +15,54 @@ export default function ResetPasswordPage() {
   const [success, setSuccess] = useState('');
 
   useEffect(() => {
-    let isMounted = true;
+    let mounted = true;
 
-    async function validateRecoverySession() {
-      const { data } = await supabase.auth.getSession();
-      const hasRecoverySession = Boolean(data?.session?.user);
-      if (!isMounted) return;
-      setIsRecoverySession(hasRecoverySession);
-      if (!hasRecoverySession) {
+    async function bootstrapRecovery() {
+      try {
+        const url = new URL(window.location.href);
+        const code = url.searchParams.get('code');
+
+        if (code) {
+          const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+          if (exchangeError) throw exchangeError;
+          window.history.replaceState({}, document.title, '/auth/reset-password');
+        } else {
+          const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+          const accessToken = hashParams.get('access_token');
+          const refreshToken = hashParams.get('refresh_token');
+
+          if (accessToken && refreshToken) {
+            const { error: sessionError } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            });
+            if (sessionError) throw sessionError;
+            window.history.replaceState({}, document.title, '/auth/reset-password');
+          }
+        }
+
+        const { data, error: getSessionError } = await supabase.auth.getSession();
+        if (getSessionError) throw getSessionError;
+
+        if (!mounted) return;
+        const hasSession = Boolean(data?.session?.user);
+        setIsRecoverySession(hasSession);
+
+        if (!hasSession) {
+          setError('Seu link de redefinição é inválido ou expirou. Solicite um novo link na tela de login.');
+        }
+      } catch (err) {
+        if (!mounted) return;
+        console.error('[RESET_PASSWORD][BOOTSTRAP_ERROR]', err);
+        setIsRecoverySession(false);
         setError('Seu link de redefinição é inválido ou expirou. Solicite um novo link na tela de login.');
       }
     }
 
-    validateRecoverySession();
+    bootstrapRecovery();
 
     return () => {
-      isMounted = false;
+      mounted = false;
     };
   }, []);
 
@@ -67,6 +99,8 @@ export default function ResetPasswordPage() {
 
       if (updateError) throw updateError;
 
+      await supabase.auth.signOut();
+      localStorage.removeItem('harmonics_saved_admin_login');
       setSuccess('Senha atualizada com sucesso! Você será redirecionado para o login.');
 
       setTimeout(() => {

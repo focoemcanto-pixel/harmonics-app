@@ -378,10 +378,7 @@ export default function ContractTemplatesPage() {
         is_active: savedTemplate.is_active !== false,
         is_default: savedTemplate.is_default === true,
       });
-      const nextEditorHtml = String(pickTemplateEditorHtml(savedTemplate) || '');
-      setRichContentHtml(nextEditorHtml);
-      richEditorRef.current?.setHtml?.(nextEditorHtml);
-      setEditSessionId(getTemplateEditSessionId(savedTemplate));
+      setRichContentHtml(currentRichHtml);
       console.info('[TEMPLATE_AFTER_SAVE]', {
         id: savedTemplate.id,
         sourceRichIncludesAssinatura: savedTemplate.source_rich_html?.includes('ASSINATURA'),

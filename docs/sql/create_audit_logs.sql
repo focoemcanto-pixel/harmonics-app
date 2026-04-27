@@ -17,6 +17,12 @@ create table if not exists public.audit_logs (
   metadata jsonb not null default '{}'::jsonb
 );
 
+-- Segurança obrigatória:
+-- 1) A tabela audit_logs deve operar com RLS habilitado.
+-- 2) Não crie policies públicas (SELECT/INSERT/UPDATE/DELETE) para anon/authenticated.
+-- 3) Escrita deve ocorrer somente via service role nas APIs server-side.
+alter table public.audit_logs enable row level security;
+
 create index if not exists audit_logs_created_at_desc_idx
   on public.audit_logs (created_at desc);
 

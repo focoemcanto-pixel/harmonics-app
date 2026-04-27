@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { sendPasswordResetEmail } from '@/lib/email/sendPasswordResetEmail';
 import { logError, logInfo, maskEmail } from '@/lib/observability/server-log';
-import { validateRequiredEnv } from '@/lib/config/validate-env';
+import { requireRequiredEnv } from '@/lib/config/validate-env';
 import { getRequestIp, getUserAgent } from '@/lib/api/request-meta';
 import { checkRateLimit } from '@/lib/api/rate-limit';
 import { writeAuditLog } from '@/lib/audit/audit-log';
@@ -29,7 +29,7 @@ export async function POST(request) {
   const requestIp = getRequestIp(request);
   const userAgent = getUserAgent(request);
   try {
-    validateRequiredEnv('auth/request-password-reset');
+    requireRequiredEnv('auth/request-password-reset');
 
     const body = await request.json();
     const email = normalizeEmail(body?.email);

@@ -6,6 +6,7 @@ import { getRequestIp, getUserAgent } from '@/lib/api/request-meta';
 import { checkRateLimit } from '@/lib/api/rate-limit';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { writeAuditLog } from '@/lib/audit/audit-log';
+import { requireRequiredEnv } from '@/lib/config/validate-env';
 
 function normalizeEmail(email) {
   return String(email || '').trim().toLowerCase();
@@ -21,6 +22,8 @@ export async function POST(request) {
   }
 
   try {
+    requireRequiredEnv('admin/usuarios/invite');
+
     const body = await request.json();
     const email = normalizeEmail(body?.email);
     const rateLimitResult = checkRateLimit({

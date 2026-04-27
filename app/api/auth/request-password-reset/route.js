@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { sendPasswordResetEmail } from '@/lib/email/sendPasswordResetEmail';
+import { logError, logInfo, maskEmail } from '@/lib/observability/server-log';
 
 const FALLBACK_APP_BASE_URL = 'https://app.bandaharmonics.com';
 
@@ -25,15 +26,16 @@ export async function POST(request) {
     const body = await request.json();
     const email = normalizeEmail(body?.email);
 
-    console.info('[AUTH_RESET][REQUEST_START]', {
+    logInfo('AUTH_RESET', 'REQUEST_START', {
       hasEmail: Boolean(email),
+      email: maskEmail(email),
     });
 
     if (!email || !isValidEmail(email)) {
       return NextResponse.json({ error: 'Informe um e-mail válido.' }, { status: 400 });
     }
 
-    console.info('[AUTH_RESET][ENV_CHECK]', {
+    logInfo('AUTH_RESET', 'ENV_CHECK', {
       hasResendApiKey: Boolean(process.env.RESEND_API_KEY),
       hasResendFromEmail: Boolean(process.env.RESEND_FROM_EMAIL),
       hasSupabaseServiceRole: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
@@ -54,9 +56,10 @@ export async function POST(request) {
       .eq('email', email)
       .maybeSingle();
 
-    console.info('[AUTH_RESET][PROFILE_CHECK]', {
+    logInfo('AUTH_RESET', 'PROFILE_CHECK', {
       hasProfile: Boolean(profile),
       ok: !profileError,
+      email: maskEmail(email),
     });
 
     if (profileError) {
@@ -80,9 +83,10 @@ export async function POST(request) {
       },
     });
 
-    console.info('[AUTH_RESET][LINK_GENERATED]', {
+    logInfo('AUTH_RESET', 'LINK_GENERATED', {
       ok: !linkError,
       hasLink: Boolean(linkData?.properties?.action_link),
+      email: maskEmail(email),
     });
 
     if (linkError) {
@@ -100,9 +104,10 @@ export async function POST(request) {
       resetLink,
     });
 
-    console.info('[AUTH_RESET][RESEND_SENT]', {
+    logInfo('AUTH_RESET', 'RESEND_SENT', {
       ok: emailResult.ok,
       emailId: emailResult.emailId || null,
+      email: maskEmail(email),
     });
 
     if (!emailResult.ok) {
@@ -111,13 +116,10 @@ export async function POST(request) {
 
     return NextResponse.json({ ok: true, emailSent: true });
   } catch (error) {
-    console.error('[AUTH_RESET][ERROR]', {
-      message: error?.message || 'Erro interno do servidor',
-      stack: error?.stack || null,
-    });
+    logError('AUTH_RESET', 'ERROR', error);
 
     return NextResponse.json(
-      { error: error?.message || 'Erro interno do servidor' },
+      { ok: false, error: error?.message || 'Erro interno do servidor' },
       { status: 500 }
     );
   }

@@ -3,6 +3,14 @@ import { createClient } from '@supabase/supabase-js';
 import { getYoutubeVideoId } from '../../../../lib/youtube/getYoutubeVideoId';
 import { randomUUID } from 'node:crypto';
 import { sendAdminWhatsAppAlert } from '@/lib/whatsapp/send-admin-alert';
+import { logError, logInfo, logWarn, safeError } from '@/lib/observability/server-log';
+
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+
+function logRepertorioDetail(event, payload) {
+  if (IS_PRODUCTION) return;
+  logInfo('CLIENTE_REPERTORIO', event, payload);
+}
 
 function getAdminSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -353,7 +361,7 @@ export async function POST(request) {
     const config = body?.config || {};
     const rawItems = body?.items || [];
     const antesalaFlow = body?.antesalaFlow || {};
-    console.log('[ANTESALA][API_BODY]', {
+    logRepertorioDetail('ANTESALA_API_BODY', {
       querAntessala: body?.querAntessala ?? config?.has_ante_room ?? null,
       requestedByClient: Boolean(antesalaFlow?.requestedByClient),
       requestStatus: String(antesalaFlow?.requestStatus || ''),
@@ -455,21 +463,26 @@ export async function POST(request) {
       createdToken = ensured.created;
     }
 
-    console.log('[API REPERTORIO] token recebido:', token);
-    console.log('[API REPERTORIO] repertoireToken explícito:', repertoireTokenInput || '(não informado)');
-    console.log('[API REPERTORIO] clientToken explícito:', clientTokenInput || '(não informado)');
-    console.log('[API REPERTORIO] estratégia resolução:', tokenResolution);
-    console.log('[API REPERTORIO] token validado:', tokenRow?.token);
-    console.log('[API REPERTORIO] event_id resolvido:', eventId);
-    console.log('[API REPERTORIO] repertoire_token criado nesta chamada:', createdToken);
+    logInfo('CLIENTE_REPERTORIO', 'TOKEN_RESOLVED', {
+      eventId,
+      mode,
+      tokenResolution,
+      createdToken,
+      status: tokenRow?.status || null,
+    });
 
     const incomingItems = normalizeItems(rawItems);
-    console.log('[API REPERTORIO] payload config recebido:', config);
-    console.log('[API REPERTORIO] payload itens recebido (normalizado):', incomingItems);
-    console.log('[API REPERTORIO] quantidade de itens por seção (payload):', countItemsBySection(incomingItems));
-    console.log('[API][ITEMS_RECEIVED]', incomingItems);
-    console.log('[TRACE][CORTEJO][API_INCOMING]', pickTraceSectionItem(incomingItems, 'cortejo'));
-    console.log('[TRACE][CERIMONIA][API_INCOMING]', pickTraceSectionItem(incomingItems, 'cerimonia'));
+    const incomingBySection = countItemsBySection(incomingItems);
+    logInfo('CLIENTE_REPERTORIO', 'ITEMS_RECEIVED', {
+      eventId,
+      mode,
+      incomingBySection,
+      itemsCount: incomingItems.length,
+    });
+    logRepertorioDetail('PAYLOAD_CONFIG', config);
+    logRepertorioDetail('PAYLOAD_ITEMS', incomingItems);
+    logRepertorioDetail('TRACE_CORTEJO_API_INCOMING', pickTraceSectionItem(incomingItems, 'cortejo'));
+    logRepertorioDetail('TRACE_CERIMONIA_API_INCOMING', pickTraceSectionItem(incomingItems, 'cerimonia'));
 
     const status = mode === 'final' ? 'ENVIADO' : 'RASCUNHO';
     const isLocked = mode === 'final';
@@ -562,7 +575,7 @@ export async function POST(request) {
       antesalaRequestStatus,
       antesalaPriceIncrement,
     });
-    console.log('[ANTESALA][EVENT_UPDATE_PAYLOAD]', {
+    logRepertorioDetail('ANTESALA_EVENT_UPDATE_PAYLOAD', {
       eventId,
       ...primaryEventPayload,
     });
@@ -585,7 +598,7 @@ export async function POST(request) {
       .maybeSingle();
 
     if (updateEventError) throw updateEventError;
-    console.log('[ANTESALA][EVENT_UPDATE_RESULT]', {
+    logRepertorioDetail('ANTESALA_EVENT_UPDATE_RESULT', {
       ...(updatedEvent || {}),
       has_ante_room: configPayload?.has_ante_room ?? null,
       ante_room_style: configPayload?.ante_room_style ?? '',
@@ -601,7 +614,7 @@ export async function POST(request) {
     if (upsertConfigError) {
       throw upsertConfigError;
     }
-    console.log('[API][CONFIG_UPSERT_OK]', {
+    logInfo('CLIENTE_REPERTORIO', 'CONFIG_UPSERT_OK', {
       eventId,
       mode,
       status,
@@ -626,11 +639,10 @@ export async function POST(request) {
       if (persistedConfigError) throw persistedConfigError;
       if (contractError) throw contractError;
 
-      console.log('[API REPERTORIO] URL PDF contrato (somente leitura):', contractRow?.pdf_url || '(vazio)');
-      console.log(
-        '[API REPERTORIO] URL PDF repertório salvo:',
-        persistedConfig?.repertoire_pdf_url || '(vazio)'
-      );
+      logRepertorioDetail('FINAL_PDF_URLS', {
+        hasContractPdfUrl: Boolean(contractRow?.pdf_url),
+        hasRepertoirePdfUrl: Boolean(persistedConfig?.repertoire_pdf_url),
+      });
     }
 
     const { data: existingItems, error: existingItemsError } = await supabase
@@ -643,7 +655,6 @@ export async function POST(request) {
     if (existingItemsError) throw existingItemsError;
 
     const existingBySection = countItemsBySection(existingItems || []);
-    const incomingBySection = countItemsBySection(incomingItems);
     const incomingSections = new Set(incomingItems.map((item) => String(item.section || '').trim()).filter(Boolean));
     const missingSectionsFromIncoming = Object.keys(existingBySection).filter(
       (section) => !incomingSections.has(section)
@@ -656,15 +667,18 @@ export async function POST(request) {
         missingSectionsFromIncoming.includes(String(item.section || '').trim())
       );
       itemsToPersist = [...incomingItems, ...preservedItems];
-      console.warn(
-        '[API REPERTORIO] payload parcial detectado; preservando seções não enviadas:',
-        missingSectionsFromIncoming
-      );
+      logWarn('CLIENTE_REPERTORIO', 'PARTIAL_PAYLOAD_PRESERVE_SECTIONS', {
+        eventId,
+        missingSectionsFromIncoming,
+      });
     }
 
     if (incomingItems.length === 0 && (existingItems || []).length > 0) {
-      console.error(
-        '[API REPERTORIO] bloqueando overwrite destrutivo: payload sem itens e evento já possui itens persistidos.'
+      logError(
+        'CLIENTE_REPERTORIO',
+        'DESTRUCTIVE_OVERWRITE_BLOCKED',
+        new Error('Payload parcial detectado (sem itens).'),
+        { eventId, mode }
       );
       return NextResponse.json(
         {
@@ -707,21 +721,18 @@ export async function POST(request) {
     });
 
     const itemsWithCatalogLink = await attachCatalogSongIds(supabase, itemsToPersist);
-    console.log('[TRACE][CORTEJO][API_TO_SAVE]', pickTraceSectionItem(itemsWithCatalogLink, 'cortejo'));
-    console.log('[TRACE][CERIMONIA][API_TO_SAVE]', pickTraceSectionItem(itemsWithCatalogLink, 'cerimonia'));
-    console.log('[API][ITEMS_TO_SAVE]', itemsWithCatalogLink);
-
-    console.log('[API REPERTORIO] itens existentes por seção (antes de salvar):', existingBySection);
-    console.log('[API REPERTORIO] itens recebidos por seção:', incomingBySection);
-    console.log('[API REPERTORIO] seções ausentes no payload.itens:', missingSectionsFromIncoming);
-    console.log(
-      '[API REPERTORIO] seções protegidas por payload sem conteúdo útil:',
-      sectionsPreservedByInvalidPayload
-    );
-    console.log(
-      '[API REPERTORIO] quantidade final de itens por seção (após preservação):',
-      countItemsBySection(itemsWithCatalogLink)
-    );
+    logRepertorioDetail('TRACE_CORTEJO_TO_SAVE', pickTraceSectionItem(itemsWithCatalogLink, 'cortejo'));
+    logRepertorioDetail('TRACE_CERIMONIA_TO_SAVE', pickTraceSectionItem(itemsWithCatalogLink, 'cerimonia'));
+    logRepertorioDetail('ITEMS_TO_SAVE', itemsWithCatalogLink);
+    logInfo('CLIENTE_REPERTORIO', 'ITEMS_SUMMARY', {
+      eventId,
+      mode,
+      existingBySection,
+      incomingBySection,
+      finalBySection: countItemsBySection(itemsWithCatalogLink),
+      missingSectionsFromIncoming,
+      sectionsPreservedByInvalidPayload,
+    });
 
     const { error: deleteItemsError } = await supabase
       .from('repertoire_items')
@@ -731,7 +742,7 @@ export async function POST(request) {
     if (deleteItemsError) {
       throw deleteItemsError;
     }
-    console.log('[API][ITEMS_DELETED]', {
+    logInfo('CLIENTE_REPERTORIO', 'ITEMS_DELETED', {
       eventId,
       deletedAllForEvent: true,
     });
@@ -766,16 +777,14 @@ export async function POST(request) {
       if (insertItemsError) {
         throw insertItemsError;
       }
-      console.log('[API][DB_INSERT_COUNT]', itemsPayload.length);
-      console.log('[TRACE][CORTEJO][DB_INSERT]', pickTraceSectionItem(itemsPayload, 'cortejo'));
-      console.log('[TRACE][CERIMONIA][DB_INSERT]', pickTraceSectionItem(itemsPayload, 'cerimonia'));
-      console.log('[API][ITEMS_INSERT_RESULT]', {
+      logInfo('CLIENTE_REPERTORIO', 'ITEMS_INSERT_RESULT', {
         eventId,
         insertedCount: itemsPayload.length,
       });
+      logRepertorioDetail('TRACE_CORTEJO_DB_INSERT', pickTraceSectionItem(itemsPayload, 'cortejo'));
+      logRepertorioDetail('TRACE_CERIMONIA_DB_INSERT', pickTraceSectionItem(itemsPayload, 'cerimonia'));
     } else {
-      console.log('[API][DB_INSERT_COUNT]', 0);
-      console.log('[API][ITEMS_INSERT_RESULT]', {
+      logInfo('CLIENTE_REPERTORIO', 'ITEMS_INSERT_RESULT', {
         eventId,
         insertedCount: 0,
       });
@@ -819,7 +828,7 @@ export async function POST(request) {
       try {
         await sendAdminWhatsAppAlert(alertMessage);
       } catch (whatsappError) {
-        console.error('[API REPERTORIO] Não foi possível enviar alerta WhatsApp para admin:', whatsappError);
+        logError('CLIENTE_REPERTORIO', 'WHATSAPP_ALERT_ERROR', whatsappError, { eventId });
       }
     }
 
@@ -830,13 +839,18 @@ export async function POST(request) {
       savedItems: itemsWithCatalogLink.length,
       locked: isLocked,
     };
-    console.log('[API][SAVE_RESULT] response ok', true);
-    console.log('[API][SAVE_RESULT] savedItems', responsePayload.savedItems);
-    console.log('[API][SAVE_RESULT] status', responsePayload.status);
-    console.log('[API][SAVE_RESULT] locked', responsePayload.locked);
+    logInfo('CLIENTE_REPERTORIO', 'SAVE_RESULT', {
+      eventId,
+      mode,
+      status: responsePayload.status,
+      savedItems: responsePayload.savedItems,
+      locked: responsePayload.locked,
+    });
     return NextResponse.json(responsePayload);
   } catch (error) {
-    console.error('Erro ao salvar repertório do cliente:', error);
+    logError('CLIENTE_REPERTORIO', 'ERROR', error, {
+      ...safeError(error),
+    });
 
     return NextResponse.json(
       {

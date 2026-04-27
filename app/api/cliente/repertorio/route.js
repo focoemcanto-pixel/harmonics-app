@@ -34,6 +34,39 @@ function normalizeText(value) {
   return text || null;
 }
 
+function parseArraySafe(value) {
+  if (Array.isArray(value)) return value;
+  if (typeof value !== 'string') return [];
+  const trimmed = value.trim();
+  if (!trimmed) return [];
+
+  try {
+    const parsed = JSON.parse(trimmed);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function parseCustomSongs(value) {
+  const songs = parseArraySafe(value);
+  return songs
+    .map((song, index) => {
+      if (!song || typeof song !== 'object') return null;
+      return {
+        song_name: normalizeText(song.song_name || song.title || song.nome),
+        reference_link: normalizeText(song.reference_link),
+        reference_title: normalizeText(song.reference_title),
+        reference_channel: normalizeText(song.reference_channel),
+        reference_video_id: normalizeText(song.reference_video_id),
+        artists: normalizeText(song.artists || song.artist),
+        notes: normalizeText(song.notes),
+        order: Number(song.order ?? index) || index,
+      };
+    })
+    .filter(Boolean);
+}
+
 function normalizeBool(value) {
   return value === true;
 }
@@ -550,6 +583,11 @@ export async function POST(request) {
       exit_notes: normalizeText(config.exit_notes),
       desired_songs: normalizeText(config.desired_songs),
       general_notes: normalizeText(config.general_notes),
+      selected_styles: parseArraySafe(config.selected_styles)
+        .map((entry) => normalizeText(entry))
+        .filter(Boolean),
+      preferred_artists: normalizeText(config.preferred_artists),
+      custom_songs: parseCustomSongs(config.custom_songs),
       status,
       is_locked: isLocked,
       submitted_at: mode === 'final' ? nowIso : null,

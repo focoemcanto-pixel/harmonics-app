@@ -269,10 +269,11 @@ export default function ContractTemplatesPage() {
   }
 
   async function salvarTemplate() {
-    if (!editandoId) {
-      toast.error('Erro interno: template sem ID para edição.');
-      return;
-    }
+    const isEditing = !!editandoId;
+    const endpoint = isEditing
+      ? `/api/admin/contract-templates/${editandoId}`
+      : '/api/admin/contract-templates';
+    const method = isEditing ? 'PATCH' : 'POST';
 
     const name = String(form.name || '').trim();
     const slug = normalizeSlug(form.slug || form.name);
@@ -287,7 +288,12 @@ export default function ContractTemplatesPage() {
       return;
     }
 
-    const currentRichHtml = String(getCurrentEditorHtml() || '');
+    let currentRichHtml = '';
+    if (editorTab === 'avancado') {
+      currentRichHtml = textToEditorHtml(form.content || form.source_text || '');
+    } else {
+      currentRichHtml = String(getCurrentEditorHtml() || richContentHtml || '');
+    }
     const currentText = htmlToReadableText(currentRichHtml);
     const parsed = parseContractTemplateInput(currentRichHtml || currentText);
 
@@ -339,61 +345,54 @@ export default function ContractTemplatesPage() {
     try {
       setSalvando(true);
 
-      const response = await fetch(`/api/admin/contract-templates/${editandoId}`, {
-        method: 'PATCH',
+      const response = await fetch(endpoint, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok || result?.ok === false) {
-        throw new Error(result?.error || 'Falha ao atualizar template.');
+        throw new Error(result?.error || `Falha ao ${isEditing ? 'atualizar' : 'criar'} template.`);
       }
-      const updatedTemplate = result.template;
-      setTemplates((prev) => prev.map((item) => (String(item.id) === String(updatedTemplate.id) ? updatedTemplate : item)));
+      const savedTemplate = result.template;
+      if (!savedTemplate?.id) {
+        throw new Error('API não retornou o template salvo.');
+      }
+      if (isEditing) {
+        setTemplates((prev) =>
+          prev.map((item) =>
+            String(item.id) === String(savedTemplate.id) ? savedTemplate : item
+          )
+        );
+      } else {
+        setTemplates((prev) => [savedTemplate, ...prev]);
+      }
+      setEditandoId(savedTemplate.id);
       setForm({
-        name: updatedTemplate.name || '',
-        slug: updatedTemplate.slug || '',
-        description: updatedTemplate.description || '',
-        content: updatedTemplate.content || '',
-        source_text: updatedTemplate.source_text || '',
-        source_rich_html: updatedTemplate.source_rich_html || '',
-        is_active: updatedTemplate.is_active !== false,
-        is_default: updatedTemplate.is_default === true,
+        name: savedTemplate.name || '',
+        slug: savedTemplate.slug || '',
+        description: savedTemplate.description || '',
+        content: savedTemplate.content || '',
+        source_text: savedTemplate.source_text || '',
+        source_rich_html: savedTemplate.source_rich_html || '',
+        is_active: savedTemplate.is_active !== false,
+        is_default: savedTemplate.is_default === true,
       });
-      setRichContentHtml(String(pickTemplateEditorHtml(updatedTemplate) || ''));
-      setEditSessionId(getTemplateEditSessionId(updatedTemplate));
+      const nextEditorHtml = String(pickTemplateEditorHtml(savedTemplate) || '');
+      setRichContentHtml(nextEditorHtml);
+      richEditorRef.current?.setHtml?.(nextEditorHtml);
+      setEditSessionId(getTemplateEditSessionId(savedTemplate));
       console.info('[TEMPLATE_AFTER_SAVE]', {
-        id: updatedTemplate.id,
-        sourceRichIncludesAssinatura: updatedTemplate.source_rich_html?.includes('ASSINATURA'),
-        contentIncludesAssinatura: updatedTemplate.content?.includes('ASSINATURA'),
-        sourceRichLen: updatedTemplate.source_rich_html?.length || 0,
-        contentLen: updatedTemplate.content?.length || 0,
+        id: savedTemplate.id,
+        sourceRichIncludesAssinatura: savedTemplate.source_rich_html?.includes('ASSINATURA'),
+        contentIncludesAssinatura: savedTemplate.content?.includes('ASSINATURA'),
+        sourceRichLen: savedTemplate.source_rich_html?.length || 0,
+        contentLen: savedTemplate.content?.length || 0,
       });
       setIsDirty(false);
-      devLog('[TEMPLATE_EDITOR][SAVE_RESULT]', { mode: 'update', id: editandoId, ok: true });
-      toast.success('Template atualizado com sucesso.');
+      devLog('[TEMPLATE_EDITOR][SAVE_RESULT]', { mode: isEditing ? 'update' : 'create', id: savedTemplate.id, ok: true });
+      toast.success(isEditing ? 'Template atualizado com sucesso.' : 'Template criado com sucesso.');
       await carregarTemplates(false);
-      const refreshResponse = await fetch('/api/admin/contract-templates', { cache: 'no-store' });
-      const refreshResult = await refreshResponse.json().catch(() => ({}));
-      if (refreshResponse.ok && refreshResult?.ok !== false) {
-        const refreshedTemplates = refreshResult.templates || [];
-        setTemplates(refreshedTemplates);
-        const refreshedTemplate = refreshedTemplates.find((item) => String(item?.id) === String(updatedTemplate.id));
-        if (refreshedTemplate) {
-          setForm({
-            name: refreshedTemplate.name || '',
-            slug: refreshedTemplate.slug || '',
-            description: refreshedTemplate.description || '',
-            content: refreshedTemplate.content || '',
-            source_text: refreshedTemplate.source_text || '',
-            source_rich_html: refreshedTemplate.source_rich_html || '',
-            is_active: refreshedTemplate.is_active !== false,
-            is_default: refreshedTemplate.is_default === true,
-          });
-          setRichContentHtml(String(pickTemplateEditorHtml(refreshedTemplate) || ''));
-          setEditSessionId(getTemplateEditSessionId(refreshedTemplate));
-        }
-      }
       console.log('[TEMPLATE SAVED]', {
         rich_len: currentRichHtml.length,
         text_len: payload.source_text.length,

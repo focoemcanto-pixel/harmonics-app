@@ -14,6 +14,7 @@ export default function ReferenceSearchInput({
   onClearReference,
   disabled = false,
   autoOpenOnSearchValue = true,
+  showManualInput = true,
 }) {
   const [query, setQuery] = useState(searchValue);
   const [results, setResults] = useState([]);
@@ -174,19 +175,21 @@ export default function ReferenceSearchInput({
         </div>
       ) : null}
 
-      <div className="space-y-2">
-        <label className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#9b8576]">
-          Link de referência (edição manual)
-        </label>
-        <input
-          type="text"
-          placeholder="Cole manualmente um link do YouTube, se preferir"
-          value={referenceValue}
-          onChange={onReferenceValueChange}
-          disabled={disabled}
-          className="w-full rounded-[16px] border border-[#eadfd6] bg-white px-4 py-4 text-[15px] font-semibold text-[#241a14] outline-none disabled:cursor-not-allowed disabled:bg-[#f4efea] disabled:text-[#a59588]"
-        />
-      </div>
+      {showManualInput ? (
+        <div className="space-y-2">
+          <label className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#9b8576]">
+            Link de referência (edição manual)
+          </label>
+          <input
+            type="text"
+            placeholder="Cole manualmente um link do YouTube, se preferir"
+            value={referenceValue}
+            onChange={onReferenceValueChange}
+            disabled={disabled}
+            className="w-full rounded-[16px] border border-[#eadfd6] bg-white px-4 py-4 text-[15px] font-semibold text-[#241a14] outline-none disabled:cursor-not-allowed disabled:bg-[#f4efea] disabled:text-[#a59588]"
+          />
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requireAdminServer } from '@/lib/api/require-admin-server';
+import { logError, logInfo } from '@/lib/observability/server-log';
 
 function isAuthUserMissing(error) {
   const message = String(error?.message || '').toLowerCase();
@@ -22,7 +23,7 @@ export async function DELETE(request, context) {
   const params = await context.params;
   const userId = params?.id;
 
-  console.info('[ADMIN_USERS][DELETE_START]', { userId });
+  logInfo('ADMIN_USERS', 'DELETE_START', { userId });
 
   if (adminGuard.user.id === userId) {
     return NextResponse.json(
@@ -32,7 +33,7 @@ export async function DELETE(request, context) {
   }
 
   if (!userId) {
-    console.error('[ADMIN_USERS][DELETE_ERROR]', { error: 'ID do usuário não informado.' });
+    logError('ADMIN_USERS', 'DELETE_ERROR', new Error('ID do usuário não informado.'), { userId });
     return NextResponse.json({ ok: false, error: 'ID do usuário não informado.' }, { status: 400 });
   }
 
@@ -46,12 +47,12 @@ export async function DELETE(request, context) {
       .maybeSingle();
 
     if (profileError) {
-      console.error('[ADMIN_USERS][DELETE_ERROR]', { userId, error: profileError.message });
+      logError('ADMIN_USERS', 'DELETE_ERROR', profileError, { userId });
       return NextResponse.json({ ok: false, error: profileError.message }, { status: 500 });
     }
 
     if (!profile) {
-      console.error('[ADMIN_USERS][DELETE_ERROR]', { userId, error: 'Usuário não encontrado.' });
+      logError('ADMIN_USERS', 'DELETE_ERROR', new Error('Usuário não encontrado.'), { userId });
       return NextResponse.json({ ok: false, error: 'Usuário não encontrado.' }, { status: 404 });
     }
 
@@ -62,9 +63,8 @@ export async function DELETE(request, context) {
         .eq('role', 'admin');
 
       if (!countError && count <= 1) {
-        console.error('[ADMIN_USERS][DELETE_ERROR]', {
+        logError('ADMIN_USERS', 'DELETE_ERROR', new Error('Não é possível excluir o último administrador.'), {
           userId,
-          error: 'Não é possível excluir o último administrador.',
         });
         return NextResponse.json(
           {
@@ -82,13 +82,13 @@ export async function DELETE(request, context) {
       .eq('id', userId);
 
     if (deleteProfileError) {
-      console.error('[ADMIN_USERS][DELETE_ERROR]', { userId, error: deleteProfileError.message });
+      logError('ADMIN_USERS', 'DELETE_ERROR', deleteProfileError, { userId });
       return NextResponse.json(
         { ok: false, error: deleteProfileError.message },
         { status: 500 }
       );
     }
-    console.info('[ADMIN_USERS][DELETE_PROFILE_OK]', { userId });
+    logInfo('ADMIN_USERS', 'DELETE_PROFILE_OK', { userId });
 
     const { error: deleteAuthError } = await supabase.auth.admin.deleteUser(userId);
 
@@ -102,7 +102,7 @@ export async function DELETE(request, context) {
         isAuthUserMissing(deleteAuthError);
 
       if (!ignorable) {
-        console.error('[ADMIN_USERS][DELETE_ERROR]', { userId, error: deleteAuthError.message });
+        logError('ADMIN_USERS', 'DELETE_ERROR', deleteAuthError, { userId });
         return NextResponse.json(
           {
             ok: false,
@@ -112,9 +112,9 @@ export async function DELETE(request, context) {
         );
       }
 
-      console.info('[ADMIN_USERS][DELETE_AUTH_OK]', { userId, authAlreadyMissing: true });
+      logInfo('ADMIN_USERS', 'DELETE_AUTH_OK', { userId, authAlreadyMissing: true });
     } else {
-      console.info('[ADMIN_USERS][DELETE_AUTH_OK]', { userId });
+      logInfo('ADMIN_USERS', 'DELETE_AUTH_OK', { userId });
     }
 
     return NextResponse.json({
@@ -123,10 +123,7 @@ export async function DELETE(request, context) {
       deletedEmail: profile.email || null,
     });
   } catch (error) {
-    console.error('[ADMIN_USERS][DELETE_ERROR]', {
-      userId,
-      error: error?.message || 'Erro interno ao excluir usuário.',
-    });
+    logError('ADMIN_USERS', 'DELETE_ERROR', error, { userId });
     return NextResponse.json(
       { ok: false, error: error?.message || 'Erro interno ao excluir usuário.' },
       { status: 500 }

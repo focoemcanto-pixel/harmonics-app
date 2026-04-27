@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { sendAdminAccessInvite } from '@/lib/admin/admin-access-invite';
 import { requireAdminServer } from '@/lib/api/require-admin-server';
+import { logError, logInfo, logWarn, maskEmail } from '@/lib/observability/server-log';
 
 const CANONICAL_ROLES = new Set(['admin', 'member']);
 
@@ -92,8 +93,8 @@ export async function POST(request) {
     const normalizedEmail = normalizeEmailValue(email);
     const normalizedName = normalizeNameValue(name);
 
-    console.info('[ADMIN_USERS][CREATE_START]', {
-      email: normalizedEmail,
+    logInfo('ADMIN_USERS', 'CREATE_START', {
+      email: maskEmail(normalizedEmail),
       name: normalizedName,
       requestedRole: role,
       normalizedRole,
@@ -118,10 +119,11 @@ export async function POST(request) {
     });
 
     if (authError) {
-      console.info('[ADMIN_USERS][AUTH_CREATE_RESULT]', {
+      logInfo('ADMIN_USERS', 'AUTH_CREATE_RESULT', {
         ok: false,
         message: authError.message,
         code: authError.code || null,
+        email: maskEmail(normalizedEmail),
       });
 
       if (!isDuplicateAuthUserError(authError)) {
@@ -154,7 +156,7 @@ export async function POST(request) {
       userId = existingUser.id;
     } else {
       userId = authData?.user?.id || null;
-      console.info('[ADMIN_USERS][AUTH_CREATE_RESULT]', {
+      logInfo('ADMIN_USERS', 'AUTH_CREATE_RESULT', {
         ok: true,
         created: true,
         userId,
@@ -181,15 +183,15 @@ export async function POST(request) {
       );
     }
 
-    console.info('[ADMIN_USERS][PROFILE_BEFORE_SYNC]', {
+    logInfo('ADMIN_USERS', 'PROFILE_BEFORE_SYNC', {
       userId,
       profileExists: !!existingProfile,
       existingRole: existingProfile?.role || null,
-      existingEmail: existingProfile?.email || null,
+      existingEmail: maskEmail(existingProfile?.email || ''),
     });
 
     const profileSyncAction = existingProfile ? 'update_existing_profile' : 'upsert_profile';
-    console.info('[ADMIN_USERS][PROFILE_SYNC_ACTION]', {
+    logInfo('ADMIN_USERS', 'PROFILE_SYNC_ACTION', {
       userId,
       action: profileSyncAction,
       authUserExisted,
@@ -210,7 +212,7 @@ export async function POST(request) {
       .single();
 
     if (profileSyncError) {
-      console.info('[ADMIN_USERS][PROFILE_SYNC_RESULT]', {
+      logInfo('ADMIN_USERS', 'PROFILE_SYNC_RESULT', {
         ok: false,
         userId,
         message: profileSyncError.message,
@@ -230,7 +232,7 @@ export async function POST(request) {
       );
     }
 
-    console.info('[ADMIN_USERS][PROFILE_SYNC_RESULT]', {
+    logInfo('ADMIN_USERS', 'PROFILE_SYNC_RESULT', {
       ok: true,
       userId,
       profileRole: syncedProfile?.role || normalizedRole,
@@ -242,23 +244,23 @@ export async function POST(request) {
     let inviteProvider = null;
 
     if (normalizedRole === 'admin') {
-      console.info('[ADMIN_USERS][INVITE_AUTO_START]', { email: normalizedEmail, userId });
+      logInfo('ADMIN_USERS', 'INVITE_AUTO_START', { email: maskEmail(normalizedEmail), userId });
       const inviteResult = await sendAdminAccessInvite({ email: normalizedEmail });
       inviteProvider = inviteResult.provider || 'resend';
 
       if (inviteResult.ok) {
         inviteSent = true;
-        console.info('[ADMIN_USERS][INVITE_AUTO_RESULT]', {
+        logInfo('ADMIN_USERS', 'INVITE_AUTO_RESULT', {
           ok: true,
-          email: normalizedEmail,
+          email: maskEmail(normalizedEmail),
           userId,
           provider: inviteProvider,
         });
       } else {
         inviteError = inviteResult.error || 'Falha ao enviar convite.';
-        console.warn('[ADMIN_USERS][INVITE_AUTO_RESULT]', {
+        logWarn('ADMIN_USERS', 'INVITE_AUTO_RESULT', {
           ok: false,
-          email: normalizedEmail,
+          email: maskEmail(normalizedEmail),
           userId,
           provider: inviteProvider,
           error: inviteError,
@@ -275,12 +277,9 @@ export async function POST(request) {
       ...(inviteError ? { inviteError } : {}),
     });
   } catch (error) {
-    console.error('[ADMIN_USERS][CREATE_ERROR]', {
-      message: error?.message || 'Erro interno do servidor',
-      stack: error?.stack || null,
-    });
+    logError('ADMIN_USERS', 'CREATE_ERROR', error);
     return NextResponse.json(
-      { error: error?.message || 'Erro interno do servidor' },
+      { ok: false, error: error?.message || 'Erro interno do servidor' },
       { status: 500 }
     );
   }

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { buildContractTemplateData } from '../../../../lib/contracts/buildContractTemplateData';
 import { generateInternalContract } from '../../../../lib/contracts/internalContractGenerator';
+import { logError, logInfo, logWarn, safeError } from '@/lib/observability/server-log';
 
 export const dynamic = 'force-dynamic';
 const IS_DEV = process.env.NODE_ENV !== 'production';
@@ -207,8 +208,7 @@ async function callContractService({
   const baseUrl = String(contractServiceUrl || '').trim().replace(/\/+$/, '');
   const endpoint = `${baseUrl}/api/contracts/generate`;
 
-  devLog('[/api/contracts/generate] chamando contract service', {
-    endpoint,
+  logInfo('CONTRACT_GENERATE', 'SERVICE_CALL_START', {
     hasApiKey: Boolean(contractServiceApiKey),
   });
 
@@ -226,9 +226,11 @@ async function callContractService({
       cache: 'no-store',
     });
   } catch (error) {
-    throw new Error(
+    const serviceError = new Error(
       `Falha ao conectar ao contract service: ${error?.message || 'erro desconhecido'}`
     );
+    logError('CONTRACT_GENERATE', 'SERVICE_CALL_ERROR', serviceError);
+    throw serviceError;
   }
 
   let serviceJson = null;
@@ -281,6 +283,7 @@ export async function GET() {
 
 export async function POST(request) {
   try {
+    logInfo('CONTRACT_GENERATE', 'START');
     const supabaseEnv = validateSupabaseEnv();
 
     if (!supabaseEnv.valid) {
@@ -317,6 +320,11 @@ export async function POST(request) {
       contractId,
       precontractId,
       supabase,
+    });
+    logInfo('CONTRACT_GENERATE', 'CONTEXT_RESOLVED', {
+      contractId: context.contract?.id || contractId || null,
+      precontractId: context.precontract?.id || precontractId || null,
+      eventId: context.event?.id || null,
     });
 
     const templateData = buildContractTemplateData(context);
@@ -355,19 +363,7 @@ export async function POST(request) {
     } = googleDocsEnv;
 
     devLog('[/api/contracts/generate] env ok', {
-      templateId,
-      rootFolderId,
-      contractServiceUrl,
       hasContractServiceApiKey: Boolean(contractServiceApiKey),
-    });
-
-    devLog('[/api/contracts/generate] contexto resolvido', {
-      requestedContractId: contractId,
-      requestedPrecontractId: precontractId,
-      resolvedContractId: context.contract?.id || null,
-      resolvedPrecontractId: context.precontract?.id || null,
-      resolvedContactId: context.contact?.id || null,
-      resolvedEventId: context.event?.id || null,
     });
 
     if (previewOnly) {
@@ -397,13 +393,9 @@ export async function POST(request) {
       context.precontract?.event_date ||
       new Date().toISOString().slice(0, 10);
 
-    devLog('[/api/contracts/generate] enviando para Render', {
+    logInfo('CONTRACT_GENERATE', 'SERVICE_CALL_START', {
       contractId: context.contract?.id || null,
       precontractId: context.precontract?.id || null,
-      templateId,
-      rootFolderId,
-      contractName,
-      eventDate,
     });
 
     let generated;
@@ -422,14 +414,15 @@ export async function POST(request) {
         },
       });
     } catch (error) {
-      console.error('[/api/contracts/generate] erro ao chamar contract service', {
-        message: error?.message,
+      logError('CONTRACT_GENERATE', 'ERROR', error, {
+        contractId: context.contract?.id || null,
+        precontractId: context.precontract?.id || null,
       });
 
       return NextResponse.json(
         {
           ok: false,
-          message: getReadableErrorMessage(error),
+          error: getReadableErrorMessage(error),
           errorType: error?.name || 'ContractServiceError',
         },
         { status: 500 }
@@ -442,11 +435,11 @@ export async function POST(request) {
       throw new Error('Contrato gerado sem links finais (docUrl/pdfUrl).');
     }
 
-    devLog('[/api/contracts/generate] resposta do Render recebida', {
+    logInfo('CONTRACT_GENERATE', 'SERVICE_CALL_OK', {
+      contractId: context.contract?.id || null,
+      precontractId: context.precontract?.id || null,
       hasDocUrl: Boolean(generated?.docUrl),
       hasPdfUrl: Boolean(generated?.pdfUrl),
-      folderYear: generated?.folderYear || null,
-      folderMonth: generated?.folderMonth || null,
     });
 
     devLog('[/api/contracts/generate] persistência pós-geração', {
@@ -468,13 +461,16 @@ export async function POST(request) {
       if (updateError) {
         throw new Error(`Erro ao salvar links do contrato: ${updateError.message}`);
       }
+      logInfo('CONTRACT_GENERATE', 'DB_UPDATE_OK', {
+        contractId: context.contract?.id || null,
+        precontractId: context.precontract?.id || null,
+        hasDocUrl: Boolean(generated.docUrl),
+        hasPdfUrl: Boolean(generated.pdfUrl),
+      });
     } else {
-      console.warn(
-        '[/api/contracts/generate] contrato gerado sem contract.id; links não foram persistidos na tabela contracts',
-        {
-          precontractId: context.precontract?.id || null,
-        }
-      );
+      logWarn('CONTRACT_GENERATE', 'DB_UPDATE_SKIPPED', {
+        precontractId: context.precontract?.id || null,
+      });
     }
 
     return NextResponse.json({
@@ -494,12 +490,14 @@ export async function POST(request) {
       templateData,
     });
   } catch (error) {
-    console.error('Erro em /api/contracts/generate:', error);
+    logError('CONTRACT_GENERATE', 'ERROR', error, {
+      ...safeError(error),
+    });
 
     return NextResponse.json(
       {
         ok: false,
-        message: error?.message || 'Erro interno ao gerar contrato.',
+        error: error?.message || 'Erro interno ao gerar contrato.',
         errorType: error?.name || 'UnknownError',
       },
       { status: 500 }

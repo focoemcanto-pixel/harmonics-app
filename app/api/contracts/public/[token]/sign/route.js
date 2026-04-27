@@ -4,6 +4,9 @@ import { buildSignedContractHtml, extractSignerIp } from '@/lib/contracts/premiu
 import { generateAndSaveInternalContractPdf } from '@/lib/contracts/internalPdfFlow';
 import { validateRequiredEnv } from '@/lib/config/validate-env';
 import { logError, logInfo, logWarn, maskToken } from '@/lib/observability/server-log';
+import { getRequestIp, getUserAgent } from '@/lib/api/request-meta';
+import { checkRateLimit } from '@/lib/api/rate-limit';
+import { writeAuditLog } from '@/lib/audit/audit-log';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -219,6 +222,8 @@ async function resolveSigningContext({ supabase, token }) {
 export async function POST(request, context) {
   const resolvedParams = await context?.params;
   const token = extractToken(resolvedParams);
+  const requestIp = getRequestIp(request);
+  const requestUserAgent = getUserAgent(request);
   let signedContractContext = null;
 
   validateRequiredEnv('contracts/public-sign');
@@ -231,13 +236,29 @@ export async function POST(request, context) {
     return NextResponse.json({ ok: false, message: 'Token inválido.' }, { status: 400 });
   }
 
+  const rateLimitResult = checkRateLimit({
+    key: `contract-sign:${requestIp || 'ip-na'}:${maskToken(token) || 'token-na'}`,
+    limit: 10,
+    windowMs: 15 * 60 * 1000,
+  });
+
+  if (!rateLimitResult.ok) {
+    return NextResponse.json(
+      { ok: false, error: 'Muitas tentativas. Tente novamente em alguns minutos.' },
+      {
+        status: 429,
+        headers: { 'Retry-After': String(rateLimitResult.retryAfterSeconds || 60) },
+      }
+    );
+  }
+
   const publicToken = token;
 
   try {
     const body = await request.json().catch(() => null);
     const signedAt = new Date().toISOString();
     const signerIp = extractSignerIp(request.headers);
-    const userAgent = asString(request.headers.get('user-agent')) || 'Não disponível';
+    const userAgent = asString(request.headers.get('user-agent')) || requestUserAgent || 'Não disponível';
     const signerName = asString(body?.signerName) || 'Não informado';
     const signerCpf = asString(body?.signerCpf) || 'Não informado';
     const origin = resolveSignatureOrigin(body?.origin);
@@ -272,6 +293,20 @@ export async function POST(request, context) {
       }
 
       if (contract.pdf_url) {
+        await writeAuditLog({
+          supabase,
+          action: 'contract.sign',
+          entityType: 'contract',
+          entityId: contract.id,
+          status: 'success',
+          ip: signerIp || requestIp,
+          userAgent,
+          metadata: {
+            alreadySigned: true,
+            pdfAvailable: true,
+            token: maskToken(publicToken),
+          },
+        });
         return NextResponse.json({
           ok: true,
           alreadySigned: true,
@@ -355,6 +390,19 @@ export async function POST(request, context) {
           });
         }
 
+        await writeAuditLog({
+          supabase,
+          action: 'contract.pdf.generate_final',
+          entityType: 'contract',
+          entityId: contract.id,
+          status: 'success',
+          ip: signerIp || requestIp,
+          userAgent,
+          metadata: {
+            mode: 'already-signed-recovery',
+            token: maskToken(publicToken),
+          },
+        });
         return NextResponse.json({
           ok: true,
           alreadySigned: true,
@@ -475,6 +523,38 @@ export async function POST(request, context) {
       });
     }
 
+    await writeAuditLog({
+      supabase,
+      action: 'contract.sign',
+      entityType: 'contract',
+      entityId: contract.id,
+      status: 'success',
+      ip: signerIp || requestIp,
+      userAgent,
+      metadata: {
+        precontractId: contract.precontract_id,
+        token: maskToken(publicToken),
+        signerName: signerName ? '[provided]' : '[missing]',
+        signerCpfMasked: maskCpf(signerCpf),
+      },
+    });
+
+    if (pdfUrl) {
+      await writeAuditLog({
+        supabase,
+        action: 'contract.pdf.generate_final',
+        entityType: 'contract',
+        entityId: contract.id,
+        status: 'success',
+        ip: signerIp || requestIp,
+        userAgent,
+        metadata: {
+          mode: 'fresh-sign',
+          token: maskToken(publicToken),
+        },
+      });
+    }
+
     const finalSignedAt = signedDocument.signedAtIso || new Date().toISOString();
     const finalPatch = {
       public_token: publicToken,
@@ -528,6 +608,24 @@ export async function POST(request, context) {
         : 'Contrato assinado. O PDF ainda está sendo preparado.',
     });
   } catch (error) {
+    try {
+      const supabase = getSupabaseAdmin();
+      await writeAuditLog({
+        supabase,
+        action: 'contract.sign',
+        entityType: 'contract',
+        entityId: signedContractContext?.contract?.id || null,
+        status: 'failed',
+        ip: requestIp,
+        userAgent: requestUserAgent,
+        metadata: {
+          token: maskToken(publicToken),
+          error: error?.message || 'Contrato assinado. O PDF ainda está sendo preparado.',
+        },
+      });
+    } catch {
+      // no-op: auditoria é best effort
+    }
     logError('CONTRACT_PUBLIC_SIGN', 'ERROR', error, {
       contractId: signedContractContext?.contract?.id || null,
       precontractId: signedContractContext?.precontract?.id || signedContractContext?.contract?.precontract_id || null,

@@ -12,55 +12,108 @@ function isAuthUserMissing(error) {
   );
 }
 
-export async function DELETE(request, { params }) {
+export async function DELETE(request, context) {
+  const params = await context.params;
   const userId = params?.id;
 
-  if (!userId) {
-    return NextResponse.json({ ok: false, error: 'userId é obrigatório.' }, { status: 400 });
-  }
+  console.info('[ADMIN_USERS][DELETE_START]', { userId });
 
-  const requesterId = request.headers.get('x-requester-id');
-  if (requesterId && requesterId === userId) {
-    return NextResponse.json(
-      { ok: false, error: 'Você não pode excluir o próprio usuário.' },
-      { status: 400 }
-    );
+  if (!userId) {
+    console.error('[ADMIN_USERS][DELETE_ERROR]', { error: 'ID do usuário não informado.' });
+    return NextResponse.json({ ok: false, error: 'ID do usuário não informado.' }, { status: 400 });
   }
 
   try {
     const supabase = getSupabaseAdmin();
 
-    const { error: profileDeleteError } = await supabase
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('id, email, name, role')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (profileError) {
+      console.error('[ADMIN_USERS][DELETE_ERROR]', { userId, error: profileError.message });
+      return NextResponse.json({ ok: false, error: profileError.message }, { status: 500 });
+    }
+
+    if (!profile) {
+      console.error('[ADMIN_USERS][DELETE_ERROR]', { userId, error: 'Usuário não encontrado.' });
+      return NextResponse.json({ ok: false, error: 'Usuário não encontrado.' }, { status: 404 });
+    }
+
+    if (profile.role === 'admin') {
+      const { count, error: countError } = await supabase
+        .from('profiles')
+        .select('id', { count: 'exact', head: true })
+        .eq('role', 'admin');
+
+      if (!countError && count <= 1) {
+        console.error('[ADMIN_USERS][DELETE_ERROR]', {
+          userId,
+          error: 'Não é possível excluir o último administrador.',
+        });
+        return NextResponse.json(
+          {
+            ok: false,
+            error: 'Não é possível excluir o último administrador.',
+          },
+          { status: 400 }
+        );
+      }
+    }
+
+    const { error: deleteProfileError } = await supabase
       .from('profiles')
       .delete()
       .eq('id', userId);
 
-    if (profileDeleteError) {
+    if (deleteProfileError) {
+      console.error('[ADMIN_USERS][DELETE_ERROR]', { userId, error: deleteProfileError.message });
       return NextResponse.json(
-        { ok: false, error: profileDeleteError.message || 'Erro ao excluir profile.' },
+        { ok: false, error: deleteProfileError.message },
         { status: 500 }
       );
     }
+    console.info('[ADMIN_USERS][DELETE_PROFILE_OK]', { userId });
 
-    const { error: authDeleteError } = await supabase.auth.admin.deleteUser(userId);
+    const { error: deleteAuthError } = await supabase.auth.admin.deleteUser(userId);
 
-    if (authDeleteError && !isAuthUserMissing(authDeleteError)) {
-      return NextResponse.json(
-        { ok: false, error: authDeleteError.message || 'Erro ao excluir usuário no Auth.' },
-        { status: 500 }
-      );
+    if (deleteAuthError) {
+      const msg = String(deleteAuthError.message || '').toLowerCase();
+
+      const ignorable =
+        msg.includes('user not found') ||
+        msg.includes('not found') ||
+        msg.includes('does not exist') ||
+        isAuthUserMissing(deleteAuthError);
+
+      if (!ignorable) {
+        console.error('[ADMIN_USERS][DELETE_ERROR]', { userId, error: deleteAuthError.message });
+        return NextResponse.json(
+          {
+            ok: false,
+            error: `Profile excluído, mas houve erro ao remover Auth: ${deleteAuthError.message}`,
+          },
+          { status: 500 }
+        );
+      }
+
+      console.info('[ADMIN_USERS][DELETE_AUTH_OK]', { userId, authAlreadyMissing: true });
+    } else {
+      console.info('[ADMIN_USERS][DELETE_AUTH_OK]', { userId });
     }
-
-    const authAlreadyMissing = !!authDeleteError && isAuthUserMissing(authDeleteError);
 
     return NextResponse.json({
       ok: true,
-      message: authAlreadyMissing
-        ? 'Profile removido e usuário já não existia no Auth.'
-        : 'Usuário excluído com sucesso.',
-      authAlreadyMissing,
+      deletedUserId: userId,
+      deletedEmail: profile.email || null,
     });
   } catch (error) {
+    console.error('[ADMIN_USERS][DELETE_ERROR]', {
+      userId,
+      error: error?.message || 'Erro interno ao excluir usuário.',
+    });
     return NextResponse.json(
       { ok: false, error: error?.message || 'Erro interno ao excluir usuário.' },
       { status: 500 }

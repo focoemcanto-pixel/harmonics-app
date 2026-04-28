@@ -1045,6 +1045,9 @@ function InicioTab({ data, setActiveTab, selectedSongs }) {
           <RowInfo icon="📍" label="Local" value={data.localEvento || '—'} />
           <RowInfo icon="🎻" label="Formação" value={data.formacao || '—'} />
           <RowInfo icon="🎶" label="Instrumentos" value={data.instrumentos || '—'} />
+          {data.receptivoResumo ? (
+            <RowInfo icon="🎤" label="Receptivo" value={data.receptivoResumo.replace(/^Receptivo:\s*/i, '')} />
+          ) : null}
         </div>
       </SectionCard>
 

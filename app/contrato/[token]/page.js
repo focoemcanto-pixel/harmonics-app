@@ -692,6 +692,8 @@ async function upsertEventFromSignature({
 
     formation: precontract?.formation || null,
     instruments: precontract?.instruments || null,
+    reception_formation: precontract?.reception_formation || null,
+    reception_instruments: precontract?.reception_instruments || null,
 
     has_sound: !!precontract?.has_sound,
     reception_hours: Number(precontract?.reception_hours || 0),
@@ -1617,6 +1619,8 @@ useEffect(() => {
       eventTime: normalizeTimeStrict(precontract.event_time || ''),
       formation: precontract.formation || '',
       instruments: precontract.instruments || '',
+      receptionFormation: precontract.reception_formation || '',
+      receptionInstruments: precontract.reception_instruments || '',
       locationName: precontract.location_name || '',
       locationAddress: precontract.location_address || '',
       receptionHours: precontract.reception_hours || 0,
@@ -2485,13 +2489,13 @@ if (contractSignedError) throw contractSignedError;
                     label="Receptivo"
                     value={resumo?.receptionHours ? 'Sim' : 'Não'}
                   />
-                  {resumo?.receptionHours ? (
+                  {Number(resumo?.receptionHours || 0) > 0 ? (
                     <SummaryItem
-                      label="Detalhe"
+                      label="Receptivo (formação/instrumentos)"
                       value={
-                        resumo?.receptionFormation && resumo?.receptionInstruments
-                          ? `${resumo.receptionFormation} (${resumo.receptionInstruments}) — ${resumo.receptionHours}h`
-                          : `${resumo.receptionHours}h`
+                        [resumo?.receptionFormation, resumo?.receptionInstruments]
+                          .filter(Boolean)
+                          .join(' - ') || '-'
                       }
                     />
                   ) : null}

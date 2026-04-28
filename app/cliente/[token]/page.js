@@ -14,6 +14,8 @@ const CLIENT_EVENT_SELECT_FIELDS = [
   'location_name',
   'formation',
   'instruments',
+  'reception_formation',
+  'reception_instruments',
   'status',
   'observations',
   'agreed_amount',
@@ -42,6 +44,8 @@ const CLIENT_EVENT_SELECT_FIELDS_FALLBACK = [
   'location_name',
   'formation',
   'instruments',
+  'reception_formation',
+  'reception_instruments',
   'status',
   'observations',
   'agreed_amount',
@@ -67,6 +71,8 @@ const CLIENT_EVENT_SELECT_FIELDS_MINIMAL_FALLBACK = [
   'location_name',
   'formation',
   'instruments',
+  'reception_formation',
+  'reception_instruments',
   'status',
   'observations',
 ].join(', ');
@@ -84,6 +90,8 @@ const CLIENT_PRECONTRACT_BASE_SELECT_FIELDS = [
   'has_transport',
   'formation',
   'instruments',
+  'reception_formation',
+  'reception_instruments',
 ].join(', ');
 const CLIENT_PRECONTRACT_BASE_SELECT_FIELDS_FALLBACK = [
   'id',
@@ -1739,6 +1747,17 @@ export default async function ClienteTokenPage({ params, searchParams }) {
     }
   }
 
+  const receptionHours = Number(
+    precontract?.reception_hours ?? event?.reception_hours ?? 0
+  ) || 0;
+  const receptionFormation =
+    event?.reception_formation || precontract?.reception_formation || '';
+  const receptionInstruments =
+    event?.reception_instruments || precontract?.reception_instruments || '';
+  const receptivoResumo = receptionHours > 0
+    ? `Receptivo: ${receptionFormation || '—'}${receptionInstruments ? ` (${receptionInstruments})` : ''}`
+    : '';
+
   const data = {
     token: clientToken,
     clienteNome: event.client_name || 'Cliente',
@@ -1750,6 +1769,7 @@ export default async function ClienteTokenPage({ params, searchParams }) {
     localEvento: event.location_name || '',
     formacao: resolvedFormation,
     instrumentos: resolvedInstruments,
+    receptivoResumo,
     statusContrato: contract?.signed_at ? 'Contrato assinado' : 'Contrato pendente',
     statusEvento: event.status || 'Confirmado',
     observacoes:

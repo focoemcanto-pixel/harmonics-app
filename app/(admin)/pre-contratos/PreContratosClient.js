@@ -51,6 +51,8 @@ const PRECONTRACT_SELECT_FIELDS = [
   'location_address',
   'formation',
   'instruments',
+  'reception_formation',
+  'reception_instruments',
   'has_sound',
   'reception_hours',
   'reception_formation',
@@ -205,6 +207,8 @@ function getInitialForm() {
 
     formation: '',
     instruments: '',
+    reception_formation: '',
+    reception_instruments: '',
 
     has_sound: false,
     reception_hours: '0',
@@ -994,6 +998,8 @@ async function carregarModelosContrato({ force = false } = {}) {
 
       formation: item.formation || '',
       instruments: item.instruments || '',
+      reception_formation: item.reception_formation || '',
+      reception_instruments: item.reception_instruments || '',
 
       has_sound: !!item.has_sound,
       reception_hours: String(item.reception_hours ?? 0),
@@ -1302,6 +1308,8 @@ async function carregarModelosContrato({ force = false } = {}) {
 
         formation: normalizeFormation(form.formation),
         instruments: form.instruments.trim() || null,
+        reception_formation: form.reception_formation.trim() || null,
+        reception_instruments: form.reception_instruments.trim() || null,
 
         has_sound: !!form.has_sound,
         reception_hours: parseInt(form.reception_hours, 10) || 0,
@@ -1765,6 +1773,27 @@ async function carregarModelosContrato({ force = false } = {}) {
                     value={form.reception_hours}
                     onChange={(e) => handleFormChange('reception_hours', e.target.value)}
                   />
+                  {Number(form.reception_hours || 0) > 0 ? (
+                    <>
+                      <Select
+                        label="Formação do receptivo"
+                        value={form.reception_formation}
+                        onChange={(e) => handleFormChange('reception_formation', e.target.value)}
+                      >
+                        <option value="">Selecione</option>
+                        {FORMATIONS.map((f) => (
+                          <option key={f} value={f}>
+                            {f}
+                          </option>
+                        ))}
+                      </Select>
+                      <Input
+                        label="Instrumentos do receptivo"
+                        value={form.reception_instruments}
+                        onChange={(e) => handleFormChange('reception_instruments', e.target.value)}
+                      />
+                    </>
+                  ) : null}
 
                   <label className="flex items-center justify-between rounded-2xl border border-slate-200 p-4">
                     <span className="font-medium text-slate-700">Tem transporte</span>

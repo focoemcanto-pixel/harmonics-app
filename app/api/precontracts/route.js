@@ -23,6 +23,8 @@ const PRECONTRACT_SELECT_FIELDS = [
   'location_address',
   'formation',
   'instruments',
+  'reception_formation',
+  'reception_instruments',
   'has_sound',
   'reception_hours',
   'reception_formation',

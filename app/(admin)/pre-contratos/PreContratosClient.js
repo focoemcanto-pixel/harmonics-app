@@ -2092,13 +2092,23 @@ async function carregarModelosContrato({ force = false } = {}) {
                   title={item.client_name || 'Cliente a confirmar'}
                   subtitle={`${formatDateBR(item.event_date)} • ${item.location_name || 'Local não informado'}`}
                   actions={
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge tone={usesInternalModel ? 'violet' : 'default'}>
-                        {usesInternalModel ? 'Modelo personalizado' : 'Modelo padrão'}
-                      </Badge>
-                      <Badge tone={getStatusTone(item.status)}>
-                        {getStatusLabel(item.status)}
-                      </Badge>
+                    <div className="flex max-w-full flex-wrap items-center gap-2 overflow-hidden">
+                      <div className="min-w-0 max-w-full">
+                        <Badge
+                          tone={usesInternalModel ? 'violet' : 'default'}
+                          className="max-w-full whitespace-normal break-words text-center"
+                        >
+                          {usesInternalModel ? 'Modelo personalizado' : 'Modelo padrão'}
+                        </Badge>
+                      </div>
+                      <div className="min-w-0 max-w-full">
+                        <Badge
+                          tone={getStatusTone(item.status)}
+                          className="max-w-full whitespace-normal break-words text-center"
+                        >
+                          {getStatusLabel(item.status)}
+                        </Badge>
+                      </div>
                     </div>
                   }
                 >

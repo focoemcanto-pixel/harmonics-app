@@ -1,4 +1,4 @@
-export default function Badge({ children, tone = 'default' }) {
+export default function Badge({ children, tone = 'default', className = '' }) {
   const tones = {
     default: 'bg-slate-100 text-slate-700',
     violet: 'bg-violet-100 text-violet-700',
@@ -10,7 +10,7 @@ export default function Badge({ children, tone = 'default' }) {
 
   return (
     <span
-      className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${tones[tone] || tones.default}`}
+      className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${tones[tone] || tones.default} ${className}`}
     >
       {children}
     </span>

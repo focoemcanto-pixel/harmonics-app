@@ -27,6 +27,8 @@ const PRECONTRACT_SELECT_FIELDS = [
   'reception_instruments',
   'has_sound',
   'reception_hours',
+  'reception_formation',
+  'reception_instruments',
   'has_transport',
   'base_amount',
   'add_reception',

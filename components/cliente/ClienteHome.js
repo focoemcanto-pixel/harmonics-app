@@ -3505,7 +3505,20 @@ async function handleRequestReview() {
               <RowInfo icon="💒" label="Entradas no cortejo" value={String(filterUsefulMusicalItems(cortejo).length)} />
               <RowInfo icon="⛪" label="Momentos da cerimônia" value={String(filterUsefulMusicalItems(cerimonia).length)} />
               <RowInfo icon="🎉" label="Música da saída" value={saida.musica || 'Não definida'} />
-              <RowInfo icon="🎤" label="Receptivo" value={temReceptivo ? 'Incluído' : 'Não incluído'} />
+              <RowInfo
+                icon="🎤"
+                label="Receptivo"
+                value={
+                  temReceptivo
+                    ? (
+                      data?.event?.reception_formation &&
+                      data?.event?.reception_instruments
+                        ? `${data.event.reception_formation} (${data.event.reception_instruments}) — ${Number(data?.event?.reception_hours || 0)}h`
+                        : `Sim — ${Number(data?.event?.reception_hours || 0)}h`
+                    )
+                    : 'Não incluído'
+                }
+              />
               <RowInfo icon="✨" label="Músicas no repertório" value={String(renderedRepertorioItems.length)} />
             </div>
           </SectionCard>

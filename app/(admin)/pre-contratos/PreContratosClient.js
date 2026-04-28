@@ -592,6 +592,10 @@ export default function PreContratosClient() {
 
   const [form, setForm] = useState(getInitialForm());
 
+  useEffect(() => () => {
+    document.body.style.overflow = '';
+  }, []);
+
   async function carregarPreContratos() {
     const { data, error } = await supabase
       .from('precontracts')

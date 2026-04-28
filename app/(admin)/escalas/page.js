@@ -697,6 +697,11 @@ export default function EscalasPage() {
     );
   }, [filteredCards]);
 
+  const selectedScaleCard = useMemo(
+    () => eventCards.find((card) => String(card.eventId) === String(selectedScaleEventId)) || null,
+    [eventCards, selectedScaleEventId]
+  );
+
   const invitesFiltrados = useMemo(() => {
     const termo = normalizeText(busca);
     if (!termo) return invites;
@@ -1211,6 +1216,39 @@ export default function EscalasPage() {
             </div>
 
             <div className="overflow-y-auto px-5 py-5">
+              {selectedScaleCard ? (
+                <div className="mb-5 rounded-[22px] border border-[#dbe3ef] bg-white p-4">
+                  <div className="text-[20px] font-black tracking-[-0.03em] text-[#0f172a]">
+                    {selectedScaleCard.clientName || 'Evento'}
+                  </div>
+                  <div className="mt-1 text-[15px] font-semibold leading-7 text-[#64748b]">
+                    {formatDateTimeBR(selectedScaleCard.eventDate, selectedScaleCard.eventTime)}
+                    {selectedScaleCard.locationName ? ` • ${selectedScaleCard.locationName}` : ''}
+                  </div>
+
+                  <div className="mt-4 grid gap-3 md:grid-cols-2">
+                    <div className="rounded-[18px] border border-[#dbe3ef] bg-[#f8fafc] px-4 py-3">
+                      <div className="text-[11px] font-black uppercase tracking-[0.1em] text-[#64748b]">
+                        Formação
+                      </div>
+                      <div className="mt-1 text-[16px] font-black text-[#0f172a]">
+                        {selectedScaleCard.formation || 'Não informada'}
+                      </div>
+                    </div>
+
+                    <div className="rounded-[18px] border border-[#dbe3ef] bg-[#f8fafc] px-4 py-3">
+                      <div className="text-[11px] font-black uppercase tracking-[0.1em] text-[#64748b]">
+                        Instrumentos / funções esperadas
+                      </div>
+                      <div className="mt-1 text-[16px] font-black text-[#0f172a]">
+                        {selectedScaleCard.instruments ||
+                          selectedScaleCard.instrumentosEsperados?.join(', ') ||
+                          'Não informado'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
               <ScaleWorkspaceErrorBoundary resetKey={selectedScaleEventId}>
                 {selectedScaleEventId ? <EventoEscalaTab eventId={selectedScaleEventId} /> : null}
               </ScaleWorkspaceErrorBoundary>

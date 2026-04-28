@@ -34,6 +34,12 @@ function textToEditorHtml(value) {
     .join('');
 }
 
+function unlockPageScroll() {
+  if (typeof document === 'undefined') return;
+  document.body.style.overflow = '';
+  document.documentElement.style.overflow = '';
+}
+
 export default function ContractTemplateEditorModal({
   open,
   onClose,
@@ -54,21 +60,45 @@ export default function ContractTemplateEditorModal({
     if (!String(draft || '').trim()) return '';
     return parsed.normalizedContent;
   }, [draft, parsed.normalizedContent]);
+
   const handleClose = () => {
-    document.body.style.overflow = '';
+    unlockPageScroll();
     setMobileTab('edit');
     onClose?.();
   };
 
+  const handleSave = () => {
+    unlockPageScroll();
+    onSave?.({
+      rawText: draft,
+      processedContent: parsed.normalizedContent,
+      sourceText: htmlToReadableText(draft),
+    });
+  };
+
   useEffect(() => {
-    if (!open) return;
-    const previousOverflow = document.body.style.overflow;
+    if (!open) {
+      unlockPageScroll();
+      return undefined;
+    }
+
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+
     document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
 
     return () => {
-      document.body.style.overflow = previousOverflow || '';
+      document.body.style.overflow = previousBodyOverflow || '';
+      document.documentElement.style.overflow = previousHtmlOverflow || '';
     };
   }, [open]);
+
+  useEffect(() => {
+    return () => {
+      unlockPageScroll();
+    };
+  }, []);
 
   if (!open) return null;
 
@@ -186,7 +216,7 @@ export default function ContractTemplateEditorModal({
               ) : null}
               <Button variant="soft" onClick={handleClose}>Cancelar</Button>
               {!readOnly ? (
-                <Button onClick={() => onSave?.({ rawText: draft, processedContent: parsed.normalizedContent, sourceText: htmlToReadableText(draft) })}>
+                <Button onClick={handleSave}>
                   Salvar personalização
                 </Button>
               ) : null}

@@ -23,23 +23,42 @@ async function resolveRouteParams(params) {
   return resolvedParams || {};
 }
 
+async function fetchPrecontractByIdOrToken(supabase, rawIdOrToken) {
+  const idOrToken = String(rawIdOrToken || '').trim();
+  if (!idOrToken) return { data: null, error: null };
+
+  const byId = await supabase
+    .from('precontracts')
+    .select('*')
+    .eq('id', idOrToken)
+    .maybeSingle();
+
+  if (byId.error) return byId;
+  if (byId.data) return byId;
+
+  return supabase
+    .from('precontracts')
+    .select('*')
+    .eq('public_token', idOrToken)
+    .maybeSingle();
+}
+
 export default async function ContratoPreviewPage({ params }) {
   const resolvedParams = await resolveRouteParams(params);
-  const precontractId = Array.isArray(resolvedParams?.id)
+  const idOrToken = Array.isArray(resolvedParams?.id)
     ? resolvedParams.id[0]
     : resolvedParams?.id;
 
-  if (!precontractId) {
+  if (!idOrToken) {
     notFound();
   }
 
   const supabase = createAdminSupabase();
 
-  const { data: precontract, error: precontractError } = await supabase
-    .from('precontracts')
-    .select('*')
-    .eq('id', precontractId)
-    .maybeSingle();
+  const { data: precontract, error: precontractError } = await fetchPrecontractByIdOrToken(
+    supabase,
+    idOrToken
+  );
 
   if (precontractError) {
     throw new Error(`Erro ao buscar precontract: ${precontractError.message}`);

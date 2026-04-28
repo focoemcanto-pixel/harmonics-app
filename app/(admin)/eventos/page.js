@@ -116,6 +116,40 @@ const SORT_MODE_TO_QUERY = {
   'Data do evento': 'data_evento',
   'Data de adição': 'data_adicao',
 };
+const PRICING_FIELDS_TO_CONFIRM = [
+  'price_solo',
+  'price_duo',
+  'price_trio',
+  'price_quarteto',
+  'price_quinteto',
+  'price_sexteto',
+  'price_septeto',
+  'sound_price',
+  'reception_duo_1h',
+  'reception_duo_2h',
+  'reception_duo_3h',
+  'reception_trio_1h',
+  'reception_trio_2h',
+  'reception_trio_3h',
+  'reception_quarteto_1h',
+  'reception_quarteto_2h',
+  'reception_quarteto_3h',
+  'reception_quinteto_1h',
+  'reception_quinteto_2h',
+  'reception_quinteto_3h',
+  'reception_sexteto_1h',
+  'reception_sexteto_2h',
+  'reception_sexteto_3h',
+  'reception_septeto_1h',
+  'reception_septeto_2h',
+  'reception_septeto_3h',
+];
+const COST_FIELDS_TO_CONFIRM = [
+  'musician_unit_cost',
+  'sound_default_cost',
+  'transport_default_cost',
+  'other_default_cost',
+];
 let eventosAdminCache = {
   updatedAt: 0,
   eventos: [],
@@ -644,6 +678,16 @@ export default function EventosPage() {
         custom_costs: normalizedCostDefaults.custom_costs,
         finance_notes: normalizedCostDefaults.notes,
       }));
+      eventosAdminCache.pricing = {
+        ...(eventosAdminCache.pricing || {}),
+        musician_unit_cost: normalizedCostDefaults.musician_unit_cost,
+        sound_default_cost: normalizedCostDefaults.sound_default_cost,
+        transport_default_cost: normalizedCostDefaults.transport_default_cost,
+        other_default_cost: normalizedCostDefaults.other_default_cost,
+        custom_costs: normalizedCostDefaults.custom_costs,
+        finance_notes: normalizedCostDefaults.notes,
+      };
+      eventosAdminCache.updatedAt = Date.now();
     } catch (error) {
       logLoadError('finance_cost_defaults', error);
     }
@@ -1015,6 +1059,7 @@ export default function EventosPage() {
   async function salvarPricing() {
     try {
       setSalvando(true);
+      eventosAdminCache.updatedAt = 0;
 
       const pricingPayload = {
         slug: 'default',
@@ -1061,6 +1106,11 @@ export default function EventosPage() {
         custom_costs: sanitizeCustomCosts(pricing.custom_costs),
       };
 
+      console.info('[EVENTOS][PRICING_SAVE][START]', {
+        pricingPayload,
+        costPayload,
+      });
+
       const { data: pricingData, error: pricingError } = await supabase
         .from('pricing_settings')
         .upsert(pricingPayload, { onConflict: 'slug' })
@@ -1084,36 +1134,105 @@ export default function EventosPage() {
         });
       }
 
-      const normalizedPricing = hydratePricingFromCanonical({
-        ...pricing,
-        ...pricingPayload,
-        ...costPayload,
-        finance_notes: costPayload.notes,
+      console.info('[EVENTOS][PRICING_SAVE][UPSERT_OK]');
+
+      const { data: reloadedPricing, error: reloadPricingError } = await supabase
+        .from('pricing_settings')
+        .select(PRICING_SELECT_FIELDS)
+        .eq('slug', 'default')
+        .maybeSingle();
+
+      if (reloadPricingError) throw reloadPricingError;
+      if (!reloadedPricing) {
+        throw new Error('pricing_settings.default não retornou após salvar.');
+      }
+
+      let reloadedCosts = null;
+      const { data: costsData, error: reloadCostsError } = await supabase
+        .from('finance_cost_defaults')
+        .select(
+          'id, slug, musician_unit_cost, sound_default_cost, transport_default_cost, other_default_cost, custom_costs, notes'
+        )
+        .eq('slug', 'default')
+        .maybeSingle();
+
+      if (reloadCostsError) {
+        if (!financeDefaultsError) throw reloadCostsError;
+      } else {
+        reloadedCosts = costsData;
+      }
+
+      console.info('[EVENTOS][PRICING_SAVE][RELOAD_OK]', {
+        pricingId: reloadedPricing?.id,
+        costDefaultsId: reloadedCosts?.id,
+        priceSolo: reloadedPricing?.price_solo,
+        musicianUnitCost: reloadedCosts?.musician_unit_cost,
       });
+
+      const normalizedReloadedPricing = hydratePricingFromCanonical(reloadedPricing);
+      const normalizedReloadedCosts = reloadedCosts
+        ? {
+            musician_unit_cost: toNumber(reloadedCosts.musician_unit_cost),
+            sound_default_cost: toNumber(reloadedCosts.sound_default_cost),
+            transport_default_cost: toNumber(reloadedCosts.transport_default_cost),
+            other_default_cost: toNumber(reloadedCosts.other_default_cost),
+            custom_costs: sanitizeCustomCosts(reloadedCosts.custom_costs),
+            notes: String(reloadedCosts.notes || ''),
+          }
+        : null;
+      const combinedPricing = {
+        ...normalizedReloadedPricing,
+        musician_unit_cost: normalizedReloadedCosts?.musician_unit_cost ?? toNumber(pricing.musician_unit_cost),
+        sound_default_cost: normalizedReloadedCosts?.sound_default_cost ?? toNumber(pricing.sound_default_cost),
+        transport_default_cost:
+          normalizedReloadedCosts?.transport_default_cost ?? toNumber(pricing.transport_default_cost),
+        other_default_cost: normalizedReloadedCosts?.other_default_cost ?? toNumber(pricing.other_default_cost),
+        custom_costs: normalizedReloadedCosts?.custom_costs ?? sanitizeCustomCosts(pricing.custom_costs),
+        finance_notes: normalizedReloadedCosts?.notes ?? String(pricing.finance_notes || pricing.notes || ''),
+      };
+
+      const pricingConfirmed = PRICING_FIELDS_TO_CONFIRM.every(
+        (field) => toNumber(reloadedPricing?.[field]) === toNumber(pricingPayload?.[field])
+      );
+      const costsConfirmed = COST_FIELDS_TO_CONFIRM.every((field) => {
+        if (!normalizedReloadedCosts) return false;
+        return toNumber(normalizedReloadedCosts?.[field]) === toNumber(costPayload?.[field]);
+      });
+      const shouldConfirmCosts = !financeDefaultsError;
+      const hasConfirmedReload = pricingConfirmed && (!shouldConfirmCosts || costsConfirmed);
 
       setPricing((prev) => ({
         ...prev,
-        ...normalizedPricing,
+        ...combinedPricing,
       }));
 
-      setFinanceCostDefaults({
-        musician_unit_cost: costPayload.musician_unit_cost,
-        sound_default_cost: costPayload.sound_default_cost,
-        transport_default_cost: costPayload.transport_default_cost,
-        other_default_cost: costPayload.other_default_cost,
-        custom_costs: costPayload.custom_costs,
-        notes: costPayload.notes,
-      });
-
-      if (pricingData?.id) {
-        setPricingId(pricingData.id);
-        eventosAdminCache.pricingId = pricingData.id;
+      if (normalizedReloadedCosts) {
+        setFinanceCostDefaults(normalizedReloadedCosts);
+      } else {
+        setFinanceCostDefaults({
+          musician_unit_cost: toNumber(pricing.musician_unit_cost),
+          sound_default_cost: toNumber(pricing.sound_default_cost),
+          transport_default_cost: toNumber(pricing.transport_default_cost),
+          other_default_cost: toNumber(pricing.other_default_cost),
+          custom_costs: sanitizeCustomCosts(pricing.custom_costs),
+          notes: String(pricing.finance_notes || pricing.notes || ''),
+        });
       }
 
-      eventosAdminCache.pricing = normalizedPricing;
+      if (reloadedPricing?.id || pricingData?.id) {
+        const nextPricingId = reloadedPricing?.id || pricingData?.id;
+        setPricingId(nextPricingId);
+        eventosAdminCache.pricingId = nextPricingId;
+      }
+
+      eventosAdminCache.pricing = combinedPricing;
       eventosAdminCache.updatedAt = Date.now();
 
-      if (financeDefaultsError) {
+      if (!hasConfirmedReload) {
+        toast.warning(
+          'Os dados foram enviados, mas não retornaram atualizados. Verifique as permissões ou o banco.'
+        );
+      } else if (financeDefaultsError) {
         toast.warning('Preços salvos, mas não foi possível salvar custos padrão.');
       } else {
         toast.success('Configuração de preços salva com sucesso.');

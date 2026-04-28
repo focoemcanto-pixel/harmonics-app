@@ -540,7 +540,16 @@ export default function EventoEscalaTab({ eventId }) {
 
       const eventoData = eventoResp.data || null;
       const contatosData = filterOperationalTeamContacts(contatosResp.data || []);
+      const templatesData = Array.isArray(templatesResp?.data) ? templatesResp.data : [];
+      const templateItemsRespData = Array.isArray(templateItemsResp?.data) ? templateItemsResp.data : [];
       const contatosMap = new Map(contatosData.map((contact) => [String(contact.id), contact]));
+      const templateItemsByTemplateId = new Map();
+      templateItemsRespData.forEach((item) => {
+        const key = String(item?.template_id || '');
+        if (!key) return;
+        const prev = templateItemsByTemplateId.get(key) || [];
+        templateItemsByTemplateId.set(key, [...prev, item]);
+      });
 
       const escalaData = (escalaResp.data || [])
         .filter((item) => contatosMap.has(String(item.musician_id)))
@@ -573,7 +582,7 @@ export default function EventoEscalaTab({ eventId }) {
             instruments: eventoData.instruments,
             roleInstrumentTags: getRoleInstrumentTagsFromEvent(eventoData).join(', '),
           },
-          templatesResp.data || []
+          templatesData
         );
 
         const bestTemplate = suggestion.bestTemplate;
@@ -583,6 +592,7 @@ export default function EventoEscalaTab({ eventId }) {
             ...bestTemplate,
             match_explanation: suggestion.suggestions?.[0]?.explanation || '',
             match_score: suggestion.suggestions?.[0]?.score || 0,
+            items: templateItemsByTemplateId.get(String(bestTemplate.id)) || [],
           };
         }
 
@@ -590,6 +600,7 @@ export default function EventoEscalaTab({ eventId }) {
           ...item.template,
           match_score: item.score,
           match_explanation: item.explanation,
+          items: templateItemsByTemplateId.get(String(item?.template?.id)) || [],
         }));
 
         setOutrasSugestoes(bestTemplate
@@ -644,20 +655,62 @@ export default function EventoEscalaTab({ eventId }) {
     return () => clearTimeout(timer);
   }, [sucesso]);
 
+  const safeEscalaLocal = Array.isArray(escalaLocal) ? escalaLocal : [];
+  const safeEscalaSalva = Array.isArray(escalaSalva) ? escalaSalva : [];
+  const safeContatos = Array.isArray(contatos) ? contatos : [];
+  const safeOutrasSugestoes = Array.isArray(outrasSugestoes) ? outrasSugestoes : [];
+
   const instrumentosEsperados = useMemo(() => {
     const fromInstruments = splitCsvLike(evento?.instruments);
     if (fromInstruments.length > 0) return fromInstruments;
     return splitCsvLike(evento?.formation);
   }, [evento]);
+  const safeInstrumentos = Array.isArray(instrumentosEsperados) ? instrumentosEsperados : [];
 
   const escalaBase = editando
-    ? escalaLocal
-    : escalaSalva.length > 0
-      ? escalaSalva
-      : escalaLocal;
-  const escalaLocalSegura = Array.isArray(escalaLocal) ? escalaLocal : [];
-  const escalaSalvaSegura = Array.isArray(escalaSalva) ? escalaSalva : [];
+    ? safeEscalaLocal
+    : safeEscalaSalva.length > 0
+      ? safeEscalaSalva
+      : safeEscalaLocal;
+  const escalaLocalSegura = safeEscalaLocal;
+  const escalaSalvaSegura = safeEscalaSalva;
   const escalaParaExibir = Array.isArray(escalaBase) ? escalaBase : [];
+
+  const itensTemplateSugerido = useMemo(() => {
+    const templateItems = Array.isArray(templateSugerido?.items)
+      ? templateSugerido.items
+      : [];
+    if (templateItems.length === 0) return [];
+
+    const contatosMap = new Map(
+      safeContatos.map((contact) => [String(contact.id), contact])
+    );
+
+    return templateItems
+      .map((item) => {
+        const contactId = item?.contact_id ?? item?.musician_id ?? null;
+        const contact = contactId ? contatosMap.get(String(contactId)) : null;
+        if (!contact?.id) return null;
+
+        const role = String(item?.role || '').trim();
+        const tagText = getContactTagText(contact);
+
+        return {
+          id: undefined,
+          event_id: eventId,
+          musician_id: contact.id,
+          role: role || tagText || '',
+          status: String(item?.status || 'pending'),
+          notes: String(item?.notes || ''),
+          confirmed_at: null,
+          musician_name: contact.name || '',
+          musician_phone: contact.phone || '',
+          musician_email: contact.email || '',
+          contact_tag_text: tagText,
+        };
+      })
+      .filter(Boolean);
+  }, [templateSugerido, safeContatos, eventId]);
 
   const escalaOrdenadaPreview = useMemo(() => {
     return [...escalaParaExibir].sort((a, b) => {
@@ -670,10 +723,10 @@ export default function EventoEscalaTab({ eventId }) {
   }, [escalaParaExibir]);
 
   const contatosDisponiveis = useMemo(() => {
-    const baseLocal = Array.isArray(escalaLocal) ? escalaLocal : [];
+    const baseLocal = safeEscalaLocal;
     const usados = new Set(baseLocal.map((item) => String(item.musician_id)));
-    return contatos.filter((contact) => !usados.has(String(contact.id)));
-  }, [contatos, escalaLocal]);
+    return safeContatos.filter((contact) => !usados.has(String(contact.id)));
+  }, [safeContatos, safeEscalaLocal]);
 
   const contatosFiltrados = useMemo(() => {
     const termo = normalizeText(busca);
@@ -687,7 +740,7 @@ export default function EventoEscalaTab({ eventId }) {
   const suggestedContacts = useMemo(() => {
     if (busca.trim()) return [];
 
-    const expectedTokens = instrumentosEsperados.map((item) => normalizeText(item));
+    const expectedTokens = safeInstrumentos.map((item) => normalizeText(item));
     if (expectedTokens.length === 0) return contatosDisponiveis.slice(0, 6);
 
     const scored = contatosDisponiveis
@@ -708,7 +761,7 @@ export default function EventoEscalaTab({ eventId }) {
 
     if (scored.length > 0) return scored;
     return contatosDisponiveis.slice(0, 6);
-  }, [busca, contatosDisponiveis, instrumentosEsperados]);
+  }, [busca, contatosDisponiveis, safeInstrumentos]);
 
   const resumoStatus = useMemo(() => {
     const base = escalaParaExibir;
@@ -722,12 +775,12 @@ export default function EventoEscalaTab({ eventId }) {
   }, [escalaParaExibir]);
   const sugestaoFormacao = useMemo(() => {
     const base = (evento?.formation || templateSugerido?.name || 'Formação sugerida').trim();
-    if (!instrumentosEsperados.length) return base;
-    return `${base} — ${instrumentosEsperados.slice(0, 2).join(' + ')}`;
-  }, [evento?.formation, templateSugerido?.name, instrumentosEsperados]);
+    if (!safeInstrumentos.length) return base;
+    return `${base} — ${safeInstrumentos.slice(0, 2).join(' + ')}`;
+  }, [evento?.formation, templateSugerido?.name, safeInstrumentos]);
 
   const coverage = useMemo(() => {
-    const expected = instrumentosEsperados;
+    const expected = safeInstrumentos;
     const used = escalaParaExibir;
 
     const covered = [];
@@ -761,7 +814,7 @@ export default function EventoEscalaTab({ eventId }) {
       pending,
       missing,
     };
-  }, [instrumentosEsperados, escalaParaExibir]);
+  }, [safeInstrumentos, escalaParaExibir]);
   const estadoEvento = useMemo(
     () =>
       getEventoEstadoResumo({
@@ -807,25 +860,42 @@ export default function EventoEscalaTab({ eventId }) {
   }, [escalaSalva, escalaLocal]);
 
   function iniciarEdicao() {
-    setEscalaLocal([...escalaParaExibir]);
+    setEscalaLocal(Array.isArray(escalaParaExibir) ? [...escalaParaExibir] : []);
     setBusca('');
+    setErro('');
     setSucesso('');
     setEditando(true);
   }
 
   function aplicarTemplateSugerido() {
-    if (!templateSugerido || itensTemplateSugerido.length === 0) return;
+    const templateItems = Array.isArray(templateSugerido?.items)
+      ? templateSugerido.items
+      : [];
+
+    if (!templateSugerido || templateItems.length === 0) {
+      setErro('Este template não possui itens configurados.');
+      return;
+    }
+
+    if (itensTemplateSugerido.length === 0) {
+      setErro('Este template não possui músicos disponíveis para aplicar.');
+      return;
+    }
+
     setEscalaLocal([...itensTemplateSugerido]);
     setTemplateSugerido(null);
+    setBusca('');
+    setErro('');
     setEditando(true);
     setSucesso('');
   }
 
   function iniciarMontagemManual() {
     setTemplateSugerido(null);
-    setEscalaLocal([]);
-    setEditando(true);
+    setEscalaLocal(Array.isArray(escalaLocal) ? escalaLocal : []);
     setBusca('');
+    setErro('');
+    setEditando(true);
     setSucesso('');
   }
 
@@ -838,7 +908,7 @@ export default function EventoEscalaTab({ eventId }) {
   function adicionarMusico(contact) {
     if (!contact?.id) return;
 
-    const alreadyExists = escalaLocal.some(
+    const alreadyExists = safeEscalaLocal.some(
       (item) => String(item?.musician_id) === String(contact.id)
     );
     if (alreadyExists) {
@@ -862,7 +932,7 @@ export default function EventoEscalaTab({ eventId }) {
       contact_tag_text: tagText,
     };
 
-    setEscalaLocal((prev) => [...prev, novoItem]);
+    setEscalaLocal((prev) => [...(Array.isArray(prev) ? prev : []), novoItem]);
     setBusca('');
   }
 
@@ -1182,11 +1252,11 @@ async function salvarEEnviarConvites() {
           </div>
         </div>
 
-      {!editando && escalaSalvaSegura.length === 0 && outrasSugestoes.length > 0 ? (
+      {!editando && escalaSalvaSegura.length === 0 && safeOutrasSugestoes.length > 0 ? (
           <div className="rounded-2xl border border-[#e2e8f0] bg-white px-3 py-3">
             <div className="text-[11px] font-black uppercase tracking-[0.08em] text-[#64748b]">Outras opções</div>
             <div className="mt-2 space-y-1 text-[13px] font-semibold text-[#334155]">
-              {outrasSugestoes.map((suggestion) => (
+              {safeOutrasSugestoes.map((suggestion) => (
                 <div key={suggestion.id}>{formatTemplateDisplay(suggestion)}</div>
               ))}
             </div>
@@ -1359,6 +1429,9 @@ async function salvarEEnviarConvites() {
           )}
         </>
       ) : (
+        (() => {
+          try {
+            return (
         <>
           <div className="grid max-w-full gap-5 xl:grid-cols-[0.95fr_1.05fr]">
             <SectionCard
@@ -1520,6 +1593,16 @@ async function salvarEEnviarConvites() {
             </div>
           </div>
         </>
+            );
+          } catch (e) {
+            console.error('Erro ao renderizar edição da escala:', e);
+            return (
+              <div className="rounded-[24px] border border-amber-200 bg-amber-50 px-5 py-6 text-[15px] font-semibold text-amber-800">
+                Não foi possível carregar o modo de edição com os dados atuais. Revise os dados da escala e tente novamente.
+              </div>
+            );
+          }
+        })()
       )}
     </div>
   );

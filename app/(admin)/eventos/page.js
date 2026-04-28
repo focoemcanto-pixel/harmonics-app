@@ -386,7 +386,7 @@ export default function EventosPage() {
 
   const [showPricing, setShowPricing] = useState(false);
   const [scaleSummaryByEventId, setScaleSummaryByEventId] = useState(new Map());
-  const [pricingId, setPricingId] = useState(null);
+  const [, setPricingId] = useState(null);
   const [pricing, setPricing] = useState(getDefaultPricing());
   const [financeCostDefaults, setFinanceCostDefaults] = useState({
     musician_unit_cost: 0,
@@ -625,14 +625,25 @@ export default function EventosPage() {
       if (error) throw error;
       if (!data) return;
 
-      setFinanceCostDefaults({
+      const normalizedCostDefaults = {
         musician_unit_cost: toNumber(data.musician_unit_cost),
         sound_default_cost: toNumber(data.sound_default_cost),
         transport_default_cost: toNumber(data.transport_default_cost),
         other_default_cost: toNumber(data.other_default_cost),
         custom_costs: sanitizeCustomCosts(data.custom_costs),
         notes: String(data.notes || ''),
-      });
+      };
+
+      setFinanceCostDefaults(normalizedCostDefaults);
+      setPricing((prev) => ({
+        ...prev,
+        musician_unit_cost: normalizedCostDefaults.musician_unit_cost,
+        sound_default_cost: normalizedCostDefaults.sound_default_cost,
+        transport_default_cost: normalizedCostDefaults.transport_default_cost,
+        other_default_cost: normalizedCostDefaults.other_default_cost,
+        custom_costs: normalizedCostDefaults.custom_costs,
+        finance_notes: normalizedCostDefaults.notes,
+      }));
     } catch (error) {
       logLoadError('finance_cost_defaults', error);
     }
@@ -1002,33 +1013,119 @@ export default function EventosPage() {
   }, [financeCostDefaults.custom_costs, form, pricing]);
 
   async function salvarPricing() {
-    if (!pricingId) {
-      toast.error('Erro: Configuração de preços não carregada.');
-      return;
-    }
-
     try {
       setSalvando(true);
 
-      const payload = {
-        ...Object.fromEntries(
-          Object.entries(pricing).filter(([key]) => !key.startsWith('price_'))
-        ),
-        formation_prices: buildCanonicalFormationPrices(pricing),
+      const pricingPayload = {
         slug: 'default',
+        price_solo: toNumber(pricing.price_solo),
+        price_duo: toNumber(pricing.price_duo),
+        price_trio: toNumber(pricing.price_trio),
+        price_quarteto: toNumber(pricing.price_quarteto),
+        price_quinteto: toNumber(pricing.price_quinteto),
+        price_sexteto: toNumber(pricing.price_sexteto),
+        price_septeto: toNumber(pricing.price_septeto),
+        sound_price: toNumber(pricing.sound_price),
+        reception_duo_1h: toNumber(pricing.reception_duo_1h),
+        reception_duo_2h: toNumber(pricing.reception_duo_2h),
+        reception_duo_3h: toNumber(pricing.reception_duo_3h),
+        reception_trio_1h: toNumber(pricing.reception_trio_1h),
+        reception_trio_2h: toNumber(pricing.reception_trio_2h),
+        reception_trio_3h: toNumber(pricing.reception_trio_3h),
+        reception_quarteto_1h: toNumber(pricing.reception_quarteto_1h),
+        reception_quarteto_2h: toNumber(pricing.reception_quarteto_2h),
+        reception_quarteto_3h: toNumber(pricing.reception_quarteto_3h),
+        reception_quinteto_1h: toNumber(pricing.reception_quinteto_1h),
+        reception_quinteto_2h: toNumber(pricing.reception_quinteto_2h),
+        reception_quinteto_3h: toNumber(pricing.reception_quinteto_3h),
+        reception_sexteto_1h: toNumber(pricing.reception_sexteto_1h),
+        reception_sexteto_2h: toNumber(pricing.reception_sexteto_2h),
+        reception_sexteto_3h: toNumber(pricing.reception_sexteto_3h),
+        reception_septeto_1h: toNumber(pricing.reception_septeto_1h),
+        reception_septeto_2h: toNumber(pricing.reception_septeto_2h),
+        reception_septeto_3h: toNumber(pricing.reception_septeto_3h),
+        formation_prices: buildCanonicalFormationPrices(pricing),
       };
 
-      const { error } = await supabase
+      if (pricing.formation_prices && typeof pricing.formation_prices === 'object') {
+        pricingPayload.formation_prices = buildCanonicalFormationPrices(pricing);
+      }
+
+      const costPayload = {
+        slug: 'default',
+        musician_unit_cost: toNumber(pricing.musician_unit_cost),
+        sound_default_cost: toNumber(pricing.sound_default_cost),
+        transport_default_cost: toNumber(pricing.transport_default_cost),
+        other_default_cost: toNumber(pricing.other_default_cost),
+        notes: String(pricing.finance_notes || pricing.notes || ''),
+        custom_costs: sanitizeCustomCosts(pricing.custom_costs),
+      };
+
+      const { data: pricingData, error: pricingError } = await supabase
         .from('pricing_settings')
-        .update(payload)
-        .eq('id', pricingId);
+        .upsert(pricingPayload, { onConflict: 'slug' })
+        .select('id')
+        .single();
 
-      if (error) throw error;
+      if (pricingError) throw pricingError;
 
-      toast.success('Configuração de preços salva com sucesso.');
+      let financeDefaultsError = null;
+      const { error: financeError } = await supabase
+        .from('finance_cost_defaults')
+        .upsert(costPayload, { onConflict: 'slug' });
+
+      if (financeError) {
+        financeDefaultsError = financeError;
+        console.error('[EVENTOS][PRICING_SAVE][FINANCE_COST_DEFAULTS_ERROR]', {
+          message: financeError?.message,
+          details: financeError?.details,
+          hint: financeError?.hint,
+          code: financeError?.code,
+        });
+      }
+
+      const normalizedPricing = hydratePricingFromCanonical({
+        ...pricing,
+        ...pricingPayload,
+        ...costPayload,
+        finance_notes: costPayload.notes,
+      });
+
+      setPricing((prev) => ({
+        ...prev,
+        ...normalizedPricing,
+      }));
+
+      setFinanceCostDefaults({
+        musician_unit_cost: costPayload.musician_unit_cost,
+        sound_default_cost: costPayload.sound_default_cost,
+        transport_default_cost: costPayload.transport_default_cost,
+        other_default_cost: costPayload.other_default_cost,
+        custom_costs: costPayload.custom_costs,
+        notes: costPayload.notes,
+      });
+
+      if (pricingData?.id) {
+        setPricingId(pricingData.id);
+        eventosAdminCache.pricingId = pricingData.id;
+      }
+
+      eventosAdminCache.pricing = normalizedPricing;
+      eventosAdminCache.updatedAt = Date.now();
+
+      if (financeDefaultsError) {
+        toast.warning('Preços salvos, mas não foi possível salvar custos padrão.');
+      } else {
+        toast.success('Configuração de preços salva com sucesso.');
+      }
     } catch (error) {
-      console.error('Erro ao salvar pricing:', error);
-      toast.error('Erro ao salvar configuração de preços. Tente novamente.');
+      console.error('[EVENTOS][PRICING_SAVE_ERROR]', {
+        message: error?.message,
+        details: error?.details,
+        hint: error?.hint,
+        code: error?.code,
+      });
+      toast.error('Erro ao salvar configuração de preços.');
     } finally {
       setSalvando(false);
     }

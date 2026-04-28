@@ -1,11 +1,13 @@
 'use client';
 
 import Link from 'next/link';
+import React from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import AdminShell from '@/components/admin/AdminShell';
 import AdminPageHero from '@/components/admin/AdminPageHero';
 import AdminSegmentTabs from '@/components/admin/AdminSegmentTabs';
+import EventoEscalaTab from '@/components/eventos/EventoEscalaTab';
 import { normalizeTimeStrict } from '@/lib/time/normalize-time';
 import { isOperationalTeamContact } from '@/lib/escalas/team-contacts';
 import DeleteConfirmModal from '@/components/ui/DeleteConfirmModal';
@@ -238,7 +240,36 @@ function getEventScaleStatus(card) {
   };
 }
 
-function EventScaleCard({ card, selected, onToggleSelect, onRequestDelete }) {
+class ScaleWorkspaceErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidUpdate(prevProps) {
+    if (prevProps.resetKey !== this.props.resetKey && this.state.hasError) {
+      this.setState({ hasError: false });
+    }
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="rounded-[18px] border border-amber-200 bg-amber-50 p-4 text-[14px] font-semibold text-amber-800">
+          Não foi possível abrir esta escala agora. Feche e tente novamente.
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
+function EventScaleCard({ card, selected, onToggleSelect, onRequestDelete, onOpenScaleWorkspace }) {
   const statusMeta = getEventScaleStatus(card);
   const dangerSoon = card.isUpcomingRisk;
   const progressText =
@@ -361,6 +392,13 @@ function EventScaleCard({ card, selected, onToggleSelect, onRequestDelete }) {
         >
           Abrir evento
         </Link>
+        <button
+          type="button"
+          onClick={() => onOpenScaleWorkspace?.(card.eventId)}
+          className="rounded-[18px] border border-violet-200 bg-violet-50 px-5 py-3 text-[14px] font-black text-violet-700"
+        >
+          Montar escala
+        </button>
 
         <Link
           href="/eventos"
@@ -417,6 +455,8 @@ export default function EscalasPage() {
   const [escalas, setEscalas] = useState([]);
   const [invites, setInvites] = useState([]);
   const [deleteDialog, setDeleteDialog] = useState({ open: false, eventId: null });
+  const [selectedScaleEventId, setSelectedScaleEventId] = useState(null);
+  const [scaleWorkspaceOpen, setScaleWorkspaceOpen] = useState(false);
   const { selectedIds, selectedSet, clear, toggle, toggleAll } = useMultiSelect();
   const { loading: deleting, run: runBulkDelete } = useBulkDelete();
   const loadingRef = useRef(false);
@@ -509,6 +549,15 @@ export default function EscalasPage() {
   useEffect(() => {
     carregarTudo();
   }, [carregarTudo]);
+
+  useEffect(() => {
+    if (scaleWorkspaceOpen) {
+      document.body.style.overflow = 'hidden';
+      return;
+    }
+
+    document.body.style.overflow = '';
+  }, [scaleWorkspaceOpen]);
 
   const eventCards = useMemo(() => {
     const escalasByEventId = new Map();
@@ -716,10 +765,34 @@ export default function EscalasPage() {
             selected={selectedSet.has(String(card.eventId))}
             onToggleSelect={toggle}
             onRequestDelete={(eventId) => setDeleteDialog({ open: true, eventId })}
+            onOpenScaleWorkspace={(eventId) => {
+              setSelectedScaleEventId(eventId);
+              setScaleWorkspaceOpen(true);
+            }}
           />
         ))}
       </div>
     );
+  }
+
+  function closeScaleWorkspace() {
+    setScaleWorkspaceOpen(false);
+    setSelectedScaleEventId(null);
+    document.body.style.overflow = '';
+  }
+
+  function openNextPendingScale() {
+    const nextCard = pendentesCards.find(
+      (card) => String(card.eventId) !== String(selectedScaleEventId)
+    );
+
+    if (!nextCard) {
+      closeScaleWorkspace();
+      toast.success('Todas as escalas pendentes foram revisadas.');
+      return;
+    }
+
+    setSelectedScaleEventId(nextCard.eventId);
   }
 
   function renderConvites() {
@@ -1107,6 +1180,44 @@ export default function EscalasPage() {
           }
         }}
       />
+      {scaleWorkspaceOpen ? (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/70 p-4">
+          <div className="flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-[28px] border border-[#dbe3ef] bg-white shadow-[0_24px_60px_rgba(15,23,42,0.3)]">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e2e8f0] px-5 py-4">
+              <div>
+                <div className="text-[12px] font-black uppercase tracking-[0.08em] text-violet-600">
+                  Workspace de escala
+                </div>
+                <div className="text-[18px] font-black text-[#0f172a]">
+                  Montagem rápida sem sair de /escalas
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={openNextPendingScale}
+                  className="rounded-[14px] border border-violet-200 bg-violet-50 px-4 py-2 text-[13px] font-black text-violet-700"
+                >
+                  Próxima escala pendente
+                </button>
+                <button
+                  type="button"
+                  onClick={closeScaleWorkspace}
+                  className="rounded-[14px] border border-[#dbe3ef] bg-white px-4 py-2 text-[13px] font-black text-[#0f172a]"
+                >
+                  Fechar
+                </button>
+              </div>
+            </div>
+
+            <div className="overflow-y-auto px-5 py-5">
+              <ScaleWorkspaceErrorBoundary resetKey={selectedScaleEventId}>
+                {selectedScaleEventId ? <EventoEscalaTab eventId={selectedScaleEventId} /> : null}
+              </ScaleWorkspaceErrorBoundary>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </AdminShell>
   );
 }

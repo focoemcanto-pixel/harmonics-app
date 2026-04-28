@@ -18,8 +18,16 @@ function createAdminSupabase() {
   });
 }
 
+async function resolveRouteParams(params) {
+  const resolvedParams = typeof params?.then === 'function' ? await params : params;
+  return resolvedParams || {};
+}
+
 export default async function ContratoPreviewPage({ params }) {
-  const precontractId = params?.id;
+  const resolvedParams = await resolveRouteParams(params);
+  const precontractId = Array.isArray(resolvedParams?.id)
+    ? resolvedParams.id[0]
+    : resolvedParams?.id;
 
   if (!precontractId) {
     notFound();
@@ -91,6 +99,9 @@ export default async function ContratoPreviewPage({ params }) {
           </h1>
           <p className="text-sm text-slate-500">
             Pré-contrato: {precontract.id}
+          </p>
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">
+            Fonte: {precontract.custom_contract_rich_html ? 'personalização salva' : precontract.custom_contract_content ? 'conteúdo personalizado' : 'modelo interno'}
           </p>
         </div>
 

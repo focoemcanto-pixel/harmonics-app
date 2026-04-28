@@ -9,6 +9,10 @@ import AdminPageHero from '@/components/admin/AdminPageHero';
 import AdminSegmentTabs from '@/components/admin/AdminSegmentTabs';
 import EventoEscalaTab from '@/components/eventos/EventoEscalaTab';
 import { normalizeTimeStrict } from '@/lib/time/normalize-time';
+import {
+  normalizeText,
+  splitCsvLike,
+} from '@/lib/templates-escala/templates-escala-match';
 import { isOperationalTeamContact } from '@/lib/escalas/team-contacts';
 import DeleteConfirmModal from '@/components/ui/DeleteConfirmModal';
 import BulkActionBar from '@/components/ui/BulkActionBar';
@@ -29,21 +33,6 @@ function formatTime(value) {
 
 function formatDateTimeBR(dateValue, timeValue) {
   return `${formatDateBR(dateValue)} • ${formatTime(timeValue)}`;
-}
-
-function normalizeText(value) {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .trim();
-}
-
-function splitCsvLike(value) {
-  return String(value || '')
-    .split(/[;,/|-]/g)
-    .map((item) => item.trim())
-    .filter(Boolean);
 }
 
 function getContactTagText(contact) {

@@ -58,6 +58,36 @@ function parseDateOnly(value) {
   return new Date(year, month - 1, day, 0, 0, 0, 0);
 }
 
+function formatDateOnly(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return null;
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function addDays(dateInput, days) {
+  const base = dateInput instanceof Date ? new Date(dateInput) : parseDateOnly(dateInput);
+  if (!base) return null;
+  base.setDate(base.getDate() + days);
+  return base;
+}
+
+function getAutoPaymentDueDates(eventDateRaw) {
+  const eventDate = parseDateOnly(eventDateRaw);
+  if (!eventDate) {
+    return {
+      signalDueDate: null,
+      balanceDueDate: null,
+    };
+  }
+
+  return {
+    signalDueDate: formatDateOnly(addDays(eventDate, -14)),
+    balanceDueDate: formatDateOnly(addDays(eventDate, -2)),
+  };
+}
+
 function getTodayStart() {
   const now = new Date();
   now.setHours(0, 0, 0, 0);
@@ -66,8 +96,18 @@ function getTodayStart() {
 
 function normalizePrecontractFinancialPayload(payload = {}) {
   const agreedAmount = Math.max(toMoneyNumber(payload?.agreed_amount), 0);
-  const signalAmount = Math.max(toMoneyNumber(payload?.signal_amount), 0);
-  const remainingAmount = Math.max(toMoneyNumber(payload?.remaining_amount) || agreedAmount - signalAmount, 0);
+  const rawSignalAmount = toMoneyNumber(payload?.signal_amount);
+  const hasExplicitSignal = Number.isFinite(rawSignalAmount) && rawSignalAmount > 0;
+  const signalAmount = hasExplicitSignal
+    ? Math.max(rawSignalAmount, 0)
+    : agreedAmount > 0
+      ? Math.round((agreedAmount / 2) * 100) / 100
+      : 0;
+  const remainingAmount = Math.max(
+    toMoneyNumber(payload?.remaining_amount) || agreedAmount - signalAmount,
+    0
+  );
+  const autoDueDates = getAutoPaymentDueDates(payload?.event_date);
 
   return {
     ...payload,
@@ -75,8 +115,8 @@ function normalizePrecontractFinancialPayload(payload = {}) {
     signal_amount: signalAmount,
     remaining_amount: remainingAmount,
     payment_method: payload?.payment_method || null,
-    signal_due_date: payload?.signal_due_date || null,
-    balance_due_date: payload?.balance_due_date || null,
+    signal_due_date: payload?.signal_due_date || autoDueDates.signalDueDate,
+    balance_due_date: payload?.balance_due_date || autoDueDates.balanceDueDate,
     card_due_date: payload?.card_due_date || null,
     payment_card: payload?.payment_card === true,
   };
@@ -100,33 +140,38 @@ async function syncEventSnapshotFromPrecontract({ supabase, precontract }) {
     payments: [{ amount: paidAmount, status: paidAmount > 0 ? 'paid' : 'pending' }],
   });
 
+  const autoDueDates = getAutoPaymentDueDates(precontract?.event_date);
   const eventUpdatePayload = {
-  agreed_amount: agreedAmount,
-  paid_amount: paidAmount,
-  open_amount: summary.openAmount,
-  payment_status: summary.paymentStatus,
-  signal_due_date: precontract?.signal_due_date || null,
-  balance_due_date: precontract?.balance_due_date || null,
-  card_due_date: precontract?.card_due_date || null,
-};
+    agreed_amount: agreedAmount,
+    paid_amount: paidAmount,
+    open_amount: summary.openAmount,
+    payment_status: summary.paymentStatus,
+    signal_due_date: precontract?.signal_due_date || autoDueDates.signalDueDate,
+    balance_due_date: precontract?.balance_due_date || autoDueDates.balanceDueDate,
+    card_due_date: precontract?.card_due_date || null,
+  };
 
-const precontractEventType = String(precontract?.event_type || '').trim();
+  const precontractEventType = String(precontract?.event_type || '').trim();
 
-if (precontractEventType) {
-  eventUpdatePayload.event_type = precontractEventType;
-}
+  if (precontractEventType) {
+    eventUpdatePayload.event_type = precontractEventType;
+  }
 
-const { error: updateEventError } = await supabase
-  .from('events')
-  .update(eventUpdatePayload)
-  .eq('id', eventId);
+  const { error: updateEventError } = await supabase
+    .from('events')
+    .update(eventUpdatePayload)
+    .eq('id', eventId);
 
   if (updateEventError) throw updateEventError;
 
   await createPaymentScheduleForPrecontract({
     supabase,
     eventId,
-    precontract,
+    precontract: {
+      ...precontract,
+      signal_due_date: eventUpdatePayload.signal_due_date,
+      balance_due_date: eventUpdatePayload.balance_due_date,
+    },
   });
 
   await syncEventFinanceSnapshot({

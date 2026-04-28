@@ -55,17 +55,18 @@ export default function ContractTemplateEditorModal({
     return parsed.normalizedContent;
   }, [draft, parsed.normalizedContent]);
   const handleClose = () => {
+    document.body.style.overflow = '';
     setMobileTab('edit');
     onClose?.();
   };
 
   useEffect(() => {
-    if (!open) return undefined;
+    if (!open) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
 
     return () => {
-      document.body.style.overflow = previousOverflow;
+      document.body.style.overflow = previousOverflow || '';
     };
   }, [open]);
 

@@ -330,7 +330,21 @@ function ShareLinkModal({
   data,
   onToast,
 }) {
+  const [editableMessage, setEditableMessage] = useState(data?.message || '');
+
+  useEffect(() => {
+    if (open && data?.message) {
+      const frameId = window.requestAnimationFrame(() => {
+        setEditableMessage(data.message);
+      });
+      return () => window.cancelAnimationFrame(frameId);
+    }
+    return undefined;
+  }, [open, data?.message]);
+
   if (!open || !data) return null;
+  const currentMessage = editableMessage || data.message || '';
+  const currentWhatsAppUrl = buildWhatsAppUrl(data.clientPhone, currentMessage);
 
   function handleBackdropClick(e) {
     if (e.target === e.currentTarget) onClose?.();
@@ -421,9 +435,19 @@ function ShareLinkModal({
                 <div className="text-[11px] font-black uppercase tracking-[0.1em] text-slate-500">
                   Mensagem pronta
                 </div>
-                <div className="mt-2 whitespace-pre-wrap rounded-[18px] border border-slate-200 bg-white px-4 py-4 text-[14px] leading-6 text-slate-700">
-                  {data.message}
-                </div>
+                <textarea
+                  value={editableMessage}
+                  onChange={(event) => setEditableMessage(event.target.value)}
+                  className="mt-2 min-h-[280px] w-full resize-y rounded-[18px] border border-slate-200 bg-white px-4 py-4 text-[14px] leading-6 text-slate-700 outline-none transition focus:border-violet-400 focus:ring-4 focus:ring-violet-100"
+                  placeholder="Digite a mensagem que será enviada ao cliente..."
+                />
+                <button
+                  type="button"
+                  onClick={() => setEditableMessage(data.message || '')}
+                  className="mt-3 rounded-[12px] border border-slate-200 bg-white px-3 py-2 text-[12px] font-black text-slate-600"
+                >
+                  Restaurar mensagem padrão
+                </button>
               </div>
             </div>
           </div>
@@ -431,7 +455,7 @@ function ShareLinkModal({
           <div className="shrink-0 border-t border-slate-200 px-5 py-4">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <a
-                href={data.whatsAppUrl}
+                href={currentWhatsAppUrl}
                 target="_blank"
                 rel="noreferrer"
                 className="inline-flex"
@@ -443,7 +467,7 @@ function ShareLinkModal({
                 variant="secondary"
                 onClick={async () => {
                   try {
-                    await navigator.clipboard.writeText(data.message);
+                    await navigator.clipboard.writeText(editableMessage || data.message || '');
                     onToast?.('Mensagem copiada com sucesso.', 'success');
                   } catch (error) {
                     console.error(error);

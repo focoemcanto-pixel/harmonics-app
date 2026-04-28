@@ -10,7 +10,7 @@ export default function Card({
       className={`rounded-3xl border border-slate-200 bg-white/95 shadow-sm ${className}`}
     >
       {(title || subtitle || actions) && (
-        <div className="flex items-start justify-between gap-4 px-5 pt-5 pb-3 md:px-6">
+        <div className="flex flex-col gap-3 px-5 pt-5 pb-3 md:flex-row md:items-start md:justify-between md:gap-4 md:px-6">
           <div>
             {title && (
               <h3 className="text-lg md:text-xl font-semibold text-slate-900">
@@ -22,7 +22,7 @@ export default function Card({
             )}
           </div>
 
-          {actions && <div className="shrink-0">{actions}</div>}
+          {actions && <div className="w-full md:w-auto md:shrink-0">{actions}</div>}
         </div>
       )}
 

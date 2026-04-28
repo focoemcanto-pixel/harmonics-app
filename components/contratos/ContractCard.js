@@ -169,6 +169,10 @@ export default function ContractCard({ item, onCopyLink, onDeleteContract, selec
 
   const hasLink = !!String(item?.linkContrato || '').trim();
   const hasToken = !!String(item?.token || '').trim();
+  const hasPrecontract = !!String(item?.precontractId || '').trim();
+  const editPrecontractHref = hasPrecontract
+    ? `/pre-contratos?edit=${encodeURIComponent(item.precontractId)}&focus=contract`
+    : '';
 
   function handleOpenPreview() {
     if (!hasToken) {
@@ -306,6 +310,15 @@ export default function ContractCard({ item, onCopyLink, onDeleteContract, selec
           >
             Preview
           </button>
+
+          {hasPrecontract ? (
+            <Link
+              href={editPrecontractHref}
+              className="rounded-[16px] border border-violet-200 bg-white px-4 py-3 text-[14px] font-black text-violet-700 shadow-[0_10px_24px_rgba(124,58,237,0.08)]"
+            >
+              Editar contrato
+            </Link>
+          ) : null}
 
           {hasLink ? (
             <Link

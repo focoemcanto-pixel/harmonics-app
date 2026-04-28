@@ -2052,7 +2052,17 @@ if (contentType.includes('application/json')) {
 }
 
 if (!generateRes.ok || !generateJson?.ok) {
-  throw new Error(generateJson?.message || 'Erro ao gerar contrato final.');
+  const friendlyMessage =
+    generateJson?.message ||
+    'Não foi possível finalizar seu contrato neste momento. Por favor, entre em contato com nossa equipe.';
+
+  console.error('[CONTRACT_PUBLIC_UI] erro técnico ao gerar contrato final', {
+    status: generateRes.status,
+    error: generateJson?.error || null,
+    errorType: generateJson?.errorType || null,
+  });
+
+  throw new Error(friendlyMessage);
 }
       setSignatureStep('Gerando documento seguro...');
 

@@ -4,9 +4,13 @@ import { buildContractTemplateData } from '../../../../lib/contracts/buildContra
 import { generateInternalContract } from '../../../../lib/contracts/internalContractGenerator';
 import { requireRequiredEnv } from '@/lib/config/validate-env';
 import { logError, logInfo, logWarn, safeError } from '@/lib/observability/server-log';
+import { sendAdminWhatsAppAlert } from '@/lib/whatsapp/send-admin-alert';
 
 export const dynamic = 'force-dynamic';
 const IS_DEV = process.env.NODE_ENV !== 'production';
+const CLIENT_CONTRACT_ERROR_MESSAGE =
+  'Tivemos uma instabilidade ao concluir seu contrato. Fique tranquilo: nossa equipe pode te ajudar rapidamente. Entre em contato conosco para finalizarmos isso juntos.';
+
 
 function devLog(message, payload) {
   if (!IS_DEV) return;
@@ -275,6 +279,39 @@ function normalizeGeneratedResult(serviceJson) {
   };
 }
 
+async function notifyAdminContractGenerationIssue({ context, reason, error }) {
+  try {
+    const clientName =
+      context?.contact?.name ||
+      context?.precontract?.client_name ||
+      context?.event?.client_name ||
+      'Cliente não identificado';
+
+    const eventDate =
+      context?.event?.event_date ||
+      context?.precontract?.event_date ||
+      'Data não identificada';
+
+    const message = [
+      '🚨 Falha crítica na geração de contrato',
+      `Motivo: ${reason}`,
+      `Cliente: ${clientName}`,
+      `Data do evento: ${eventDate}`,
+      `Precontract ID: ${context?.precontract?.id || 'não informado'}`,
+      `Contract ID: ${context?.contract?.id || 'não encontrado'}`,
+      error?.message ? `Erro técnico: ${error.message}` : null,
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    await sendAdminWhatsAppAlert(message);
+  } catch (whatsappError) {
+    logWarn('CONTRACT_GENERATE', 'ADMIN_WHATSAPP_ALERT_FAILED', {
+      error: whatsappError?.message || String(whatsappError),
+    });
+  }
+}
+
 export async function GET() {
   return NextResponse.json({
     ok: true,
@@ -385,8 +422,29 @@ export async function POST(request) {
     }
 
     if (!context.contract?.id) {
-      throw new Error(
-        'Não foi possível finalizar a geração do contrato: contract.id é obrigatório para persistir doc_url/pdf_url em contracts. Crie/associe o contrato e tente novamente.'
+      const structuralError = new Error(
+        `Contract não encontrado para precontract_id: ${context.precontract?.id || precontractId || 'não informado'}`
+      );
+
+      logError('CONTRACT_GENERATE', 'MISSING_CONTRACT_FOR_PRECONTRACT', structuralError, {
+        precontractId: context.precontract?.id || precontractId || null,
+        eventId: context.event?.id || null,
+        contactId: context.contact?.id || null,
+      });
+
+      await notifyAdminContractGenerationIssue({
+        context,
+        reason: 'Pré-contrato encontrado, mas nenhum registro correspondente foi localizado em contracts.',
+        error: structuralError,
+      });
+
+      return NextResponse.json(
+        {
+          ok: false,
+          error: 'CONTRACT_NOT_FOUND_FOR_PRECONTRACT',
+          message: CLIENT_CONTRACT_ERROR_MESSAGE,
+        },
+        { status: 500 }
       );
     }
 

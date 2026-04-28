@@ -508,6 +508,12 @@ function PreviewContractModal({ open, item, onClose }) {
   if (!open || !item) return null;
 
   const adjustmentMessage = extractLatestAdjustmentRequest(item.notes);
+  const resolvedContractHtml = resolveContractHtmlSource({
+    custom_contract_rich_html: item.custom_contract_rich_html,
+    custom_contract_content: item.custom_contract_content,
+  }).html;
+  const contractHtml = String(resolvedContractHtml || '').trim();
+  const fallbackNotes = String(item.notes || '').trim();
 
   return (
     <div className="fixed inset-0 z-[190] bg-slate-950/70 px-4 py-6 backdrop-blur-[3px]" onClick={onClose}>
@@ -538,8 +544,24 @@ function PreviewContractModal({ open, item, onClose }) {
           </Card>
         </div>
 
-        <Card title="Observações" className="mt-4">
-          <p className="whitespace-pre-wrap text-sm text-slate-700">{item.notes || 'Sem observações.'}</p>
+        <Card title="Preview do contrato" className="mt-4">
+          {contractHtml ? (
+            <div
+              className="prose prose-slate max-w-none text-sm"
+              dangerouslySetInnerHTML={{ __html: contractHtml }}
+            />
+          ) : fallbackNotes ? (
+            <p className="whitespace-pre-wrap text-sm text-slate-700">{fallbackNotes}</p>
+          ) : (
+            <div className="space-y-1 text-sm text-slate-700">
+              <p><strong>Cliente:</strong> {item.client_name || '-'}</p>
+              <p><strong>Evento:</strong> {item.event_type || '-'}</p>
+              <p><strong>Data:</strong> {formatDateBR(item.event_date)}</p>
+              <p><strong>Horário:</strong> {item.event_time ? String(item.event_time).slice(0, 5) : '--:--'}</p>
+              <p><strong>Local:</strong> {item.location_name || '-'}</p>
+              <p><strong>Valor acertado:</strong> {formatMoney(item.agreed_amount)}</p>
+            </div>
+          )}
         </Card>
 
         {adjustmentMessage ? (
@@ -1808,11 +1830,11 @@ async function carregarModelosContrato({ force = false } = {}) {
                     <Button
                       variant="soft"
                       onClick={() => {
-                        if (editandoId) {
-                          window.open(`/contrato-preview/${editandoId}`, '_blank', 'noopener,noreferrer');
-                          return;
-                        }
-                        openContractEditor({ readOnly: true });
+                        setPreviewItem({
+                          id: editandoId || null,
+                          ...form,
+                        });
+                        setPreviewOpen(true);
                       }}
                     >
                       Ver preview

@@ -25,6 +25,8 @@ const PRECONTRACT_SELECT_FIELDS = [
   'instruments',
   'has_sound',
   'reception_hours',
+  'reception_formation',
+  'reception_instruments',
   'has_transport',
   'base_amount',
   'add_reception',
@@ -149,6 +151,8 @@ async function syncEventSnapshotFromPrecontract({ supabase, precontract }) {
     signal_due_date: precontract?.signal_due_date || autoDueDates.signalDueDate,
     balance_due_date: precontract?.balance_due_date || autoDueDates.balanceDueDate,
     card_due_date: precontract?.card_due_date || null,
+    reception_formation: precontract?.reception_formation || null,
+    reception_instruments: precontract?.reception_instruments || null,
   };
 
   const precontractEventType = String(precontract?.event_type || '').trim();

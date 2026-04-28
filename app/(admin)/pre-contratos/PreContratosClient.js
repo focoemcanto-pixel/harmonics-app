@@ -53,6 +53,8 @@ const PRECONTRACT_SELECT_FIELDS = [
   'instruments',
   'has_sound',
   'reception_hours',
+  'reception_formation',
+  'reception_instruments',
   'has_transport',
   'base_amount',
   'add_reception',
@@ -206,6 +208,8 @@ function getInitialForm() {
 
     has_sound: false,
     reception_hours: '0',
+    reception_formation: '',
+    reception_instruments: '',
     has_transport: false,
 
     base_amount: '',
@@ -993,6 +997,8 @@ async function carregarModelosContrato({ force = false } = {}) {
 
       has_sound: !!item.has_sound,
       reception_hours: String(item.reception_hours ?? 0),
+      reception_formation: item.reception_formation || '',
+      reception_instruments: item.reception_instruments || '',
       has_transport: !!item.has_transport,
 
       base_amount: String(item.base_amount ?? ''),
@@ -1300,6 +1306,8 @@ async function carregarModelosContrato({ force = false } = {}) {
         has_sound: !!form.has_sound,
         reception_hours: parseInt(form.reception_hours, 10) || 0,
         has_transport: !!form.has_transport,
+        reception_formation: (parseInt(form.reception_hours, 10) || 0) > 0 ? (form.reception_formation.trim() || '') : '',
+        reception_instruments: (parseInt(form.reception_hours, 10) || 0) > 0 ? (form.reception_instruments.trim() || '') : '',
 
         base_amount: financeiro.base,
         add_reception: financeiro.addReception,
@@ -1768,6 +1776,32 @@ async function carregarModelosContrato({ force = false } = {}) {
                     />
                   </label>
                 </div>
+
+                {(parseInt(form.reception_hours, 10) || 0) > 0 ? (
+                  <div className="mt-4 rounded-2xl border border-slate-200 p-4">
+                    <p className="mb-3 text-sm font-semibold text-slate-700">Detalhes do receptivo</p>
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                      <Input
+                        label="Receptivo (h)"
+                        type="number"
+                        min="0"
+                        max="6"
+                        value={form.reception_hours}
+                        onChange={(e) => handleFormChange('reception_hours', e.target.value)}
+                      />
+                      <Input
+                        label="Formação do receptivo"
+                        value={form.reception_formation}
+                        onChange={(e) => handleFormChange('reception_formation', e.target.value)}
+                      />
+                      <Input
+                        label="Instrumentos do receptivo"
+                        value={form.reception_instruments}
+                        onChange={(e) => handleFormChange('reception_instruments', e.target.value)}
+                      />
+                    </div>
+                  </div>
+                ) : null}
               </Card>
 
               <Card title="Financeiro">

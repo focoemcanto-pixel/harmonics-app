@@ -695,6 +695,8 @@ async function upsertEventFromSignature({
 
     has_sound: !!precontract?.has_sound,
     reception_hours: Number(precontract?.reception_hours || 0),
+    reception_formation: precontract?.reception_formation || null,
+    reception_instruments: precontract?.reception_instruments || null,
     has_transport: !!precontract?.has_transport,
 
     transport_cost: Number(precontract?.add_transport || 0),
@@ -1618,6 +1620,8 @@ useEffect(() => {
       locationName: precontract.location_name || '',
       locationAddress: precontract.location_address || '',
       receptionHours: precontract.reception_hours || 0,
+      receptionFormation: precontract.reception_formation || '',
+      receptionInstruments: precontract.reception_instruments || '',
       hasSound: !!precontract.has_sound,
       hasTransport: !!precontract.has_transport,
       agreedAmount: precontract.agreed_amount || 0,
@@ -2479,8 +2483,18 @@ if (contractSignedError) throw contractSignedError;
                   <SummaryItem label="Endereço do evento" value={resumo?.locationAddress} />
                   <SummaryItem
                     label="Receptivo"
-                    value={resumo?.receptionHours ? `${resumo.receptionHours}h` : 'Não'}
+                    value={resumo?.receptionHours ? 'Sim' : 'Não'}
                   />
+                  {resumo?.receptionHours ? (
+                    <SummaryItem
+                      label="Detalhe"
+                      value={
+                        resumo?.receptionFormation && resumo?.receptionInstruments
+                          ? `${resumo.receptionFormation} (${resumo.receptionInstruments}) — ${resumo.receptionHours}h`
+                          : `${resumo.receptionHours}h`
+                      }
+                    />
+                  ) : null}
                   <SummaryItem label="Som" value={resumo?.hasSound ? 'Sim' : 'Não'} />
                   <SummaryItem
                     label="Transporte"

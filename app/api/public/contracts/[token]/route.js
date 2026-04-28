@@ -37,6 +37,8 @@ function pickPrecontract(precontract) {
 
     formation: precontract.formation || null,
     instruments: precontract.instruments || null,
+    reception_formation: precontract.reception_formation || null,
+    reception_instruments: precontract.reception_instruments || null,
 
     has_sound: precontract.has_sound === true,
     reception_hours: precontract.reception_hours ?? 0,
@@ -132,6 +134,8 @@ function pickEvent(event) {
     agreed_amount: event.agreed_amount ?? null,
     formation: event.formation || null,
     instruments: event.instruments || null,
+    reception_formation: event.reception_formation || null,
+    reception_instruments: event.reception_instruments || null,
     has_sound: event.has_sound === true,
     reception_hours: event.reception_hours ?? 0,
     has_transport: event.has_transport === true,

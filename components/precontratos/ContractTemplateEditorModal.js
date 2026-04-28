@@ -76,8 +76,7 @@ export default function ContractTemplateEditorModal({
       className="fixed inset-0 z-[210] overflow-hidden bg-[rgba(15,23,42,0.66)] p-0 backdrop-blur-[4px] md:p-4"
       onClick={handleClose}
     >
-      <div
-        className="mx-auto flex h-full max-h-[calc(100dvh-32px)] w-full max-w-6xl flex-col overflow-hidden rounded-t-[28px] border border-white/10 bg-white shadow-[0_32px_90px_rgba(0,0,0,0.4)] md:mt-4 md:h-auto md:rounded-[30px]"
+      <div className="mx-auto flex h-[100dvh] md:h-[calc(100dvh-32px)] w-full max-w-6xl flex-col overflow-hidden rounded-t-[28px] border border-white/10 bg-white shadow-[0_32px_90px_rgba(0,0,0,0.4)] md:mt-4 md:h-auto md:rounded-[30px]"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="shrink-0 border-b border-slate-200 px-5 py-4 md:px-7 md:py-5">
@@ -122,8 +121,8 @@ export default function ContractTemplateEditorModal({
           </div>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-hidden">
-          <div className="grid h-full min-h-0 grid-cols-1 overflow-hidden md:grid-cols-2">
+        <div className="flex-1 min-h-0 overflow-y-auto">
+          <div className="grid h-full min-h-0 grid-cols-1 md:grid-cols-2">
             <div
               className={`min-h-0 flex-col overflow-y-auto border-slate-200 bg-slate-50 md:flex md:border-b-0 md:border-r ${
                 mobileTab === 'edit' ? 'flex' : 'hidden'

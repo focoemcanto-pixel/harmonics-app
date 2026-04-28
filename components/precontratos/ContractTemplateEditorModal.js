@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Button from '../ui/Button.js';
 import RichContractEditor from '@/components/contracts/RichContractEditor';
 import { parseContractTemplateInput, looksLikeHtml } from '@/lib/contracts/templateImport';
@@ -59,18 +59,28 @@ export default function ContractTemplateEditorModal({
     onClose?.();
   };
 
+  useEffect(() => {
+    if (!open) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [open]);
+
   if (!open) return null;
 
   return (
     <div
-      className="fixed inset-0 z-[210] flex items-end justify-center bg-[rgba(15,23,42,0.66)] p-0 backdrop-blur-[4px] md:items-center md:p-4"
+      className="fixed inset-0 z-[210] overflow-hidden bg-[rgba(15,23,42,0.66)] p-0 backdrop-blur-[4px] md:p-4"
       onClick={handleClose}
     >
       <div
-        className="flex h-[92dvh] w-full max-w-6xl flex-col overflow-hidden rounded-t-[28px] border border-white/10 bg-white shadow-[0_32px_90px_rgba(0,0,0,0.4)] md:h-[88vh] md:rounded-[30px]"
+        className="mx-auto flex h-full max-h-[calc(100dvh-32px)] w-full max-w-6xl flex-col overflow-hidden rounded-t-[28px] border border-white/10 bg-white shadow-[0_32px_90px_rgba(0,0,0,0.4)] md:mt-4 md:h-auto md:rounded-[30px]"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="border-b border-slate-200 px-5 py-4 md:px-7 md:py-5">
+        <div className="shrink-0 border-b border-slate-200 px-5 py-4 md:px-7 md:py-5">
           <p className="text-[11px] font-black uppercase tracking-[0.12em] text-violet-600/80">Editor de documento</p>
           <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -85,7 +95,7 @@ export default function ContractTemplateEditorModal({
           </div>
         </div>
 
-        <div className="border-b border-slate-200 px-5 py-3 md:hidden">
+        <div className="shrink-0 border-b border-slate-200 px-5 py-3 md:hidden">
           <div className="inline-flex rounded-full border border-slate-200 bg-slate-100 p-1">
             <button
               type="button"
@@ -112,10 +122,10 @@ export default function ContractTemplateEditorModal({
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto md:overflow-hidden">
-          <div className="grid min-h-full md:h-full md:grid-cols-2">
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <div className="grid h-full min-h-0 grid-cols-1 overflow-hidden md:grid-cols-2">
             <div
-              className={`min-h-0 flex-col border-slate-200 bg-slate-50 md:flex md:border-b-0 md:border-r ${
+              className={`min-h-0 flex-col overflow-y-auto border-slate-200 bg-slate-50 md:flex md:border-b-0 md:border-r ${
                 mobileTab === 'edit' ? 'flex' : 'hidden'
               }`}
             >
@@ -137,14 +147,14 @@ export default function ContractTemplateEditorModal({
             </div>
 
             <div
-              className={`min-h-0 flex-col bg-gradient-to-b from-slate-100 to-slate-50 md:flex ${
+              className={`min-h-0 flex-col overflow-y-auto bg-gradient-to-b from-slate-100 to-slate-50 md:flex ${
                 mobileTab === 'preview' ? 'flex' : 'hidden'
               }`}
             >
             <div className="border-b border-slate-200 px-5 py-3 md:px-6">
               <p className="text-xs font-bold uppercase tracking-[0.1em] text-slate-500">Preview</p>
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto p-4 md:p-6">
+            <div className="min-h-0 flex-1 p-4 md:p-6">
               <div className="mx-auto w-full max-w-[680px] rounded-[24px] border border-slate-200 bg-white p-6 shadow-[0_20px_45px_rgba(15,23,42,0.08)] md:p-8">
                 {previewHtml ? (
                   <div className="prose prose-slate max-w-none text-[15px] leading-7" dangerouslySetInnerHTML={{ __html: previewHtml }} />
@@ -162,7 +172,7 @@ export default function ContractTemplateEditorModal({
           </div>
         </div>
 
-        <div className="border-t border-slate-200 bg-white px-5 py-4 md:px-7">
+        <div className="shrink-0 border-t border-slate-200 bg-white px-5 py-4 md:px-7">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="text-xs text-slate-500">
               {hasCustomContent ? 'Este pré-contrato está personalizado.' : 'Usando o modelo padrão até salvar alterações.'}

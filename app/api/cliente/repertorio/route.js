@@ -538,7 +538,9 @@ export async function POST(request) {
     });
 
     const incomingItems = normalizeItems(rawItems);
-    const customSongItems = parseCustomSongs(config.custom_songs).map((song, index) => ({
+    const rawCustomSongs = parseArraySafe(config.custom_songs);
+    const parsedCustomSongs = parseCustomSongs(config.custom_songs);
+    const customSongItems = parsedCustomSongs.map((song, index) => ({
       section: 'custom',
       item_order: index,
       who_enters: null,
@@ -562,6 +564,15 @@ export async function POST(request) {
     const effectiveIncomingItems = hasCustomItemsInRaw
       ? incomingItems
       : [...incomingItems, ...customSongItems];
+    logInfo('CLIENTE_REPERTORIO', 'CUSTOM_ITEMS_DEBUG', {
+      eventId,
+      rawCustomCount: rawCustomSongs.length,
+      parsedCustomCount: parsedCustomSongs.length,
+      effectiveCustomCount: effectiveIncomingItems.filter(
+        (item) => String(item?.section || '').trim() === 'custom'
+      ).length,
+      hasCustomItemsInRaw,
+    });
     const incomingBySection = countItemsBySection(effectiveIncomingItems);
     logInfo('CLIENTE_REPERTORIO', 'ITEMS_RECEIVED', {
       eventId,
@@ -879,10 +890,20 @@ export async function POST(request) {
       });
       logRepertorioDetail('TRACE_CORTEJO_DB_INSERT', pickTraceSectionItem(itemsPayload, 'cortejo'));
       logRepertorioDetail('TRACE_CERIMONIA_DB_INSERT', pickTraceSectionItem(itemsPayload, 'cerimonia'));
+      logInfo('CLIENTE_REPERTORIO', 'CUSTOM_ITEMS_INSERTED', {
+        eventId,
+        insertedCustomCount: itemsPayload.filter(
+          (item) => String(item?.section || '').trim() === 'custom'
+        ).length,
+      });
     } else {
       logInfo('CLIENTE_REPERTORIO', 'ITEMS_INSERT_RESULT', {
         eventId,
         insertedCount: 0,
+      });
+      logInfo('CLIENTE_REPERTORIO', 'CUSTOM_ITEMS_INSERTED', {
+        eventId,
+        insertedCustomCount: 0,
       });
     }
 

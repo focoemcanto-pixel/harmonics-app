@@ -34,9 +34,11 @@ function pickPrecontract(precontract) {
     agreed_amount: precontract.agreed_amount ?? null,
     formation: precontract.formation || null,
     contract_mode: precontract.contract_mode || null,
+    contract_template_id: precontract.contract_template_id || null,
     custom_contract_enabled: precontract.custom_contract_enabled === true,
     custom_contract_title: precontract.custom_contract_title || null,
     custom_contract_content: precontract.custom_contract_content || null,
+    custom_contract_rich_html: precontract.custom_contract_rich_html || null,
     contract_template_text: precontract.contract_template_text || null,
   };
 }

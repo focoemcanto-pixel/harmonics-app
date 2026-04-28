@@ -334,15 +334,17 @@ function ShareLinkModal({
 
   useEffect(() => {
     if (open && data?.message) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setEditableMessage(data.message);
+      const frameId = window.requestAnimationFrame(() => {
+        setEditableMessage(data.message);
+      });
+      return () => window.cancelAnimationFrame(frameId);
     }
+    return undefined;
   }, [open, data?.message]);
 
-  const currentMessage = editableMessage || data?.message || '';
-  const currentWhatsAppUrl = buildWhatsAppUrl(data?.clientPhone, currentMessage);
-
   if (!open || !data) return null;
+  const currentMessage = editableMessage || data.message || '';
+  const currentWhatsAppUrl = buildWhatsAppUrl(data.clientPhone, currentMessage);
 
   function handleBackdropClick(e) {
     if (e.target === e.currentTarget) onClose?.();
@@ -465,7 +467,7 @@ function ShareLinkModal({
                 variant="secondary"
                 onClick={async () => {
                   try {
-                    await navigator.clipboard.writeText(currentMessage);
+                    await navigator.clipboard.writeText(editableMessage || data.message || '');
                     onToast?.('Mensagem copiada com sucesso.', 'success');
                   } catch (error) {
                     console.error(error);

@@ -15,6 +15,8 @@ import { generateInternalContract } from '../../../lib/contracts/internalContrac
 import { renderContractHtmlWithData, resolveContractHtmlSource } from '../../../lib/contracts/resolveContractHtmlSource';
 import { useAppToast } from '../../../components/ui/ToastProvider';
 const IS_DEV = process.env.NODE_ENV !== 'production';
+const ENABLE_LEGACY_CONTRACT_SIGN_FALLBACK =
+  process.env.NEXT_PUBLIC_ENABLE_LEGACY_CONTRACT_SIGN_FALLBACK === 'true';
 
 function devLog(message, payload) {
   if (!IS_DEV) return;
@@ -1987,6 +1989,7 @@ const canSubmitSignature =
      setInternalPdfStatus('idle');
      setSignatureStep('Registrando assinatura...');
 
+      console.info('[SERVER_SIGN_ATTEMPT]', { token });
       const serverSignRes = await fetch(`/api/public/contracts/${token}/sign`, {
         method: 'POST',
         cache: 'no-store',
@@ -1995,6 +1998,7 @@ const canSubmitSignature =
       });
       const serverSignJson = await serverSignRes.json().catch(() => null);
       if (serverSignRes.ok && serverSignJson?.ok) {
+        console.info('[SERVER_SIGN_SUCCESS]', { token });
         const latestContract = await fetchContract();
         setContract(latestContract || null);
         setResultadoFinal({
@@ -2014,6 +2018,23 @@ const canSubmitSignature =
         setEnviado(true);
         return;
       }
+
+      const serverSignMessage =
+        serverSignJson?.message || 'Não foi possível concluir a assinatura agora.';
+      console.error('[SERVER_SIGN_ERROR]', {
+        token,
+        status: serverSignRes.status,
+        message: serverSignMessage,
+      });
+
+      if (!ENABLE_LEGACY_CONTRACT_SIGN_FALLBACK) {
+        throw new Error(serverSignMessage);
+      }
+
+      console.warn('[LEGACY_SIGN_FALLBACK_USED]', {
+        token,
+        reason: serverSignMessage,
+      });
 
 // salva em estado intermediário enquanto gera o contrato final
 await upsertContract('client_filling');
@@ -2180,6 +2201,10 @@ if (!generateRes.ok || !generateJson?.ok) {
         internalPdfUrl ||
         pdfUrlFinal;
 
+      if (!resolvedPdfUrl) {
+        throw new Error('Contrato gerado sem PDF final. A assinatura não será concluída até o PDF existir.');
+      }
+
       setResultadoFinal({
         pdfUrl: resolvedPdfUrl,
         docUrl: docUrlFinal,
@@ -2188,10 +2213,6 @@ if (!generateRes.ok || !generateJson?.ok) {
         documentHash,
         missingColumns,
       });
-
-      if (modoGeracao !== 'internal' && !pdfUrlFinal) {
-        throw new Error('Contrato gerado sem PDF final. A assinatura não será concluída até o PDF existir.');
-      }
 
       if (modoGeracao === 'internal' && !htmlAssinado) {
         throw new Error('Contrato interno sem HTML final para snapshot de assinatura.');

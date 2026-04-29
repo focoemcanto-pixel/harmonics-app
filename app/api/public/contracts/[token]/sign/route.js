@@ -5,6 +5,7 @@ import { getAutomaticCosts } from '@/lib/eventos/eventos-finance';
 import { normalizeTimeStrict } from '@/lib/time/normalize-time';
 import { generateContractDocument } from '@/lib/contracts/generate-contract-document';
 import { signInternalContract } from '@/lib/contracts/sign-internal-contract';
+import { executeAutomationEvent } from '@/lib/automation/execute-automation-event';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -400,9 +401,8 @@ export async function POST(request, context) {
     const { error: preSignedErr } = await supabase.from('precontracts').update({ ...payloadPre, status: 'signed' }).eq('id', precontract.id);
     if (preSignedErr) throw preSignedErr;
 
-    await fetch(new URL('/api/whatsapp/send-contract-signed', request.url), {
-      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ precontractId: precontract.id }), cache: 'no-store',
-    }).catch(() => null);
+    await executeAutomationEvent({ eventType: 'contract_signed_client', entityId: precontract.id }).catch(() => null);
+    await executeAutomationEvent({ eventType: 'contract_signed_admin', entityId: precontract.id }).catch(() => null);
 
     return NextResponse.json({
       ok: true,

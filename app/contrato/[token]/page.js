@@ -40,6 +40,12 @@ function formatDateBR(value) {
   if (!y || !m || !d) return value;
   return `${d}/${m}/${y}`;
 }
+function formatDateTimeBR(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleString('pt-BR', { hour12: false }).slice(0, 16);
+}
 
 function cleanDigits(value) {
   return String(value || '').replace(/\D/g, '');
@@ -805,6 +811,7 @@ export default function ContratoPublicoPage() {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState('');
   const [previewHtml, setPreviewHtml] = useState('');
+  const [viewedAt, setViewedAt] = useState('');
 
   const [precontract, setPrecontract] = useState(null);
   const [contract, setContract] = useState(null);
@@ -851,6 +858,27 @@ const mapsLoaded = useGoogleMapsReady();
     precontract?.contract_mode === 'internal';
 
   const savedClientForm = useMemo(() => contract?.raw_payload?.client_form || {}, [contract]);
+  const contractViewedAt = useMemo(
+    () => viewedAt || contract?.raw_payload?.contract_viewed_at || '',
+    [viewedAt, contract]
+  );
+
+  const markContractViewed = useCallback(async () => {
+    if (!contract?.id) return;
+    const nowIso = new Date().toISOString();
+    setViewedAt((prev) => prev || nowIso);
+    const rawPayload = {
+      ...(contract?.raw_payload || {}),
+      contract_viewed_at: contract?.raw_payload?.contract_viewed_at || nowIso,
+      contract_viewed_from_public_page: true,
+    };
+    const { error } = await supabase.from('contracts').update({ raw_payload: rawPayload }).eq('id', contract.id);
+    if (error) {
+      console.warn('Falha ao salvar visualização de contrato', error);
+    } else {
+      setContract((prev) => (prev ? { ...prev, raw_payload: rawPayload } : prev));
+    }
+  }, [contract]);
 
   const contextTemplateData = useMemo(
     () => buildContractTemplateData({
@@ -975,6 +1003,7 @@ const mapsLoaded = useGoogleMapsReady();
       }
       setPreviewLoading(false);
       setPreviewAberto(true);
+      markContractViewed().catch(() => null);
       return;
     }
 
@@ -990,6 +1019,7 @@ const mapsLoaded = useGoogleMapsReady();
           throw new Error(html || 'Não foi possível carregar o contrato.');
         }
         setPreviewHtml(String(html || '').trim());
+        markContractViewed().catch(() => null);
       })
       .catch((error) => {
         setPreviewHtml('');
@@ -2948,7 +2978,7 @@ if (contractSignedError) throw contractSignedError;
                     Leia o contrato completo antes da assinatura.
                   </p>
                   <p className="text-xs font-medium text-slate-500">
-                    Status: {previewAberto ? 'em leitura' : 'ainda não visualizado'}
+                    Status: {contractViewedAt ? `visualizado em ${formatDateTimeBR(contractViewedAt)}` : (previewAberto ? 'em leitura' : 'ainda não visualizado')}
                   </p>
                   <Button variant="secondary" onClick={abrirPreviewContrato}>
                     Visualizar contrato

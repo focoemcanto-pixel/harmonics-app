@@ -315,7 +315,7 @@ export async function POST(request, context) {
           hasHtml: !!signedHtml,
         });
 
-        const internalSignRes = await fetch(new URL(`/api/contracts/public/${token}/sign`, request.url), {
+        const legacyRes = await fetch(new URL(`/api/contracts/public/${token}/sign`, request.url), {
           method: 'POST',
           cache: 'no-store',
           headers: { 'content-type': 'application/json' },
@@ -331,21 +331,24 @@ export async function POST(request, context) {
           }),
         });
 
-        const internalSignJson = await internalSignRes.json().catch(() => null);
+        const legacyJson = await legacyRes.json().catch(() => null);
+        console.log('LEGACY_RESULT', legacyJson);
+        const pdfUrl = legacyJson?.pdfUrl;
+        const pdfPending = legacyJson?.pdfPending;
         console.info('[PUBLIC_CONTRACT_SIGN_INTERNAL_LEGACY_CALL_RESULT]', {
           precontractId: precontract?.id || null,
           contractId: finalContract?.id || contract?.id || null,
-          status: internalSignRes.status,
+          status: legacyRes.status,
           hasHtml: !!signedHtml,
-          hasPdfUrl: !!asString(internalSignJson?.pdfUrl),
-          pdfPending: internalSignJson?.pdfPending === true,
+          hasPdfUrl: !!asString(pdfUrl),
+          pdfPending: pdfPending === true,
         });
 
-        if (!internalSignRes.ok || !internalSignJson?.ok) {
-          throw new Error(internalSignJson?.message || 'Falha ao assinar contrato interno.');
+        if (!legacyRes.ok || !legacyJson?.ok) {
+          throw new Error(legacyJson?.message || 'Falha ao assinar contrato interno.');
         }
 
-        if (!internalSignJson?.pdfUrl && internalSignJson?.pdfPending === true) {
+        if (!pdfUrl && pdfPending === true) {
           return NextResponse.json(
             {
               ok: false,
@@ -358,10 +361,14 @@ export async function POST(request, context) {
           );
         }
 
-        internalPdfUrl = asString(internalSignJson?.pdfUrl);
-        documentHash = asString(internalSignJson?.documentHash);
-        missingColumns = Array.isArray(internalSignJson?.missingColumns)
-          ? internalSignJson.missingColumns
+        if (!pdfUrl) {
+          throw new Error("PDF não retornado pela rota legada");
+        }
+
+        internalPdfUrl = asString(legacyJson?.pdfUrl);
+        documentHash = asString(legacyJson?.documentHash);
+        missingColumns = Array.isArray(legacyJson?.missingColumns)
+          ? legacyJson.missingColumns
           : missingColumns;
         internalPdfStatus = internalPdfUrl ? 'ready' : 'failed';
       } catch (internalPdfError) {

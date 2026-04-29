@@ -46,7 +46,13 @@ async function runPdfFlow({ supabase, contractId, precontractId, signedHtml }) {
     precontractId,
     hasPdfUrl: Boolean(pdfData?.pdfUrl),
   });
-  return pdfData?.pdfUrl || null;
+  if (!pdfData?.pdfUrl) {
+    const error = new Error('Fluxo interno retornou sem pdfUrl.');
+    error.code = 'STORAGE_ERROR';
+    error.stage = 'STORAGE_ERROR';
+    throw error;
+  }
+  return pdfData.pdfUrl;
 }
 async function updateContractWithFallbacks({ supabase, contractId, patchPayload }) {
   const missingColumns = [];
@@ -371,7 +377,22 @@ export async function POST(request, context) {
         logError('CONTRACT_PUBLIC_SIGN', 'ERROR', error, {
           contractId: contract.id,
           precontractId: contract.precontract_id,
+          stage: error?.stage || error?.code || 'UNKNOWN',
+          code: error?.code || null,
+          status: error?.status || null,
+          message: error?.message || String(error),
         });
+
+        return NextResponse.json(
+          {
+            ok: false,
+            message: error?.message || 'Falha ao gerar PDF interno.',
+            code: error?.code || 'INTERNAL_PDF_ERROR',
+            stage: error?.stage || error?.code || null,
+            status: error?.status || 502,
+          },
+          { status: error?.status || 502 }
+        );
       }
 
       if (recoveredPdfUrl) {
@@ -520,7 +541,22 @@ export async function POST(request, context) {
       logError('CONTRACT_PUBLIC_SIGN', 'ERROR', error, {
         contractId: contract.id,
         precontractId: contract.precontract_id,
+        stage: error?.stage || error?.code || 'UNKNOWN',
+        code: error?.code || null,
+        status: error?.status || null,
+        message: error?.message || String(error),
       });
+
+      return NextResponse.json(
+        {
+          ok: false,
+          message: error?.message || 'Falha ao gerar PDF interno.',
+          code: error?.code || 'INTERNAL_PDF_ERROR',
+          stage: error?.stage || error?.code || null,
+          status: error?.status || 502,
+        },
+        { status: error?.status || 502 }
+      );
     }
 
     await writeAuditLog({

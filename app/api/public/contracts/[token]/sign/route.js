@@ -365,8 +365,26 @@ export async function POST(request, context) {
           : missingColumns;
         internalPdfStatus = internalPdfUrl ? 'ready' : 'failed';
       } catch (internalPdfError) {
-        console.error('Erro ao gerar PDF interno:', internalPdfError);
+        console.error('Erro ao gerar PDF interno:', {
+          message: internalPdfError?.message || String(internalPdfError),
+          code: internalPdfError?.code || null,
+          status: internalPdfError?.status || null,
+          stage: internalPdfError?.stage || internalPdfError?.code || null,
+        });
         internalPdfStatus = 'failed';
+        return NextResponse.json(
+          {
+            ok: false,
+            message: internalPdfError?.message || 'Falha ao gerar PDF interno.',
+            code: internalPdfError?.code || 'INTERNAL_PDF_ERROR',
+            stage: internalPdfError?.stage || internalPdfError?.code || null,
+            status: internalPdfError?.status || 502,
+            mode: generationMode,
+            internalPdfStatus,
+            fallbackAllowed: true,
+          },
+          { status: internalPdfError?.status || 502 }
+        );
       }
     }
 
@@ -375,7 +393,7 @@ export async function POST(request, context) {
       return NextResponse.json(
         {
           ok: false,
-          message: 'Contrato gerado sem PDF final. A assinatura não será concluída até o PDF existir.',
+          message: 'Contrato gerado sem PDF final. Verifique etapa interna de geração (serviço, bucket, storage ou DB).',
           mode: generationMode,
           html: signedHtml || null,
           internalPdfStatus,

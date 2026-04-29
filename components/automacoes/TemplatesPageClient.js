@@ -33,6 +33,8 @@ const VARIAVEIS = [
   '{event_date}',
   '{event_name}',
   '{event_location}',
+  '{pdf_url}',
+  '{link_pdf}',
 ];
 
 const FORM_INICIAL = {
@@ -71,6 +73,8 @@ const MOCK_VARS = {
   '{event_date}': '20/09/2026',
   '{event_name}': 'Casamento Ana & Lucas',
   '{event_location}': 'Espaço Villa Verde',
+  '{pdf_url}': 'https://harmonics.app/storage/contracts/demo.pdf',
+  '{link_pdf}': 'https://harmonics.app/storage/contracts/demo.pdf',
 };
 
 function renderTemplatePreview(body, vars) {

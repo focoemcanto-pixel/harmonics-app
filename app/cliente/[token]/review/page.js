@@ -8,12 +8,20 @@ function formatDateBR(value) {
   if (!value) return '';
   const raw = String(value || '').slice(0, 10);
   const [year, month, day] = raw.split('-');
-  if (!year || !month || !day) return value;
+  if (!year || !month || !day) return String(value || '');
   return `${day}/${month}/${year}`;
 }
 
+function extractToken(params) {
+  if (Array.isArray(params?.token)) {
+    return String(params.token[0] || '').trim();
+  }
+  return String(params?.token || '').trim();
+}
+
 export default async function ClienteReviewPage({ params }) {
-  const token = String(params?.token || '').trim();
+  const resolvedParams = typeof params?.then === 'function' ? await params : params;
+  const token = extractToken(resolvedParams);
 
   if (!token) {
     notFound();
@@ -21,22 +29,19 @@ export default async function ClienteReviewPage({ params }) {
 
   const supabase = getSupabaseAdmin();
 
-  // 1. buscar precontract
-  const { data: precontract } = await supabase
+  const { data: precontract, error: precontractError } = await supabase
     .from('precontracts')
-    .select('id, event_id, client_name, event_date')
+    .select('id, public_token, event_id, client_name, event_date')
     .eq('public_token', token)
     .maybeSingle();
 
-  if (!precontract?.event_id) {
-    notFound();
-  }
+  if (precontractError) throw precontractError;
+  if (!precontract?.id || !precontract?.event_id) notFound();
 
-  // 2. buscar evento + review
   const [eventResp, reviewResp] = await Promise.all([
     supabase
       .from('events')
-      .select('id, client_name, event_date, event_type')
+      .select('id, client_name, event_date, event_type, location_name')
       .eq('id', precontract.event_id)
       .maybeSingle(),
 
@@ -47,19 +52,22 @@ export default async function ClienteReviewPage({ params }) {
       .maybeSingle(),
   ]);
 
+  if (eventResp.error) throw eventResp.error;
+  if (reviewResp.error) throw reviewResp.error;
+
   const event = eventResp.data;
   const review = reviewResp.data;
 
-  if (!event) {
-    notFound();
-  }
+  if (!event?.id) notFound();
 
   const clientName = event.client_name || precontract.client_name || 'Cliente';
+  const eventDate = event.event_date || precontract.event_date || '';
+  const eventType = event.event_type || 'Evento';
 
   const data = {
     clienteNome: clientName,
-    eventoTitulo: `${event.event_type || 'Evento'} • ${clientName}`,
-    eventoData: formatDateBR(event.event_date || precontract.event_date),
+    eventoTitulo: `${eventType} • ${clientName}`,
+    eventoData: formatDateBR(eventDate),
     reviewSubmitted: Boolean(review),
     existingReview: review
       ? {

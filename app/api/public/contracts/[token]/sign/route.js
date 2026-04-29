@@ -17,6 +17,17 @@ const brToIsoDate = (value) => {
   return `${m[3]}-${m[2]}-${m[1]}`;
 };
 
+
+
+const pickDefined = (...values) => {
+  for (const value of values) {
+    if (value !== undefined && value !== null && (!(typeof value === 'string') || value.trim() !== '')) {
+      return value;
+    }
+  }
+  return null;
+};
+
 function extractToken(params) {
   if (Array.isArray(params?.token)) return asString(params.token[0]);
   return asString(params?.token);
@@ -163,7 +174,15 @@ export async function POST(request, context) {
 
     let { data: contract } = await supabase.from('contracts').select('*').eq('precontract_id', precontract.id).maybeSingle();
     if (!contract?.id) {
-      const inserted = await supabase.from('contracts').insert({ precontract_id: precontract.id, public_token: precontract.public_token || token, status: 'client_filling' }).select('*').single();
+      const inserted = await supabase.from('contracts').insert({
+        precontract_id: precontract.id,
+        public_token: precontract.public_token || token,
+        status: 'client_filling',
+        contact_id: precontract.contact_id || null,
+        event_id: precontract.event_id || null,
+        agreed_amount: precontract.agreed_amount ?? null,
+        base_amount: precontract.base_amount ?? null,
+      }).select('*').single();
       if (inserted.error) throw inserted.error;
       contract = inserted.data;
     }
@@ -175,8 +194,8 @@ export async function POST(request, context) {
       client_name: asString(form.full_name) || precontract.client_name || null,
       client_email: precontract.client_email || null,
       client_phone: cleanDigits(form.whatsapp) || precontract.client_phone || null,
-      event_date: brToIsoDate(form.event_date) || precontract.event_date || null,
-      event_time: normalizeTime(form.event_time) || normalizeTime(precontract.event_time) || null,
+      event_date: pickDefined(brToIsoDate(form.event_date), precontract.event_date),
+      event_time: pickDefined(normalizeTime(form.event_time), normalizeTime(precontract.event_time)),
       location_name: asString(form.event_location_name) || precontract.location_name || null,
       location_address: asString(form.event_location_address) || precontract.location_address || null,
       event_id: eventId || precontract.event_id || null,
@@ -187,26 +206,27 @@ export async function POST(request, context) {
     if (upPre) throw upPre;
 
     const assinaturaEm = new Date().toISOString();
+    const existingClientForm = contract?.raw_payload?.client_form || {};
     const clientForm = {
-      full_name: asString(form.full_name) || null,
-      marital_status: asString(form.marital_status) || null,
-      profession: asString(form.profession) || null,
-      cpf: cleanDigits(form.cpf) || null,
-      rg: asString(form.rg) || null,
-      whatsapp: cleanDigits(form.whatsapp) || null,
-      address_street: asString(form.address_street) || null,
-      address_number: asString(form.address_number) || null,
-      address_complement: asString(form.address_complement) || null,
-      address_neighborhood: asString(form.address_neighborhood) || null,
-      address_cep: cleanDigits(form.address_cep) || null,
-      address_city: asString(form.address_city) || null,
-      address_state: asString(form.address_state) || null,
-      event_date: brToIsoDate(form.event_date) || null,
-      event_time: normalizeTime(form.event_time) || null,
-      event_location_name: asString(form.event_location_name) || null,
-      event_location_address: asString(form.event_location_address) || null,
-      signer_name: asString(form.signer_name) || null,
-      signer_cpf: cleanDigits(form.signer_cpf) || null,
+      full_name: pickDefined(asString(form.full_name), existingClientForm.full_name),
+      marital_status: pickDefined(asString(form.marital_status), existingClientForm.marital_status),
+      profession: pickDefined(asString(form.profession), existingClientForm.profession),
+      cpf: pickDefined(cleanDigits(form.cpf), existingClientForm.cpf),
+      rg: pickDefined(asString(form.rg), existingClientForm.rg),
+      whatsapp: pickDefined(cleanDigits(form.whatsapp), existingClientForm.whatsapp),
+      address_street: pickDefined(asString(form.address_street), existingClientForm.address_street),
+      address_number: pickDefined(asString(form.address_number), existingClientForm.address_number),
+      address_complement: pickDefined(asString(form.address_complement), existingClientForm.address_complement),
+      address_neighborhood: pickDefined(asString(form.address_neighborhood), existingClientForm.address_neighborhood),
+      address_cep: pickDefined(cleanDigits(form.address_cep), existingClientForm.address_cep),
+      address_city: pickDefined(asString(form.address_city), existingClientForm.address_city),
+      address_state: pickDefined(asString(form.address_state), existingClientForm.address_state),
+      event_date: pickDefined(brToIsoDate(form.event_date), existingClientForm.event_date),
+      event_time: pickDefined(normalizeTime(form.event_time), existingClientForm.event_time),
+      event_location_name: pickDefined(asString(form.event_location_name), existingClientForm.event_location_name),
+      event_location_address: pickDefined(asString(form.event_location_address), existingClientForm.event_location_address),
+      signer_name: pickDefined(asString(form.signer_name), existingClientForm.signer_name),
+      signer_cpf: pickDefined(cleanDigits(form.signer_cpf), existingClientForm.signer_cpf),
       accepted_terms: form.accepted_terms === true,
       signed_at: assinaturaEm,
     };
@@ -217,6 +237,8 @@ export async function POST(request, context) {
       signed_at: null,
       contact_id: contactId || contract.contact_id || null,
       event_id: eventId || contract.event_id || null,
+      agreed_amount: contract?.agreed_amount ?? precontract?.agreed_amount ?? null,
+      base_amount: contract?.base_amount ?? precontract?.base_amount ?? null,
       raw_payload: {
         ...(contract?.raw_payload || {}),
         precontract_snapshot: precontract,
@@ -231,13 +253,30 @@ export async function POST(request, context) {
     });
     const genJson = await genRes.json().catch(() => null);
     if (!genRes.ok || !genJson?.ok) {
-      return NextResponse.json({ ok: false, message: genJson?.message || 'Não foi possível gerar o PDF final.', fallbackAllowed: true }, { status: 502 });
+      console.error('[PUBLIC_CONTRACT_SIGN][GENERATE_FAILED]', {
+        status: genRes.status,
+        ok: genJson?.ok,
+        message: genJson?.message,
+        error: genJson?.error,
+        errorType: genJson?.errorType,
+        precontractId: precontract?.id || null,
+        contractId: contract?.id || null,
+        eventId: eventId || precontract?.event_id || contract?.event_id || null,
+        contactId: contactId || precontract?.contact_id || contract?.contact_id || null,
+      });
+      return NextResponse.json({ ok: false, message: genJson?.message || genJson?.error || 'Não foi possível gerar o PDF final.', fallbackAllowed: true }, { status: 502 });
     }
 
     const { data: finalContract, error: cErr } = await supabase.from('contracts').select('*').eq('id', contract.id).single();
     if (cErr) throw cErr;
+    const generationMode = asString(genJson?.mode || 'docs').toLowerCase();
     const pdfUrl = asString(finalContract?.pdf_url || genJson?.pdfUrl);
-    if (!pdfUrl) return NextResponse.json({ ok: false, message: 'Contrato gerado sem PDF final.', fallbackAllowed: true }, { status: 502 });
+    if (!pdfUrl) {
+      if (generationMode === 'internal' && asString(genJson?.html)) {
+        return NextResponse.json({ ok: true, mode: 'internal', html: asString(genJson?.html), message: 'Contrato interno gerado sem PDF nesta etapa.', fallbackAllowed: true });
+      }
+      return NextResponse.json({ ok: false, message: 'Contrato gerado sem PDF final.', fallbackAllowed: true }, { status: 502 });
+    }
 
     const { error: signedContractError } = await supabase.from('contracts').update({
       status: 'signed', signed_at: assinaturaEm, signature_name: asString(form.signer_name) || null,
@@ -245,7 +284,7 @@ export async function POST(request, context) {
       event_id: eventId || finalContract?.event_id || null,
       raw_payload: {
         ...(finalContract?.raw_payload || {}),
-        final_generation: { mode: genJson?.mode || 'docs', pdfUrl, docUrl: genJson?.docUrl || null, generatedAt: assinaturaEm },
+        final_generation: { mode: generationMode || 'docs', pdfUrl, docUrl: genJson?.docUrl || null, generatedAt: assinaturaEm },
       },
     }).eq('id', contract.id);
     if (signedContractError) throw signedContractError;

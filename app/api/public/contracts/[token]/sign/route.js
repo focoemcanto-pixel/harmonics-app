@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { validateRequiredEnv } from '@/lib/config/validate-env';
 import { getAutomaticCosts } from '@/lib/eventos/eventos-finance';
 import { normalizeTimeStrict } from '@/lib/time/normalize-time';
+import { generateContractDocument } from '@/lib/contracts/generate-contract-document';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -243,24 +244,52 @@ export async function POST(request, context) {
     }).eq('id', contract.id);
     if (upContractFilling) throw upContractFilling;
 
-    const genRes = await fetch(new URL('/api/contracts/generate', request.url), {
-      method: 'POST', headers: { 'content-type': 'application/json' }, cache: 'no-store',
-      body: JSON.stringify({ precontractId: precontract.id, contractId: contract.id }),
+    console.info('[PUBLIC_CONTRACT_SIGN_GENERATE_START]', {
+      precontractId: precontract?.id || null,
+      contractId: contract?.id || null,
+      eventId: eventId || precontract?.event_id || contract?.event_id || null,
+      contactId: contactId || precontract?.contact_id || contract?.contact_id || null,
     });
-    const genJson = await genRes.json().catch(() => null);
-    if (!genRes.ok || !genJson?.ok) {
-      console.error('[PUBLIC_CONTRACT_SIGN][GENERATE_FAILED]', {
-        status: genRes.status,
-        ok: genJson?.ok,
-        message: genJson?.message,
-        error: genJson?.error,
-        errorType: genJson?.errorType,
+
+    let genJson = null;
+    try {
+      genJson = await generateContractDocument({
+        supabase,
+        precontractId: precontract.id,
+        contractId: contract.id,
+      });
+      if (!genJson?.ok) {
+        console.error('[PUBLIC_CONTRACT_SIGN_GENERATE_ERROR]', {
+          status: genJson?.status || 500,
+          ok: genJson?.ok,
+          message: genJson?.message,
+          error: genJson?.error,
+          errorType: genJson?.errorType,
+          precontractId: precontract?.id || null,
+          contractId: contract?.id || null,
+          eventId: eventId || precontract?.event_id || contract?.event_id || null,
+          contactId: contactId || precontract?.contact_id || contract?.contact_id || null,
+        });
+        return NextResponse.json({ ok: false, message: genJson?.message || genJson?.error || 'Não foi possível gerar o PDF final.', fallbackAllowed: true }, { status: 502 });
+      }
+
+      console.info('[PUBLIC_CONTRACT_SIGN_GENERATE_OK]', {
         precontractId: precontract?.id || null,
         contractId: contract?.id || null,
         eventId: eventId || precontract?.event_id || contract?.event_id || null,
         contactId: contactId || precontract?.contact_id || contract?.contact_id || null,
       });
-      return NextResponse.json({ ok: false, message: genJson?.message || genJson?.error || 'Não foi possível gerar o PDF final.', fallbackAllowed: true }, { status: 502 });
+    } catch (error) {
+      console.error('[PUBLIC_CONTRACT_SIGN_GENERATE_ERROR]', {
+        precontractId: precontract?.id || null,
+        contractId: contract?.id || null,
+        eventId: eventId || precontract?.event_id || contract?.event_id || null,
+        contactId: contactId || precontract?.contact_id || contract?.contact_id || null,
+        error: error?.message || String(error),
+        message: error?.message || 'Erro desconhecido',
+        errorType: error?.name || 'UnknownError',
+      });
+      return NextResponse.json({ ok: false, message: 'Não foi possível gerar o PDF final.', fallbackAllowed: true }, { status: 502 });
     }
 
     const { data: finalContract, error: cErr } = await supabase.from('contracts').select('*').eq('id', contract.id).single();

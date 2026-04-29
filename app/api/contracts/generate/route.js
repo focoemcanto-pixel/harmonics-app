@@ -1,297 +1,36 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { buildContractTemplateData } from '../../../../lib/contracts/buildContractTemplateData';
-import { generateInternalContract } from '../../../../lib/contracts/internalContractGenerator';
 import { requireRequiredEnv } from '@/lib/config/validate-env';
+import { generateContractDocument } from '@/lib/contracts/generate-contract-document';
 import { logError, logInfo, logWarn, safeError } from '@/lib/observability/server-log';
 import { sendAdminWhatsAppAlert } from '@/lib/whatsapp/send-admin-alert';
 
 export const dynamic = 'force-dynamic';
-const IS_DEV = process.env.NODE_ENV !== 'production';
-const CLIENT_CONTRACT_ERROR_MESSAGE =
-  'Tivemos uma instabilidade ao concluir seu contrato. Fique tranquilo: nossa equipe pode te ajudar rapidamente. Entre em contato conosco para finalizarmos isso juntos.';
-
-
-function devLog(message, payload) {
-  if (!IS_DEV) return;
-  if (payload === undefined) {
-    console.info(message);
-    return;
-  }
-  console.info(message, payload);
-}
 
 function validateSupabaseEnv() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
   const missing = [];
   if (!supabaseUrl) missing.push('NEXT_PUBLIC_SUPABASE_URL');
   if (!supabaseServiceRoleKey) missing.push('SUPABASE_SERVICE_ROLE_KEY');
-
-  if (missing.length > 0) {
-    return {
-      valid: false,
-      error: `Variáveis de ambiente faltando: ${missing.join(', ')}`,
-    };
-  }
-
-  return {
-    valid: true,
-    supabaseUrl,
-    supabaseServiceRoleKey,
-  };
-}
-
-function validateGoogleDocsEnv() {
-  const templateId = process.env.CONTRACT_TEMPLATE_DOC_ID;
-  const rootFolderId = process.env.CONTRACTS_DRIVE_FOLDER_ID;
-
-  const contractServiceUrl =
-    process.env.CONTRACT_SERVICE_URL ||
-    process.env.NEXT_PUBLIC_CONTRACT_SERVICE_URL;
-
-  const contractServiceApiKey =
-    process.env.CONTRACT_SERVICE_API_KEY ||
-    process.env.NEXT_PUBLIC_CONTRACT_SERVICE_API_KEY ||
-    '';
-
-  const missing = [];
-  if (!templateId) missing.push('CONTRACT_TEMPLATE_DOC_ID');
-  if (!rootFolderId) missing.push('CONTRACTS_DRIVE_FOLDER_ID');
-  if (!contractServiceUrl) {
-    missing.push('CONTRACT_SERVICE_URL ou NEXT_PUBLIC_CONTRACT_SERVICE_URL');
-  }
-
-  if (missing.length > 0) {
-    return {
-      valid: false,
-      error: `Variáveis de ambiente faltando: ${missing.join(', ')}`,
-    };
-  }
-
-  return {
-    valid: true,
-    templateId,
-    rootFolderId,
-    contractServiceUrl,
-    contractServiceApiKey,
-  };
+  if (missing.length > 0) return { valid: false, error: `Variáveis de ambiente faltando: ${missing.join(', ')}` };
+  return { valid: true, supabaseUrl, supabaseServiceRoleKey };
 }
 
 function getReadableErrorMessage(error) {
   if (!error) return 'Erro interno ao gerar contrato.';
-
   if (typeof error === 'string') return error;
-
-  if (error instanceof Error) {
-    return error.message || 'Erro interno ao gerar contrato.';
-  }
-
+  if (error instanceof Error) return error.message || 'Erro interno ao gerar contrato.';
   if (typeof error === 'object') {
-    try {
-      return JSON.stringify(error);
-    } catch {
-      return 'Erro interno ao gerar contrato.';
-    }
+    try { return JSON.stringify(error); } catch { return 'Erro interno ao gerar contrato.'; }
   }
-
   return String(error);
-}
-
-async function getContractContext({ contractId, precontractId, supabase }) {
-  let contract = null;
-
-  if (contractId) {
-    const { data, error } = await supabase
-      .from('contracts')
-      .select('*')
-      .eq('id', contractId)
-      .single();
-
-    if (error) {
-      throw new Error(`Erro ao buscar contract: ${error.message}`);
-    }
-
-    contract = data;
-  } else if (precontractId) {
-    const { data, error } = await supabase
-      .from('contracts')
-      .select('*')
-      .eq('precontract_id', precontractId)
-      .maybeSingle();
-
-    if (error) {
-      throw new Error(`Erro ao buscar contract por precontract: ${error.message}`);
-    }
-
-    contract = data || null;
-  }
-
-  if (!contract && !precontractId) {
-    throw new Error('Informe contractId ou precontractId.');
-  }
-
-  const targetPrecontractId = contract?.precontract_id || precontractId || null;
-
-  if (!targetPrecontractId) {
-    throw new Error('PrecontractId não encontrado.');
-  }
-
-  const { data: precontract, error: preError } = await supabase
-    .from('precontracts')
-    .select('*')
-    .eq('id', targetPrecontractId)
-    .single();
-
-  if (preError) {
-    throw new Error(`Erro ao buscar precontract: ${preError.message}`);
-  }
-
-  let contact = null;
-  const targetContactId = contract?.contact_id || precontract?.contact_id || null;
-
-  if (targetContactId) {
-    const { data, error } = await supabase
-      .from('contacts')
-      .select('*')
-      .eq('id', targetContactId)
-      .maybeSingle();
-
-    if (error) {
-      throw new Error(`Erro ao buscar contact: ${error.message}`);
-    }
-
-    contact = data || null;
-  }
-
-  let event = null;
-  const targetEventId = contract?.event_id || precontract?.event_id || null;
-
-  if (targetEventId) {
-    const { data, error } = await supabase
-      .from('events')
-      .select('*')
-      .eq('id', targetEventId)
-      .maybeSingle();
-
-    if (error) {
-      throw new Error(`Erro ao buscar event: ${error.message}`);
-    }
-
-    event = data || null;
-  }
-
-  return {
-    contract,
-    precontract,
-    contact,
-    event,
-  };
-}
-
-function getContractName(context) {
-  const clientName =
-    context.contact?.name ||
-    context.precontract?.client_name ||
-    context.event?.client_name ||
-    'Cliente';
-
-  const eventDate =
-    context.event?.event_date ||
-    context.precontract?.event_date ||
-    new Date().toISOString().slice(0, 10);
-
-  return `Contrato - ${clientName} - ${eventDate}`;
-}
-
-async function callContractService({
-  contractServiceUrl,
-  contractServiceApiKey,
-  payload,
-}) {
-  const baseUrl = String(contractServiceUrl || '').trim().replace(/\/+$/, '');
-  const endpoint = `${baseUrl}/api/contracts/generate`;
-
-  logInfo('CONTRACT_GENERATE', 'SERVICE_CALL_START', {
-    hasApiKey: Boolean(contractServiceApiKey),
-  });
-
-  let response;
-  try {
-    response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(contractServiceApiKey
-          ? { 'x-api-key': contractServiceApiKey }
-          : {}),
-      },
-      body: JSON.stringify(payload),
-      cache: 'no-store',
-    });
-  } catch (error) {
-    const serviceError = new Error(
-      `Falha ao conectar ao contract service: ${error?.message || 'erro desconhecido'}`
-    );
-    logError('CONTRACT_GENERATE', 'SERVICE_CALL_ERROR', serviceError);
-    throw serviceError;
-  }
-
-  let serviceJson = null;
-  try {
-    serviceJson = await response.json();
-  } catch {
-    throw new Error(
-      `Contract service respondeu com payload inválido (status ${response.status}).`
-    );
-  }
-
-  if (!response.ok || !serviceJson?.ok) {
-    throw new Error(
-      serviceJson?.message ||
-        `Contract service falhou com status ${response.status}.`
-    );
-  }
-
-  return serviceJson;
-}
-
-function normalizeGeneratedResult(serviceJson) {
-  const docUrl =
-    serviceJson?.docUrl ||
-    serviceJson?.doc_url ||
-    serviceJson?.data?.docUrl ||
-    serviceJson?.data?.doc_url ||
-    null;
-
-  const pdfUrl =
-    serviceJson?.pdfUrl ||
-    serviceJson?.pdf_url ||
-    serviceJson?.data?.pdfUrl ||
-    serviceJson?.data?.pdf_url ||
-    null;
-
-  return {
-    ...serviceJson,
-    docUrl,
-    pdfUrl,
-  };
 }
 
 async function notifyAdminContractGenerationIssue({ context, reason, error }) {
   try {
-    const clientName =
-      context?.contact?.name ||
-      context?.precontract?.client_name ||
-      context?.event?.client_name ||
-      'Cliente não identificado';
-
-    const eventDate =
-      context?.event?.event_date ||
-      context?.precontract?.event_date ||
-      'Data não identificada';
-
+    const clientName = context?.contact?.name || context?.precontract?.client_name || context?.event?.client_name || 'Cliente não identificado';
+    const eventDate = context?.event?.event_date || context?.precontract?.event_date || 'Data não identificada';
     const message = [
       '🚨 Falha crítica na geração de contrato',
       `Motivo: ${reason}`,
@@ -300,268 +39,71 @@ async function notifyAdminContractGenerationIssue({ context, reason, error }) {
       `Precontract ID: ${context?.precontract?.id || 'não informado'}`,
       `Contract ID: ${context?.contract?.id || 'não encontrado'}`,
       error?.message ? `Erro técnico: ${error.message}` : null,
-    ]
-      .filter(Boolean)
-      .join('\n');
-
+    ].filter(Boolean).join('\n');
     await sendAdminWhatsAppAlert(message);
   } catch (whatsappError) {
-    logWarn('CONTRACT_GENERATE', 'ADMIN_WHATSAPP_ALERT_FAILED', {
-      error: whatsappError?.message || String(whatsappError),
-    });
+    logWarn('CONTRACT_GENERATE', 'ADMIN_WHATSAPP_ALERT_FAILED', { error: whatsappError?.message || String(whatsappError) });
   }
 }
 
 export async function GET() {
-  return NextResponse.json({
-    ok: true,
-    message: 'Use POST para gerar preview ou contrato final.',
-  });
+  return NextResponse.json({ ok: true, message: 'Use POST para gerar preview ou contrato final.' });
 }
 
 export async function POST(request) {
   try {
     requireRequiredEnv('contracts/generate');
-
     logInfo('CONTRACT_GENERATE', 'START');
+
     const supabaseEnv = validateSupabaseEnv();
+    if (!supabaseEnv.valid) return NextResponse.json({ ok: false, message: supabaseEnv.error }, { status: 500 });
 
-    if (!supabaseEnv.valid) {
-      return NextResponse.json(
-        {
-          ok: false,
-          message: supabaseEnv.error,
-        },
-        { status: 500 }
-      );
-    }
-
-    const { supabaseUrl, supabaseServiceRoleKey } = supabaseEnv;
-    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+    const supabase = createClient(supabaseEnv.supabaseUrl, supabaseEnv.supabaseServiceRoleKey);
 
     let body = {};
-    try {
-      body = await request.json();
-    } catch {
-      return NextResponse.json(
-        {
-          ok: false,
-          message: 'Payload inválido. Envie JSON válido no corpo da requisição.',
-        },
-        { status: 400 }
-      );
+    try { body = await request.json(); } catch {
+      return NextResponse.json({ ok: false, message: 'Payload inválido. Envie JSON válido no corpo da requisição.' }, { status: 400 });
     }
 
-    const contractId = body?.contractId || null;
-    const precontractId = body?.precontractId || null;
-    const previewOnly = !!body?.previewOnly;
-
-    const context = await getContractContext({
-      contractId,
-      precontractId,
+    const result = await generateContractDocument({
       supabase,
+      contractId: body?.contractId || null,
+      precontractId: body?.precontractId || null,
+      previewOnly: !!body?.previewOnly,
     });
+
+    const context = result?.context;
+
     logInfo('CONTRACT_GENERATE', 'CONTEXT_RESOLVED', {
-      contractId: context.contract?.id || contractId || null,
-      precontractId: context.precontract?.id || precontractId || null,
-      eventId: context.event?.id || null,
+      contractId: context?.contract?.id || body?.contractId || null,
+      precontractId: context?.precontract?.id || body?.precontractId || null,
+      eventId: context?.event?.id || null,
     });
 
-    const templateData = buildContractTemplateData(context);
-
-    const isInternal =
-      context.precontract?.custom_contract_enabled === true ||
-      context.precontract?.contract_mode === 'internal';
-
-    if (isInternal) {
-      const internal = generateInternalContract(context, templateData);
-
-      return NextResponse.json({
-        ok: true,
-        mode: 'internal',
-        html: internal.html,
-      });
-    }
-
-    const googleDocsEnv = validateGoogleDocsEnv();
-
-    if (!googleDocsEnv.valid) {
-      return NextResponse.json(
-        {
-          ok: false,
-          message: googleDocsEnv.error,
-        },
-        { status: 500 }
-      );
-    }
-
-    const {
-      templateId,
-      rootFolderId,
-      contractServiceUrl,
-      contractServiceApiKey,
-    } = googleDocsEnv;
-
-    devLog('[/api/contracts/generate] env ok', {
-      hasContractServiceApiKey: Boolean(contractServiceApiKey),
-    });
-
-    if (previewOnly) {
-      return NextResponse.json({
-        ok: true,
-        mode: 'preview',
-        message: 'Template data gerado com sucesso.',
-        ids: {
-          contractId: context.contract?.id || null,
-          precontractId: context.precontract?.id || null,
-          contactId: context.contact?.id || null,
-          eventId: context.event?.id || null,
-        },
-        templateData,
-      });
-    }
-
-    if (!context.contract?.id) {
-      const structuralError = new Error(
-        `Contract não encontrado para precontract_id: ${context.precontract?.id || precontractId || 'não informado'}`
-      );
-
-      logError('CONTRACT_GENERATE', 'MISSING_CONTRACT_FOR_PRECONTRACT', structuralError, {
-        precontractId: context.precontract?.id || precontractId || null,
-        eventId: context.event?.id || null,
-        contactId: context.contact?.id || null,
-      });
-
-      await notifyAdminContractGenerationIssue({
-        context,
-        reason: 'Pré-contrato encontrado, mas nenhum registro correspondente foi localizado em contracts.',
-        error: structuralError,
-      });
-
-      return NextResponse.json(
-        {
-          ok: false,
-          error: 'CONTRACT_NOT_FOUND_FOR_PRECONTRACT',
-          message: CLIENT_CONTRACT_ERROR_MESSAGE,
-        },
-        { status: 500 }
-      );
-    }
-
-    const contractName = getContractName(context);
-    const eventDate =
-      context.event?.event_date ||
-      context.precontract?.event_date ||
-      new Date().toISOString().slice(0, 10);
-
-    logInfo('CONTRACT_GENERATE', 'SERVICE_CALL_START', {
-      contractId: context.contract?.id || null,
-      precontractId: context.precontract?.id || null,
-    });
-
-    let generated;
-
-    try {
-      generated = await callContractService({
-        contractServiceUrl,
-        contractServiceApiKey,
-        payload: {
-          templateId,
-          rootFolderId,
-          templateData,
-          contractName,
-          eventDate,
-          placeholderStyle: 'double_curly',
-        },
-      });
-    } catch (error) {
-      logError('CONTRACT_GENERATE', 'ERROR', error, {
-        contractId: context.contract?.id || null,
-        precontractId: context.precontract?.id || null,
-      });
-
-      return NextResponse.json(
-        {
-          ok: false,
-          error: getReadableErrorMessage(error),
-          errorType: error?.name || 'ContractServiceError',
-        },
-        { status: 500 }
-      );
-    }
-
-    generated = normalizeGeneratedResult(generated);
-
-    if (!generated.docUrl || !generated.pdfUrl) {
-      throw new Error('Contrato gerado sem links finais (docUrl/pdfUrl).');
-    }
-
-    logInfo('CONTRACT_GENERATE', 'SERVICE_CALL_OK', {
-      contractId: context.contract?.id || null,
-      precontractId: context.precontract?.id || null,
-      hasDocUrl: Boolean(generated?.docUrl),
-      hasPdfUrl: Boolean(generated?.pdfUrl),
-    });
-
-    devLog('[/api/contracts/generate] persistência pós-geração', {
-      hasContractId: Boolean(context.contract?.id),
-      contractId: context.contract?.id || null,
-      precontractId: context.precontract?.id || null,
-    });
-
-    if (context.contract?.id) {
-      const { error: updateError } = await supabase
-        .from('contracts')
-        .update({
-          doc_template_id: templateId,
-          doc_url: generated.docUrl,
-          pdf_url: generated.pdfUrl,
-        })
-        .eq('id', context.contract.id);
-
-      if (updateError) {
-        throw new Error(`Erro ao salvar links do contrato: ${updateError.message}`);
+    if (!result?.ok) {
+      if (result?.error === 'CONTRACT_NOT_FOUND_FOR_PRECONTRACT') {
+        const structuralError = new Error(result?.message || 'Contract não encontrado');
+        logError('CONTRACT_GENERATE', 'MISSING_CONTRACT_FOR_PRECONTRACT', structuralError, {
+          precontractId: context?.precontract?.id || body?.precontractId || null,
+          eventId: context?.event?.id || null,
+          contactId: context?.contact?.id || null,
+        });
+        await notifyAdminContractGenerationIssue({
+          context,
+          reason: 'Pré-contrato encontrado, mas nenhum registro correspondente foi localizado em contracts.',
+          error: structuralError,
+        });
       }
-      logInfo('CONTRACT_GENERATE', 'DB_UPDATE_OK', {
-        contractId: context.contract?.id || null,
-        precontractId: context.precontract?.id || null,
-        hasDocUrl: Boolean(generated.docUrl),
-        hasPdfUrl: Boolean(generated.pdfUrl),
-      });
-    } else {
-      logWarn('CONTRACT_GENERATE', 'DB_UPDATE_SKIPPED', {
-        precontractId: context.precontract?.id || null,
-      });
+
+      return NextResponse.json(
+        { ok: false, error: result?.error || result?.message, message: result?.message, errorType: result?.errorType || 'ContractGenerationError' },
+        { status: result?.status || 500 }
+      );
     }
 
-    return NextResponse.json({
-      ok: true,
-      mode: 'generated',
-      message: 'Contrato gerado com sucesso.',
-      ids: {
-        contractId: context.contract?.id || null,
-        precontractId: context.precontract?.id || null,
-        contactId: context.contact?.id || null,
-        eventId: context.event?.id || null,
-      },
-      docUrl: generated.docUrl,
-      pdfUrl: generated.pdfUrl,
-      folderYear: generated.folderYear,
-      folderMonth: generated.folderMonth,
-      templateData,
-    });
+    return NextResponse.json({ ...result, context: undefined });
   } catch (error) {
-    logError('CONTRACT_GENERATE', 'ERROR', error, {
-      ...safeError(error),
-    });
-
-    return NextResponse.json(
-      {
-        ok: false,
-        error: error?.message || 'Erro interno ao gerar contrato.',
-        errorType: error?.name || 'UnknownError',
-      },
-      { status: 500 }
-    );
+    logError('CONTRACT_GENERATE', 'ERROR', error, { ...safeError(error) });
+    return NextResponse.json({ ok: false, error: getReadableErrorMessage(error), errorType: error?.name || 'UnknownError' }, { status: 500 });
   }
 }

@@ -295,20 +295,79 @@ export async function POST(request, context) {
     const { data: finalContract, error: cErr } = await supabase.from('contracts').select('*').eq('id', contract.id).single();
     if (cErr) throw cErr;
     const generationMode = asString(genJson?.mode || 'docs').toLowerCase();
-    const pdfUrl = asString(finalContract?.pdf_url || genJson?.pdfUrl);
-    if (!pdfUrl) {
-      if (generationMode === 'internal' && asString(genJson?.html)) {
-        return NextResponse.json({ ok: true, mode: 'internal', html: asString(genJson?.html), message: 'Contrato interno gerado sem PDF nesta etapa.', fallbackAllowed: true });
+    const signedHtml = asString(genJson?.html);
+    let internalPdfStatus = 'idle';
+    let internalPdfUrl = '';
+    let documentHash = '';
+    let missingColumns = Array.isArray(genJson?.missingColumns) ? genJson.missingColumns : [];
+
+    if (generationMode === 'internal' && signedHtml) {
+      internalPdfStatus = 'generating';
+      try {
+        const internalSignRes = await fetch(new URL(`/api/contracts/public/${token}/sign`, request.url), {
+          method: 'POST',
+          cache: 'no-store',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            precontractId: precontract.id,
+            contractId: finalContract?.id || contract?.id || null,
+            html: signedHtml,
+            signerName: asString(form.signer_name),
+            signerCpf: cleanDigits(form.signer_cpf),
+            origin: 'CLIENTE',
+          }),
+        });
+
+        const internalSignJson = await internalSignRes.json().catch(() => null);
+        if (!internalSignRes.ok || !internalSignJson?.ok) {
+          throw new Error(internalSignJson?.message || 'Falha ao assinar contrato interno.');
+        }
+
+        internalPdfUrl = asString(internalSignJson?.pdfUrl);
+        documentHash = asString(internalSignJson?.documentHash);
+        missingColumns = Array.isArray(internalSignJson?.missingColumns)
+          ? internalSignJson.missingColumns
+          : missingColumns;
+        internalPdfStatus = internalPdfUrl ? 'ready' : 'failed';
+      } catch (internalPdfError) {
+        console.error('Erro ao gerar PDF interno:', internalPdfError);
+        internalPdfStatus = 'failed';
       }
-      return NextResponse.json({ ok: false, message: 'Contrato gerado sem PDF final.', fallbackAllowed: true }, { status: 502 });
+    }
+
+    const pdfUrl = asString(internalPdfUrl || finalContract?.pdf_url || genJson?.pdfUrl);
+    if (!pdfUrl) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: 'Contrato gerado sem PDF final. A assinatura não será concluída até o PDF existir.',
+          mode: generationMode,
+          html: signedHtml || null,
+          internalPdfStatus,
+          fallbackAllowed: true,
+        },
+        { status: 502 }
+      );
+    }
+
+    if (generationMode === 'internal' && !signedHtml) {
+      return NextResponse.json({ ok: false, message: 'Contrato interno sem HTML final para snapshot de assinatura.', fallbackAllowed: true }, { status: 502 });
     }
 
     const { error: signedContractError } = await supabase.from('contracts').update({
       status: 'signed', signed_at: assinaturaEm, signature_name: asString(form.signer_name) || null,
       contact_id: contactId || finalContract?.contact_id || null,
       event_id: eventId || finalContract?.event_id || null,
+      ...(generationMode === 'internal' ? { pdf_url: pdfUrl || null } : {}),
       raw_payload: {
         ...(finalContract?.raw_payload || {}),
+        signed_contract_mode: generationMode,
+        ...(signedHtml && generationMode !== 'internal'
+          ? {
+              signed_contract_html: signedHtml,
+              contract_html_snapshot: signedHtml,
+            }
+          : {}),
         final_generation: { mode: generationMode || 'docs', pdfUrl, docUrl: genJson?.docUrl || null, generatedAt: assinaturaEm },
       },
     }).eq('id', contract.id);
@@ -323,12 +382,13 @@ export async function POST(request, context) {
 
     return NextResponse.json({
       ok: true,
+      mode: generationMode,
       pdfUrl,
       docUrl: asString(finalContract?.doc_url || genJson?.docUrl),
-      html: asString(genJson?.html),
+      html: signedHtml,
       clientPanelUrl: `/cliente/${token}`,
-      missingColumns: Array.isArray(genJson?.missingColumns) ? genJson.missingColumns : [],
-      documentHash: asString(genJson?.documentHash),
+      missingColumns,
+      documentHash,
     });
   } catch (err) {
     return NextResponse.json({ ok: false, message: err?.message || 'Erro ao assinar contrato.', fallbackAllowed: true }, { status: 500 });

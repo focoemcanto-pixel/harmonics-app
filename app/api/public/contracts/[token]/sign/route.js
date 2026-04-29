@@ -1,22 +1,15 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { validateRequiredEnv } from '@/lib/config/validate-env';
+import { getAutomaticCosts } from '@/lib/eventos/eventos-finance';
+import { normalizeTimeStrict } from '@/lib/time/normalize-time';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 const asString = (v) => String(v || '').trim();
 const cleanDigits = (v) => asString(v).replace(/\D/g, '');
-const normalizeTime = (value) => {
-  const raw = asString(value);
-  if (!raw) return null;
-  const m = raw.match(/^(\d{1,2})(?::?(\d{2}))?$/);
-  if (!m) return null;
-  const hh = Number(m[1]);
-  const mm = Number(m[2] || 0);
-  if (hh < 0 || hh > 23 || mm < 0 || mm > 59) return null;
-  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
-};
+const normalizeTime = (value) => normalizeTimeStrict(asString(value)) || null;
 const brToIsoDate = (value) => {
   const raw = asString(value);
   const m = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
@@ -27,6 +20,130 @@ const brToIsoDate = (value) => {
 function extractToken(params) {
   if (Array.isArray(params?.token)) return asString(params.token[0]);
   return asString(params?.token);
+}
+
+async function upsertContactFromSignature({ supabase, precontract, form }) {
+  const email = asString(precontract?.client_email) || null;
+  const phone = cleanDigits(form?.whatsapp) || null;
+  const name = asString(form?.full_name) || null;
+
+  const isMissingContactTypeColumnError = (error) => {
+    const message = String(error?.message || '').toLowerCase();
+    return message.includes('contact_type') && message.includes('contacts');
+  };
+
+  let existing = null;
+  if (email) {
+    const { data } = await supabase.from('contacts').select('id').eq('email', email).maybeSingle();
+    existing = data || null;
+  }
+  if (!existing && phone) {
+    const { data } = await supabase.from('contacts').select('id').eq('phone', phone).maybeSingle();
+    existing = data || null;
+  }
+
+  const payload = {
+    name,
+    email,
+    phone,
+    tag: 'cliente',
+    contact_type: 'client',
+    notes: [
+      'Criado/atualizado automaticamente após assinatura.',
+      precontract?.event_type ? `Tipo: ${precontract.event_type}` : '',
+      precontract?.formation ? `Formação: ${precontract.formation}` : '',
+    ].filter(Boolean).join(' | '),
+    is_active: true,
+  };
+
+  if (existing?.id) {
+    let { error } = await supabase.from('contacts').update(payload).eq('id', existing.id);
+    if (error && isMissingContactTypeColumnError(error)) {
+      const retryPayload = { ...payload };
+      delete retryPayload.contact_type;
+      const retry = await supabase.from('contacts').update(retryPayload).eq('id', existing.id);
+      error = retry.error || null;
+    }
+    if (error) throw error;
+    return existing.id;
+  }
+
+  let { data, error } = await supabase.from('contacts').insert([payload]).select('id').single();
+  if (error && isMissingContactTypeColumnError(error)) {
+    const retryPayload = { ...payload };
+    delete retryPayload.contact_type;
+    const retry = await supabase.from('contacts').insert([retryPayload]).select('id').single();
+    data = retry.data || null;
+    error = retry.error || null;
+  }
+  if (error) throw error;
+  return data.id;
+}
+
+async function upsertEventFromSignature({ supabase, precontract, contactId, form }) {
+  const { data: financeDefaults } = await supabase.from('finance_cost_defaults').select('musician_unit_cost, sound_default_cost, transport_default_cost, other_default_cost, custom_costs').eq('slug', 'default').maybeSingle();
+  const automaticCosts = getAutomaticCosts({
+    formation: precontract?.formation,
+    hasSound: !!precontract?.has_sound,
+    hasTransport: !!precontract?.has_transport,
+    transportPrice: precontract?.add_transport || 0,
+    pricing: financeDefaults || {},
+  });
+  const agreedAmount = Number(precontract?.agreed_amount || 0);
+  const totalCosts = Number(automaticCosts.musicianCost || 0) + Number(automaticCosts.soundCost || 0) + Number(automaticCosts.extraTransportCost || 0) + Number(automaticCosts.otherCost || 0);
+  const profitAmount = agreedAmount - totalCosts;
+
+  const safeDate = brToIsoDate(form?.event_date) || precontract?.event_date || null;
+  const safeTime = normalizeTime(form?.event_time) || normalizeTime(precontract?.event_time) || null;
+  const safeClientName = asString(form?.full_name) || asString(precontract?.client_name) || null;
+  const safeLocationName = asString(form?.event_location_name) || asString(precontract?.location_name) || null;
+  const safeLocationAddress = asString(form?.event_location_address) || asString(precontract?.location_address) || null;
+
+  const payload = {
+    client_contact_id: contactId || null,
+    client_name: safeClientName,
+    event_type: precontract?.event_type || null,
+    event_date: safeDate,
+    event_time: safeTime,
+    duration_min: Number(precontract?.duration_min || 60),
+    location_name: safeLocationName,
+    location_address: safeLocationAddress,
+    formation: precontract?.formation || null,
+    instruments: precontract?.instruments || null,
+    reception_formation: precontract?.reception_formation || null,
+    reception_instruments: precontract?.reception_instruments || null,
+    has_sound: !!precontract?.has_sound,
+    reception_hours: Number(precontract?.reception_hours || 0),
+    has_transport: !!precontract?.has_transport,
+    transport_cost: Number(precontract?.add_transport || 0),
+    base_amount: Number(precontract?.base_amount || 0),
+    agreed_amount: agreedAmount,
+    gross_amount: agreedAmount,
+    net_amount: profitAmount,
+    profit_amount: profitAmount,
+    musician_cost: Number(automaticCosts.musicianCost || 0),
+    sound_cost: Number(automaticCosts.soundCost || 0),
+    extra_transport_cost: Number(automaticCosts.extraTransportCost || 0),
+    other_cost: Number(automaticCosts.otherCost || 0),
+    cost_breakdown: automaticCosts.costBreakdown,
+    costs_source: 'default',
+    whatsapp_name: safeClientName,
+    whatsapp_phone: cleanDigits(form?.whatsapp) || null,
+    notes: ['Criado/atualizado automaticamente após assinatura.', precontract?.notes || ''].filter(Boolean).join('\n\n'),
+    status: 'Confirmado',
+    legacy_id: asString(precontract?.legacy_id) || null,
+  };
+
+  let finalEventId = precontract?.event_id || null;
+  if (finalEventId) {
+    const { error } = await supabase.from('events').update(payload).eq('id', finalEventId);
+    if (error) throw error;
+  } else {
+    const { data, error } = await supabase.from('events').insert([payload]).select('id').single();
+    if (error) throw error;
+    finalEventId = data?.id || null;
+  }
+  return finalEventId;
 }
 
 export async function POST(request, context) {
@@ -46,22 +163,67 @@ export async function POST(request, context) {
 
     let { data: contract } = await supabase.from('contracts').select('*').eq('precontract_id', precontract.id).maybeSingle();
     if (!contract?.id) {
-      const inserted = await supabase.from('contracts').insert({ precontract_id: precontract.id, public_token: token, status: 'client_filling' }).select('*').single();
+      const inserted = await supabase.from('contracts').insert({ precontract_id: precontract.id, public_token: precontract.public_token || token, status: 'client_filling' }).select('*').single();
       if (inserted.error) throw inserted.error;
       contract = inserted.data;
     }
 
+    const contactId = await upsertContactFromSignature({ supabase, precontract, form });
+    const eventId = await upsertEventFromSignature({ supabase, precontract, contactId, form });
+
     const payloadPre = {
       client_name: asString(form.full_name) || precontract.client_name || null,
+      client_email: precontract.client_email || null,
       client_phone: cleanDigits(form.whatsapp) || precontract.client_phone || null,
       event_date: brToIsoDate(form.event_date) || precontract.event_date || null,
       event_time: normalizeTime(form.event_time) || normalizeTime(precontract.event_time) || null,
       location_name: asString(form.event_location_name) || precontract.location_name || null,
       location_address: asString(form.event_location_address) || precontract.location_address || null,
+      event_id: eventId || precontract.event_id || null,
+      contact_id: contactId || precontract.contact_id || null,
       status: 'client_filling',
     };
     const { error: upPre } = await supabase.from('precontracts').update(payloadPre).eq('id', precontract.id);
     if (upPre) throw upPre;
+
+    const assinaturaEm = new Date().toISOString();
+    const clientForm = {
+      full_name: asString(form.full_name) || null,
+      marital_status: asString(form.marital_status) || null,
+      profession: asString(form.profession) || null,
+      cpf: cleanDigits(form.cpf) || null,
+      rg: asString(form.rg) || null,
+      whatsapp: cleanDigits(form.whatsapp) || null,
+      address_street: asString(form.address_street) || null,
+      address_number: asString(form.address_number) || null,
+      address_complement: asString(form.address_complement) || null,
+      address_neighborhood: asString(form.address_neighborhood) || null,
+      address_cep: cleanDigits(form.address_cep) || null,
+      address_city: asString(form.address_city) || null,
+      address_state: asString(form.address_state) || null,
+      event_date: brToIsoDate(form.event_date) || null,
+      event_time: normalizeTime(form.event_time) || null,
+      event_location_name: asString(form.event_location_name) || null,
+      event_location_address: asString(form.event_location_address) || null,
+      signer_name: asString(form.signer_name) || null,
+      signer_cpf: cleanDigits(form.signer_cpf) || null,
+      accepted_terms: form.accepted_terms === true,
+      signed_at: assinaturaEm,
+    };
+
+    const { error: upContractFilling } = await supabase.from('contracts').update({
+      status: 'client_filling',
+      signature_name: null,
+      signed_at: null,
+      contact_id: contactId || contract.contact_id || null,
+      event_id: eventId || contract.event_id || null,
+      raw_payload: {
+        ...(contract?.raw_payload || {}),
+        precontract_snapshot: precontract,
+        client_form: clientForm,
+      },
+    }).eq('id', contract.id);
+    if (upContractFilling) throw upContractFilling;
 
     const genRes = await fetch(new URL('/api/contracts/generate', request.url), {
       method: 'POST', headers: { 'content-type': 'application/json' }, cache: 'no-store',
@@ -77,10 +239,14 @@ export async function POST(request, context) {
     const pdfUrl = asString(finalContract?.pdf_url || genJson?.pdfUrl);
     if (!pdfUrl) return NextResponse.json({ ok: false, message: 'Contrato gerado sem PDF final.', fallbackAllowed: true }, { status: 502 });
 
-    const now = new Date().toISOString();
     const { error: signedContractError } = await supabase.from('contracts').update({
-      status: 'signed', signed_at: now, signature_name: asString(form.signer_name) || null,
-      raw_payload: { ...(finalContract?.raw_payload || {}), final_generation: { mode: genJson?.mode || 'docs', pdfUrl, docUrl: genJson?.docUrl || null, generatedAt: now } },
+      status: 'signed', signed_at: assinaturaEm, signature_name: asString(form.signer_name) || null,
+      contact_id: contactId || finalContract?.contact_id || null,
+      event_id: eventId || finalContract?.event_id || null,
+      raw_payload: {
+        ...(finalContract?.raw_payload || {}),
+        final_generation: { mode: genJson?.mode || 'docs', pdfUrl, docUrl: genJson?.docUrl || null, generatedAt: assinaturaEm },
+      },
     }).eq('id', contract.id);
     if (signedContractError) throw signedContractError;
 

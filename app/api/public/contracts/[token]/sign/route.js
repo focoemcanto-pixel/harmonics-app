@@ -180,8 +180,6 @@ export async function POST(request, context) {
         status: 'client_filling',
         contact_id: precontract.contact_id || null,
         event_id: precontract.event_id || null,
-        agreed_amount: precontract.agreed_amount ?? null,
-        base_amount: precontract.base_amount ?? null,
       }).select('*').single();
       if (inserted.error) throw inserted.error;
       contract = inserted.data;
@@ -237,8 +235,6 @@ export async function POST(request, context) {
       signed_at: null,
       contact_id: contactId || contract.contact_id || null,
       event_id: eventId || contract.event_id || null,
-      agreed_amount: contract?.agreed_amount ?? precontract?.agreed_amount ?? null,
-      base_amount: contract?.base_amount ?? precontract?.base_amount ?? null,
       raw_payload: {
         ...(contract?.raw_payload || {}),
         precontract_snapshot: precontract,

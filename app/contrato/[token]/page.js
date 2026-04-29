@@ -1987,6 +1987,34 @@ const canSubmitSignature =
      setInternalPdfStatus('idle');
      setSignatureStep('Registrando assinatura...');
 
+      const serverSignRes = await fetch(`/api/public/contracts/${token}/sign`, {
+        method: 'POST',
+        cache: 'no-store',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ form }),
+      });
+      const serverSignJson = await serverSignRes.json().catch(() => null);
+      if (serverSignRes.ok && serverSignJson?.ok) {
+        const latestContract = await fetchContract();
+        setContract(latestContract || null);
+        setResultadoFinal({
+          pdfUrl: serverSignJson?.pdfUrl || latestContract?.pdf_url || '',
+          docUrl: serverSignJson?.docUrl || latestContract?.doc_url || '',
+          html: serverSignJson?.html || contratoHtmlResolvido,
+          clientPanelUrl: serverSignJson?.clientPanelUrl
+            ? serverSignJson.clientPanelUrl.startsWith('http')
+              ? serverSignJson.clientPanelUrl
+              : `${window.location.origin}${serverSignJson.clientPanelUrl}`
+            : `${window.location.origin}/cliente/${token}`,
+          documentHash: serverSignJson?.documentHash || '',
+          missingColumns: Array.isArray(serverSignJson?.missingColumns)
+            ? serverSignJson.missingColumns
+            : [],
+        });
+        setEnviado(true);
+        return;
+      }
+
 // salva em estado intermediário enquanto gera o contrato final
 await upsertContract('client_filling');
 

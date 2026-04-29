@@ -4,6 +4,7 @@ import { validateRequiredEnv } from '@/lib/config/validate-env';
 import { getAutomaticCosts } from '@/lib/eventos/eventos-finance';
 import { normalizeTimeStrict } from '@/lib/time/normalize-time';
 import { generateContractDocument } from '@/lib/contracts/generate-contract-document';
+import { signInternalContract } from '@/lib/contracts/sign-internal-contract';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -315,60 +316,27 @@ export async function POST(request, context) {
           hasHtml: !!signedHtml,
         });
 
-        const legacyRes = await fetch(new URL(`/api/contracts/public/${token}/sign`, request.url), {
-          method: 'POST',
-          cache: 'no-store',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            precontractId: precontract.id,
-            contractId: finalContract?.id || contract?.id || null,
-            signerName: asString(form.signer_name) || asString(form.full_name),
-            signerCpf: cleanDigits(form.signer_cpf) || cleanDigits(form.cpf),
-            acceptedTerms: form.accepted_terms === true,
-            origin: 'cliente',
-            signedHtml,
-            html: signedHtml,
-          }),
-        });
-
-        const legacyJson = await legacyRes.json().catch(() => null);
-        console.log('LEGACY_RESULT', legacyJson);
-        const pdfUrl = legacyJson?.pdfUrl;
-        const pdfPending = legacyJson?.pdfPending;
-        console.info('[PUBLIC_CONTRACT_SIGN_INTERNAL_LEGACY_CALL_RESULT]', {
-          precontractId: precontract?.id || null,
+        const helperResult = await signInternalContract({
+          supabase,
+          token,
           contractId: finalContract?.id || contract?.id || null,
-          status: legacyRes.status,
-          hasHtml: !!signedHtml,
-          hasPdfUrl: !!asString(pdfUrl),
-          pdfPending: pdfPending === true,
+          precontractId: precontract.id,
+          html: signedHtml,
+          signerName: asString(form.signer_name) || asString(form.full_name) || 'Não informado',
+          signerCpf: cleanDigits(form.signer_cpf) || cleanDigits(form.cpf) || 'Não informado',
+          origin: 'CLIENTE',
+          requestHeaders: request.headers,
+          userAgent: request.headers.get('user-agent') || null,
         });
 
-        if (!legacyRes.ok || !legacyJson?.ok) {
-          throw new Error(legacyJson?.message || 'Falha ao assinar contrato interno.');
+        if (!helperResult?.ok || !helperResult?.pdfUrl) {
+          throw new Error(helperResult?.message || 'Falha ao assinar contrato interno.');
         }
 
-        if (!pdfUrl && pdfPending === true) {
-          return NextResponse.json(
-            {
-              ok: false,
-              message: 'Contrato interno assinado, mas PDF ainda não foi gerado. A assinatura segura só será concluída quando o PDF existir.',
-              mode: generationMode,
-              internalPdfStatus: 'pending',
-              fallbackAllowed: true,
-            },
-            { status: 502 }
-          );
-        }
-
-        if (!pdfUrl) {
-          throw new Error("PDF não retornado pela rota legada");
-        }
-
-        internalPdfUrl = asString(legacyJson?.pdfUrl);
-        documentHash = asString(legacyJson?.documentHash);
-        missingColumns = Array.isArray(legacyJson?.missingColumns)
-          ? legacyJson.missingColumns
+        internalPdfUrl = asString(helperResult?.pdfUrl);
+        documentHash = asString(helperResult?.documentHash);
+        missingColumns = Array.isArray(helperResult?.missingColumns)
+          ? helperResult.missingColumns
           : missingColumns;
         internalPdfStatus = internalPdfUrl ? 'ready' : 'failed';
       } catch (internalPdfError) {

@@ -301,9 +301,20 @@ export async function POST(request, context) {
     let documentHash = '';
     let missingColumns = Array.isArray(genJson?.missingColumns) ? genJson.missingColumns : [];
 
+    if (generationMode === 'internal' && !signedHtml) {
+      return NextResponse.json({ ok: false, message: 'Contrato interno sem HTML final para assinatura legada interna.', fallbackAllowed: true }, { status: 502 });
+    }
+
     if (generationMode === 'internal' && signedHtml) {
       internalPdfStatus = 'generating';
       try {
+        console.info('[PUBLIC_CONTRACT_SIGN_INTERNAL_LEGACY_CALL_START]', {
+          precontractId: precontract?.id || null,
+          contractId: finalContract?.id || contract?.id || null,
+          status: internalPdfStatus,
+          hasHtml: !!signedHtml,
+        });
+
         const internalSignRes = await fetch(new URL(`/api/contracts/public/${token}/sign`, request.url), {
           method: 'POST',
           cache: 'no-store',
@@ -311,16 +322,40 @@ export async function POST(request, context) {
           body: JSON.stringify({
             precontractId: precontract.id,
             contractId: finalContract?.id || contract?.id || null,
+            signerName: asString(form.signer_name) || asString(form.full_name),
+            signerCpf: cleanDigits(form.signer_cpf) || cleanDigits(form.cpf),
+            acceptedTerms: form.accepted_terms === true,
+            origin: 'cliente',
+            signedHtml,
             html: signedHtml,
-            signerName: asString(form.signer_name),
-            signerCpf: cleanDigits(form.signer_cpf),
-            origin: 'CLIENTE',
           }),
         });
 
         const internalSignJson = await internalSignRes.json().catch(() => null);
+        console.info('[PUBLIC_CONTRACT_SIGN_INTERNAL_LEGACY_CALL_RESULT]', {
+          precontractId: precontract?.id || null,
+          contractId: finalContract?.id || contract?.id || null,
+          status: internalSignRes.status,
+          hasHtml: !!signedHtml,
+          hasPdfUrl: !!asString(internalSignJson?.pdfUrl),
+          pdfPending: internalSignJson?.pdfPending === true,
+        });
+
         if (!internalSignRes.ok || !internalSignJson?.ok) {
           throw new Error(internalSignJson?.message || 'Falha ao assinar contrato interno.');
+        }
+
+        if (!internalSignJson?.pdfUrl && internalSignJson?.pdfPending === true) {
+          return NextResponse.json(
+            {
+              ok: false,
+              message: 'Contrato interno assinado, mas PDF ainda não foi gerado. A assinatura segura só será concluída quando o PDF existir.',
+              mode: generationMode,
+              internalPdfStatus: 'pending',
+              fallbackAllowed: true,
+            },
+            { status: 502 }
+          );
         }
 
         internalPdfUrl = asString(internalSignJson?.pdfUrl);
@@ -348,10 +383,6 @@ export async function POST(request, context) {
         },
         { status: 502 }
       );
-    }
-
-    if (generationMode === 'internal' && !signedHtml) {
-      return NextResponse.json({ ok: false, message: 'Contrato interno sem HTML final para snapshot de assinatura.', fallbackAllowed: true }, { status: 502 });
     }
 
     const { error: signedContractError } = await supabase.from('contracts').update({

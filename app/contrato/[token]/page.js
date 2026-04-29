@@ -1997,12 +1997,22 @@ const canSubmitSignature =
         body: JSON.stringify({ form }),
       });
       const serverSignJson = await serverSignRes.json().catch(() => null);
-      if (serverSignRes.ok && serverSignJson?.ok) {
+      const hasServerPdfUrl = !!String(serverSignJson?.pdfUrl || '').trim();
+      console.info('[SERVER_SIGN_RESPONSE]', {
+        token,
+        status: serverSignRes.status,
+        responseOk: serverSignRes.ok,
+        payloadOk: serverSignJson?.ok === true,
+        hasPdfUrl: hasServerPdfUrl,
+        fallbackAllowed: serverSignJson?.fallbackAllowed === true,
+      });
+
+      if (serverSignRes.ok && serverSignJson?.ok === true && hasServerPdfUrl) {
         console.info('[SERVER_SIGN_SUCCESS]', { token });
         const latestContract = await fetchContract();
         setContract(latestContract || null);
         setResultadoFinal({
-          pdfUrl: serverSignJson?.pdfUrl || latestContract?.pdf_url || '',
+          pdfUrl: String(serverSignJson?.pdfUrl || '').trim(),
           docUrl: serverSignJson?.docUrl || latestContract?.doc_url || '',
           html: serverSignJson?.html || contratoHtmlResolvido,
           clientPanelUrl: serverSignJson?.clientPanelUrl
@@ -2021,13 +2031,28 @@ const canSubmitSignature =
 
       const serverSignMessage =
         serverSignJson?.message || 'Não foi possível concluir a assinatura agora.';
-      console.error('[SERVER_SIGN_ERROR]', {
+      const missingServerPdf =
+        serverSignRes.ok &&
+        serverSignJson?.ok === true &&
+        !hasServerPdfUrl;
+      if (missingServerPdf) {
+        console.error('[SERVER_SIGN_MISSING_PDF]', {
+          token,
+          status: serverSignRes.status,
+          message: serverSignMessage,
+        });
+      }
+      console.error('[SERVER_SIGN_FAILED]', {
         token,
         status: serverSignRes.status,
         message: serverSignMessage,
+        fallbackAllowed: serverSignJson?.fallbackAllowed === true,
       });
 
-      if (!ENABLE_LEGACY_CONTRACT_SIGN_FALLBACK) {
+      if (
+        !ENABLE_LEGACY_CONTRACT_SIGN_FALLBACK ||
+        serverSignJson?.fallbackAllowed !== true
+      ) {
         throw new Error(serverSignMessage);
       }
 
@@ -2320,7 +2345,9 @@ if (contractSignedError) throw contractSignedError;
       setEnviado(true);
     } catch (error) {
       console.error('Erro ao assinar contrato:', error);
-      toast.error('Contrato assinado. Não foi possível preparar o PDF agora.');
+      toast.error(
+        error?.message || 'Não foi possível concluir a assinatura e preparar o PDF agora.'
+      );
     } finally {
       setSalvando(false);
       setSignatureStep('');

@@ -338,6 +338,28 @@ async function fetchPublicContract(token) {
   return normalizeContractData(payload);
 }
 
+
+async function fetchPublicContractDraft(token) {
+  const safeToken = String(token || '').trim();
+  if (!safeToken) throw new Error('Token do contrato não encontrado.');
+  const response = await fetch(`/api/public/contracts/${safeToken}/draft`, { method: 'GET', cache: 'no-store' });
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) throw new Error(payload?.message || 'Falha ao carregar rascunho.');
+  return payload;
+}
+
+async function savePublicContractDraft(token, form) {
+  const safeToken = String(token || '').trim();
+  if (!safeToken) throw new Error('Token do contrato não encontrado.');
+  const response = await fetch(`/api/public/contracts/${safeToken}/draft`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ form }),
+  });
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) throw new Error(payload?.message || 'Falha ao salvar rascunho.');
+  return payload;
+}
 function SummaryItem({ label, value }) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
@@ -819,6 +841,7 @@ export default function ContratoPublicoPage() {
   const [eventData, setEventData] = useState(null);
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
+  const [draftStatus, setDraftStatus] = useState('idle');
   const [enviado, setEnviado] = useState(false);
   const [solicitandoAjuste, setSolicitandoAjuste] = useState(false);
   const [pendingAdjustmentRequest, setPendingAdjustmentRequest] = useState(null);
@@ -853,6 +876,7 @@ const mapsLoaded = useGoogleMapsReady();
   });
   const [clientAddressStatus, setClientAddressStatus] = useState('idle'); // 'idle' | 'typing' | 'selected' | 'fallback'
   const [eventAddressStatus, setEventAddressStatus] = useState('idle');   // 'idle' | 'typing' | 'selected' | 'fallback'
+  const autosaveTimerRef = useRef(null);
   const isInternalMode =
     precontract?.custom_contract_enabled === true ||
     precontract?.contract_mode === 'internal';
@@ -1285,7 +1309,18 @@ const mapsLoaded = useGoogleMapsReady();
         }
       }
 
-      const saved = contractData?.raw_payload?.client_form || {};
+      let saved = contractData?.raw_payload?.client_form || {};
+      try {
+        const draftPayload = await fetchPublicContractDraft(token);
+        if (draftPayload?.initial_form && typeof draftPayload.initial_form === 'object') {
+          saved = { ...saved, ...draftPayload.initial_form };
+        }
+      } catch (error) {
+        console.warn('[CONTRACT_PUBLIC_UI] falha não fatal ao carregar draft', {
+          token,
+          message: error?.message,
+        });
+      }
 
       let latestAdjustment = null;
       try {
@@ -1981,6 +2016,40 @@ const canSubmitSignature =
     }
   }
 
+  const persistDraft = useCallback(async (formSnapshot) => {
+    if (!token) return { ok: false };
+    try {
+      setDraftStatus('saving');
+      const result = await savePublicContractDraft(token, formSnapshot);
+      if (result?.skipped) {
+        setDraftStatus('saved');
+        return result;
+      }
+      setDraftStatus('saved');
+      return result;
+    } catch (error) {
+      setDraftStatus('error');
+      throw error;
+    }
+  }, [token]);
+
+  useEffect(() => {
+    if (!token || carregando) return;
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    autosaveTimerRef.current = setTimeout(() => {
+      persistDraft(form).catch(() => null);
+    }, 1000);
+    return () => {
+      if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    };
+  }, [form, token, carregando, persistDraft]);
+
+  useEffect(() => {
+    const onBlur = () => { persistDraft(form).catch(() => null); };
+    window.addEventListener('blur', onBlur);
+    return () => window.removeEventListener('blur', onBlur);
+  }, [form, persistDraft]);
+
  async function assinarContrato() {
    if (hasPendingAdjustment) {
       toast.info('Sua solicitação de ajuste está em análise. Assim que for concluída, a assinatura será liberada.');
@@ -2015,6 +2084,7 @@ const canSubmitSignature =
     }
 
     try {
+     await persistDraft(form).catch(() => null);
      setSalvando(true);
      setInternalPdfStatus('idle');
      setSignatureStep('Registrando assinatura...');
@@ -3034,6 +3104,10 @@ if (contractSignedError) throw contractSignedError;
                   {salvando && signatureStep ? (
                     <p className="text-sm font-medium text-violet-700">{signatureStep}</p>
                   ) : null}
+
+                  {draftStatus === 'saving' ? <p className="text-xs text-slate-500">Salvando…</p> : null}
+                  {draftStatus === 'saved' ? <p className="text-xs text-emerald-600">Dados salvos</p> : null}
+                  {draftStatus === 'error' ? <p className="text-xs text-amber-600">Falha ao salvar, tentando novamente</p> : null}
 
                   <Button onClick={assinarContrato} disabled={!canSubmitSignature}>
                     {salvando ? 'Assinando...' : 'Assinar contrato'}

@@ -1,39 +1,42 @@
 import { notFound } from 'next/navigation';
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import ClienteReview from '@/components/cliente/ClienteReview';
 
-function getAdminSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRole = process.env.SUPABASE_SERVICE_ROLE_KEY;
+export const dynamic = 'force-dynamic';
 
-  if (!url || !serviceRole) {
-    throw new Error(
-      'Variáveis NEXT_PUBLIC_SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY são obrigatórias.'
-    );
-  }
-
-  return createClient(url, serviceRole, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
+function formatDateBR(value) {
+  if (!value) return '';
+  const raw = String(value || '').slice(0, 10);
+  const [year, month, day] = raw.split('-');
+  if (!year || !month || !day) return value;
+  return `${day}/${month}/${year}`;
 }
 
 export default async function ClienteReviewPage({ params }) {
-  const { token } = await params;
-  const supabase = getAdminSupabase();
+  const token = String(params?.token || '').trim();
 
-  const { data: precontract, error: precontractError } = await supabase
+  if (!token) {
+    notFound();
+  }
+
+  const supabase = getSupabaseAdmin();
+
+  // 1. buscar precontract
+  const { data: precontract } = await supabase
     .from('precontracts')
-    .select('id, public_token, event_id')
+    .select('id, event_id, client_name, event_date')
     .eq('public_token', token)
     .maybeSingle();
 
-  if (precontractError) throw precontractError;
-  if (!precontract?.event_id) notFound();
+  if (!precontract?.event_id) {
+    notFound();
+  }
 
+  // 2. buscar evento + review
   const [eventResp, reviewResp] = await Promise.all([
     supabase
       .from('events')
-      .select('id, client_name, event_date')
+      .select('id, client_name, event_date, event_type')
       .eq('id', precontract.event_id)
       .maybeSingle(),
 
@@ -44,24 +47,23 @@ export default async function ClienteReviewPage({ params }) {
       .maybeSingle(),
   ]);
 
-  if (eventResp.error) throw eventResp.error;
-  if (reviewResp.error) throw reviewResp.error;
-
   const event = eventResp.data;
   const review = reviewResp.data;
 
-  if (!event) notFound();
+  if (!event) {
+    notFound();
+  }
+
+  const clientName = event.client_name || precontract.client_name || 'Cliente';
 
   const data = {
-    clienteNome: event.client_name || 'Cliente',
-    eventoTitulo: event.client_name
-      ? `Evento • ${event.client_name}`
-      : 'Evento',
-    eventoData: event.event_date || '',
+    clienteNome: clientName,
+    eventoTitulo: `${event.event_type || 'Evento'} • ${clientName}`,
+    eventoData: formatDateBR(event.event_date || precontract.event_date),
     reviewSubmitted: Boolean(review),
     existingReview: review
       ? {
-          rating: review.rating || 0,
+          rating: Number(review.rating || 0),
           testimonial: review.testimonial || '',
           wouldRecommend:
             typeof review.would_recommend === 'boolean'

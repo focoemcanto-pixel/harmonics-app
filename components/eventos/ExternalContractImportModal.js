@@ -5,21 +5,30 @@ import { Field, Input } from '../admin/AdminFormPrimitives';
 import AppModal from '../ui/AppModal';
 import { supabase } from '@/lib/supabase';
 
-const EDITABLE_FIELDS = [
-  'client_name',
-  'whatsapp_phone',
-  'guests_emails',
-  'event_type',
-  'event_date',
-  'event_time',
-  'duration_min',
-  'location_name',
-  'location_address',
-  'formation',
-  'instruments',
-  'agreed_amount',
-  'observations',
-  'status',
+const FIELD_LABELS = {
+  client_name: 'Nome do cliente',
+  whatsapp_phone: 'WhatsApp',
+  event_type: 'Tipo de evento',
+  event_date: 'Data do evento',
+  event_time: 'Horário',
+  duration_min: 'Duração da cerimônia (min)',
+  location_name: 'Nome do local',
+  location_address: 'Endereço do evento',
+  formation: 'Formação',
+  instruments: 'Instrumentos',
+  reception_hours: 'Receptivo (horas)',
+  has_sound: 'Som incluso',
+  agreed_amount: 'Valor contratado',
+  observations: 'Observações',
+  status: 'Status',
+};
+
+const FORM_SECTIONS = [
+  { title: 'Cliente', fields: ['client_name', 'whatsapp_phone'] },
+  { title: 'Evento', fields: ['event_type', 'event_date', 'event_time', 'duration_min', 'location_name', 'location_address'] },
+  { title: 'Formação e execução', fields: ['formation', 'instruments', 'reception_hours', 'has_sound'] },
+  { title: 'Financeiro', fields: ['agreed_amount', 'status'] },
+  { title: 'Observações', fields: ['observations'] },
 ];
 
 export default function ExternalContractImportModal({ open, onClose, onImported, initialData, toast }) {
@@ -100,15 +109,35 @@ export default function ExternalContractImportModal({ open, onClose, onImported,
       }
     >
       <input type="file" accept="application/pdf" onChange={(e) => setImportFile(e.target.files?.[0] || null)} />
-      {extractionConfidence !== null ? <p className="mt-3 text-sm text-slate-600">Confiança da extração: {Math.round(Number(extractionConfidence) * 100)}%</p> : null}
+      {extractionConfidence !== null ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">Extraído automaticamente</span>
+          <span className="rounded-full bg-violet-100 px-3 py-1 text-xs font-semibold text-violet-700">Revise antes de criar o evento</span>
+          {missingFields?.length ? <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">Campos com baixa confiança</span> : null}
+        </div>
+      ) : null}
       {missingFields?.length ? <p className="mt-2 text-sm text-amber-700">Campos faltantes: {missingFields.join(', ')}</p> : null}
       {error ? <p className="mt-2 text-sm text-rose-600">{error}</p> : null}
 
-      <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-        {EDITABLE_FIELDS.map((key) => (
-          <Field key={key} label={key}>
-            <Input value={reviewedData[key] || ''} onChange={(e) => setExtractedData((prev) => ({ ...prev, [key]: e.target.value }))} />
-          </Field>
+      <div className="mt-4 space-y-5">
+        {FORM_SECTIONS.map((section) => (
+          <section key={section.title} className="rounded-[12px] border border-slate-200 p-3">
+            <h4 className="mb-3 text-sm font-bold text-slate-800">{section.title}</h4>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              {section.fields.map((key) => (
+                <Field key={key} label={FIELD_LABELS[key] || key}>
+                  {key === 'has_sound' ? (
+                    <select className="w-full rounded-[10px] border px-3 py-2" value={reviewedData[key] ? 'true' : 'false'} onChange={(e) => setExtractedData((prev) => ({ ...prev, [key]: e.target.value === 'true' }))}>
+                      <option value="true">Sim</option>
+                      <option value="false">Não</option>
+                    </select>
+                  ) : (
+                    <Input value={reviewedData[key] || ''} onChange={(e) => setExtractedData((prev) => ({ ...prev, [key]: e.target.value }))} />
+                  )}
+                </Field>
+              ))}
+            </div>
+          </section>
         ))}
       </div>
 

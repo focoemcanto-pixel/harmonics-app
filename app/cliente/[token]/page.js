@@ -1012,6 +1012,32 @@ export default async function ClienteTokenPage({ params, searchParams }) {
     console.error('[CLIENTE PAGE] Falha inesperada ao buscar precontract:', error);
   }
 
+
+  if (!eventId) {
+    try {
+      const { data: contractByToken, error: contractByTokenError } = await supabase
+        .from('contracts')
+        .select('id, event_id, public_token')
+        .eq('public_token', normalizedToken)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (contractByTokenError) {
+        console.error('[CLIENTE PAGE] Erro ao buscar contract por public_token:', contractByTokenError);
+      } else {
+        eventId = contractByToken?.event_id || null;
+      }
+      console.log('[CLIENTE PAGE][EVENT_ID]', {
+        source: 'contracts.public_token',
+        eventId,
+        error: contractByTokenError || null,
+      });
+    } catch (error) {
+      console.error('[CLIENTE PAGE] Falha inesperada ao buscar contracts por public_token:', error);
+    }
+  }
+
   if (!eventId) {
     try {
       const { data: configByToken, error: configByTokenError } = await supabase

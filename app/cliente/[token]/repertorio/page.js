@@ -563,6 +563,24 @@ export default async function ClienteRepertorioPage({ params }) {
   let clientToken = precontractByClientToken?.public_token || token;
   let tokenRow = null;
 
+
+  if (!eventId) {
+    const { data: contractByToken, error: contractByTokenError } = await supabase
+      .from('contracts')
+      .select('id, event_id, public_token')
+      .eq('public_token', token)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (contractByTokenError) {
+      console.error('[CLIENTE REPERTORIO PAGE] Erro ao buscar contract por public_token:', contractByTokenError);
+    } else if (contractByToken?.event_id) {
+      eventId = contractByToken.event_id;
+      clientToken = contractByToken.public_token || token;
+    }
+  }
+
   if (!eventId) {
     const { data: repertoireTokenRow, error: tokenError } = await supabase
       .from('repertoire_tokens')

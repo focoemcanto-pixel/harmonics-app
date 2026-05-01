@@ -20,23 +20,22 @@ async function extractPdfTextWithContractService(file) {
   ).trim();
   const contractServiceApiKey = String(process.env.CONTRACT_SERVICE_API_KEY || '').trim();
 
-  if (!contractServiceUrl) {
+  if (!contractServiceUrl || !contractServiceApiKey) {
     throw new Error('Não foi possível processar o PDF automaticamente');
   }
 
-  const endpoint = `${contractServiceUrl.replace(/\/+$/, '')}/extract-pdf-text`;
-  const serviceForm = new FormData();
-  serviceForm.append('file', file);
-
-  const headers = {};
-  if (contractServiceApiKey) headers.Authorization = `Bearer ${contractServiceApiKey}`;
+  const endpoint = `${contractServiceUrl.replace(/\/+$/, '')}/api/contracts/extract-pdf-text`;
+  const formData = new FormData();
+  formData.append('file', file);
 
   let response;
   try {
     response = await fetch(endpoint, {
       method: 'POST',
-      headers,
-      body: serviceForm,
+      headers: {
+        'x-api-key': contractServiceApiKey,
+      },
+      body: formData,
       cache: 'no-store',
     });
   } catch {
@@ -44,8 +43,8 @@ async function extractPdfTextWithContractService(file) {
   }
 
   const payload = await response.json().catch(() => null);
-  if (!response.ok) {
-    throw new Error('Não foi possível processar o PDF automaticamente');
+  if (!response.ok || !payload?.ok || !payload?.text) {
+    throw new Error(payload?.message || 'Não foi possível extrair texto do PDF');
   }
 
   return String(payload?.text || '').trim();
@@ -100,10 +99,17 @@ export async function POST(request) {
     console.log('FILE SIZE:', file.size);
     console.log('FILE TYPE:', file.type);
     const text = await extractPdfTextWithContractService(file);
-    console.log('TEXT LENGTH:', text?.length || 0);
-    console.log('TEXT SAMPLE:', text.slice(0, 500));
+    console.log('[PDF_TEXT_LENGTH]', text.length);
+    console.log('[PDF_SAMPLE]', text.slice(0, 300));
     if (!text.length) {
       return NextResponse.json({ ok: false, error: 'Falha ao ler conteúdo do PDF no servidor.' }, { status: 422 });
+    }
+    if (text.length < 100) {
+      return NextResponse.json({
+        ok: false,
+        message: 'Não foi possível identificar dados automaticamente. Preencha manualmente.',
+        extractionConfidence: 0,
+      });
     }
     const extractedData = buildExtraction(text);
     const extractedFieldCount = Object.values(extractedData).filter((value) => {

@@ -40,6 +40,7 @@ export default function ExternalContractImportModal({ open, onClose, onImported,
   const [extractedData, setExtractedData] = useState(initialData || {});
   const [missingFields, setMissingFields] = useState([]);
   const [extractionConfidence, setExtractionConfidence] = useState(null);
+  const [extractionStatus, setExtractionStatus] = useState('');
   const [resultData, setResultData] = useState(null);
   const reviewedData = useMemo(() => extractedData || {}, [extractedData]);
   const minimumMissingFields = useMemo(() => {
@@ -83,6 +84,7 @@ export default function ExternalContractImportModal({ open, onClose, onImported,
         setExtractedData(payload.extractedData || {});
         setMissingFields(payload.missingFields || []);
         setExtractionConfidence(payload.extractionConfidence ?? null);
+        setExtractionStatus(payload.extractionStatus || '');
         if (payload?.warning) toast?.warning?.(payload.warning);
       } else {
         setResultData(payload);
@@ -103,6 +105,11 @@ export default function ExternalContractImportModal({ open, onClose, onImported,
     pdf: resultData?.contractPdfUrl || resultData?.pdfUrl || null,
     panel: resultData?.panelLink || resultData?.adminLink || null,
   };
+  const extractedSummaryMessage = extractionStatus === 'auto'
+    ? 'Dados encontrados automaticamente'
+    : extractionStatus === 'partial'
+      ? 'Alguns dados não puderam ser identificados'
+      : 'Preenchimento manual necessário';
 
   return (
     <AppModal
@@ -129,7 +136,7 @@ export default function ExternalContractImportModal({ open, onClose, onImported,
       {importFile ? <p className="mt-2 text-sm text-slate-700">Arquivo selecionado: {importFile.name}</p> : null}
       {extractionConfidence !== null ? (
         <div className="mt-3 flex flex-wrap gap-2">
-          <span className={`rounded-full px-3 py-1 text-xs font-semibold ${Object.keys(extractedData || {}).length ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{Object.keys(extractedData || {}).length ? 'Dados encontrados automaticamente' : 'Preenchimento manual necessário'}</span>
+          <span className={`rounded-full px-3 py-1 text-xs font-semibold ${extractionStatus === 'auto' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{extractedSummaryMessage}</span>
           <span className="rounded-full bg-violet-100 px-3 py-1 text-xs font-semibold text-violet-700">Revise antes de criar o evento</span>
           {missingFields?.length ? <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">Campos para revisar</span> : null}
         </div>

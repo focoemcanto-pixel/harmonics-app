@@ -57,30 +57,36 @@ function pickStatus(extractedFieldCount) {
   return 'auto';
 }
 function buildExtraction(text) {
+  const rawText = String(text || '');
+  const textBeforeContractor = rawText.split(/CONTRATADO:/i)[0] || rawText;
+  const normalizedBeforeContractor = normalizeExtractedText(textBeforeContractor);
   const normalizedText = normalizeExtractedText(text);
-  const client_name = findField(normalizedText, /contratante:\s*([^\n,]+)/i) || findField(normalizedText, /(?:contratante|cliente)\s*[:\-]\s*([^\n]+)/i);
+  const client_name = findField(textBeforeContractor, /CONTRATANTE:\s*([^,\n]+)/i) || findField(normalizedBeforeContractor, /(?:contratante|cliente)\s*[:\-]\s*([^\n,]+)/i);
   const cpf = findField(normalizedText, /CPF.*?(\d{11})/i);
-  const location_address = findField(normalizedText, /residente\s+e\s+domiciliad[oa]\s+na\s+(.+?)\s+(?:CONTRATADO|CONTRATANTE)/i) || findField(normalizedText, /endere[cç]o\s*[:\-]\s*([^\n]+)/i);
-  const eventDateBr = findField(normalizedText, /dia\s*(\d{2}\/\d{2}\/\d{4})/i) || findField(normalizedText, /(\d{2}\/\d{2}\/\d{4})/i) || findField(normalizedText, /(?:data do evento|data)\s*[:\-]\s*(\d{2}\/\d{2}\/\d{4})/i);
-  const event_time = findField(normalizedText, /às?\s*(\d{1,2}:\d{2})/i) || findField(normalizedText, /(?:hor[aá]rio|hora)\s*[:\-]\s*(\d{1,2}:\d{2})/i);
-  const location_name = findField(normalizedText, /endere[cç]o:\s*([^\.]+)/i) || findField(normalizedText, /(?:local|espa[cç]o)\s*[:\-]\s*([^\n]+)/i);
+  const dateAndTimeMatch = textBeforeContractor.match(/dia\s(\d{2}\/\d{2}\/\d{4}),\sàs\s(\d{2}:\d{2})/i);
+  const eventDateBr = dateAndTimeMatch?.[1] || findField(normalizedBeforeContractor, /dia\s*(\d{2}\/\d{2}\/\d{4})/i);
+  const event_time = dateAndTimeMatch?.[2] || findField(normalizedBeforeContractor, /(?:hor[aá]rio|hora)\s*[:\-]\s*(\d{1,2}:\d{2})/i);
+  const location_address = findField(textBeforeContractor, /no endereço:\s*([^\n]+)/i) || '';
+  const location_name = (location_address || findField(normalizedBeforeContractor, /(?:local|espa[cç]o)\s*[:\-]\s*([^\n]+)/i)).replace(/\.$/, '').replace(/\bsantorini\b/i, 'Santorini');
   const reception_hours = findField(normalizedText, /(\d+)\s*hrs?\s*de\s*receptivo/i) || (/(?:\breceptiv)/i.test(normalizedText) ? '1' : '');
   const formationMatch = findField(normalizedText, /(quarteto|trio|duo)/i);
   const formation = formationMatch ? formationMatch[0].toUpperCase() + formationMatch.slice(1).toLowerCase() : findField(normalizedText, /forma[cç][aã]o\s*[:\-]\s*([^\n]+)/i);
   const has_sound = /som\s+est[áa]\s+incluso/i.test(normalizedText);
-  const agreed_amount = findField(normalizedText, /R\$\s*([\d\.,]+)/i) || findField(normalizedText, /(?:valor contratado|valor)\s*[:\-]\s*R?\$?\s*([\d\.,]+)/i);
+  const agreed_amount = (textBeforeContractor.match(/R\$\s?[\d\.]+(?:,\d{2})?/i)?.[0] || '').replace(/^R\$\s?/i, '') || findField(normalizedBeforeContractor, /(?:valor contratado|valor)\s*[:\-]\s*R?\$?\s*([\d\.,]+)/i);
   const observations = findField(normalizedText, /(50%\s*at[ée][^\.]+\.)/i);
-  const instrumentTokens = [];
-  if (/pianista/i.test(normalizedText)) instrumentTokens.push('Piano');
-  if (/violinista/i.test(normalizedText)) instrumentTokens.push('violino');
-  if (/violonista/i.test(normalizedText)) instrumentTokens.push('violão');
-  if (/vocalista|voz/i.test(normalizedText)) instrumentTokens.push('voz');
-  const hasTargetInstruments = /pianista.*?violinista.*?violonista.*?(?:um\s+)?vocalista/i.test(normalizedText);
-  const instruments = hasTargetInstruments ? 'Piano, violino, violão e voz' : (instrumentTokens.length ? instrumentTokens.join(', ').replace(/, ([^,]+)$/, ' e $1') : findField(normalizedText, /instrumentos?\s*[:\-]\s*([^\n]+)/i));
-  const eventTypeMatch = findField(normalizedText, /em um\s+(casamento|anivers[aá]rio|evento)/i) || findField(normalizedText, /(casamento|anivers[aá]rio|evento)/i);
-  const event_type = eventTypeMatch ? eventTypeMatch[0].toUpperCase() + eventTypeMatch.slice(1).toLowerCase() : findField(normalizedText, /tipo de evento\s*[:\-]\s*([^\n]+)/i);
+  const instrumentsFromComposedBy = findField(textBeforeContractor, /composta por\s+([^,.\n]+(?:,\s*[^,.\n]+)*(?:\s+e\s+[^,.\n]+)?)/i);
+  const instruments = instrumentsFromComposedBy
+    .replace(/\bpianista\b/gi, 'piano')
+    .replace(/\bviolinista\b/gi, 'violino')
+    .replace(/\bviolonista\b/gi, 'violão')
+    .replace(/\bvocalista\b/gi, 'voz')
+    .trim();
+  const eventTypeMatch = textBeforeContractor.match(/em um\s+([a-zà-úç]+)\s+que será realizado/i) || textBeforeContractor.match(/(?:cerim[oô]nia|evento)\s+de\s+([a-zà-úç]+)/i);
+  const event_type = eventTypeMatch?.[1] || '';
 
-  return { client_name, cpf, whatsapp_phone: findField(normalizedText, /(?:whatsapp|telefone|celular)\s*[:\-]\s*([^\n]+)/i), event_type, event_date: toIsoDate(eventDateBr), event_time, duration_min: findField(normalizedText, /dura[cç][aã]o\s*[:\-]\s*(\d{1,3})/i), location_name: location_name.replace(/\.$/, '').replace(/\bsantorini\b/i, 'Santorini'), location_address, formation, instruments, reception_hours, has_sound, agreed_amount, observations, status: 'Confirmado' };
+  const extractedData = { client_name, cpf, whatsapp_phone: findField(normalizedText, /(?:whatsapp|telefone|celular)\s*[:\-]\s*([^\n]+)/i), event_type, event_date: toIsoDate(eventDateBr), event_time, duration_min: findField(normalizedText, /dura[cç][aã]o\s*[:\-]\s*(\d{1,3})/i), location_name, location_address, formation, instruments, reception_hours, has_sound, agreed_amount, observations, status: 'Confirmado' };
+  console.log('[EXTRACTED_DATA]', extractedData);
+  return extractedData;
 }
 function validateMinimum(d) { const m=[]; if(!d.client_name)m.push('client_name'); if(!d.event_type)m.push('event_type'); if(!d.event_date)m.push('event_date'); if(!d.event_time)m.push('event_time'); if(!d.location_name)m.push('location_name'); if(!d.formation)m.push('formation'); if(!d.agreed_amount)m.push('agreed_amount'); return m; }
 

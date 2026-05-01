@@ -92,10 +92,10 @@ export default function ContratosPage() {
 
   const mergeContratos = (precontracts = [], contracts = []) => {
     const contractsByPreId = new Map(
-      (contracts || []).map((item) => [String(item.precontract_id), item])
+      (contracts || []).filter((item) => item?.precontract_id).map((item) => [String(item.precontract_id), item])
     );
 
-    return (precontracts || []).map((pre) => {
+    const fromPrecontracts = (precontracts || []).map((pre) => {
       const contract = contractsByPreId.get(String(pre.id));
       const resolvedToken = getResolvedToken(pre, contract);
       const resolvedStatus = mapStatus(contract?.status || pre?.status, !!contract);
@@ -139,6 +139,38 @@ export default function ContratosPage() {
         contractModelTone: internalMode ? 'violet' : 'default',
       };
     });
+
+    const usedContractIds = new Set(fromPrecontracts.map((item) => String(item.contractId || '')).filter(Boolean));
+    const externalContracts = (contracts || [])
+      .filter((contract) => !usedContractIds.has(String(contract?.id || '')) && !contract?.precontract_id)
+      .map((contract) => ({
+        id: `external-${contract.id}`,
+        token: contract?.public_token || '',
+        precontractId: null,
+        contractId: contract?.id || null,
+        eventoId: contract?.event_id || null,
+        clienteNome: 'Cliente (evento manual)',
+        eventoTitulo: 'Contrato externo',
+        eventoTipo: '',
+        dataEvento: '',
+        localEvento: '',
+        whatsapp: '',
+        statusRaw: contract?.status || '',
+        statusKey: 'assinado',
+        statusLabel: 'Assinado',
+        statusTone: 'emerald',
+        visualizado: true,
+        enviadoEm: contract?.created_at || '',
+        assinadoEm: contract?.signed_at || '',
+        observacoes: 'Contrato externo anexado manualmente',
+        linkContrato: contract?.public_token ? `/cliente/${contract.public_token}` : '',
+        pdfUrl: contract?.pdf_url || '',
+        docUrl: contract?.doc_url || '',
+        contractModelLabel: 'Contrato externo',
+        contractModelTone: 'amber',
+      }));
+
+    return [...externalContracts, ...fromPrecontracts];
   };
 
   useEffect(() => {

@@ -111,6 +111,8 @@ export default function EventoDetalhePage() {
   const [excluindo, setExcluindo] = useState(false);
   const [processandoAntesala, setProcessandoAntesala] = useState('');
   const [activeTab, setActiveTab] = useState('resumo');
+  const [externalContract, setExternalContract] = useState(null);
+  const [uploadingExternalContract, setUploadingExternalContract] = useState(false);
   const toast = useAppToast();
   const confirm = useConfirm();
 
@@ -149,9 +151,16 @@ export default function EventoDetalhePage() {
 
       try {
         setCarregando(true);
-        const [eventResp, teamResp, repertoireResp] = await Promise.all([
+        const [eventResp, teamResp, contractResp, repertoireResp] = await Promise.all([
           supabase.from('events').select('*').eq('id', id).single(),
           supabase.from('event_musicians').select('id, status').eq('event_id', id),
+          supabase
+            .from('contracts')
+            .select('id, status, signed_at, pdf_url, public_token, raw_payload')
+            .eq('event_id', id)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle(),
           supabase
             .from('repertoire_config')
             .select('status')
@@ -161,9 +170,11 @@ export default function EventoDetalhePage() {
 
         if (eventResp.error) throw eventResp.error;
         if (teamResp.error) throw teamResp.error;
+        if (contractResp.error) throw contractResp.error;
         if (repertoireResp.error) throw repertoireResp.error;
 
         setEvento(eventResp.data || null);
+        setExternalContract(contractResp.data || null);
         setRepertoireStatus(String(repertoireResp?.data?.status || ''));
         const musicians = teamResp.data || [];
         setTeamMetrics({
@@ -273,6 +284,33 @@ export default function EventoDetalhePage() {
       toast.error('Não foi possível atualizar a solicitação de antesala.');
     } finally {
       setProcessandoAntesala('');
+    }
+  }
+
+
+  async function handleUploadExternalContract(file, shouldReplace = false) {
+    if (!evento?.id || !file) return;
+    try {
+      setUploadingExternalContract(true);
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+      const form = new FormData();
+      form.append('file', file);
+      if (shouldReplace) form.append('replace', 'true');
+
+      const response = await fetch(`/api/events/${evento.id}/external-contract`, {
+        method: 'POST',
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+        body: form,
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload?.ok) throw new Error(payload?.error || 'Falha ao anexar contrato externo.');
+      setExternalContract(payload.contract || null);
+      toast.success('Contrato externo anexado com sucesso.');
+    } catch (error) {
+      toast.error(error?.message || 'Não foi possível anexar o contrato externo.');
+    } finally {
+      setUploadingExternalContract(false);
     }
   }
 
@@ -421,6 +459,36 @@ export default function EventoDetalhePage() {
                   >
                     Ver pagamentos
                   </button>
+                </section>
+
+
+                <section className="space-y-3 rounded-2xl border border-[#e2e8f0] bg-white px-4 py-4">
+                  <div className="flex items-center justify-between text-sm">
+                    <p className="font-black text-slate-900">Contrato externo/manual</p>
+                    <p className="text-slate-700">{externalContract?.id ? 'Contrato externo anexado' : 'Não anexado'}</p>
+                  </div>
+                  {externalContract?.pdf_url ? (
+                    <a href={externalContract.pdf_url} target="_blank" rel="noreferrer" className="text-xs font-semibold text-blue-700 underline">Abrir PDF anexado</a>
+                  ) : null}
+                  {externalContract?.public_token ? (
+                    <div className="flex flex-wrap gap-2">
+                      <a href={`/cliente/${externalContract.public_token}`} target="_blank" rel="noreferrer" className="rounded-xl border border-[#dbe3ef] bg-white px-3 py-2 text-xs font-bold text-slate-900">Abrir painel do cliente</a>
+                      <button type="button" className="rounded-xl border border-[#dbe3ef] bg-white px-3 py-2 text-xs font-bold text-slate-900" onClick={async () => { await navigator.clipboard.writeText(`${window.location.origin}/cliente/${externalContract.public_token}`); toast.success('Link do painel copiado.'); }}>
+                        Copiar link do painel do cliente
+                      </button>
+                    </div>
+                  ) : null}
+                  <label className="inline-flex cursor-pointer rounded-xl bg-slate-900 px-3 py-2 text-xs font-bold text-white">
+                    {uploadingExternalContract ? 'Enviando...' : externalContract?.id ? 'Substituir PDF externo' : 'Anexar contrato externo'}
+                    <input type="file" accept="application/pdf" className="hidden" disabled={uploadingExternalContract} onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const replace = !!externalContract?.id && !window.confirm('Já existe contrato assinado. Confirmar substituição do PDF?');
+                      if (replace) return;
+                      await handleUploadExternalContract(file, !!externalContract?.id);
+                      e.target.value = '';
+                    }} />
+                  </label>
                 </section>
 
                 <section className="space-y-3 rounded-2xl border border-[#e2e8f0] bg-white px-4 py-4">

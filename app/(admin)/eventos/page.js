@@ -2201,6 +2201,7 @@ export default function EventosPage() {
               FORMATIONS={FORMATIONS}
               formatPhoneDisplay={formatPhoneDisplay}
               getPaymentTone={getPaymentTone}
+              toast={toast}
             />
           )}
 
@@ -2252,6 +2253,7 @@ export default function EventosPage() {
               FORMATIONS={FORMATIONS}
               formatPhoneDisplay={formatPhoneDisplay}
               getPaymentTone={getPaymentTone}
+              toast={toast}
             />
           )}
 

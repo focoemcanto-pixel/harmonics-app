@@ -47,6 +47,36 @@ async function extractPdfTextWithContractService(file) {
 
   return String(payload?.text || '').trim();
 }
+
+function extractObjectBlock(rawText = '') {
+  const text = String(rawText || '');
+  const patterns = [
+    /DO\s+OBJETO\s+DO\s+CONTRATO([\s\S]*?)(?:Dura[cç][aã]o\s+da\s+cerim[oô]nia|$)/i,
+    /Cl[aá]usula\s*1[ªa]?([\s\S]*?)(?:DOS\s+EQUIPAMENTOS|$)/i,
+  ];
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match?.[1]) return match[1].trim();
+  }
+  return '';
+}
+
+function splitLocationAddressAndName(rawAddress = '') {
+  const value = String(rawAddress || '').replace(/\s+/g, ' ').trim().replace(/[\.;]+$/, '');
+  if (!value) return { location_address: '', location_name: '' };
+
+  const parts = value.split(/\s+-\s+/).map((part) => part.trim()).filter(Boolean);
+  if (parts.length >= 2 && /\d/.test(parts[parts.length - 2] || '')) {
+    const location_name = parts[parts.length - 1];
+    const location_address = parts.slice(0, -1).join(' - ').trim();
+    if (location_address && location_name) {
+      return { location_address, location_name };
+    }
+  }
+
+  return { location_address: value, location_name: '' };
+}
+
 function toIsoDate(brDate = '') {
   const [dd, mm, yyyy] = brDate.split('/');
   return dd && mm && yyyy ? `${yyyy}-${mm}-${dd}` : '';
@@ -61,16 +91,20 @@ function buildExtraction(text) {
   const textBeforeContractor = rawText.split(/CONTRATADO:/i)[0] || rawText;
   const normalizedBeforeContractor = normalizeExtractedText(textBeforeContractor);
   const normalizedText = normalizeExtractedText(text);
+  const objectBlock = extractObjectBlock(rawText);
+  const normalizedObjectBlock = normalizeExtractedText(objectBlock);
   const client_name = findField(textBeforeContractor, /CONTRATANTE:\s*([^,\n]+)/i) || findField(normalizedBeforeContractor, /(?:contratante|cliente)\s*[:\-]\s*([^\n,]+)/i);
   const cpf = findField(normalizedText, /CPF.*?(\d{11})/i);
-  const dateAndTimeMatch = textBeforeContractor.match(/dia\s(\d{2}\/\d{2}\/\d{4}),\sàs\s(\d{2}:\d{2})/i);
-  const eventDateBr = dateAndTimeMatch?.[1] || findField(normalizedBeforeContractor, /dia\s*(\d{2}\/\d{2}\/\d{4})/i);
-  const event_time = dateAndTimeMatch?.[2] || findField(normalizedBeforeContractor, /(?:hor[aá]rio|hora)\s*[:\-]\s*(\d{1,2}:\d{2})/i);
-  const location_address = findField(textBeforeContractor, /no endereço:\s*(.+)/i) || '';
-  const location_name = (location_address || findField(normalizedBeforeContractor, /(?:local|espa[cç]o)\s*[:\-]\s*([^\n]+)/i)).replace(/\.$/, '').replace(/\bsantorini\b/i, 'Santorini');
-  const reception_hours = findField(normalizedText, /(\d+)\s*hrs?\s*de\s*receptivo/i) || (/(?:\breceptiv)/i.test(normalizedText) ? '1' : '');
-  const formationMatch = findField(normalizedText, /(quarteto|trio|duo)/i);
-  const instrumentistasConteudo = findField(normalizedBeforeContractor, /instrumentistas\s*\((.*?)\)/i);
+  const dateAndTimeMatch = objectBlock.match(/dia\s(\d{2}\/\d{2}\/\d{4}),\sàs\s(\d{2}:\d{2})/i);
+  const eventDateBr = dateAndTimeMatch?.[1] || findField(normalizedObjectBlock, /dia\s*(\d{2}\/\d{2}\/\d{4})/i);
+  const event_time = dateAndTimeMatch?.[2] || findField(normalizedObjectBlock, /(?:hor[aá]rio|hora)\s*[:\-]\s*(\d{1,2}:\d{2})/i);
+  const locationAddressRaw = findField(objectBlock, /no\s+endere[cç]o\s*:\s*([\s\S]*?)(?:\.\s|Mais\s+\d+\s*hrs?|Dura[cç][aã]o|O\s+som|$)/i) || '';
+  const parsedLocation = splitLocationAddressAndName(locationAddressRaw);
+  const location_address = parsedLocation.location_address;
+  const location_name = (parsedLocation.location_name || findField(normalizedObjectBlock, /(?:local|espa[cç]o)\s*[:\-]\s*([^\n]+)/i)).replace(/\.$/, '').replace(/\bsantorini\b/i, 'Santorini');
+  const reception_hours = findField(normalizedObjectBlock, /(\d+)\s*hrs?\s*de\s*receptivo/i) || (/(?:\breceptiv)/i.test(normalizedObjectBlock) ? '1' : '');
+  const formationMatch = findField(normalizedObjectBlock, /(quarteto|trio|duo)/i);
+  const instrumentistasConteudo = findField(normalizedObjectBlock, /instrumentistas\s*\((.*?)\)/i);
   const instruments = instrumentistasConteudo
     ? instrumentistasConteudo
         .replace(/\bdois\b/gi, '')
@@ -91,16 +125,16 @@ function buildExtraction(text) {
     : [];
   const instrumentoCount = instrumentsArray.filter((item) => item !== 'voz').length;
   const hasVoz = instrumentsArray.includes('voz');
-  let formation = formationMatch ? formationMatch[0].toUpperCase() + formationMatch.slice(1).toLowerCase() : findField(normalizedText, /forma[cç][aã]o\s*[:\-]\s*([^\n]+)/i);
+  let formation = formationMatch ? formationMatch[0].toUpperCase() + formationMatch.slice(1).toLowerCase() : findField(normalizedObjectBlock, /forma[cç][aã]o\s*[:\-]\s*([^\n]+)/i);
   if (!formation && hasVoz) {
     if (instrumentoCount === 2) formation = 'Trio';
     if (instrumentoCount === 1) formation = 'Duo';
     if (instrumentoCount === 3) formation = 'Quarteto';
   }
-  const has_sound = /som\s+est[áa]\s+incluso/i.test(normalizedText);
+  const has_sound = /som\s+est[áa]\s+incluso/i.test(normalizedObjectBlock);
   const agreed_amount = (textBeforeContractor.match(/R\$\s?[\d\.]+(?:,\d{2})?/i)?.[0] || '').replace(/^R\$\s?/i, '') || findField(normalizedBeforeContractor, /(?:valor contratado|valor)\s*[:\-]\s*R?\$?\s*([\d\.,]+)/i);
   const observations = findField(normalizedText, /(50%\s*at[ée][^\.]+\.)/i);
-  const eventTypeMatch = textBeforeContractor.match(/em um\s+([a-zà-úç]+)\s+que será realizado/i) || textBeforeContractor.match(/(?:cerim[oô]nia|evento)\s+de\s+([a-zà-úç]+)/i);
+  const eventTypeMatch = objectBlock.match(/em um\s+([a-zà-úç]+)\s+que será realizado/i) || objectBlock.match(/(?:cerim[oô]nia|evento)\s+de\s+([a-zà-úç]+)/i);
   const event_type = eventTypeMatch?.[1] || '';
 
   console.log('[EXTRACT] endereco:', location_address);

@@ -14,60 +14,41 @@ function normalizeExtractedText(text = '') {
     .replace(/\s{2,}/g, ' ')
     .trim();
 }
-function decodePdfToken(token = '') {
-  if (token.startsWith('(') && token.endsWith(')')) {
-    return token
-      .slice(1, -1)
-      .replace(/\\n/g, ' ')
-      .replace(/\\r/g, ' ')
-      .replace(/\\t/g, ' ')
-      .replace(/\\\(/g, '(')
-      .replace(/\\\)/g, ')')
-      .replace(/\\\\/g, '\\');
+async function extractPdfTextWithContractService(file) {
+  const contractServiceUrl = String(
+    process.env.CONTRACT_SERVICE_URL || process.env.NEXT_PUBLIC_CONTRACT_SERVICE_URL || ''
+  ).trim();
+  const contractServiceApiKey = String(process.env.CONTRACT_SERVICE_API_KEY || '').trim();
+
+  if (!contractServiceUrl) {
+    throw new Error('Não foi possível processar o PDF automaticamente');
   }
-  if (token.startsWith('<') && token.endsWith('>')) {
-    const hex = token.slice(1, -1).replace(/[^\da-f]/gi, '');
-    if (!hex) return '';
-    const bytes = new Uint8Array((hex.length / 2) | 0);
-    for (let i = 0; i < bytes.length; i += 1) bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
-    return new TextDecoder('latin1').decode(bytes);
-  }
-  return '';
-}
-function extractPdfTextFromRaw(raw = '') {
-  const chunks = [];
-  const simpleText = [...raw.matchAll(/(\((?:\\.|[^\\()])*\)|<[\da-fA-F\s]+>)\s*Tj/g)].map((m) => decodePdfToken(m[1]));
-  chunks.push(...simpleText);
-  for (const m of raw.matchAll(/\[(.*?)\]\s*TJ/gs)) {
-    const parts = [...m[1].matchAll(/(\((?:\\.|[^\\()])*\)|<[\da-fA-F\s]+>)/g)].map((item) => decodePdfToken(item[1])).filter(Boolean);
-    if (parts.length) chunks.push(parts.join(' '));
-  }
-  return chunks.join('\n').replace(/\s+/g, ' ').trim();
-}
-async function inflatePdfStream(contentBytes) {
+
+  const endpoint = `${contractServiceUrl.replace(/\/+$/, '')}/extract-pdf-text`;
+  const serviceForm = new FormData();
+  serviceForm.append('file', file);
+
+  const headers = {};
+  if (contractServiceApiKey) headers.Authorization = `Bearer ${contractServiceApiKey}`;
+
+  let response;
   try {
-    const stream = new Blob([contentBytes]).stream().pipeThrough(new DecompressionStream('deflate'));
-    const decompressed = await new Response(stream).arrayBuffer();
-    return new TextDecoder('latin1').decode(decompressed);
+    response = await fetch(endpoint, {
+      method: 'POST',
+      headers,
+      body: serviceForm,
+      cache: 'no-store',
+    });
   } catch {
-    return '';
+    throw new Error('Não foi possível processar o PDF automaticamente');
   }
-}
-async function extractPdfText(buffer) {
-  const raw = new TextDecoder('latin1').decode(new Uint8Array(buffer));
-  const chunks = [extractPdfTextFromRaw(raw)];
-  const streamRegex = /stream\r?\n([\s\S]*?)\r?\nendstream/g;
-  const rawBytes = new Uint8Array(buffer);
-  let match;
-  while ((match = streamRegex.exec(raw)) !== null) {
-    const content = match[1];
-    const start = match.index + match[0].indexOf(content);
-    const end = start + content.length;
-    if (start < 0 || end > rawBytes.length) continue;
-    const inflatedRaw = await inflatePdfStream(rawBytes.slice(start, end));
-    if (inflatedRaw) chunks.push(extractPdfTextFromRaw(inflatedRaw));
+
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error('Não foi possível processar o PDF automaticamente');
   }
-  return chunks.join('\n').replace(/\s+/g, ' ').trim();
+
+  return String(payload?.text || '').trim();
 }
 function toIsoDate(brDate = '') {
   const [dd, mm, yyyy] = brDate.split('/');
@@ -116,19 +97,13 @@ export async function POST(request) {
     if (file.type !== 'application/pdf') return NextResponse.json({ ok: false, error: 'Apenas PDF (application/pdf) é aceito.' }, { status: 400 });
     if (file.size > MAX_PDF_SIZE_BYTES) return NextResponse.json({ ok: false, error: 'PDF excede o limite de 15MB.' }, { status: 400 });
 
-    const bytes = await file.arrayBuffer();
-    const text = await extractPdfText(bytes);
-    console.log('TEXT LENGTH:', text.length);
+    console.log('FILE SIZE:', file.size);
+    console.log('FILE TYPE:', file.type);
+    const text = await extractPdfTextWithContractService(file);
+    console.log('TEXT LENGTH:', text?.length || 0);
     console.log('TEXT SAMPLE:', text.slice(0, 500));
-    if (text.length < 50) {
-      return NextResponse.json({
-        ok: true,
-        extractedData: {},
-        extractionConfidence: 0,
-        missingFields: ['text_unreadable'],
-        warning: 'Texto do PDF não pôde ser lido corretamente.',
-        extractionStatus: 'manual_required',
-      });
+    if (!text.length) {
+      return NextResponse.json({ ok: false, error: 'Falha ao ler conteúdo do PDF no servidor.' }, { status: 422 });
     }
     const extractedData = buildExtraction(text);
     const extractedFieldCount = Object.values(extractedData).filter((value) => {
@@ -143,7 +118,7 @@ export async function POST(request) {
       fileSize: file.size,
       textLength: text.length,
       firstTextSample: text.slice(0, 300),
-      extractionMethod: 'pdf_stream_tj_tj_with_deflate_fallback',
+      extractionMethod: 'contract_service_extract_pdf_text',
       missingFields,
     });
     if (mode === 'extract') {
@@ -151,7 +126,7 @@ export async function POST(request) {
       if (!extractedFieldCount) {
         return NextResponse.json({ ok: true, extractedData: {}, extractionConfidence: 0, missingFields, warning: 'Preenchimento manual necessário', extractionStatus: 'manual_required' });
       }
-      return NextResponse.json({ ok: true, extractedData, extractionConfidence, missingFields, extractionStatus: meetsMinimumAuto ? extractionStatus : 'manual_required', warning: meetsMinimumAuto ? null : 'Preenchimento manual necessário' });
+      return NextResponse.json({ ok: true, extractedData, extractionConfidence, missingFields, extractionStatus: text.length > 300 && meetsMinimumAuto ? extractionStatus : 'manual_required', warning: text.length > 300 && meetsMinimumAuto ? null : 'Preenchimento manual necessário' });
     }
 
     const reviewedData = JSON.parse(String(form.get('reviewedData') || '{}')); const normalized = { ...extractedData, ...reviewedData }; const missing = validateMinimum(normalized);

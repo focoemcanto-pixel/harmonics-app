@@ -6,6 +6,14 @@ import { saveExternalContractForEvent } from '@/lib/contracts/external-contract-
 const MAX_PDF_SIZE_BYTES = 15 * 1024 * 1024;
 const parseMoney = (v) => Number(String(v || '0').replace(/\./g, '').replace(',', '.')) || 0;
 function findField(text, regex) { const m = text.match(regex); return m?.[1]?.trim() || ''; }
+function normalizeExtractedText(text = '') {
+  return String(text || '')
+    .toLowerCase()
+    .replace(/[\u200B-\u200D\uFEFF\u2060\u00AD]/g, '')
+    .replace(/[\r\n\t]+/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
 function decodePdfToken(token = '') {
   if (token.startsWith('(') && token.endsWith(')')) {
     return token
@@ -71,13 +79,13 @@ function pickStatus(extractedFieldCount) {
   return 'auto';
 }
 function buildExtraction(text) {
-  const normalizedText = text.replace(/\s+/g, ' ');
-  const client_name = findField(normalizedText, /CONTRATANTE:\s*([^\n,]+)/i) || findField(normalizedText, /(?:contratante|cliente)\s*[:\-]\s*([^\n]+)/i);
+  const normalizedText = normalizeExtractedText(text);
+  const client_name = findField(normalizedText, /contratante:\s*([^\n,]+)/i) || findField(normalizedText, /(?:contratante|cliente)\s*[:\-]\s*([^\n]+)/i);
   const cpf = findField(normalizedText, /CPF.*?(\d{11})/i);
   const location_address = findField(normalizedText, /residente\s+e\s+domiciliad[oa]\s+na\s+(.+?)\s+(?:CONTRATADO|CONTRATANTE)/i) || findField(normalizedText, /endere[cç]o\s*[:\-]\s*([^\n]+)/i);
-  const eventDateBr = findField(normalizedText, /(\d{2}\/\d{2}\/\d{4})/i) || findField(normalizedText, /(?:data do evento|data)\s*[:\-]\s*(\d{2}\/\d{2}\/\d{4})/i);
+  const eventDateBr = findField(normalizedText, /dia\s*(\d{2}\/\d{2}\/\d{4})/i) || findField(normalizedText, /(\d{2}\/\d{2}\/\d{4})/i) || findField(normalizedText, /(?:data do evento|data)\s*[:\-]\s*(\d{2}\/\d{2}\/\d{4})/i);
   const event_time = findField(normalizedText, /às?\s*(\d{1,2}:\d{2})/i) || findField(normalizedText, /(?:hor[aá]rio|hora)\s*[:\-]\s*(\d{1,2}:\d{2})/i);
-  const location_name = findField(normalizedText, /endere[cç]o:\s*([^\n\.]+)/i) || findField(normalizedText, /(?:local|espa[cç]o)\s*[:\-]\s*([^\n]+)/i);
+  const location_name = findField(normalizedText, /endere[cç]o:\s*([^\.]+)/i) || findField(normalizedText, /(?:local|espa[cç]o)\s*[:\-]\s*([^\n]+)/i);
   const reception_hours = findField(normalizedText, /(\d+)\s*hrs?\s*de\s*receptivo/i) || (/(?:\breceptiv)/i.test(normalizedText) ? '1' : '');
   const formationMatch = findField(normalizedText, /(quarteto|trio|duo)/i);
   const formation = formationMatch ? formationMatch[0].toUpperCase() + formationMatch.slice(1).toLowerCase() : findField(normalizedText, /forma[cç][aã]o\s*[:\-]\s*([^\n]+)/i);
@@ -89,9 +97,9 @@ function buildExtraction(text) {
   if (/violinista/i.test(normalizedText)) instrumentTokens.push('violino');
   if (/violonista/i.test(normalizedText)) instrumentTokens.push('violão');
   if (/vocalista|voz/i.test(normalizedText)) instrumentTokens.push('voz');
-  const hasTargetInstruments = /pianista.*?violonista.*?vocalista/i.test(normalizedText);
-  const instruments = hasTargetInstruments ? 'pianista, violinista, violonista e vocalista' : (instrumentTokens.length ? instrumentTokens.join(', ').replace(/, ([^,]+)$/, ' e $1') : findField(normalizedText, /instrumentos?\s*[:\-]\s*([^\n]+)/i));
-  const eventTypeMatch = findField(normalizedText, /(casamento|anivers[aá]rio|evento)/i);
+  const hasTargetInstruments = /pianista.*?violinista.*?violonista.*?(?:um\s+)?vocalista/i.test(normalizedText);
+  const instruments = hasTargetInstruments ? 'Piano, violino, violão e voz' : (instrumentTokens.length ? instrumentTokens.join(', ').replace(/, ([^,]+)$/, ' e $1') : findField(normalizedText, /instrumentos?\s*[:\-]\s*([^\n]+)/i));
+  const eventTypeMatch = findField(normalizedText, /em um\s+(casamento|anivers[aá]rio|evento)/i) || findField(normalizedText, /(casamento|anivers[aá]rio|evento)/i);
   const event_type = eventTypeMatch ? eventTypeMatch[0].toUpperCase() + eventTypeMatch.slice(1).toLowerCase() : findField(normalizedText, /tipo de evento\s*[:\-]\s*([^\n]+)/i);
 
   return { client_name, cpf, whatsapp_phone: findField(normalizedText, /(?:whatsapp|telefone|celular)\s*[:\-]\s*([^\n]+)/i), event_type, event_date: toIsoDate(eventDateBr), event_time, duration_min: findField(normalizedText, /dura[cç][aã]o\s*[:\-]\s*(\d{1,3})/i), location_name: location_name.replace(/\.$/, '').replace(/\bsantorini\b/i, 'Santorini'), location_address, formation, instruments, reception_hours, has_sound, agreed_amount, observations, status: 'Confirmado' };
@@ -110,8 +118,8 @@ export async function POST(request) {
 
     const bytes = await file.arrayBuffer();
     const text = await extractPdfText(bytes);
-    console.log('PDF_TEXT_LENGTH:', text.length);
-    console.log('PDF_TEXT_SAMPLE:', text.slice(0, 1000));
+    console.log('TEXT LENGTH:', text.length);
+    console.log('TEXT SAMPLE:', text.slice(0, 500));
     if (text.length < 50) {
       return NextResponse.json({
         ok: true,
@@ -139,10 +147,11 @@ export async function POST(request) {
       missingFields,
     });
     if (mode === 'extract') {
+        const meetsMinimumAuto = ['client_name', 'event_date', 'event_time', 'event_type', 'location_name'].every((field) => Boolean(String(extractedData[field] || '').trim()));
       if (!extractedFieldCount) {
         return NextResponse.json({ ok: true, extractedData: {}, extractionConfidence: 0, missingFields, warning: 'Preenchimento manual necessário', extractionStatus: 'manual_required' });
       }
-      return NextResponse.json({ ok: true, extractedData, extractionConfidence, missingFields, extractionStatus });
+      return NextResponse.json({ ok: true, extractedData, extractionConfidence, missingFields, extractionStatus: meetsMinimumAuto ? extractionStatus : 'manual_required', warning: meetsMinimumAuto ? null : 'Preenchimento manual necessário' });
     }
 
     const reviewedData = JSON.parse(String(form.get('reviewedData') || '{}')); const normalized = { ...extractedData, ...reviewedData }; const missing = validateMinimum(normalized);

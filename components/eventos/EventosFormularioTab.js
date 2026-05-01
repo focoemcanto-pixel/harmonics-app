@@ -1,7 +1,10 @@
 'use client';
 
+import { useState } from 'react';
 import { Field, Input, Select } from '../admin/AdminFormPrimitives';
 import Pill from '../admin/AdminPill';
+import AppModal from '../ui/AppModal';
+import { supabase } from '@/lib/supabase';
 
 function SectionCard({ eyebrow, title, subtitle, children }) {
   return (
@@ -39,6 +42,14 @@ function InfoChip({ label, value, tone = 'default' }) {
           <div className="text-[15px] font-black text-[#0f172a]">{value}</div>
         ) : null}
       </div>
+
+      <AppModal open={importOpen} onClose={() => setImportOpen(false)} title="Importar contrato externo" subtitle="Vamos tentar identificar os dados do contrato. Você poderá revisar antes de salvar." maxWidthClass="max-w-3xl" footer={<div className="flex gap-2"><button type="button" onClick={() => runImport('extract')} className="rounded-[12px] border px-3 py-2 text-sm font-bold">Extrair dados</button><button type="button" onClick={() => runImport('confirm')} className="rounded-[12px] bg-violet-600 px-3 py-2 text-sm font-bold text-white">Confirmar e criar evento com contrato externo</button></div>}>
+        <input type="file" accept="application/pdf" onChange={(e)=>setImportFile(e.target.files?.[0]||null)} />
+        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+          {['client_name','whatsapp_phone','guests_emails','event_type','event_date','event_time','duration_min','location_name','location_address','formation','instruments','agreed_amount','observations','status'].map((k)=>(<Field key={k} label={k}><Input value={reviewData[k]||''} onChange={(e)=>setReviewData((p)=>({...p,[k]:e.target.value}))}/></Field>))}
+        </div>
+        {importLoading ? <p className="mt-3 text-sm text-slate-500">Processando...</p> : null}
+      </AppModal>
     </div>
   );
 }
@@ -59,6 +70,14 @@ function MoneyCard({ label, value, tone = 'slate' }) {
         {label}
       </div>
       <div className="mt-2 text-[20px] font-black">{value}</div>
+
+      <AppModal open={importOpen} onClose={() => setImportOpen(false)} title="Importar contrato externo" subtitle="Vamos tentar identificar os dados do contrato. Você poderá revisar antes de salvar." maxWidthClass="max-w-3xl" footer={<div className="flex gap-2"><button type="button" onClick={() => runImport('extract')} className="rounded-[12px] border px-3 py-2 text-sm font-bold">Extrair dados</button><button type="button" onClick={() => runImport('confirm')} className="rounded-[12px] bg-violet-600 px-3 py-2 text-sm font-bold text-white">Confirmar e criar evento com contrato externo</button></div>}>
+        <input type="file" accept="application/pdf" onChange={(e)=>setImportFile(e.target.files?.[0]||null)} />
+        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+          {['client_name','whatsapp_phone','guests_emails','event_type','event_date','event_time','duration_min','location_name','location_address','formation','instruments','agreed_amount','observations','status'].map((k)=>(<Field key={k} label={k}><Input value={reviewData[k]||''} onChange={(e)=>setReviewData((p)=>({...p,[k]:e.target.value}))}/></Field>))}
+        </div>
+        {importLoading ? <p className="mt-3 text-sm text-slate-500">Processando...</p> : null}
+      </AppModal>
     </div>
   );
 }
@@ -77,8 +96,37 @@ export default function EventosFormularioTab({
   FORMATIONS,
   formatPhoneDisplay,
   getPaymentTone,
+  toast,
 }) {
+  const [importOpen, setImportOpen] = useState(false);
+  const [importFile, setImportFile] = useState(null);
+  const [importLoading, setImportLoading] = useState(false);
+  const [reviewData, setReviewData] = useState({});
   const tituloPrincipal = editandoId ? 'Editar evento' : 'Novo evento';
+
+  async function runImport(mode) {
+    if (!importFile) return;
+    try {
+      setImportLoading(true);
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+      const f = new FormData();
+      f.append('file', importFile);
+      f.append('mode', mode);
+      if (mode === 'confirm') f.append('reviewedData', JSON.stringify(reviewData));
+      const resp = await fetch('/api/events/import-from-contract', { method: 'POST', headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined, body: f });
+      const payload = await resp.json();
+      if (!resp.ok || !payload?.ok) throw new Error(payload?.error || 'Falha na importação.');
+      if (mode === 'extract') {
+        setReviewData(payload.extractedData || {});
+        if (payload.message) toast?.warning?.(payload.message);
+      } else {
+        toast?.success?.('Evento criado com contrato externo.');
+        window.location.href = `/eventos/${payload.eventId}`;
+      }
+    } catch (e) { toast?.error?.(e.message || 'Erro ao importar contrato.'); } finally { setImportLoading(false); }
+  }
+
   const subtituloPrincipal = editandoId
     ? 'Ajuste dados, operação e financeiro sem perder o contexto do evento.'
     : 'Monte um novo evento com cliente, operação e financeiro em um fluxo mais claro.';
@@ -110,6 +158,13 @@ export default function EventosFormularioTab({
               <Pill tone="default">{form.status || 'Rascunho'}</Pill>
             </div>
           </div>
+
+
+          {!editandoId ? (
+            <button type="button" onClick={() => setImportOpen(true)} className="mt-5 w-full rounded-[18px] border border-violet-200 bg-violet-50 px-4 py-3 text-left text-[14px] font-bold text-violet-800">
+              Importar contrato externo
+            </button>
+          ) : null}
 
           <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">
             <InfoChip
@@ -471,6 +526,21 @@ export default function EventosFormularioTab({
           </div>
         </SectionCard>
       </div>
+      <AppModal open={importOpen} onClose={() => setImportOpen(false)} title="Importar contrato externo" subtitle="Vamos tentar identificar os dados do contrato. Você poderá revisar antes de salvar." maxWidthClass="max-w-3xl" footer={<div className="flex gap-2"><button type="button" onClick={() => runImport('extract')} className="rounded-[12px] border px-3 py-2 text-sm font-bold">Extrair dados</button><button type="button" onClick={() => runImport('confirm')} className="rounded-[12px] bg-violet-600 px-3 py-2 text-sm font-bold text-white">Confirmar e criar evento com contrato externo</button></div>}>
+        <input type="file" accept="application/pdf" onChange={(e)=>setImportFile(e.target.files?.[0]||null)} />
+        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+          {['client_name','whatsapp_phone','guests_emails','event_type','event_date','event_time','duration_min','location_name','location_address','formation','instruments','agreed_amount','observations','status'].map((k)=>(<Field key={k} label={k}><Input value={reviewData[k]||''} onChange={(e)=>setReviewData((p)=>({...p,[k]:e.target.value}))}/></Field>))}
+        </div>
+        {importLoading ? <p className="mt-3 text-sm text-slate-500">Processando...</p> : null}
+      </AppModal>
+
+      <AppModal open={importOpen} onClose={() => setImportOpen(false)} title="Importar contrato externo" subtitle="Vamos tentar identificar os dados do contrato. Você poderá revisar antes de salvar." maxWidthClass="max-w-3xl" footer={<div className="flex gap-2"><button type="button" onClick={() => runImport('extract')} className="rounded-[12px] border px-3 py-2 text-sm font-bold">Extrair dados</button><button type="button" onClick={() => runImport('confirm')} className="rounded-[12px] bg-violet-600 px-3 py-2 text-sm font-bold text-white">Confirmar e criar evento com contrato externo</button></div>}>
+        <input type="file" accept="application/pdf" onChange={(e)=>setImportFile(e.target.files?.[0]||null)} />
+        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+          {['client_name','whatsapp_phone','guests_emails','event_type','event_date','event_time','duration_min','location_name','location_address','formation','instruments','agreed_amount','observations','status'].map((k)=>(<Field key={k} label={k}><Input value={reviewData[k]||''} onChange={(e)=>setReviewData((p)=>({...p,[k]:e.target.value}))}/></Field>))}
+        </div>
+        {importLoading ? <p className="mt-3 text-sm text-slate-500">Processando...</p> : null}
+      </AppModal>
     </div>
   );
 }

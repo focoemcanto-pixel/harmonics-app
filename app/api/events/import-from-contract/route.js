@@ -20,18 +20,44 @@ function decodePdfToken(token = '') {
   if (token.startsWith('<') && token.endsWith('>')) {
     const hex = token.slice(1, -1).replace(/[^\da-f]/gi, '');
     if (!hex) return '';
-    return Buffer.from(hex, 'hex').toString('latin1');
+    const bytes = new Uint8Array((hex.length / 2) | 0);
+    for (let i = 0; i < bytes.length; i += 1) bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+    return new TextDecoder('latin1').decode(bytes);
   }
   return '';
 }
-function extractPdfText(buffer) {
-  const raw = Buffer.from(buffer).toString('latin1');
+function extractPdfTextFromRaw(raw = '') {
   const chunks = [];
   const simpleText = [...raw.matchAll(/(\((?:\\.|[^\\()])*\)|<[\da-fA-F\s]+>)\s*Tj/g)].map((m) => decodePdfToken(m[1]));
   chunks.push(...simpleText);
   for (const m of raw.matchAll(/\[(.*?)\]\s*TJ/gs)) {
     const parts = [...m[1].matchAll(/(\((?:\\.|[^\\()])*\)|<[\da-fA-F\s]+>)/g)].map((item) => decodePdfToken(item[1])).filter(Boolean);
     if (parts.length) chunks.push(parts.join(' '));
+  }
+  return chunks.join('\n').replace(/\s+/g, ' ').trim();
+}
+async function inflatePdfStream(contentBytes) {
+  try {
+    const stream = new Blob([contentBytes]).stream().pipeThrough(new DecompressionStream('deflate'));
+    const decompressed = await new Response(stream).arrayBuffer();
+    return new TextDecoder('latin1').decode(decompressed);
+  } catch {
+    return '';
+  }
+}
+async function extractPdfText(buffer) {
+  const raw = new TextDecoder('latin1').decode(new Uint8Array(buffer));
+  const chunks = [extractPdfTextFromRaw(raw)];
+  const streamRegex = /stream\r?\n([\s\S]*?)\r?\nendstream/g;
+  const rawBytes = new Uint8Array(buffer);
+  let match;
+  while ((match = streamRegex.exec(raw)) !== null) {
+    const content = match[1];
+    const start = match.index + match[0].indexOf(content);
+    const end = start + content.length;
+    if (start < 0 || end > rawBytes.length) continue;
+    const inflatedRaw = await inflatePdfStream(rawBytes.slice(start, end));
+    if (inflatedRaw) chunks.push(extractPdfTextFromRaw(inflatedRaw));
   }
   return chunks.join('\n').replace(/\s+/g, ' ').trim();
 }
@@ -74,9 +100,21 @@ export async function POST(request) {
     if (file.type !== 'application/pdf') return NextResponse.json({ ok: false, error: 'Apenas PDF (application/pdf) é aceito.' }, { status: 400 });
     if (file.size > MAX_PDF_SIZE_BYTES) return NextResponse.json({ ok: false, error: 'PDF excede o limite de 15MB.' }, { status: 400 });
 
-    const bytes = await file.arrayBuffer(); const text = extractPdfText(bytes); const extractedData = buildExtraction(text); const missingFields = validateMinimum(extractedData); const extractionConfidence = !text ? 'low' : (missingFields.length <= 2 ? 'medium' : 'high');
+    const bytes = await file.arrayBuffer();
+    const text = await extractPdfText(bytes);
+    const extractedData = buildExtraction(text);
+    const missingFields = validateMinimum(extractedData);
+    const extractionConfidence = !text ? 0 : (missingFields.length <= 2 ? 0.9 : 0.7);
+    console.info('[IMPORT_FROM_CONTRACT_API] extraction', {
+      fileName: file.name,
+      fileSize: file.size,
+      textLength: text.length,
+      firstTextSample: text.slice(0, 300),
+      extractionMethod: 'pdf_stream_tj_tj_with_deflate_fallback',
+      missingFields,
+    });
     if (mode === 'extract') {
-      if (!text) return NextResponse.json({ ok: true, extractedData: {}, extractionConfidence: 'low', missingFields: ['text_unreadable'], message: 'Não foi possível ler automaticamente. Preencha manualmente.' });
+      if (!text) return NextResponse.json({ ok: true, extractedData: {}, extractionConfidence: 0, missingFields: ['text_unreadable'], warning: 'Não foi possível ler automaticamente. Preencha manualmente.' });
       return NextResponse.json({ ok: true, extractedData, extractionConfidence, missingFields });
     }
 

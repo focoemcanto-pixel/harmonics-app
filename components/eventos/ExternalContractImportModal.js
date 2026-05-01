@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { UploadCloud } from 'lucide-react';
 import { Field, Input } from '../admin/AdminFormPrimitives';
 import AppModal from '../ui/AppModal';
 import { supabase } from '@/lib/supabase';
@@ -40,8 +41,17 @@ export default function ExternalContractImportModal({ open, onClose, onImported,
   const [missingFields, setMissingFields] = useState([]);
   const [extractionConfidence, setExtractionConfidence] = useState(null);
   const [resultData, setResultData] = useState(null);
-
   const reviewedData = useMemo(() => extractedData || {}, [extractedData]);
+  const minimumMissingFields = useMemo(() => {
+    const missing = [];
+    if (!reviewedData.client_name) missing.push('client_name');
+    if (!reviewedData.event_type) missing.push('event_type');
+    if (!reviewedData.event_date) missing.push('event_date');
+    if (!reviewedData.event_time) missing.push('event_time');
+    if (!reviewedData.location_name) missing.push('location_name');
+    if (!reviewedData.agreed_amount && (!reviewedData.formation || !reviewedData.instruments)) missing.push('agreed_amount_or_formation_instruments');
+    return missing;
+  }, [reviewedData]);
 
   async function runImport(nextMode) {
     if (!importFile) {
@@ -73,7 +83,7 @@ export default function ExternalContractImportModal({ open, onClose, onImported,
         setExtractedData(payload.extractedData || {});
         setMissingFields(payload.missingFields || []);
         setExtractionConfidence(payload.extractionConfidence ?? null);
-        if (payload?.message) toast?.warning?.(payload.message);
+        if (payload?.warning) toast?.warning?.(payload.warning);
       } else {
         setResultData(payload);
         onImported?.(payload);
@@ -104,19 +114,27 @@ export default function ExternalContractImportModal({ open, onClose, onImported,
       footer={
         <div className="flex flex-wrap gap-2">
           <button type="button" disabled={loading} onClick={() => runImport('extract')} className="rounded-[12px] border px-3 py-2 text-sm font-bold disabled:opacity-50">Extrair dados</button>
-          <button type="button" disabled={loading || mode !== 'confirm'} onClick={() => runImport('confirm')} className="rounded-[12px] bg-violet-600 px-3 py-2 text-sm font-bold text-white disabled:opacity-50">Confirmar e criar evento com contrato externo</button>
+          <button type="button" disabled={loading || mode !== 'confirm' || minimumMissingFields.length > 0} onClick={() => runImport('confirm')} className="rounded-[12px] bg-violet-600 px-3 py-2 text-sm font-bold text-white disabled:opacity-50">Confirmar e criar evento com contrato externo</button>
         </div>
       }
     >
-      <input type="file" accept="application/pdf" onChange={(e) => setImportFile(e.target.files?.[0] || null)} />
+      <label className="block cursor-pointer rounded-[14px] border-2 border-dashed border-violet-200 bg-violet-50/40 p-6 text-center transition hover:border-violet-400 hover:bg-violet-50">
+        <input className="hidden" type="file" accept="application/pdf" onChange={(e) => setImportFile(e.target.files?.[0] || null)} />
+        <UploadCloud className="mx-auto mb-3 h-8 w-8 text-violet-500" />
+        <p className="text-sm font-semibold text-slate-800">Clique para selecionar o contrato em PDF</p>
+        <p className="mt-1 text-sm text-slate-500">ou arraste o arquivo aqui</p>
+        <p className="mt-1 text-xs text-slate-400">PDF até 15MB</p>
+        <span className="mt-3 inline-flex rounded-[10px] bg-violet-600 px-3 py-2 text-xs font-bold text-white">Selecionar PDF</span>
+      </label>
+      {importFile ? <p className="mt-2 text-sm text-slate-700">Arquivo selecionado: {importFile.name}</p> : null}
       {extractionConfidence !== null ? (
         <div className="mt-3 flex flex-wrap gap-2">
-          <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">Extraído automaticamente</span>
+          <span className={`rounded-full px-3 py-1 text-xs font-semibold ${Object.keys(extractedData || {}).length ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{Object.keys(extractedData || {}).length ? 'Dados encontrados automaticamente' : 'Preenchimento manual necessário'}</span>
           <span className="rounded-full bg-violet-100 px-3 py-1 text-xs font-semibold text-violet-700">Revise antes de criar o evento</span>
-          {missingFields?.length ? <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">Campos com baixa confiança</span> : null}
+          {missingFields?.length ? <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">Campos para revisar</span> : null}
         </div>
       ) : null}
-      {missingFields?.length ? <p className="mt-2 text-sm text-amber-700">Campos faltantes: {missingFields.join(', ')}</p> : null}
+      {missingFields?.length ? <p className="mt-2 text-sm text-amber-700">Campos para revisar: {missingFields.map((field) => (field === 'text_unreadable' ? 'Texto do PDF não pôde ser lido automaticamente' : field)).join(', ')}</p> : null}
       {error ? <p className="mt-2 text-sm text-rose-600">{error}</p> : null}
 
       <div className="mt-4 space-y-5">

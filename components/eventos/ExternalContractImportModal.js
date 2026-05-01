@@ -33,6 +33,18 @@ const FORM_SECTIONS = [
 ];
 
 export default function ExternalContractImportModal({ open, onClose, onImported, initialData, toast }) {
+  const toDisplayDateBr = (value) => {
+    const safe = String(value || '').trim();
+    const isoMatch = safe.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (isoMatch) return `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`;
+    return safe;
+  };
+  const toIsoDate = (value) => {
+    const safe = String(value || '').trim();
+    const brMatch = safe.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (brMatch) return `${brMatch[3]}-${brMatch[2]}-${brMatch[1]}`;
+    return safe;
+  };
   const [importFile, setImportFile] = useState(null);
   const [mode, setMode] = useState('extract');
   const [loading, setLoading] = useState(false);
@@ -157,7 +169,10 @@ export default function ExternalContractImportModal({ open, onClose, onImported,
                       <option value="false">Não</option>
                     </select>
                   ) : (
-                    <Input value={reviewedData[key] || ''} onChange={(e) => setExtractedData((prev) => ({ ...prev, [key]: e.target.value }))} />
+                    <Input
+                      value={key === 'event_date' ? toDisplayDateBr(reviewedData[key]) : (reviewedData[key] || '')}
+                      onChange={(e) => setExtractedData((prev) => ({ ...prev, [key]: key === 'event_date' ? toIsoDate(e.target.value) : e.target.value }))}
+                    />
                   )}
                 </Field>
               ))}

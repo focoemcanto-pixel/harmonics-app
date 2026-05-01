@@ -15,9 +15,7 @@ function normalizeExtractedText(text = '') {
     .trim();
 }
 async function extractPdfTextWithContractService(file) {
-  const contractServiceUrl = String(
-    process.env.CONTRACT_SERVICE_URL || process.env.NEXT_PUBLIC_CONTRACT_SERVICE_URL || ''
-  ).trim();
+  const contractServiceUrl = String(process.env.CONTRACT_SERVICE_URL || '').trim();
   const contractServiceApiKey = String(process.env.CONTRACT_SERVICE_API_KEY || '').trim();
 
   if (!contractServiceUrl || !contractServiceApiKey) {
@@ -102,7 +100,7 @@ export async function POST(request) {
     console.log('[PDF_TEXT_LENGTH]', text.length);
     console.log('[PDF_SAMPLE]', text.slice(0, 300));
     if (!text.length) {
-      return NextResponse.json({ ok: false, error: 'Falha ao ler conteúdo do PDF no servidor.' }, { status: 422 });
+      return NextResponse.json({ ok: false, message: 'Não foi possível extrair texto do PDF', extractionConfidence: 0 }, { status: 422 });
     }
     if (text.length < 100) {
       return NextResponse.json({

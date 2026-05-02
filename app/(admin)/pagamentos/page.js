@@ -60,6 +60,30 @@ function getPaymentTone(status) {
   return 'slate';
 }
 
+function isPastDate(dateValue) {
+  if (!dateValue) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const date = new Date(`${dateValue}T00:00:00`);
+  date.setHours(0, 0, 0, 0);
+  return date.getTime() < today.getTime();
+}
+
+function getPaymentVisualState(item) {
+  const normalized = String(item?.paymentStatus || '').trim().toLowerCase();
+  const eventPast = isPastDate(item?.event_date);
+
+  if (normalized === 'pago') return { label: 'Pago', tone: 'emerald', cardClass: 'border-emerald-300 bg-emerald-50/30' };
+  if (normalized === 'parcial') return eventPast
+    ? { label: 'Vencido', tone: 'amber', cardClass: 'border-amber-300 bg-amber-50/45' }
+    : { label: 'Parcial', tone: 'amber', cardClass: 'border-amber-200 bg-amber-50/25' };
+  if (normalized === 'pendente') return eventPast
+    ? { label: 'Vencido', tone: 'red', cardClass: 'border-red-300 bg-red-50/35' }
+    : { label: 'Pendente', tone: 'slate', cardClass: 'border-[#dbe3ef] bg-white' };
+
+  return { label: item?.paymentStatus || 'Pendente', tone: 'slate', cardClass: 'border-[#dbe3ef] bg-white' };
+}
+
 function getEntryTone(status) {
   const s = String(status || '').trim().toLowerCase();
   if (s === 'confirmado') return 'emerald';
@@ -1398,12 +1422,13 @@ function PagamentosPageContent() {
             ) : (
               pagamentosFiltrados.map((item) => {
                 const tone = getPaymentTone(item.paymentStatus);
+                const visualState = getPaymentVisualState(item);
                 const historicoAberto = String(historicoAbertoId) === String(item.id);
 
                 return (
                   <div
                     key={item.id}
-                    className="rounded-[24px] border border-[#dbe3ef] bg-white p-5 shadow-[0_8px_22px_rgba(17,24,39,0.04)]"
+                    className={`rounded-[24px] border p-5 shadow-[0_8px_22px_rgba(17,24,39,0.04)] ${visualState.cardClass}`}
                   >
                     <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                       <div className="min-w-0">
@@ -1416,6 +1441,10 @@ function PagamentosPageContent() {
                         </div>
 
                         <div className="mt-3 flex flex-wrap gap-2">
+                          <PaymentPill tone={visualState.tone}>
+                            {visualState.label}
+                          </PaymentPill>
+
                           <PaymentPill tone={tone}>
                             {item.paymentStatus}
                           </PaymentPill>

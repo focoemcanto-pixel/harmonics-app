@@ -5,6 +5,20 @@ import AdminSectionTitle from '../admin/AdminSectionTitle';
 import Pill from '../admin/AdminPill';
 import OperacaoContractInline from './OperacaoContractInline';
 
+function isEventPastDate(eventDate) {
+  if (!eventDate) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const event = new Date(`${eventDate}T00:00:00`);
+  event.setHours(0, 0, 0, 0);
+  return event.getTime() < today.getTime();
+}
+
+function isSettledPaymentStatus(status) {
+  const value = String(status || '').trim().toLowerCase();
+  return ['pago', 'paid', 'quitado', 'confirmado', 'confirmed'].includes(value);
+}
+
 export default function EventosOperacaoTab({
   eventosOperacionais,
   eventosOperacionaisFiltrados,
@@ -234,6 +248,10 @@ export default function EventosOperacaoTab({
             const pagamentoRecemAtualizado =
               ultimoPagamentoAtualizadoId === ev.id;
             const gerandoContrato = gerandoContratoId === ev.id;
+            const eventoPassado = isEventPastDate(ev.event_date);
+            const financeiroQuitado = isSettledPaymentStatus(ev.payment_status);
+            const posEventoPendente = eventoPassado && !financeiroQuitado;
+            const eventoConcluido = eventoPassado && financeiroQuitado;
 
             return (
               <div
@@ -242,14 +260,14 @@ export default function EventosOperacaoTab({
                   pagamentoRecemAtualizado
                     ? 'ring-2 ring-emerald-300 ring-offset-2'
                     : ''
-                } ${alerta.cardClass}`}
+                } ${eventoConcluido ? 'border-emerald-300 bg-emerald-50/40' : posEventoPendente ? 'border-amber-300 bg-amber-50/50' : alerta.cardClass}`}
               >
-                <div className={`h-1.5 w-full ${alerta.stripeClass}`} />
+                <div className={`h-1.5 w-full ${eventoConcluido ? 'bg-emerald-500' : posEventoPendente ? 'bg-amber-500' : alerta.stripeClass}`} />
 
                 <div className="px-4 pb-4 pt-3 md:px-5">
                   <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                     <span className="inline-flex items-center rounded-full border border-white/70 bg-white/85 px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-[#334155] backdrop-blur">
-                      {alerta.label}
+                      {eventoConcluido ? 'Concluído' : posEventoPendente ? 'Pós-evento pendente' : alerta.label}
                     </span>
 
                     <div className="flex flex-wrap gap-2">
@@ -379,6 +397,9 @@ export default function EventosOperacaoTab({
                         <div className="mt-3 flex flex-wrap gap-2">
                           <Pill tone={timeline.tone}>{timeline.text}</Pill>
 
+                          {eventoConcluido ? <Pill tone="emerald">Concluído</Pill> : null}
+                          {posEventoPendente ? <Pill tone="amber">Pós-evento pendente</Pill> : null}
+
                           <Pill tone={getOperationalTone(ev.status)}>
                             {`Status: ${ev.status || 'Rascunho'}`}
                           </Pill>
@@ -403,7 +424,7 @@ export default function EventosOperacaoTab({
                             <strong>Quitado:</strong>{' '}
                             {formatMoney(ev.paid_amount)}
                           </div>
-                          <div className="mt-1 font-semibold text-amber-600">
+                          <div className={`mt-1 font-semibold ${posEventoPendente ? 'text-red-600' : 'text-amber-600'}`}>
                             Em aberto: {formatMoney(ev.open_amount)}
                           </div>
                           <div className="mt-1 font-semibold text-emerald-600">

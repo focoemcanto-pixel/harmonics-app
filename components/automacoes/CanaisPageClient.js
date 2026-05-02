@@ -14,6 +14,7 @@ const FORM_INICIAL = {
   api_url: '',
   api_key: '',
   instance_id: '',
+  admin_alert_number: '',
   is_active: true,
   is_default: false,
 };
@@ -106,6 +107,7 @@ export default function CanaisPageClient() {
       api_url: canal.api_url || '',
       api_key: '',
       instance_id: canal.instance_id || '',
+      admin_alert_number: canal.admin_alert_number || '',
       is_active: canal.is_active !== false,
       is_default: canal.is_default === true,
     });
@@ -230,6 +232,7 @@ export default function CanaisPageClient() {
   const total = canais.length;
   const ativos = canais.filter((c) => c.is_active).length;
   const canalPadrao = canais.find((c) => c.is_default);
+  const adminConfigurado = Boolean(canalPadrao?.admin_alert_number);
 
   return (
     <div className="space-y-6">
@@ -249,6 +252,13 @@ export default function CanaisPageClient() {
         <AdminSummaryCard label="Total" value={carregando ? '–' : total} tone="default" />
         <AdminSummaryCard label="Ativos" value={carregando ? '–' : ativos} tone="success" />
         <AdminSummaryCard label="Canal padrão" value={carregando ? '–' : canalPadrao ? canalPadrao.name : '—'} tone="accent" />
+      </section>
+
+      <section className="rounded-[20px] border border-[#dbe3ef] bg-white px-5 py-4 text-[13px] text-[#475569]">
+        <span className="font-semibold">Status admin:</span>{' '}
+        <span className={adminConfigurado ? 'text-emerald-700 font-bold' : 'text-amber-700 font-bold'}>
+          {adminConfigurado ? 'Admin configurado' : 'Admin não configurado'}
+        </span>
       </section>
 
       {!carregando && !erro && canais.length === 0 && (
@@ -275,6 +285,7 @@ export default function CanaisPageClient() {
                     <div><span className="font-semibold">API URL:</span> {canal.api_url || '—'}</div>
                     <div><span className="font-semibold">API Key:</span> {canal.has_api_key ? '•••••••• configurada' : 'não configurada'}</div>
                     <div><span className="font-semibold">Instance ID:</span> {canal.instance_id || '—'}</div>
+                    <div><span className="font-semibold">WhatsApp do admin:</span> {canal.admin_alert_number || '—'}</div>
                   </div>
                   <div className="mt-2 text-[12px] text-[#94a3b8]">Criado em {formatarData(canal.created_at)}</div>
                 </div>
@@ -356,6 +367,11 @@ export default function CanaisPageClient() {
               <div>
                 <label className="block text-[13px] font-bold text-[#0f172a]">API Key {!editandoId && '*'}</label>
                 <input type="password" value={form.api_key} onChange={(e) => setForm((f) => ({ ...f, api_key: e.target.value }))} placeholder={editandoId ? 'Deixe em branco para manter' : ''} className="mt-1.5 w-full rounded-xl border border-[#e2e8f0] px-4 py-2.5 text-[14px]" />
+              </div>
+
+              <div>
+                <label className="block text-[13px] font-bold text-[#0f172a]">WhatsApp do admin para alertas do sistema</label>
+                <input type="tel" value={form.admin_alert_number} onChange={(e) => setForm((f) => ({ ...f, admin_alert_number: e.target.value }))} placeholder="+55 71 99999-9999" className="mt-1.5 w-full rounded-xl border border-[#e2e8f0] px-4 py-2.5 text-[14px]" />
               </div>
 
               <div>

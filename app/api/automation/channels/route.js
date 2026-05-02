@@ -6,6 +6,17 @@ import { requireAdmin } from '@/lib/api/require-admin';
 
 const SAVE_CHANNELS_AUDIT_VERSION = '2026-04-12-audit-v2';
 
+function normalizeAdminPhone(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  let digits = raw.replace(/[\s()\-]/g, '').replace(/\D/g, '');
+  if (!digits) return null;
+  if (!digits.startsWith('55') && (digits.length === 10 || digits.length === 11)) {
+    digits = `55${digits}`;
+  }
+  return digits;
+}
+
 async function requireChannelsAdmin(request, method) {
   const supabaseAdmin = getSupabaseAdmin();
 
@@ -109,7 +120,7 @@ export async function POST(request) {
       api_key: body.api_key ? String(body.api_key).trim() : null,
       instance_id: body.instance_id ? String(body.instance_id).trim() : null,
       sender_number: body.sender_number ? String(body.sender_number).trim() : null,
-      admin_alert_number: body.admin_alert_number ? String(body.admin_alert_number).trim() : null,
+      admin_alert_number: normalizeAdminPhone(body.admin_alert_number),
       is_active: body.is_active !== undefined ? body.is_active : true,
       is_default: isDefault,
     };

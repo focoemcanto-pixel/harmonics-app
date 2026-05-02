@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/api/require-admin';
 import { saveExternalContractForEvent } from '@/lib/contracts/external-contract-flow';
 import { sendAdminWhatsAppAlert } from '@/lib/whatsapp/send-admin-alert';
 import { extractContractDataWithAi } from '@/lib/contracts/ai-contract-extractor';
+import { createDefaultPaymentScheduleForEvent } from '@/lib/finance/create-payment-schedule';
 
 const MAX_PDF_SIZE_BYTES = 15 * 1024 * 1024;
 const parseMoney = (v) => Number(String(v || '0').replace(/\./g, '').replace(',', '.')) || 0;
@@ -203,9 +204,12 @@ function normalizeInstruments(value = '') {
   const normalized = String(value || '')
     .toLowerCase()
     .replace(/\bpianista\b/g, 'piano')
+    .replace(/\btecladista\b/g, 'teclado')
+    .replace(/\bteclado\b/g, 'teclado')
     .replace(/\bviolinista\b/g, 'violino')
     .replace(/\bviolonista\b/g, 'violão')
-    .replace(/\bvocalista\b/g, 'voz');
+    .replace(/\bvocalista\b/g, 'voz')
+    .replace(/\bcantor(?:a)?\b/g, 'voz');
   const items = normalized.split(/\s*,\s*|\s+e\s+/i).map((item) => item.trim()).filter(Boolean);
   const unique = [];
   items.forEach((item) => {
@@ -241,12 +245,13 @@ function normalizeFinalExtractedData(finalData = {}, text = '') {
 
   normalized.instruments = normalizeInstruments(normalized.instruments);
   const instrumentsArray = String(normalized.instruments || '').toLowerCase().split(/\s*,\s*|\s+e\s+/i).map((item) => item.trim()).filter(Boolean);
-  const instrumentCount = instrumentsArray.filter((item) => item !== 'voz').length;
-  const hasVoice = instrumentsArray.includes('voz');
-  if (!String(normalized.formation || '').trim() && hasVoice) {
-    if (instrumentCount === 3) normalized.formation = 'Quarteto';
-    if (instrumentCount === 2) normalized.formation = 'Trio';
-    if (instrumentCount === 1) normalized.formation = 'Duo';
+  const memberCount = instrumentsArray.length;
+  if (!String(normalized.formation || '').trim() && memberCount > 0) {
+    if (memberCount === 1) normalized.formation = 'Solo';
+    if (memberCount === 2) normalized.formation = 'Duo';
+    if (memberCount === 3) normalized.formation = 'Trio';
+    if (memberCount === 4) normalized.formation = 'Quarteto';
+    if (memberCount === 5) normalized.formation = 'Quinteto';
   }
   return normalized;
 }
@@ -347,10 +352,16 @@ export async function POST(request) {
     const normalized = canBypassAutoExtraction ? { ...reviewedData } : { ...finalData, ...reviewedData }; const missing = validateMinimum(normalized);
     if (missing.length) return NextResponse.json({ ok: false, error: 'Campos mínimos obrigatórios não confirmados.', missingFields: missing }, { status: 400 });
     const agreedAmount = parseMoney(normalized.agreed_amount);
-    const { data: event, error: eventError } = await supabase.from('events').insert({ client_name: String(normalized.client_name || '').trim(), event_type: normalized.event_type || null, event_date: normalized.event_date || null, event_time: normalized.event_time || null, duration_min: Number(normalized.duration_min || 60), location_name: normalized.location_name || normalized.location_address || null, location_address: normalized.location_address || null, formation: normalized.formation || null, instruments: normalized.instruments || null, reception_hours: Number(normalized.reception_hours || 0), has_sound: Boolean(normalized.has_sound), agreed_amount: agreedAmount, payment_status: 'Pendente', status: normalized.status || 'Confirmado', whatsapp_name: normalized.client_name || null, whatsapp_phone: normalized.whatsapp_phone || null, observations: normalized.observations || null, open_amount: agreedAmount, paid_amount: 0, costs_source: 'default' }).select('id, client_contact_id').single();
+    const { data: event, error: eventError } = await supabase.from('events').insert({ client_name: String(normalized.client_name || '').trim(), event_type: normalized.event_type || null, event_date: normalized.event_date || null, event_time: normalized.event_time || null, duration_min: Number(normalized.duration_min || 60), location_name: normalized.location_name || normalized.location_address || null, location_address: normalized.location_address || null, formation: normalized.formation || null, instruments: normalized.instruments || null, reception_hours: Number(normalized.reception_hours || 0), has_sound: Boolean(normalized.has_sound), agreed_amount: agreedAmount, payment_status: 'Pendente', status: normalized.status || 'Confirmado', whatsapp_name: normalized.client_name || null, whatsapp_phone: normalized.whatsapp_phone || null, observations: normalized.observations || null, open_amount: agreedAmount, paid_amount: 0, costs_source: 'default' }).select('id, client_contact_id, event_date').single();
     if (eventError) throw eventError;
+    const paymentScheduleResult = await createDefaultPaymentScheduleForEvent({
+      supabase,
+      eventId: event.id,
+      agreedAmount,
+      eventDate: event.event_date || normalized.event_date || null,
+    });
 
-    const result = await saveExternalContractForEvent({ supabase, eventId: event.id, file, contactId: event.client_contact_id, rawPayload: { external_contract: true, external_contract_source: 'admin_upload_from_event_creation', regex_extracted_contract_data: extractedData, final_extracted_contract_data: finalData, extracted_contract_data: finalData, ai_used: aiUsed, ai_model: aiModel, extraction_confidence: extractionConfidence, admin_reviewed_at: new Date().toISOString() } });
+    const result = await saveExternalContractForEvent({ supabase, eventId: event.id, file, contactId: event.client_contact_id, rawPayload: { external_contract: true, external_contract_source: 'admin_upload_from_event_creation', regex_extracted_contract_data: extractedData, final_extracted_contract_data: finalData, extracted_contract_data: finalData, ai_used: aiUsed, ai_model: aiModel, extraction_confidence: extractionConfidence, admin_reviewed_at: new Date().toISOString(), payment_schedule_created_at: paymentScheduleResult?.created > 0 ? new Date().toISOString() : null } });
     return NextResponse.json({ ok: true, eventId: event.id, contractId: result.contract.id, pdfUrl: result.pdfUrl, clientPanelLink: result.clientPanelLink });
   } catch (error) {
     await sendAdminWhatsAppAlert(`🚨 Erro crítico em import-from-contract: ${error?.message || 'erro desconhecido'}`);

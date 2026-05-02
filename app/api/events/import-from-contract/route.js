@@ -189,27 +189,21 @@ export async function POST(request) {
       });
     }
     const extractedData = buildExtraction(text);
-    const extractedFieldCount = Object.values(extractedData).filter((value) => {
-      if (typeof value === 'boolean') return value;
-      return Boolean(String(value || '').trim());
-    }).length;
-    const extractionStatus = pickStatus(extractedFieldCount);
-    const missingFields = validateMinimum(extractedData);
     const essentialMissingFields = getEssentialMissingFields(extractedData);
-    const extractionConfidence = missingFields.length <= 2 ? 90 : 70;
     const shouldUseAi = essentialMissingFields.length > 0;
     let aiUsed = false;
     let aiModel = null;
+    let aiResult = { aiData: {} };
     let finalData = extractedData;
     if (shouldUseAi) {
       try {
-        const aiResult = await extractContractDataWithAi({ text, missingFields: essentialMissingFields });
+        aiResult = await extractContractDataWithAi({ text, missingFields: essentialMissingFields });
         aiUsed = aiResult.aiUsed;
         aiModel = aiResult.model || null;
         if (aiUsed) {
           const merged = { ...extractedData };
           Object.keys(aiResult.aiData || {}).forEach((key) => {
-            const shouldFill = missingFields.includes(key) || !String(merged[key] ?? '').trim();
+            const shouldFill = essentialMissingFields.includes(key) || !String(merged[key] ?? '').trim();
             if (shouldFill && String(merged[key] ?? '').trim() === '') merged[key] = aiResult.aiData[key];
           });
           finalData = merged;
@@ -218,23 +212,42 @@ export async function POST(request) {
         await sendAdminWhatsAppAlert(`⚠️ Falha IA no import-from-contract: ${aiError?.message || 'erro desconhecido'}`);
       }
     }
+    const finalMissingFields = validateMinimum(finalData);
+    const finalEssentialMissingFields = getEssentialMissingFields(finalData);
+    const finalExtractedFieldCount = Object.values(finalData).filter((value) => {
+      if (typeof value === 'boolean') return value;
+      return Boolean(String(value || '').trim());
+    }).length;
+    const extractionStatus = pickStatus(finalExtractedFieldCount);
+    const extractionConfidence = finalMissingFields.length <= 2 ? 90 : 70;
+
+    console.info('[IMPORT_FROM_CONTRACT_AI]', {
+      shouldUseAi,
+      aiUsed,
+      aiModel,
+      essentialMissingFieldsBeforeAi: essentialMissingFields,
+      essentialMissingFieldsAfterAi: finalEssentialMissingFields,
+      aiReturnedKeys: Object.keys(aiResult.aiData || {}),
+    });
+
     console.info('[IMPORT_FROM_CONTRACT_API] extraction', {
       fileName: file.name,
       fileSize: file.size,
       textLength: text.length,
       firstTextSample: text.slice(0, 300),
       extractionMethod: 'contract_service_extract_pdf_text',
-      missingFields,
+      missingFields: finalMissingFields,
       aiUsed,
       model: aiModel,
       confidence: extractionConfidence,
     });
     if (mode === 'extract') {
-        const meetsMinimumAuto = ['client_name', 'event_date', 'event_time', 'event_type', 'location_name'].every((field) => Boolean(String(extractedData[field] || '').trim()));
-      if (!extractedFieldCount) {
-        return NextResponse.json({ ok: true, extractedData: {}, extractionConfidence: 0, missingFields, warning: 'Preenchimento manual necessário', extractionStatus: 'manual_required' });
+      const meetsMinimumAuto = ['client_name', 'event_date', 'event_time', 'event_type'].every((field) => Boolean(String(finalData[field] || '').trim()))
+        && (Boolean(String(finalData.location_name || '').trim()) || Boolean(String(finalData.location_address || '').trim()));
+      if (!finalExtractedFieldCount) {
+        return NextResponse.json({ ok: true, extractedData: {}, extractionConfidence: 0, missingFields: finalMissingFields, warning: 'Preenchimento manual necessário', extractionStatus: 'manual_required' });
       }
-      return NextResponse.json({ ok: true, extractedData: finalData, extractionMethod: aiUsed ? 'ai_fallback' : 'regex', aiUsed, confidence: extractionConfidence, extractionConfidence, missingFields, extractionStatus: text.length > 300 && meetsMinimumAuto ? extractionStatus : 'manual_required', warning: text.length > 300 && meetsMinimumAuto ? null : 'Preenchimento manual necessário' });
+      return NextResponse.json({ ok: true, extractedData: finalData, missingFields: finalMissingFields, extractionMethod: aiUsed ? 'ai_fallback' : 'regex', aiUsed, confidence: extractionConfidence, extractionConfidence, extractionStatus: text.length > 300 && meetsMinimumAuto ? extractionStatus : 'manual_required', warning: text.length > 300 && meetsMinimumAuto ? null : 'Preenchimento manual necessário' });
     }
 
     const reviewedData = JSON.parse(String(form.get('reviewedData') || '{}')); const normalized = { ...finalData, ...reviewedData }; const missing = validateMinimum(normalized);
@@ -243,7 +256,7 @@ export async function POST(request) {
     const { data: event, error: eventError } = await supabase.from('events').insert({ client_name: String(normalized.client_name || '').trim(), event_type: normalized.event_type || null, event_date: normalized.event_date || null, event_time: normalized.event_time || null, duration_min: Number(normalized.duration_min || 60), location_name: normalized.location_name || normalized.location_address || null, location_address: normalized.location_address || null, formation: normalized.formation || null, instruments: normalized.instruments || null, reception_hours: Number(normalized.reception_hours || 0), has_sound: Boolean(normalized.has_sound), agreed_amount: agreedAmount, payment_status: 'Pendente', status: normalized.status || 'Confirmado', whatsapp_name: normalized.client_name || null, whatsapp_phone: normalized.whatsapp_phone || null, observations: normalized.observations || null, open_amount: agreedAmount, paid_amount: 0, costs_source: 'default' }).select('id, client_contact_id').single();
     if (eventError) throw eventError;
 
-    const result = await saveExternalContractForEvent({ supabase, eventId: event.id, file, contactId: event.client_contact_id, rawPayload: { external_contract: true, external_contract_source: 'admin_upload_from_event_creation', extracted_contract_data: extractedData, extraction_confidence: extractionConfidence, admin_reviewed_at: new Date().toISOString() } });
+    const result = await saveExternalContractForEvent({ supabase, eventId: event.id, file, contactId: event.client_contact_id, rawPayload: { external_contract: true, external_contract_source: 'admin_upload_from_event_creation', regex_extracted_contract_data: extractedData, final_extracted_contract_data: finalData, extracted_contract_data: finalData, ai_used: aiUsed, ai_model: aiModel, extraction_confidence: extractionConfidence, admin_reviewed_at: new Date().toISOString() } });
     return NextResponse.json({ ok: true, eventId: event.id, contractId: result.contract.id, pdfUrl: result.pdfUrl, clientPanelLink: result.clientPanelLink });
   } catch (error) {
     await sendAdminWhatsAppAlert(`🚨 Erro crítico em import-from-contract: ${error?.message || 'erro desconhecido'}`);

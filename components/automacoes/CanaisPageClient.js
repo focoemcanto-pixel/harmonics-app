@@ -61,7 +61,6 @@ export default function CanaisPageClient() {
   const [telefoneTest, setTelefoneTest] = useState('');
   const [enviandoTeste, setEnviandoTeste] = useState(false);
   const [toastTest, setToastTest] = useState(null);
-  const [adminWhatsappPhone, setAdminWhatsappPhone] = useState('');
   const { confirm } = useConfirm() || {};
   const toast = useAppToast();
 
@@ -91,11 +90,6 @@ export default function CanaisPageClient() {
 
   useEffect(() => {
     carregarCanais();
-    (async () => {
-      const res = await fetch('/api/automation/admin-contact');
-      const payload = await res.json();
-      if (res.ok) setAdminWhatsappPhone(payload?.admin?.whatsapp_phone || '');
-    })();
   }, [carregarCanais]);
 
   function abrirModalNovo() {
@@ -186,20 +180,6 @@ export default function CanaisPageClient() {
     }
   }
 
-
-  async function salvarAdminWhatsapp() {
-    const response = await fetch('/api/automation/admin-contact', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ whatsapp_phone: adminWhatsappPhone }),
-    });
-    const data = await response.json();
-    if (!response.ok) {
-      toast.error(data.error || 'Erro ao salvar WhatsApp do admin');
-      return;
-    }
-    toast.success('WhatsApp do admin salvo com sucesso.');
-  }
   async function toggleAtivo(canalId, isActive) {
     const response = await fetch(`/api/automation/channels/${canalId}`, {
       method: 'PATCH',
@@ -254,16 +234,6 @@ export default function CanaisPageClient() {
   return (
     <div className="space-y-6">
       <AutomationBackLink />
-
-
-      <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-6 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
-        <h2 className="text-lg font-bold text-slate-900">WhatsApp do admin para alertas do sistema</h2>
-        <p className="text-sm text-slate-600 mt-1">Usado para contrato assinado, erros críticos, eventos sem assinatura e logs importantes.</p>
-        <div className="mt-3 flex gap-2">
-          <input value={adminWhatsappPhone} onChange={(e)=>setAdminWhatsappPhone(e.target.value)} placeholder="+55 71 99999-9999" className="w-full rounded-xl border border-slate-300 px-3 py-2" />
-          <button onClick={salvarAdminWhatsapp} className="rounded-xl bg-slate-900 px-4 py-2 text-white font-semibold">Salvar</button>
-        </div>
-      </section>
 
       <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-6 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">

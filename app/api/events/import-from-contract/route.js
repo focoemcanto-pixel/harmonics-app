@@ -163,6 +163,83 @@ function getEssentialMissingFields(data = {}) {
 }
 function validateMinimum(d) { const m=[]; if(!d.client_name)m.push('client_name'); if(!d.event_type)m.push('event_type'); if(!d.event_date)m.push('event_date'); if(!d.event_time)m.push('event_time'); if(!d.location_name)m.push('location_name'); if(!d.formation)m.push('formation'); if(!d.agreed_amount)m.push('agreed_amount'); return m; }
 
+function looksLikeFullAddress(value = '') {
+  const normalized = normalizeExtractedText(value);
+  if (!normalized) return false;
+  const hasStreetWord = /\b(rua|r\.|avenida|av\.?|rodovia|travessa|alameda|estrada|pra[cç]a)\b/i.test(normalized);
+  const hasNumber = /\b\d{1,6}\b/.test(normalized);
+  const hasCep = /\b\d{5}-?\d{3}\b/.test(normalized);
+  const hasCityUf = /\b[a-zà-úç\s]+\/[a-z]{2}\b/i.test(normalized);
+  const hasBairro = /\b(bairro|jd\.?|jardim|centro)\b/i.test(normalized);
+  return (hasStreetWord && hasNumber) || hasCep || hasCityUf || (hasStreetWord && hasBairro);
+}
+
+function splitAddressAndVenue(value = '') {
+  const cleaned = String(value || '').replace(/\s+/g, ' ').trim().replace(/[\.;]+$/, '');
+  if (!cleaned) return { location_name: '', location_address: '' };
+  const parts = cleaned.split(/\s+-\s+/).map((part) => part.trim()).filter(Boolean);
+  if (parts.length >= 2) {
+    const maybeAddress = parts.slice(0, -1).join(' - ').trim();
+    const maybeVenue = parts[parts.length - 1];
+    if (looksLikeFullAddress(maybeAddress) && !looksLikeFullAddress(maybeVenue)) {
+      return { location_address: maybeAddress, location_name: maybeVenue };
+    }
+  }
+  return { location_name: '', location_address: cleaned };
+}
+
+function normalizeInstruments(value = '') {
+  const normalized = String(value || '')
+    .toLowerCase()
+    .replace(/\bpianista\b/g, 'piano')
+    .replace(/\bviolinista\b/g, 'violino')
+    .replace(/\bviolonista\b/g, 'violão')
+    .replace(/\bvocalista\b/g, 'voz');
+  const items = normalized.split(/\s*,\s*|\s+e\s+/i).map((item) => item.trim()).filter(Boolean);
+  const unique = [];
+  items.forEach((item) => {
+    if (!unique.includes(item)) unique.push(item);
+  });
+  if (!unique.length) return '';
+  if (unique.length === 1) return unique[0].charAt(0).toUpperCase() + unique[0].slice(1);
+  const head = unique.slice(0, -1).join(', ');
+  const tail = unique[unique.length - 1];
+  return `${head.charAt(0).toUpperCase()}${head.slice(1)} e ${tail}`;
+}
+
+function normalizeFinalExtractedData(finalData = {}, text = '') {
+  const normalizedText = normalizeExtractedText(text);
+  const normalized = { ...finalData };
+
+  const locationName = String(normalized.location_name || '').trim();
+  const locationAddress = String(normalized.location_address || '').trim();
+  if (locationName && locationAddress && normalizeExtractedText(locationName) === normalizeExtractedText(locationAddress)) {
+    if (!looksLikeFullAddress(locationName)) {
+      normalized.location_name = locationName;
+      normalized.location_address = '';
+    } else {
+      const split = splitAddressAndVenue(locationName);
+      normalized.location_address = split.location_address;
+      normalized.location_name = split.location_name;
+    }
+  }
+
+  if (/\b(som\s+est[áa]\s+incluso|som\s+incluso|sistema\s+de\s+som\s+incluso|som\s+est[áa]\s+inclu[íi]do)\b/i.test(normalizedText)) {
+    normalized.has_sound = true;
+  }
+
+  normalized.instruments = normalizeInstruments(normalized.instruments);
+  const instrumentsArray = String(normalized.instruments || '').toLowerCase().split(/\s*,\s*|\s+e\s+/i).map((item) => item.trim()).filter(Boolean);
+  const instrumentCount = instrumentsArray.filter((item) => item !== 'voz').length;
+  const hasVoice = instrumentsArray.includes('voz');
+  if (!String(normalized.formation || '').trim() && hasVoice) {
+    if (instrumentCount === 3) normalized.formation = 'Quarteto';
+    if (instrumentCount === 2) normalized.formation = 'Trio';
+    if (instrumentCount === 1) normalized.formation = 'Duo';
+  }
+  return normalized;
+}
+
 export async function POST(request) {
   const supabase = getSupabaseAdmin();
   try {
@@ -212,6 +289,7 @@ export async function POST(request) {
         await sendAdminWhatsAppAlert(`⚠️ Falha IA no import-from-contract: ${aiError?.message || 'erro desconhecido'}`);
       }
     }
+    finalData = normalizeFinalExtractedData(finalData, text);
     const finalMissingFields = validateMinimum(finalData);
     const finalEssentialMissingFields = getEssentialMissingFields(finalData);
     const finalExtractedFieldCount = Object.values(finalData).filter((value) => {

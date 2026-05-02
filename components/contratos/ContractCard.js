@@ -196,7 +196,7 @@ export default function ContractCard({ item, onCopyLink, onDeleteContract, selec
               <input
                 type="checkbox"
                 checked={!!selected}
-                onChange={() => onToggleSelect?.(item.precontractId)}
+                onChange={() => onToggleSelect?.(item.stableId || item.precontractId)}
               />
               Selecionar
             </label>

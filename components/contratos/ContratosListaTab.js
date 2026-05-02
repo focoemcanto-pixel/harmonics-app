@@ -69,16 +69,19 @@ export default function ContratosListaTab({
         ) : null}
 
         {!carregando
-          ? contratosFiltrados.map((item) => (
-              <ContractCard
-                key={item.precontractId || item.contractId || item.token}
-                item={item}
-                onCopyLink={onCopyLink}
-                onDeleteContract={onDeleteContract}
-                selected={selectedSet?.has(String(item.precontractId))}
-                onToggleSelect={onToggleSelect}
-              />
-            ))
+          ? contratosFiltrados.map((item) => {
+              const stableId = item.precontractId || item.contractId || item.id;
+              return (
+                <ContractCard
+                  key={stableId || item.token}
+                  item={{ ...item, stableId }}
+                  onCopyLink={onCopyLink}
+                  onDeleteContract={onDeleteContract}
+                  selected={selectedSet?.has(String(stableId))}
+                  onToggleSelect={onToggleSelect}
+                />
+              );
+            })
           : null}
       </div>
     </section>

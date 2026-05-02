@@ -115,8 +115,13 @@ export default function ExternalContractImportModal({ open, onClose, onImported,
   const links = {
     event: resultData?.eventId ? `/eventos/${resultData.eventId}` : null,
     pdf: resultData?.contractPdfUrl || resultData?.pdfUrl || null,
-    panel: resultData?.panelLink || resultData?.adminLink || null,
+    panel: resultData?.clientPanelLink || resultData?.panelLink || resultData?.adminLink || null,
   };
+  const absolutePanelLink = links.panel
+    ? (links.panel.startsWith('http://') || links.panel.startsWith('https://')
+      ? links.panel
+      : `${window.location.origin}${links.panel}`)
+    : null;
   const extractedSummaryMessage = extractionStatus === 'auto'
     ? 'Dados encontrados automaticamente'
     : extractionStatus === 'partial'
@@ -183,11 +188,12 @@ export default function ExternalContractImportModal({ open, onClose, onImported,
 
       {resultData ? (
         <div className="mt-4 rounded-[14px] border border-emerald-200 bg-emerald-50 p-3 text-sm">
-          <p className="font-bold text-emerald-800">Importação concluída.</p>
+          <p className="font-bold text-emerald-800">Evento criado com sucesso.</p>
           <div className="mt-2 flex flex-wrap gap-3">
             {links.event ? <a className="font-semibold text-emerald-900 underline" href={links.event}>Ver evento</a> : null}
-            {links.pdf ? <a className="font-semibold text-emerald-900 underline" href={links.pdf} target="_blank" rel="noreferrer">Ver PDF</a> : null}
-            {links.panel ? <button type="button" className="font-semibold text-emerald-900 underline" onClick={() => navigator.clipboard?.writeText(links.panel)}>Copiar link do painel</button> : null}
+            {links.pdf ? <a className="font-semibold text-emerald-900 underline" href={links.pdf} target="_blank" rel="noreferrer">Ver PDF do contrato</a> : null}
+            {absolutePanelLink ? <button type="button" className="font-semibold text-emerald-900 underline" onClick={() => navigator.clipboard?.writeText(absolutePanelLink)}>Copiar link do painel do cliente</button> : null}
+            {absolutePanelLink ? <a className="font-semibold text-emerald-900 underline" href={absolutePanelLink} target="_blank" rel="noreferrer">Abrir painel do cliente</a> : null}
           </div>
         </div>
       ) : null}

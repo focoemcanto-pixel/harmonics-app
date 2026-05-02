@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requireAdmin } from '@/lib/api/require-admin';
 import { saveExternalContractForEvent } from '@/lib/contracts/external-contract-flow';
+import { getDefaultWorkspaceSettings } from '@/lib/automation/get-workspace';
+import { sendAdminWhatsAppAlert } from '@/lib/whatsapp/send-admin-alert';
 
 const MAX_PDF_SIZE_BYTES = 15 * 1024 * 1024;
 const parseMoney = (v) => Number(String(v || '0').replace(/\./g, '').replace(',', '.')) || 0;
@@ -147,6 +149,23 @@ function buildExtraction(text) {
 }
 function validateMinimum(d) { const m=[]; if(!d.client_name)m.push('client_name'); if(!d.event_type)m.push('event_type'); if(!d.event_date)m.push('event_date'); if(!d.event_time)m.push('event_time'); if(!d.location_name)m.push('location_name'); if(!d.formation)m.push('formation'); if(!d.agreed_amount)m.push('agreed_amount'); return m; }
 
+async function runAiFallback({ text, regexData, workspace }) {
+  if (!workspace?.ai_enabled || !workspace?.ai_api_key) return { aiUsed: false, aiData: {} };
+  const prompt = `Extraia os dados do contrato abaixo e retorne JSON válido:\n\n{\n  \"client_name\": \"\",\n  \"event_type\": \"\",\n  \"event_date\": \"YYYY-MM-DD\",\n  \"event_time\": \"HH:mm\",\n  \"location_name\": \"\",\n  \"location_address\": \"\",\n  \"formation\": \"\",\n  \"instruments\": \"\",\n  \"reception_hours\": 0,\n  \"has_sound\": false,\n  \"agreed_amount\": 0,\n  \"observations\": \"\"\n}\n\nRegras:\n- Usar dados da cláusula do objeto do contrato\n- Ignorar endereço do contratante\n- Ignorar endereço do contratado\n- Se não tiver certeza, deixar vazio\n- Retornar apenas JSON válido\n\nContrato:\n${text}`;
+  const res = await fetch('https://api.openai.com/v1/responses', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${workspace.ai_api_key}` },
+    body: JSON.stringify({ model: workspace.ai_model || 'gpt-4.1-mini', input: prompt }),
+  });
+  if (!res.ok) throw new Error('Falha na IA');
+  const payload = await res.json();
+  const raw = payload?.output_text || payload?.output?.[0]?.content?.[0]?.text || '{}';
+  const aiData = JSON.parse(raw);
+  const merged = { ...regexData };
+  Object.keys(aiData || {}).forEach((k) => { if (!String(merged[k] ?? '').trim()) merged[k] = aiData[k]; });
+  return { aiUsed: true, aiData, merged, model: workspace.ai_model || 'gpt-4.1-mini' };
+}
+
 export async function POST(request) {
   const supabase = getSupabaseAdmin();
   try {
@@ -173,13 +192,28 @@ export async function POST(request) {
       });
     }
     const extractedData = buildExtraction(text);
+    const workspace = await getDefaultWorkspaceSettings(supabase);
     const extractedFieldCount = Object.values(extractedData).filter((value) => {
       if (typeof value === 'boolean') return value;
       return Boolean(String(value || '').trim());
     }).length;
     const extractionStatus = pickStatus(extractedFieldCount);
     const missingFields = validateMinimum(extractedData);
-    const extractionConfidence = missingFields.length <= 2 ? 0.9 : 0.7;
+    const extractionConfidence = missingFields.length <= 2 ? 90 : 70;
+    const shouldUseAi = missingFields.length > 0 || extractionConfidence < 70;
+    let aiUsed = false;
+    let aiModel = null;
+    let finalData = extractedData;
+    if (shouldUseAi) {
+      try {
+        const aiResult = await runAiFallback({ text, regexData: extractedData, workspace });
+        aiUsed = aiResult.aiUsed;
+        aiModel = aiResult.model || null;
+        if (aiResult.merged) finalData = aiResult.merged;
+      } catch (aiError) {
+        await sendAdminWhatsAppAlert(`⚠️ Falha IA no import-from-contract: ${aiError?.message || 'erro desconhecido'}`);
+      }
+    }
     console.info('[IMPORT_FROM_CONTRACT_API] extraction', {
       fileName: file.name,
       fileSize: file.size,
@@ -187,16 +221,19 @@ export async function POST(request) {
       firstTextSample: text.slice(0, 300),
       extractionMethod: 'contract_service_extract_pdf_text',
       missingFields,
+      aiUsed,
+      model: aiModel,
+      confidence: extractionConfidence,
     });
     if (mode === 'extract') {
         const meetsMinimumAuto = ['client_name', 'event_date', 'event_time', 'event_type', 'location_name'].every((field) => Boolean(String(extractedData[field] || '').trim()));
       if (!extractedFieldCount) {
         return NextResponse.json({ ok: true, extractedData: {}, extractionConfidence: 0, missingFields, warning: 'Preenchimento manual necessário', extractionStatus: 'manual_required' });
       }
-      return NextResponse.json({ ok: true, extractedData, extractionConfidence, missingFields, extractionStatus: text.length > 300 && meetsMinimumAuto ? extractionStatus : 'manual_required', warning: text.length > 300 && meetsMinimumAuto ? null : 'Preenchimento manual necessário' });
+      return NextResponse.json({ ok: true, extractedData: finalData, extractionMethod: aiUsed ? 'ai_fallback' : 'regex', aiUsed, confidence: extractionConfidence, extractionConfidence, missingFields, extractionStatus: text.length > 300 && meetsMinimumAuto ? extractionStatus : 'manual_required', warning: text.length > 300 && meetsMinimumAuto ? null : 'Preenchimento manual necessário' });
     }
 
-    const reviewedData = JSON.parse(String(form.get('reviewedData') || '{}')); const normalized = { ...extractedData, ...reviewedData }; const missing = validateMinimum(normalized);
+    const reviewedData = JSON.parse(String(form.get('reviewedData') || '{}')); const normalized = { ...finalData, ...reviewedData }; const missing = validateMinimum(normalized);
     if (missing.length) return NextResponse.json({ ok: false, error: 'Campos mínimos obrigatórios não confirmados.', missingFields: missing }, { status: 400 });
     const agreedAmount = parseMoney(normalized.agreed_amount);
     const { data: event, error: eventError } = await supabase.from('events').insert({ client_name: String(normalized.client_name || '').trim(), event_type: normalized.event_type || null, event_date: normalized.event_date || null, event_time: normalized.event_time || null, duration_min: Number(normalized.duration_min || 60), location_name: normalized.location_name || normalized.location_address || null, location_address: normalized.location_address || null, formation: normalized.formation || null, instruments: normalized.instruments || null, reception_hours: Number(normalized.reception_hours || 0), has_sound: Boolean(normalized.has_sound), agreed_amount: agreedAmount, payment_status: 'Pendente', status: normalized.status || 'Confirmado', whatsapp_name: normalized.client_name || null, whatsapp_phone: normalized.whatsapp_phone || null, observations: normalized.observations || null, open_amount: agreedAmount, paid_amount: 0, costs_source: 'default' }).select('id, client_contact_id').single();
@@ -205,6 +242,7 @@ export async function POST(request) {
     const result = await saveExternalContractForEvent({ supabase, eventId: event.id, file, contactId: event.client_contact_id, rawPayload: { external_contract: true, external_contract_source: 'admin_upload_from_event_creation', extracted_contract_data: extractedData, extraction_confidence: extractionConfidence, admin_reviewed_at: new Date().toISOString() } });
     return NextResponse.json({ ok: true, eventId: event.id, contractId: result.contract.id, pdfUrl: result.pdfUrl, clientPanelLink: result.clientPanelLink });
   } catch (error) {
+    await sendAdminWhatsAppAlert(`🚨 Erro crítico em import-from-contract: ${error?.message || 'erro desconhecido'}`);
     return NextResponse.json({ ok: false, error: error?.message || 'Falha no fluxo de importação.' }, { status: error?.status || 500 });
   }
 }

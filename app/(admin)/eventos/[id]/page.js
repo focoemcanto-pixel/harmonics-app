@@ -197,13 +197,16 @@ export default function EventoDetalhePage() {
       context: 'admin-evento-detalhe.excluirEvento',
       message: 'Tem certeza que deseja excluir este evento?',
     });
-    const confirmed = await confirm?.({
+    const confirmedByDialog = await confirm?.({
       title: 'Excluir evento',
       description: 'Essa ação remove o evento permanentemente.',
       confirmText: 'Excluir evento',
       cancelText: 'Cancelar',
       tone: 'destructive',
     });
+    const confirmed = typeof confirmedByDialog === 'boolean'
+      ? confirmedByDialog
+      : window.confirm('Tem certeza que deseja excluir este evento? Essa ação é definitiva.');
     if (!confirmed) return;
 
     try {

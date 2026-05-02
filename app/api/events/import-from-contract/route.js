@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requireAdmin } from '@/lib/api/require-admin';
 import { saveExternalContractForEvent } from '@/lib/contracts/external-contract-flow';
-import { getDefaultWorkspaceSettings } from '@/lib/automation/get-workspace';
 import { sendAdminWhatsAppAlert } from '@/lib/whatsapp/send-admin-alert';
+import { extractContractDataWithAi } from '@/lib/contracts/ai-contract-extractor';
 
 const MAX_PDF_SIZE_BYTES = 15 * 1024 * 1024;
 const parseMoney = (v) => Number(String(v || '0').replace(/\./g, '').replace(',', '.')) || 0;
@@ -147,24 +147,21 @@ function buildExtraction(text) {
   console.log('[EXTRACTED_DATA]', extractedData);
   return extractedData;
 }
-function validateMinimum(d) { const m=[]; if(!d.client_name)m.push('client_name'); if(!d.event_type)m.push('event_type'); if(!d.event_date)m.push('event_date'); if(!d.event_time)m.push('event_time'); if(!d.location_name)m.push('location_name'); if(!d.formation)m.push('formation'); if(!d.agreed_amount)m.push('agreed_amount'); return m; }
 
-async function runAiFallback({ text, regexData, workspace }) {
-  if (!workspace?.ai_enabled || !workspace?.ai_api_key) return { aiUsed: false, aiData: {} };
-  const prompt = `Extraia os dados do contrato abaixo e retorne JSON válido:\n\n{\n  \"client_name\": \"\",\n  \"event_type\": \"\",\n  \"event_date\": \"YYYY-MM-DD\",\n  \"event_time\": \"HH:mm\",\n  \"location_name\": \"\",\n  \"location_address\": \"\",\n  \"formation\": \"\",\n  \"instruments\": \"\",\n  \"reception_hours\": 0,\n  \"has_sound\": false,\n  \"agreed_amount\": 0,\n  \"observations\": \"\"\n}\n\nRegras:\n- Usar dados da cláusula do objeto do contrato\n- Ignorar endereço do contratante\n- Ignorar endereço do contratado\n- Se não tiver certeza, deixar vazio\n- Retornar apenas JSON válido\n\nContrato:\n${text}`;
-  const res = await fetch('https://api.openai.com/v1/responses', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${workspace.ai_api_key}` },
-    body: JSON.stringify({ model: workspace.ai_model || 'gpt-4.1-mini', input: prompt }),
-  });
-  if (!res.ok) throw new Error('Falha na IA');
-  const payload = await res.json();
-  const raw = payload?.output_text || payload?.output?.[0]?.content?.[0]?.text || '{}';
-  const aiData = JSON.parse(raw);
-  const merged = { ...regexData };
-  Object.keys(aiData || {}).forEach((k) => { if (!String(merged[k] ?? '').trim()) merged[k] = aiData[k]; });
-  return { aiUsed: true, aiData, merged, model: workspace.ai_model || 'gpt-4.1-mini' };
+function getEssentialMissingFields(data = {}) {
+  const missing = [];
+  if (!String(data.event_type || '').trim()) missing.push('event_type');
+  if (!String(data.event_time || '').trim()) missing.push('event_time');
+  const hasLocationName = Boolean(String(data.location_name || '').trim());
+  const hasLocationAddress = Boolean(String(data.location_address || '').trim());
+  if (!hasLocationName && !hasLocationAddress) {
+    missing.push('location_name', 'location_address');
+  }
+  if (!String(data.formation || '').trim()) missing.push('formation');
+  if (!String(data.instruments || '').trim()) missing.push('instruments');
+  return missing;
 }
+function validateMinimum(d) { const m=[]; if(!d.client_name)m.push('client_name'); if(!d.event_type)m.push('event_type'); if(!d.event_date)m.push('event_date'); if(!d.event_time)m.push('event_time'); if(!d.location_name)m.push('location_name'); if(!d.formation)m.push('formation'); if(!d.agreed_amount)m.push('agreed_amount'); return m; }
 
 export async function POST(request) {
   const supabase = getSupabaseAdmin();
@@ -192,24 +189,31 @@ export async function POST(request) {
       });
     }
     const extractedData = buildExtraction(text);
-    const workspace = await getDefaultWorkspaceSettings(supabase);
     const extractedFieldCount = Object.values(extractedData).filter((value) => {
       if (typeof value === 'boolean') return value;
       return Boolean(String(value || '').trim());
     }).length;
     const extractionStatus = pickStatus(extractedFieldCount);
     const missingFields = validateMinimum(extractedData);
+    const essentialMissingFields = getEssentialMissingFields(extractedData);
     const extractionConfidence = missingFields.length <= 2 ? 90 : 70;
-    const shouldUseAi = missingFields.length > 0 || extractionConfidence < 70;
+    const shouldUseAi = essentialMissingFields.length > 0;
     let aiUsed = false;
     let aiModel = null;
     let finalData = extractedData;
     if (shouldUseAi) {
       try {
-        const aiResult = await runAiFallback({ text, regexData: extractedData, workspace });
+        const aiResult = await extractContractDataWithAi({ text, missingFields: essentialMissingFields });
         aiUsed = aiResult.aiUsed;
         aiModel = aiResult.model || null;
-        if (aiResult.merged) finalData = aiResult.merged;
+        if (aiUsed) {
+          const merged = { ...extractedData };
+          Object.keys(aiResult.aiData || {}).forEach((key) => {
+            const shouldFill = missingFields.includes(key) || !String(merged[key] ?? '').trim();
+            if (shouldFill && String(merged[key] ?? '').trim() === '') merged[key] = aiResult.aiData[key];
+          });
+          finalData = merged;
+        }
       } catch (aiError) {
         await sendAdminWhatsAppAlert(`⚠️ Falha IA no import-from-contract: ${aiError?.message || 'erro desconhecido'}`);
       }

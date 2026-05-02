@@ -161,7 +161,18 @@ function getEssentialMissingFields(data = {}) {
   if (!String(data.instruments || '').trim()) missing.push('instruments');
   return missing;
 }
-function validateMinimum(d) { const m=[]; if(!d.client_name)m.push('client_name'); if(!d.event_type)m.push('event_type'); if(!d.event_date)m.push('event_date'); if(!d.event_time)m.push('event_time'); if(!d.location_name)m.push('location_name'); if(!d.formation)m.push('formation'); if(!d.agreed_amount)m.push('agreed_amount'); return m; }
+function validateMinimum(d) {
+  const m = [];
+  if (!String(d.client_name || '').trim()) m.push('client_name');
+  if (!String(d.event_type || '').trim()) m.push('event_type');
+  if (!String(d.event_date || '').trim()) m.push('event_date');
+  if (!String(d.event_time || '').trim()) m.push('event_time');
+  if (!String(d.location_name || '').trim() && !String(d.location_address || '').trim()) m.push('location_name_or_address');
+  const hasAmount = Boolean(String(d.agreed_amount || '').trim());
+  const hasFormationAndInstruments = Boolean(String(d.formation || '').trim()) && Boolean(String(d.instruments || '').trim());
+  if (!hasAmount && !hasFormationAndInstruments) m.push('agreed_amount_or_formation_instruments');
+  return m;
+}
 
 function looksLikeFullAddress(value = '') {
   const normalized = normalizeExtractedText(value);
@@ -250,29 +261,34 @@ export async function POST(request) {
     if (file.type !== 'application/pdf') return NextResponse.json({ ok: false, error: 'Apenas PDF (application/pdf) é aceito.' }, { status: 400 });
     if (file.size > MAX_PDF_SIZE_BYTES) return NextResponse.json({ ok: false, error: 'PDF excede o limite de 15MB.' }, { status: 400 });
 
+    const reviewedData = JSON.parse(String(form.get('reviewedData') || '{}'));
+
     console.log('FILE SIZE:', file.size);
     console.log('FILE TYPE:', file.type);
-    const text = await extractPdfTextWithContractService(file);
+    const manualMinimumMissing = validateMinimum(reviewedData || {});
+    const canBypassAutoExtraction = mode === 'confirm' && manualMinimumMissing.length === 0;
+
+    const text = canBypassAutoExtraction ? '' : await extractPdfTextWithContractService(file);
     console.log('[PDF_TEXT_LENGTH]', text.length);
     console.log('[PDF_SAMPLE]', text.slice(0, 300));
-    if (!text.length) {
+    if (!canBypassAutoExtraction && !text.length) {
       return NextResponse.json({ ok: false, message: 'Não foi possível extrair texto do PDF', extractionConfidence: 0 }, { status: 422 });
     }
-    if (text.length < 100) {
+    if (!canBypassAutoExtraction && text.length < 100) {
       return NextResponse.json({
         ok: false,
         message: 'Não foi possível identificar dados automaticamente. Preencha manualmente.',
         extractionConfidence: 0,
       });
     }
-    const extractedData = buildExtraction(text);
+    const extractedData = canBypassAutoExtraction ? {} : buildExtraction(text);
     const essentialMissingFields = getEssentialMissingFields(extractedData);
     const shouldUseAi = essentialMissingFields.length > 0;
     let aiUsed = false;
     let aiModel = null;
     let aiResult = { aiData: {} };
     let finalData = extractedData;
-    if (shouldUseAi) {
+    if (!canBypassAutoExtraction && shouldUseAi) {
       try {
         aiResult = await extractContractDataWithAi({ text, missingFields: essentialMissingFields });
         aiUsed = aiResult.aiUsed;
@@ -289,7 +305,7 @@ export async function POST(request) {
         await sendAdminWhatsAppAlert(`⚠️ Falha IA no import-from-contract: ${aiError?.message || 'erro desconhecido'}`);
       }
     }
-    finalData = normalizeFinalExtractedData(finalData, text);
+    finalData = canBypassAutoExtraction ? finalData : normalizeFinalExtractedData(finalData, text);
     const finalMissingFields = validateMinimum(finalData);
     const finalEssentialMissingFields = getEssentialMissingFields(finalData);
     const finalExtractedFieldCount = Object.values(finalData).filter((value) => {
@@ -328,7 +344,7 @@ export async function POST(request) {
       return NextResponse.json({ ok: true, extractedData: finalData, missingFields: finalMissingFields, extractionMethod: aiUsed ? 'ai_fallback' : 'regex', aiUsed, confidence: extractionConfidence, extractionConfidence, extractionStatus: text.length > 300 && meetsMinimumAuto ? extractionStatus : 'manual_required', warning: text.length > 300 && meetsMinimumAuto ? null : 'Preenchimento manual necessário' });
     }
 
-    const reviewedData = JSON.parse(String(form.get('reviewedData') || '{}')); const normalized = { ...finalData, ...reviewedData }; const missing = validateMinimum(normalized);
+    const normalized = canBypassAutoExtraction ? { ...reviewedData } : { ...finalData, ...reviewedData }; const missing = validateMinimum(normalized);
     if (missing.length) return NextResponse.json({ ok: false, error: 'Campos mínimos obrigatórios não confirmados.', missingFields: missing }, { status: 400 });
     const agreedAmount = parseMoney(normalized.agreed_amount);
     const { data: event, error: eventError } = await supabase.from('events').insert({ client_name: String(normalized.client_name || '').trim(), event_type: normalized.event_type || null, event_date: normalized.event_date || null, event_time: normalized.event_time || null, duration_min: Number(normalized.duration_min || 60), location_name: normalized.location_name || normalized.location_address || null, location_address: normalized.location_address || null, formation: normalized.formation || null, instruments: normalized.instruments || null, reception_hours: Number(normalized.reception_hours || 0), has_sound: Boolean(normalized.has_sound), agreed_amount: agreedAmount, payment_status: 'Pendente', status: normalized.status || 'Confirmado', whatsapp_name: normalized.client_name || null, whatsapp_phone: normalized.whatsapp_phone || null, observations: normalized.observations || null, open_amount: agreedAmount, paid_amount: 0, costs_source: 'default' }).select('id, client_contact_id').single();

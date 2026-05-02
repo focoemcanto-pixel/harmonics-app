@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { UploadCloud } from 'lucide-react';
 import { Field, Input } from '../admin/AdminFormPrimitives';
 import AppModal from '../ui/AppModal';
@@ -54,6 +54,8 @@ export default function ExternalContractImportModal({ open, onClose, onImported,
   const [extractionConfidence, setExtractionConfidence] = useState(null);
   const [extractionStatus, setExtractionStatus] = useState('');
   const [resultData, setResultData] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState('');
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const reviewedData = useMemo(() => extractedData || {}, [extractedData]);
   const minimumMissingFields = useMemo(() => {
     const missing = [];
@@ -65,6 +67,16 @@ export default function ExternalContractImportModal({ open, onClose, onImported,
     if (!reviewedData.agreed_amount && (!reviewedData.formation || !reviewedData.instruments)) missing.push('agreed_amount_or_formation_instruments');
     return missing;
   }, [reviewedData]);
+
+  useEffect(() => {
+    if (!importFile) {
+      setPreviewUrl('');
+      return undefined;
+    }
+    const url = URL.createObjectURL(importFile);
+    setPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [importFile]);
 
   async function runImport(nextMode) {
     if (!importFile) {
@@ -137,13 +149,23 @@ export default function ExternalContractImportModal({ open, onClose, onImported,
       maxWidthClass="max-w-3xl"
       footer={
         <div className="flex flex-wrap gap-2">
-          <button type="button" disabled={loading} onClick={() => runImport('extract')} className="rounded-[12px] border px-3 py-2 text-sm font-bold disabled:opacity-50">Extrair dados</button>
+          <button type="button" disabled={loading} onClick={() => runImport('extract')} className="rounded-[12px] border px-3 py-2 text-sm font-bold disabled:opacity-50">Extrair dados automaticamente</button>
           <button type="button" disabled={loading || mode !== 'confirm' || minimumMissingFields.length > 0} onClick={() => runImport('confirm')} className="rounded-[12px] bg-violet-600 px-3 py-2 text-sm font-bold text-white disabled:opacity-50">Confirmar e criar evento com contrato externo</button>
         </div>
       }
     >
       <label className="block cursor-pointer rounded-[14px] border-2 border-dashed border-violet-200 bg-violet-50/40 p-6 text-center transition hover:border-violet-400 hover:bg-violet-50">
-        <input className="hidden" type="file" accept="application/pdf" onChange={(e) => setImportFile(e.target.files?.[0] || null)} />
+        <input className="hidden" type="file" accept="application/pdf" onChange={(e) => {
+          setImportFile(e.target.files?.[0] || null);
+          setIsPreviewOpen(false);
+          setMode('extract');
+          setExtractionStatus('');
+          setExtractionConfidence(null);
+          setMissingFields([]);
+          setExtractedData({});
+          setResultData(null);
+          setError('');
+        }} />
         <UploadCloud className="mx-auto mb-3 h-8 w-8 text-violet-500" />
         <p className="text-sm font-semibold text-slate-800">Clique para selecionar o contrato em PDF</p>
         <p className="mt-1 text-sm text-slate-500">ou arraste o arquivo aqui</p>
@@ -151,6 +173,20 @@ export default function ExternalContractImportModal({ open, onClose, onImported,
         <span className="mt-3 inline-flex rounded-[10px] bg-violet-600 px-3 py-2 text-xs font-bold text-white">Selecionar PDF</span>
       </label>
       {importFile ? <p className="mt-2 text-sm text-slate-700">Arquivo selecionado: {importFile.name}</p> : null}
+      {importFile ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button type="button" className="rounded-[12px] border px-3 py-2 text-sm font-bold" onClick={() => setIsPreviewOpen(true)}>Visualizar contrato</button>
+          <button type="button" disabled={loading} className="rounded-[12px] border px-3 py-2 text-sm font-bold disabled:opacity-50" onClick={() => runImport('extract')}>Extrair dados automaticamente</button>
+          <button type="button" disabled={loading} className="rounded-[12px] border px-3 py-2 text-sm font-bold disabled:opacity-50" onClick={() => {
+            setMode('confirm');
+            setMissingFields([]);
+            setExtractionStatus('manual');
+            setExtractionConfidence(null);
+            setExtractedData({});
+            setError('');
+          }}>Preencher manualmente</button>
+        </div>
+      ) : null}
       {extractionConfidence !== null ? (
         <div className="mt-3 flex flex-wrap gap-2">
           <span className={`rounded-full px-3 py-1 text-xs font-semibold ${extractionStatus === 'auto' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{extractedSummaryMessage}</span>
@@ -199,6 +235,18 @@ export default function ExternalContractImportModal({ open, onClose, onImported,
       ) : null}
 
       {loading ? <p className="mt-3 text-sm text-slate-500">Processando...</p> : null}
+
+      {isPreviewOpen && previewUrl ? (
+        <div className="fixed inset-0 z-[120] bg-black/50 p-4">
+          <div className="mx-auto flex h-full w-full max-w-5xl flex-col rounded-[14px] bg-white p-3">
+            <div className="mb-2 flex items-center justify-between">
+              <h4 className="text-sm font-bold text-slate-800">Preview do contrato</h4>
+              <button type="button" className="rounded-[10px] border px-3 py-2 text-xs font-bold" onClick={() => setIsPreviewOpen(false)}>Fechar preview</button>
+            </div>
+            <iframe title="Preview do contrato em PDF" src={previewUrl} className="h-full w-full rounded-[10px] border" />
+          </div>
+        </div>
+      ) : null}
     </AppModal>
   );
 }

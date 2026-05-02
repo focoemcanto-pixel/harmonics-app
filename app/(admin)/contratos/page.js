@@ -117,7 +117,7 @@ export default function ContratosPage() {
         id: pre.id,
         token: resolvedToken,
         precontractId: pre.id,
-        contractId: contract?.id || null,
+        contractId: contract.id,
         eventoId: contract?.event_id || pre?.event_id || null,
         clienteNome,
         eventoTitulo,
@@ -148,7 +148,7 @@ export default function ContratosPage() {
         id: `external-${contract.id}`,
         token: contract?.public_token || '',
         precontractId: null,
-        contractId: contract?.id || null,
+        contractId: contract.id,
         eventoId: contract?.event_id || null,
         clienteNome: 'Cliente (evento manual)',
         eventoTitulo: 'Contrato externo',
@@ -169,7 +169,7 @@ export default function ContratosPage() {
         docUrl: contract?.doc_url || '',
         contractModelLabel: 'Contrato externo',
         contractModelTone: 'amber',
-        isExternal: contract?.raw_payload?.external_contract_source === true || !contract?.precontract_id,
+        isExternal: true,
       }));
 
     return [...externalContracts, ...fromPrecontracts];
@@ -270,6 +270,10 @@ export default function ContratosPage() {
   }
 
   function onDeleteContract(item) {
+    if (isExternalContract(item) && !item?.contractId) {
+      toast.error('Contrato externo sem ID. Atualize a página e tente novamente.');
+      return;
+    }
     if (!item?.precontractId && !item?.contractId) return;
     setDeleteDialog({ open: true, item });
   }
@@ -282,7 +286,7 @@ export default function ContratosPage() {
       setDeletingSingle(true);
 
       if (isExternalContract(item)) {
-        if (!item?.contractId) throw new Error('Contrato externo sem identificador.');
+        if (!item?.contractId) throw new Error('Contrato externo sem ID.');
 
         const response = await fetch(`/api/contracts/${encodeURIComponent(item.contractId)}`, {
           method: 'DELETE',

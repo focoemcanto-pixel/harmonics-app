@@ -4,6 +4,17 @@ import { getDefaultWorkspaceSettings } from '@/lib/automation/get-workspace';
 
 const SAVE_CHANNELS_AUDIT_VERSION = '2026-04-12-audit-v2';
 
+function normalizeAdminPhone(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  let digits = raw.replace(/[\s()\-]/g, '').replace(/\D/g, '');
+  if (!digits) return null;
+  if (!digits.startsWith('55') && (digits.length === 10 || digits.length === 11)) {
+    digits = `55${digits}`;
+  }
+  return digits;
+}
+
 export async function PATCH(request, { params }) {
   try {
     const { id } = await params;
@@ -61,7 +72,7 @@ export async function PATCH(request, { params }) {
     if (updates.api_key !== undefined) updates.api_key = updates.api_key ? String(updates.api_key).trim() : null;
     if (updates.instance_id !== undefined) updates.instance_id = updates.instance_id ? String(updates.instance_id).trim() : null;
     if (updates.sender_number !== undefined) updates.sender_number = updates.sender_number ? String(updates.sender_number).trim() : null;
-    if (updates.admin_alert_number !== undefined) updates.admin_alert_number = updates.admin_alert_number ? String(updates.admin_alert_number).trim() : null;
+    if (updates.admin_alert_number !== undefined) updates.admin_alert_number = normalizeAdminPhone(updates.admin_alert_number);
 
     updates.workspace_id = workspace.id;
 

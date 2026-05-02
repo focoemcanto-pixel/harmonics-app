@@ -26,7 +26,7 @@ const ADMIN_LIST_LIMIT = 100;
 const PRECONTRACTS_SELECT_FIELDS =
   'id, created_at, event_id, client_name, event_type, event_date, location_name, client_phone, status, notes, public_token, custom_contract_enabled, contract_mode';
 const CONTRACTS_SELECT_FIELDS =
-  'id, created_at, precontract_id, event_id, status, signed_at, pdf_url, doc_url, public_token';
+  'id, created_at, precontract_id, event_id, status, signed_at, pdf_url, doc_url, public_token, raw_payload';
 const CONTRATOS_CACHE_TTL_MS = 60 * 1000;
 let contratosAdminCache = [];
 
@@ -83,6 +83,7 @@ export default function ContratosPage() {
   const [deleteDialog, setDeleteDialog] = useState({ open: false, item: null });
   const { selectedIds, selectedSet, clear, toggle, toggleAll } = useMultiSelect();
   const { loading: deletingMany, run: runBulkDelete } = useBulkDelete();
+  const [deletingSingle, setDeletingSingle] = useState(false);
 
   const mobileTabs = [
     { key: 'resumo', label: 'Resumo' },
@@ -168,6 +169,7 @@ export default function ContratosPage() {
         docUrl: contract?.doc_url || '',
         contractModelLabel: 'Contrato externo',
         contractModelTone: 'amber',
+        isExternal: contract?.raw_payload?.external_contract_source === true || !contract?.precontract_id,
       }));
 
     return [...externalContracts, ...fromPrecontracts];
@@ -263,34 +265,57 @@ export default function ContratosPage() {
     }
   }
 
+  function isExternalContract(item) {
+    return !item?.precontractId || item?.isExternal === true;
+  }
+
   function onDeleteContract(item) {
-    if (!item?.precontractId) return;
+    if (!item?.precontractId && !item?.contractId) return;
     setDeleteDialog({ open: true, item });
   }
 
   async function confirmDeleteContract() {
     const item = deleteDialog.item;
-    if (!item?.precontractId) return;
+    if (!item) return;
 
     try {
-      const result = await runBulkDelete({
-        endpoint: '/api/contracts/delete-many',
-        idsKey: 'precontractIds',
-        ids: [item.precontractId],
-      });
+      setDeletingSingle(true);
 
-      if (!result?.ok) {
-        throw new Error(result?.error || 'Falha ao excluir contrato.');
+      if (isExternalContract(item)) {
+        if (!item?.contractId) throw new Error('Contrato externo sem identificador.');
+
+        const response = await fetch(`/api/contracts/${encodeURIComponent(item.contractId)}`, {
+          method: 'DELETE',
+        });
+        const result = await response.json().catch(() => ({}));
+
+        if (!response.ok || !result?.ok) {
+          throw new Error(result?.error || 'Falha ao excluir contrato externo.');
+        }
+
+        setContratos((prev) => prev.filter((entry) => String(entry.contractId) !== String(item.contractId)));
+      } else {
+        const result = await runBulkDelete({
+          endpoint: '/api/contracts/delete-many',
+          idsKey: 'precontractIds',
+          ids: [item.precontractId],
+        });
+
+        if (!result?.ok) {
+          throw new Error(result?.error || 'Falha ao excluir contrato.');
+        }
+
+        setContratos((prev) =>
+          prev.filter((entry) => String(entry.precontractId) !== String(item.precontractId))
+        );
       }
 
-      setContratos((prev) =>
-        prev.filter((entry) => String(entry.precontractId) !== String(item.precontractId))
-      );
       toast.success('Contrato removido com sucesso.');
     } catch (error) {
       console.error('Erro ao remover contrato:', error);
-      toast.error('Não foi possível remover o contrato.');
+      toast.error(error?.message || 'Não foi possível remover o contrato.');
     } finally {
+      setDeletingSingle(false);
       setDeleteDialog({ open: false, item: null });
     }
   }
@@ -503,10 +528,10 @@ export default function ContratosPage() {
       />
       <DeleteConfirmModal
         open={deleteDialog.open}
-        loading={deletingMany}
         title={`Excluir contrato de ${deleteDialog.item?.clienteNome || 'cliente'}?`}
         description="O contrato selecionado será removido sem apagar o evento."
         confirmLabel="Excluir contrato"
+        loading={deletingSingle}
         onCancel={() => setDeleteDialog({ open: false, item: null })}
         onConfirm={confirmDeleteContract}
       />

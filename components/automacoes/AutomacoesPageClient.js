@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { cachedPromise, invalidateCache, readCachedValue } from '@/lib/client/light-cache';
 import { reportError } from '@/lib/observability/client-log';
+import { useAppToast } from '@/components/ui/ToastProvider';
 
 const DASHBOARD_CACHE_KEY = 'automation:dashboard';
 const DASHBOARD_TTL_MS = 45_000;
@@ -287,6 +288,7 @@ function SetupCtas({ onboarding }) {
 }
 
 export default function AutomacoesPageClient() {
+  const toast = useAppToast();
   const [data, setData] = useState(() => readCachedValue(DASHBOARD_CACHE_KEY) ?? null);
   const [loading, setLoading] = useState(() => !readCachedValue(DASHBOARD_CACHE_KEY));
   const [refreshing, setRefreshing] = useState(false);
@@ -360,14 +362,36 @@ export default function AutomacoesPageClient() {
     saveDismissedAlerts(nextValue);
   }
 
-  function clearVisualAlerts() {
+  const summary = data?.summary ?? {};
+  const rawAlerts = useMemo(() => (data ? buildFrontendAlerts(data) : []), [data]);
+  const alerts = useMemo(() => rawAlerts.filter((alert) => !dismissedAlerts?.[alert.dismissKey]), [rawAlerts, dismissedAlerts]);
+  const hasHiddenAlerts = useMemo(
+    () => rawAlerts.some((alert) => alert.dismissKey && dismissedAlerts?.[alert.dismissKey]),
+    [rawAlerts, dismissedAlerts]
+  );
+
+  function hideVisualAlerts() {
+    const dismissibleAlertKeys = rawAlerts
+      .map((alert) => alert.dismissKey)
+      .filter(Boolean);
+
+    if (dismissibleAlertKeys.length === 0) return;
+
+    const nextValue = { ...dismissedAlerts };
+    dismissibleAlertKeys.forEach((dismissKey) => {
+      nextValue[dismissKey] = true;
+    });
+
+    setDismissedAlerts(nextValue);
+    saveDismissedAlerts(nextValue);
+    toast.success('Alertas visuais ocultados.');
+  }
+
+  function restoreHiddenAlerts() {
     setDismissedAlerts({});
     if (typeof window !== 'undefined') window.localStorage.removeItem(DISMISSED_ALERTS_KEY);
   }
 
-  const summary = data?.summary ?? {};
-  const rawAlerts = useMemo(() => (data ? buildFrontendAlerts(data) : []), [data]);
-  const alerts = useMemo(() => rawAlerts.filter((alert) => !dismissedAlerts?.[alert.dismissKey]), [rawAlerts, dismissedAlerts]);
   const failures = data?.recent_failures ?? [];
   const systemState = data?.system_state;
   const hasRealErrors = rawAlerts.length > 0;
@@ -384,11 +408,20 @@ export default function AutomacoesPageClient() {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={clearVisualAlerts}
+              onClick={hideVisualAlerts}
               className="rounded-[14px] border border-amber-200 bg-amber-50 px-4 py-2 text-[12px] font-semibold text-amber-800"
             >
-              Limpar alertas visuais
+              Ocultar alertas visuais
             </button>
+            {hasHiddenAlerts && (
+              <button
+                type="button"
+                onClick={restoreHiddenAlerts}
+                className="rounded-[14px] border border-[#dbe3ef] bg-white px-4 py-2 text-[12px] font-semibold text-slate-700"
+              >
+                Reexibir alertas
+              </button>
+            )}
             <button
               onClick={() => {
                 invalidateCache(DASHBOARD_CACHE_KEY);

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { cachedPromise, invalidateCache, readCachedValue } from '@/lib/client/light-cache';
 import { reportError } from '@/lib/observability/client-log';
@@ -8,7 +8,75 @@ import { reportError } from '@/lib/observability/client-log';
 const DASHBOARD_CACHE_KEY = 'automation:dashboard';
 const DASHBOARD_TTL_MS = 45_000;
 
-function getHealthStatus(systemState, summary, alerts) {
+
+const DISMISSED_ALERTS_KEY = 'automation_dismissed_alerts';
+
+function readDismissedAlerts() {
+  if (typeof window === 'undefined') return {};
+  try {
+    return JSON.parse(window.localStorage.getItem(DISMISSED_ALERTS_KEY) || '{}');
+  } catch {
+    return {};
+  }
+}
+
+function saveDismissedAlerts(nextValue) {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(DISMISSED_ALERTS_KEY, JSON.stringify(nextValue));
+}
+
+function toSingleProblemRuleId(rules, predicate) {
+  const matches = rules.filter(predicate);
+  return matches.length === 1 ? matches[0].id : null;
+}
+
+function buildFrontendAlerts(data) {
+  const backendAlerts = data?.alerts ?? [];
+  const rules = data?.rules ?? [];
+  const cronStatus = data?.cron_status ?? {};
+  const hasDefaultChannelReady = Boolean(data?.onboarding?.has_default_channel && data?.onboarding?.default_channel_ready);
+
+  const alertMap = new Map(backendAlerts.map((item) => [item.type, item]));
+  const missingTemplateCount = rules.filter((rule) => rule?.is_active && rule?.template_id == null).length;
+  const missingChannelCount = rules.filter((rule) => rule?.is_active && rule?.channel_id == null).length;
+  const missingTemplateRuleId = toSingleProblemRuleId(rules, (rule) => rule?.is_active && rule?.template_id == null);
+  const missingChannelRuleId = toSingleProblemRuleId(rules, (rule) => rule?.is_active && rule?.channel_id == null);
+
+  const normalized = [];
+
+  backendAlerts
+    .filter((alert) => !['rules_without_template', 'rules_without_channel', 'cron_status'].includes(alert.type))
+    .forEach((alert) => normalized.push(alert));
+
+  if (missingTemplateCount > 0 && alertMap.has('rules_without_template')) {
+    normalized.push({
+      ...alertMap.get('rules_without_template'),
+      dismissKey: 'missing_template',
+      message: `${missingTemplateCount} regra(s) não possui(em) mensagem configurada (template)`,
+      cta: { href: `/automacoes/regras${missingTemplateRuleId ? `?highlightRule=${missingTemplateRuleId}` : ''}`, label: 'Revisar regra' },
+    });
+  }
+
+  if (missingChannelCount > 0 && !hasDefaultChannelReady && alertMap.has('rules_without_channel')) {
+    normalized.push({
+      ...alertMap.get('rules_without_channel'),
+      dismissKey: 'missing_channel',
+      message: `${missingChannelCount} regra(s) estão usando canal padrão (não configuradas individualmente)`,
+      cta: { href: `/automacoes/regras${missingChannelRuleId ? `?highlightRule=${missingChannelRuleId}` : ''}`, label: 'Revisar regra' },
+    });
+  }
+
+  if (cronStatus.status === 'never_run' && alertMap.has('cron_status')) {
+    normalized.push({
+      ...alertMap.get('cron_status'),
+      dismissKey: 'cron',
+      cta: { href: '/automacoes/logs', label: 'Abrir logs' },
+    });
+  }
+
+  return normalized;
+}
+function getHealthStatus(systemState, summary, alerts, hasRealErrors) {
   const failedToday = summary.failed_today ?? 0;
 
   if (systemState === 'operational_failure') {
@@ -32,6 +100,15 @@ function getHealthStatus(systemState, summary, alerts) {
   }
 
   if (systemState === 'partially_configured') {
+    if (!hasRealErrors) {
+      return {
+        status: 'healthy',
+        label: 'Configuração OK',
+        message: 'Não há pendências reais de configuração',
+        cta: { href: '/automacoes/regras', label: 'Ver regras' },
+      };
+    }
+
     return {
       status: 'warning',
       label: 'Parcialmente configurado',
@@ -100,7 +177,7 @@ function SummaryCard({ label, value, color }) {
   );
 }
 
-function AlertItem({ alert }) {
+function AlertItem({ alert, onDismiss }) {
   const levelStyle = {
     critical: 'bg-red-50 border-red-200 text-red-700',
     attention: 'bg-amber-50 border-amber-200 text-amber-700',
@@ -118,11 +195,16 @@ function AlertItem({ alert }) {
           {alert.kind && <div className="text-[11px] uppercase tracking-wider opacity-70 mt-0.5">{alert.kind}</div>}
         </div>
       </div>
-      {alert.cta?.href && (
-        <Link href={alert.cta.href} className="text-[12px] font-bold underline underline-offset-2">
-          {alert.cta.label}
-        </Link>
-      )}
+      <div className="flex flex-col items-end gap-1">
+        {alert.cta?.href && (
+          <Link href={alert.cta.href} className="text-[12px] font-bold underline underline-offset-2">
+            {alert.cta.label}
+          </Link>
+        )}
+        {alert.dismissKey && (
+          <button type="button" onClick={() => onDismiss(alert.dismissKey)} className="text-[11px] font-semibold opacity-80 hover:opacity-100">Ocultar</button>
+        )}
+      </div>
     </div>
   );
 }
@@ -210,6 +292,7 @@ export default function AutomacoesPageClient() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [loadingId, setLoadingId] = useState(null);
+  const [dismissedAlerts, setDismissedAlerts] = useState({});
 
   const fetchDashboard = useCallback(async ({ force = false, silent = false } = {}) => {
     if (silent) {
@@ -222,10 +305,16 @@ export default function AutomacoesPageClient() {
       const json = await cachedPromise(
         DASHBOARD_CACHE_KEY,
         async () => {
-          const res = await fetch('/api/automation/dashboard');
-          const payload = await res.json();
-          if (!res.ok) throw new Error(payload.error || 'Erro ao carregar dashboard');
-          return payload;
+          const [dashboardRes, rulesRes] = await Promise.all([
+            fetch('/api/automation/dashboard'),
+            fetch('/api/automation/rules'),
+          ]);
+          const [dashboardPayload, rulesPayload] = await Promise.all([dashboardRes.json(), rulesRes.json()]);
+          if (!dashboardRes.ok) throw new Error(dashboardPayload.error || 'Erro ao carregar dashboard');
+          return {
+            ...dashboardPayload,
+            rules: Array.isArray(rulesPayload?.rules) ? rulesPayload.rules : [],
+          };
         },
         { ttlMs: DASHBOARD_TTL_MS, force }
       );
@@ -239,7 +328,10 @@ export default function AutomacoesPageClient() {
     }
   }, []);
 
-  useEffect(() => { fetchDashboard({ silent: Boolean(readCachedValue(DASHBOARD_CACHE_KEY)) }); }, [fetchDashboard]);
+  useEffect(() => {
+    setDismissedAlerts(readDismissedAlerts());
+    fetchDashboard({ silent: Boolean(readCachedValue(DASHBOARD_CACHE_KEY)) });
+  }, [fetchDashboard]);
 
   async function handleRetry(logId) {
     if (loadingId) return;
@@ -262,11 +354,24 @@ export default function AutomacoesPageClient() {
     }
   }
 
+  function handleDismissAlert(dismissKey) {
+    const nextValue = { ...dismissedAlerts, [dismissKey]: true };
+    setDismissedAlerts(nextValue);
+    saveDismissedAlerts(nextValue);
+  }
+
+  function clearVisualAlerts() {
+    setDismissedAlerts({});
+    if (typeof window !== 'undefined') window.localStorage.removeItem(DISMISSED_ALERTS_KEY);
+  }
+
   const summary = data?.summary ?? {};
-  const alerts = data?.alerts ?? [];
+  const rawAlerts = useMemo(() => (data ? buildFrontendAlerts(data) : []), [data]);
+  const alerts = useMemo(() => rawAlerts.filter((alert) => !dismissedAlerts?.[alert.dismissKey]), [rawAlerts, dismissedAlerts]);
   const failures = data?.recent_failures ?? [];
   const systemState = data?.system_state;
-  const health = data ? getHealthStatus(systemState, summary, alerts) : null;
+  const hasRealErrors = rawAlerts.length > 0;
+  const health = data ? getHealthStatus(systemState, summary, alerts, hasRealErrors) : null;
 
   return (
     <div className="space-y-6">
@@ -276,16 +381,25 @@ export default function AutomacoesPageClient() {
             <div className="text-[12px] font-black uppercase tracking-[0.14em] text-violet-600">Automação</div>
             <h1 className="mt-1 text-[28px] font-black tracking-[-0.03em] text-[#0f172a]">Central de Automação</h1>
           </div>
-          <button
-            onClick={() => {
-              invalidateCache(DASHBOARD_CACHE_KEY);
-              fetchDashboard({ force: true, silent: Boolean(data) });
-            }}
-            disabled={loading || refreshing}
-            className="rounded-[14px] border border-[#dbe3ef] px-4 py-2 text-[13px] font-semibold"
-          >
-            {loading || refreshing ? 'Atualizando…' : '↻ Atualizar'}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={clearVisualAlerts}
+              className="rounded-[14px] border border-amber-200 bg-amber-50 px-4 py-2 text-[12px] font-semibold text-amber-800"
+            >
+              Limpar alertas visuais
+            </button>
+            <button
+              onClick={() => {
+                invalidateCache(DASHBOARD_CACHE_KEY);
+                fetchDashboard({ force: true, silent: Boolean(data) });
+              }}
+              disabled={loading || refreshing}
+              className="rounded-[14px] border border-[#dbe3ef] px-4 py-2 text-[13px] font-semibold"
+            >
+              {loading || refreshing ? 'Atualizando…' : '↻ Atualizar'}
+            </button>
+          </div>
         </div>
       </section>
 
@@ -337,7 +451,7 @@ export default function AutomacoesPageClient() {
             ))}
           </div>
         ) : alerts.length === 0 ? <div className="text-sm text-emerald-700">✅ Sem alertas críticos no momento.</div> : (
-          <div className="space-y-2">{alerts.map((alert, i) => <AlertItem key={i} alert={alert} />)}</div>
+          <div className="space-y-2">{alerts.map((alert, i) => <AlertItem key={`${alert.type}-${i}`} alert={alert} onDismiss={handleDismissAlert} />)}</div>
         )}
       </section>
 

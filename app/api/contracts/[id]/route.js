@@ -3,14 +3,20 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requireAdmin } from '@/lib/api/require-admin';
 import { resolveContractStoragePath } from '@/lib/contracts/contract-storage';
 
-export async function DELETE(request, { params }) {
+export async function DELETE(request, context) {
   const supabase = getSupabaseAdmin();
 
   try {
     const auth = await requireAdmin({ supabase, request, logPrefix: '[CONTRACT_DELETE_ONE]' });
     if (!auth.ok) return NextResponse.json(auth, { status: auth.status || 401 });
 
-    const contractId = String(params?.id || '').trim();
+    const resolvedParams = await context?.params;
+    const contractId = String(resolvedParams?.id || '').trim();
+    console.log('[CONTRACT_DELETE_ONE][PARAMS]', {
+      rawParams: context?.params,
+      resolvedParams,
+      contractId,
+    });
     if (!contractId) {
       return NextResponse.json({ ok: false, error: 'ID do contrato é obrigatório.' }, { status: 400 });
     }

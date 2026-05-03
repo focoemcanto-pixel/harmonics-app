@@ -143,7 +143,14 @@ export default function ContratosPage() {
 
     const usedContractIds = new Set(fromPrecontracts.map((item) => String(item.contractId || '')).filter(Boolean));
     const externalContracts = (contracts || [])
-      .filter((contract) => !usedContractIds.has(String(contract?.id || '')) && !contract?.precontract_id)
+      .filter((contract) => {
+        if (usedContractIds.has(String(contract?.id || '')) || contract?.precontract_id) return false;
+        if (!contract?.id) {
+          console.warn('[CONTRATOS_ADMIN] contrato externo ignorado sem id', contract);
+          return false;
+        }
+        return true;
+      })
       .map((contract) => ({
         id: `external-${contract.id}`,
         token: contract?.public_token || '',
@@ -228,6 +235,8 @@ export default function ContratosPage() {
     carregar();
   }, []);
 
+  const getContractStableId = (item) => item?.precontractId || item?.contractId || item?.id || null;
+
   const contratosFiltrados = useMemo(() => {
     let resultado = contratos;
     resultado = filterBySearch(resultado, busca);
@@ -271,10 +280,10 @@ export default function ContratosPage() {
 
   function onDeleteContract(item) {
     if (isExternalContract(item) && !item?.contractId) {
-      toast.error('Contrato externo sem ID. Atualize a página e tente novamente.');
+      toast.error('Contrato externo sem ID válido.');
       return;
     }
-    if (!item?.precontractId && !item?.contractId) return;
+    if (!item?.contractId && !item?.precontractId) return;
     setDeleteDialog({ open: true, item });
   }
 
@@ -325,10 +334,24 @@ export default function ContratosPage() {
   }
 
   async function onDeleteManyContracts() {
+    const ids = selectedIds
+      .map((id) => String(id || ''))
+      .filter(Boolean);
+
+    const selectedItems = contratos.filter((item) => ids.includes(String(getContractStableId(item) || '')));
+    const precontractIds = selectedItems
+      .filter((item) => item?.precontractId && !(item?.isExternal === true && !item?.contractId))
+      .map((item) => item.precontractId);
+
+    if (precontractIds.length === 0) {
+      toast.warning('Selecione ao menos um contrato com pré-contrato válido para exclusão em massa.');
+      return;
+    }
+
     const res = await runBulkDelete({
       endpoint: '/api/contracts/delete-many',
       idsKey: 'precontractIds',
-      ids: selectedIds,
+      ids: precontractIds,
     });
     console.log('[DELETE_RESULT]', res);
 
@@ -479,7 +502,14 @@ export default function ContratosPage() {
             onDeleteContract={onDeleteContract}
             selectedSet={selectedSet}
             onToggleSelect={toggle}
-            onToggleAll={() => toggleAll(contratosFiltrados.map((item) => item.precontractId))}
+            onToggleAll={() =>
+              toggleAll(
+                contratosFiltrados
+                  .filter((item) => !(item?.isExternal === true && !item?.contractId))
+                  .map((item) => getContractStableId(item))
+                  .filter(Boolean)
+              )
+            }
           />
         </div>
 
@@ -509,7 +539,14 @@ export default function ContratosPage() {
               onDeleteContract={onDeleteContract}
               selectedSet={selectedSet}
               onToggleSelect={toggle}
-              onToggleAll={() => toggleAll(contratosFiltrados.map((item) => item.precontractId))}
+              onToggleAll={() =>
+              toggleAll(
+                contratosFiltrados
+                  .filter((item) => !(item?.isExternal === true && !item?.contractId))
+                  .map((item) => getContractStableId(item))
+                  .filter(Boolean)
+              )
+            }
             />
           )}
 

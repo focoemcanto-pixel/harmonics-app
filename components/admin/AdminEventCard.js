@@ -102,6 +102,29 @@ function getScaleStatus(totalScale, confirmedScale) {
   return 'complete';
 }
 
+function parseEventDate(value) {
+  if (!value) return null;
+  const raw = String(value);
+  const [year, month, day] = raw.split('T')[0].split('-').map(Number);
+
+  if (
+    Number.isFinite(year) &&
+    Number.isFinite(month) &&
+    Number.isFinite(day)
+  ) {
+    return new Date(year, month - 1, day);
+  }
+
+  const fallbackDate = new Date(raw);
+  if (Number.isNaN(fallbackDate.getTime())) return null;
+  return fallbackDate;
+}
+
+function isSettledPaymentStatus(paymentStatus) {
+  const value = String(paymentStatus || '').trim().toLowerCase();
+  return value === 'paid' || value === 'pago';
+}
+
 function AdminEventCard({
   id,
   cliente,
@@ -166,13 +189,27 @@ function AdminEventCard({
     Number(confirmedMusicians) ||
     0;
   const scaleStatus = getScaleStatus(totalScale, confirmedScale);
+  const eventDate = parseEventDate(event?.event_date);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const isPastEvent = !!eventDate && eventDate < today;
+  const isPaidEvent = isSettledPaymentStatus(paymentStatus);
+  const isConcludedEvent = isPastEvent && isPaidEvent;
+  const isPendingPostEvent = isPastEvent && !isPaidEvent;
+  const visualStateClasses = flat
+    ? ''
+    : isConcludedEvent
+    ? ' border-green-500 shadow-[0_0_0_1px_rgba(34,197,94,0.2)]'
+    : isPendingPostEvent
+    ? ' border-amber-400 shadow-[0_0_0_1px_rgba(245,158,11,0.2)]'
+    : '';
 
   return (
     <article
       className={
         flat
           ? 'rounded-[22px] border-0 bg-transparent p-0 shadow-none'
-          : 'rounded-[24px] border border-[#dbe3ef] bg-white p-5 shadow-[0_8px_22px_rgba(17,24,39,0.04)]'
+          : `rounded-[24px] border border-[#dbe3ef] bg-white p-5 shadow-[0_8px_22px_rgba(17,24,39,0.04)]${visualStateClasses}`
       }
     >
       <div className={flat ? 'space-y-4' : ''}>
@@ -205,6 +242,12 @@ function AdminEventCard({
           <div className="flex flex-wrap gap-2">
             {timelineText ? (
               <Pill tone={timelineTone || 'default'}>{timelineText}</Pill>
+            ) : null}
+
+            {isConcludedEvent ? <Pill tone="emerald">Concluído</Pill> : null}
+
+            {isPendingPostEvent ? (
+              <Pill tone="amber">Pós-evento pendente</Pill>
             ) : null}
 
             <Pill tone={getOperationalTone(operationalStatus)}>

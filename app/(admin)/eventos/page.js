@@ -1673,6 +1673,52 @@ export default function EventosPage() {
     return lista;
   }, [eventos, viewMode, monthFilter, sortMode, busca]);
 
+  const eventosAgrupados = useMemo(() => {
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+
+    const proximos = [];
+    const realizados = [];
+
+    eventosFiltrados.forEach((ev) => {
+      if (!ev?.event_date) {
+        proximos.push(ev);
+        return;
+      }
+
+      const dataEvento = new Date(`${ev.event_date}T00:00:00`);
+      dataEvento.setHours(0, 0, 0, 0);
+
+      if (dataEvento.getTime() >= hoje.getTime()) {
+        proximos.push(ev);
+      } else {
+        realizados.push(ev);
+      }
+    });
+
+    proximos.sort((a, b) => {
+      const aDate = a.event_date
+        ? new Date(`${a.event_date}T${normalizeTimeStrict(a.event_time) || '00:00'}`).getTime()
+        : 0;
+      const bDate = b.event_date
+        ? new Date(`${b.event_date}T${normalizeTimeStrict(b.event_time) || '00:00'}`).getTime()
+        : 0;
+      return aDate - bDate;
+    });
+
+    realizados.sort((a, b) => {
+      const aDate = a.event_date
+        ? new Date(`${a.event_date}T${normalizeTimeStrict(a.event_time) || '00:00'}`).getTime()
+        : 0;
+      const bDate = b.event_date
+        ? new Date(`${b.event_date}T${normalizeTimeStrict(b.event_time) || '00:00'}`).getTime()
+        : 0;
+      return bDate - aDate;
+    });
+
+    return { proximos, realizados };
+  }, [eventosFiltrados]);
+
   const selectedEventIdsSet = useMemo(
     () => new Set(selectedEventIds.map((id) => String(id))),
     [selectedEventIds]
@@ -1956,7 +2002,14 @@ export default function EventosPage() {
               Nenhum evento encontrado.
             </div>
           ) : (
-            eventosFiltrados.map((ev) => {
+            <>
+              {eventosAgrupados.proximos.length > 0 ? (
+                <div className="mb-1">
+                  <h3 className="text-[14px] font-black text-[#0f172a] md:text-[15px]">Próximos eventos</h3>
+                </div>
+              ) : null}
+
+              {eventosAgrupados.proximos.map((ev) => {
               const timeline = getTimelineLabel(ev.event_date);
               const contractInfo = contractsByEventId.get(String(ev.id));
               const scaleSummary = scaleSummaryByEventId.get(String(ev.id)) || {
@@ -2014,7 +2067,75 @@ export default function EventosPage() {
   onToggleSelect={(checked) => toggleEventoSelecionado(ev.id, checked)}
 />
               );
-            })
+            })}
+
+              {eventosAgrupados.realizados.length > 0 ? (
+                <div className="mt-2 rounded-[16px] border border-emerald-200 bg-emerald-50/50 px-3 py-2 md:px-4 md:py-3">
+                  <h3 className="text-[13px] font-black uppercase tracking-[0.06em] text-emerald-800 md:text-[14px]">Realizados</h3>
+                  <p className="text-[11px] font-semibold text-emerald-700 md:text-[12px]">Eventos já executados</p>
+                </div>
+              ) : null}
+
+              {eventosAgrupados.realizados.map((ev) => {
+              const timeline = getTimelineLabel(ev.event_date);
+              const contractInfo = contractsByEventId.get(String(ev.id));
+              const scaleSummary = scaleSummaryByEventId.get(String(ev.id)) || {
+                totalMusicians: 0,
+                confirmedMusicians: 0,
+              };
+
+              return (
+               <AdminEventCard
+  key={ev.id}
+  id={ev.id}
+  cliente={ev.client_name}
+  tipo={ev.event_type || 'Evento'}
+  data={formatDateBR(ev.event_date)}
+  hora={normalizeTimeStrict(ev.event_time) || '-'}
+  local={ev.location_name || '-'}
+  formacao={ev.formation || '-'}
+  receptivo={ev.reception_hours ? `${ev.reception_hours}h` : 'Não'}
+  antesala={
+    ev.has_antesala
+      ? ev.antesala_duration_minutes
+        ? `${ev.antesala_duration_minutes} min`
+        : 'Incluída'
+      : ev.antesala_requested_by_client
+      ? 'Solicitada'
+      : 'Não'
+  }
+  temSom={!!ev.has_sound}
+  whatsappNome={ev.whatsapp_name || '-'}
+  whatsappNumero={formatPhoneDisplay(ev.whatsapp_phone)}
+  observacoes={ev.observations}
+  valorAcertado={formatMoney(ev.agreed_amount)}
+  valorPago={formatMoney(ev.paid_amount)}
+  valorAberto={formatMoney(ev.open_amount)}
+  lucroFinal={formatMoney(ev.profit_amount)}
+  paymentStatus={ev.payment_status || 'Pendente'}
+  operationalStatus={ev.status || 'Rascunho'}
+  timelineText={timeline.text}
+  timelineTone={timeline.tone}
+  event={ev}
+  totalMusicians={scaleSummary.totalMusicians}
+  confirmedMusicians={scaleSummary.confirmedMusicians}
+  contractLabel={contractInfo?.label || 'Sem contrato'}
+  contractTone={contractInfo?.tone || 'default'}
+  contractLink={contractInfo?.link || ''}
+  onEdit={() => iniciarEdicao(ev)}
+  onDelete={() => solicitarExclusaoEvento(ev)}
+  onOpenEscala={() => abrirEscala(ev)}
+  onOpenContract={() => abrirContratoRapido(ev)}
+  onCopyContractLink={() => copiarLinkContrato(ev)}
+  gerandoContrato={gerandoContratoId === ev.id}
+  excluindo={excluindoEventoId === ev.id}
+  selectable
+  selected={selectedEventIdsSet.has(String(ev.id))}
+  onToggleSelect={(checked) => toggleEventoSelecionado(ev.id, checked)}
+/>
+              );
+            })}
+            </>
           )}
         </div>
       </section>

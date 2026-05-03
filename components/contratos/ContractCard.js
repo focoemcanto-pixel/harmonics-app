@@ -170,6 +170,7 @@ export default function ContractCard({ item, onCopyLink, onDeleteContract, selec
   const hasLink = !!String(item?.linkContrato || '').trim();
   const hasToken = !!String(item?.token || '').trim();
   const hasPrecontract = !!String(item?.precontractId || '').trim();
+  const isExternalWithoutContractId = item?.isExternal === true && !String(item?.contractId || '').trim();
   const editPrecontractHref = hasPrecontract
     ? `/pre-contratos?edit=${encodeURIComponent(item.precontractId)}&focus=contract`
     : '';
@@ -357,9 +358,11 @@ export default function ContractCard({ item, onCopyLink, onDeleteContract, selec
           <button
             type="button"
             onClick={() => onDeleteContract?.(item)}
-            className="rounded-[16px] border border-red-200 bg-red-50 px-4 py-3 text-[14px] font-black text-red-700"
+            disabled={isExternalWithoutContractId}
+            title={isExternalWithoutContractId ? 'Contrato externo sem ID válido' : ''}
+            className="rounded-[16px] border border-red-200 bg-red-50 px-4 py-3 text-[14px] font-black text-red-700 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-500"
           >
-            Excluir
+            {isExternalWithoutContractId ? 'Contrato externo sem ID válido' : 'Excluir'}
           </button>
 
           {item.pdfUrl ? (

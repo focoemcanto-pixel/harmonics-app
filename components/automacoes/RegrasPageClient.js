@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import AutomationBackLink from '@/components/automacoes/AutomationBackLink';
 import { cachedPromise, invalidateCache, readCachedValue } from '@/lib/client/light-cache';
 import { useAppToast } from '@/components/ui/ToastProvider';
@@ -474,6 +475,10 @@ function ToggleField({ label, value, onChange, tone = 'violet' }) {
 }
 
 export default function RegrasPageClient() {
+  const searchParams = useSearchParams();
+  const highlightRule = searchParams.get('highlightRule');
+  const highlightedRuleRef = useRef(null);
+  const [highlightedRuleId, setHighlightedRuleId] = useState(null);
   const [regras, setRegras] = useState(() => readCachedValue(RULES_CACHE_KEY)?.rules || []);
   const [templates, setTemplates] = useState(() => readCachedValue(TEMPLATES_CACHE_KEY)?.templates || []);
   const [canais, setCanais] = useState(() => readCachedValue(CHANNELS_CACHE_KEY)?.channels || []);
@@ -899,6 +904,19 @@ export default function RegrasPageClient() {
     }
   }
 
+  useEffect(() => {
+    if (!highlightRule || !regras.length) return;
+    const targetExists = regras.some((regra) => String(regra.id) === String(highlightRule));
+    if (!targetExists) return;
+    setVisao('advanced');
+    setHighlightedRuleId(String(highlightRule));
+    const timer = setTimeout(() => {
+      highlightedRuleRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 100);
+    const clearTimer = setTimeout(() => setHighlightedRuleId(null), 4500);
+    return () => { clearTimeout(timer); clearTimeout(clearTimer); };
+  }, [highlightRule, regras]);
+
   if (carregando) {
     return (
       <div className="space-y-6">
@@ -1180,7 +1198,14 @@ export default function RegrasPageClient() {
               </thead>
               <tbody>
                 {regras.map((regra) => (
-                  <tr key={regra.id} className="border-t border-slate-200">
+                  <tr
+                    key={regra.id}
+                    ref={highlightedRuleId && String(regra.id) === highlightedRuleId ? highlightedRuleRef : null}
+                    className={classNames(
+                      'border-t border-slate-200 transition-colors',
+                      highlightedRuleId && String(regra.id) === highlightedRuleId && 'bg-amber-50 ring-2 ring-amber-300'
+                    )}
+                  >
                     <td className="px-4 py-3">
                       <div className="font-bold text-slate-900">{regra.name}</div>
                       <div className="text-xs text-slate-500">{regra.key}</div>

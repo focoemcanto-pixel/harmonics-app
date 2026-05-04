@@ -524,40 +524,32 @@ export default function EventosPage() {
   }, []);
 
   async function carregarEventos() {
-    try {
-      const { data, error } = await supabase
-        .from('events')
-        .select(EVENTS_SELECT_FIELDS)
-        .order('created_at', { ascending: false })
-        .limit(ADMIN_LIST_LIMIT);
+  try {
+    const response = await fetch(`/api/events?scope=events&limit=${ADMIN_LIST_LIMIT}`);
+    const json = await response.json();
 
-      if (error) throw error;
-      const sanitized = (data || []).map((item) => sanitizeTimeFields(item));
-      const eventIds = sanitized
-        .map((item) => String(item?.id || '').trim())
-        .filter(Boolean);
-      let scaleSummaryMap = new Map();
-
-      if (eventIds.length > 0) {
-        const { data: eventMusiciansData, error: eventMusiciansError } = await supabase
-          .from('event_musicians')
-          .select('event_id, status')
-          .in('event_id', eventIds);
-
-        if (eventMusiciansError) throw eventMusiciansError;
-        scaleSummaryMap = buildScaleSummaryByEvent(eventMusiciansData || []);
-      }
-
-      setScaleSummaryByEventId(scaleSummaryMap);
-      setEventos(sanitized);
-      eventosAdminCache.eventos = sanitized;
-      eventosAdminCache.scaleSummaryByEventId = scaleSummaryMap;
-      eventosAdminCache.updatedAt = Date.now();
-    } catch (error) {
-      logLoadError('eventos', error);
-      toast.error('Erro ao carregar eventos. Tente novamente mais tarde.');
+    if (!response.ok || !json?.ok) {
+      throw new Error(json?.message || 'Erro ao carregar eventos');
     }
+
+    const sanitized = (json.events || []).map((item) => sanitizeTimeFields(item));
+
+    const scaleMap = new Map(
+      Object.entries(json.scaleSummaryByEventId || {})
+    );
+
+    setEventos(sanitized);
+    setScaleSummaryByEventId(scaleMap);
+
+    eventosAdminCache.eventos = sanitized;
+    eventosAdminCache.scaleSummaryByEventId = scaleMap;
+    eventosAdminCache.updatedAt = Date.now();
+
+  } catch (error) {
+    logLoadError('eventos', error);
+    toast.error('Erro ao carregar eventos.');
   }
+}
 
   async function salvarPagamento(ev, tipo = 'total') {
     const valor = Number(valorPagamento || 0);
@@ -797,40 +789,40 @@ export default function EventosPage() {
   }
 
   async function carregarPrecontracts() {
-    try {
-      const { data, error } = await supabase
-        .from('precontracts')
-        .select(PRECONTRACTS_SELECT_FIELDS)
-        .order('created_at', { ascending: false })
-        .limit(ADMIN_LIST_LIMIT);
+  try {
+    const response = await fetch(`/api/events?scope=precontracts&limit=${ADMIN_LIST_LIMIT}`);
+    const json = await response.json();
 
-      if (error) throw error;
-      const sanitized = (data || []).map((item) => sanitizeTimeFields(item));
-      setPrecontracts(sanitized);
-      eventosAdminCache.precontracts = sanitized;
-      eventosAdminCache.updatedAt = Date.now();
-    } catch (error) {
-      logLoadError('precontracts', error);
-    }
+    if (!json?.ok) throw new Error(json?.message);
+
+    const sanitized = (json.precontracts || []).map((item) => sanitizeTimeFields(item));
+
+    setPrecontracts(sanitized);
+    eventosAdminCache.precontracts = sanitized;
+    eventosAdminCache.updatedAt = Date.now();
+
+  } catch (error) {
+    logLoadError('precontracts', error);
   }
+}
 
   async function carregarContracts() {
-    try {
-      const { data, error } = await supabase
-        .from('contracts')
-        .select(CONTRACTS_SELECT_FIELDS)
-        .order('created_at', { ascending: false })
-        .limit(ADMIN_LIST_LIMIT);
+  try {
+    const response = await fetch(`/api/events?scope=contracts&limit=${ADMIN_LIST_LIMIT}`);
+    const json = await response.json();
 
-      if (error) throw error;
-      const sanitized = (data || []).map((item) => sanitizeTimeFields(item));
-      setContracts(sanitized);
-      eventosAdminCache.contracts = sanitized;
-      eventosAdminCache.updatedAt = Date.now();
-    } catch (error) {
-      logLoadError('contracts', error);
-    }
+    if (!json?.ok) throw new Error(json?.message);
+
+    const sanitized = (json.contracts || []).map((item) => sanitizeTimeFields(item));
+
+    setContracts(sanitized);
+    eventosAdminCache.contracts = sanitized;
+    eventosAdminCache.updatedAt = Date.now();
+
+  } catch (error) {
+    logLoadError('contracts', error);
   }
+}
 
   function aplicarAutomaticosDaFormacao(
     nextFormation = form.formation,

@@ -1,0 +1,138 @@
+import { NextResponse } from 'next/server';
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { requireAdmin } from '@/lib/api/require-admin';
+import { getCurrentWorkspace } from '@/lib/workspaces/get-current-workspace';
+
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
+function buildInviteKey(eventId, contactId) {
+  return `${String(eventId || '').trim()}::${String(contactId || '').trim()}`;
+}
+
+function uniq(list = []) {
+  return Array.from(new Set(list.map((item) => String(item || '').trim()).filter(Boolean)));
+}
+
+export async function GET(request) {
+  const supabase = getSupabaseAdmin();
+
+  try {
+    const auth = await requireAdmin({ supabase, request, logPrefix: '[CONVITES_API]' });
+    if (!auth.ok) {
+      return NextResponse.json({ ok: false, message: auth.error }, { status: auth.status || 401 });
+    }
+
+    const { workspaceId } = await getCurrentWorkspace({ supabase });
+
+    const { data: events, error: eventsError } = await supabase
+      .from('events')
+      .select('*')
+      .eq('workspace_id', workspaceId)
+      .order('event_date', { ascending: true });
+
+    if (eventsError) throw eventsError;
+
+    const eventIds = uniq((events || []).map((event) => event?.id));
+
+    if (eventIds.length === 0) {
+      return NextResponse.json({
+        ok: true,
+        convites: [],
+        events: [],
+        contacts: [],
+        workspaceId,
+        debug: {
+          eventsCount: 0,
+          convitesCount: 0,
+          contactsCount: 0,
+        },
+      });
+    }
+
+    const { data: eventMusicians, error: eventMusiciansError } = await supabase
+      .from('event_musicians')
+      .select('*')
+      .in('event_id', eventIds)
+      .order('created_at', { ascending: false });
+
+    if (eventMusiciansError) throw eventMusiciansError;
+
+    const rows = eventMusicians || [];
+    const musicianIds = uniq(rows.map((item) => item?.musician_id));
+
+    let contacts = [];
+    if (musicianIds.length > 0) {
+      const { data: contactsData, error: contactsError } = await supabase
+        .from('contacts')
+        .select('id, workspace_id, name, email, phone')
+        .in('id', musicianIds);
+
+      if (contactsError) throw contactsError;
+      contacts = contactsData || [];
+    }
+
+    let invitesByEventAndContact = new Map();
+    if (rows.length > 0 && musicianIds.length > 0) {
+      const { data: invites, error: invitesError } = await supabase
+        .from('invites')
+        .select('id, event_id, contact_id, status, invite_token, suggested_role_name, whatsapp_sent_at, whatsapp_send_count, whatsapp_last_error, created_at')
+        .in('event_id', eventIds)
+        .in('contact_id', musicianIds)
+        .neq('status', 'removed')
+        .order('created_at', { ascending: false });
+
+      if (invitesError) throw invitesError;
+
+      invitesByEventAndContact = new Map();
+      for (const invite of invites || []) {
+        const key = buildInviteKey(invite?.event_id, invite?.contact_id);
+        if (!key || invitesByEventAndContact.has(key)) continue;
+        invitesByEventAndContact.set(key, invite);
+      }
+    }
+
+    const convites = rows.map((item) => {
+      const invite = invitesByEventAndContact.get(buildInviteKey(item?.event_id, item?.musician_id)) || null;
+
+      return {
+        ...item,
+        invite_id: invite?.id || null,
+        invite_token: invite?.invite_token || null,
+        invite_status: invite?.status || null,
+        invite_whatsapp_sent_at: invite?.whatsapp_sent_at || null,
+        invite_whatsapp_send_count: invite?.whatsapp_send_count || 0,
+        invite_whatsapp_last_error: invite?.whatsapp_last_error || null,
+      };
+    });
+
+    return NextResponse.json({
+      ok: true,
+      convites,
+      events: events || [],
+      contacts,
+      workspaceId,
+      debug: {
+        eventsCount: (events || []).length,
+        eventIdsCount: eventIds.length,
+        convitesCount: convites.length,
+        contactsCount: contacts.length,
+      },
+    });
+  } catch (error) {
+    console.error('[CONVITES_API][GET][ERROR]', {
+      message: error?.message,
+      details: error?.details,
+      hint: error?.hint,
+      code: error?.code,
+    });
+
+    return NextResponse.json(
+      {
+        ok: false,
+        message: error?.message || 'Erro ao carregar convites.',
+      },
+      { status: 500 }
+    );
+  }
+}

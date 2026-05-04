@@ -83,20 +83,24 @@ export default function ConvitesPage() {
   const { loading: deleting, run: runBulkDelete } = useBulkDelete();
 
   async function carregarTudo() {
-    const [convitesRes, eventsRes, contactsRes] = await Promise.all([
-      supabase.from('event_musicians').select('*').order('created_at', { ascending: false }),
-      supabase.from('events').select('*').order('event_date', { ascending: true }),
-      supabase.from('contacts').select('id, name, email, phone'),
-    ]);
+  const [convitesRes, eventsRes, contactsRes] = await Promise.all([
+    fetch('/api/event-musicians'),
+    fetch('/api/events?scope=events'),
+    fetch('/api/contacts'),
+  ]);
 
-    if (convitesRes.error) throw convitesRes.error;
-    if (eventsRes.error) throw eventsRes.error;
-    if (contactsRes.error) throw contactsRes.error;
+  const convitesJson = await convitesRes.json();
+  const eventsJson = await eventsRes.json();
+  const contactsJson = await contactsRes.json();
 
-    setConvites(convitesRes.data || []);
-    setEvents(eventsRes.data || []);
-    setContacts(contactsRes.data || []);
-  }
+  if (!convitesJson?.ok) throw new Error(convitesJson?.message);
+  if (!eventsJson?.ok) throw new Error(eventsJson?.message);
+  if (!contactsJson?.ok) throw new Error(contactsJson?.message);
+
+  setConvites(convitesJson.data || []);
+  setEvents(eventsJson.events || []);
+  setContacts(contactsJson.data || []);
+}
 
   useEffect(() => {
     async function init() {

@@ -6,6 +6,7 @@ import { normalizeTimeStrict } from '@/lib/time/normalize-time';
 import { generateContractDocument } from '@/lib/contracts/generate-contract-document';
 import { signInternalContract } from '@/lib/contracts/sign-internal-contract';
 import { executeAutomationEvent } from '@/lib/automation/execute-automation-event';
+import { getCurrentWorkspace } from '@/lib/workspaces/get-current-workspace';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -19,8 +20,6 @@ const brToIsoDate = (value) => {
   if (!m) return raw || null;
   return `${m[3]}-${m[2]}-${m[1]}`;
 };
-
-
 
 const pickDefined = (...values) => {
   for (const value of values) {
@@ -36,10 +35,11 @@ function extractToken(params) {
   return asString(params?.token);
 }
 
-async function upsertContactFromSignature({ supabase, precontract, form }) {
+async function upsertContactFromSignature({ supabase, precontract, form, workspaceId }) {
   const email = asString(precontract?.client_email) || null;
   const phone = cleanDigits(form?.whatsapp) || null;
   const name = asString(form?.full_name) || null;
+  const resolvedWorkspaceId = asString(precontract?.workspace_id || workspaceId) || null;
 
   const isMissingContactTypeColumnError = (error) => {
     const message = String(error?.message || '').toLowerCase();
@@ -48,11 +48,11 @@ async function upsertContactFromSignature({ supabase, precontract, form }) {
 
   let existing = null;
   if (email) {
-    const { data } = await supabase.from('contacts').select('id').eq('email', email).maybeSingle();
+    const { data } = await supabase.from('contacts').select('id, workspace_id').eq('email', email).maybeSingle();
     existing = data || null;
   }
   if (!existing && phone) {
-    const { data } = await supabase.from('contacts').select('id').eq('phone', phone).maybeSingle();
+    const { data } = await supabase.from('contacts').select('id, workspace_id').eq('phone', phone).maybeSingle();
     existing = data || null;
   }
 
@@ -62,6 +62,7 @@ async function upsertContactFromSignature({ supabase, precontract, form }) {
     phone,
     tag: 'cliente',
     contact_type: 'client',
+    workspace_id: existing?.workspace_id || resolvedWorkspaceId,
     notes: [
       'Criado/atualizado automaticamente após assinatura.',
       precontract?.event_type ? `Tipo: ${precontract.event_type}` : '',
@@ -94,7 +95,7 @@ async function upsertContactFromSignature({ supabase, precontract, form }) {
   return data.id;
 }
 
-async function upsertEventFromSignature({ supabase, precontract, contactId, form }) {
+async function upsertEventFromSignature({ supabase, precontract, contactId, form, workspaceId }) {
   const { data: financeDefaults } = await supabase.from('finance_cost_defaults').select('musician_unit_cost, sound_default_cost, transport_default_cost, other_default_cost, custom_costs').eq('slug', 'default').maybeSingle();
   const automaticCosts = getAutomaticCosts({
     formation: precontract?.formation,
@@ -106,6 +107,7 @@ async function upsertEventFromSignature({ supabase, precontract, contactId, form
   const agreedAmount = Number(precontract?.agreed_amount || 0);
   const totalCosts = Number(automaticCosts.musicianCost || 0) + Number(automaticCosts.soundCost || 0) + Number(automaticCosts.extraTransportCost || 0) + Number(automaticCosts.otherCost || 0);
   const profitAmount = agreedAmount - totalCosts;
+  const resolvedWorkspaceId = asString(precontract?.workspace_id || workspaceId) || null;
 
   const safeDate = brToIsoDate(form?.event_date) || precontract?.event_date || null;
   const safeTime = normalizeTime(form?.event_time) || normalizeTime(precontract?.event_time) || null;
@@ -114,6 +116,7 @@ async function upsertEventFromSignature({ supabase, precontract, contactId, form
   const safeLocationAddress = asString(form?.event_location_address) || asString(precontract?.location_address) || null;
 
   const payload = {
+    workspace_id: resolvedWorkspaceId,
     client_contact_id: contactId || null,
     client_name: safeClientName,
     event_type: precontract?.event_type || null,
@@ -170,10 +173,13 @@ export async function POST(request, context) {
     const body = await request.json().catch(() => null);
     const form = body?.form || body || {};
     const supabase = getSupabaseAdmin();
+    const workspaceContext = await getCurrentWorkspace({ supabase });
 
     const { data: precontract, error: preError } = await supabase.from('precontracts').select('*').eq('public_token', token).maybeSingle();
     if (preError) throw preError;
     if (!precontract?.id) return NextResponse.json({ ok: false, message: 'Contrato não encontrado.' }, { status: 404 });
+
+    const resolvedWorkspaceId = asString(precontract?.workspace_id || workspaceContext.workspaceId) || null;
 
     let { data: contract } = await supabase.from('contracts').select('*').eq('precontract_id', precontract.id).maybeSingle();
     if (!contract?.id) {
@@ -183,15 +189,17 @@ export async function POST(request, context) {
         status: 'client_filling',
         contact_id: precontract.contact_id || null,
         event_id: precontract.event_id || null,
+        workspace_id: resolvedWorkspaceId,
       }).select('*').single();
       if (inserted.error) throw inserted.error;
       contract = inserted.data;
     }
 
-    const contactId = await upsertContactFromSignature({ supabase, precontract, form });
-    const eventId = await upsertEventFromSignature({ supabase, precontract, contactId, form });
+    const contactId = await upsertContactFromSignature({ supabase, precontract, form, workspaceId: resolvedWorkspaceId });
+    const eventId = await upsertEventFromSignature({ supabase, precontract, contactId, form, workspaceId: resolvedWorkspaceId });
 
     const payloadPre = {
+      workspace_id: resolvedWorkspaceId,
       client_name: asString(form.full_name) || precontract.client_name || null,
       client_email: precontract.client_email || null,
       client_phone: cleanDigits(form.whatsapp) || precontract.client_phone || null,
@@ -233,6 +241,7 @@ export async function POST(request, context) {
     };
 
     const { error: upContractFilling } = await supabase.from('contracts').update({
+      workspace_id: contract?.workspace_id || resolvedWorkspaceId,
       status: 'client_filling',
       signature_name: null,
       signed_at: null,
@@ -240,7 +249,7 @@ export async function POST(request, context) {
       event_id: eventId || contract.event_id || null,
       raw_payload: {
         ...(contract?.raw_payload || {}),
-        precontract_snapshot: precontract,
+        precontract_snapshot: { ...precontract, workspace_id: resolvedWorkspaceId },
         client_form: clientForm,
       },
     }).eq('id', contract.id);
@@ -251,6 +260,7 @@ export async function POST(request, context) {
       contractId: contract?.id || null,
       eventId: eventId || precontract?.event_id || contract?.event_id || null,
       contactId: contactId || precontract?.contact_id || contract?.contact_id || null,
+      workspaceId: resolvedWorkspaceId,
     });
 
     let genJson = null;
@@ -271,6 +281,7 @@ export async function POST(request, context) {
           contractId: contract?.id || null,
           eventId: eventId || precontract?.event_id || contract?.event_id || null,
           contactId: contactId || precontract?.contact_id || contract?.contact_id || null,
+          workspaceId: resolvedWorkspaceId,
         });
         return NextResponse.json({ ok: false, message: genJson?.message || genJson?.error || 'Não foi possível gerar o PDF final.', fallbackAllowed: true }, { status: 502 });
       }
@@ -280,6 +291,7 @@ export async function POST(request, context) {
         contractId: contract?.id || null,
         eventId: eventId || precontract?.event_id || contract?.event_id || null,
         contactId: contactId || precontract?.contact_id || contract?.contact_id || null,
+        workspaceId: resolvedWorkspaceId,
       });
     } catch (error) {
       console.error('[PUBLIC_CONTRACT_SIGN_GENERATE_ERROR]', {
@@ -287,6 +299,7 @@ export async function POST(request, context) {
         contractId: contract?.id || null,
         eventId: eventId || precontract?.event_id || contract?.event_id || null,
         contactId: contactId || precontract?.contact_id || contract?.contact_id || null,
+        workspaceId: resolvedWorkspaceId,
         error: error?.message || String(error),
         message: error?.message || 'Erro desconhecido',
         errorType: error?.name || 'UnknownError',
@@ -313,6 +326,7 @@ export async function POST(request, context) {
         console.info('[PUBLIC_CONTRACT_SIGN_INTERNAL_LEGACY_CALL_START]', {
           precontractId: precontract?.id || null,
           contractId: finalContract?.id || contract?.id || null,
+          workspaceId: resolvedWorkspaceId,
           status: internalPdfStatus,
           hasHtml: !!signedHtml,
         });
@@ -380,6 +394,7 @@ export async function POST(request, context) {
     }
 
     const { error: signedContractError } = await supabase.from('contracts').update({
+      workspace_id: finalContract?.workspace_id || resolvedWorkspaceId,
       status: 'signed', signed_at: assinaturaEm, signature_name: asString(form.signer_name) || null,
       contact_id: contactId || finalContract?.contact_id || null,
       event_id: eventId || finalContract?.event_id || null,

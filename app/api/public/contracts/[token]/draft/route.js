@@ -134,7 +134,18 @@ export async function PATCH(request, context) {
 
     let current = contract;
     if (!current?.id) {
-      const inserted = await supabase.from('contracts').insert({ precontract_id: precontract.id, public_token: precontract.public_token || token, status: 'client_filling' }).select('*').single();
+      const workspaceContext = await getCurrentWorkspace({ supabase });
+
+const inserted = await supabase
+  .from('contracts')
+  .insert({
+    precontract_id: precontract.id,
+    public_token: precontract.public_token || token,
+    status: 'client_filling',
+    workspace_id: workspaceContext.workspaceId
+  })
+  .select('*')
+  .single();
       if (inserted.error) throw inserted.error;
       current = inserted.data;
     }

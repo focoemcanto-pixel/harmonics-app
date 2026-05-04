@@ -651,19 +651,21 @@ export default function PreContratosClient() {
   }, []);
 
   async function carregarPreContratos() {
-    const { data, error } = await supabase
-      .from('precontracts')
-      .select(PRECONTRACT_SELECT_FIELDS)
-      .order('created_at', { ascending: false })
-      .limit(ADMIN_LIST_LIMIT);
+  const response = await fetch(`/api/precontracts?limit=${ADMIN_LIST_LIMIT}`);
+  const json = await response.json();
 
-    if (error) throw error;
-    const sanitizedItems = (data || []).map((item) => sanitizeTimeFields(item));
-    setItems(sanitizedItems);
-    preContratosCache.items = sanitizedItems;
-    preContratosCache.updatedAt = Date.now();
-    return sanitizedItems;
+  if (!json?.ok) {
+    throw new Error(json?.message || 'Erro ao carregar pré-contratos');
   }
+
+  const sanitizedItems = (json.data || []).map((item) => sanitizeTimeFields(item));
+
+  setItems(sanitizedItems);
+  preContratosCache.items = sanitizedItems;
+  preContratosCache.updatedAt = Date.now();
+
+  return sanitizedItems;
+}
 
   async function carregarAdjustmentRequests(precontracts = []) {
     const precontractIds = (precontracts || [])

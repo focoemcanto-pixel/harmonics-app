@@ -15,9 +15,10 @@ function normalizeAdminPhone(value) {
   return digits;
 }
 
-export async function PATCH(request, { params }) {
+export async function PATCH(request, context) {
   try {
-    const { id } = await params;
+    const routeParams = await context?.params;
+    const { id } = routeParams || {};
     const body = await request.json();
 
     const supabaseAdmin = getSupabaseAdmin();
@@ -119,9 +120,10 @@ export async function PATCH(request, { params }) {
 }
 
 
-export async function DELETE(_request, { params }) {
+export async function DELETE(_request, context) {
   try {
-    const { id } = await params;
+    const routeParams = await context?.params;
+    const { id } = routeParams || {};
     const supabaseAdmin = getSupabaseAdmin();
     const workspace = await getDefaultWorkspaceSettings();
 

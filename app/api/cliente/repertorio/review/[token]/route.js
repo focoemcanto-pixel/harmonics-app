@@ -52,9 +52,10 @@ async function resolveEventIdFromToken(supabase, token) {
   return precontract?.event_id || null;
 }
 
-export async function POST(_request, { params }) {
+export async function POST(_request, context) {
   try {
-    const { token } = await params;
+    const routeParams = await context?.params;
+    const { token } = routeParams || {};
     const normalizedToken = String(token || '').trim();
 
     if (!normalizedToken) {

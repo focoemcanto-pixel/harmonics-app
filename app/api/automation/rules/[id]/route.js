@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 
-export async function PATCH(request, { params }) {
+export async function PATCH(request, context) {
   try {
-    const { id } = await params;
+    const routeParams = await context?.params;
+    const { id } = routeParams || {};
 
     if (!id) {
       return NextResponse.json(

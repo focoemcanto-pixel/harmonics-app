@@ -22,9 +22,10 @@ function maskToken(token) {
   return `${cleanToken.slice(0, 4)}***${cleanToken.slice(-4)}`;
 }
 
-export async function GET(request, { params }) {
+export async function GET(request, context) {
   try {
-    const token = extractTokenFromUrl(request, params);
+    const routeParams = await context?.params;
+    const token = extractTokenFromUrl(request, routeParams);
     const maskedToken = maskToken(token);
     console.log('[PDF PROXY] token recebido (preview):', maskedToken);
 

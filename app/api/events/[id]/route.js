@@ -3,9 +3,9 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { deleteEventCascade } from '@/lib/events/delete-event-cascade';
 import { requireAdmin } from '@/lib/api/require-admin';
 
-export async function DELETE(request, { params }) {
+export async function DELETE(request, context) {
   const supabase = getSupabaseAdmin();
-  const routeParams = await params;
+  const routeParams = await context?.params;
   const eventId = String(routeParams?.id || '').trim();
 
   console.info('[EVENT_DELETE_API][DELETE][START]', { mode: 'single' });

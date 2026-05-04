@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { normalizeTimeStrict } from '@/lib/time/normalize-time';
+import { getCurrentWorkspace } from '@/lib/workspaces/get-current-workspace';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -92,12 +93,23 @@ async function loadContext(token, supabase) {
   return { precontract, contract: contract || null, contact: contact || null, event: event || null };
 }
 
+async function logWorkspaceContext(supabase, routeName) {
+  const workspaceContext = await getCurrentWorkspace({ supabase });
+  console.info('[WORKSPACE_CONTEXT]', {
+    route: routeName,
+    workspaceId: workspaceContext.workspaceId,
+    source: workspaceContext.source,
+  });
+  return workspaceContext;
+}
+
 export async function GET(_request, context) {
   const params = await context?.params;
   const token = extractToken(params);
   if (!token) return NextResponse.json({ ok: false, message: 'Token inválido.' }, { status: 400 });
   try {
     const supabase = getSupabaseAdmin();
+    await logWorkspaceContext(supabase, 'public_contract_draft_get');
     const { precontract, contract, contact, event } = await loadContext(token, supabase);
     if (!precontract?.id) return NextResponse.json({ ok: false, message: 'Contrato não encontrado.' }, { status: 404 });
     const clientForm = contract?.raw_payload?.client_form || {};
@@ -115,6 +127,7 @@ export async function PATCH(request, context) {
     const body = await request.json().catch(() => ({}));
     const input = normalizeDraftInput(body?.form || body || {});
     const supabase = getSupabaseAdmin();
+    await logWorkspaceContext(supabase, 'public_contract_draft_patch');
     const { precontract, contract } = await loadContext(token, supabase);
     if (!precontract?.id) return NextResponse.json({ ok: false, message: 'Contrato não encontrado.' }, { status: 404 });
     if (contract?.status === 'signed') return NextResponse.json({ ok: true, skipped: true });

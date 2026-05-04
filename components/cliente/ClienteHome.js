@@ -1225,6 +1225,10 @@ function EntryCard({
   onChange,
   onMoveUp,
   onMoveDown,
+  onMoveLeft,
+  onMoveRight,
+  moveLeftTitle = 'Mover para anterior',
+  moveRightTitle = 'Mover para próximo',
   onRemove,
   disabled = false,
 }) {
@@ -1256,6 +1260,26 @@ function EntryCard({
             >
               ↓
             </button>
+            {typeof onMoveLeft === 'function' ? (
+              <button
+                type="button"
+                onClick={onMoveLeft}
+                title={moveLeftTitle}
+                className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#eadfd6] bg-[#faf7f3] text-sm"
+              >
+                ←
+              </button>
+            ) : null}
+            {typeof onMoveRight === 'function' ? (
+              <button
+                type="button"
+                onClick={onMoveRight}
+                title={moveRightTitle}
+                className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#eadfd6] bg-[#faf7f3] text-sm"
+              >
+                →
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={onRemove}
@@ -2615,6 +2639,85 @@ async function handleRequestReview() {
     setter(clone);
   }
 
+  function moveItemBetweenSections(fromSection, index, direction) {
+    if (fromSection === 'cortejo' && direction === 'right') {
+      const source = Array.isArray(cortejo) ? [...cortejo] : [];
+      const target = Array.isArray(cerimonia) ? [...cerimonia] : [];
+      if (index < 0 || index >= source.length) return;
+      const [movedItem] = source.splice(index, 1);
+      setCortejoWithLog(source, 'moveToCerimonia');
+      setCerimoniaWithLog([...target, { ...movedItem, source: movedItem?.source || 'manual' }], 'moveFromCortejo');
+      return;
+    }
+
+    if (fromSection === 'cerimonia' && direction === 'left') {
+      const source = Array.isArray(cerimonia) ? [...cerimonia] : [];
+      const target = Array.isArray(cortejo) ? [...cortejo] : [];
+      if (index < 0 || index >= source.length) return;
+      const [movedItem] = source.splice(index, 1);
+      setCerimoniaWithLog(source, 'moveToCortejo');
+      setCortejoWithLog([...target, { ...movedItem, source: movedItem?.source || 'manual' }], 'moveFromCerimonia');
+      return;
+    }
+
+    if (fromSection === 'cerimonia' && direction === 'right') {
+      const source = Array.isArray(cerimonia) ? [...cerimonia] : [];
+      if (index < 0 || index >= source.length) return;
+      const [movedItem] = source.splice(index, 1);
+      setCerimoniaWithLog(source, 'moveToSaida');
+      setSaida({
+        id: saida?.id || 'saida-0',
+        label: 'Saída dos noivos',
+        musica: movedItem?.musica || '',
+        referencia: movedItem?.referencia || '',
+        observacao: movedItem?.observacao || '',
+        source: movedItem?.source || 'manual',
+        reference_title: movedItem?.reference_title || '',
+        reference_channel: movedItem?.reference_channel || '',
+        reference_thumbnail: movedItem?.reference_thumbnail || '',
+        reference_video_id: movedItem?.reference_video_id || '',
+        referenceMeta: movedItem?.referenceMeta || null,
+      });
+      return;
+    }
+  }
+
+  function moveSaidaToCerimonia() {
+    if (!hasUsefulListItem(saida)) return;
+    setCerimoniaWithLog(
+      [
+        ...cerimonia,
+        {
+          id: `cerimonia-manual-${Date.now()}-${cerimonia.length}`,
+          label: saida?.label || 'Saída dos noivos',
+          musica: saida?.musica || '',
+          referencia: saida?.referencia || '',
+          observacao: saida?.observacao || '',
+          source: saida?.source || 'manual',
+          reference_title: saida?.reference_title || '',
+          reference_channel: saida?.reference_channel || '',
+          reference_thumbnail: saida?.reference_thumbnail || '',
+          reference_video_id: saida?.reference_video_id || '',
+          referenceMeta: saida?.referenceMeta || null,
+        },
+      ],
+      'moveFromSaida'
+    );
+    setSaida({
+      id: saida?.id || 'saida-0',
+      label: 'Saída dos noivos',
+      musica: '',
+      referencia: '',
+      observacao: '',
+      source: 'manual',
+      reference_title: '',
+      reference_channel: '',
+      reference_thumbnail: '',
+      reference_video_id: '',
+      referenceMeta: null,
+    });
+  }
+
   function removeMatchingSuggestionFromSelection(removedItem = {}, sectionKey = '') {
     if (typeof setSelectedSongs !== 'function') return;
 
@@ -3276,6 +3379,8 @@ async function handleRequestReview() {
                 onChange={(value) => updateListItem(cortejo, setCortejoWithLog, index, value, 'cortejo')}
                 onMoveUp={() => moveItem(cortejo, setCortejoWithLog, index, -1)}
                 onMoveDown={() => moveItem(cortejo, setCortejoWithLog, index, 1)}
+                onMoveRight={() => moveItemBetweenSections('cortejo', index, 'right')}
+                moveRightTitle="Mover para Cerimônia"
                 onRemove={() => removeItem(cortejo, setCortejoWithLog, index, 'cortejo')}
               />
             ))}
@@ -3319,6 +3424,10 @@ async function handleRequestReview() {
                 onChange={(value) => updateListItem(cerimonia, setCerimoniaWithLog, index, value, 'cerimonia')}
                 onMoveUp={() => moveItem(cerimonia, setCerimoniaWithLog, index, -1)}
                 onMoveDown={() => moveItem(cerimonia, setCerimoniaWithLog, index, 1)}
+                onMoveLeft={() => moveItemBetweenSections('cerimonia', index, 'left')}
+                onMoveRight={() => moveItemBetweenSections('cerimonia', index, 'right')}
+                moveLeftTitle="Mover para Cortejo"
+                moveRightTitle="Mover para Saída dos noivos"
                 onRemove={() => removeItem(cerimonia, setCerimoniaWithLog, index, 'cerimonia')}
               />
             ))}
@@ -3342,6 +3451,18 @@ async function handleRequestReview() {
           </div>
 
           <div className="mt-5 space-y-4">
+            {hasUsefulListItem(saida) ? (
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={moveSaidaToCerimonia}
+                  title="Mover para Cerimônia"
+                  className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#eadfd6] bg-[#faf7f3] text-sm"
+                >
+                  ←
+                </button>
+              </div>
+            ) : null}
             <InputField
               label="Música da saída"
               placeholder="Ex: Signed, Sealed, Delivered"

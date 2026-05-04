@@ -194,22 +194,15 @@ export default function ContratosPage() {
           setCarregando(true);
           setErro('');
 
-          const [{ data: precontracts, error: preErr }, { data: contracts, error: conErr }] =
-            await Promise.all([
-              supabase
-                .from('precontracts')
-                .select(PRECONTRACTS_SELECT_FIELDS)
-                .neq('status', 'cancelled')
-                .order('created_at', { ascending: false })
-                .limit(ADMIN_LIST_LIMIT),
+          const response = await fetch(`/api/contracts?limit=${ADMIN_LIST_LIMIT}`);
+const json = await response.json();
 
-              supabase
-                .from('contracts')
-                .select(CONTRACTS_SELECT_FIELDS)
-                .neq('status', 'cancelled')
-                .order('created_at', { ascending: false })
-                .limit(ADMIN_LIST_LIMIT),
-            ]);
+if (!json?.ok) {
+  throw new Error(json?.message || 'Erro ao carregar contratos');
+}
+
+const precontracts = json.precontracts || [];
+const contracts = json.contracts || [];
 
           if (preErr) throw preErr;
           if (conErr) throw conErr;

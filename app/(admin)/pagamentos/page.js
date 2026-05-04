@@ -348,28 +348,18 @@ function PagamentosPageContent() {
   const toast = useAppToast();
 
   async function carregarTudo() {
-    const [eventsRes, paymentsRes] = await Promise.all([
-      supabase
-        .from('events')
-        .select('*')
-        .order('event_date', { ascending: true }),
-      supabase
-        .from('payments')
-        .select('*')
-        .order('payment_date', { ascending: false }),
-    ]);
+  const res = await fetch('/api/payments');
+  const json = await res.json();
 
-    if (eventsRes.error) throw eventsRes.error;
-    if (paymentsRes.error) throw paymentsRes.error;
-
-    console.log('[PAYMENTS_PAGE][RAW_ROWS]', {
-      events: eventsRes.data || [],
-      payments: paymentsRes.data || [],
-    });
-
-    setEvents(eventsRes.data || []);
-    setPayments(paymentsRes.data || []);
+  if (!res.ok || !json?.ok) {
+    throw new Error(json?.message || 'Erro ao carregar pagamentos');
   }
+
+  console.log('DEBUG PAYMENTS:', json.debug);
+
+  setEvents(json.events || []);
+  setPayments(json.payments || []);
+}
 
   useEffect(() => {
     async function init() {

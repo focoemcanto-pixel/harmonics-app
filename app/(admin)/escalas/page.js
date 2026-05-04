@@ -466,74 +466,38 @@ export default function EscalasPage() {
   ];
 
   const carregarTudo = useCallback(async () => {
-    if (loadingRef.current) return;
+  if (loadingRef.current) return;
 
-    try {
-      loadingRef.current = true;
-      setCarregando(true);
-      setErro('');
+  try {
+    loadingRef.current = true;
+    setCarregando(true);
+    setErro('');
 
-      const eventosResp = await supabase
-        .from('events')
-        .select(
-          'id, client_name, event_date, event_time, location_name, formation, instruments, status, created_at'
-        )
-        .order('event_date', { ascending: true });
+    const res = await fetch('/api/scales');
+    const json = await res.json();
 
-      const escalasResp = await supabase
-        .from('event_musicians')
-        .select(`
-          id,
-          event_id,
-          musician_id,
-          role,
-          status,
-          notes,
-          confirmed_at,
-          created_at,
-          musician:contacts(id, name, phone, email, tag, category)
-        `)
-        .order('created_at', { ascending: true });
-
-      const invitesResp = await supabase
-        .from('invites')
-        .select(`
-          id,
-          event_id,
-          contact_id,
-          suggested_role_name,
-          status,
-          event:events(id, client_name, event_date, event_time, location_name),
-          contact:contacts(id, name, phone, email)
-        `)
-        .order('id', { ascending: false });
-
-      if (eventosResp.error) throw eventosResp.error;
-      if (escalasResp.error) throw escalasResp.error;
-
-      if (invitesResp.error) {
-        console.warn('Não foi possível carregar invites:', invitesResp.error);
-      }
-
-      setEventos(eventosResp.data || []);
-      setEscalas(
-        (escalasResp.data || []).filter((item) =>
-          isOperationalTeamContact(item?.musician)
-        )
-      );
-      setInvites(invitesResp.data || []);
-    } catch (e) {
-      console.error('Erro ao carregar painel de escalas:', e);
-      setErro(
-        e?.message
-          ? `Não foi possível carregar o painel de escalas. ${e.message}`
-          : 'Não foi possível carregar o painel de escalas.'
-      );
-    } finally {
-      loadingRef.current = false;
-      setCarregando(false);
+    if (!res.ok || !json?.ok) {
+      throw new Error(json?.message || 'Erro ao carregar escalas');
     }
-  }, []);
+
+    console.log('DEBUG SCALES:', json.debug);
+
+    setEventos(json.eventos || []);
+    setEscalas(json.escalas || []);
+    setInvites(json.invites || []);
+
+  } catch (e) {
+    console.error('Erro ao carregar painel de escalas:', e);
+    setErro(
+      e?.message
+        ? `Não foi possível carregar o painel de escalas. ${e.message}`
+        : 'Não foi possível carregar o painel de escalas.'
+    );
+  } finally {
+    loadingRef.current = false;
+    setCarregando(false);
+  }
+}, []);
 
   useEffect(() => {
     carregarTudo();

@@ -23,10 +23,6 @@ import { useBulkDelete } from '@/hooks/useBulkDelete';
 import { useAppToast } from '@/components/ui/ToastProvider';
 
 const ADMIN_LIST_LIMIT = 100;
-const PRECONTRACTS_SELECT_FIELDS =
-  'id, created_at, event_id, client_name, event_type, event_date, location_name, client_phone, status, notes, public_token, custom_contract_enabled, contract_mode';
-const CONTRACTS_SELECT_FIELDS =
-  'id, created_at, precontract_id, event_id, status, signed_at, pdf_url, doc_url, public_token, raw_payload';
 const CONTRATOS_CACHE_TTL_MS = 60 * 1000;
 let contratosAdminCache = [];
 
@@ -195,18 +191,14 @@ export default function ContratosPage() {
           setErro('');
 
           const response = await fetch(`/api/contracts?limit=${ADMIN_LIST_LIMIT}`);
-const json = await response.json();
+          const json = await response.json();
 
-if (!json?.ok) {
-  throw new Error(json?.message || 'Erro ao carregar contratos');
-}
+          if (!response.ok || !json?.ok) {
+            throw new Error(json?.message || 'Erro ao carregar contratos');
+          }
 
-const precontracts = json.precontracts || [];
-const contracts = json.contracts || [];
-
-          if (preErr) throw preErr;
-          if (conErr) throw conErr;
-
+          const precontracts = json.precontracts || [];
+          const contracts = json.contracts || [];
           const merged = mergeContratos(precontracts, contracts);
 
           setContratos(merged);

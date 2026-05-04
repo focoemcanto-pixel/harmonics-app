@@ -9,6 +9,8 @@ import {
 } from '@/lib/finance/event-finance';
 import { createPaymentScheduleForPrecontract } from '@/lib/finance/create-payment-schedule';
 
+const DEFAULT_LIST_LIMIT = 120;
+
 const PRECONTRACT_SELECT_FIELDS = [
   'id',
   'workspace_id',
@@ -100,6 +102,12 @@ function getTodayStart() {
   return now;
 }
 
+function normalizeListLimit(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return DEFAULT_LIST_LIMIT;
+  return Math.min(Math.max(Math.trunc(parsed), 1), 300);
+}
+
 function normalizePrecontractFinancialPayload(payload = {}) {
   const agreedAmount = Math.max(toMoneyNumber(payload?.agreed_amount), 0);
   const rawSignalAmount = toMoneyNumber(payload?.signal_amount);
@@ -187,6 +195,50 @@ async function syncEventSnapshotFromPrecontract({ supabase, precontract }) {
     eventId,
     precontractId: precontract?.id || null,
   });
+}
+
+export async function GET(request) {
+  const supabase = getSupabaseAdmin();
+
+  try {
+    const auth = await requireAdmin({ supabase, request, logPrefix: '[PRECONTRACTS_API]' });
+    if (!auth.ok) {
+      return NextResponse.json({ ok: false, message: auth.error }, { status: auth.status || 401 });
+    }
+
+    const workspaceContext = await getCurrentWorkspace({ supabase });
+    const { searchParams } = new URL(request.url);
+    const limit = normalizeListLimit(searchParams.get('limit'));
+
+    const { data, error } = await supabase
+      .from('precontracts')
+      .select(PRECONTRACT_SELECT_FIELDS)
+      .eq('workspace_id', workspaceContext.workspaceId)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (error) throw error;
+
+    return NextResponse.json({
+      ok: true,
+      data: data || [],
+      workspaceId: workspaceContext.workspaceId,
+    });
+  } catch (error) {
+    console.error('[PRECONTRACTS_API][GET][ERROR]', {
+      message: error?.message,
+      details: error?.details,
+      hint: error?.hint,
+      code: error?.code,
+    });
+    return NextResponse.json(
+      {
+        ok: false,
+        message: error?.message || 'Erro inesperado ao carregar pré-contratos.',
+      },
+      { status: 500 }
+    );
+  }
 }
 
 export async function POST(request) {

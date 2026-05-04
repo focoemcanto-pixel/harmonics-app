@@ -4,6 +4,7 @@ import { requireRequiredEnv } from '@/lib/config/validate-env';
 import { generateContractDocument } from '@/lib/contracts/generate-contract-document';
 import { logError, logInfo, logWarn, safeError } from '@/lib/observability/server-log';
 import { sendAdminWhatsAppAlert } from '@/lib/whatsapp/send-admin-alert';
+import { getCurrentWorkspace } from '@/lib/workspaces/get-current-workspace';
 
 export const dynamic = 'force-dynamic';
 
@@ -59,6 +60,12 @@ export async function POST(request) {
     if (!supabaseEnv.valid) return NextResponse.json({ ok: false, message: supabaseEnv.error }, { status: 500 });
 
     const supabase = createClient(supabaseEnv.supabaseUrl, supabaseEnv.supabaseServiceRoleKey);
+
+    const workspaceContext = await getCurrentWorkspace({ supabase });
+    logInfo('CONTRACT_GENERATE', 'WORKSPACE_CONTEXT', {
+      workspaceId: workspaceContext.workspaceId,
+      source: workspaceContext.source,
+    });
 
     let body = {};
     try { body = await request.json(); } catch {

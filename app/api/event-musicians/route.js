@@ -21,28 +21,37 @@ export async function GET(request) {
 
     const { workspaceId } = await getCurrentWorkspace({ supabase });
 
+    const { data: workspaceEvents, error: eventsError } = await supabase
+      .from('events')
+      .select('id')
+      .eq('workspace_id', workspaceId);
+
+    if (eventsError) throw eventsError;
+
+    const eventIds = Array.from(
+      new Set((workspaceEvents || []).map((item) => String(item?.id || '').trim()).filter(Boolean))
+    );
+
+    if (eventIds.length === 0) {
+      return NextResponse.json({ ok: true, data: [], workspaceId });
+    }
+
     const { data: eventMusicians, error } = await supabase
       .from('event_musicians')
-      .select(`
-        *,
-        events!inner(id, workspace_id)
-      `)
-      .eq('events.workspace_id', workspaceId)
+      .select('*')
+      .in('event_id', eventIds)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
 
     const rows = eventMusicians || [];
-    const eventIds = Array.from(
-      new Set(rows.map((item) => String(item?.event_id || '').trim()).filter(Boolean))
-    );
     const musicianIds = Array.from(
       new Set(rows.map((item) => String(item?.musician_id || '').trim()).filter(Boolean))
     );
 
     let invitesByEventAndContact = new Map();
 
-    if (eventIds.length > 0 && musicianIds.length > 0) {
+    if (rows.length > 0 && musicianIds.length > 0) {
       const { data: invites, error: invitesError } = await supabase
         .from('invites')
         .select('id, event_id, contact_id, status, invite_token, suggested_role_name, whatsapp_sent_at, whatsapp_send_count, whatsapp_last_error, created_at')

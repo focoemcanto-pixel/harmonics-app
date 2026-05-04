@@ -23,17 +23,26 @@ export async function GET(request) {
 
     const { data: workspaceEvents, error: eventsError } = await supabase
       .from('events')
-      .select('id')
-      .eq('workspace_id', workspaceId);
+      .select('*')
+      .eq('workspace_id', workspaceId)
+      .order('event_date', { ascending: true });
 
     if (eventsError) throw eventsError;
 
+    const events = workspaceEvents || [];
     const eventIds = Array.from(
-      new Set((workspaceEvents || []).map((item) => String(item?.id || '').trim()).filter(Boolean))
+      new Set(events.map((item) => String(item?.id || '').trim()).filter(Boolean))
     );
 
     if (eventIds.length === 0) {
-      return NextResponse.json({ ok: true, data: [], workspaceId });
+      return NextResponse.json({
+        ok: true,
+        data: [],
+        events: [],
+        contacts: [],
+        counts: { events: 0, eventMusicians: 0, contacts: 0, invites: 0 },
+        workspaceId,
+      });
     }
 
     const { data: eventMusicians, error } = await supabase
@@ -49,7 +58,19 @@ export async function GET(request) {
       new Set(rows.map((item) => String(item?.musician_id || '').trim()).filter(Boolean))
     );
 
+    let contacts = [];
+    if (musicianIds.length > 0) {
+      const { data: contactsData, error: contactsError } = await supabase
+        .from('contacts')
+        .select('id, name, email, phone, tag, contact_type, is_active, workspace_id')
+        .in('id', musicianIds);
+
+      if (contactsError) throw contactsError;
+      contacts = contactsData || [];
+    }
+
     let invitesByEventAndContact = new Map();
+    let invitesCount = 0;
 
     if (rows.length > 0 && musicianIds.length > 0) {
       const { data: invites, error: invitesError } = await supabase
@@ -62,6 +83,7 @@ export async function GET(request) {
 
       if (invitesError) throw invitesError;
 
+      invitesCount = (invites || []).length;
       invitesByEventAndContact = new Map();
       for (const invite of invites || []) {
         const key = buildInviteKey(invite?.event_id, invite?.contact_id);
@@ -87,6 +109,14 @@ export async function GET(request) {
     return NextResponse.json({
       ok: true,
       data,
+      events,
+      contacts,
+      counts: {
+        events: events.length,
+        eventMusicians: data.length,
+        contacts: contacts.length,
+        invites: invitesCount,
+      },
       workspaceId,
     });
   } catch (error) {

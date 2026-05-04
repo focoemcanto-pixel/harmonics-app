@@ -3,14 +3,15 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requireAdmin } from '@/lib/api/require-admin';
 import { deletePaymentsByIds } from '@/lib/payments/delete-payments';
 
-export async function DELETE(request, { params }) {
+export async function DELETE(request, context) {
   const supabase = getSupabaseAdmin();
 
   try {
     const auth = await requireAdmin({ supabase, request, logPrefix: '[PAYMENT_DELETE_ONE_API]' });
     if (!auth.ok) return NextResponse.json(auth, { status: auth.status || 401 });
 
-    const paymentId = params?.id;
+    const resolvedParams = await context?.params;
+    const paymentId = String(resolvedParams?.id || '').trim();
 
     if (!paymentId) {
       return NextResponse.json(

@@ -10,10 +10,11 @@ function slugify(value) {
     .replace(/(^-|-$)/g, '');
 }
 
-export async function PATCH(request, { params }) {
+export async function PATCH(request, context) {
   try {
     const supabase = getSupabaseAdmin();
-    const id = String(params?.id || '').trim();
+    const routeParams = await context?.params;
+    const id = String(routeParams?.id || '').trim();
 
     if (!id) {
       return NextResponse.json(

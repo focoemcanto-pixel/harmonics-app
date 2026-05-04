@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 
-export async function GET(_request, { params }) {
+export async function GET(_request, context) {
   try {
-    const token = String(params?.token || '').trim();
+    const routeParams = await context?.params;
+    const token = String(routeParams?.token || '').trim();
 
     if (!token) {
       return new NextResponse('Token inválido.', { status: 400 });

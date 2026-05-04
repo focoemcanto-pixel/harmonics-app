@@ -24,7 +24,7 @@ export async function DELETE(request, context) {
   if (!adminGuard.ok) {
     return adminGuard.response;
   }
-  const params = await context.params;
+  const params = await context?.params;
   const userId = params?.id;
 
   logInfo('ADMIN_USERS', 'DELETE_START', { userId });

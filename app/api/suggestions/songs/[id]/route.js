@@ -177,10 +177,10 @@ async function fetchSongById(supabase, id) {
   return data;
 }
 
-export async function PATCH(request, { params }) {
+export async function PATCH(request, context) {
   try {
     const supabase = getSupabaseAdmin();
-    const routeParams = await params;
+    const routeParams = await context?.params;
     const id = String(routeParams?.id || '').trim();
 
     if (!id) {
@@ -230,10 +230,10 @@ export async function PATCH(request, { params }) {
   }
 }
 
-export async function DELETE(_request, { params }) {
+export async function DELETE(_request, context) {
   try {
     const supabase = getSupabaseAdmin();
-    const routeParams = await params;
+    const routeParams = await context?.params;
     const id = String(routeParams?.id || '').trim();
 
     if (!id) {

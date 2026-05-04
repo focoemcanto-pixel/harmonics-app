@@ -43,17 +43,30 @@ function getInitials(name) {
   return (parts[0] || 'M').slice(0, 2).toUpperCase();
 }
 
+function getScaleMemberName(member) {
+  return member?.contact?.full_name
+    || member?.contact?.name
+    || member?.full_name
+    || member?.name
+    || member?.musician_name
+    || member?.snapshot_name
+    || member?.notes
+    || 'Membro';
+}
+
 function MusicianRow({ item }) {
+  const memberName = getScaleMemberName(item);
+
   return (
     <div className="rounded-[16px] border border-white/10 bg-[#1e1535] px-4 py-3 shadow-[0_6px_18px_rgba(0,0,0,0.18)]">
       <div className="flex items-center gap-3">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,#7c3aed,#a78bfa)] text-[13px] font-black text-white">
-          {getInitials(item?.musician_name || item?.name || 'Membro')}
+          {getInitials(memberName)}
         </div>
 
         <div className="min-w-0 flex-1">
           <div className="truncate text-[14px] font-extrabold text-white">
-            {item?.musician_name || item?.name || 'Membro'}
+            {memberName}
           </div>
 
           <div className="mt-0.5 truncate text-[12px] font-semibold text-white/65">

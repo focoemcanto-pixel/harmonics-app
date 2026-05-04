@@ -6,19 +6,22 @@ import { getCurrentWorkspace } from '@/lib/workspaces/get-current-workspace';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
+function buildInviteKey(eventId, contactId) {
+  return `${String(eventId || '').trim()}::${String(contactId || '').trim()}`;
+}
+
 export async function GET(request) {
   const supabase = getSupabaseAdmin();
 
   try {
-    const auth = await requireAdmin({ supabase, request });
+    const auth = await requireAdmin({ supabase, request, logPrefix: '[EVENT_MUSICIANS_API]' });
     if (!auth.ok) {
-      return NextResponse.json({ ok: false, message: auth.error }, { status: 401 });
+      return NextResponse.json({ ok: false, message: auth.error }, { status: auth.status || 401 });
     }
 
     const { workspaceId } = await getCurrentWorkspace({ supabase });
 
-    // ⚠️ aqui está o pulo do gato
-    const { data, error } = await supabase
+    const { data: eventMusicians, error } = await supabase
       .from('event_musicians')
       .select(`
         *,
@@ -29,17 +32,65 @@ export async function GET(request) {
 
     if (error) throw error;
 
-    return NextResponse.json({
-      ok: true,
-      data: data || []
+    const rows = eventMusicians || [];
+    const eventIds = Array.from(
+      new Set(rows.map((item) => String(item?.event_id || '').trim()).filter(Boolean))
+    );
+    const musicianIds = Array.from(
+      new Set(rows.map((item) => String(item?.musician_id || '').trim()).filter(Boolean))
+    );
+
+    let invitesByEventAndContact = new Map();
+
+    if (eventIds.length > 0 && musicianIds.length > 0) {
+      const { data: invites, error: invitesError } = await supabase
+        .from('invites')
+        .select('id, event_id, contact_id, status, invite_token, suggested_role_name, whatsapp_sent_at, whatsapp_send_count, whatsapp_last_error, created_at')
+        .in('event_id', eventIds)
+        .in('contact_id', musicianIds)
+        .neq('status', 'removed')
+        .order('created_at', { ascending: false });
+
+      if (invitesError) throw invitesError;
+
+      invitesByEventAndContact = new Map();
+      for (const invite of invites || []) {
+        const key = buildInviteKey(invite?.event_id, invite?.contact_id);
+        if (!key || invitesByEventAndContact.has(key)) continue;
+        invitesByEventAndContact.set(key, invite);
+      }
+    }
+
+    const data = rows.map((item) => {
+      const invite = invitesByEventAndContact.get(buildInviteKey(item?.event_id, item?.musician_id)) || null;
+
+      return {
+        ...item,
+        invite_id: invite?.id || null,
+        invite_token: invite?.invite_token || null,
+        invite_status: invite?.status || null,
+        invite_whatsapp_sent_at: invite?.whatsapp_sent_at || null,
+        invite_whatsapp_send_count: invite?.whatsapp_send_count || 0,
+        invite_whatsapp_last_error: invite?.whatsapp_last_error || null,
+      };
     });
 
+    return NextResponse.json({
+      ok: true,
+      data,
+      workspaceId,
+    });
   } catch (error) {
-    console.error('[EVENT_MUSICIANS_API]', error);
+    console.error('[EVENT_MUSICIANS_API][GET][ERROR]', {
+      message: error?.message,
+      details: error?.details,
+      hint: error?.hint,
+      code: error?.code,
+    });
 
     return NextResponse.json({
       ok: false,
-      message: error?.message || 'Erro ao carregar convites'
+      message: error?.message || 'Erro ao carregar convites',
     }, { status: 500 });
   }
 }

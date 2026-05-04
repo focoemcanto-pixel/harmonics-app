@@ -83,23 +83,18 @@ export default function ConvitesPage() {
   const { loading: deleting, run: runBulkDelete } = useBulkDelete();
 
   async function carregarTudo() {
-  const [convitesRes, eventsRes, contactsRes] = await Promise.all([
-    fetch('/api/event-musicians'),
-    fetch('/api/events?scope=events'),
-    fetch('/api/contacts'),
-  ]);
+  const res = await fetch('/api/convites');
+  const json = await res.json();
 
-  const convitesJson = await convitesRes.json();
-  const eventsJson = await eventsRes.json();
-  const contactsJson = await contactsRes.json();
+  if (!res.ok || !json?.ok) {
+    throw new Error(json?.message || 'Erro ao carregar convites');
+  }
 
-  if (!convitesJson?.ok) throw new Error(convitesJson?.message);
-  if (!eventsJson?.ok) throw new Error(eventsJson?.message);
-  if (!contactsJson?.ok) throw new Error(contactsJson?.message);
+  console.log('DEBUG CONVITES:', json.debug);
 
-  setConvites(convitesJson.data || []);
-  setEvents(eventsJson.events || []);
-  setContacts(contactsJson.data || []);
+  setConvites(json.convites || []);
+  setEvents(json.events || []);
+  setContacts(json.contacts || []);
 }
 
   useEffect(() => {

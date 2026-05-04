@@ -163,6 +163,10 @@ export default function ConvitesPage() {
 
   async function reenviarConvite(inviteId) {
     try {
+      if (!inviteId) {
+        throw new Error('Convite ainda não sincronizado para envio.');
+      }
+
       setSendingInviteIds((prev) => [...prev, String(inviteId)]);
       const response = await fetch('/api/whatsapp/send-invite', {
         method: 'POST',
@@ -183,14 +187,18 @@ export default function ConvitesPage() {
   async function reenviarPendentesDoEvento(group) {
     try {
       setSendingEventIds((prev) => [...prev, String(group.eventId)]);
-      const pendentes = group.invites.filter((invite) => invite.statusKey === 'pendente');
+      const pendentes = group.invites.filter((invite) => invite.statusKey === 'pendente' && invite.invite_id);
+
+      if (pendentes.length === 0) {
+        throw new Error('Nenhum convite pendente sincronizado para reenvio.');
+      }
 
       await Promise.all(
         pendentes.map((invite) =>
           fetch('/api/whatsapp/send-invite', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ inviteId: invite.id }),
+            body: JSON.stringify({ inviteId: invite.invite_id }),
           })
         )
       );
@@ -342,7 +350,7 @@ export default function ConvitesPage() {
                     {isExpanded ? (
                       <div className="mt-5 space-y-3 border-t border-[#e2e8f0] pt-4">
                         {group.invites.map((invite) => {
-                          const sendingInvite = sendingInviteIds.includes(String(invite.id));
+                          const sendingInvite = sendingInviteIds.includes(String(invite.invite_id || invite.id));
 
                           return (
                             <div key={invite.id} className="rounded-[18px] border border-[#e2e8f0] bg-[#f8fafc] px-4 py-4">
@@ -357,7 +365,7 @@ export default function ConvitesPage() {
                                   <div className="mt-2 text-[13px] font-semibold leading-6 text-[#64748b]">
                                     <div><strong>Email:</strong> {invite.contact?.email || '-'}</div>
                                     <div><strong>Telefone:</strong> {formatPhoneDisplay(invite.contact?.phone || '') || '-'}</div>
-                                    <div><strong>Enviado em:</strong> {invite.created_at ? new Date(invite.created_at).toLocaleDateString('pt-BR') : '-'}</div>
+                                    <div><strong>Enviado em:</strong> {invite.invite_whatsapp_sent_at ? new Date(invite.invite_whatsapp_sent_at).toLocaleDateString('pt-BR') : invite.created_at ? new Date(invite.created_at).toLocaleDateString('pt-BR') : '-'}</div>
                                     <div><strong>Confirmado em:</strong> {invite.confirmed_at ? new Date(invite.confirmed_at).toLocaleDateString('pt-BR') : '-'}</div>
                                   </div>
                                 </div>
@@ -365,11 +373,11 @@ export default function ConvitesPage() {
                                 <div className="flex w-full flex-wrap gap-2 xl:w-[360px] xl:justify-end">
                                   <button
                                     type="button"
-                                    disabled={sendingInvite}
-                                    onClick={() => reenviarConvite(invite.id)}
+                                    disabled={sendingInvite || !invite.invite_id}
+                                    onClick={() => reenviarConvite(invite.invite_id)}
                                     className="rounded-[14px] border border-sky-200 bg-sky-50 px-3 py-2 text-[12px] font-black text-sky-700 disabled:opacity-70"
                                   >
-                                    {sendingInvite ? 'Reenviando...' : 'Reenviar'}
+                                    {sendingInvite ? 'Reenviando...' : invite.invite_id ? 'Reenviar' : 'Não sincronizado'}
                                   </button>
                                   <button
                                     type="button"

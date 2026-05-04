@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requireAdmin } from '@/lib/api/require-admin';
+import { getCurrentWorkspace } from '@/lib/workspaces/get-current-workspace';
 import {
   calculateEventFinance,
   syncEventFinanceSnapshot,
@@ -10,6 +11,7 @@ import { createPaymentScheduleForPrecontract } from '@/lib/finance/create-paymen
 
 const PRECONTRACT_SELECT_FIELDS = [
   'id',
+  'workspace_id',
   'created_at',
   'client_name',
   'client_email',
@@ -196,6 +198,12 @@ export async function POST(request) {
       return NextResponse.json({ ok: false, message: auth.error }, { status: auth.status || 401 });
     }
 
+    const workspaceContext = await getCurrentWorkspace({ supabase });
+    console.info('[PRECONTRACTS_API][WORKSPACE_CONTEXT]', {
+      workspaceId: workspaceContext.workspaceId,
+      source: workspaceContext.source,
+    });
+
     const body = await request.json();
     const id = String(body?.id || '').trim();
     const payload = body?.payload && typeof body.payload === 'object' ? body.payload : {};
@@ -217,7 +225,7 @@ export async function POST(request) {
     if (id) {
       const { data, error } = await supabase
         .from('precontracts')
-        .select('id, event_date')
+        .select('id, event_date, workspace_id')
         .eq('id', id)
         .maybeSingle();
       if (error) throw error;
@@ -244,6 +252,7 @@ export async function POST(request) {
 
     const writePayload = normalizePrecontractFinancialPayload({
       ...payload,
+      workspace_id: payload?.workspace_id || existingItem?.workspace_id || workspaceContext.workspaceId,
       public_token: body?.public_token || null,
       generated_link: body?.generated_link || null,
     });

@@ -104,41 +104,43 @@ export default function ContatosPage() {
   }, [mobileTab]);
 
   const carregarContatos = useCallback(async ({ background = false } = {}) => {
-    if (loadingRef.current) return;
+  if (loadingRef.current) return;
 
-    try {
-      loadingRef.current = true;
-      if (isMountedRef.current) {
-        if (!background || contatosCache.length === 0) {
-          setCarregando(true);
-        }
-        setErrorMessage('');
+  try {
+    loadingRef.current = true;
+
+    if (isMountedRef.current) {
+      if (!background || contatosCache.length === 0) {
+        setCarregando(true);
       }
-
-      const { data, error } = await supabase
-        .from('contacts')
-        .select(CONTACTS_SELECT_FIELDS)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      if (isMountedRef.current) {
-        setContatos(data || []);
-        contatosCache = data || [];
-      }
-    } catch (error) {
-      console.error('Erro ao carregar contatos:', error);
-
-      if (isMountedRef.current) {
-        setErrorMessage(error?.message || 'Erro ao carregar contatos');
-      }
-    } finally {
-      if (isMountedRef.current) {
-        setCarregando(false);
-      }
-      loadingRef.current = false;
+      setErrorMessage('');
     }
-  }, []);
+
+    const response = await fetch('/api/contacts');
+    const json = await response.json();
+
+    if (!response.ok || !json?.ok) {
+      throw new Error(json?.message || 'Erro ao carregar contatos');
+    }
+
+    if (isMountedRef.current) {
+      setContatos(json.data || []);
+      contatosCache = json.data || [];
+    }
+
+  } catch (error) {
+    console.error('Erro ao carregar contatos:', error);
+
+    if (isMountedRef.current) {
+      setErrorMessage(error?.message || 'Erro ao carregar contatos');
+    }
+  } finally {
+    if (isMountedRef.current) {
+      setCarregando(false);
+    }
+    loadingRef.current = false;
+  }
+}, []);
 
   useEffect(() => {
     if (contatosCache.length > 0) {
@@ -184,53 +186,53 @@ export default function ContatosPage() {
   }
 
   async function salvarContato() {
-    if (salvando) return;
+  if (salvando) return;
 
-    if (!form.name.trim()) {
-      setErrorMessage('Informe o nome do contato.');
-      return;
-    }
-
-    try {
-      setSalvando(true);
-      setErrorMessage('');
-
-      const payload = {
-        name: form.name.trim(),
-        email: form.email.trim() || null,
-        phone: cleanPhone(form.phone),
-        tag: form.tag.trim() || null,
-        notes: form.notes.trim() || null,
-        contact_type: form.contact_type,
-        is_active: !!form.is_active,
-      };
-
-      if (editandoId) {
-        const { error } = await supabase
-          .from('contacts')
-          .update(payload)
-          .eq('id', editandoId);
-
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from('contacts')
-          .insert([payload]);
-
-        if (error) throw error;
-      }
-
-      cancelarEdicao();
-      await carregarContatos({ background: true });
-      setDesktopTab('lista');
-      setMobileTab('lista');
-    } catch (error) {
-      console.error('Erro ao salvar contato:', error);
-      setErrorMessage(error?.message || 'Erro ao salvar contato');
-    } finally {
-      setSalvando(false);
-    }
+  if (!form.name.trim()) {
+    setErrorMessage('Informe o nome do contato.');
+    return;
   }
+
+  try {
+    setSalvando(true);
+    setErrorMessage('');
+
+    const payload = {
+      name: form.name.trim(),
+      email: form.email.trim() || null,
+      phone: cleanPhone(form.phone),
+      tag: form.tag.trim() || null,
+      notes: form.notes.trim() || null,
+      contact_type: form.contact_type,
+      is_active: !!form.is_active,
+    };
+
+    const response = await fetch('/api/contacts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: editandoId,
+        payload,
+      }),
+    });
+
+    const result = await response.json().catch(() => ({}));
+
+    if (!response.ok || !result?.ok) {
+      throw new Error(result?.message || 'Erro ao salvar contato');
+    }
+
+    cancelarEdicao();
+    await carregarContatos({ background: true });
+    setDesktopTab('lista');
+    setMobileTab('lista');
+  } catch (error) {
+    console.error('Erro ao salvar contato:', error);
+    setErrorMessage(error?.message || 'Erro ao salvar contato');
+  } finally {
+    setSalvando(false);
+  }
+}
 
   const uniqueTags = useMemo(() => getUniqueTags(contatos), [contatos]);
 

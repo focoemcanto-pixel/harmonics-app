@@ -127,25 +127,23 @@ export async function PATCH(request, context) {
     const body = await request.json().catch(() => ({}));
     const input = normalizeDraftInput(body?.form || body || {});
     const supabase = getSupabaseAdmin();
-    await logWorkspaceContext(supabase, 'public_contract_draft_patch');
+    const workspaceContext = await logWorkspaceContext(supabase, 'public_contract_draft_patch');
     const { precontract, contract } = await loadContext(token, supabase);
     if (!precontract?.id) return NextResponse.json({ ok: false, message: 'Contrato não encontrado.' }, { status: 404 });
     if (contract?.status === 'signed') return NextResponse.json({ ok: true, skipped: true });
 
     let current = contract;
     if (!current?.id) {
-      const workspaceContext = await getCurrentWorkspace({ supabase });
-
-const inserted = await supabase
-  .from('contracts')
-  .insert({
-    precontract_id: precontract.id,
-    public_token: precontract.public_token || token,
-    status: 'client_filling',
-    workspace_id: workspaceContext.workspaceId
-  })
-  .select('*')
-  .single();
+      const inserted = await supabase
+        .from('contracts')
+        .insert({
+          precontract_id: precontract.id,
+          public_token: precontract.public_token || token,
+          status: 'client_filling',
+          workspace_id: precontract.workspace_id || workspaceContext.workspaceId,
+        })
+        .select('*')
+        .single();
       if (inserted.error) throw inserted.error;
       current = inserted.data;
     }

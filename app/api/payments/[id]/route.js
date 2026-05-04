@@ -10,7 +10,8 @@ export async function DELETE(request, { params }) {
     const auth = await requireAdmin({ supabase, request, logPrefix: '[PAYMENT_DELETE_ONE_API]' });
     if (!auth.ok) return NextResponse.json(auth, { status: auth.status || 401 });
 
-    const paymentId = String(params?.id || '').trim();
+    const paymentId = params?.id;
+
     if (!paymentId) {
       return NextResponse.json(
         { success: false, ok: false, affected: 0, message: 'paymentId é obrigatório.' },

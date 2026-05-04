@@ -556,7 +556,7 @@ function PagamentosPageContent() {
       return;
     }
 
-    const payload = isBulk ? { paymentIds: targetIds } : { paymentId: targetIds[0] };
+    const payload = isBulk ? { paymentIds: targetIds } : null;
     const endpoint = isBulk
       ? '/api/payments/bulk-delete'
       : `/api/payments/${encodeURIComponent(targetIds[0])}`;

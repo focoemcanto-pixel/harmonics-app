@@ -1,10 +1,21 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { getDefaultWorkspaceSettings } from '@/lib/automation/get-workspace';
+import { getCurrentAutomationWorkspaceSettings } from '@/lib/automation/get-workspace';
 import { validateChannelConfig } from '@/lib/whatsapp/channel-config';
 import { requireAdmin } from '@/lib/api/require-admin';
 
 const SAVE_CHANNELS_AUDIT_VERSION = '2026-04-12-audit-v2';
+
+function asUuidOrNull(value) {
+  const raw = String(value || '').trim();
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(raw)
+    ? raw
+    : null;
+}
+
+function scopeWorkspace(query, workspaceId) {
+  return workspaceId ? query.eq('workspace_id', workspaceId) : query;
+}
 
 function normalizeAdminPhone(value) {
   const raw = String(value || '').trim();
@@ -40,17 +51,17 @@ export async function GET(request) {
   }
 
   try {
-    const workspace = await getDefaultWorkspaceSettings();
+    const workspace = await getCurrentAutomationWorkspaceSettings({ supabase: supabaseAdmin, request });
+    const workspaceId = asUuidOrNull(workspace?.id);
 
-    const query = supabaseAdmin
+    const baseQuery = supabaseAdmin
       .from('whatsapp_channels')
       .select(
         'id, name, provider, api_url, instance_id, sender_number, admin_alert_number, is_active, is_default, created_at'
       )
-      .eq('workspace_id', workspace.id)
       .order('created_at', { ascending: false });
 
-    const { data, error } = await query;
+    const { data, error } = await scopeWorkspace(baseQuery, workspaceId);
 
     if (error) throw error;
 
@@ -58,18 +69,26 @@ export async function GET(request) {
       const validation = validateChannelConfig(channel);
       return {
         ...channel,
-        has_api_key: Boolean(channel.api_key),
+        has_api_key: false,
         status: validation.isValid ? 'valid' : 'invalid',
         status_reason: validation.isValid ? null : `Faltando: ${validation.missing.join(', ')}`,
-        api_key: undefined,
       };
     });
 
-    return NextResponse.json({ ok: true, channels });
+    return NextResponse.json({
+      ok: true,
+      channels,
+      workspace_debug: {
+        workspaceId,
+        rawWorkspaceId: workspace?.id || null,
+        source: workspace?.source || null,
+        migrationMode: !workspaceId,
+      },
+    });
   } catch (error) {
     console.error('[GET /api/automation/channels] Erro:', error);
     return NextResponse.json(
-      { error: error?.message || 'Erro interno' },
+      { ok: false, error: error?.message || 'Erro interno' },
       { status: 500 }
     );
   }
@@ -93,7 +112,7 @@ export async function POST(request) {
 
     if (missing.length > 0) {
       return NextResponse.json(
-        { error: `Campos obrigatórios: ${missing.join(', ')}` },
+        { ok: false, error: `Campos obrigatórios: ${missing.join(', ')}` },
         { status: 400 }
       );
     }
@@ -102,18 +121,26 @@ export async function POST(request) {
 
     if (String(body.provider).trim().toLowerCase() !== 'wasender') {
       return NextResponse.json(
-        { error: 'Apenas provider wasender é suportado no momento' },
+        { ok: false, error: 'Apenas provider wasender é suportado no momento' },
         { status: 400 }
       );
     }
 
-    const workspace = await getDefaultWorkspaceSettings();
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'missing';
+    const workspace = await getCurrentAutomationWorkspaceSettings({ supabase: supabaseAdmin, request });
+    const workspaceId = asUuidOrNull(workspace?.id);
 
+    if (!workspaceId) {
+      return NextResponse.json(
+        { ok: false, error: 'Workspace de automação não resolvido. Configure workspace_settings antes de criar canais.' },
+        { status: 400 }
+      );
+    }
+
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'missing';
     const isDefault = body.is_default === true;
 
     const insertPayload = {
-      workspace_id: workspace.id,
+      workspace_id: workspaceId,
       name: String(name).trim(),
       provider: String(body.provider || 'wasender').trim().toLowerCase(),
       api_url: body.api_url ? String(body.api_url).trim() : null,
@@ -129,8 +156,8 @@ export async function POST(request) {
       audit_version: SAVE_CHANNELS_AUDIT_VERSION,
       deploy_sha: process.env.VERCEL_GIT_COMMIT_SHA || process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA || 'unknown',
       supabase_url: supabaseUrl,
-      workspace_found: !!workspace,
-      resolved_workspace_settings_id: workspace?.id || null,
+      workspace_found: Boolean(workspaceId),
+      resolved_workspace_settings_id: workspaceId,
       operation: 'insert',
       payload: {
         ...insertPayload,
@@ -142,7 +169,7 @@ export async function POST(request) {
       await supabaseAdmin
         .from('whatsapp_channels')
         .update({ is_default: false })
-        .eq('workspace_id', workspace.id);
+        .eq('workspace_id', workspaceId);
     }
 
     const { data, error } = await supabaseAdmin
@@ -157,7 +184,7 @@ export async function POST(request) {
   } catch (error) {
     console.error('[POST /api/automation/channels] Erro:', error);
     return NextResponse.json(
-      { error: error?.message || 'Erro interno' },
+      { ok: false, error: error?.message || 'Erro interno' },
       { status: 500 }
     );
   }

@@ -22,6 +22,22 @@ function getSaoPauloBounds() {
   };
 }
 
+function asUuidOrNull(value) {
+  const raw = String(value || '').trim();
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(raw)
+    ? raw
+    : null;
+}
+
+function scopeWorkspace(query, workspaceId) {
+  return workspaceId ? query.eq('workspace_id', workspaceId) : query;
+}
+
+async function getLatestCronRunSafe(workspaceId) {
+  if (!workspaceId) return null;
+  return getLatestAutomationCronRun(workspaceId);
+}
+
 function buildCronStatus(lastRun) {
   if (!lastRun) {
     return {
@@ -77,38 +93,46 @@ export async function GET(request) {
   try {
     const supabase = getSupabaseAdmin();
     const workspace = await getCurrentAutomationWorkspaceSettings({ supabase, request });
-    const workspaceId = workspace.id;
+    const workspaceId = asUuidOrNull(workspace?.id);
     const { start: todayStart, end: todayEnd } = getSaoPauloBounds();
 
-    const templatesQuery = supabase
-      .from('message_templates')
-      .select('id, is_active')
-      .eq('workspace_id', workspaceId);
+    const templatesQuery = scopeWorkspace(
+      supabase.from('message_templates').select('id, is_active'),
+      workspaceId
+    );
 
-    const channelsQuery = supabase
-      .from('whatsapp_channels')
-      .select('id, is_active, is_default, api_url, api_key, instance_id')
-      .eq('workspace_id', workspaceId);
+    const channelsQuery = scopeWorkspace(
+      supabase
+        .from('whatsapp_channels')
+        .select('id, is_active, is_default, api_url, api_key, instance_id'),
+      workspaceId
+    );
 
-    const rulesQuery = supabase
-      .from('automation_rules')
-      .select('id, is_active, template_id, channel_id, name')
-      .eq('workspace_id', workspaceId);
+    const rulesQuery = scopeWorkspace(
+      supabase
+        .from('automation_rules')
+        .select('id, is_active, template_id, channel_id, name'),
+      workspaceId
+    );
 
-    const logsTodayQuery = supabase
-      .from('automation_logs')
-      .select('id, status')
-      .gte('created_at', todayStart)
-      .lte('created_at', todayEnd)
-      .eq('workspace_id', workspaceId);
+    const logsTodayQuery = scopeWorkspace(
+      supabase
+        .from('automation_logs')
+        .select('id, status')
+        .gte('created_at', todayStart)
+        .lte('created_at', todayEnd),
+      workspaceId
+    );
 
-    const failuresQuery = supabase
-      .from('automation_logs')
-      .select('id, created_at, recipient_number, source, error_message, rule_id')
-      .eq('status', 'failed')
-      .eq('workspace_id', workspaceId)
-      .order('created_at', { ascending: false })
-      .limit(5);
+    const failuresQuery = scopeWorkspace(
+      supabase
+        .from('automation_logs')
+        .select('id, created_at, recipient_number, source, error_message, rule_id')
+        .eq('status', 'failed')
+        .order('created_at', { ascending: false })
+        .limit(5),
+      workspaceId
+    );
 
     const [templatesRes, channelsRes, rulesRes, logsRes, failuresRes, latestCronRun] = await Promise.all([
       templatesQuery,
@@ -116,7 +140,7 @@ export async function GET(request) {
       rulesQuery,
       logsTodayQuery,
       failuresQuery,
-      getLatestAutomationCronRun(workspaceId),
+      getLatestCronRunSafe(workspaceId),
     ]);
 
     if (templatesRes.error) throw templatesRes.error;
@@ -146,101 +170,42 @@ export async function GET(request) {
       (defaultChannel ? validateChannelConfig(defaultChannel).isValid : false);
 
     if (!channels.length) {
-      alerts.push({
-        type: 'no_channels',
-        level: 'critical',
-        kind: 'configuration',
-        message: 'Nenhum canal cadastrado',
-        cta: { href: '/automacoes/canais', label: 'Configurar canais' },
-      });
+      alerts.push({ type: 'no_channels', level: 'critical', kind: 'configuration', message: 'Nenhum canal cadastrado', cta: { href: '/automacoes/canais', label: 'Configurar canais' } });
     } else if (!defaultChannel) {
-      alerts.push({
-        type: 'no_default_channel',
-        level: 'critical',
-        kind: 'configuration',
-        message: 'Nenhum canal padrão configurado',
-        cta: { href: '/automacoes/canais', label: 'Definir canal padrão' },
-      });
+      alerts.push({ type: 'no_default_channel', level: 'critical', kind: 'configuration', message: 'Nenhum canal padrão configurado', cta: { href: '/automacoes/canais', label: 'Definir canal padrão' } });
     } else if (!defaultChannelReady) {
-      alerts.push({
-        type: 'default_channel_invalid',
-        level: 'critical',
-        kind: 'configuration',
-        message: 'Canal padrão está inativo ou incompleto para envio',
-        cta: { href: '/automacoes/canais', label: 'Corrigir canal padrão' },
-      });
+      alerts.push({ type: 'default_channel_invalid', level: 'critical', kind: 'configuration', message: 'Canal padrão está inativo ou incompleto para envio', cta: { href: '/automacoes/canais', label: 'Corrigir canal padrão' } });
     }
 
     if (!activeTemplates) {
-      alerts.push({
-        type: 'no_active_templates',
-        level: 'attention',
-        kind: 'configuration',
-        message: 'Nenhum template ativo',
-        cta: { href: '/automacoes/templates', label: 'Criar template' },
-      });
+      alerts.push({ type: 'no_active_templates', level: 'attention', kind: 'configuration', message: 'Nenhum template ativo', cta: { href: '/automacoes/templates', label: 'Criar template' } });
     }
 
     if (!activeRules) {
-      alerts.push({
-        type: 'no_active_rules',
-        level: 'attention',
-        kind: 'configuration',
-        message: 'Nenhuma regra ativa',
-        cta: { href: '/automacoes/regras', label: 'Criar regra' },
-      });
+      alerts.push({ type: 'no_active_rules', level: 'attention', kind: 'configuration', message: 'Nenhuma regra ativa', cta: { href: '/automacoes/regras', label: 'Criar regra' } });
     }
 
     const rulesWithoutTemplate = activeRulesList.filter((r) => !r.template_id).length;
     if (rulesWithoutTemplate > 0) {
-      alerts.push({
-        type: 'rules_without_template',
-        level: 'attention',
-        kind: 'configuration',
-        count: rulesWithoutTemplate,
-        message: `${rulesWithoutTemplate} regra(s) ativa(s) sem template vinculado`,
-        cta: { href: '/automacoes/regras', label: 'Revisar regras' },
-      });
+      alerts.push({ type: 'rules_without_template', level: 'attention', kind: 'configuration', count: rulesWithoutTemplate, message: `${rulesWithoutTemplate} regra(s) ativa(s) sem template vinculado`, cta: { href: '/automacoes/regras', label: 'Revisar regras' } });
     }
 
     const rulesWithoutChannel = activeRulesList.filter((r) => !r.channel_id).length;
     if (rulesWithoutChannel > 0) {
-      alerts.push({
-        type: 'rules_without_channel',
-        level: 'attention',
-        kind: 'configuration',
-        count: rulesWithoutChannel,
-        message: `${rulesWithoutChannel} regra(s) ativa(s) sem canal específico (usará padrão)`,
-        cta: { href: '/automacoes/regras', label: 'Revisar regras' },
-      });
+      alerts.push({ type: 'rules_without_channel', level: 'attention', kind: 'configuration', count: rulesWithoutChannel, message: `${rulesWithoutChannel} regra(s) ativa(s) sem canal específico (usará padrão)`, cta: { href: '/automacoes/regras', label: 'Revisar regras' } });
     }
 
     if (failedToday > 0) {
-      alerts.push({
-        type: 'failed_dispatches_today',
-        level: failedToday > 5 ? 'critical' : 'attention',
-        kind: 'operational',
-        count: failedToday,
-        message: `${failedToday} falha(s) operacional(is) registrada(s) hoje`,
-        cta: { href: '/automacoes/logs?status=failed', label: 'Ver falhas' },
-      });
+      alerts.push({ type: 'failed_dispatches_today', level: failedToday > 5 ? 'critical' : 'attention', kind: 'operational', count: failedToday, message: `${failedToday} falha(s) operacional(is) registrada(s) hoje`, cta: { href: '/automacoes/logs?status=failed', label: 'Ver falhas' } });
     }
 
     const cronStatus = buildCronStatus(latestCronRun);
     if (cronStatus.level !== 'ok') {
-      alerts.push({
-        type: 'cron_status',
-        level: cronStatus.level,
-        kind: 'system',
-        message: cronStatus.message,
-        cta: { href: '/automacoes/logs', label: 'Analisar logs' },
-      });
+      alerts.push({ type: 'cron_status', level: cronStatus.level, kind: 'system', message: cronStatus.message, cta: { href: '/automacoes/logs', label: 'Analisar logs' } });
     }
 
     const hasOperationalFailure = failures.length > 0 || failedToday > 0;
-    const hasCriticalConfigIssue = alerts.some(
-      (a) => a.kind === 'configuration' && a.level === 'critical'
-    );
+    const hasCriticalConfigIssue = alerts.some((a) => a.kind === 'configuration' && a.level === 'critical');
     const hasConfigPending = alerts.some((a) => a.kind === 'configuration');
 
     let systemState = 'healthy';
@@ -257,12 +222,12 @@ export async function GET(request) {
     if (failures.length > 0) {
       const ruleIds = failures.map((f) => f.rule_id).filter(Boolean);
       if (ruleIds.length > 0) {
-        const { data: ruleNames } = await supabase
-          .from('automation_rules')
-          .select('id, name')
-          .eq('workspace_id', workspaceId)
-          .in('id', ruleIds);
-
+        const ruleNamesQuery = scopeWorkspace(
+          supabase.from('automation_rules').select('id, name').in('id', ruleIds),
+          workspaceId
+        );
+        const { data: ruleNames, error: ruleNamesError } = await ruleNamesQuery;
+        if (ruleNamesError) throw ruleNamesError;
         const ruleMap = Object.fromEntries((ruleNames || []).map((r) => [r.id, r.name]));
         failures.forEach((f) => {
           f.rule_name = f.rule_id ? (ruleMap[f.rule_id] ?? null) : null;
@@ -285,7 +250,7 @@ export async function GET(request) {
       },
       system_state: systemState,
       onboarding: {
-        has_default_channel: !!defaultChannel,
+        has_default_channel: Boolean(defaultChannel),
         default_channel_ready: defaultChannelReady,
         has_active_template: activeTemplates > 0,
         has_active_rule: activeRules > 0,
@@ -295,15 +260,13 @@ export async function GET(request) {
       recent_failures: failures,
       workspace_debug: {
         workspaceId,
+        rawWorkspaceId: workspace?.id || null,
         source: workspace?.source || null,
+        migrationMode: !workspaceId,
       },
     };
 
-    return NextResponse.json({
-      ok: true,
-      data: payload,
-      ...payload,
-    });
+    return NextResponse.json({ ok: true, data: payload, ...payload });
   } catch (error) {
     console.error('[GET /api/automation/dashboard] Erro:', error);
     return NextResponse.json(

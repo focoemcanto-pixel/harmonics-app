@@ -1,8 +1,19 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { getDefaultWorkspaceSettings } from '@/lib/automation/get-workspace';
+import { getCurrentAutomationWorkspaceSettings } from '@/lib/automation/get-workspace';
 import { ensureDefaultAutomations } from '@/lib/automation/ensure-defaults';
 import { requireAdmin } from '@/lib/api/require-admin';
+
+function asUuidOrNull(value) {
+  const raw = String(value || '').trim();
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(raw)
+    ? raw
+    : null;
+}
+
+function scopeWorkspace(query, workspaceId) {
+  return workspaceId ? query.eq('workspace_id', workspaceId) : query;
+}
 
 async function requireAutomationRulesAdmin(request, method) {
   const supabaseAdmin = getSupabaseAdmin();
@@ -23,10 +34,14 @@ export async function GET(request) {
   }
 
   try {
-    const workspace = await getDefaultWorkspaceSettings();
-    await ensureDefaultAutomations(workspace.id);
+    const workspace = await getCurrentAutomationWorkspaceSettings({ supabase: supabaseAdmin, request });
+    const workspaceId = asUuidOrNull(workspace?.id);
 
-    const query = supabaseAdmin
+    if (workspaceId) {
+      await ensureDefaultAutomations(workspaceId);
+    }
+
+    const baseQuery = supabaseAdmin
       .from('automation_rules')
       .select(
         `id, workspace_id, key, name, event_type, recipient_type,
@@ -35,18 +50,26 @@ export async function GET(request) {
          template:message_templates(id, name, key),
          channel:whatsapp_channels(id, name, provider)`
       )
-      .eq('workspace_id', workspace.id)
       .order('updated_at', { ascending: false });
 
-    const { data, error } = await query;
+    const { data, error } = await scopeWorkspace(baseQuery, workspaceId);
 
     if (error) throw error;
 
-    return NextResponse.json({ ok: true, rules: data || [] });
+    return NextResponse.json({
+      ok: true,
+      rules: data || [],
+      workspace_debug: {
+        workspaceId,
+        rawWorkspaceId: workspace?.id || null,
+        source: workspace?.source || null,
+        migrationMode: !workspaceId,
+      },
+    });
   } catch (error) {
     console.error('[GET /api/automation/rules] Erro:', error);
     return NextResponse.json(
-      { error: error?.message || 'Erro interno' },
+      { ok: false, error: error?.message || 'Erro interno' },
       { status: 500 }
     );
   }
@@ -66,17 +89,25 @@ export async function POST(request) {
 
     if (!key || !name || !event_type || !recipient_type) {
       return NextResponse.json(
-        { error: 'Campos obrigatórios: key, name, event_type, recipient_type' },
+        { ok: false, error: 'Campos obrigatórios: key, name, event_type, recipient_type' },
         { status: 400 }
       );
     }
 
-    const workspace = await getDefaultWorkspaceSettings();
+    const workspace = await getCurrentAutomationWorkspaceSettings({ supabase: supabaseAdmin, request });
+    const workspaceId = asUuidOrNull(workspace?.id);
+
+    if (!workspaceId) {
+      return NextResponse.json(
+        { ok: false, error: 'Workspace de automação não resolvido. Configure workspace_settings antes de criar regras.' },
+        { status: 400 }
+      );
+    }
 
     const { data, error } = await supabaseAdmin
       .from('automation_rules')
       .insert({
-        workspace_id: workspace.id,
+        workspace_id: workspaceId,
         key,
         name,
         event_type,
@@ -98,7 +129,7 @@ export async function POST(request) {
   } catch (error) {
     console.error('[POST /api/automation/rules] Erro:', error);
     return NextResponse.json(
-      { error: error?.message || 'Erro interno' },
+      { ok: false, error: error?.message || 'Erro interno' },
       { status: 500 }
     );
   }

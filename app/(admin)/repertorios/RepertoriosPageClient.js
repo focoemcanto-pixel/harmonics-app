@@ -192,69 +192,32 @@ export default function RepertoriosPage() {
   }, [searchParams]);
 
   async function carregarTudo() {
-    const [eventsRes, configsRes, tokensRes, precontractsRes, contractsRes] =
-      await Promise.all([
-      supabase
-        .from('events')
-        .select(EVENTS_SELECT_FIELDS)
-        .order('created_at', { ascending: false })
-        .limit(ADMIN_LIST_LIMIT),
-      supabase
-        .from('repertoire_config')
-        .select(REPERTOIRE_CONFIG_SELECT_FIELDS)
-        .order('created_at', { ascending: false })
-        .limit(ADMIN_LIST_LIMIT),
-      supabase
-        .from('repertoire_tokens')
-        .select(REPERTOIRE_TOKENS_SELECT_FIELDS)
-        .order('created_at', { ascending: false })
-        .limit(ADMIN_LIST_LIMIT),
-      supabase
-        .from('precontracts')
-        .select(PRECONTRACTS_SELECT_FIELDS)
-        .order('created_at', { ascending: false })
-        .limit(ADMIN_LIST_LIMIT),
-      supabase
-        .from('contracts')
-        .select(CONTRACTS_SELECT_FIELDS)
-        .order('created_at', { ascending: false })
-        .limit(ADMIN_LIST_LIMIT),
-    ]);
+  const res = await fetch('/api/repertorios');
+  const json = await res.json();
 
-    if (eventsRes.error) throw eventsRes.error;
-    if (configsRes.error) throw configsRes.error;
-    if (tokensRes.error) throw tokensRes.error;
-    if (precontractsRes.error) throw precontractsRes.error;
-    if (contractsRes.error) throw contractsRes.error;
-
-    const configEventIds = Array.from(
-      new Set((configsRes.data || []).map((cfg) => cfg?.event_id).filter(Boolean))
-    );
-    const itemsRes =
-      configEventIds.length > 0
-        ? await supabase
-            .from('repertoire_items')
-            .select(REPERTOIRE_ITEMS_SELECT_FIELDS)
-            .in('event_id', configEventIds)
-        : { data: [], error: null };
-    if (itemsRes.error) throw itemsRes.error;
-
-    setEvents(eventsRes.data || []);
-    setConfigs(configsRes.data || []);
-    setItems(itemsRes.data || []);
-    setTokens(tokensRes.data || []);
-    setPrecontracts(precontractsRes.data || []);
-    setContracts(contractsRes.data || []);
-    repertoriosAdminCache = {
-      updatedAt: Date.now(),
-      events: eventsRes.data || [],
-      configs: configsRes.data || [],
-      items: itemsRes.data || [],
-      tokens: tokensRes.data || [],
-      precontracts: precontractsRes.data || [],
-      contracts: contractsRes.data || [],
-    };
+  if (!res.ok || !json?.ok) {
+    throw new Error(json?.message || 'Erro ao carregar repertórios');
   }
+
+  console.log('DEBUG REPERTORIOS:', json.debug);
+
+  setEvents(json.events || []);
+  setConfigs(json.configs || []);
+  setItems(json.items || []);
+  setTokens(json.tokens || []);
+  setPrecontracts(json.precontracts || []);
+  setContracts(json.contracts || []);
+
+  repertoriosAdminCache = {
+    updatedAt: Date.now(),
+    events: json.events || [],
+    configs: json.configs || [],
+    items: json.items || [],
+    tokens: json.tokens || [],
+    precontracts: json.precontracts || [],
+    contracts: json.contracts || [],
+  };
+}
 
   useEffect(() => {
     async function init() {

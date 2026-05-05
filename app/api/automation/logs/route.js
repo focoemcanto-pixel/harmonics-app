@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { getDefaultWorkspaceSettings } from '@/lib/automation/get-workspace';
+import { getCurrentAutomationWorkspaceSettings } from '@/lib/automation/get-workspace';
 import { requireAdmin } from '@/lib/api/require-admin';
 
 const DEFAULT_LIMIT = 100;
@@ -36,6 +36,17 @@ const AUTOMATION_LOGS_FALLBACK_SELECT_FIELDS = [
   'created_at',
 ].join(', ');
 
+function asUuidOrNull(value) {
+  const raw = String(value || '').trim();
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(raw)
+    ? raw
+    : null;
+}
+
+function scopeWorkspace(query, workspaceId) {
+  return workspaceId ? query.eq('workspace_id', workspaceId) : query;
+}
+
 function isMissingColumnError(error) {
   const code = String(error?.code || '').toLowerCase();
   const message = String(error?.message || '').toLowerCase();
@@ -68,7 +79,7 @@ function buildLogsQuery({
     .order('created_at', { ascending })
     .limit(limit);
 
-  query = query.eq('workspace_id', workspaceId);
+  query = scopeWorkspace(query, workspaceId);
 
   if (status) {
     query = query.eq('status', status);
@@ -110,10 +121,25 @@ function normalizeStatusFilter(rawStatus) {
   return value;
 }
 
+async function resolveWorkspaceForLogs({ supabaseAdmin, request }) {
+  const workspace = await getCurrentAutomationWorkspaceSettings({ supabase: supabaseAdmin, request });
+  const workspaceId = asUuidOrNull(workspace?.id);
+  return {
+    workspace,
+    workspaceId,
+    workspaceDebug: {
+      workspaceId,
+      rawWorkspaceId: workspace?.id || null,
+      source: workspace?.source || null,
+      migrationMode: !workspaceId,
+    },
+  };
+}
+
 export async function GET(request) {
   try {
     const supabaseAdmin = getSupabaseAdmin();
-    const workspace = await getDefaultWorkspaceSettings();
+    const { workspaceId, workspaceDebug } = await resolveWorkspaceForLogs({ supabaseAdmin, request });
 
     const { searchParams } = new URL(request.url);
 
@@ -135,7 +161,7 @@ export async function GET(request) {
     let selectFields = AUTOMATION_LOGS_SELECT_FIELDS;
     let { data, error } = await buildLogsQuery({
       supabaseAdmin,
-      workspaceId: workspace.id,
+      workspaceId,
       selectFields,
       ascending,
       limit,
@@ -156,7 +182,7 @@ export async function GET(request) {
       selectFields = AUTOMATION_LOGS_FALLBACK_SELECT_FIELDS;
       ({ data, error } = await buildLogsQuery({
         supabaseAdmin,
-        workspaceId: workspace.id,
+        workspaceId,
         selectFields,
         ascending,
         limit,
@@ -174,29 +200,12 @@ export async function GET(request) {
       throw error;
     }
 
-    if (process.env.NODE_ENV !== 'production') {
-      console.info('[GET /api/automation/logs] logs_loaded', {
-        workspaceId: workspace.id,
-        filters: {
-          status: status || null,
-          recipient: recipient || null,
-          ruleId: ruleId || null,
-          source: source || null,
-          dateFrom: dateFrom || null,
-          dateTo: dateTo || null,
-          sort: sortParam || 'desc',
-          limit,
-          fallback: selectFields !== AUTOMATION_LOGS_SELECT_FIELDS,
-        },
-        count: data?.length || 0,
-      });
-    }
-
     const logs = data || [];
     return NextResponse.json({
       ok: true,
       data: { logs },
       logs,
+      workspace_debug: workspaceDebug,
     });
   } catch (error) {
     console.error('[GET /api/automation/logs] Erro:', error);
@@ -214,8 +223,15 @@ export async function DELETE(request) {
     const auth = await requireAdmin({ supabase: supabaseAdmin, request, logPrefix: '[AUTOMATION_LOGS_DELETE]' });
     if (!auth.ok) return NextResponse.json(auth, { status: auth.status || 401 });
 
-    const workspace = await getDefaultWorkspaceSettings();
+    const { workspaceId } = await resolveWorkspaceForLogs({ supabaseAdmin, request });
     const body = await request.json().catch(() => ({}));
+
+    if (!workspaceId) {
+      return NextResponse.json(
+        { ok: false, success: false, affected: 0, message: 'Workspace de automação não resolvido. Exclusão bloqueada em modo migração.' },
+        { status: 400 }
+      );
+    }
 
     const ids = Array.from(
       new Set(
@@ -231,7 +247,7 @@ export async function DELETE(request) {
     const statusFilter = normalizeStatusFilter(body?.status);
     const olderThanDays = Number(body?.olderThanDays || 0);
 
-    let query = supabaseAdmin.from('automation_logs').delete().eq('workspace_id', workspace.id);
+    let query = supabaseAdmin.from('automation_logs').delete().eq('workspace_id', workspaceId);
 
     if (ids.length > 0) {
       query = query.in('id', ids);

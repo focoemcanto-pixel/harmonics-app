@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 const ADMIN_LIST_LIMIT = 100;
-const EVENTS_SELECT_FIELDS = 'id, created_at, client_name, event_type, event_date';
+const EVENTS_SELECT_FIELDS = 'id, workspace_id, created_at, client_name, event_type, event_date';
 const REPERTOIRE_CONFIG_SELECT_FIELDS = 'id, created_at, event_id, status, is_locked, submitted_at, client_public_token';
 const REPERTOIRE_ITEMS_SELECT_FIELDS =
   'id, event_id, section, item_order, song_name, artists, moment, reference_link, reference_title, reference_channel, reference_thumbnail, reference_video_id, notes, label, suggestion_song_id';
@@ -25,6 +25,18 @@ function normalizeLimit(value) {
   return Math.min(Math.max(Math.trunc(parsed), 1), 300);
 }
 
+function mergeUniqueById(...lists) {
+  const map = new Map();
+  for (const list of lists) {
+    for (const item of list || []) {
+      const id = String(item?.id || '').trim();
+      if (!id || map.has(id)) continue;
+      map.set(id, item);
+    }
+  }
+  return Array.from(map.values());
+}
+
 export async function GET(request) {
   const supabase = getSupabaseAdmin();
 
@@ -38,16 +50,45 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const limit = normalizeLimit(searchParams.get('limit'));
 
-    const { data: events, error: eventsError } = await supabase
+    const { data: scopedEvents, error: scopedEventsError } = await supabase
       .from('events')
       .select(EVENTS_SELECT_FIELDS)
       .eq('workspace_id', workspaceId)
       .order('created_at', { ascending: false })
       .limit(limit);
 
-    if (eventsError) throw eventsError;
+    if (scopedEventsError) throw scopedEventsError;
 
-    const eventIds = uniq((events || []).map((event) => event?.id));
+    // Durante a migração multi-tenant, alguns repertórios legados podem estar ligados
+    // a eventos antigos ainda sem workspace_id. Incluímos esses eventos apenas aqui
+    // para não ocultar repertórios em produção antes do backfill final.
+    const { data: legacyConfigRows, error: legacyConfigError } = await supabase
+      .from('repertoire_config')
+      .select('event_id')
+      .not('event_id', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (legacyConfigError) throw legacyConfigError;
+
+    const scopedEventIds = uniq((scopedEvents || []).map((event) => event?.id));
+    const configEventIds = uniq((legacyConfigRows || []).map((cfg) => cfg?.event_id));
+    const missingConfigEventIds = configEventIds.filter((eventId) => !scopedEventIds.includes(String(eventId)));
+
+    let legacyEvents = [];
+    if (missingConfigEventIds.length > 0) {
+      const { data: legacyEventsData, error: legacyEventsError } = await supabase
+        .from('events')
+        .select(EVENTS_SELECT_FIELDS)
+        .in('id', missingConfigEventIds)
+        .is('workspace_id', null);
+
+      if (legacyEventsError) throw legacyEventsError;
+      legacyEvents = legacyEventsData || [];
+    }
+
+    const events = mergeUniqueById(scopedEvents || [], legacyEvents || []);
+    const eventIds = uniq(events.map((event) => event?.id));
 
     if (eventIds.length === 0) {
       return NextResponse.json({
@@ -61,6 +102,8 @@ export async function GET(request) {
         workspaceId,
         debug: {
           eventsCount: 0,
+          scopedEventsCount: 0,
+          legacyEventsCount: 0,
           configsCount: 0,
           itemsCount: 0,
           tokensCount: 0,
@@ -86,14 +129,12 @@ export async function GET(request) {
       supabase
         .from('precontracts')
         .select(PRECONTRACTS_SELECT_FIELDS)
-        .eq('workspace_id', workspaceId)
         .in('event_id', eventIds)
         .order('created_at', { ascending: false })
         .limit(limit),
       supabase
         .from('contracts')
         .select(CONTRACTS_SELECT_FIELDS)
-        .eq('workspace_id', workspaceId)
         .in('event_id', eventIds)
         .order('created_at', { ascending: false })
         .limit(limit),
@@ -104,14 +145,14 @@ export async function GET(request) {
     if (precontractsRes.error) throw precontractsRes.error;
     if (contractsRes.error) throw contractsRes.error;
 
-    const configEventIds = uniq((configsRes.data || []).map((cfg) => cfg?.event_id));
+    const loadedConfigEventIds = uniq((configsRes.data || []).map((cfg) => cfg?.event_id));
 
     let items = [];
-    if (configEventIds.length > 0) {
+    if (loadedConfigEventIds.length > 0) {
       const { data: itemsData, error: itemsError } = await supabase
         .from('repertoire_items')
         .select(REPERTOIRE_ITEMS_SELECT_FIELDS)
-        .in('event_id', configEventIds);
+        .in('event_id', loadedConfigEventIds);
 
       if (itemsError) throw itemsError;
       items = itemsData || [];
@@ -119,7 +160,7 @@ export async function GET(request) {
 
     return NextResponse.json({
       ok: true,
-      events: events || [],
+      events,
       configs: configsRes.data || [],
       items,
       tokens: tokensRes.data || [],
@@ -127,7 +168,9 @@ export async function GET(request) {
       contracts: contractsRes.data || [],
       workspaceId,
       debug: {
-        eventsCount: (events || []).length,
+        eventsCount: events.length,
+        scopedEventsCount: (scopedEvents || []).length,
+        legacyEventsCount: legacyEvents.length,
         configsCount: (configsRes.data || []).length,
         itemsCount: items.length,
         tokensCount: (tokensRes.data || []).length,

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 
 function navClass(active) {
@@ -11,28 +11,88 @@ function navClass(active) {
     : 'text-[#c7d2fe] hover:bg-white/5 hover:text-white';
 }
 
+const ALL_ITEMS = [
+  { key: 'dashboard', module: 'dashboard', label: 'Dashboard', href: '/dashboard' },
+  { key: 'eventos', module: 'eventos', label: 'Eventos', href: '/eventos' },
+  { key: 'contatos', module: 'contatos', label: 'Contatos', href: '/contatos' },
+  { key: 'convites', module: 'convites', label: 'Convites', href: '/convites' },
+  { key: 'escalas', module: 'escalas', label: 'Escalas', href: '/escalas' },
+  { key: 'contratos', module: 'contratos', label: 'Contratos', href: '/contratos' },
+  { key: 'repertorios', module: 'repertorios', label: 'Repertórios', href: '/repertorios' },
+  { key: 'sugestoes', module: 'sugestoes', label: 'Sugestões', href: '/sugestoes' },
+  { key: 'automacoes', module: 'automacoes', label: 'Automação', href: '/automacoes' },
+  { key: 'avaliacoes', module: 'avaliacoes', label: 'Avaliações', href: '/avaliacoes' },
+  { key: 'pagamentos', module: 'pagamentos', label: 'Pagamentos', href: '/pagamentos' },
+  { key: 'usuarios', module: 'usuarios', label: 'Usuários', href: '/configuracoes/equipe' },
+];
+
+function normalizeRoleLabel(role) {
+  const value = String(role || '').toLowerCase();
+  const labels = {
+    owner: '👑 Owner',
+    admin: '🔑 Admin',
+    financeiro: '💰 Financeiro',
+    operacional: '🎼 Operacional',
+    editor: '✍️ Editor',
+    viewer: '👁️ Visualizador',
+  };
+  return labels[value] || value || 'Membro';
+}
+
 export default function AdminSidebar({ activeItem = 'eventos' }) {
   const pathname = usePathname();
   const { signOut, profile } = useAuth();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [workspaceMe, setWorkspaceMe] = useState(null);
+  const [permissionsLoading, setPermissionsLoading] = useState(true);
   const automationOpen = pathname?.startsWith('/automacoes');
   const contractsOpen = pathname?.startsWith('/contratos');
   const eventsOpen = pathname?.startsWith('/eventos');
 
-  const items = [
-    { key: 'dashboard', label: 'Dashboard', href: '/dashboard' },
-    { key: 'eventos', label: 'Eventos', href: '/eventos' },
-    { key: 'contatos', label: 'Contatos', href: '/contatos' },
-    { key: 'convites', label: 'Convites', href: '/convites' },
-    { key: 'escalas', label: 'Escalas', href: '/escalas' },
-    { key: 'contratos', label: 'Contratos', href: '/contratos' },
-    { key: 'repertorios', label: 'Repertórios', href: '/repertorios' },
-    { key: 'sugestoes', label: 'Sugestões', href: '/sugestoes' },
-    { key: 'automacoes', label: 'Automação', href: '/automacoes' },
-    { key: 'avaliacoes', label: 'Avaliações', href: '/avaliacoes' },
-    { key: 'pagamentos', label: 'Pagamentos', href: '/pagamentos' },
-    { key: 'usuarios', label: 'Usuários', href: '/configuracoes/equipe' },
-  ];
+  useEffect(() => {
+    let alive = true;
+
+    async function loadPermissions() {
+      try {
+        const response = await fetch('/api/workspace/me', { method: 'GET', cache: 'no-store' });
+        const payload = await response.json().catch(() => null);
+        if (!alive) return;
+
+        if (response.ok && payload?.ok) {
+          setWorkspaceMe(payload);
+        }
+      } catch (error) {
+        console.warn('[AdminSidebar] Falha ao carregar permissões do workspace:', error?.message || error);
+      } finally {
+        if (alive) setPermissionsLoading(false);
+      }
+    }
+
+    loadPermissions();
+
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const allowedModules = useMemo(() => {
+    const modules = workspaceMe?.permissions?.modules;
+    if (Array.isArray(modules) && modules.length > 0) {
+      return new Set(modules);
+    }
+
+    // Durante carregamento, mantém todos os itens para evitar flicker agressivo e preservar compatibilidade.
+    if (permissionsLoading) {
+      return new Set(ALL_ITEMS.map((item) => item.module));
+    }
+
+    return new Set(['dashboard']);
+  }, [workspaceMe, permissionsLoading]);
+
+  const items = useMemo(
+    () => ALL_ITEMS.filter((item) => allowedModules.has(item.module)),
+    [allowedModules]
+  );
 
   const automationItems = [
     { label: 'Regras', href: '/automacoes/regras' },
@@ -40,7 +100,6 @@ export default function AdminSidebar({ activeItem = 'eventos' }) {
     { label: 'Canais', href: '/automacoes/canais' },
     { label: 'Logs', href: '/automacoes/logs' },
   ];
-
 
   const contractItems = [
     { label: 'Visão geral', href: '/contratos' },
@@ -119,7 +178,9 @@ export default function AdminSidebar({ activeItem = 'eventos' }) {
           <div className="mb-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
             <div className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#a5b4fc]">Usuário atual</div>
             <div className="mt-1 truncate text-[13px] font-bold text-white">{profile.name || profile.email}</div>
-            <div className="mt-1 text-[11px] font-semibold text-violet-300">{profile.role === 'admin' ? '🔑 Admin' : '👤 Membro'}</div>
+            <div className="mt-1 text-[11px] font-semibold text-violet-300">
+              {normalizeRoleLabel(workspaceMe?.role || profile.role)}
+            </div>
           </div>
         )}
 

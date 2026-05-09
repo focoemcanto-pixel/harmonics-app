@@ -1,6 +1,6 @@
 'use client';
 
-import { memo, useCallback, useEffect, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import AdminSidebar from '../admin/AdminSidebar';
 import AdminMobileTopbar from '../admin/AdminMobileTopbar';
@@ -9,17 +9,17 @@ import { useAuth } from '@/contexts/AuthContext';
 import { redirectToLogin } from '@/lib/auth/logoutRedirect';
 
 const MORE_ITEMS = [
-  { label: 'Escalas', href: '/escalas', icon: '🎼', helper: 'Operação musical' },
-  { label: 'Convites', href: '/convites', icon: '✉️', helper: 'Chamadas e respostas' },
-  { label: 'Contratos', href: '/contratos', icon: '📝', helper: 'Fluxo contratual' },
-  { label: 'Tipos de evento', href: '/eventos/tipos', icon: '🏷️', helper: 'Catálogo de eventos' },
-  { label: 'Templates contratos', href: '/contratos/templates', icon: '📄', helper: 'Modelos base' },
-  { label: 'Pré-contratos', href: '/pre-contratos', icon: '🔗', helper: 'Comercial inicial' },
-  { label: 'Repertórios', href: '/repertorios', icon: '🎧', helper: 'Organização musical' },
-  { label: 'Sugestões', href: '/sugestoes', icon: '✨', helper: 'Ideias e votações' },
-  { label: 'Pagamentos', href: '/pagamentos', icon: '💳', helper: 'Controle financeiro' },
-  { label: 'Automação', href: '/automacoes', icon: '⚙️', helper: 'Central de automação' },
-  { label: 'Usuários', href: '/admin/usuarios', icon: '👥', helper: 'Gestão de usuários' },
+  { module: 'escalas', label: 'Escalas', href: '/escalas', icon: '🎼', helper: 'Operação musical' },
+  { module: 'convites', label: 'Convites', href: '/convites', icon: '✉️', helper: 'Chamadas e respostas' },
+  { module: 'contratos', label: 'Contratos', href: '/contratos', icon: '📝', helper: 'Fluxo contratual' },
+  { module: 'eventos', label: 'Tipos de evento', href: '/eventos/tipos', icon: '🏷️', helper: 'Catálogo de eventos' },
+  { module: 'contratos', label: 'Templates contratos', href: '/contratos/templates', icon: '📄', helper: 'Modelos base' },
+  { module: 'contratos', label: 'Pré-contratos', href: '/pre-contratos', icon: '🔗', helper: 'Comercial inicial' },
+  { module: 'repertorios', label: 'Repertórios', href: '/repertorios', icon: '🎧', helper: 'Organização musical' },
+  { module: 'sugestoes', label: 'Sugestões', href: '/sugestoes', icon: '✨', helper: 'Ideias e votações' },
+  { module: 'pagamentos', label: 'Pagamentos', href: '/pagamentos', icon: '💳', helper: 'Controle financeiro' },
+  { module: 'automacoes', label: 'Automação', href: '/automacoes', icon: '⚙️', helper: 'Central de automação' },
+  { module: 'usuarios', label: 'Usuários', href: '/configuracoes/equipe', icon: '👥', helper: 'Gestão de usuários' },
 ];
 
 const MOBILE_NAV_ALLOWED_ITEMS = new Set(['dashboard', 'eventos', 'contatos', 'contratos', 'mais']);
@@ -34,7 +34,26 @@ function getInitials(name) {
     .toUpperCase();
 }
 
-const MobileMoreSheet = memo(function MobileMoreSheet({ open, onClose, onNavigate }) {
+function normalizeRoleLabel(role) {
+  const value = String(role || '').toLowerCase();
+  const labels = {
+    owner: '👑 Owner',
+    admin: '🔑 Admin',
+    financeiro: '💰 Financeiro',
+    operacional: '🎼 Operacional',
+    editor: '✍️ Editor',
+    viewer: '👁️ Visualizador',
+  };
+  return labels[value] || value || 'Membro';
+}
+
+const MobileMoreSheet = memo(function MobileMoreSheet({
+  open,
+  onClose,
+  onNavigate,
+  visibleItems,
+  workspaceRole,
+}) {
   const { signOut, profile } = useAuth();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
@@ -103,7 +122,7 @@ const MobileMoreSheet = memo(function MobileMoreSheet({ open, onClose, onNavigat
                 Atalhos do admin
               </div>
               <div className="mt-1 text-[13px] font-semibold text-[#64748b]">
-                Acesse os módulos sem lotar a navegação principal.
+                Módulos disponíveis para seu nível de acesso.
               </div>
             </div>
 
@@ -118,7 +137,7 @@ const MobileMoreSheet = memo(function MobileMoreSheet({ open, onClose, onNavigat
           </div>
 
           <div className="mt-5 grid grid-cols-2 gap-3">
-            {MORE_ITEMS.map((item) => (
+            {visibleItems.map((item) => (
               <button
                 key={item.href}
                 type="button"
@@ -147,7 +166,7 @@ const MobileMoreSheet = memo(function MobileMoreSheet({ open, onClose, onNavigat
                     {profile.name || profile.email}
                   </p>
                   <p className="text-[12px] text-violet-600">
-                    {profile.role === 'admin' ? '🔑 Administrador' : '👤 Membro'}
+                    {normalizeRoleLabel(workspaceRole || profile.role)}
                   </p>
                 </div>
               </div>
@@ -169,20 +188,7 @@ const MobileMoreSheet = memo(function MobileMoreSheet({ open, onClose, onNavigat
               {isLoggingOut && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/70 border-t-white" />}
               {isLoggingOut ? 'Encerrando sessão...' : 'Sair da conta'}
             </span>
-            {!isLoggingOut && (
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                <polyline points="16 17 21 12 16 7" />
-                <line x1="21" y1="12" x2="9" y2="12" />
-              </svg>
-            )}
           </button>
-
-          {isLoggingOut && (
-            <div className="mt-3 rounded-2xl border border-violet-300/30 bg-violet-50 px-4 py-3 text-center text-[12px] font-semibold text-violet-700">
-              Saindo...
-            </div>
-          )}
         </div>
       </div>
     </div>
@@ -200,6 +206,53 @@ export default function AdminShell({
   const pathname = usePathname();
   const { user, initialized, loading, sessionEndReason } = useAuth();
   const [moreOpen, setMoreOpen] = useState(false);
+  const [workspaceMe, setWorkspaceMe] = useState(null);
+
+  useEffect(() => {
+    let alive = true;
+
+    async function loadPermissions() {
+      try {
+        const response = await fetch('/api/workspace/me', { method: 'GET', cache: 'no-store' });
+        const payload = await response.json().catch(() => null);
+
+        if (!alive) return;
+        if (response.ok && payload?.ok) {
+          setWorkspaceMe(payload);
+        }
+      } catch (error) {
+        console.warn('[AdminShell] Erro ao carregar permissões:', error?.message || error);
+      }
+    }
+
+    loadPermissions();
+
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const allowedModules = useMemo(() => {
+    const modules = workspaceMe?.permissions?.modules;
+    if (Array.isArray(modules) && modules.length > 0) {
+      return new Set(modules);
+    }
+
+    return new Set([
+      'dashboard',
+      'eventos',
+      'contatos',
+      'contratos',
+      'repertorios',
+      'convites',
+      'escalas',
+    ]);
+  }, [workspaceMe]);
+
+  const visibleMoreItems = useMemo(
+    () => MORE_ITEMS.filter((item) => allowedModules.has(item.module)),
+    [allowedModules]
+  );
 
   const mobileActiveItem = (() => {
     if (MOBILE_NAV_ALLOWED_ITEMS.has(activeItem)) return activeItem;
@@ -244,13 +297,6 @@ export default function AdminShell({
           <h1 className="mt-5 text-[28px] font-black tracking-[-0.03em] text-white">
             {isExpiredSession ? 'Sessão encerrada' : 'Encerrando sessão'}
           </h1>
-          <p className="mx-auto mt-3 max-w-[380px] text-sm font-medium leading-relaxed text-slate-200/90">
-            {isExpiredSession
-              ? 'Por segurança, faça login novamente para continuar.'
-              : 'Estamos protegendo seu acesso e redirecionando você para o login.'}
-          </p>
-
-          <div className="mx-auto mt-7 h-10 w-10 animate-spin rounded-full border-2 border-violet-200/30 border-t-violet-200 shadow-[0_0_30px_rgba(196,181,253,0.55)]" />
         </div>
       </div>
     );
@@ -279,12 +325,15 @@ export default function AdminShell({
         <AdminBottomNav
           activeItem={mobileActiveItem}
           onOpenMore={handleOpenMore}
+          allowedModules={allowedModules}
         />
 
         <MobileMoreSheet
           open={moreOpen}
           onClose={handleCloseMore}
           onNavigate={handleMoreNavigate}
+          visibleItems={visibleMoreItems}
+          workspaceRole={workspaceMe?.role}
         />
       </div>
     </div>

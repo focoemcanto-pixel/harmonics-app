@@ -21,8 +21,8 @@ function isValidEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
 }
 
-function mapMember(member) {
-  const profile = member?.profile || null;
+function mapMember(member, profileById = new Map()) {
+  const profile = profileById.get(member?.user_id) || null;
   return {
     id: member.id,
     workspace_id: member.workspace_id,
@@ -58,10 +58,7 @@ export async function GET(request) {
     const [membersRes, invitesRes] = await Promise.all([
       supabaseAdmin
         .from('workspace_members')
-        .select(
-          `id, workspace_id, user_id, role, status, created_at, updated_at,
-           profile:profiles(id, email, name, role)`
-        )
+        .select('id, workspace_id, user_id, role, status, created_at, updated_at')
         .eq('workspace_id', auth.workspaceId)
         .order('created_at', { ascending: true }),
       supabaseAdmin
@@ -74,11 +71,25 @@ export async function GET(request) {
     if (membersRes.error) throw membersRes.error;
     if (invitesRes.error) throw invitesRes.error;
 
+    const members = membersRes.data || [];
+    const userIds = Array.from(new Set(members.map((member) => member.user_id).filter(Boolean)));
+    let profileById = new Map();
+
+    if (userIds.length > 0) {
+      const { data: profiles, error: profilesError } = await supabaseAdmin
+        .from('profiles')
+        .select('id, email, name, role')
+        .in('id', userIds);
+
+      if (profilesError) throw profilesError;
+      profileById = new Map((profiles || []).map((profile) => [profile.id, profile]));
+    }
+
     return NextResponse.json({
       ok: true,
       workspace: auth.workspace,
       current_member: auth.member,
-      members: (membersRes.data || []).map(mapMember),
+      members: members.map((member) => mapMember(member, profileById)),
       invites: invitesRes.data || [],
     });
   } catch (error) {

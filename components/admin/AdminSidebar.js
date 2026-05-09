@@ -31,7 +31,7 @@ export default function AdminSidebar({ activeItem = 'eventos' }) {
     { key: 'automacoes', label: 'Automação', href: '/automacoes' },
     { key: 'avaliacoes', label: 'Avaliações', href: '/avaliacoes' },
     { key: 'pagamentos', label: 'Pagamentos', href: '/pagamentos' },
-    { key: 'usuarios', label: 'Usuários', href: '/admin/usuarios' },
+    { key: 'usuarios', label: 'Usuários', href: '/configuracoes/equipe' },
   ];
 
   const automationItems = [

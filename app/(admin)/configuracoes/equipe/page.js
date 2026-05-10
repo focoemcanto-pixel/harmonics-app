@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import AdminShell from '@/components/admin/AdminShell';
 import WorkspaceModuleGuard from '@/components/workspace/WorkspaceModuleGuard';
+import { invalidateWorkspaceMeCache } from '@/hooks/useWorkspaceMe';
 
 const ROLE_OPTIONS = [
   { value: 'owner', label: 'Owner', description: 'Controle total do workspace.' },
@@ -161,6 +162,7 @@ function EquipeContent() {
       }
 
       setInviteForm({ email: '', role: 'viewer' });
+      invalidateWorkspaceMeCache();
       await carregarEquipe();
     } catch (err) {
       setError(err?.message || 'Erro ao convidar membro.');
@@ -188,6 +190,7 @@ function EquipeContent() {
       }
 
       setSuccess('Membro atualizado com sucesso.');
+      invalidateWorkspaceMeCache();
       await carregarEquipe();
     } catch (err) {
       setError(err?.message || 'Erro ao atualizar membro.');
@@ -217,6 +220,7 @@ function EquipeContent() {
       }
 
       setSuccess('Acesso removido com sucesso.');
+      invalidateWorkspaceMeCache();
       await carregarEquipe();
     } catch (err) {
       setError(err?.message || 'Erro ao remover membro.');

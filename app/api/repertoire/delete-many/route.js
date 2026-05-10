@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { requireAdmin } from '@/lib/api/require-admin';
+import { requireWorkspaceAccess } from '@/lib/api/require-workspace-access';
 import { deleteRepertoiresCascade } from '@/lib/repertorio/delete-repertoires-cascade';
 
 function normalizePayloadIds(body = {}) {
@@ -11,23 +11,72 @@ function normalizePayloadIds(body = {}) {
   ];
 }
 
+function uniqIds(list = []) {
+  return Array.from(new Set(list.map((id) => String(id || '').trim()).filter(Boolean)));
+}
+
+async function filterWorkspaceEventIds({ supabase, eventIds, workspaceId }) {
+  const ids = uniqIds(eventIds);
+  if (ids.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from('events')
+    .select('id')
+    .eq('workspace_id', workspaceId)
+    .in('id', ids);
+
+  if (error) throw error;
+  return uniqIds((data || []).map((row) => row.id));
+}
+
 export async function POST(request) {
   const supabase = getSupabaseAdmin();
 
   try {
-    const auth = await requireAdmin({ supabase, request, logPrefix: '[REPERTOIRE_DELETE_MANY_API]' });
-    if (!auth.ok) return NextResponse.json(auth, { status: auth.status || 401 });
+    const auth = await requireWorkspaceAccess({
+      supabase,
+      request,
+      moduleKey: 'repertorios',
+      actionKey: 'write',
+      logPrefix: '[REPERTOIRE_DELETE_MANY_API]',
+    });
+
+    if (!auth.ok) {
+      return NextResponse.json(auth, { status: auth.status || 401 });
+    }
 
     const body = await request.json().catch(() => ({}));
-    const eventIds = normalizePayloadIds(body);
+    const requestedEventIds = uniqIds(normalizePayloadIds(body));
 
     console.log('[REPERTOIRE_DELETE][PAYLOAD]', body);
-    console.info('[REPERTOIRE_DELETE_MANY_API][DELETE][IDS]', { eventIds });
+    console.info('[REPERTOIRE_DELETE_MANY_API][DELETE][IDS]', {
+      requestedEventIds,
+      workspaceId: auth.workspaceId,
+    });
 
-    if (!Array.isArray(eventIds) || eventIds.length === 0) {
+    if (requestedEventIds.length === 0) {
       return NextResponse.json(
         { success: false, ok: false, affected: 0, message: 'Selecione ao menos um repertório.' },
         { status: 400 }
+      );
+    }
+
+    const eventIds = await filterWorkspaceEventIds({
+      supabase,
+      eventIds: requestedEventIds,
+      workspaceId: auth.workspaceId,
+    });
+
+    if (eventIds.length === 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          ok: false,
+          affected: 0,
+          ids: [],
+          message: 'Nenhum repertório válido encontrado neste workspace.',
+        },
+        { status: 404 }
       );
     }
 

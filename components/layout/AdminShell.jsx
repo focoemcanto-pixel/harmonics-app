@@ -7,6 +7,7 @@ import AdminMobileTopbar from '../admin/AdminMobileTopbar';
 import AdminBottomNav from '../admin/AdminBottomNav';
 import { useAuth } from '@/contexts/AuthContext';
 import { redirectToLogin } from '@/lib/auth/logoutRedirect';
+import useWorkspaceMe from '@/hooks/useWorkspaceMe';
 
 const MORE_ITEMS = [
   { module: 'escalas', label: 'Escalas', href: '/escalas', icon: '🎼', helper: 'Operação musical' },
@@ -206,48 +207,15 @@ export default function AdminShell({
   const pathname = usePathname();
   const { user, initialized, loading, sessionEndReason } = useAuth();
   const [moreOpen, setMoreOpen] = useState(false);
-  const [workspaceMe, setWorkspaceMe] = useState(null);
-
-  useEffect(() => {
-    let alive = true;
-
-    async function loadPermissions() {
-      try {
-        const response = await fetch('/api/workspace/me', { method: 'GET', cache: 'no-store' });
-        const payload = await response.json().catch(() => null);
-
-        if (!alive) return;
-        if (response.ok && payload?.ok) {
-          setWorkspaceMe(payload);
-        }
-      } catch (error) {
-        console.warn('[AdminShell] Erro ao carregar permissões:', error?.message || error);
-      }
-    }
-
-    loadPermissions();
-
-    return () => {
-      alive = false;
-    };
-  }, []);
+  const { workspaceMe, modules, role } = useWorkspaceMe({ enabled: Boolean(initialized && !loading && user) });
 
   const allowedModules = useMemo(() => {
-    const modules = workspaceMe?.permissions?.modules;
     if (Array.isArray(modules) && modules.length > 0) {
       return new Set(modules);
     }
 
-    return new Set([
-      'dashboard',
-      'eventos',
-      'contatos',
-      'contratos',
-      'repertorios',
-      'convites',
-      'escalas',
-    ]);
-  }, [workspaceMe]);
+    return new Set(['dashboard']);
+  }, [modules]);
 
   const visibleMoreItems = useMemo(
     () => MORE_ITEMS.filter((item) => allowedModules.has(item.module)),
@@ -333,7 +301,7 @@ export default function AdminShell({
           onClose={handleCloseMore}
           onNavigate={handleMoreNavigate}
           visibleItems={visibleMoreItems}
-          workspaceRole={workspaceMe?.role}
+          workspaceRole={role || workspaceMe?.role}
         />
       </div>
     </div>

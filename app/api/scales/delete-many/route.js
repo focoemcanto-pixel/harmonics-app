@@ -1,14 +1,41 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { requireAdmin } from '@/lib/api/require-admin';
+import { requireWorkspaceAccess } from '@/lib/api/require-workspace-access';
 import { deleteScalesCascade } from '@/lib/scales/delete-scales-cascade';
+
+function uniqIds(list = []) {
+  return Array.from(new Set(list.map((id) => String(id || '').trim()).filter(Boolean)));
+}
+
+async function filterWorkspaceEventIds({ supabase, eventIds, workspaceId }) {
+  const ids = uniqIds(eventIds);
+  if (ids.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from('events')
+    .select('id')
+    .eq('workspace_id', workspaceId)
+    .in('id', ids);
+
+  if (error) throw error;
+  return uniqIds((data || []).map((row) => row.id));
+}
 
 export async function POST(request) {
   const supabase = getSupabaseAdmin();
 
   try {
-    const auth = await requireAdmin({ supabase, request, logPrefix: '[SCALES_DELETE_MANY]' });
-    if (!auth.ok) return NextResponse.json(auth, { status: auth.status || 401 });
+    const auth = await requireWorkspaceAccess({
+      supabase,
+      request,
+      moduleKey: 'scales',
+      actionKey: 'write',
+      logPrefix: '[SCALES_DELETE_MANY]',
+    });
+
+    if (!auth.ok) {
+      return NextResponse.json(auth, { status: auth.status || 401 });
+    }
 
     const body = await request.json().catch(() => ({}));
     console.log('[ESCALAS_DELETE][BULK_PAYLOAD]', body);
@@ -18,15 +45,18 @@ export async function POST(request) {
       ...(Array.isArray(body?.event_ids) ? body.event_ids : []),
       ...(Array.isArray(body?.ids) ? body.ids : []),
     ];
+
     const scaleIds = Array.isArray(body?.scaleIds) ? body.scaleIds : [];
     const inviteIds = Array.isArray(body?.inviteIds) ? body.inviteIds : [];
-    const eventIdsSet = new Set(directEventIds.map((id) => String(id || '').trim()).filter(Boolean));
+
+    const eventIdsSet = new Set(uniqIds(directEventIds));
 
     if (scaleIds.length > 0) {
       const { data: scaleRows, error: scaleError } = await supabase
         .from('event_musicians')
         .select('event_id')
         .in('id', scaleIds);
+
       if (scaleError) throw scaleError;
       (scaleRows || []).forEach((row) => eventIdsSet.add(String(row.event_id || '').trim()));
     }
@@ -36,27 +66,30 @@ export async function POST(request) {
         .from('invites')
         .select('event_id')
         .in('id', inviteIds);
+
       if (inviteError) throw inviteError;
       (inviteRows || []).forEach((row) => eventIdsSet.add(String(row.event_id || '').trim()));
     }
 
-    const eventIds = Array.from(eventIdsSet).filter(Boolean);
+    const requestedEventIds = Array.from(eventIdsSet).filter(Boolean);
 
-    console.info('[SCALES_DELETE_MANY][DELETE][TABLE]', { table: 'event_musicians, invites' });
-    console.info('[SCALES_DELETE_MANY][DELETE][IDS]', { eventIds });
-    console.log('[ESCALAS_DELETE][BULK_MATCH_QUERY]', {
-      table: ['event_musicians', 'invites'],
-      column: 'event_id',
-      eventIds,
-      sourceKeys: {
-        eventIds: directEventIds.length,
-        scaleIds: scaleIds.length,
-        inviteIds: inviteIds.length,
-      },
+    const eventIds = await filterWorkspaceEventIds({
+      supabase,
+      eventIds: requestedEventIds,
+      workspaceId: auth.workspaceId,
     });
 
+    console.info('[SCALES_DELETE_MANY][DELETE][TABLE]', { table: 'event_musicians, invites' });
+    console.info('[SCALES_DELETE_MANY][DELETE][IDS]', { eventIds, workspaceId: auth.workspaceId });
+
     if (eventIds.length === 0) {
-      return NextResponse.json({ ok: false, error: 'Selecione ao menos uma escala.' }, { status: 400 });
+      return NextResponse.json(
+        {
+          ok: false,
+          error: 'Nenhuma escala válida encontrada neste workspace.',
+        },
+        { status: 400 }
+      );
     }
 
     const result = await deleteScalesCascade({ supabase, eventIds });
@@ -114,6 +147,13 @@ export async function POST(request) {
       code: error?.code,
       details: error?.details,
     });
-    return NextResponse.json({ ok: false, error: error?.message || 'Erro ao excluir escalas.' }, { status: 500 });
+
+    return NextResponse.json(
+      {
+        ok: false,
+        error: error?.message || 'Erro ao excluir escalas.',
+      },
+      { status: 500 }
+    );
   }
 }

@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 const CACHE_TTL_MS = 30 * 1000;
+export const WORKSPACE_ME_INVALIDATED_EVENT = 'harmonics:workspace-me-invalidated';
+
 let workspaceMeCache = {
   value: null,
   fetchedAt: 0,
@@ -54,6 +56,14 @@ export function clearWorkspaceMeCache() {
   };
 }
 
+export function invalidateWorkspaceMeCache({ broadcast = true } = {}) {
+  clearWorkspaceMeCache();
+
+  if (broadcast && typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(WORKSPACE_ME_INVALIDATED_EVENT));
+  }
+}
+
 export default function useWorkspaceMe({ enabled = true } = {}) {
   const mountedRef = useRef(false);
   const [data, setData] = useState(() => (isCacheFresh() ? workspaceMeCache.value : null));
@@ -102,8 +112,15 @@ export default function useWorkspaceMe({ enabled = true } = {}) {
       reload({ force: false });
     }
 
+    function handleInvalidated() {
+      reload({ force: true });
+    }
+
+    window.addEventListener(WORKSPACE_ME_INVALIDATED_EVENT, handleInvalidated);
+
     return () => {
       mountedRef.current = false;
+      window.removeEventListener(WORKSPACE_ME_INVALIDATED_EVENT, handleInvalidated);
     };
   }, [enabled, reload]);
 
@@ -114,6 +131,7 @@ export default function useWorkspaceMe({ enabled = true } = {}) {
     error,
     reload,
     clearCache: clearWorkspaceMeCache,
+    invalidateCache: invalidateWorkspaceMeCache,
     role: data?.role || null,
     permissions: data?.permissions || null,
     modules: data?.permissions?.modules || [],

@@ -1,14 +1,84 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+
+function inferModuleFromPath(pathname = '') {
+  if (pathname.startsWith('/pagamentos')) return 'pagamentos';
+  if (pathname.startsWith('/automacoes')) return 'automacoes';
+  if (pathname.startsWith('/configuracoes/equipe') || pathname.startsWith('/admin/usuarios')) return 'usuarios';
+  if (pathname.startsWith('/contratos') || pathname.startsWith('/pre-contratos')) return 'contratos';
+  if (pathname.startsWith('/escalas')) return 'escalas';
+  if (pathname.startsWith('/eventos')) return 'eventos';
+  if (pathname.startsWith('/contatos')) return 'contatos';
+  if (pathname.startsWith('/convites')) return 'convites';
+  if (pathname.startsWith('/repertorios')) return 'repertorios';
+  if (pathname.startsWith('/sugestoes')) return 'sugestoes';
+  if (pathname.startsWith('/avaliacoes')) return 'avaliacoes';
+  if (pathname.startsWith('/dashboard')) return 'dashboard';
+  return null;
+}
 
 export default function ProtectedRoute({ children, requiredRole = null }) {
   const { user, profile, loading, initialized, authError, profileResolved } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const redirectingRef = useRef(false);
+  const [workspaceMe, setWorkspaceMe] = useState(null);
+  const [workspaceLoading, setWorkspaceLoading] = useState(false);
+  const [workspaceChecked, setWorkspaceChecked] = useState(false);
+
+  const moduleKey = useMemo(() => inferModuleFromPath(pathname || ''), [pathname]);
+
+  useEffect(() => {
+    if (!initialized || loading || !user) return;
+
+    let alive = true;
+
+    async function loadWorkspaceAccess() {
+      setWorkspaceLoading(true);
+      try {
+        const response = await fetch('/api/workspace/me', {
+          method: 'GET',
+          cache: 'no-store',
+          credentials: 'include',
+        });
+        const payload = await response.json().catch(() => null);
+
+        if (!alive) return;
+
+        if (response.ok && payload?.ok) {
+          setWorkspaceMe(payload);
+        } else {
+          setWorkspaceMe(null);
+        }
+      } catch (error) {
+        console.warn('[ProtectedRoute] falha ao carregar workspace/me', error?.message || error);
+        if (alive) setWorkspaceMe(null);
+      } finally {
+        if (alive) {
+          setWorkspaceLoading(false);
+          setWorkspaceChecked(true);
+        }
+      }
+    }
+
+    loadWorkspaceAccess();
+
+    return () => {
+      alive = false;
+    };
+  }, [initialized, loading, user, pathname]);
+
+  const workspaceAllowsModule = useMemo(() => {
+    if (!moduleKey) return true;
+    const modules = workspaceMe?.permissions?.modules;
+    return Array.isArray(modules) && modules.includes(moduleKey);
+  }, [moduleKey, workspaceMe]);
+
+  const workspaceRole = String(workspaceMe?.role || '').toLowerCase();
+  const isWorkspaceAdmin = ['owner', 'admin'].includes(workspaceRole);
 
   useEffect(() => {
     if (!initialized || loading || redirectingRef.current) {
@@ -36,23 +106,68 @@ export default function ProtectedRoute({ children, requiredRole = null }) {
       return;
     }
 
-    if (requiredRole && currentRole !== requiredRole) {
-      console.info('[ProtectedRoute] bloqueado: role inválida', {
+    if (requiredRole && !workspaceChecked) {
+      console.info('[ProtectedRoute] aguardando permissões do workspace', {
+        pathname,
+        requiredRole,
+        moduleKey,
+      });
+      return;
+    }
+
+    const globalRoleAllows = requiredRole ? currentRole === requiredRole : true;
+    const workspaceAllows = requiredRole === 'admin'
+      ? (isWorkspaceAdmin || workspaceAllowsModule)
+      : workspaceAllowsModule;
+
+    if (requiredRole && !globalRoleAllows && !workspaceAllows) {
+      console.info('[ProtectedRoute] bloqueado: permissão inválida', {
         pathname,
         requiredRole,
         currentRole,
+        workspaceRole,
+        moduleKey,
+        workspaceAllowsModule,
       });
       redirectingRef.current = true;
       router.replace('/acesso-negado');
+      return;
+    }
+
+    if (!workspaceAllowsModule) {
+      console.info('[ProtectedRoute] bloqueado: módulo fora das permissões', {
+        pathname,
+        workspaceRole,
+        moduleKey,
+      });
+      redirectingRef.current = true;
+      router.replace('/acesso-negado');
+      return;
     }
 
     console.info('[ProtectedRoute] acesso liberado', {
       pathname,
       userId: user?.id || null,
       role: currentRole,
+      workspaceRole,
       requiredRole,
+      moduleKey,
     });
-  }, [initialized, loading, user, profile, requiredRole, router, pathname, profileResolved]);
+  }, [
+    initialized,
+    loading,
+    user,
+    profile,
+    requiredRole,
+    router,
+    pathname,
+    profileResolved,
+    workspaceChecked,
+    workspaceRole,
+    isWorkspaceAdmin,
+    workspaceAllowsModule,
+    moduleKey,
+  ]);
 
   useEffect(() => {
     if (!loading) {
@@ -60,7 +175,7 @@ export default function ProtectedRoute({ children, requiredRole = null }) {
     }
   }, [loading]);
 
-  if (!initialized || loading || (requiredRole && user && !profileResolved)) {
+  if (!initialized || loading || workspaceLoading || (requiredRole && user && (!profileResolved || !workspaceChecked))) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <div className="text-center">
@@ -84,7 +199,13 @@ export default function ProtectedRoute({ children, requiredRole = null }) {
     );
   }
 
-  if (!user || (requiredRole && profileResolved && profile?.role !== requiredRole)) {
+  const currentRole = profile?.role || null;
+  const globalRoleAllows = requiredRole ? currentRole === requiredRole : true;
+  const workspaceAllows = requiredRole === 'admin'
+    ? (isWorkspaceAdmin || workspaceAllowsModule)
+    : workspaceAllowsModule;
+
+  if (!user || (requiredRole && !globalRoleAllows && !workspaceAllows) || !workspaceAllowsModule) {
     return null;
   }
 

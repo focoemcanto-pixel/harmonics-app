@@ -2,8 +2,9 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import useWorkspaceMe from '@/hooks/useWorkspaceMe';
 
 function navClass(active) {
   return active
@@ -53,54 +54,17 @@ export default function AdminSidebar({ activeItem = 'eventos' }) {
   const pathname = usePathname();
   const { signOut, profile } = useAuth();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [workspaceMe, setWorkspaceMe] = useState(null);
-  const [permissionsLoading, setPermissionsLoading] = useState(true);
+  const { workspaceMe, loading: permissionsLoading, modules, role } = useWorkspaceMe();
   const automationOpen = pathname?.startsWith('/automacoes');
   const contractsOpen = pathname?.startsWith('/contratos');
   const eventsOpen = pathname?.startsWith('/eventos');
 
-  useEffect(() => {
-    let alive = true;
-
-    async function loadPermissions() {
-      setPermissionsLoading(true);
-      try {
-        const response = await fetch('/api/workspace/me', {
-          method: 'GET',
-          cache: 'no-store',
-          credentials: 'include',
-        });
-        const payload = await response.json().catch(() => null);
-        if (!alive) return;
-
-        if (response.ok && payload?.ok) {
-          setWorkspaceMe(payload);
-        } else {
-          setWorkspaceMe(null);
-        }
-      } catch (error) {
-        console.warn('[AdminSidebar] Falha ao carregar permissões do workspace:', error?.message || error);
-        if (alive) setWorkspaceMe(null);
-      } finally {
-        if (alive) setPermissionsLoading(false);
-      }
-    }
-
-    loadPermissions();
-
-    return () => {
-      alive = false;
-    };
-  }, []);
-
   const allowedModules = useMemo(() => {
-    const modules = workspaceMe?.permissions?.modules;
     if (Array.isArray(modules) && modules.length > 0) {
       return new Set(modules);
     }
-
     return new Set(['dashboard']);
-  }, [workspaceMe]);
+  }, [modules]);
 
   const items = useMemo(
     () => ALL_ITEMS.filter((item) => allowedModules.has(item.module)),
@@ -134,6 +98,7 @@ export default function AdminSidebar({ activeItem = 'eventos' }) {
       setIsLoggingOut(false);
     }
   }
+
   return (
     <aside className="sticky top-0 flex min-h-screen w-[280px] shrink-0 flex-col bg-[#020b2c] px-5 py-6 text-white">
       <div className="flex items-center gap-3 px-2">
@@ -196,7 +161,7 @@ export default function AdminSidebar({ activeItem = 'eventos' }) {
             <div className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#a5b4fc]">Usuário atual</div>
             <div className="mt-1 truncate text-[13px] font-bold text-white">{profile.name || profile.email}</div>
             <div className="mt-1 text-[11px] font-semibold text-violet-300">
-              {normalizeRoleLabel(workspaceMe?.role || profile.role)}
+              {normalizeRoleLabel(role || workspaceMe?.role || profile.role)}
             </div>
           </div>
         )}

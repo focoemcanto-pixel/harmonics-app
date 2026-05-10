@@ -5,6 +5,7 @@ import { generateContractDocument } from '@/lib/contracts/generate-contract-docu
 import { logError, logInfo, logWarn, safeError } from '@/lib/observability/server-log';
 import { sendAdminWhatsAppAlert } from '@/lib/whatsapp/send-admin-alert';
 import { getCurrentWorkspace } from '@/lib/workspaces/get-current-workspace';
+import { requireWorkspaceAccess } from '@/lib/api/require-workspace-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -61,10 +62,24 @@ export async function POST(request) {
 
     const supabase = createClient(supabaseEnv.supabaseUrl, supabaseEnv.supabaseServiceRoleKey);
 
-    const workspaceContext = await getCurrentWorkspace({ supabase });
+    const auth = await requireWorkspaceAccess({
+      supabase,
+      request,
+      logPrefix: '[CONTRACT_GENERATE][POST]',
+      allowedRoles: ['owner', 'admin', 'financeiro'],
+    });
+
+    if (!auth.ok) {
+      return NextResponse.json({ ok: false, message: auth.error, error: auth.error }, { status: auth.status || 401 });
+    }
+
+    const workspaceContext = await getCurrentWorkspace({ supabase, request });
+    const workspaceId = workspaceContext?.workspaceId || auth.workspaceId;
     logInfo('CONTRACT_GENERATE', 'WORKSPACE_CONTEXT', {
-      workspaceId: workspaceContext.workspaceId,
-      source: workspaceContext.source,
+      workspaceId,
+      source: workspaceContext?.source || auth.source,
+      userId: auth.userId,
+      role: auth.role,
     });
 
     let body = {};
@@ -85,7 +100,18 @@ export async function POST(request) {
       contractId: context?.contract?.id || body?.contractId || null,
       precontractId: context?.precontract?.id || body?.precontractId || null,
       eventId: context?.event?.id || null,
+      workspaceId,
     });
+
+    const contextWorkspaceId = context?.contract?.workspace_id || context?.precontract?.workspace_id || context?.event?.workspace_id || null;
+    if (contextWorkspaceId && String(contextWorkspaceId) !== String(workspaceId)) {
+      logWarn('CONTRACT_GENERATE', 'WORKSPACE_MISMATCH_BLOCKED', {
+        contextWorkspaceId,
+        authWorkspaceId: workspaceId,
+        userId: auth.userId,
+      });
+      return NextResponse.json({ ok: false, message: 'Contrato não pertence ao workspace atual.' }, { status: 403 });
+    }
 
     if (!result?.ok) {
       if (result?.error === 'CONTRACT_NOT_FOUND_FOR_PRECONTRACT') {

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { requireWorkspaceAdmin } from '@/lib/api/require-workspace-access';
 import { getCurrentAutomationWorkspaceSettings } from '@/lib/automation/get-workspace';
 import { getLatestAutomationCronRun } from '@/lib/automation/cron-run';
 import { validateChannelConfig } from '@/lib/whatsapp/channel-config';
@@ -92,8 +93,18 @@ function buildCronStatus(lastRun) {
 export async function GET(request) {
   try {
     const supabase = getSupabaseAdmin();
+    const auth = await requireWorkspaceAdmin({
+      supabase,
+      request,
+      logPrefix: '[AUTOMATION_DASHBOARD][GET]',
+    });
+
+    if (!auth.ok) {
+      return NextResponse.json({ ok: false, error: auth.error }, { status: auth.status || 401 });
+    }
+
     const workspace = await getCurrentAutomationWorkspaceSettings({ supabase, request });
-    const workspaceId = asUuidOrNull(workspace?.id);
+    const workspaceId = asUuidOrNull(workspace?.id) || auth.workspaceId;
     const { start: todayStart, end: todayEnd } = getSaoPauloBounds();
 
     const templatesQuery = scopeWorkspace(
@@ -261,7 +272,8 @@ export async function GET(request) {
       workspace_debug: {
         workspaceId,
         rawWorkspaceId: workspace?.id || null,
-        source: workspace?.source || null,
+        authWorkspaceId: auth.workspaceId,
+        source: workspace?.source || auth.source || null,
         migrationMode: !workspaceId,
       },
     };

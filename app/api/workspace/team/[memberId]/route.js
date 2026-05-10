@@ -4,6 +4,11 @@ import { requireWorkspaceAdmin } from '@/lib/api/require-workspace-access';
 
 const ALLOWED_ROLES = new Set(['owner', 'admin', 'financeiro', 'operacional', 'editor', 'viewer']);
 
+async function resolveMemberId(context) {
+  const params = await context?.params;
+  return String(params?.memberId || '').trim();
+}
+
 function normalizeRole(value) {
   const role = String(value || '')
     .normalize('NFD')
@@ -82,7 +87,7 @@ export async function PATCH(request, context) {
   }
 
   try {
-    const memberId = String(context?.params?.memberId || '').trim();
+    const memberId = await resolveMemberId(context);
     if (!memberId) {
       return NextResponse.json({ ok: false, error: 'memberId obrigatório.' }, { status: 400 });
     }
@@ -175,7 +180,7 @@ export async function DELETE(request, context) {
   }
 
   try {
-    const memberId = String(context?.params?.memberId || '').trim();
+    const memberId = await resolveMemberId(context);
     if (!memberId) {
       return NextResponse.json({ ok: false, error: 'memberId obrigatório.' }, { status: 400 });
     }

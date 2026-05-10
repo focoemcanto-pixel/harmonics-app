@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { requireAdmin } from '@/lib/api/require-admin';
+import { requireWorkspaceAccess } from '@/lib/api/require-workspace-access';
 import { getCurrentWorkspace } from '@/lib/workspaces/get-current-workspace';
 
 export const dynamic = 'force-dynamic';
@@ -48,12 +48,19 @@ export async function GET(request) {
   const supabase = getSupabaseAdmin();
 
   try {
-    const auth = await requireAdmin({ supabase, request, logPrefix: '[EVENTS_API]' });
+    const auth = await requireWorkspaceAccess({
+      supabase,
+      request,
+      logPrefix: '[EVENTS_API][GET]',
+      allowedRoles: ['owner', 'admin', 'operacional', 'editor', 'viewer'],
+    });
+
     if (!auth.ok) {
       return NextResponse.json({ ok: false, message: auth.error }, { status: auth.status || 401 });
     }
 
-    const workspaceContext = await getCurrentWorkspace({ supabase });
+    const workspaceContext = await getCurrentWorkspace({ supabase, request });
+    const workspaceId = workspaceContext?.workspaceId || auth.workspaceId;
     const { searchParams } = new URL(request.url);
     const limit = normalizeListLimit(searchParams.get('limit'));
     const scope = String(searchParams.get('scope') || 'all').trim().toLowerCase();
@@ -71,7 +78,7 @@ export async function GET(request) {
       const { data, error } = await supabase
         .from('events')
         .select(EVENTS_SELECT_FIELDS)
-        .eq('workspace_id', workspaceContext.workspaceId)
+        .eq('workspace_id', workspaceId)
         .order('created_at', { ascending: false })
         .limit(limit);
 
@@ -97,7 +104,7 @@ export async function GET(request) {
       const { data, error } = await supabase
         .from('precontracts')
         .select(PRECONTRACTS_SELECT_FIELDS)
-        .eq('workspace_id', workspaceContext.workspaceId)
+        .eq('workspace_id', workspaceId)
         .order('created_at', { ascending: false })
         .limit(limit);
 
@@ -109,7 +116,7 @@ export async function GET(request) {
       const { data, error } = await supabase
         .from('contracts')
         .select(CONTRACTS_SELECT_FIELDS)
-        .eq('workspace_id', workspaceContext.workspaceId)
+        .eq('workspace_id', workspaceId)
         .order('created_at', { ascending: false })
         .limit(limit);
 
@@ -123,7 +130,7 @@ export async function GET(request) {
       scaleSummaryByEventId,
       precontracts,
       contracts,
-      workspaceId: workspaceContext.workspaceId,
+      workspaceId,
     });
   } catch (error) {
     console.error('[EVENTS_API][GET][ERROR]', {

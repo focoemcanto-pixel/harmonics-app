@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import useWorkspaceMe from '@/hooks/useWorkspaceMe';
 
 function AccessDenied({ moduleKey }) {
   return (
@@ -42,58 +43,34 @@ export default function WorkspaceModuleGuard({
   redirectOnDenied = false,
 }) {
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
-  const [workspaceMe, setWorkspaceMe] = useState(null);
-  const [error, setError] = useState('');
+
+  const {
+    workspaceMe,
+    loading,
+    error,
+    role,
+    modules,
+  } = useWorkspaceMe();
 
   useEffect(() => {
-    let alive = true;
-
-    async function loadAccess() {
-      setLoading(true);
-      setError('');
-
-      try {
-        const response = await fetch('/api/workspace/me', { method: 'GET', cache: 'no-store' });
-        const payload = await response.json().catch(() => null);
-
-        if (!alive) return;
-
-        if (response.status === 401) {
-          router.replace('/login');
-          return;
-        }
-
-        if (!response.ok || !payload?.ok) {
-          throw new Error(payload?.error || 'Falha ao validar permissões.');
-        }
-
-        setWorkspaceMe(payload);
-      } catch (err) {
-        setError(err?.message || 'Falha ao validar permissões.');
-      } finally {
-        if (alive) setLoading(false);
-      }
+    if (!loading && error && /401|sess[aã]o|login/i.test(String(error?.message || error || ''))) {
+      router.replace('/login');
     }
-
-    loadAccess();
-
-    return () => {
-      alive = false;
-    };
-  }, [router]);
+  }, [error, loading, router]);
 
   const canAccess = useMemo(() => {
     if (!workspaceMe?.ok) return false;
 
-    const role = String(workspaceMe?.role || '').toLowerCase();
-    const modules = workspaceMe?.permissions?.modules || [];
+    const normalizedRole = String(role || '').toLowerCase();
 
-    if (requireAdmin && !['owner', 'admin'].includes(role)) return false;
+    if (requireAdmin && !['owner', 'admin'].includes(normalizedRole)) {
+      return false;
+    }
+
     if (!moduleKey) return true;
 
     return Array.isArray(modules) && modules.includes(moduleKey);
-  }, [moduleKey, requireAdmin, workspaceMe]);
+  }, [moduleKey, modules, requireAdmin, role, workspaceMe]);
 
   useEffect(() => {
     if (!loading && workspaceMe?.ok && !canAccess && redirectOnDenied) {
@@ -108,7 +85,7 @@ export default function WorkspaceModuleGuard({
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
         <div className="max-w-lg rounded-2xl border border-red-200 bg-red-50 p-5 text-red-700">
           <h2 className="text-base font-bold">Falha ao validar permissões</h2>
-          <p className="mt-2 text-sm">{error}</p>
+          <p className="mt-2 text-sm">{error?.message || String(error)}</p>
         </div>
       </div>
     );

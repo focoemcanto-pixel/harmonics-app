@@ -1,14 +1,35 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { requireAdmin } from '@/lib/api/require-admin';
+import { requireWorkspaceAccess } from '@/lib/api/require-workspace-access';
 import { deletePaymentsByIds } from '@/lib/payments/delete-payments';
+
+async function paymentBelongsToWorkspace({ supabase, paymentId, workspaceId }) {
+  const { data, error } = await supabase
+    .from('payments')
+    .select('id')
+    .eq('id', paymentId)
+    .eq('workspace_id', workspaceId)
+    .maybeSingle();
+
+  if (error) throw error;
+  return Boolean(data?.id);
+}
 
 export async function DELETE(request, context) {
   const supabase = getSupabaseAdmin();
 
   try {
-    const auth = await requireAdmin({ supabase, request, logPrefix: '[PAYMENT_DELETE_ONE_API]' });
-    if (!auth.ok) return NextResponse.json(auth, { status: auth.status || 401 });
+    const auth = await requireWorkspaceAccess({
+      supabase,
+      request,
+      moduleKey: 'pagamentos',
+      actionKey: 'write',
+      logPrefix: '[PAYMENT_DELETE_ONE_API]',
+    });
+
+    if (!auth.ok) {
+      return NextResponse.json(auth, { status: auth.status || 401 });
+    }
 
     const resolvedParams = await context?.params;
     const paymentId = String(resolvedParams?.id || '').trim();
@@ -20,7 +41,28 @@ export async function DELETE(request, context) {
       );
     }
 
-    console.info('[PAYMENT_DELETE_ONE_API][DELETE][IDS]', { paymentIds: [paymentId] });
+    const canDeletePayment = await paymentBelongsToWorkspace({
+      supabase,
+      paymentId,
+      workspaceId: auth.workspaceId,
+    });
+
+    if (!canDeletePayment) {
+      return NextResponse.json(
+        {
+          success: false,
+          ok: false,
+          affected: 0,
+          message: 'Pagamento não encontrado neste workspace.',
+        },
+        { status: 404 }
+      );
+    }
+
+    console.info('[PAYMENT_DELETE_ONE_API][DELETE][IDS]', {
+      paymentIds: [paymentId],
+      workspaceId: auth.workspaceId,
+    });
 
     const result = await deletePaymentsByIds({
       supabase,

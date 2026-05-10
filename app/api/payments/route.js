@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { requireAdmin } from '@/lib/api/require-admin';
+import { requireWorkspaceAccess } from '@/lib/api/require-workspace-access';
 import { getCurrentWorkspace } from '@/lib/workspaces/get-current-workspace';
 
 export const dynamic = 'force-dynamic';
@@ -10,16 +10,26 @@ function uniq(list = []) {
   return Array.from(new Set(list.map((item) => String(item || '').trim()).filter(Boolean)));
 }
 
+async function requirePaymentsAccess({ supabase, request, logPrefix }) {
+  return requireWorkspaceAccess({
+    supabase,
+    request,
+    logPrefix,
+    allowedRoles: ['owner', 'admin', 'financeiro'],
+  });
+}
+
 export async function GET(request) {
   const supabase = getSupabaseAdmin();
 
   try {
-    const auth = await requireAdmin({ supabase, request, logPrefix: '[PAYMENTS_API]' });
+    const auth = await requirePaymentsAccess({ supabase, request, logPrefix: '[PAYMENTS_API][GET]' });
     if (!auth.ok) {
       return NextResponse.json({ ok: false, message: auth.error }, { status: auth.status || 401 });
     }
 
-    const { workspaceId } = await getCurrentWorkspace({ supabase });
+    const workspaceContext = await getCurrentWorkspace({ supabase, request });
+    const workspaceId = workspaceContext?.workspaceId || auth.workspaceId;
 
     const { data: events, error: eventsError } = await supabase
       .from('events')
@@ -36,6 +46,7 @@ export async function GET(request) {
       const { data: paymentsData, error: paymentsError } = await supabase
         .from('payments')
         .select('*')
+        .eq('workspace_id', workspaceId)
         .in('event_id', eventIds)
         .order('payment_date', { ascending: false });
 
@@ -75,12 +86,13 @@ export async function POST(request) {
   const supabase = getSupabaseAdmin();
 
   try {
-    const auth = await requireAdmin({ supabase, request, logPrefix: '[PAYMENTS_API]' });
+    const auth = await requirePaymentsAccess({ supabase, request, logPrefix: '[PAYMENTS_API][POST]' });
     if (!auth.ok) {
       return NextResponse.json({ ok: false, message: auth.error }, { status: auth.status || 401 });
     }
 
-    const { workspaceId } = await getCurrentWorkspace({ supabase });
+    const workspaceContext = await getCurrentWorkspace({ supabase, request });
+    const workspaceId = workspaceContext?.workspaceId || auth.workspaceId;
     const body = await request.json().catch(() => ({}));
     const payload = body?.payload && typeof body.payload === 'object' ? body.payload : body || {};
     const eventId = String(payload?.event_id || '').trim();
@@ -109,7 +121,7 @@ export async function POST(request) {
       status: payload?.status || 'pendente',
       notes: payload?.notes || null,
       proof_file_url: payload?.proof_file_url || null,
-      workspace_id: payload?.workspace_id || workspaceId,
+      workspace_id: workspaceId,
     };
 
     const { data, error } = await supabase

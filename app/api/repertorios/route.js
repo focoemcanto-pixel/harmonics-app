@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { requireAdmin } from '@/lib/api/require-admin';
-import { getCurrentWorkspace } from '@/lib/workspaces/get-current-workspace';
+import { requireWorkspaceAccess } from '@/lib/api/require-workspace-access';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -19,71 +18,36 @@ function uniq(list = []) {
   return Array.from(new Set(list.map((item) => String(item || '').trim()).filter(Boolean)));
 }
 
-function mergeUniqueById(...lists) {
-  const map = new Map();
-
-  for (const list of lists) {
-    for (const item of list || []) {
-      const id = String(item?.id || '').trim();
-      if (!id || map.has(id)) continue;
-      map.set(id, item);
-    }
-  }
-
-  return Array.from(map.values());
-}
-
 export async function GET(request) {
   const supabase = getSupabaseAdmin();
 
   try {
-    const auth = await requireAdmin({ supabase, request, logPrefix: '[REPERTORIOS_API]' });
+    const auth = await requireWorkspaceAccess({
+      supabase,
+      request,
+      moduleKey: 'repertorios',
+      actionKey: 'read',
+      logPrefix: '[REPERTORIOS_API]',
+    });
+
     if (!auth.ok) {
       return NextResponse.json(
-        { ok: false, message: auth.error },
+        { ok: false, message: auth.error || 'Acesso não autorizado.' },
         { status: auth.status || 401 }
       );
     }
 
-    const { workspaceId } = await getCurrentWorkspace({ supabase });
+    const workspaceId = auth.workspaceId;
 
-    const { data: scopedEvents, error: scopedEventsError } = await supabase
+    const { data: events, error: eventsError } = await supabase
       .from('events')
       .select(EVENTS_SELECT_FIELDS)
       .eq('workspace_id', workspaceId)
       .order('created_at', { ascending: false });
 
-    if (scopedEventsError) throw scopedEventsError;
+    if (eventsError) throw eventsError;
 
-    const { data: allConfigRows, error: configRowsError } = await supabase
-      .from('repertoire_config')
-      .select('event_id, created_at')
-      .not('event_id', 'is', null)
-      .order('created_at', { ascending: false });
-
-    if (configRowsError) throw configRowsError;
-
-    const scopedEventIds = uniq((scopedEvents || []).map((event) => event?.id));
-    const allConfigEventIds = uniq((allConfigRows || []).map((cfg) => cfg?.event_id));
-
-    const missingConfigEventIds = allConfigEventIds.filter(
-      (eventId) => !scopedEventIds.includes(String(eventId))
-    );
-
-    let legacyEvents = [];
-
-    if (missingConfigEventIds.length > 0) {
-      const { data: legacyEventsData, error: legacyEventsError } = await supabase
-        .from('events')
-        .select(EVENTS_SELECT_FIELDS)
-        .in('id', missingConfigEventIds);
-
-      if (legacyEventsError) throw legacyEventsError;
-      legacyEvents = legacyEventsData || [];
-    }
-
-    const events = mergeUniqueById(scopedEvents || [], legacyEvents || []);
-    const eventIds = uniq(events.map((event) => event?.id));
+    const eventIds = uniq((events || []).map((event) => event?.id));
 
     if (eventIds.length === 0) {
       return NextResponse.json({
@@ -97,8 +61,6 @@ export async function GET(request) {
         workspaceId,
         debug: {
           eventsCount: 0,
-          scopedEventsCount: 0,
-          legacyEventsCount: 0,
           configsCount: 0,
           itemsCount: 0,
           tokensCount: 0,
@@ -155,7 +117,7 @@ export async function GET(request) {
 
     return NextResponse.json({
       ok: true,
-      events,
+      events: events || [],
       configs: configsRes.data || [],
       items,
       tokens: tokensRes.data || [],
@@ -163,9 +125,7 @@ export async function GET(request) {
       contracts: contractsRes.data || [],
       workspaceId,
       debug: {
-        eventsCount: events.length,
-        scopedEventsCount: (scopedEvents || []).length,
-        legacyEventsCount: legacyEvents.length,
+        eventsCount: (events || []).length,
         configsCount: (configsRes.data || []).length,
         itemsCount: items.length,
         tokensCount: (tokensRes.data || []).length,

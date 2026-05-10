@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { requireAdmin } from '@/lib/api/require-admin';
+import { requireWorkspaceAccess } from '@/lib/api/require-workspace-access';
 import { getCurrentWorkspace } from '@/lib/workspaces/get-current-workspace';
 
 export const dynamic = 'force-dynamic';
@@ -23,12 +23,19 @@ export async function GET(request) {
   const supabase = getSupabaseAdmin();
 
   try {
-    const auth = await requireAdmin({ supabase, request, logPrefix: '[CONTRACTS_API]' });
+    const auth = await requireWorkspaceAccess({
+      supabase,
+      request,
+      logPrefix: '[CONTRACTS_API][GET]',
+      allowedRoles: ['owner', 'admin', 'financeiro', 'operacional', 'viewer'],
+    });
+
     if (!auth.ok) {
       return NextResponse.json({ ok: false, message: auth.error }, { status: auth.status || 401 });
     }
 
-    const workspaceContext = await getCurrentWorkspace({ supabase });
+    const workspaceContext = await getCurrentWorkspace({ supabase, request });
+    const workspaceId = workspaceContext?.workspaceId || auth.workspaceId;
     const { searchParams } = new URL(request.url);
     const limit = normalizeListLimit(searchParams.get('limit'));
 
@@ -37,7 +44,7 @@ export async function GET(request) {
         supabase
           .from('precontracts')
           .select(PRECONTRACTS_SELECT_FIELDS)
-          .eq('workspace_id', workspaceContext.workspaceId)
+          .eq('workspace_id', workspaceId)
           .neq('status', 'cancelled')
           .order('created_at', { ascending: false })
           .limit(limit),
@@ -45,7 +52,7 @@ export async function GET(request) {
         supabase
           .from('contracts')
           .select(CONTRACTS_SELECT_FIELDS)
-          .eq('workspace_id', workspaceContext.workspaceId)
+          .eq('workspace_id', workspaceId)
           .neq('status', 'cancelled')
           .order('created_at', { ascending: false })
           .limit(limit),
@@ -58,7 +65,7 @@ export async function GET(request) {
       ok: true,
       precontracts: precontracts || [],
       contracts: contracts || [],
-      workspaceId: workspaceContext.workspaceId,
+      workspaceId,
     });
   } catch (error) {
     console.error('[CONTRACTS_API][GET][ERROR]', {

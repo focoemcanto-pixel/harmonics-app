@@ -1,9 +1,35 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse } from 'next/server';
 
+const PROTECTED_PATHS = [
+  '/dashboard',
+  '/eventos',
+  '/contratos',
+  '/pre-contratos',
+  '/contatos',
+  '/convites',
+  '/escalas',
+  '/automacoes',
+  '/pagamentos',
+  '/repertorios',
+  '/sugestoes',
+  '/avaliacoes',
+  '/configuracoes',
+  '/admin',
+];
+
+const PUBLIC_BYPASS_PATHS = [
+  '/membro',
+  '/cliente',
+  '/contrato',
+  '/api/public',
+];
+
 export async function middleware(req) {
-  // 🔥 BLINDAGEM DO FLUXO MEMBRO
-  if (req.nextUrl.pathname.startsWith('/membro')) {
+  const pathname = req.nextUrl.pathname;
+
+  // 🔥 Blindagem dos fluxos públicos/externos: não aplicar auth admin aqui.
+  if (PUBLIC_BYPASS_PATHS.some((path) => pathname.startsWith(path))) {
     return NextResponse.next();
   }
 
@@ -11,7 +37,7 @@ export async function middleware(req) {
   const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-    console.error('Missing Supabase environment variables');
+    console.error('[middleware] Missing Supabase environment variables');
     return NextResponse.next();
   }
 
@@ -39,28 +65,22 @@ export async function middleware(req) {
     }
   );
 
+  const isProtectedPath = PROTECTED_PATHS.some((path) => pathname.startsWith(path));
+
+  if (!isProtectedPath) {
+    return res;
+  }
+
+  // Importante: middleware valida apenas sessão.
+  // Roles/permissões ficam em WorkspaceModuleGuard + APIs, evitando queries pesadas no edge.
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  const protectedPaths = [
-    '/dashboard',
-    '/eventos',
-    '/contratos',
-    '/contatos',
-    '/escalas',
-    '/automacoes',
-    '/pagamentos',
-    '/admin',
-  ];
-
-  const isProtectedPath = protectedPaths.some(path =>
-    req.nextUrl.pathname.startsWith(path)
-  );
-
-  // Apenas verificar sessão (sem query de role no middleware)
-  if (isProtectedPath && !session) {
-    return NextResponse.redirect(new URL('/login', req.url));
+  if (!user) {
+    const loginUrl = new URL('/login', req.url);
+    loginUrl.searchParams.set('next', pathname);
+    return NextResponse.redirect(loginUrl);
   }
 
   return res;
@@ -71,10 +91,16 @@ export const config = {
     '/dashboard/:path*',
     '/eventos/:path*',
     '/contratos/:path*',
+    '/pre-contratos/:path*',
     '/contatos/:path*',
+    '/convites/:path*',
     '/escalas/:path*',
     '/automacoes/:path*',
     '/pagamentos/:path*',
+    '/repertorios/:path*',
+    '/sugestoes/:path*',
+    '/avaliacoes/:path*',
+    '/configuracoes/:path*',
     '/admin/:path*',
   ],
 };

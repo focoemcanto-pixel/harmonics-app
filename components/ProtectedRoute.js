@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import useWorkspaceMe from '@/hooks/useWorkspaceMe';
 
 function inferModuleFromPath(pathname = '') {
   if (pathname.startsWith('/pagamentos')) return 'pagamentos';
@@ -20,70 +21,42 @@ function inferModuleFromPath(pathname = '') {
   return null;
 }
 
+function LoadingAccess() {
+  return (
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-violet-600 mx-auto mb-4"></div>
+        <p className="text-slate-600">Verificando acesso...</p>
+      </div>
+    </div>
+  );
+}
+
 export default function ProtectedRoute({ children, requiredRole = null }) {
   const { user, profile, loading, initialized, authError, profileResolved } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const redirectingRef = useRef(false);
-  const [workspaceMe, setWorkspaceMe] = useState(null);
-  const [workspaceLoading, setWorkspaceLoading] = useState(false);
-  const [workspaceChecked, setWorkspaceChecked] = useState(false);
 
   const moduleKey = useMemo(() => inferModuleFromPath(pathname || ''), [pathname]);
+  const {
+    workspaceMe,
+    loading: workspaceLoading,
+    error: workspaceError,
+    role: workspaceRoleRaw,
+    modules,
+  } = useWorkspaceMe({ enabled: Boolean(initialized && !loading && user) });
 
-  useEffect(() => {
-    if (!initialized || loading || !user) return;
-
-    let alive = true;
-
-    async function loadWorkspaceAccess() {
-      setWorkspaceLoading(true);
-      try {
-        const response = await fetch('/api/workspace/me', {
-          method: 'GET',
-          cache: 'no-store',
-          credentials: 'include',
-        });
-        const payload = await response.json().catch(() => null);
-
-        if (!alive) return;
-
-        if (response.ok && payload?.ok) {
-          setWorkspaceMe(payload);
-        } else {
-          setWorkspaceMe(null);
-        }
-      } catch (error) {
-        console.warn('[ProtectedRoute] falha ao carregar workspace/me', error?.message || error);
-        if (alive) setWorkspaceMe(null);
-      } finally {
-        if (alive) {
-          setWorkspaceLoading(false);
-          setWorkspaceChecked(true);
-        }
-      }
-    }
-
-    loadWorkspaceAccess();
-
-    return () => {
-      alive = false;
-    };
-  }, [initialized, loading, user, pathname]);
+  const workspaceRole = String(workspaceRoleRaw || '').toLowerCase();
+  const isWorkspaceAdmin = ['owner', 'admin'].includes(workspaceRole);
 
   const workspaceAllowsModule = useMemo(() => {
     if (!moduleKey) return true;
-    const modules = workspaceMe?.permissions?.modules;
     return Array.isArray(modules) && modules.includes(moduleKey);
-  }, [moduleKey, workspaceMe]);
-
-  const workspaceRole = String(workspaceMe?.role || '').toLowerCase();
-  const isWorkspaceAdmin = ['owner', 'admin'].includes(workspaceRole);
+  }, [moduleKey, modules]);
 
   useEffect(() => {
-    if (!initialized || loading || redirectingRef.current) {
-      return;
-    }
+    if (!initialized || loading || redirectingRef.current) return;
 
     const currentRole = profile?.role || null;
 
@@ -98,6 +71,12 @@ export default function ProtectedRoute({ children, requiredRole = null }) {
       return;
     }
 
+    if (workspaceError?.status === 401) {
+      redirectingRef.current = true;
+      router.replace('/login');
+      return;
+    }
+
     if (requiredRole && !profileResolved) {
       console.info('[ProtectedRoute] aguardando perfil para validação de role', {
         pathname,
@@ -106,7 +85,7 @@ export default function ProtectedRoute({ children, requiredRole = null }) {
       return;
     }
 
-    if (requiredRole && !workspaceChecked) {
+    if (workspaceLoading) {
       console.info('[ProtectedRoute] aguardando permissões do workspace', {
         pathname,
         requiredRole,
@@ -162,7 +141,8 @@ export default function ProtectedRoute({ children, requiredRole = null }) {
     router,
     pathname,
     profileResolved,
-    workspaceChecked,
+    workspaceLoading,
+    workspaceError,
     workspaceRole,
     isWorkspaceAdmin,
     workspaceAllowsModule,
@@ -170,20 +150,13 @@ export default function ProtectedRoute({ children, requiredRole = null }) {
   ]);
 
   useEffect(() => {
-    if (!loading) {
+    if (!loading && !workspaceLoading) {
       redirectingRef.current = false;
     }
-  }, [loading]);
+  }, [loading, workspaceLoading]);
 
-  if (!initialized || loading || workspaceLoading || (requiredRole && user && (!profileResolved || !workspaceChecked))) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-violet-600 mx-auto mb-4"></div>
-          <p className="text-slate-600">Verificando acesso...</p>
-        </div>
-      </div>
-    );
+  if (!initialized || loading || workspaceLoading || (requiredRole && user && !profileResolved)) {
+    return <LoadingAccess />;
   }
 
   if (authError) {
@@ -199,13 +172,24 @@ export default function ProtectedRoute({ children, requiredRole = null }) {
     );
   }
 
+  if (workspaceError) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+        <div className="max-w-lg rounded-2xl border border-red-200 bg-red-50 p-5 text-red-700">
+          <h2 className="text-base font-bold">Falha ao validar permissões</h2>
+          <p className="mt-2 text-sm">{workspaceError?.message || 'Atualize a página ou faça login novamente.'}</p>
+        </div>
+      </div>
+    );
+  }
+
   const currentRole = profile?.role || null;
   const globalRoleAllows = requiredRole ? currentRole === requiredRole : true;
   const workspaceAllows = requiredRole === 'admin'
     ? (isWorkspaceAdmin || workspaceAllowsModule)
     : workspaceAllowsModule;
 
-  if (!user || (requiredRole && !globalRoleAllows && !workspaceAllows) || !workspaceAllowsModule) {
+  if (!user || !workspaceMe?.ok || (requiredRole && !globalRoleAllows && !workspaceAllows) || !workspaceAllowsModule) {
     return null;
   }
 

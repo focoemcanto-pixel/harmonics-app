@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { requireAdmin } from '@/lib/api/require-admin';
-import { getCurrentWorkspace } from '@/lib/workspaces/get-current-workspace';
+import { requireWorkspaceAccess } from '@/lib/api/require-workspace-access';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -26,7 +25,7 @@ function normalizeContactPayload(payload = {}, workspaceId) {
     notes: asString(payload.notes) || null,
     contact_type: asString(payload.contact_type) || 'musician',
     is_active: payload.is_active !== false,
-    workspace_id: asString(payload.workspace_id) || workspaceId,
+    workspace_id: workspaceId,
   };
 }
 
@@ -34,17 +33,27 @@ export async function GET(request) {
   const supabase = getSupabaseAdmin();
 
   try {
-    const auth = await requireAdmin({ supabase, request, logPrefix: '[CONTACTS_API]' });
+    const auth = await requireWorkspaceAccess({
+      supabase,
+      request,
+      moduleKey: 'contacts',
+      actionKey: 'read',
+      logPrefix: '[CONTACTS_API]',
+    });
+
     if (!auth.ok) {
-      return NextResponse.json({ ok: false, message: auth.error }, { status: auth.status || 401 });
+      return NextResponse.json(
+        { ok: false, message: auth.error || 'Acesso não autorizado.' },
+        { status: auth.status || 401 }
+      );
     }
 
-    const workspaceContext = await getCurrentWorkspace({ supabase });
+    const workspaceId = auth.workspaceId;
 
     const { data, error } = await supabase
       .from('contacts')
       .select(CONTACTS_SELECT_FIELDS)
-      .eq('workspace_id', workspaceContext.workspaceId)
+      .eq('workspace_id', workspaceId)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
@@ -52,7 +61,7 @@ export async function GET(request) {
     return NextResponse.json({
       ok: true,
       data: data || [],
-      workspaceId: workspaceContext.workspaceId,
+      workspaceId,
     });
   } catch (error) {
     console.error('[CONTACTS_API][GET][ERROR]', {
@@ -76,15 +85,26 @@ export async function POST(request) {
   const supabase = getSupabaseAdmin();
 
   try {
-    const auth = await requireAdmin({ supabase, request, logPrefix: '[CONTACTS_API]' });
+    const auth = await requireWorkspaceAccess({
+      supabase,
+      request,
+      moduleKey: 'contacts',
+      actionKey: 'write',
+      logPrefix: '[CONTACTS_API]',
+    });
+
     if (!auth.ok) {
-      return NextResponse.json({ ok: false, message: auth.error }, { status: auth.status || 401 });
+      return NextResponse.json(
+        { ok: false, message: auth.error || 'Acesso não autorizado.' },
+        { status: auth.status || 401 }
+      );
     }
 
-    const workspaceContext = await getCurrentWorkspace({ supabase });
+    const workspaceId = auth.workspaceId;
+
     const body = await request.json().catch(() => ({}));
     const id = asString(body?.id);
-    const payload = normalizeContactPayload(body?.payload || body || {}, workspaceContext.workspaceId);
+    const payload = normalizeContactPayload(body?.payload || body || {}, workspaceId);
 
     if (!payload.name) {
       return NextResponse.json({ ok: false, message: 'Informe o nome do contato.' }, { status: 400 });
@@ -97,22 +117,23 @@ export async function POST(request) {
         .from('contacts')
         .select('id, workspace_id')
         .eq('id', id)
+        .eq('workspace_id', workspaceId)
         .maybeSingle();
 
       if (existingError) throw existingError;
-      if (!existing?.id) {
-        return NextResponse.json({ ok: false, message: 'Contato não encontrado.' }, { status: 404 });
-      }
 
-      const updatePayload = {
-        ...payload,
-        workspace_id: existing.workspace_id || workspaceContext.workspaceId,
-      };
+      if (!existing?.id) {
+        return NextResponse.json(
+          { ok: false, message: 'Contato não encontrado neste workspace.' },
+          { status: 404 }
+        );
+      }
 
       const response = await supabase
         .from('contacts')
-        .update(updatePayload)
+        .update(payload)
         .eq('id', id)
+        .eq('workspace_id', workspaceId)
         .select(CONTACTS_SELECT_FIELDS)
         .single();
 

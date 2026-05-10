@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { requireAdmin } from '@/lib/api/require-admin';
-import { getCurrentWorkspace } from '@/lib/workspaces/get-current-workspace';
+import { requireWorkspaceAccess } from '@/lib/api/require-workspace-access';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -14,12 +13,22 @@ export async function GET(request) {
   const supabase = getSupabaseAdmin();
 
   try {
-    const auth = await requireAdmin({ supabase, request, logPrefix: '[EVENT_MUSICIANS_API]' });
+    const auth = await requireWorkspaceAccess({
+      supabase,
+      request,
+      moduleKey: 'scales',
+      actionKey: 'read',
+      logPrefix: '[EVENT_MUSICIANS_API]',
+    });
+
     if (!auth.ok) {
-      return NextResponse.json({ ok: false, message: auth.error }, { status: auth.status || 401 });
+      return NextResponse.json(
+        { ok: false, message: auth.error || 'Acesso não autorizado.' },
+        { status: auth.status || 401 }
+      );
     }
 
-    const { workspaceId } = await getCurrentWorkspace({ supabase });
+    const workspaceId = auth.workspaceId;
 
     const { data: workspaceEvents, error: eventsError } = await supabase
       .from('events')
@@ -63,6 +72,7 @@ export async function GET(request) {
       const { data: contactsData, error: contactsError } = await supabase
         .from('contacts')
         .select('id, name, email, phone, tag, contact_type, is_active, workspace_id')
+        .eq('workspace_id', workspaceId)
         .in('id', musicianIds);
 
       if (contactsError) throw contactsError;

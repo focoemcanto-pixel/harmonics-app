@@ -39,6 +39,16 @@ function normalizeRoleLabel(role) {
   return labels[value] || value || 'Membro';
 }
 
+function SidebarSkeleton() {
+  return (
+    <div className="mt-8 space-y-2 px-1">
+      {[1, 2, 3, 4, 5, 6].map((item) => (
+        <div key={item} className="h-11 animate-pulse rounded-2xl bg-white/5" />
+      ))}
+    </div>
+  );
+}
+
 export default function AdminSidebar({ activeItem = 'eventos' }) {
   const pathname = usePathname();
   const { signOut, profile } = useAuth();
@@ -53,16 +63,24 @@ export default function AdminSidebar({ activeItem = 'eventos' }) {
     let alive = true;
 
     async function loadPermissions() {
+      setPermissionsLoading(true);
       try {
-        const response = await fetch('/api/workspace/me', { method: 'GET', cache: 'no-store' });
+        const response = await fetch('/api/workspace/me', {
+          method: 'GET',
+          cache: 'no-store',
+          credentials: 'include',
+        });
         const payload = await response.json().catch(() => null);
         if (!alive) return;
 
         if (response.ok && payload?.ok) {
           setWorkspaceMe(payload);
+        } else {
+          setWorkspaceMe(null);
         }
       } catch (error) {
         console.warn('[AdminSidebar] Falha ao carregar permissões do workspace:', error?.message || error);
+        if (alive) setWorkspaceMe(null);
       } finally {
         if (alive) setPermissionsLoading(false);
       }
@@ -81,13 +99,8 @@ export default function AdminSidebar({ activeItem = 'eventos' }) {
       return new Set(modules);
     }
 
-    // Durante carregamento, mantém todos os itens para evitar flicker agressivo e preservar compatibilidade.
-    if (permissionsLoading) {
-      return new Set(ALL_ITEMS.map((item) => item.module));
-    }
-
     return new Set(['dashboard']);
-  }, [workspaceMe, permissionsLoading]);
+  }, [workspaceMe]);
 
   const items = useMemo(
     () => ALL_ITEMS.filter((item) => allowedModules.has(item.module)),
@@ -133,45 +146,49 @@ export default function AdminSidebar({ activeItem = 'eventos' }) {
         </div>
       </div>
 
-      <nav className="mt-8 space-y-2">
-        {items.map((item) => (
-          <div key={item.key}>
-            <Link href={item.href} className={`flex w-full items-center rounded-2xl px-4 py-3 text-left text-[15px] font-bold transition ${navClass(activeItem === item.key)}`}>
-              {item.label}
-            </Link>
+      {permissionsLoading ? (
+        <SidebarSkeleton />
+      ) : (
+        <nav className="mt-8 space-y-2">
+          {items.map((item) => (
+            <div key={item.key}>
+              <Link href={item.href} className={`flex w-full items-center rounded-2xl px-4 py-3 text-left text-[15px] font-bold transition ${navClass(activeItem === item.key)}`}>
+                {item.label}
+              </Link>
 
-            {item.key === 'eventos' && eventsOpen && (
-              <div className="ml-6 mt-1 space-y-1 border-l border-violet-400/30 pl-3">
-                {eventItems.map((sub) => (
-                  <Link key={sub.href} href={sub.href} className={`block rounded-lg px-3 py-1.5 text-[13px] font-semibold ${pathname === sub.href ? 'bg-violet-200/20 text-violet-200' : 'text-[#a5b4fc] hover:text-white'}`}>
-                    {sub.label}
-                  </Link>
-                ))}
-              </div>
-            )}
+              {item.key === 'eventos' && eventsOpen && (
+                <div className="ml-6 mt-1 space-y-1 border-l border-violet-400/30 pl-3">
+                  {eventItems.map((sub) => (
+                    <Link key={sub.href} href={sub.href} className={`block rounded-lg px-3 py-1.5 text-[13px] font-semibold ${pathname === sub.href ? 'bg-violet-200/20 text-violet-200' : 'text-[#a5b4fc] hover:text-white'}`}>
+                      {sub.label}
+                    </Link>
+                  ))}
+                </div>
+              )}
 
-            {item.key === 'contratos' && contractsOpen && (
-              <div className="ml-6 mt-1 space-y-1 border-l border-violet-400/30 pl-3">
-                {contractItems.map((sub) => (
-                  <Link key={sub.href} href={sub.href} className={`block rounded-lg px-3 py-1.5 text-[13px] font-semibold ${pathname === sub.href ? 'bg-violet-200/20 text-violet-200' : 'text-[#a5b4fc] hover:text-white'}`}>
-                    {sub.label}
-                  </Link>
-                ))}
-              </div>
-            )}
+              {item.key === 'contratos' && contractsOpen && (
+                <div className="ml-6 mt-1 space-y-1 border-l border-violet-400/30 pl-3">
+                  {contractItems.map((sub) => (
+                    <Link key={sub.href} href={sub.href} className={`block rounded-lg px-3 py-1.5 text-[13px] font-semibold ${pathname === sub.href ? 'bg-violet-200/20 text-violet-200' : 'text-[#a5b4fc] hover:text-white'}`}>
+                      {sub.label}
+                    </Link>
+                  ))}
+                </div>
+              )}
 
-            {item.key === 'automacoes' && automationOpen && (
-              <div className="ml-6 mt-1 space-y-1 border-l border-violet-400/30 pl-3">
-                {automationItems.map((sub) => (
-                  <Link key={sub.href} href={sub.href} className={`block rounded-lg px-3 py-1.5 text-[13px] font-semibold ${pathname === sub.href ? 'bg-violet-200/20 text-violet-200' : 'text-[#a5b4fc] hover:text-white'}`}>
-                    {sub.label}
-                  </Link>
-                ))}
-              </div>
-            )}
-          </div>
-        ))}
-      </nav>
+              {item.key === 'automacoes' && automationOpen && (
+                <div className="ml-6 mt-1 space-y-1 border-l border-violet-400/30 pl-3">
+                  {automationItems.map((sub) => (
+                    <Link key={sub.href} href={sub.href} className={`block rounded-lg px-3 py-1.5 text-[13px] font-semibold ${pathname === sub.href ? 'bg-violet-200/20 text-violet-200' : 'text-[#a5b4fc] hover:text-white'}`}>
+                      {sub.label}
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </nav>
+      )}
 
       <div className="mt-auto px-2 pt-6">
         {profile && (

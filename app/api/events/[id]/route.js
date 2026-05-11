@@ -1,7 +1,19 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { deleteEventCascade } from '@/lib/events/delete-event-cascade';
-import { requireAdmin } from '@/lib/api/require-admin';
+import { requireWorkspaceAccess } from '@/lib/api/require-workspace-access';
+
+async function eventBelongsToWorkspace({ supabase, eventId, workspaceId }) {
+  const { data, error } = await supabase
+    .from('events')
+    .select('id')
+    .eq('id', eventId)
+    .eq('workspace_id', workspaceId)
+    .maybeSingle();
+
+  if (error) throw error;
+  return Boolean(data?.id);
+}
 
 export async function DELETE(request, context) {
   const supabase = getSupabaseAdmin();
@@ -13,9 +25,36 @@ export async function DELETE(request, context) {
   console.info('[EVENT_DELETE_API][DELETE][IDS]', { eventIds: [eventId] });
 
   try {
-    const auth = await requireAdmin({ supabase, request, logPrefix: '[EVENT_DELETE_API]' });
+    const auth = await requireWorkspaceAccess({
+      supabase,
+      request,
+      moduleKey: 'events',
+      actionKey: 'write',
+      logPrefix: '[EVENT_DELETE_API]',
+    });
+
     if (!auth.ok) {
-      return NextResponse.json({ ok: false, error: auth.error }, { status: auth.status || 401 });
+      return NextResponse.json(
+        { ok: false, error: auth.error || 'Acesso não autorizado.' },
+        { status: auth.status || 401 }
+      );
+    }
+
+    if (!eventId) {
+      return NextResponse.json({ ok: false, error: 'ID do evento é obrigatório.' }, { status: 400 });
+    }
+
+    const canDeleteEvent = await eventBelongsToWorkspace({
+      supabase,
+      eventId,
+      workspaceId: auth.workspaceId,
+    });
+
+    if (!canDeleteEvent) {
+      return NextResponse.json(
+        { ok: false, error: 'Evento não encontrado neste workspace.' },
+        { status: 404 }
+      );
     }
 
     const result = await deleteEventCascade({

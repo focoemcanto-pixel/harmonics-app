@@ -416,8 +416,29 @@ export async function POST(request, context) {
     const { error: preSignedErr } = await supabase.from('precontracts').update({ ...payloadPre, status: 'signed' }).eq('id', precontract.id);
     if (preSignedErr) throw preSignedErr;
 
-    await executeAutomationEvent({ eventType: 'contract_signed_client', entityId: precontract.id }).catch(() => null);
-    await executeAutomationEvent({ eventType: 'contract_signed_admin', entityId: precontract.id }).catch(() => null);
+    await executeAutomationEvent({
+      eventType: 'contract_signed_client',
+      entityId: precontract.id,
+      workspaceId: resolvedWorkspaceId,
+    }).catch((error) => {
+      console.error('[PUBLIC_CONTRACT_SIGN_AUTOMATION_ERROR]', {
+        eventType: 'contract_signed_client',
+        workspaceId: resolvedWorkspaceId,
+        message: error?.message || String(error),
+      });
+    });
+
+    await executeAutomationEvent({
+      eventType: 'contract_signed_admin',
+      entityId: precontract.id,
+      workspaceId: resolvedWorkspaceId,
+    }).catch((error) => {
+      console.error('[PUBLIC_CONTRACT_SIGN_AUTOMATION_ERROR]', {
+        eventType: 'contract_signed_admin',
+        workspaceId: resolvedWorkspaceId,
+        message: error?.message || String(error),
+      });
+    });
 
     return NextResponse.json({
       ok: true,

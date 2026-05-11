@@ -3,6 +3,14 @@ import { createClient } from '@supabase/supabase-js';
 import { sendAdminWhatsAppAlert } from '@/lib/whatsapp/send-admin-alert';
 import { resolvePaymentProofBucketName } from '@/lib/payments/payment-proof-storage';
 
+const MAX_PROOF_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+const ALLOWED_PROOF_MIME_TYPES = new Set([
+  'application/pdf',
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+]);
+
 function getAdminSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRole = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -66,6 +74,27 @@ function resolveAppBaseUrl(request) {
   return origin.replace(/\/$/, '');
 }
 
+function sanitizeExtension(value) {
+  const extension = String(value || 'bin')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '')
+    .slice(0, 8);
+
+  return extension || 'bin';
+}
+
+function validateProofFile(file) {
+  if (!file) return;
+
+  if (file.size > MAX_PROOF_FILE_SIZE_BYTES) {
+    throw new Error('O comprovante deve ter no máximo 10MB.');
+  }
+
+  if (file.type && !ALLOWED_PROOF_MIME_TYPES.has(file.type)) {
+    throw new Error('Formato de comprovante não permitido. Envie PDF, JPG, PNG ou WEBP.');
+  }
+}
+
 async function readRequestPayload(request) {
   const contentType = request.headers.get('content-type') || '';
 
@@ -119,9 +148,11 @@ export async function POST(request) {
       );
     }
 
+    validateProofFile(proofFile);
+
     const { data: precontract, error: precontractError } = await supabase
       .from('precontracts')
-      .select('event_id, public_token')
+      .select('event_id, public_token, workspace_id')
       .eq('public_token', token)
       .maybeSingle();
 
@@ -135,13 +166,29 @@ export async function POST(request) {
 
     const { data: eventRow, error: eventError } = await supabase
       .from('events')
-      .select('id, client_name, event_date, agreed_amount, paid_amount, open_amount, location_name')
+      .select('id, workspace_id, client_name, event_date, agreed_amount, paid_amount, open_amount, location_name')
       .eq('id', eventId)
       .maybeSingle();
 
     if (eventError) throw eventError;
     if (!eventRow) {
       return NextResponse.json({ ok: false, error: 'Evento não encontrado.' }, { status: 404 });
+    }
+
+    const workspaceId = String(eventRow.workspace_id || precontract.workspace_id || '').trim();
+
+    if (!workspaceId) {
+      return NextResponse.json(
+        { ok: false, error: 'Workspace do evento não encontrado.' },
+        { status: 500 }
+      );
+    }
+
+    if (precontract.workspace_id && String(precontract.workspace_id) !== workspaceId) {
+      return NextResponse.json(
+        { ok: false, error: 'Token incompatível com o workspace do evento.' },
+        { status: 409 }
+      );
     }
 
     const currentPaidAmount = Number(eventRow.paid_amount || 0);
@@ -153,8 +200,8 @@ export async function POST(request) {
     let proofFileUrl = null;
     if (proofFile) {
       const bucketName = resolvePaymentProofBucketName();
-      const extension = (proofFile.name?.split('.').pop() || 'bin').toLowerCase();
-      const objectPath = `event-${eventId}/${Date.now()}-${Math.random()
+      const extension = sanitizeExtension(proofFile.name?.split('.').pop() || 'bin');
+      const objectPath = `workspaces/${workspaceId}/events/${eventId}/payments/${Date.now()}-${Math.random()
         .toString(36)
         .slice(2)}.${extension}`;
       const arrayBuffer = await proofFile.arrayBuffer();
@@ -178,6 +225,7 @@ export async function POST(request) {
 
     console.log('[PAYMENT_PROOF][UPLOAD_RESULT]', {
       eventId,
+      workspaceId,
       proofFileName,
       proofFileUrl,
     });
@@ -189,6 +237,7 @@ export async function POST(request) {
     const { data: insertedPayment, error: paymentInsertError } = await supabase
       .from('payments')
       .insert({
+        workspace_id: workspaceId,
         event_id: eventId,
         amount,
         payment_date: paymentDate,
@@ -197,7 +246,7 @@ export async function POST(request) {
         notes: noteWithAttachment || null,
         proof_file_url: proofFileUrl,
       })
-      .select('id, amount, payment_date, payment_method, status, notes, proof_file_url, created_at')
+      .select('id, workspace_id, amount, payment_date, payment_method, status, notes, proof_file_url, created_at')
       .single();
 
     if (paymentInsertError) throw paymentInsertError;
@@ -209,17 +258,20 @@ export async function POST(request) {
     };
     console.log('[PAYMENT_PROOF][PAYMENT_UPDATE_PAYLOAD]', {
       eventId,
+      workspaceId,
       payload: paymentUpdatePayload,
     });
 
     const { error: updateEventError } = await supabase
       .from('events')
       .update(paymentUpdatePayload)
-      .eq('id', eventId);
+      .eq('id', eventId)
+      .eq('workspace_id', workspaceId);
 
     if (updateEventError) throw updateEventError;
     console.log('[PAYMENT_PROOF][PAYMENT_UPDATE_RESULT]', {
       eventId,
+      workspaceId,
       ok: true,
     });
 

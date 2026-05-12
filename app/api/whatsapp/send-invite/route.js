@@ -3,7 +3,18 @@ import { sendInviteService } from '../../../../lib/whatsapp/send-invite-service'
 
 export async function POST(request) {
   const body = await request.json().catch(() => ({}));
-  const inviteId = body?.inviteId;
+
+  const inviteId = String(body?.inviteId || '').trim();
+
+  if (!inviteId) {
+    return NextResponse.json(
+      {
+        error: 'inviteId é obrigatório',
+      },
+      { status: 400 }
+    );
+  }
+
   console.info('[automation][step] send_invite_started', { inviteId });
 
   const result = await sendInviteService({ inviteId });

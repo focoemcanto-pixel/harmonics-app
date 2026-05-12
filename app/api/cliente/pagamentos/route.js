@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { sendAdminWhatsAppAlert } from '@/lib/whatsapp/send-admin-alert';
-import { resolvePaymentProofBucketName } from '@/lib/payments/payment-proof-storage';
+import {
+  buildWorkspacePaymentProofPath,
+  resolvePaymentProofBucketName,
+} from '@/lib/payments/payment-proof-storage';
 
 const MAX_PROOF_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 const ALLOWED_PROOF_MIME_TYPES = new Set([
@@ -201,9 +204,11 @@ export async function POST(request) {
     if (proofFile) {
       const bucketName = resolvePaymentProofBucketName();
       const extension = sanitizeExtension(proofFile.name?.split('.').pop() || 'bin');
-      const objectPath = `workspaces/${workspaceId}/events/${eventId}/payments/${Date.now()}-${Math.random()
-        .toString(36)
-        .slice(2)}.${extension}`;
+      const objectPath = buildWorkspacePaymentProofPath({
+        workspaceId,
+        eventId,
+        fileName: `${Date.now()}-${Math.random().toString(36).slice(2)}.${extension}`,
+      });
       const arrayBuffer = await proofFile.arrayBuffer();
 
       console.log('[PAYMENT_PROOF][UPLOAD_BUCKET]', bucketName);
@@ -218,9 +223,11 @@ export async function POST(request) {
 
       if (uploadError) throw uploadError;
 
-      const { data: publicData } = supabase.storage.from(bucketName).getPublicUrl(objectPath);
-      proofFileUrl = publicData?.publicUrl || null;
-      console.log('[PAYMENT_PROOF][STORED_PROOF_URL]', proofFileUrl);
+      // Segurança multi-tenant: armazenar apenas o path interno.
+      // A abertura deve passar por /api/payments/[id]/proof-signed-url
+      // ou /api/storage/payment-proof/preview, que validam workspace/RBAC.
+      proofFileUrl = objectPath;
+      console.log('[PAYMENT_PROOF][STORED_PROOF_PATH]', proofFileUrl);
     }
 
     console.log('[PAYMENT_PROOF][UPLOAD_RESULT]', {
@@ -289,7 +296,7 @@ export async function POST(request) {
       eventRow.location_name ? `📍 Local: ${eventRow.location_name}` : null,
       paymentMethod ? `Forma de pagamento: ${normalizeMethodLabel(paymentMethod)}` : null,
       notes ? `Obs: ${notes}` : null,
-      proofFileUrl ? `Comprovante: ${proofFileUrl}` : null,
+      proofFileUrl ? 'Comprovante: disponível no app' : null,
       `Abrir no app: ${adminPaymentsLink}`,
     ]
       .filter(Boolean)

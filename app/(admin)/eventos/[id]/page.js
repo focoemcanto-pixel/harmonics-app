@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase';
 import AdminShell from '@/components/admin/AdminShell';
 import AdminSegmentTabs from '@/components/admin/AdminSegmentTabs';
 import EventoEscalaTab from '@/components/eventos/EventoEscalaTab';
+import ContractSignedPdfButton from '@/components/contracts/ContractSignedPdfButton';
 import { useAppToast } from '@/components/ui/ToastProvider';
 import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
 
@@ -471,7 +472,14 @@ export default function EventoDetalhePage() {
                     <p className="text-slate-700">{externalContract?.id ? 'Contrato externo anexado' : 'Não anexado'}</p>
                   </div>
                   {externalContract?.pdf_url ? (
-                    <a href={externalContract.pdf_url} target="_blank" rel="noreferrer" className="text-xs font-semibold text-blue-700 underline">Abrir PDF anexado</a>
+                    <ContractSignedPdfButton
+                      contractId={externalContract.id}
+                      hasPdf={!!externalContract.pdf_url}
+                      className="text-xs font-semibold text-blue-700 underline"
+                      onError={(error) => toast.error(error?.message || 'Não foi possível abrir o PDF anexado.')}
+                    >
+                      Abrir PDF anexado
+                    </ContractSignedPdfButton>
                   ) : null}
                   {externalContract?.public_token ? (
                     <div className="flex flex-wrap gap-2">

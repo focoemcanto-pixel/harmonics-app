@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requireWorkspaceAccess } from '@/lib/api/require-workspace-access';
 import { safeLogFileAccess } from '@/lib/files/log-file-access';
+import { trackUsageEvent } from '@/lib/usage/track-usage-event';
 import { resolveProofPreviewFromStoredUrl } from '@/lib/payments/payment-proof-storage';
 
 export const dynamic = 'force-dynamic';
@@ -146,6 +147,8 @@ export async function GET(request, context) {
       throw new Error(downloadError?.message || 'Não foi possível baixar o comprovante.');
     }
 
+    const contentType = resolveContentType(blob, storage.path);
+
     await safeLogFileAccess({
       supabase,
       request,
@@ -161,7 +164,22 @@ export async function GET(request, context) {
       metadata: { proxied: true },
     });
 
-    const contentType = resolveContentType(blob, storage.path);
+    await trackUsageEvent({
+      supabase,
+      workspaceId: auth.workspaceId,
+      eventType: 'file_downloaded',
+      quantity: 1,
+      unit: 'count',
+      entityType: 'payment_proof',
+      entityId: paymentId,
+      source: 'payment_proof_download_proxy',
+      metadata: {
+        bucket: storage.bucket,
+        path: storage.path,
+        contentType,
+      },
+    });
+
     const fileName = sanitizeFileName(`comprovante-${paymentId}${getExtension(storage.path)}`);
 
     return new Response(blob, {

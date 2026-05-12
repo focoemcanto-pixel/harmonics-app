@@ -509,6 +509,7 @@ export default function LogsPageClient() {
   const [selectedIds, setSelectedIds] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [bulkToast, setBulkToast] = useState(null);
+  const [testingAutomation, setTestingAutomation] = useState(false);
 
   // Filtros — inicializar a partir de query params da URL (ex: ?status=failed)
   const [filtroStatus, setFiltroStatus] = useState(() => normalizeStatusParam(searchParams.get('status')));
@@ -709,6 +710,55 @@ export default function LogsPageClient() {
     }
   }
 
+  async function handleTestContractAutomation() {
+    try {
+      setTestingAutomation(true);
+
+      const preRes = await fetch('/api/precontracts?limit=1');
+      const preData = await preRes.json();
+
+      const latest =
+        preData?.data?.[0] ||
+        preData?.precontracts?.[0];
+
+      if (!latest?.id) {
+        throw new Error('Nenhum pré-contrato encontrado');
+      }
+
+      const response = await fetch('/api/automation/test-dispatch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          eventType: 'contract_signed_admin',
+          entityId: latest.id,
+        }),
+      });
+
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Erro ao testar automação');
+      }
+
+      setBulkToast({
+        type: payload?.sent > 0 ? 'success' : 'warning',
+        message:
+          payload?.sent > 0
+            ? 'Automação enviada com sucesso!'
+            : 'Automação executada sem envios',
+      });
+
+      carregarLogs();
+    } catch (error) {
+      setBulkToast({
+        type: 'error',
+        message: error.message || 'Erro ao testar automação',
+      });
+    } finally {
+      setTestingAutomation(false);
+    }
+  }
+
   const temFiltros = filtroStatus || filtroRecipient || filtroSource;
 
   const stats = logs.reduce(
@@ -797,6 +847,15 @@ export default function LogsPageClient() {
               <option value="legacy_contract_signed">legacy_contract_signed</option>
             </select>
           </div>
+
+
+          <button
+            onClick={handleTestContractAutomation}
+            disabled={testingAutomation}
+            className="rounded-full bg-violet-600 px-4 py-2 text-white text-sm font-bold hover:bg-violet-700 disabled:opacity-60"
+          >
+            {testingAutomation ? 'Testando...' : '🧪 Testar contrato assinado'}
+          </button>
 
           {/* Limpar filtros */}
           {temFiltros && (

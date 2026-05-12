@@ -43,8 +43,14 @@ function asUuidOrNull(value) {
     : null;
 }
 
-function scopeWorkspace(query, workspaceId) {
-  return workspaceId ? query.eq('workspace_id', workspaceId) : query;
+function uniqueWorkspaceIds(...values) {
+  return Array.from(new Set(values.map(asUuidOrNull).filter(Boolean)));
+}
+
+function scopeWorkspace(query, workspaceIds) {
+  const ids = Array.isArray(workspaceIds) ? workspaceIds : uniqueWorkspaceIds(workspaceIds);
+  if (ids.length === 0) return query;
+  return ids.length === 1 ? query.eq('workspace_id', ids[0]) : query.in('workspace_id', ids);
 }
 
 function isMissingColumnError(error) {
@@ -62,7 +68,7 @@ function isMissingColumnError(error) {
 
 function buildLogsQuery({
   supabaseAdmin,
-  workspaceId,
+  workspaceIds,
   selectFields,
   ascending,
   limit,
@@ -79,7 +85,7 @@ function buildLogsQuery({
     .order('created_at', { ascending })
     .limit(limit);
 
-  query = scopeWorkspace(query, workspaceId);
+  query = scopeWorkspace(query, workspaceIds);
 
   if (status) {
     query = query.eq('status', status);
@@ -123,23 +129,72 @@ function normalizeStatusFilter(rawStatus) {
 
 async function resolveWorkspaceForLogs({ supabaseAdmin, request }) {
   const workspace = await getCurrentAutomationWorkspaceSettings({ supabase: supabaseAdmin, request });
-  const workspaceId = asUuidOrNull(workspace?.id);
+  const workspaceId = asUuidOrNull(workspace?.workspaceId || workspace?.workspace_id || workspace?.id);
+  const workspaceSettingsId = asUuidOrNull(workspace?.workspaceSettingsId || workspace?.workspace_settings_id);
+  const workspaceIds = uniqueWorkspaceIds(workspaceId, workspaceSettingsId);
+  const migrationMode = Boolean(workspace?.migrationMode) || !workspaceId;
+
   return {
     workspace,
     workspaceId,
+    workspaceSettingsId,
+    workspaceIds,
     workspaceDebug: {
       workspaceId,
+      workspaceSettingsId,
+      workspaceIds,
       rawWorkspaceId: workspace?.id || null,
       source: workspace?.source || null,
-      migrationMode: !workspaceId,
+      migrationMode,
     },
+  };
+}
+
+function firstNonEmpty(...values) {
+  for (const value of values) {
+    if (value !== undefined && value !== null && String(value).trim() !== '') return value;
+  }
+  return null;
+}
+
+function normalizeLogForResponse(log) {
+  const providerResponse = log?.provider_response || null;
+  const metadata = log?.metadata || null;
+  const provider = firstNonEmpty(
+    log?.provider,
+    providerResponse?.provider,
+    providerResponse?.providerError?.provider,
+    metadata?.provider,
+    metadata?.providerError?.provider
+  );
+  const endpoint = firstNonEmpty(
+    log?.endpoint,
+    providerResponse?.endpoint,
+    providerResponse?.providerEndpoint,
+    providerResponse?.providerError?.endpoint,
+    metadata?.endpoint,
+    metadata?.providerEndpoint,
+    metadata?.providerError?.endpoint
+  );
+
+  return {
+    ...log,
+    provider,
+    endpoint,
   };
 }
 
 export async function GET(request) {
   try {
     const supabaseAdmin = getSupabaseAdmin();
-    const { workspaceId, workspaceDebug } = await resolveWorkspaceForLogs({ supabaseAdmin, request });
+    const { workspaceIds, workspaceDebug } = await resolveWorkspaceForLogs({ supabaseAdmin, request });
+
+    if (workspaceIds.length === 0) {
+      return NextResponse.json(
+        { ok: false, error: 'Workspace de automação não resolvido.', workspace_debug: workspaceDebug },
+        { status: 400 }
+      );
+    }
 
     const { searchParams } = new URL(request.url);
 
@@ -161,7 +216,7 @@ export async function GET(request) {
     let selectFields = AUTOMATION_LOGS_SELECT_FIELDS;
     let { data, error } = await buildLogsQuery({
       supabaseAdmin,
-      workspaceId,
+      workspaceIds,
       selectFields,
       ascending,
       limit,
@@ -182,7 +237,7 @@ export async function GET(request) {
       selectFields = AUTOMATION_LOGS_FALLBACK_SELECT_FIELDS;
       ({ data, error } = await buildLogsQuery({
         supabaseAdmin,
-        workspaceId,
+        workspaceIds,
         selectFields,
         ascending,
         limit,
@@ -200,7 +255,7 @@ export async function GET(request) {
       throw error;
     }
 
-    const logs = data || [];
+    const logs = (data || []).map(normalizeLogForResponse);
     return NextResponse.json({
       ok: true,
       data: { logs },
@@ -223,10 +278,10 @@ export async function DELETE(request) {
     const auth = await requireAdmin({ supabase: supabaseAdmin, request, logPrefix: '[AUTOMATION_LOGS_DELETE]' });
     if (!auth.ok) return NextResponse.json(auth, { status: auth.status || 401 });
 
-    const { workspaceId } = await resolveWorkspaceForLogs({ supabaseAdmin, request });
+    const { workspaceId, workspaceIds } = await resolveWorkspaceForLogs({ supabaseAdmin, request });
     const body = await request.json().catch(() => ({}));
 
-    if (!workspaceId) {
+    if (!workspaceId || workspaceIds.length === 0) {
       return NextResponse.json(
         { ok: false, success: false, affected: 0, message: 'Workspace de automação não resolvido. Exclusão bloqueada em modo migração.' },
         { status: 400 }
@@ -247,7 +302,7 @@ export async function DELETE(request) {
     const statusFilter = normalizeStatusFilter(body?.status);
     const olderThanDays = Number(body?.olderThanDays || 0);
 
-    let query = supabaseAdmin.from('automation_logs').delete().eq('workspace_id', workspaceId);
+    let query = scopeWorkspace(supabaseAdmin.from('automation_logs').delete(), workspaceIds);
 
     if (ids.length > 0) {
       query = query.in('id', ids);

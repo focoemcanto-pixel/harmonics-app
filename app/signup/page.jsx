@@ -4,8 +4,25 @@ import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getSupabase } from '@/lib/supabase';
 
+const PENDING_SIGNUP_KEY = 'harmonics_pending_signup_bootstrap';
+
 function normalizePhone(value) {
   return String(value || '').replace(/\D+/g, '');
+}
+
+function savePendingSignupBootstrap(form) {
+  if (typeof window === 'undefined') return;
+
+  window.localStorage.setItem(
+    PENDING_SIGNUP_KEY,
+    JSON.stringify({
+      fullName: form.fullName.trim(),
+      workspaceName: form.workspaceName.trim(),
+      supportWhatsapp: normalizePhone(form.whatsapp),
+      timezone: 'America/Bahia',
+      createdAt: new Date().toISOString(),
+    })
+  );
 }
 
 export default function SignupPage() {
@@ -25,6 +42,30 @@ export default function SignupPage() {
 
   function updateField(field, value) {
     setForm((current) => ({ ...current, [field]: value }));
+  }
+
+  async function bootstrapWorkspace(accessToken) {
+    const response = await fetch('/api/public/signup/bootstrap', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        fullName: form.fullName.trim(),
+        workspaceName: form.workspaceName.trim(),
+        supportWhatsapp: normalizePhone(form.whatsapp),
+        timezone: 'America/Bahia',
+      }),
+    });
+
+    const payload = await response.json().catch(() => null);
+
+    if (!response.ok || !payload?.ok) {
+      throw new Error(payload?.error || 'Não foi possível inicializar seu workspace.');
+    }
+
+    return payload;
   }
 
   async function handleSubmit(event) {
@@ -60,6 +101,7 @@ export default function SignupPage() {
     setLoading(true);
 
     try {
+      savePendingSignupBootstrap(form);
       const redirectTo = `${window.location.origin}/login?signup=confirmed`;
 
       const { data: signupData, error: signupError } = await supabase.auth.signUp({
@@ -84,26 +126,14 @@ export default function SignupPage() {
         accessToken = sessionResult?.data?.session?.access_token || null;
       }
 
-      const response = await fetch('/api/public/signup/bootstrap', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-        },
-        body: JSON.stringify({
-          fullName: form.fullName.trim(),
-          workspaceName: form.workspaceName.trim(),
-          supportWhatsapp: normalizePhone(form.whatsapp),
-          timezone: 'America/Bahia',
-        }),
-      });
-
-      const payload = await response.json().catch(() => null);
-
-      if (!response.ok || !payload?.ok) {
-        throw new Error(payload?.error || 'Não foi possível inicializar seu workspace.');
+      if (!accessToken) {
+        setSuccess('Conta criada! Confirme seu e-mail e depois faça login para finalizar o workspace.');
+        router.push('/login?signup=check-email');
+        return;
       }
 
+      const payload = await bootstrapWorkspace(accessToken);
+      window.localStorage.removeItem(PENDING_SIGNUP_KEY);
       setSuccess('Conta criada! Vamos finalizar a configuração inicial.');
       router.push(payload?.next || '/onboarding');
     } catch (err) {
@@ -162,86 +192,39 @@ export default function SignupPage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <label className="block space-y-2">
               <span className="text-sm text-slate-300">Seu nome</span>
-              <input
-                value={form.fullName}
-                onChange={(event) => updateField('fullName', event.target.value)}
-                className="w-full rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-3 text-white outline-none transition focus:border-emerald-300"
-                placeholder="Ex: Marcos Cruz"
-                autoComplete="name"
-              />
+              <input value={form.fullName} onChange={(event) => updateField('fullName', event.target.value)} className="w-full rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-3 text-white outline-none transition focus:border-emerald-300" placeholder="Ex: Marcos Cruz" autoComplete="name" />
             </label>
 
             <label className="block space-y-2">
               <span className="text-sm text-slate-300">E-mail</span>
-              <input
-                type="email"
-                value={form.email}
-                onChange={(event) => updateField('email', event.target.value)}
-                className="w-full rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-3 text-white outline-none transition focus:border-emerald-300"
-                placeholder="voce@email.com"
-                autoComplete="email"
-              />
+              <input type="email" value={form.email} onChange={(event) => updateField('email', event.target.value)} className="w-full rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-3 text-white outline-none transition focus:border-emerald-300" placeholder="voce@email.com" autoComplete="email" />
             </label>
 
             <label className="block space-y-2">
               <span className="text-sm text-slate-300">Senha</span>
-              <input
-                type="password"
-                value={form.password}
-                onChange={(event) => updateField('password', event.target.value)}
-                className="w-full rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-3 text-white outline-none transition focus:border-emerald-300"
-                placeholder="Mínimo de 8 caracteres"
-                autoComplete="new-password"
-              />
+              <input type="password" value={form.password} onChange={(event) => updateField('password', event.target.value)} className="w-full rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-3 text-white outline-none transition focus:border-emerald-300" placeholder="Mínimo de 8 caracteres" autoComplete="new-password" />
             </label>
 
             <label className="block space-y-2">
               <span className="text-sm text-slate-300">Nome da banda/equipe</span>
-              <input
-                value={form.workspaceName}
-                onChange={(event) => updateField('workspaceName', event.target.value)}
-                className="w-full rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-3 text-white outline-none transition focus:border-emerald-300"
-                placeholder="Ex: Harmonics Eventos"
-              />
+              <input value={form.workspaceName} onChange={(event) => updateField('workspaceName', event.target.value)} className="w-full rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-3 text-white outline-none transition focus:border-emerald-300" placeholder="Ex: Harmonics Eventos" />
             </label>
 
             <label className="block space-y-2">
               <span className="text-sm text-slate-300">WhatsApp principal</span>
-              <input
-                value={form.whatsapp}
-                onChange={(event) => updateField('whatsapp', event.target.value)}
-                className="w-full rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-3 text-white outline-none transition focus:border-emerald-300"
-                placeholder="Ex: 71999999999"
-                inputMode="tel"
-              />
+              <input value={form.whatsapp} onChange={(event) => updateField('whatsapp', event.target.value)} className="w-full rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-3 text-white outline-none transition focus:border-emerald-300" placeholder="Ex: 71999999999" inputMode="tel" />
             </label>
 
-            {error ? (
-              <div className="rounded-2xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-100">
-                {error}
-              </div>
-            ) : null}
+            {error ? <div className="rounded-2xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-100">{error}</div> : null}
+            {success ? <div className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">{success}</div> : null}
 
-            {success ? (
-              <div className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
-                {success}
-              </div>
-            ) : null}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full rounded-2xl bg-emerald-300 px-5 py-4 font-semibold text-slate-950 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-60"
-            >
+            <button type="submit" disabled={loading} className="w-full rounded-2xl bg-emerald-300 px-5 py-4 font-semibold text-slate-950 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-60">
               {loading ? 'Criando workspace...' : 'Começar grátis'}
             </button>
           </form>
 
           <p className="mt-5 text-center text-sm text-slate-400">
-            Já tem conta?{' '}
-            <a href="/login" className="font-medium text-emerald-200 hover:text-emerald-100">
-              Entrar
-            </a>
+            Já tem conta? <a href="/login" className="font-medium text-emerald-200 hover:text-emerald-100">Entrar</a>
           </p>
         </div>
       </section>

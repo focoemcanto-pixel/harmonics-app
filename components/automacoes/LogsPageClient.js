@@ -4,12 +4,12 @@ import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import AdminSummaryCard from '@/components/admin/AdminSummaryCard';
 import AutomationBackLink from '@/components/automacoes/AutomationBackLink';
-import { cachedPromise, invalidateCache, readCachedValue } from '@/lib/client/light-cache';
+import { invalidateCache } from '@/lib/client/light-cache';
 import { useConfirm } from '@/hooks/useConfirm';
 
 const MESSAGE_PREVIEW_LENGTH = 120;
 const PAGE_SIZE = 50;
-const LOGS_CACHE_TTL_MS = 30_000;
+const LOGS_REFRESH_INTERVAL_MS = 5_000;
 const VALID_STATUS_FILTERS = new Set(['sent', 'failed', 'skipped']);
 
 function normalizeStatusParam(rawStatus) {
@@ -47,6 +47,35 @@ function formatarTelefone(numero) {
 
 function getRecipientNumber(log) {
   return log?.recipient_number || log?.recipient || '';
+}
+
+function firstNonEmpty(...values) {
+  for (const value of values) {
+    if (value !== undefined && value !== null && String(value).trim() !== '') return value;
+  }
+  return null;
+}
+
+function getLogProvider(log) {
+  return firstNonEmpty(
+    log?.provider,
+    log?.provider_response?.provider,
+    log?.provider_response?.providerError?.provider,
+    log?.metadata?.provider,
+    log?.metadata?.providerError?.provider
+  );
+}
+
+function getLogEndpoint(log) {
+  return firstNonEmpty(
+    log?.endpoint,
+    log?.provider_response?.endpoint,
+    log?.provider_response?.providerEndpoint,
+    log?.provider_response?.providerError?.endpoint,
+    log?.metadata?.endpoint,
+    log?.metadata?.providerEndpoint,
+    log?.metadata?.providerError?.endpoint
+  );
 }
 
 function StatusBadge({ status }) {
@@ -188,8 +217,16 @@ function LogDetailModal({ log, onClose, onRetrySuccess }) {
               <div className="mt-1 text-[13px] font-semibold text-[#0f172a]">{log.source || '-'}</div>
             </div>
             <div className="rounded-xl bg-[#f8fafc] p-3">
-              <div className="text-[11px] font-bold uppercase tracking-wide text-[#94a3b8]">Data/hora</div>
-              <div className="mt-1 text-[13px] font-semibold text-[#0f172a]">{formatarData(log.sent_at || log.created_at)}</div>
+              <div className="text-[11px] font-bold uppercase tracking-wide text-[#94a3b8]">Provider</div>
+              <div className="mt-1 text-[13px] font-semibold text-[#0f172a]">{getLogProvider(log) || '-'}</div>
+            </div>
+            <div className="rounded-xl bg-[#f8fafc] p-3">
+              <div className="text-[11px] font-bold uppercase tracking-wide text-[#94a3b8]">Endpoint</div>
+              <div className="mt-1 truncate text-[13px] font-semibold text-[#0f172a]" title={getLogEndpoint(log) || ''}>{getLogEndpoint(log) || '-'}</div>
+            </div>
+            <div className="rounded-xl bg-[#f8fafc] p-3">
+              <div className="text-[11px] font-bold uppercase tracking-wide text-[#94a3b8]">Criado em</div>
+              <div className="mt-1 text-[13px] font-semibold text-[#0f172a]">{formatarData(log.created_at)}</div>
             </div>
             {log.rule_id && (
               <div className="rounded-xl bg-[#f8fafc] p-3">
@@ -405,6 +442,15 @@ function LogCard({ log, onVerDetalhes, onRetrySuccess, isSelected, onToggle }) {
             {formatarTelefone(getRecipientNumber(log))}
           </div>
 
+          <div className="mt-2 grid gap-1 text-[12px] text-[#64748b] sm:grid-cols-2">
+            <div><span className="font-bold text-[#475569]">Provider:</span> {getLogProvider(log) || '-'}</div>
+            <div className="truncate" title={getLogEndpoint(log) || ''}>
+              <span className="font-bold text-[#475569]">Endpoint:</span> {getLogEndpoint(log) || '-'}
+            </div>
+            <div><span className="font-bold text-[#475569]">Source:</span> {log.source || '-'}</div>
+            <div><span className="font-bold text-[#475569]">Criado em:</span> {formatarData(log.created_at)}</div>
+          </div>
+
           {/* Mensagem */}
           {log.rendered_message && (
             <p className="mt-2 text-[13px] leading-relaxed text-[#475569]">{preview}</p>
@@ -483,43 +529,53 @@ export default function LogsPageClient() {
     return () => clearTimeout(timer);
   }, [filtroRecipient]);
 
-  const carregarLogs = useCallback(async ({ force = false } = {}) => {
+  const carregarLogs = useCallback(async ({ silent = false } = {}) => {
     try {
       const params = new URLSearchParams();
       if (filtroStatus) params.set('status', filtroStatus);
       if (debouncedRecipient) params.set('recipient', debouncedRecipient);
       if (filtroSource) params.set('source', filtroSource);
       const query = params.toString();
-      const cacheKey = `automation:logs:${query || 'all'}`;
 
-      const cached = readCachedValue(cacheKey);
-      setCarregando(!cached);
+      if (!silent) {
+        setCarregando(true);
+        setVisibleCount(PAGE_SIZE);
+      }
       setErro(null);
-      setVisibleCount(PAGE_SIZE);
 
-      const data = await cachedPromise(
-        cacheKey,
-        async () => {
-          const response = await fetch(`/api/automation/logs?${query}`);
-          const payload = await response.json();
-          if (!response.ok) {
-            throw new Error(payload.error || 'Erro ao carregar logs');
-          }
-          return payload;
+      const response = await fetch(`/api/automation/logs?${query}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache',
         },
-        { ttlMs: LOGS_CACHE_TTL_MS, force }
-      );
-      setLogs(data.logs || []);
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.error || 'Erro ao carregar logs');
+      }
+
+      const nextLogs = payload.logs || payload.data?.logs || [];
+      setLogs(nextLogs);
+      console.log('[AUTOMATION_LOGS_UI]', {
+        workspaceId: payload.workspace_debug?.workspaceId || null,
+        logsCount: nextLogs.length,
+        migrationMode: Boolean(payload.workspace_debug?.migrationMode),
+      });
     } catch (error) {
       console.error('Erro ao carregar logs:', error);
-      setErro(error.message);
+      if (!silent) setErro(error.message);
     } finally {
-      setCarregando(false);
+      if (!silent) setCarregando(false);
     }
   }, [filtroStatus, debouncedRecipient, filtroSource]);
 
   useEffect(() => {
     carregarLogs();
+    const intervalId = window.setInterval(() => {
+      carregarLogs({ silent: true });
+    }, LOGS_REFRESH_INTERVAL_MS);
+
+    return () => window.clearInterval(intervalId);
   }, [carregarLogs]);
 
   function limparFiltros() {
@@ -581,7 +637,7 @@ export default function LogsPageClient() {
 
       setSelectedIds([]);
       invalidateCache('automation:logs');
-      carregarLogs({ force: true });
+      carregarLogs();
     } catch (error) {
       console.error('Erro ao processar reenvios em lote:', error);
       setBulkToast({ message: 'Erro ao processar reenvios em lote', type: 'error' });
@@ -613,7 +669,7 @@ export default function LogsPageClient() {
       setBulkToast({ type: 'success', message: `${payload.affected || 0} log(s) excluído(s) com sucesso.` });
       setSelectedIds([]);
       invalidateCache('automation:logs');
-      carregarLogs({ force: true });
+      carregarLogs();
     } catch (error) {
       setBulkToast({ type: 'error', message: error?.message || 'Falha ao excluir logs selecionados.' });
     } finally {
@@ -645,7 +701,7 @@ export default function LogsPageClient() {
       setBulkToast({ type: 'success', message: `${payload.affected || 0} log(s) antigo(s) removido(s).` });
       setSelectedIds([]);
       invalidateCache('automation:logs');
-      carregarLogs({ force: true });
+      carregarLogs();
     } catch (error) {
       setBulkToast({ type: 'error', message: error?.message || 'Falha ao limpar logs antigos.' });
     } finally {
@@ -734,6 +790,9 @@ export default function LogsPageClient() {
             >
               <option value="">Todas</option>
               <option value="automation_center">automation_center</option>
+              <option value="invite_member">invite_member</option>
+              <option value="contract_signed_admin">contract_signed_admin</option>
+              <option value="repertoire_review_released_client">repertoire_review_released_client</option>
               <option value="legacy_send_invite">legacy_send_invite</option>
               <option value="legacy_contract_signed">legacy_contract_signed</option>
             </select>
@@ -772,7 +831,7 @@ export default function LogsPageClient() {
           <div className="mb-2 text-[32px]">⚠️</div>
           <p className="text-[15px] font-bold text-red-700">{erro}</p>
           <button
-            onClick={() => carregarLogs({ force: true })}
+            onClick={() => carregarLogs()}
             className="mt-4 rounded-full border border-red-300 px-5 py-2 text-[13px] font-bold text-red-700 transition hover:bg-red-100"
           >
             Tentar novamente
@@ -880,30 +939,19 @@ export default function LogsPageClient() {
       {/* Logs List */}
       {!carregando && !erro && logs.length > 0 && (
         <section className="space-y-4">
-          {(() => {
-            const severityOrder = { high: 3, medium: 2, low: 1 };
-            const logsWithSeverity = logs.map((log) => ({
-              log,
-              severityRank: log.status === 'failed'
-                ? (severityOrder[getFailureSeverity(log)] ?? 0)
-                : 0,
-            }));
-            logsWithSeverity.sort((a, b) => b.severityRank - a.severityRank);
-            const visibleLogs = logsWithSeverity.slice(0, visibleCount);
-            return visibleLogs.map(({ log }) => (
-              <LogCard
-                key={log.id}
-                log={log}
-                onVerDetalhes={setLogSelecionado}
-                onRetrySuccess={() => {
-                  invalidateCache('automation:logs');
-                  carregarLogs({ force: true });
-                }}
-                isSelected={selectedIds.includes(log.id)}
-                onToggle={handleToggle}
-              />
-            ));
-          })()}
+          {logs.slice(0, visibleCount).map((log) => (
+            <LogCard
+              key={log.id}
+              log={log}
+              onVerDetalhes={setLogSelecionado}
+              onRetrySuccess={() => {
+                invalidateCache('automation:logs');
+                carregarLogs();
+              }}
+              isSelected={selectedIds.includes(log.id)}
+              onToggle={handleToggle}
+            />
+          ))}
           {logs.length > visibleCount && (
             <div className="flex justify-center pt-2">
               <button
@@ -925,7 +973,7 @@ export default function LogsPageClient() {
           onRetrySuccess={() => {
             setLogSelecionado(null);
             invalidateCache('automation:logs');
-            carregarLogs({ force: true });
+            carregarLogs();
           }}
         />
       )}

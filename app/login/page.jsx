@@ -1,10 +1,10 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { Suspense, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getSupabase } from '@/lib/supabase';
 
-export default function LoginPage() {
+function LoginPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const supabase = useMemo(() => getSupabase(), []);
@@ -16,7 +16,9 @@ export default function LoginPage() {
   const [notice, setNotice] = useState(
     searchParams?.get('signup') === 'confirmed'
       ? 'E-mail confirmado. Agora faça login para continuar.'
-      : ''
+      : searchParams?.get('signup') === 'check-email'
+        ? 'Conta criada. Confirme seu e-mail e depois faça login para finalizar seu workspace.'
+        : ''
   );
 
   async function handleSubmit(event) {
@@ -37,12 +39,45 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const { error: loginError } = await supabase.auth.signInWithPassword({
+      const { data, error: loginError } = await supabase.auth.signInWithPassword({
         email: email.trim().toLowerCase(),
         password,
       });
 
       if (loginError) throw loginError;
+
+      const pendingRaw = typeof window !== 'undefined' ? window.localStorage.getItem('harmonics_pending_signup_bootstrap') : null;
+      if (pendingRaw) {
+        try {
+          const pending = JSON.parse(pendingRaw);
+          const accessToken = data?.session?.access_token;
+
+          if (accessToken && pending?.workspaceName) {
+            const response = await fetch('/api/public/signup/bootstrap', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${accessToken}`,
+              },
+              body: JSON.stringify(pending),
+            });
+
+            const payload = await response.json().catch(() => null);
+            if (!response.ok || !payload?.ok) {
+              throw new Error(payload?.error || 'Não foi possível finalizar seu workspace.');
+            }
+
+            window.localStorage.removeItem('harmonics_pending_signup_bootstrap');
+            router.push(payload?.next || '/onboarding');
+            router.refresh();
+            return;
+          }
+        } catch (bootstrapError) {
+          console.error('[LOGIN][PENDING_BOOTSTRAP_ERROR]', bootstrapError);
+          setError(bootstrapError?.message || 'Login realizado, mas não foi possível finalizar o workspace.');
+          return;
+        }
+      }
 
       const next = searchParams?.get('next') || '/eventos';
       router.push(next);
@@ -197,5 +232,21 @@ export default function LoginPage() {
         </div>
       </section>
     </main>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="flex min-h-screen items-center justify-center bg-slate-950 px-6 text-white">
+          <div className="rounded-3xl border border-white/10 bg-white/[0.06] px-6 py-5 text-sm text-slate-200">
+            Carregando login...
+          </div>
+        </main>
+      }
+    >
+      <LoginPageContent />
+    </Suspense>
   );
 }

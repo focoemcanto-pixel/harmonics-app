@@ -6,14 +6,62 @@ import AdminShell from '@/components/admin/AdminShell';
 import AdminPageHero from '@/components/admin/AdminPageHero';
 import AdminSectionTitle from '@/components/admin/AdminSectionTitle';
 import AdminSummaryCard from '@/components/admin/AdminSummaryCard';
-import { supabase } from '@/lib/supabase';
 import { formatDateBR, formatPhoneDisplay } from '@/lib/eventos/eventos-format';
 import { EVENT_FILTERS, buildEventInviteGroups, isWithinDays } from '@/lib/invites/event-invite-summary';
 import DeleteConfirmModal from '@/components/ui/DeleteConfirmModal';
 import BulkActionBar from '@/components/ui/BulkActionBar';
 import { useMultiSelect } from '@/hooks/useMultiSelect';
 import { useBulkDelete } from '@/hooks/useBulkDelete';
+import { useAppToast } from '@/components/ui/ToastProvider';
 
+
+function getResendInviteId(invite) {
+  console.log('[REENVIAR_CONVITE]', invite?.id);
+
+  const rawInviteId = invite?.invite_id ?? invite?.id;
+
+  if (rawInviteId === undefined || rawInviteId === null) {
+    throw new Error('Convite ainda não sincronizado para envio.');
+  }
+
+  const inviteId = String(rawInviteId).trim();
+
+  if (!inviteId) {
+    throw new Error('Convite ainda não sincronizado para envio.');
+  }
+
+  if (/\s/.test(inviteId)) {
+    throw new Error('ID do convite inválido.');
+  }
+
+  return inviteId;
+}
+
+function getApiErrorMessage(response, data) {
+  const apiMessage = data?.error || data?.message || data?.cause;
+
+  if (response?.status === 404 || /(?:convite|invite) não encontrado/i.test(String(apiMessage || ''))) {
+    return 'Convite não encontrado';
+  }
+
+  return apiMessage || 'Não foi possível reenviar o convite.';
+}
+
+async function sendInviteRequest(inviteId) {
+  const response = await fetch('/api/whatsapp/send-invite', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ inviteId: String(inviteId).trim() }),
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(getApiErrorMessage(response, data));
+  }
+
+  return data;
+}
 
 function getToneClasses(tone) {
   switch (tone) {
@@ -81,6 +129,7 @@ export default function ConvitesPage() {
 
   const { selectedIds, selectedSet, clear, toggle, toggleAll } = useMultiSelect();
   const { loading: deleting, run: runBulkDelete } = useBulkDelete();
+  const toast = useAppToast();
 
   async function carregarTudo() {
   const res = await fetch('/api/convites');
@@ -156,26 +205,24 @@ export default function ConvitesPage() {
     };
   }, [eventosAgrupados]);
 
-  async function reenviarConvite(inviteId) {
+  async function reenviarConvite(invite) {
+    let inviteId = '';
+
     try {
-      if (!inviteId) {
-        throw new Error('Convite ainda não sincronizado para envio.');
-      }
+      inviteId = getResendInviteId(invite);
 
-      setSendingInviteIds((prev) => [...prev, String(inviteId)]);
-      const response = await fetch('/api/whatsapp/send-invite', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ inviteId }),
-      });
-
-      if (!response.ok) throw new Error('Falha no reenvio do convite');
+      setSendingInviteIds((prev) => [...prev, inviteId]);
+      await sendInviteRequest(inviteId);
 
       setFeedback({ type: 'success', title: 'Convite reenviado', message: 'Convite reenviado com sucesso para o músico.' });
     } catch (error) {
-      setFeedback({ type: 'error', title: 'Falha no reenvio', message: error?.message || 'Não foi possível reenviar o convite.' });
+      const message = error?.message || 'Não foi possível reenviar o convite.';
+      toast.error(message);
+      setFeedback({ type: 'error', title: 'Falha no reenvio', message });
     } finally {
-      setSendingInviteIds((prev) => prev.filter((item) => item !== String(inviteId)));
+      if (inviteId) {
+        setSendingInviteIds((prev) => prev.filter((item) => item !== inviteId));
+      }
     }
   }
 
@@ -183,28 +230,23 @@ export default function ConvitesPage() {
     try {
       setSendingEventIds((prev) => [...prev, String(group.eventId)]);
       const pendentes = group.invites.filter((invite) => invite.statusKey === 'pendente' && invite.invite_id);
+      const inviteIds = pendentes.map((invite) => getResendInviteId(invite));
 
-      if (pendentes.length === 0) {
+      if (inviteIds.length === 0) {
         throw new Error('Nenhum convite pendente sincronizado para reenvio.');
       }
 
-      await Promise.all(
-        pendentes.map((invite) =>
-          fetch('/api/whatsapp/send-invite', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ inviteId: invite.invite_id }),
-          })
-        )
-      );
+      await Promise.all(inviteIds.map((inviteId) => sendInviteRequest(inviteId)));
 
       setFeedback({
         type: 'success',
         title: 'Pendentes reenviados',
-        message: `${pendentes.length} convite(s) pendente(s) reenviado(s) para o evento.`,
+        message: `${inviteIds.length} convite(s) pendente(s) reenviado(s) para o evento.`,
       });
     } catch (error) {
-      setFeedback({ type: 'error', title: 'Falha no reenvio em lote', message: error?.message || 'Não foi possível reenviar os pendentes.' });
+      const message = error?.message || 'Não foi possível reenviar os pendentes.';
+      toast.error(message);
+      setFeedback({ type: 'error', title: 'Falha no reenvio em lote', message });
     } finally {
       setSendingEventIds((prev) => prev.filter((item) => item !== String(group.eventId)));
     }
@@ -345,7 +387,8 @@ export default function ConvitesPage() {
                     {isExpanded ? (
                       <div className="mt-5 space-y-3 border-t border-[#e2e8f0] pt-4">
                         {group.invites.map((invite) => {
-                          const sendingInvite = sendingInviteIds.includes(String(invite.invite_id || invite.id));
+                          const resendInviteId = String(invite.invite_id || '').trim();
+                          const sendingInvite = sendingInviteIds.includes(resendInviteId);
 
                           return (
                             <div key={invite.id} className="rounded-[18px] border border-[#e2e8f0] bg-[#f8fafc] px-4 py-4">
@@ -368,11 +411,11 @@ export default function ConvitesPage() {
                                 <div className="flex w-full flex-wrap gap-2 xl:w-[360px] xl:justify-end">
                                   <button
                                     type="button"
-                                    disabled={sendingInvite || !invite.invite_id}
-                                    onClick={() => reenviarConvite(invite.invite_id)}
+                                    disabled={sendingInvite || !resendInviteId}
+                                    onClick={() => reenviarConvite(invite)}
                                     className="rounded-[14px] border border-sky-200 bg-sky-50 px-3 py-2 text-[12px] font-black text-sky-700 disabled:opacity-70"
                                   >
-                                    {sendingInvite ? 'Reenviando...' : invite.invite_id ? 'Reenviar' : 'Não sincronizado'}
+                                    {sendingInvite ? 'Reenviando...' : resendInviteId ? 'Reenviar' : 'Não sincronizado'}
                                   </button>
                                   <button
                                     type="button"

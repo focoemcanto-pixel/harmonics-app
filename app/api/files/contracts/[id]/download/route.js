@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requireWorkspaceAccess } from '@/lib/api/require-workspace-access';
 import { safeLogFileAccess } from '@/lib/files/log-file-access';
+import { trackUsageEvent } from '@/lib/usage/track-usage-event';
 import { resolveContractStoragePath } from '@/lib/contracts/contract-storage';
 
 export const dynamic = 'force-dynamic';
@@ -130,6 +131,22 @@ export async function GET(request, context) {
       actorRole: auth.role || null,
       status: 'success',
       metadata: { proxied: true },
+    });
+
+    await trackUsageEvent({
+      supabase,
+      workspaceId: auth.workspaceId,
+      eventType: 'file_downloaded',
+      quantity: 1,
+      unit: 'count',
+      entityType: 'contract',
+      entityId: contractId,
+      source: 'contract_download_proxy',
+      metadata: {
+        bucket: storage.bucket,
+        path: storage.path,
+        contentType: resolveContentType(blob, storage.path),
+      },
     });
 
     const contentType = resolveContentType(blob, storage.path);

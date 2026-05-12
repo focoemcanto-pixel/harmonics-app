@@ -8,6 +8,7 @@ import ProtectedRoute from '@/components/ProtectedRoute';
 import AdminPageHero from '@/components/admin/AdminPageHero';
 import AdminSectionTitle from '@/components/admin/AdminSectionTitle';
 import DeleteConfirmModal from '@/components/ui/DeleteConfirmModal';
+import PaymentProofSignedButton from '@/components/payments/PaymentProofSignedButton';
 import BulkActionBar from '@/components/ui/BulkActionBar';
 import { useAppToast } from '@/components/ui/ToastProvider';
 import { useMultiSelect } from '@/hooks/useMultiSelect';
@@ -22,7 +23,6 @@ import {
   getAutomaticCosts,
   sanitizeCustomCosts,
 } from '@/lib/eventos/eventos-finance';
-import { resolveProofPreviewFromStoredUrl } from '@/lib/payments/payment-proof-storage';
 import { buildFinancialGroupingKey } from '@/lib/finance/gross-total';
 import { calculateFinancialSummary } from '@/lib/finance/calculateFinancialSummary';
 import { syncEventFinanceSnapshot } from '@/lib/finance/event-finance';
@@ -209,18 +209,10 @@ function formatPaymentMethod(method) {
     .replace(/\b\w/g, (m) => m.toUpperCase());
 }
 
-function resolvePreviewDetails(proofReference) {
-  const preview = resolveProofPreviewFromStoredUrl(proofReference, {
-    supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
-  });
-
-  console.log('[ADMIN_PAYMENT_PROOF][PREVIEW_URL]', {
-    bucket: preview.bucket,
-    path: preview.path,
-    url: preview.url,
-  });
-
-  return preview.url;
+function buildPaymentProofPreviewUrl(proofReference) {
+  const ref = String(proofReference || '').trim();
+  if (!ref) return '';
+  return `/api/storage/payment-proof/preview?ref=${encodeURIComponent(ref)}`;
 }
 
 function isSettledPaymentStatus(status) {
@@ -296,7 +288,6 @@ function PagamentosPageContent() {
   const [somenteAguardandoValidacao, setSomenteAguardandoValidacao] = useState(false);
   const [historicoAbertoId, setHistoricoAbertoId] = useState(null);
   const [historicoSelecionadoId, setHistoricoSelecionadoId] = useState(null);
-  const [proofPreviewUrl, setProofPreviewUrl] = useState('');
   const [processingAction, setProcessingAction] = useState('');
   const [deleteDialog, setDeleteDialog] = useState({
     open: false,
@@ -399,7 +390,7 @@ function PagamentosPageContent() {
   }, [historicoSelecionadoId, payments]);
   const entrySelecionadoPreviewUrl = useMemo(() => {
     if (!entrySelecionado?.proof_file_url) return '';
-    return resolvePreviewDetails(entrySelecionado.proof_file_url);
+    return buildPaymentProofPreviewUrl(entrySelecionado.proof_file_url);
   }, [entrySelecionado]);
 
   async function atualizarResumoEvento(eventId) {
@@ -1151,9 +1142,6 @@ function PagamentosPageContent() {
         }
       }
       setHistoricoSelecionadoId(String(historico));
-      if (target?.proof_file_url) {
-        setProofPreviewUrl(resolvePreviewDetails(target.proof_file_url));
-      }
     }
   }, [pagamentos, payments, searchParams]);
 
@@ -1643,15 +1631,14 @@ function PagamentosPageContent() {
                                       </PaymentPill>
 
                                       {entry.proof_file_url ? (
-                                        <button
-                                          type="button"
-                                          onClick={() =>
-                                            setProofPreviewUrl(resolvePreviewDetails(entry.proof_file_url))
-                                          }
-                                          className="rounded-full border border-[#dbe3ef] bg-white px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-[#0f172a]"
+                                        <PaymentProofSignedButton
+                                          paymentId={entry.id}
+                                          hasProof={!!entry.proof_file_url}
+                                          onError={(error) => toast.error(error?.message || 'Não foi possível abrir o comprovante.')}
+                                          className="rounded-full border border-[#dbe3ef] bg-white px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-[#0f172a] disabled:cursor-not-allowed disabled:opacity-60"
                                         >
-                                          Ver comprovante
-                                        </button>
+                                          Abrir comprovante
+                                        </PaymentProofSignedButton>
                                       ) : null}
 
                                       <button
@@ -1695,37 +1682,6 @@ function PagamentosPageContent() {
         />
       </div>
 
-      {proofPreviewUrl ? (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/55 p-4">
-          <div className="w-full max-w-4xl rounded-[20px] bg-white p-3 shadow-2xl">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <div className="text-sm font-black text-[#0f172a]">Preview do comprovante</div>
-              <div className="flex items-center gap-2">
-                <a
-                  href={proofPreviewUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="rounded-[12px] border border-[#dbe3ef] px-3 py-2 text-xs font-black text-[#0f172a]"
-                >
-                  Abrir em nova aba
-                </a>
-                <button
-                  type="button"
-                  onClick={() => setProofPreviewUrl('')}
-                  className="rounded-[12px] border border-[#dbe3ef] px-3 py-2 text-xs font-black text-[#0f172a]"
-                >
-                  Fechar
-                </button>
-              </div>
-            </div>
-            <iframe
-              src={proofPreviewUrl}
-              title="Preview do comprovante"
-              className="h-[70vh] w-full rounded-[14px] border border-[#e2e8f0]"
-            />
-          </div>
-        </div>
-      ) : null}
 
       {entrySelecionado ? (
         <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/55 p-4">

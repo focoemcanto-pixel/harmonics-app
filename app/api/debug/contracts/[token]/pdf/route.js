@@ -4,46 +4,87 @@ export const runtime = 'nodejs';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { generateAndSaveInternalContractPdf } from '@/lib/contracts/internalPdfFlow';
 
-export async function GET(request, context) {
-  const resolvedParams = await context?.params;
-  const token = String(resolvedParams?.token || '').trim();
-
+function isAuthorizedDebugKey(request) {
   const { searchParams } = new URL(request.url);
   const debugKey = searchParams.get('debugKey');
+  const expectedKey = process.env.DEBUG_INTERNAL_KEY;
 
-  if (debugKey !== process.env.DEBUG_INTERNAL_KEY) {
-    return Response.json({ ok: false, code: 'UNAUTHORIZED_DEBUG' }, { status: 401 });
+  return Boolean(expectedKey) && debugKey === expectedKey;
+}
+
+function redactStorageUrl(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+
+  try {
+    const parsed = new URL(raw);
+    const parts = parsed.pathname.split('/').filter(Boolean);
+    return {
+      origin: parsed.origin,
+      bucket: parts.includes('public') ? parts[parts.indexOf('public') + 1] || null : null,
+      hasPath: parts.length > 0,
+    };
+  } catch {
+    return {
+      origin: null,
+      bucket: null,
+      hasPath: true,
+    };
   }
+}
 
-  const supabase = getSupabaseAdmin();
-
-  // 1) Buscar pré-contrato (opcional para fallback de busca do contrato).
+async function resolveDebugContract({ supabase, token }) {
   const { data: precontract, error: precontractError } = await supabase
     .from('precontracts')
     .select('*')
     .eq('public_token', token)
     .maybeSingle();
 
-  // 2) Buscar contrato por token público primeiro.
-  const { data: contractByToken } = await supabase
+  const { data: contractByToken, error: contractByTokenError } = await supabase
     .from('contracts')
     .select('*')
     .eq('public_token', token)
     .maybeSingle();
 
-  // 3) Se não encontrou, buscar por precontract_id (quando houver pré-contrato).
   let contractByPrecontract = null;
+  let contractByPrecontractError = null;
+
   if (!contractByToken && precontract?.id) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('contracts')
       .select('*')
       .eq('precontract_id', precontract.id)
       .maybeSingle();
 
     contractByPrecontract = data;
+    contractByPrecontractError = error;
   }
 
-  const contract = contractByToken || contractByPrecontract;
+  return {
+    precontract,
+    precontractError,
+    contract: contractByToken || contractByPrecontract,
+    contractByTokenError,
+    contractByPrecontractError,
+  };
+}
+
+export async function GET(request, context) {
+  const resolvedParams = await context?.params;
+  const token = String(resolvedParams?.token || '').trim();
+
+  if (!isAuthorizedDebugKey(request)) {
+    return Response.json({ ok: false, code: 'UNAUTHORIZED_DEBUG' }, { status: 401 });
+  }
+
+  const supabase = getSupabaseAdmin();
+  const {
+    precontract,
+    precontractError,
+    contract,
+    contractByTokenError,
+    contractByPrecontractError,
+  } = await resolveDebugContract({ supabase, token });
 
   const signedHtml =
     contract?.signed_html ||
@@ -56,14 +97,22 @@ export async function GET(request, context) {
     step: 'contract_debug',
     token,
     precontractId: precontract?.id || null,
-    precontractLookupError: precontractError || null,
+    precontractLookupError: precontractError
+      ? { message: precontractError.message, code: precontractError.code || null }
+      : null,
+    contractLookupByTokenError: contractByTokenError
+      ? { message: contractByTokenError.message, code: contractByTokenError.code || null }
+      : null,
+    contractLookupByPrecontractError: contractByPrecontractError
+      ? { message: contractByPrecontractError.message, code: contractByPrecontractError.code || null }
+      : null,
     foundContract: Boolean(contract?.id),
     contractId: contract?.id || null,
     contractStatus: contract?.status || null,
     hasSignedAt: Boolean(contract?.signed_at),
     hasDocumentHash: Boolean(contract?.document_hash),
     hasPdfUrl: Boolean(contract?.pdf_url),
-    pdfUrl: contract?.pdf_url || null,
+    pdfUrlRedacted: redactStorageUrl(contract?.pdf_url),
     hasSignedHtml: Boolean(signedHtml),
     signedHtmlLength: signedHtml.length,
     hasContractServiceUrl: Boolean(
@@ -77,73 +126,43 @@ export async function POST(request, context) {
   const resolvedParams = await context?.params;
   const token = String(resolvedParams?.token || '').trim();
 
-  const { searchParams } = new URL(request.url);
-  const debugKey = searchParams.get('debugKey');
-
-  if (debugKey !== process.env.DEBUG_INTERNAL_KEY) {
+  if (!isAuthorizedDebugKey(request)) {
     return Response.json({ ok: false, code: 'UNAUTHORIZED_DEBUG' }, { status: 401 });
   }
 
   try {
     const supabase = getSupabaseAdmin();
-
-    const { data: precontract, error: precontractError } = await supabase
-      .from('precontracts')
-      .select('*')
-      .eq('public_token', token)
-      .maybeSingle();
+    const {
+      precontract,
+      precontractError,
+      contract,
+      contractByTokenError,
+      contractByPrecontractError,
+    } = await resolveDebugContract({ supabase, token });
 
     if (precontractError) {
       return Response.json(
         {
           ok: false,
           step: 'precontract_lookup_error',
-          error: precontractError,
+          error: { message: precontractError.message, code: precontractError.code || null },
         },
         { status: 500 }
       );
     }
 
-    const { data: contractByToken, error: contractByTokenError } = await supabase
-      .from('contracts')
-      .select('*')
-      .eq('public_token', token)
-      .maybeSingle();
-
-    if (contractByTokenError) {
+    if (contractByTokenError || contractByPrecontractError) {
+      const error = contractByTokenError || contractByPrecontractError;
       return Response.json(
         {
           ok: false,
-          step: 'contract_lookup_by_token_error',
-          error: contractByTokenError,
+          step: 'contract_lookup_error',
+          error: { message: error.message, code: error.code || null },
         },
         { status: 500 }
       );
     }
 
-    let contractByPrecontract = null;
-    if (!contractByToken && precontract?.id) {
-      const { data, error } = await supabase
-        .from('contracts')
-        .select('*')
-        .eq('precontract_id', precontract.id)
-        .maybeSingle();
-
-      if (error) {
-        return Response.json(
-          {
-            ok: false,
-            step: 'contract_lookup_by_precontract_error',
-            error,
-          },
-          { status: 500 }
-        );
-      }
-
-      contractByPrecontract = data;
-    }
-
-    const contract = contractByToken || contractByPrecontract;
     const signedHtml =
       contract?.signed_html ||
       contract?.raw_payload?.signed_contract_html ||
@@ -196,13 +215,14 @@ export async function POST(request, context) {
     return Response.json({
       ok: true,
       step: 'internal_pdf_flow',
-      pdfUrl: internalPdf?.pdfUrl || null,
+      hasPdfUrl: Boolean(internalPdf?.pdfUrl),
+      pdfUrlRedacted: redactStorageUrl(internalPdf?.pdfUrl),
     });
   } catch (err) {
     return Response.json({
       ok: false,
       step: 'internal_pdf_flow_error',
-      error: String(err),
+      error: err?.message || String(err),
     });
   }
 }

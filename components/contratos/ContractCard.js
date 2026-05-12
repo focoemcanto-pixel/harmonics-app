@@ -6,18 +6,10 @@ import AdminPill from '../admin/AdminPill';
 import { formatDateBR } from '../../lib/contratos/contratos-format';
 
 function buildContractTone(statusTone) {
-  if (statusTone === 'emerald') {
-    return 'border-emerald-200 bg-emerald-50';
-  }
-  if (statusTone === 'violet') {
-    return 'border-violet-200 bg-violet-50';
-  }
-  if (statusTone === 'blue') {
-    return 'border-sky-200 bg-sky-50';
-  }
-  if (statusTone === 'amber') {
-    return 'border-amber-200 bg-amber-50';
-  }
+  if (statusTone === 'emerald') return 'border-emerald-200 bg-emerald-50';
+  if (statusTone === 'violet') return 'border-violet-200 bg-violet-50';
+  if (statusTone === 'blue') return 'border-sky-200 bg-sky-50';
+  if (statusTone === 'amber') return 'border-amber-200 bg-amber-50';
   return 'border-slate-200 bg-slate-50';
 }
 
@@ -49,15 +41,9 @@ function ContractPreviewModal({ item, open, onClose }) {
         <div className="flex min-h-screen items-center justify-center p-3 md:p-6">
           <div className="flex w-full max-w-2xl flex-col overflow-hidden rounded-[30px] border border-[#dbe3ef] bg-white shadow-[0_30px_80px_rgba(15,23,42,0.24)]">
             <div className="border-b border-[#e7edf5] bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] px-5 py-4 md:px-6">
-              <div className="text-[11px] font-black uppercase tracking-[0.12em] text-violet-700">
-                Preview do contrato
-              </div>
-              <div className="mt-2 text-[26px] font-black tracking-[-0.04em] text-[#0f172a]">
-                {item?.clienteNome || 'Contrato'}
-              </div>
-              <div className="mt-2 text-[14px] font-semibold text-[#64748b]">
-                Este contrato ainda não possui token público válido.
-              </div>
+              <div className="text-[11px] font-black uppercase tracking-[0.12em] text-violet-700">Preview do contrato</div>
+              <div className="mt-2 text-[26px] font-black tracking-[-0.04em] text-[#0f172a]">{item?.clienteNome || 'Contrato'}</div>
+              <div className="mt-2 text-[14px] font-semibold text-[#64748b]">Este contrato ainda não possui token público válido.</div>
             </div>
 
             <div className="px-5 py-6 md:px-6">
@@ -66,11 +52,7 @@ function ContractPreviewModal({ item, open, onClose }) {
               </div>
 
               <div className="mt-5 flex justify-end">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3 text-[13px] font-black text-[#0f172a]"
-                >
+                <button type="button" onClick={onClose} className="rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3 text-[13px] font-black text-[#0f172a]">
                   Fechar
                 </button>
               </div>
@@ -89,53 +71,25 @@ function ContractPreviewModal({ item, open, onClose }) {
         <div className="flex h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-[30px] border border-[#dbe3ef] bg-white shadow-[0_30px_80px_rgba(15,23,42,0.24)]">
           <div className="flex flex-col gap-4 border-b border-[#e7edf5] bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] px-5 py-4 md:flex-row md:items-start md:justify-between md:px-6">
             <div className="min-w-0">
-              <div className="text-[11px] font-black uppercase tracking-[0.12em] text-violet-700">
-                Preview do contrato
-              </div>
-
-              <div className="mt-2 text-[26px] font-black tracking-[-0.04em] text-[#0f172a]">
-                {item.clienteNome}
-              </div>
-
-              <div className="mt-2 text-[14px] font-semibold text-[#64748b]">
-                {item.eventoTitulo}
-              </div>
-
+              <div className="text-[11px] font-black uppercase tracking-[0.12em] text-violet-700">Preview do contrato</div>
+              <div className="mt-2 text-[26px] font-black tracking-[-0.04em] text-[#0f172a]">{item.clienteNome}</div>
+              <div className="mt-2 text-[14px] font-semibold text-[#64748b]">{item.eventoTitulo}</div>
               <div className="mt-3 flex flex-wrap gap-2">
                 <AdminPill tone={item.statusTone}>{item.statusLabel}</AdminPill>
-
-                {item.assinadoEm ? (
-                  <AdminPill tone="emerald">
-                    Assinado em {formatDateBR(item.assinadoEm)}
-                  </AdminPill>
-                ) : null}
+                {item.assinadoEm ? <AdminPill tone="emerald">Assinado em {formatDateBR(item.assinadoEm)}</AdminPill> : null}
               </div>
             </div>
 
             <div className="flex flex-wrap gap-3">
               {item.linkContrato ? (
-                <Link
-                  href={item.linkContrato}
-                  target="_blank"
-                  className="rounded-[16px] bg-[#0f172a] px-4 py-3 text-[13px] font-black text-white shadow-[0_10px_24px_rgba(15,23,42,0.18)]"
-                >
+                <Link href={item.linkContrato} target="_blank" className="rounded-[16px] bg-[#0f172a] px-4 py-3 text-[13px] font-black text-white shadow-[0_10px_24px_rgba(15,23,42,0.18)]">
                   Abrir contrato
                 </Link>
               ) : (
-                <button
-                  type="button"
-                  disabled
-                  className="cursor-not-allowed rounded-[16px] bg-slate-300 px-4 py-3 text-[13px] font-black text-white"
-                >
-                  Sem link
-                </button>
+                <button type="button" disabled className="cursor-not-allowed rounded-[16px] bg-slate-300 px-4 py-3 text-[13px] font-black text-white">Sem link</button>
               )}
 
-              <button
-                type="button"
-                onClick={onClose}
-                className="rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3 text-[13px] font-black text-[#0f172a]"
-              >
+              <button type="button" onClick={onClose} className="rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3 text-[13px] font-black text-[#0f172a]">
                 Fechar
               </button>
             </div>
@@ -144,18 +98,11 @@ function ContractPreviewModal({ item, open, onClose }) {
           <div className="relative flex-1 bg-[#eef2f7]">
             {loading ? (
               <div className="absolute inset-0 flex items-center justify-center">
-                <div className="rounded-[18px] border border-[#dbe3ef] bg-white px-5 py-4 text-[14px] font-bold text-[#64748b] shadow-[0_8px_20px_rgba(17,24,39,0.05)]">
-                  Carregando preview do contrato...
-                </div>
+                <div className="rounded-[18px] border border-[#dbe3ef] bg-white px-5 py-4 text-[14px] font-bold text-[#64748b] shadow-[0_8px_20px_rgba(17,24,39,0.05)]">Carregando preview do contrato...</div>
               </div>
             ) : null}
 
-            <iframe
-              title={`Preview contrato ${item.clienteNome}`}
-              src={previewHtmlUrl}
-              className="h-full w-full bg-white"
-              onLoad={() => setLoading(false)}
-            />
+            <iframe title={`Preview contrato ${item.clienteNome}`} src={previewHtmlUrl} className="h-full w-full bg-white" onLoad={() => setLoading(false)} />
           </div>
         </div>
       </div>
@@ -166,19 +113,17 @@ function ContractPreviewModal({ item, open, onClose }) {
 export default function ContractCard({ item, onCopyLink, onDeleteContract, selected, onToggleSelect }) {
   const cardTone = buildContractTone(item.statusTone);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [openingPdf, setOpeningPdf] = useState(false);
 
   const hasLink = !!String(item?.linkContrato || '').trim();
   const hasToken = !!String(item?.token || '').trim();
   const hasPrecontract = !!String(item?.precontractId || '').trim();
-  const isExternalWithoutContractId = item?.isExternal === true && !String(item?.contractId || '').trim();
-  const editPrecontractHref = hasPrecontract
-    ? `/pre-contratos?edit=${encodeURIComponent(item.precontractId)}&focus=contract`
-    : '';
+  const hasContractId = !!String(item?.contractId || '').trim();
+  const isExternalWithoutContractId = item?.isExternal === true && !hasContractId;
+  const editPrecontractHref = hasPrecontract ? `/pre-contratos?edit=${encodeURIComponent(item.precontractId)}&focus=contract` : '';
 
   function handleOpenPreview() {
-    if (!hasToken) {
-      return;
-    }
+    if (!hasToken) return;
     setPreviewOpen(true);
   }
 
@@ -186,49 +131,48 @@ export default function ContractCard({ item, onCopyLink, onDeleteContract, selec
     onCopyLink?.(item.linkContrato);
   }
 
+  async function handleOpenFinalPdf() {
+    if (!hasContractId || openingPdf) return;
+
+    try {
+      setOpeningPdf(true);
+      const response = await fetch(`/api/contracts/${encodeURIComponent(item.contractId)}/signed-url`, {
+        cache: 'no-store',
+      });
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok || !payload?.ok || !payload?.url) {
+        throw new Error(payload?.error || 'Não foi possível abrir o PDF final.');
+      }
+
+      window.open(payload.url, '_blank', 'noopener,noreferrer');
+    } catch (error) {
+      console.error('[CONTRACT_CARD][OPEN_SIGNED_PDF_ERROR]', error);
+      alert(error?.message || 'Não foi possível abrir o PDF final.');
+    } finally {
+      setOpeningPdf(false);
+    }
+  }
+
   return (
     <>
-      <div
-        className={`rounded-[26px] border p-5 shadow-[0_8px_22px_rgba(17,24,39,0.04)] ${cardTone}`}
-      >
+      <div className={`rounded-[26px] border p-5 shadow-[0_8px_22px_rgba(17,24,39,0.04)] ${cardTone}`}>
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div className="min-w-0">
             <label className="inline-flex items-center gap-2 text-[12px] font-black text-[#0f172a]">
-              <input
-                type="checkbox"
-                checked={!!selected}
-                onChange={() => onToggleSelect?.(item.stableId || item.precontractId)}
-              />
+              <input type="checkbox" checked={!!selected} onChange={() => onToggleSelect?.(item.stableId || item.precontractId)} />
               Selecionar
             </label>
-            <div className="text-[22px] font-black tracking-[-0.03em] text-[#0f172a]">
-              {item.clienteNome}
-            </div>
-
-            <div className="mt-1 text-[14px] font-semibold text-[#64748b]">
-              {item.eventoTitulo}
-            </div>
+            <div className="text-[22px] font-black tracking-[-0.03em] text-[#0f172a]">{item.clienteNome}</div>
+            <div className="mt-1 text-[14px] font-semibold text-[#64748b]">{item.eventoTitulo}</div>
           </div>
 
           <div className="flex flex-wrap gap-2">
             <AdminPill tone={item.statusTone}>{item.statusLabel}</AdminPill>
-            <AdminPill tone={item.contractModelTone || 'default'}>
-              {item.contractModelLabel || 'Docs'}
-            </AdminPill>
-
-            {item.assinadoEm ? (
-              <AdminPill tone="emerald">
-                Assinado em {formatDateBR(item.assinadoEm)}
-              </AdminPill>
-            ) : null}
-
-            {!item.assinadoEm && item.visualizado ? (
-              <AdminPill tone="blue">Visualizado</AdminPill>
-            ) : null}
-
-            {!item.assinadoEm && !item.visualizado ? (
-              <AdminPill tone="amber">Não visualizado</AdminPill>
-            ) : null}
+            <AdminPill tone={item.contractModelTone || 'default'}>{item.contractModelLabel || 'Docs'}</AdminPill>
+            {item.assinadoEm ? <AdminPill tone="emerald">Assinado em {formatDateBR(item.assinadoEm)}</AdminPill> : null}
+            {!item.assinadoEm && item.visualizado ? <AdminPill tone="blue">Visualizado</AdminPill> : null}
+            {!item.assinadoEm && !item.visualizado ? <AdminPill tone="amber">Não visualizado</AdminPill> : null}
           </div>
         </div>
 
@@ -236,156 +180,70 @@ export default function ContractCard({ item, onCopyLink, onDeleteContract, selec
           <div className="rounded-[22px] border border-white/70 bg-white/80 p-4 backdrop-blur">
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               <div>
-                <div className="text-[11px] font-black uppercase tracking-[0.08em] text-[#64748b]">
-                  Evento
-                </div>
-                <div className="mt-1 text-[14px] font-semibold text-[#0f172a]">
-                  {item.eventoTipo || 'Evento'}
-                </div>
+                <div className="text-[11px] font-black uppercase tracking-[0.08em] text-[#64748b]">Evento</div>
+                <div className="mt-1 text-[14px] font-semibold text-[#0f172a]">{item.eventoTipo || 'Evento'}</div>
               </div>
-
               <div>
-                <div className="text-[11px] font-black uppercase tracking-[0.08em] text-[#64748b]">
-                  Data
-                </div>
-                <div className="mt-1 text-[14px] font-semibold text-[#0f172a]">
-                  {formatDateBR(item.dataEvento)}
-                </div>
+                <div className="text-[11px] font-black uppercase tracking-[0.08em] text-[#64748b]">Data</div>
+                <div className="mt-1 text-[14px] font-semibold text-[#0f172a]">{formatDateBR(item.dataEvento)}</div>
               </div>
-
               <div>
-                <div className="text-[11px] font-black uppercase tracking-[0.08em] text-[#64748b]">
-                  Local
-                </div>
-                <div className="mt-1 text-[14px] font-semibold text-[#0f172a]">
-                  {item.localEvento || '-'}
-                </div>
+                <div className="text-[11px] font-black uppercase tracking-[0.08em] text-[#64748b]">Local</div>
+                <div className="mt-1 text-[14px] font-semibold text-[#0f172a]">{item.localEvento || '-'}</div>
               </div>
-
               <div>
-                <div className="text-[11px] font-black uppercase tracking-[0.08em] text-[#64748b]">
-                  WhatsApp
-                </div>
-                <div className="mt-1 text-[14px] font-semibold text-[#0f172a]">
-                  {item.whatsapp || '-'}
-                </div>
+                <div className="text-[11px] font-black uppercase tracking-[0.08em] text-[#64748b]">WhatsApp</div>
+                <div className="mt-1 text-[14px] font-semibold text-[#0f172a]">{item.whatsapp || '-'}</div>
               </div>
             </div>
           </div>
 
           <div className="rounded-[22px] border border-white/70 bg-white/80 p-4 backdrop-blur">
             <div>
-              <div className="text-[11px] font-black uppercase tracking-[0.08em] text-[#64748b]">
-                Token
-              </div>
-              <div className="mt-1 text-[14px] font-semibold text-[#0f172a]">
-                {truncateToken(item.token)}
-              </div>
+              <div className="text-[11px] font-black uppercase tracking-[0.08em] text-[#64748b]">Token</div>
+              <div className="mt-1 text-[14px] font-semibold text-[#0f172a]">{truncateToken(item.token)}</div>
             </div>
-
             <div className="mt-4">
-              <div className="text-[11px] font-black uppercase tracking-[0.08em] text-[#64748b]">
-                Enviado em
-              </div>
-              <div className="mt-1 text-[14px] font-semibold text-[#0f172a]">
-                {formatDateBR(item.enviadoEm)}
-              </div>
+              <div className="text-[11px] font-black uppercase tracking-[0.08em] text-[#64748b]">Enviado em</div>
+              <div className="mt-1 text-[14px] font-semibold text-[#0f172a]">{formatDateBR(item.enviadoEm)}</div>
             </div>
-
             <div className="mt-4">
-              <div className="text-[11px] font-black uppercase tracking-[0.08em] text-[#64748b]">
-                Assinado em
-              </div>
-              <div className="mt-1 text-[14px] font-semibold text-[#0f172a]">
-                {formatDateBR(item.assinadoEm)}
-              </div>
+              <div className="text-[11px] font-black uppercase tracking-[0.08em] text-[#64748b]">Assinado em</div>
+              <div className="mt-1 text-[14px] font-semibold text-[#0f172a]">{formatDateBR(item.assinadoEm)}</div>
             </div>
           </div>
         </div>
 
         <div className="mt-5 flex flex-wrap gap-3">
-          <button
-            type="button"
-            onClick={handleOpenPreview}
-            className="rounded-[16px] bg-violet-600 px-4 py-3 text-[14px] font-black text-white shadow-[0_10px_24px_rgba(124,58,237,0.22)]"
-          >
-            Preview
-          </button>
+          <button type="button" onClick={handleOpenPreview} className="rounded-[16px] bg-violet-600 px-4 py-3 text-[14px] font-black text-white shadow-[0_10px_24px_rgba(124,58,237,0.22)]">Preview</button>
 
-          {hasPrecontract ? (
-            <Link
-              href={editPrecontractHref}
-              className="rounded-[16px] border border-violet-200 bg-white px-4 py-3 text-[14px] font-black text-violet-700 shadow-[0_10px_24px_rgba(124,58,237,0.08)]"
-            >
-              Editar contrato
-            </Link>
-          ) : null}
+          {hasPrecontract ? <Link href={editPrecontractHref} className="rounded-[16px] border border-violet-200 bg-white px-4 py-3 text-[14px] font-black text-violet-700 shadow-[0_10px_24px_rgba(124,58,237,0.08)]">Editar contrato</Link> : null}
 
-          {hasLink ? (
-            <Link
-              href={item.linkContrato}
-              className="rounded-[16px] bg-[#0f172a] px-4 py-3 text-[14px] font-black text-white shadow-[0_10px_24px_rgba(15,23,42,0.18)]"
-            >
-              Abrir contrato
-            </Link>
-          ) : (
-            <button
-              type="button"
-              disabled
-              className="cursor-not-allowed rounded-[16px] bg-slate-300 px-4 py-3 text-[14px] font-black text-white"
-            >
-              Sem link
-            </button>
-          )}
+          {hasLink ? <Link href={item.linkContrato} className="rounded-[16px] bg-[#0f172a] px-4 py-3 text-[14px] font-black text-white shadow-[0_10px_24px_rgba(15,23,42,0.18)]">Abrir contrato</Link> : <button type="button" disabled className="cursor-not-allowed rounded-[16px] bg-slate-300 px-4 py-3 text-[14px] font-black text-white">Sem link</button>}
 
-          {item.eventoId ? (
-            <Link
-              href={`/eventos/${item.eventoId}`}
-              className="rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3 text-[14px] font-black text-[#0f172a]"
-            >
-              Abrir evento
-            </Link>
-          ) : null}
+          {item.eventoId ? <Link href={`/eventos/${item.eventoId}`} className="rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3 text-[14px] font-black text-[#0f172a]">Abrir evento</Link> : null}
 
-          <button
-            type="button"
-            onClick={handleCopyLink}
-            className="rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3 text-[14px] font-black text-[#0f172a]"
-          >
-            Copiar link
-          </button>
+          <button type="button" onClick={handleCopyLink} className="rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3 text-[14px] font-black text-[#0f172a]">Copiar link</button>
 
-          <button
-            type="button"
-            onClick={() => onDeleteContract?.(item)}
-            disabled={isExternalWithoutContractId}
-            title={isExternalWithoutContractId ? 'Contrato externo sem ID válido' : ''}
-            className="rounded-[16px] border border-red-200 bg-red-50 px-4 py-3 text-[14px] font-black text-red-700 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-500"
-          >
+          <button type="button" onClick={() => onDeleteContract?.(item)} disabled={isExternalWithoutContractId} title={isExternalWithoutContractId ? 'Contrato externo sem ID válido' : ''} className="rounded-[16px] border border-red-200 bg-red-50 px-4 py-3 text-[14px] font-black text-red-700 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-500">
             {isExternalWithoutContractId ? 'Contrato externo sem ID válido' : 'Excluir'}
           </button>
 
           {item.pdfUrl ? (
-            <a
-              href={item.pdfUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3 text-[14px] font-black text-[#0f172a]"
+            <button
+              type="button"
+              onClick={handleOpenFinalPdf}
+              disabled={!hasContractId || openingPdf}
+              title={!hasContractId ? 'Contrato sem ID para gerar URL temporária' : ''}
+              className="rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3 text-[14px] font-black text-[#0f172a] disabled:cursor-not-allowed disabled:opacity-60"
             >
-              PDF final
-            </a>
+              {openingPdf ? 'Abrindo PDF...' : 'PDF final'}
+            </button>
           ) : null}
-
         </div>
       </div>
 
-      {previewOpen ? (
-        <ContractPreviewModal
-          item={item}
-          open={previewOpen}
-          onClose={() => setPreviewOpen(false)}
-        />
-      ) : null}
+      {previewOpen ? <ContractPreviewModal item={item} open={previewOpen} onClose={() => setPreviewOpen(false)} /> : null}
     </>
   );
 }

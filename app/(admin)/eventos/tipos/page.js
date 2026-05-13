@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import AdminShell from '@/components/admin/AdminShell';
 import AdminPageHero from '@/components/admin/AdminPageHero';
 import AdminSummaryCard from '@/components/admin/AdminSummaryCard';
+import SmartEmptyState from '@/components/onboarding/SmartEmptyState';
 import { Field, Input, Select, Textarea, Checkbox } from '@/components/admin/AdminFormPrimitives';
 import { useAppToast } from '@/components/ui/ToastProvider';
 import { useConfirm } from '@/hooks/useConfirm';
@@ -374,8 +375,20 @@ export default function EventTypesPage() {
             <div className="mt-4 space-y-3">
               {loading && <div className="rounded-[16px] border border-dashed border-[#dbe3ef] p-4 text-sm text-slate-500">Carregando tipos de evento...</div>}
 
-              {!loading && filteredTypes.length === 0 && (
-                <div className="rounded-[16px] border border-dashed border-[#dbe3ef] p-4 text-sm text-slate-500">Nenhum tipo encontrado.</div>
+              {!loading && filteredTypes.length === 0 && eventTypes.length === 0 && (
+                <SmartEmptyState
+                  eyebrow="Configuração essencial"
+                  title="Você ainda não cadastrou tipos de evento."
+                  description="Os tipos organizam o fluxo comercial e definem qual modelo de contrato será usado em cada situação, como casamento, aniversário, culto ou evento corporativo."
+                  bullets={['Organiza o pré-contrato', 'Vincula o template padrão', 'Facilita novos contratos', 'Evita configuração manual']}
+                  primaryHref="/eventos/tipos"
+                  primaryLabel="Criar primeiro tipo"
+                  icon="🏷️"
+                />
+              )}
+
+              {!loading && filteredTypes.length === 0 && eventTypes.length > 0 && (
+                <div className="rounded-[16px] border border-dashed border-[#dbe3ef] p-4 text-sm text-slate-500">Nenhum tipo encontrado para esta busca.</div>
               )}
 
               {!loading && filteredTypes.map((item) => {

@@ -9,6 +9,7 @@ import SmartEmptyState from '@/components/onboarding/SmartEmptyState';
 import { Field, Input, Select, Textarea, Checkbox } from '@/components/admin/AdminFormPrimitives';
 import { useAppToast } from '@/components/ui/ToastProvider';
 import { useConfirm } from '@/hooks/useConfirm';
+import { completeOnboardingStep } from '@/lib/onboarding/completeOnboardingStep';
 
 function getInitialForm() {
   return {
@@ -64,6 +65,22 @@ export default function EventTypesPage() {
   function devLog(label, data) {
     if (process.env.NODE_ENV !== 'development') return;
     console.log(label, data);
+  }
+
+  async function completeEventTypeOnboarding() {
+    try {
+      const { data } = await supabase.auth.getSession();
+      const accessToken = data?.session?.access_token || null;
+      if (!accessToken) return;
+
+      await completeOnboardingStep({
+        supabase,
+        accessToken,
+        stepKey: 'event_type_created',
+      });
+    } catch (error) {
+      console.warn('[EVENT_TYPES][ONBOARDING_COMPLETE_ERROR]', error?.message || error);
+    }
   }
 
   async function loadData(showLoading = true) {
@@ -260,7 +277,8 @@ export default function EventTypesPage() {
         if (!response.ok || dataJson?.ok === false) {
           throw new Error(dataJson?.error || 'Falha ao criar tipo de evento');
         }
-        toast.success('Tipo de evento criado com sucesso.');
+        await completeEventTypeOnboarding();
+        toast.success('Tipo de evento criado com sucesso. Próximo passo: associe um template ou gere um pré-contrato.');
         await loadData(false);
         resetForm();
       }

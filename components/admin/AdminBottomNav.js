@@ -37,6 +37,7 @@ function NavItem({ item, active, onOpenMore }) {
     return (
       <button
         type="button"
+        data-onboarding-tour="mobile-more"
         aria-label="Abrir mais opções"
         onClick={(event) => {
           event.preventDefault();
@@ -67,17 +68,10 @@ function NavItem({ item, active, onOpenMore }) {
   );
 }
 
-export default function AdminBottomNav({
-  activeItem = 'eventos',
-  onOpenMore,
-  allowedModules = null,
-}) {
+export default function AdminBottomNav({ activeItem = 'eventos', onOpenMore, allowedModules = null }) {
   const allowed = allowedModules instanceof Set ? allowedModules : null;
 
-  const visiblePrimaryItems = allowed
-    ? PRIMARY_ITEMS.filter((item) => allowed.has(item.module))
-    : PRIMARY_ITEMS;
-
+  const visiblePrimaryItems = allowed ? PRIMARY_ITEMS.filter((item) => allowed.has(item.module)) : PRIMARY_ITEMS;
   const items = [...visiblePrimaryItems.slice(0, 4), MORE_ITEM];
   const columnsClass = items.length === 5 ? 'grid-cols-5' : items.length === 4 ? 'grid-cols-4' : items.length === 3 ? 'grid-cols-3' : 'grid-cols-2';
 
@@ -85,12 +79,7 @@ export default function AdminBottomNav({
     <nav className="fixed bottom-0 left-0 right-0 z-[80] border-t border-[#e5e7eb] bg-[rgba(244,246,250,0.96)] px-3 pb-[calc(env(safe-area-inset-bottom)+12px)] pt-3 shadow-[0_-10px_30px_rgba(17,24,39,0.06)] backdrop-blur-xl">
       <div className={`mx-auto grid max-w-[520px] ${columnsClass} gap-2`}>
         {items.map((item) => (
-          <NavItem
-            key={item.key}
-            item={item}
-            active={activeItem === item.key}
-            onOpenMore={onOpenMore}
-          />
+          <NavItem key={item.key} item={item} active={activeItem === item.key} onOpenMore={onOpenMore} />
         ))}
       </div>
     </nav>

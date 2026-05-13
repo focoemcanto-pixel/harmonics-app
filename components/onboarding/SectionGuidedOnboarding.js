@@ -12,6 +12,7 @@ const SECTION_GUIDES = {
     description:
       'Esta é a central da operação. Comece cadastrando um evento teste para entender como contrato, escala, financeiro e repertório se conectam.',
     targetLabel: 'Começar pelo evento',
+    targetSelector: '[data-guide-target="events-create"]',
     href: '/eventos',
     steps: [
       'Use o botão ou formulário de criação para cadastrar data, horário e local.',
@@ -26,6 +27,7 @@ const SECTION_GUIDES = {
     description:
       'Aqui você cria o link que o cliente recebe para preencher dados, revisar contrato, assinar e acessar o painel do cliente.',
     targetLabel: 'Gerar pré-contrato teste',
+    targetSelector: '[data-guide-target="precontracts-create"]',
     href: '/pre-contratos',
     steps: [
       'Confira se existe template e tipo de evento configurados.',
@@ -40,6 +42,7 @@ const SECTION_GUIDES = {
     description:
       'O template é o coração do contrato automático. Ele define o texto base e as tags que serão substituídas pelos dados do evento e do cliente.',
     targetLabel: 'Criar novo template',
+    targetSelector: '[data-guide-target="contract-template-create"]',
     href: '/contratos/templates',
     steps: [
       'Clique em Novo template ou vá para a aba Novo / Editar.',
@@ -54,6 +57,7 @@ const SECTION_GUIDES = {
     description:
       'O canal libera automações, convites, lembretes e alertas. Comece conectando um provider e depois faça um envio de teste.',
     targetLabel: 'Conectar canal',
+    targetSelector: '[data-guide-target="automation-channel-create"]',
     href: '/automacoes/canais',
     steps: [
       'Clique em Novo canal.',
@@ -72,10 +76,22 @@ function storageKeyForGuide(guide) {
   return `harmonics:section-guide:${guide?.key || 'unknown'}:v1`;
 }
 
+function getTargetRect(selector) {
+  if (typeof document === 'undefined' || !selector) return null;
+  const element = document.querySelector(selector);
+  if (!element) return null;
+  return element.getBoundingClientRect();
+}
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+
 export default function SectionGuidedOnboarding({ enabled = false }) {
   const pathname = usePathname();
   const guide = useMemo(() => getGuideForPath(pathname), [pathname]);
   const [open, setOpen] = useState(false);
+  const [targetRect, setTargetRect] = useState(null);
 
   useEffect(() => {
     if (!enabled || !guide || typeof window === 'undefined') {
@@ -94,6 +110,33 @@ export default function SectionGuidedOnboarding({ enabled = false }) {
     return () => window.clearTimeout(timer);
   }, [enabled, guide]);
 
+  useEffect(() => {
+    if (!open || !guide?.targetSelector || typeof window === 'undefined') return undefined;
+
+    function updateTarget() {
+      const element = document.querySelector(guide.targetSelector);
+      if (!element) {
+        setTargetRect(null);
+        return;
+      }
+
+      element.scrollIntoView?.({ behavior: 'smooth', block: 'center', inline: 'center' });
+
+      window.setTimeout(() => {
+        setTargetRect(getTargetRect(guide.targetSelector));
+      }, 280);
+    }
+
+    updateTarget();
+    window.addEventListener('resize', updateTarget);
+    window.addEventListener('scroll', updateTarget, true);
+
+    return () => {
+      window.removeEventListener('resize', updateTarget);
+      window.removeEventListener('scroll', updateTarget, true);
+    };
+  }, [guide, open]);
+
   if (!enabled || !guide) return null;
 
   function closeGuide() {
@@ -102,6 +145,25 @@ export default function SectionGuidedOnboarding({ enabled = false }) {
     }
     setOpen(false);
   }
+
+  const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 390;
+  const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 800;
+  const tooltipWidth = Math.min(420, viewportWidth - 32);
+  const tooltipLeft = targetRect
+    ? clamp(targetRect.left, 16, viewportWidth - tooltipWidth - 16)
+    : 16;
+  const tooltipTop = targetRect
+    ? clamp(targetRect.bottom + 18, 16, viewportHeight - 330)
+    : Math.round(viewportHeight * 0.16);
+
+  const spotlightStyle = targetRect
+    ? {
+        left: targetRect.left - 10,
+        top: targetRect.top - 10,
+        width: targetRect.width + 20,
+        height: targetRect.height + 20,
+      }
+    : null;
 
   return (
     <section className="relative mb-5 overflow-hidden rounded-[32px] border border-violet-200 bg-[radial-gradient(circle_at_top_right,rgba(139,92,246,0.14),transparent_34%),linear-gradient(180deg,#ffffff_0%,#faf7ff_100%)] p-5 shadow-[0_18px_50px_rgba(124,58,237,0.10)] md:p-6">
@@ -122,7 +184,6 @@ export default function SectionGuidedOnboarding({ enabled = false }) {
           <div className="mt-5 flex flex-wrap gap-3">
             <Link
               href={guide.href}
-              data-section-guide-target={guide.key}
               className="rounded-[20px] bg-violet-600 px-5 py-3 text-[14px] font-black text-white shadow-[0_14px_34px_rgba(124,58,237,0.28)]"
             >
               {guide.targetLabel}
@@ -160,8 +221,18 @@ export default function SectionGuidedOnboarding({ enabled = false }) {
 
       {open ? (
         <div className="fixed inset-0 z-[230] pointer-events-none">
-          <div className="absolute inset-0 bg-slate-950/45 backdrop-blur-[2px]" />
-          <div className="pointer-events-auto absolute left-4 right-4 top-[18vh] mx-auto max-w-[420px] rounded-[28px] border border-violet-200 bg-white p-5 shadow-[0_24px_80px_rgba(15,23,42,0.30)] md:left-auto md:right-8 md:top-[22vh]">
+          <div className="absolute inset-0 bg-slate-950/50 backdrop-blur-[2px]" />
+          {spotlightStyle ? (
+            <div
+              className="absolute rounded-[24px] border-2 border-white bg-transparent shadow-[0_0_0_9999px_rgba(15,23,42,0.48),0_22px_70px_rgba(124,58,237,0.30)] transition-all duration-300"
+              style={spotlightStyle}
+            />
+          ) : null}
+
+          <div
+            className="pointer-events-auto absolute rounded-[28px] border border-violet-200 bg-white p-5 shadow-[0_24px_80px_rgba(15,23,42,0.30)]"
+            style={{ width: tooltipWidth, left: tooltipLeft, top: tooltipTop }}
+          >
             <div className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-700">
               Continue o guia aqui
             </div>
@@ -169,16 +240,20 @@ export default function SectionGuidedOnboarding({ enabled = false }) {
               {guide.title}
             </h3>
             <p className="mt-2 text-[14px] font-semibold leading-6 text-[#64748b]">
-              Agora siga esta tela passo a passo. O botão destacado abaixo é o ponto de partida desta seção.
+              {targetRect
+                ? 'Este é o ponto de partida desta seção. Clique no item destacado e siga o fluxo guiado.'
+                : 'Procure o botão ou aba principal desta seção para começar o fluxo guiado.'}
             </p>
 
             <div className="mt-4 rounded-[22px] border-2 border-violet-300 bg-violet-50 px-4 py-4 shadow-[0_12px_34px_rgba(124,58,237,0.18)]">
-              <div className="text-[24px]">↙️</div>
+              <div className="text-[24px]">{targetRect ? '👆' : '↙️'}</div>
               <div className="mt-2 text-[15px] font-black text-violet-800">
-                Procure por: {guide.targetLabel}
+                {guide.targetLabel}
               </div>
               <div className="mt-1 text-[12px] font-semibold leading-5 text-violet-700">
-                Se a tela tiver abas, entre em Novo / Editar ou clique no botão principal da seção.
+                {targetRect
+                  ? 'O destaque mostra exatamente onde começar.'
+                  : 'Se a tela tiver abas, entre em Novo / Editar ou clique no botão principal da seção.'}
               </div>
             </div>
 
@@ -187,7 +262,7 @@ export default function SectionGuidedOnboarding({ enabled = false }) {
                 Pular esta seção
               </button>
               <button type="button" onClick={closeGuide} className="rounded-2xl bg-violet-600 px-4 py-2.5 text-[13px] font-black text-white">
-                Começar agora
+                Entendi
               </button>
             </div>
           </div>

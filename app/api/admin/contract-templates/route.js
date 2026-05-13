@@ -4,6 +4,33 @@ import { requireWorkspaceAdmin } from '@/lib/api/require-workspace-access';
 
 const SELECT_FIELDS = 'id, workspace_id, name, slug, description, content, source_text, source_rich_html, is_active, is_default, created_at, updated_at';
 
+async function markTemplateOnboardingDone({ supabaseAdmin, workspaceId }) {
+  try {
+    const now = new Date().toISOString();
+    const { data: existing } = await supabaseAdmin
+      .from('workspace_onboarding_progress')
+      .select('id, template_created, completed_at')
+      .eq('workspace_id', workspaceId)
+      .maybeSingle();
+
+    if (!existing?.id) {
+      await supabaseAdmin
+        .from('workspace_onboarding_progress')
+        .insert({ workspace_id: workspaceId, template_created: true, updated_at: now });
+      return;
+    }
+
+    if (existing.template_created !== true && !existing.completed_at) {
+      await supabaseAdmin
+        .from('workspace_onboarding_progress')
+        .update({ template_created: true, updated_at: now })
+        .eq('workspace_id', workspaceId);
+    }
+  } catch (error) {
+    console.warn('[CONTRACT_TEMPLATE_API][ONBOARDING_MARK_ERROR]', error?.message || error);
+  }
+}
+
 export async function GET(request) {
   const supabaseAdmin = getSupabaseAdmin();
   const auth = await requireWorkspaceAdmin({ supabase: supabaseAdmin, request, logPrefix: '[CONTRACT_TEMPLATE_API][GET]' });
@@ -69,6 +96,8 @@ export async function POST(request) {
       .select('id')
       .single();
     if (error) throw error;
+
+    await markTemplateOnboardingDone({ supabaseAdmin, workspaceId: auth.workspaceId });
 
     const { data: template, error: fetchError } = await supabaseAdmin
       .from('contract_templates')

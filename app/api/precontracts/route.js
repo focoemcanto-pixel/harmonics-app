@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { requireAdmin } from '@/lib/api/require-admin';
-import { getCurrentWorkspace } from '@/lib/workspaces/get-current-workspace';
+import { requireWorkspaceAdmin } from '@/lib/api/require-workspace-access';
 import {
   calculateEventFinance,
   syncEventFinanceSnapshot,
@@ -201,19 +200,18 @@ export async function GET(request) {
   const supabase = getSupabaseAdmin();
 
   try {
-    const auth = await requireAdmin({ supabase, request, logPrefix: '[PRECONTRACTS_API]' });
+    const auth = await requireWorkspaceAdmin({ supabase, request, logPrefix: '[PRECONTRACTS_API]' });
     if (!auth.ok) {
       return NextResponse.json({ ok: false, message: auth.error }, { status: auth.status || 401 });
     }
 
-    const workspaceContext = await getCurrentWorkspace({ supabase });
     const { searchParams } = new URL(request.url);
     const limit = normalizeListLimit(searchParams.get('limit'));
 
     const { data, error } = await supabase
       .from('precontracts')
       .select(PRECONTRACT_SELECT_FIELDS)
-      .eq('workspace_id', workspaceContext.workspaceId)
+      .eq('workspace_id', auth.workspaceId)
       .order('created_at', { ascending: false })
       .limit(limit);
 
@@ -222,7 +220,7 @@ export async function GET(request) {
     return NextResponse.json({
       ok: true,
       data: data || [],
-      workspaceId: workspaceContext.workspaceId,
+      workspaceId: auth.workspaceId,
     });
   } catch (error) {
     console.error('[PRECONTRACTS_API][GET][ERROR]', {
@@ -245,15 +243,14 @@ export async function POST(request) {
   const supabase = getSupabaseAdmin();
 
   try {
-    const auth = await requireAdmin({ supabase, request, logPrefix: '[PRECONTRACTS_API]' });
+    const auth = await requireWorkspaceAdmin({ supabase, request, logPrefix: '[PRECONTRACTS_API]' });
     if (!auth.ok) {
       return NextResponse.json({ ok: false, message: auth.error }, { status: auth.status || 401 });
     }
 
-    const workspaceContext = await getCurrentWorkspace({ supabase });
     console.info('[PRECONTRACTS_API][WORKSPACE_CONTEXT]', {
-      workspaceId: workspaceContext.workspaceId,
-      source: workspaceContext.source,
+      workspaceId: auth.workspaceId,
+      source: auth.source,
     });
 
     const body = await request.json();
@@ -279,6 +276,7 @@ export async function POST(request) {
         .from('precontracts')
         .select('id, event_date, workspace_id')
         .eq('id', id)
+        .eq('workspace_id', auth.workspaceId)
         .maybeSingle();
       if (error) throw error;
       existingItem = data || null;
@@ -304,7 +302,7 @@ export async function POST(request) {
 
     const writePayload = normalizePrecontractFinancialPayload({
       ...payload,
-      workspace_id: payload?.workspace_id || existingItem?.workspace_id || workspaceContext.workspaceId,
+      workspace_id: auth.workspaceId,
       public_token: body?.public_token || null,
       generated_link: body?.generated_link || null,
     });
@@ -315,6 +313,7 @@ export async function POST(request) {
         .from('precontracts')
         .update(writePayload)
         .eq('id', id)
+        .eq('workspace_id', auth.workspaceId)
         .select(PRECONTRACT_SELECT_FIELDS)
         .single();
       if (response.error) throw response.error;

@@ -8,6 +8,7 @@ import AdminBottomNav from '../admin/AdminBottomNav';
 import DashboardOnboardingBanner from '@/components/onboarding/DashboardOnboardingBanner';
 import OnboardingTourOverlay from '@/components/onboarding/OnboardingTourOverlay';
 import OperationalRouteOnboarding from '@/components/onboarding/OperationalRouteOnboarding';
+import SectionGuidedOnboarding from '@/components/onboarding/SectionGuidedOnboarding';
 import WorkspaceActivityTimeline from '@/components/workspace/WorkspaceActivityTimeline';
 import WorkspaceInsightCard from '@/components/workspace/WorkspaceInsightCard';
 import WorkspaceRecommendationsFeed from '@/components/workspace/WorkspaceRecommendationsFeed';
@@ -33,7 +34,7 @@ const MORE_ITEMS = [
 ];
 
 const MOBILE_NAV_ALLOWED_ITEMS = new Set(['dashboard', 'eventos', 'contatos', 'contratos', 'mais']);
-const ONBOARDING_ROUTE_PREFIXES = ['/dashboard', '/eventos', '/pre-contratos', '/contratos/templates'];
+const ONBOARDING_ROUTE_PREFIXES = ['/dashboard', '/eventos', '/pre-contratos', '/contratos/templates', '/automacoes/canais'];
 
 function getInitials(name) {
   if (!name) return '?';
@@ -216,6 +217,7 @@ export default function AdminShell({ pageTitle, children, mobileActions, activeI
             {showDashboardOnboarding ? <div className="mb-5"><WorkspaceRecommendationsFeed /></div> : null}
             {showDashboardOnboarding ? <div className="mb-5"><WorkspaceActivityTimeline limit={6} compact /></div> : null}
             {showOperationalRouteOnboarding ? <OperationalRouteOnboarding enabled /> : null}
+            {showOperationalRouteOnboarding ? <SectionGuidedOnboarding enabled /> : null}
             {children}
           </div>
         </main>
@@ -230,6 +232,7 @@ export default function AdminShell({ pageTitle, children, mobileActions, activeI
           {showDashboardOnboarding ? <div className="mb-4"><WorkspaceRecommendationsFeed limit={2} /></div> : null}
           {showDashboardOnboarding ? <div className="mb-4"><WorkspaceActivityTimeline limit={4} compact /></div> : null}
           {showOperationalRouteOnboarding ? <OperationalRouteOnboarding enabled /> : null}
+          {showOperationalRouteOnboarding ? <SectionGuidedOnboarding enabled /> : null}
           {children}
         </main>
 

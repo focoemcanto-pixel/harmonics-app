@@ -4,6 +4,27 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
 
+const OPERATIONAL_SHORTCUTS = [
+  {
+    label: 'Criar evento',
+    href: '/eventos',
+    tourKey: 'create-first-event',
+    description: 'Comece cadastrando uma cerimônia, evento ou apresentação.',
+  },
+  {
+    label: 'Gerar pré-contrato',
+    href: '/pre-contratos',
+    tourKey: 'create-first-precontract',
+    description: 'Envie um link para o cliente preencher e assinar.',
+  },
+  {
+    label: 'Configurar template',
+    href: '/contratos/templates',
+    tourKey: 'contract-template',
+    description: 'Monte o modelo usado nos contratos automáticos.',
+  },
+];
+
 export default function DashboardOnboardingBanner() {
   const supabase = useMemo(() => getSupabase(), []);
   const [payload, setPayload] = useState(null);
@@ -83,7 +104,7 @@ export default function DashboardOnboardingBanner() {
 
   return (
     <section data-onboarding-tour="dashboard-banner" className="rounded-[30px] border border-violet-200 bg-gradient-to-r from-violet-50 via-white to-fuchsia-50 p-5 shadow-[0_14px_34px_rgba(124,58,237,0.10)] md:p-6">
-      <div className="grid gap-5 lg:grid-cols-[1fr_320px] lg:items-center">
+      <div className="grid gap-5 lg:grid-cols-[1fr_320px] lg:items-start">
         <div>
           <div className="inline-flex rounded-full bg-violet-100 px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] text-violet-700">
             Onboarding
@@ -94,7 +115,7 @@ export default function DashboardOnboardingBanner() {
           </h2>
 
           <p className="mt-2 text-[14px] font-semibold leading-6 text-[#64748b]">
-            Você concluiu {summary.completed} de {summary.total} etapas. Continue o checklist inicial ou pule essa etapa se preferir configurar manualmente.
+            Você concluiu {summary.completed} de {summary.total} etapas. Continue o checklist inicial ou use um dos atalhos abaixo para configurar o fluxo principal.
           </p>
 
           {missingSteps.length > 0 ? (
@@ -106,6 +127,20 @@ export default function DashboardOnboardingBanner() {
               ))}
             </div>
           ) : null}
+
+          <div className="mt-5 grid gap-3 md:grid-cols-3">
+            {OPERATIONAL_SHORTCUTS.map((shortcut) => (
+              <Link
+                key={shortcut.tourKey}
+                data-onboarding-tour={shortcut.tourKey}
+                href={shortcut.href}
+                className="rounded-[22px] border border-violet-200 bg-white/85 p-4 shadow-[0_10px_26px_rgba(124,58,237,0.08)] transition hover:-translate-y-0.5 hover:bg-white"
+              >
+                <div className="text-[14px] font-black text-violet-800">{shortcut.label}</div>
+                <div className="mt-1 text-[12px] font-semibold leading-5 text-[#64748b]">{shortcut.description}</div>
+              </Link>
+            ))}
+          </div>
         </div>
 
         <div className="rounded-[24px] border border-violet-200 bg-white p-4">

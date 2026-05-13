@@ -19,6 +19,13 @@ const SETTINGS_CARDS = [
     status: 'Disponível',
   },
   {
+    title: 'Onboarding',
+    href: '/settings/onboarding',
+    icon: '🧭',
+    description: 'Checklist real do workspace, progresso inicial, próximos passos e configuração guiada.',
+    status: 'Disponível',
+  },
+  {
     title: 'Equipe',
     href: '/configuracoes/equipe',
     icon: '👥',
@@ -50,7 +57,7 @@ const SETTINGS_CARDS = [
     title: 'Primeiros passos',
     href: '/getting-started',
     icon: '🚀',
-    description: 'Checklist guiado para configurar evento, equipe, contratos, automações e repertórios.',
+    description: 'Roteiro visual para configurar evento, equipe, contratos, automações e repertórios.',
     status: 'Disponível',
   },
   {

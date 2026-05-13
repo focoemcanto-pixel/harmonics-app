@@ -1,6 +1,6 @@
 'use client';
 
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import AdminSidebar from '../admin/AdminSidebar';
 import AdminMobileTopbar from '../admin/AdminMobileTopbar';
@@ -8,6 +8,7 @@ import AdminBottomNav from '../admin/AdminBottomNav';
 import DashboardOnboardingBanner from '@/components/onboarding/DashboardOnboardingBanner';
 import OnboardingTourOverlay from '@/components/onboarding/OnboardingTourOverlay';
 import OperationalRouteOnboarding from '@/components/onboarding/OperationalRouteOnboarding';
+import WorkspaceActivityTimeline from '@/components/workspace/WorkspaceActivityTimeline';
 import { useAuth } from '@/contexts/AuthContext';
 import { redirectToLogin } from '@/lib/auth/logoutRedirect';
 import useWorkspaceMe from '@/hooks/useWorkspaceMe';
@@ -209,6 +210,7 @@ export default function AdminShell({ pageTitle, children, mobileActions, activeI
         <main className="min-h-screen flex-1">
           <div className="mx-auto w-full max-w-[1440px] px-6 py-6">
             {showDashboardOnboarding ? <div className="mb-5"><DashboardOnboardingBanner /></div> : null}
+            {showDashboardOnboarding ? <div className="mb-5"><WorkspaceActivityTimeline limit={6} compact /></div> : null}
             {showOperationalRouteOnboarding ? <OperationalRouteOnboarding enabled /> : null}
             {children}
           </div>
@@ -220,6 +222,7 @@ export default function AdminShell({ pageTitle, children, mobileActions, activeI
 
         <main className="px-4 pb-28 pt-4">
           {showDashboardOnboarding ? <div className="mb-4"><DashboardOnboardingBanner /></div> : null}
+          {showDashboardOnboarding ? <div className="mb-4"><WorkspaceActivityTimeline limit={4} compact /></div> : null}
           {showOperationalRouteOnboarding ? <OperationalRouteOnboarding enabled /> : null}
           {children}
         </main>

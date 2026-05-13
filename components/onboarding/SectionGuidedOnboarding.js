@@ -4,10 +4,12 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { usePathname } from 'next/navigation';
+import { getSupabase } from '@/lib/supabase';
 
 const SECTION_GUIDES = {
   '/eventos': {
     key: 'events',
+    onboardingStepKey: 'first_event_created',
     eyebrow: 'Guia da seção',
     title: 'Vamos criar seu primeiro evento',
     description: 'Esta é a central da operação. Comece cadastrando um evento teste para entender como contrato, escala, financeiro e repertório se conectam.',
@@ -19,6 +21,7 @@ const SECTION_GUIDES = {
   },
   '/pre-contratos': {
     key: 'precontracts',
+    onboardingStepKey: 'precontract_created',
     eyebrow: 'Guia da seção',
     title: 'Gere o primeiro pré-contrato',
     description: 'Aqui você cria o link que o cliente recebe para preencher e assinar.',
@@ -30,6 +33,7 @@ const SECTION_GUIDES = {
   },
   '/contratos/templates': {
     key: 'templates',
+    onboardingStepKey: 'template_created',
     eyebrow: 'Guia da seção',
     title: 'Configure seu template base',
     description: 'O template controla todo o texto dos contratos automáticos.',
@@ -38,6 +42,18 @@ const SECTION_GUIDES = {
     targetText: ['Novo template', 'Novo / Editar'],
     href: '/contratos/templates',
     steps: ['Crie o texto base.', 'Configure tags dinâmicas.', 'Salve como padrão.'],
+  },
+  '/automacoes/canais': {
+    key: 'automation-channels',
+    onboardingStepKey: 'automation_configured',
+    eyebrow: 'Guia da seção',
+    title: 'Conecte seu canal WhatsApp',
+    description: 'Aqui você conecta o provider que enviará convites, lembretes e alertas operacionais.',
+    targetLabel: 'Novo canal',
+    targetSelector: '[data-guide-target="automation-channel-create"]',
+    targetText: ['Novo canal', '+ Novo canal', 'Conectar canal'],
+    href: '/automacoes/canais',
+    steps: ['Escolha o provider.', 'Preencha token, URL e instância.', 'Salve e faça um envio de teste.'],
   },
 };
 
@@ -55,7 +71,7 @@ function getGuideForPath(pathname) {
 }
 
 function storageKeyForGuide(guide) {
-  return `harmonics:section-guide:${guide?.key || 'unknown'}:v2`;
+  return `harmonics:section-guide:${guide?.key || 'unknown'}:v3`;
 }
 
 function isVisibleElement(element) {
@@ -90,25 +106,67 @@ function clamp(value, min, max) {
 
 export default function SectionGuidedOnboarding({ enabled = false }) {
   const pathname = usePathname();
+  const supabase = useMemo(() => getSupabase(), []);
   const guide = useMemo(() => getGuideForPath(pathname), [pathname]);
   const [open, setOpen] = useState(false);
   const [targetRect, setTargetRect] = useState(null);
+  const [shouldShowGuide, setShouldShowGuide] = useState(false);
 
   useEffect(() => {
-    if (!enabled || !guide || typeof window === 'undefined') {
-      setOpen(false);
-      return;
+    let active = true;
+
+    async function loadEligibility() {
+      if (!enabled || !guide || typeof window === 'undefined') {
+        if (active) setShouldShowGuide(false);
+        return;
+      }
+
+      const alreadySeen = window.localStorage.getItem(storageKeyForGuide(guide)) === 'done';
+      if (alreadySeen) {
+        if (active) setShouldShowGuide(false);
+        return;
+      }
+
+      try {
+        const { data } = await supabase.auth.getSession();
+        const token = data?.session?.access_token;
+        if (!token) {
+          if (active) setShouldShowGuide(false);
+          return;
+        }
+
+        const response = await fetch('/api/onboarding/next-step', {
+          cache: 'no-store',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        const payload = await response.json().catch(() => ({}));
+        const nextKey = payload?.nextStep?.key;
+        const isCurrentStep = nextKey === guide.onboardingStepKey;
+        const isStepStillPending = payload?.isComplete !== true && isCurrentStep;
+
+        if (active) setShouldShowGuide(Boolean(response.ok && isStepStillPending));
+      } catch {
+        if (active) setShouldShowGuide(true);
+      }
     }
 
-    const alreadySeen = window.localStorage.getItem(storageKeyForGuide(guide)) === 'done';
-    if (alreadySeen) {
+    loadEligibility();
+
+    return () => {
+      active = false;
+    };
+  }, [enabled, guide, supabase]);
+
+  useEffect(() => {
+    if (!shouldShowGuide || typeof window === 'undefined') {
       setOpen(false);
       return;
     }
 
     const timer = window.setTimeout(() => setOpen(true), 500);
     return () => window.clearTimeout(timer);
-  }, [enabled, guide]);
+  }, [shouldShowGuide]);
 
   useEffect(() => {
     if (!open || !guide || typeof window === 'undefined') return;
@@ -139,13 +197,14 @@ export default function SectionGuidedOnboarding({ enabled = false }) {
     };
   }, [guide, open]);
 
-  if (!enabled || !guide) return null;
+  if (!enabled || !guide || !shouldShowGuide) return null;
 
   function closeGuide() {
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(storageKeyForGuide(guide), 'done');
     }
     setOpen(false);
+    setShouldShowGuide(false);
   }
 
   const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 390;
@@ -184,7 +243,7 @@ export default function SectionGuidedOnboarding({ enabled = false }) {
             style={{ width: tooltipWidth, left: tooltipLeft, top: tooltipTop }}
           >
             <div className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-700">
-              Continue o onboarding
+              Próxima etapa do onboarding
             </div>
 
             <h3 className="mt-2 text-[22px] font-black tracking-[-0.04em] text-[#0f172a]">

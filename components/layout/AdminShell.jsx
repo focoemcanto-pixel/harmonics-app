@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import AdminSidebar from '../admin/AdminSidebar';
 import AdminMobileTopbar from '../admin/AdminMobileTopbar';
 import AdminBottomNav from '../admin/AdminBottomNav';
+import DashboardOnboardingBanner from '@/components/onboarding/DashboardOnboardingBanner';
 import { useAuth } from '@/contexts/AuthContext';
 import { redirectToLogin } from '@/lib/auth/logoutRedirect';
 import useWorkspaceMe from '@/hooks/useWorkspaceMe';
@@ -210,12 +211,15 @@ export default function AdminShell({
     return null;
   }
 
+  const showDashboardOnboarding = pathname === '/dashboard';
+
   return (
     <div className="min-h-screen bg-[#f4f6fa] text-[#111827]">
       <div className="hidden md:flex">
         <AdminSidebar activeItem={activeItem} />
         <main className="min-h-screen flex-1">
           <div className="mx-auto w-full max-w-[1440px] px-6 py-6">
+            {showDashboardOnboarding ? <div className="mb-5"><DashboardOnboardingBanner /></div> : null}
             {children}
           </div>
         </main>
@@ -224,7 +228,10 @@ export default function AdminShell({
       <div className="md:hidden">
         <AdminMobileTopbar title={pageTitle} subtitle={mobileSubtitle} actions={mobileActions} />
 
-        <main className="px-4 pb-28 pt-4">{children}</main>
+        <main className="px-4 pb-28 pt-4">
+          {showDashboardOnboarding ? <div className="mb-4"><DashboardOnboardingBanner /></div> : null}
+          {children}
+        </main>
 
         <AdminBottomNav activeItem={mobileActiveItem} onOpenMore={handleOpenMore} allowedModules={allowedModules} />
 

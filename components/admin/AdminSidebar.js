@@ -2,116 +2,134 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import useWorkspaceMe from '@/hooks/useWorkspaceMe';
 import useCurrentWorkspace from '@/hooks/useCurrentWorkspace';
 
-function navClass(active) {
-  return active
-    ? 'bg-violet-100 text-violet-700 shadow-[0_10px_24px_rgba(124,58,237,0.08)]'
-    : 'text-[#c7d2fe] hover:bg-white/5 hover:text-white';
-}
-
-const ALL_ITEMS = [
-  { key: 'dashboard', module: 'dashboard', label: 'Dashboard', href: '/dashboard' },
-  { key: 'eventos', module: 'eventos', label: 'Eventos', href: '/eventos' },
-  { key: 'contatos', module: 'contatos', label: 'Contatos', href: '/contatos' },
-  { key: 'convites', module: 'convites', label: 'Convites', href: '/convites' },
-  { key: 'escalas', module: 'escalas', label: 'Escalas', href: '/escalas' },
-  { key: 'contratos', module: 'contratos', label: 'Contratos', href: '/contratos' },
-  { key: 'repertorios', module: 'repertorios', label: 'Repertórios', href: '/repertorios' },
-  { key: 'sugestoes', module: 'sugestoes', label: 'Sugestões', href: '/sugestoes' },
-  { key: 'automacoes', module: 'automacoes', label: 'Automação', href: '/automacoes' },
-  { key: 'avaliacoes', module: 'avaliacoes', label: 'Avaliações', href: '/avaliacoes' },
-  { key: 'pagamentos', module: 'pagamentos', label: 'Pagamentos', href: '/pagamentos' },
-  { key: 'settings', module: 'workspace', label: 'Configurações', href: '/settings' },
+const ITEMS = [
+  ['Dashboard', '/dashboard'],
+  ['Eventos', '/eventos'],
+  ['Contatos', '/contatos'],
+  ['Convites', '/convites'],
+  ['Escalas', '/escalas'],
+  ['Contratos', '/contratos'],
+  ['Repertórios', '/repertorios'],
+  ['Sugestões', '/sugestoes'],
+  ['Automação', '/automacoes'],
+  ['Avaliações', '/avaliacoes'],
+  ['Pagamentos', '/pagamentos'],
+  ['Configurações', '/settings'],
 ];
 
-function normalizeRoleLabel(role) {
-  const value = String(role || '').toLowerCase();
-  const labels = {
-    owner: '👑 Owner',
-    admin: '🔑 Admin',
-    financeiro: '💰 Financeiro',
-    operacional: '🎼 Operacional',
-    editor: '✍️ Editor',
-    viewer: '👁️ Visualizador',
-  };
-  return labels[value] || value || 'Membro';
-}
+const SETTINGS_ITEMS = [
+  ['Visão geral', '/settings'],
+  ['Primeiros passos', '/getting-started'],
+  ['Workspace', '/settings/workspace'],
+  ['Equipe', '/configuracoes/equipe'],
+];
 
-function SidebarSkeleton() {
-  return (
-    <div className="mt-8 space-y-2 px-1">
-      {[1, 2, 3, 4, 5, 6].map((item) => (
-        <div key={item} className="h-11 animate-pulse rounded-2xl bg-white/5" />
-      ))}
-    </div>
-  );
-}
-
-export default function AdminSidebar({ activeItem = 'eventos' }) {
+export default function AdminSidebar({ activeItem = 'dashboard' }) {
   const pathname = usePathname();
   const { signOut, profile } = useAuth();
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const { workspaceMe, loading: permissionsLoading, modules, role } = useWorkspaceMe();
-  const { workspace: currentWorkspace } = useCurrentWorkspace();
-  const automationOpen = pathname?.startsWith('/automacoes');
-  const contractsOpen = pathname?.startsWith('/contratos');
-  const eventsOpen = pathname?.startsWith('/eventos');
-  const settingsOpen = pathname?.startsWith('/settings') || pathname?.startsWith('/configuracoes') || pathname?.startsWith('/getting-started');
-
-  const allowedModules = useMemo(() => {
-    if (Array.isArray(modules) && modules.length > 0) {
-      return new Set([...modules, 'workspace']);
-    }
-    return new Set(['dashboard', 'workspace']);
-  }, [modules]);
-
-  const items = useMemo(
-    () => ALL_ITEMS.filter((item) => allowedModules.has(item.module)),
-    [allowedModules]
-  );
-
-  const brandingName = currentWorkspace?.displayName || 'Workspace';
-  const brandingInitials = currentWorkspace?.initials || 'W';
-  const brandingColor = currentWorkspace?.primaryColor || '#7c3aed';
-
-  const automationItems = [
-    { label: 'Regras', href: '/automacoes/regras' },
-    { label: 'Templates', href: '/automacoes/templates' },
-    { label: 'Canais', href: '/automacoes/canais' },
-    { label: 'Logs', href: '/automacoes/logs' },
-  ];
-
-  const contractItems = [
-    { label: 'Visão geral', href: '/contratos' },
-    { label: 'Templates', href: '/contratos/templates' },
-  ];
-
-  const eventItems = [
-    { label: 'Visão geral', href: '/eventos' },
-    { label: 'Tipos de evento', href: '/eventos/tipos' },
-  ];
-
-  const settingsItems = [
-    { label: 'Visão geral', href: '/settings' },
-    { label: 'Primeiros passos', href: '/getting-started' },
-    { label: 'Workspace', href: '/settings/workspace' },
-    { label: 'Equipe', href: '/configuracoes/equipe' },
-  ];
+  const { workspace } = useCurrentWorkspace();
+  const [loading, setLoading] = useState(false);
 
   async function handleLogout() {
-    if (isLoggingOut) return;
-    setIsLoggingOut(true);
+    if (loading) return;
+    setLoading(true);
 
     try {
       await signOut({ redirect: true });
     } finally {
-      setIsLoggingOut(false);
+      setLoading(false);
     }
   }
 
-  return 'TRUNCATED_FOR_UPDATE';
+  const settingsOpen = pathname?.startsWith('/settings') || pathname?.startsWith('/configuracoes') || pathname?.startsWith('/getting-started');
+
+  return (
+    <aside className="sticky top-0 flex min-h-screen w-[280px] shrink-0 flex-col bg-[#020b2c] px-5 py-6 text-white">
+      <div className="flex items-center gap-3 px-2">
+        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-black/70 text-lg font-black text-white">
+          {workspace?.initials || 'H'}
+        </div>
+
+        <div>
+          <div className="text-[15px] font-black text-white">
+            {workspace?.displayName || 'Harmonics'}
+          </div>
+          <div className="text-[12px] text-[#a5b4fc]">
+            Workspace Admin
+          </div>
+        </div>
+      </div>
+
+      <nav className="mt-8 space-y-2">
+        {ITEMS.map(([label, href]) => {
+          const active = pathname === href || (href === '/settings' && settingsOpen);
+
+          return (
+            <div key={href}>
+              <Link
+                href={href}
+                className={`flex rounded-2xl px-4 py-3 text-[15px] font-bold transition ${
+                  active
+                    ? 'bg-violet-100 text-violet-700'
+                    : 'text-[#c7d2fe] hover:bg-white/5 hover:text-white'
+                }`}
+              >
+                {label}
+              </Link>
+
+              {href === '/settings' && settingsOpen && (
+                <div className="ml-6 mt-1 space-y-1 border-l border-violet-400/30 pl-3">
+                  {SETTINGS_ITEMS.map(([subLabel, subHref]) => (
+                    <Link
+                      key={subHref}
+                      href={subHref}
+                      className={`block rounded-lg px-3 py-1.5 text-[13px] font-semibold ${
+                        pathname === subHref
+                          ? 'bg-violet-200/20 text-violet-200'
+                          : 'text-[#a5b4fc] hover:text-white'
+                      }`}
+                    >
+                      {subLabel}
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </nav>
+
+      <div className="mt-auto px-2 pt-6">
+        <div className="mb-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+          <div className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#a5b4fc]">
+            Usuário atual
+          </div>
+          <div className="mt-1 truncate text-[13px] font-bold text-white">
+            {profile?.name || profile?.email || 'Usuário'}
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="mb-3 w-full rounded-2xl border border-red-400/30 bg-red-950/30 px-4 py-3 text-[14px] font-bold text-red-100"
+        >
+          {loading ? 'Encerrando...' : 'Sair da conta'}
+        </button>
+
+        <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4">
+          <div className="text-[12px] font-extrabold uppercase tracking-[0.08em] text-[#a5b4fc]">
+            Workspace atual
+          </div>
+          <div className="mt-2 truncate text-[14px] font-bold text-white">
+            {workspace?.displayName || 'Workspace'}
+          </div>
+        </div>
+      </div>
+    </aside>
+  );
 }

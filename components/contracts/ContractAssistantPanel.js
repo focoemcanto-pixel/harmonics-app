@@ -7,6 +7,7 @@ import {
   getMockContractTagValues,
 } from '@/lib/contracts/contractTagsRegistry';
 import { analyzeTemplateQuality } from '@/lib/contracts/analyzeTemplateQuality';
+import { useContractEditor } from '@/contexts/ContractEditorContext';
 
 function replaceTagsWithMockValues(content = '') {
   const values = getMockContractTagValues();
@@ -43,21 +44,43 @@ const TAB_ITEMS = [
 ];
 
 export default function ContractAssistantPanel({ content = '', onInsertTag }) {
+  const editorContext = useContractEditor();
+
+  const liveContent = editorContext?.html ?? content;
+
   const [activeTab, setActiveTab] = useState('tags');
   const [copiedTag, setCopiedTag] = useState('');
 
-  const analysis = useMemo(() => analyzeTemplateQuality(content), [content]);
-  const preview = useMemo(() => stripHtml(replaceTagsWithMockValues(content)), [content]);
+  const analysis = useMemo(() => {
+    if (editorContext?.analysis) return editorContext.analysis;
+    return analyzeTemplateQuality(liveContent);
+  }, [editorContext, liveContent]);
+
+  const preview = useMemo(() => {
+    if (editorContext?.preview) return editorContext.preview;
+    return stripHtml(replaceTagsWithMockValues(liveContent));
+  }, [editorContext, liveContent]);
 
   async function handleTagClick(tag) {
     if (typeof onInsertTag === 'function') {
       onInsertTag(tag.tag);
+
+      if (editorContext?.setLastInsertedTag) {
+        editorContext.setLastInsertedTag(tag.tag);
+      }
+
       return;
     }
 
     const copied = await copyToClipboard(tag.tag);
+
     if (copied) {
       setCopiedTag(tag.key);
+
+      if (editorContext?.setLastInsertedTag) {
+        editorContext.setLastInsertedTag(tag.tag);
+      }
+
       window.setTimeout(() => setCopiedTag(''), 1400);
     }
   }
@@ -71,22 +94,23 @@ export default function ContractAssistantPanel({ content = '', onInsertTag }) {
 
         <div className="mt-2 flex items-end justify-between gap-3">
           <div>
-            <div className="text-[30px] font-black tracking-[-0.06em] text-[#0f172a]">
+            <div className="text-[30px] font-black tracking-[-0.06em] text-[#0f172a] transition-all duration-300">
               {analysis.qualityScore}%
             </div>
+
             <div className="text-[12px] font-black uppercase tracking-[0.12em] text-[#64748b]">
               completo
             </div>
           </div>
 
           <span className={`rounded-full px-3 py-1 text-[11px] font-black ${analysis.isReadyForAutomation ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-            {analysis.isReadyForAutomation ? 'Pronto' : 'Ajustar' }
+            {analysis.isReadyForAutomation ? 'Pronto' : 'Ajustar'}
           </span>
         </div>
 
         <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-200">
           <div
-            className="h-full rounded-full bg-violet-600 transition-all"
+            className="h-full rounded-full bg-violet-600 transition-all duration-300"
             style={{ width: `${analysis.qualityScore}%` }}
           />
         </div>
@@ -115,11 +139,15 @@ export default function ContractAssistantPanel({ content = '', onInsertTag }) {
               return (
                 <section key={category.key} className="rounded-[22px] border border-[#e2e8f0] bg-[#f8fafc] p-3">
                   <div className="text-[13px] font-black text-[#0f172a]">{category.label}</div>
-                  <p className="mt-1 text-[11px] font-semibold leading-5 text-[#64748b]">{category.description}</p>
+
+                  <p className="mt-1 text-[11px] font-semibold leading-5 text-[#64748b]">
+                    {category.description}
+                  </p>
 
                   <div className="mt-3 space-y-2">
                     {tags.map((tag) => {
                       const isPresent = analysis.foundTags.includes(tag.key);
+
                       return (
                         <button
                           key={tag.key}
@@ -129,14 +157,23 @@ export default function ContractAssistantPanel({ content = '', onInsertTag }) {
                         >
                           <div className="flex items-start justify-between gap-3">
                             <div>
-                              <div className="text-[12px] font-black text-[#0f172a]">{tag.label}</div>
-                              <div className="mt-1 font-mono text-[11px] font-black text-violet-700">{tag.tag}</div>
+                              <div className="text-[12px] font-black text-[#0f172a]">
+                                {tag.label}
+                              </div>
+
+                              <div className="mt-1 font-mono text-[11px] font-black text-violet-700">
+                                {tag.tag}
+                              </div>
                             </div>
+
                             <span className={`rounded-full px-2 py-1 text-[10px] font-black ${isPresent ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
                               {isPresent ? 'usada' : copiedTag === tag.key ? 'copiada' : 'inserir'}
                             </span>
                           </div>
-                          <p className="mt-2 text-[11px] font-semibold leading-5 text-[#64748b]">{tag.description}</p>
+
+                          <p className="mt-2 text-[11px] font-semibold leading-5 text-[#64748b]">
+                            {tag.description}
+                          </p>
                         </button>
                       );
                     })}
@@ -162,8 +199,13 @@ export default function ContractAssistantPanel({ content = '', onInsertTag }) {
                     onClick={() => handleTagClick(tag)}
                     className="w-full rounded-[18px] border border-amber-200 bg-amber-50 px-4 py-3 text-left"
                   >
-                    <div className="text-[13px] font-black text-amber-800">Falta: {tag.label}</div>
-                    <div className="mt-1 font-mono text-[11px] font-black text-amber-700">{tag.tag}</div>
+                    <div className="text-[13px] font-black text-amber-800">
+                      Falta: {tag.label}
+                    </div>
+
+                    <div className="mt-1 font-mono text-[11px] font-black text-amber-700">
+                      {tag.tag}
+                    </div>
                   </button>
                 ))}
               </div>
@@ -171,7 +213,10 @@ export default function ContractAssistantPanel({ content = '', onInsertTag }) {
 
             {analysis.duplicatedTags.length > 0 ? (
               <div className="rounded-[22px] border border-violet-200 bg-violet-50 px-4 py-4">
-                <div className="text-[13px] font-black text-violet-800">Tags repetidas</div>
+                <div className="text-[13px] font-black text-violet-800">
+                  Tags repetidas
+                </div>
+
                 <p className="mt-1 text-[12px] font-semibold leading-5 text-violet-700">
                   Revise se estas tags precisam aparecer mais de uma vez.
                 </p>
@@ -182,7 +227,10 @@ export default function ContractAssistantPanel({ content = '', onInsertTag }) {
 
         {activeTab === 'preview' ? (
           <div className="rounded-[22px] border border-[#e2e8f0] bg-[#f8fafc] p-4">
-            <div className="text-[12px] font-black uppercase tracking-[0.12em] text-violet-700">Preview com dados fictícios</div>
+            <div className="text-[12px] font-black uppercase tracking-[0.12em] text-violet-700">
+              Preview com dados fictícios
+            </div>
+
             <pre className="mt-3 max-h-[420px] whitespace-pre-wrap text-[12px] font-semibold leading-6 text-[#334155]">
               {preview || 'Escreva o texto do contrato e use tags para visualizar o contrato preenchido aqui.'}
             </pre>
@@ -201,7 +249,10 @@ export default function ContractAssistantPanel({ content = '', onInsertTag }) {
                 <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-violet-600 text-[12px] font-black text-white">
                   {index + 1}
                 </div>
-                <p className="text-[13px] font-semibold leading-6 text-[#475569]">{item}</p>
+
+                <p className="text-[13px] font-semibold leading-6 text-[#475569]">
+                  {item}
+                </p>
               </div>
             ))}
           </div>

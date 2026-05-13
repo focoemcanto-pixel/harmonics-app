@@ -1,6 +1,7 @@
 'use client';
 
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
+import { useContractEditor } from '@/contexts/ContractEditorContext';
 
 const EDITOR_ACTIONS = [
   { label: 'Título', command: 'formatBlock', value: 'h2' },
@@ -17,7 +18,7 @@ function escapeHtml(value) {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
+    .replace(/\"/g, '&quot;')
     .replace(/'/g, '&#39;');
 }
 
@@ -45,6 +46,8 @@ const RichContractEditor = forwardRef(function RichContractEditor(
 ) {
   const editorRef = useRef(null);
   const latestHtmlRef = useRef(String(initialHtml || ''));
+  const contractEditor = useContractEditor();
+  const consumedTagRef = useRef('');
 
   useEffect(() => {
     if (!canHydrate) return;
@@ -53,12 +56,14 @@ const RichContractEditor = forwardRef(function RichContractEditor(
     if (editorRef.current) {
       editorRef.current.innerHTML = nextHtml;
     }
+    contractEditor?.setHtml?.(nextHtml);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editSessionId, sessionKey, canHydrate]);
 
   function commitHtml(nextHtml) {
     const normalized = String(nextHtml || '');
     latestHtmlRef.current = normalized;
+    contractEditor?.setHtml?.(normalized);
     onChangeHtml?.(normalized);
   }
 
@@ -66,6 +71,25 @@ const RichContractEditor = forwardRef(function RichContractEditor(
     const nextHtml = editorRef.current?.innerHTML || '';
     commitHtml(nextHtml);
   }
+
+  function insertHtmlAtCursor(html) {
+    if (readOnly || !editorRef.current) return;
+    editorRef.current.focus();
+    document.execCommand('insertHTML', false, html);
+    commitHtml(editorRef.current.innerHTML || '');
+  }
+
+  function insertTextAtCursor(text) {
+    insertHtmlAtCursor(escapeHtml(text));
+  }
+
+  useEffect(() => {
+    const tag = String(contractEditor?.lastInsertedTag || '').trim();
+    if (!tag || consumedTagRef.current === tag) return;
+    consumedTagRef.current = tag;
+    insertTextAtCursor(tag);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contractEditor?.lastInsertedTag]);
 
   function runEditorCommand(command, value) {
     if (readOnly || !editorRef.current) return;
@@ -96,6 +120,7 @@ const RichContractEditor = forwardRef(function RichContractEditor(
     flush: () => {
       const html = String(editorRef.current?.innerHTML || '');
       latestHtmlRef.current = html;
+      contractEditor?.setHtml?.(html);
       onChangeHtml?.(html);
       return html;
     },
@@ -104,15 +129,19 @@ const RichContractEditor = forwardRef(function RichContractEditor(
       const normalized = String(nextHtml || '');
       latestHtmlRef.current = normalized;
       if (editorRef.current) editorRef.current.innerHTML = normalized;
+      contractEditor?.setHtml?.(normalized);
       onChangeHtml?.(normalized);
+    },
+    insertTag: (tag) => {
+      insertTextAtCursor(String(tag || ''));
     },
     focus: () => {
       editorRef.current?.focus();
     },
-  }), [onChangeHtml]);
+  }), [contractEditor, onChangeHtml]);
 
   return (
-    <div className="block">
+    <div className="block" data-contract-editor-shell="true">
       <p className="mb-2 text-xs font-medium text-[#64748b]">Cole aqui o contrato base mantendo negrito, títulos e estrutura visual.</p>
       <p className="mb-2 text-xs font-medium text-[#64748b]">Texto do contrato = sua versão rica/editável.</p>
       <div className="mb-2 flex flex-wrap gap-2">
@@ -130,6 +159,7 @@ const RichContractEditor = forwardRef(function RichContractEditor(
       </div>
       <div
         ref={editorRef}
+        data-contract-rich-editor="true"
         contentEditable={!readOnly}
         suppressContentEditableWarning
         onInput={handleInput}

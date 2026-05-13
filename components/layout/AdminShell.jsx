@@ -7,6 +7,7 @@ import AdminMobileTopbar from '../admin/AdminMobileTopbar';
 import AdminBottomNav from '../admin/AdminBottomNav';
 import DashboardOnboardingBanner from '@/components/onboarding/DashboardOnboardingBanner';
 import OnboardingTourOverlay from '@/components/onboarding/OnboardingTourOverlay';
+import OperationalRouteOnboarding from '@/components/onboarding/OperationalRouteOnboarding';
 import { useAuth } from '@/contexts/AuthContext';
 import { redirectToLogin } from '@/lib/auth/logoutRedirect';
 import useWorkspaceMe from '@/hooks/useWorkspaceMe';
@@ -29,6 +30,7 @@ const MORE_ITEMS = [
 ];
 
 const MOBILE_NAV_ALLOWED_ITEMS = new Set(['dashboard', 'eventos', 'contatos', 'contratos', 'mais']);
+const ONBOARDING_ROUTE_PREFIXES = ['/dashboard', '/eventos', '/pre-contratos', '/contratos/templates'];
 
 function getInitials(name) {
   if (!name) return '?';
@@ -148,6 +150,7 @@ export default function AdminShell({ pageTitle, children, mobileActions, activeI
 
   const visibleMoreItems = useMemo(() => MORE_ITEMS.filter((item) => allowedModules.has(item.module)), [allowedModules]);
   const mobileActiveItem = MOBILE_NAV_ALLOWED_ITEMS.has(activeItem) ? activeItem : 'mais';
+  const isOnboardingRoute = ONBOARDING_ROUTE_PREFIXES.some((prefix) => pathname === prefix || pathname?.startsWith(`${prefix}/`));
 
   useEffect(() => {
     if (initialized && !loading && !user && pathname !== '/login') {
@@ -178,20 +181,23 @@ export default function AdminShell({ pageTitle, children, mobileActions, activeI
       }
     }
 
-    if (pathname === '/dashboard') {
+    if (isOnboardingRoute) {
       loadTourEligibility();
+    } else {
+      setShowTour(false);
     }
 
     return () => {
       active = false;
     };
-  }, [pathname, supabase]);
+  }, [isOnboardingRoute, pathname, supabase]);
 
   if (initialized && !loading && !user) {
     return null;
   }
 
   const showDashboardOnboarding = pathname === '/dashboard';
+  const showOperationalRouteOnboarding = showTour && pathname !== '/dashboard';
 
   return (
     <div className="min-h-screen bg-[#f4f6fa] text-[#111827]">
@@ -203,6 +209,7 @@ export default function AdminShell({ pageTitle, children, mobileActions, activeI
         <main className="min-h-screen flex-1">
           <div className="mx-auto w-full max-w-[1440px] px-6 py-6">
             {showDashboardOnboarding ? <div className="mb-5"><DashboardOnboardingBanner /></div> : null}
+            {showOperationalRouteOnboarding ? <OperationalRouteOnboarding enabled /> : null}
             {children}
           </div>
         </main>
@@ -213,6 +220,7 @@ export default function AdminShell({ pageTitle, children, mobileActions, activeI
 
         <main className="px-4 pb-28 pt-4">
           {showDashboardOnboarding ? <div className="mb-4"><DashboardOnboardingBanner /></div> : null}
+          {showOperationalRouteOnboarding ? <OperationalRouteOnboarding enabled /> : null}
           {children}
         </main>
 

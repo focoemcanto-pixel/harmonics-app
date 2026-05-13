@@ -5,6 +5,13 @@ export const dynamic = 'force-dynamic';
 
 const SETTINGS_CARDS = [
   {
+    title: 'Conta',
+    href: '/settings/account',
+    icon: '👤',
+    description: 'Perfil do usuário, redefinição de senha, sessão ativa e preferências pessoais.',
+    status: 'Disponível',
+  },
+  {
     title: 'Workspace',
     href: '/settings/workspace',
     icon: '🏢',
@@ -104,7 +111,7 @@ export default function SettingsOverviewPage() {
             Configurações
           </h1>
           <p className="mt-3 max-w-3xl text-[15px] font-semibold leading-7 text-[#64748b]">
-            Gerencie os ajustes gerais do workspace: identidade, equipe, assinatura, segurança, integrações e recursos avançados. A exclusão do workspace fica protegida dentro da área Workspace, na zona de perigo.
+            Gerencie os ajustes gerais do workspace: identidade, equipe, conta, assinatura, segurança, integrações e recursos avançados. A exclusão do workspace fica protegida dentro da área Workspace, na zona de perigo.
           </p>
         </section>
 

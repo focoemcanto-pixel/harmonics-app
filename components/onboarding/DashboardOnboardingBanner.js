@@ -122,7 +122,7 @@ export default function DashboardOnboardingBanner() {
           </div>
 
           <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-            <Link href={nextStep?.href || '/settings/onboarding'} className="rounded-2xl bg-violet-600 px-4 py-3 text-center text-[13px] font-black text-white hover:bg-violet-500">
+            <Link data-onboarding-tour="onboarding-link" href={nextStep?.href || '/settings/onboarding'} className="rounded-2xl bg-violet-600 px-4 py-3 text-center text-[13px] font-black text-white hover:bg-violet-500">
               Continuar
             </Link>
             <button type="button" onClick={skipOnboarding} disabled={skipping} className="rounded-2xl border border-violet-200 bg-white px-4 py-3 text-center text-[13px] font-black text-violet-700 hover:bg-violet-50 disabled:opacity-60">

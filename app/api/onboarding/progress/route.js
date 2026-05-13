@@ -36,6 +36,122 @@ async function ensureProgressRow({ supabase, workspaceId }) {
   return inserted;
 }
 
+function hasCount(response) {
+  return Number(response?.count || 0) > 0;
+}
+
+async function safeCount(queryPromise) {
+  try {
+    return await queryPromise;
+  } catch (error) {
+    console.warn('[ONBOARDING_PROGRESS][SAFE_COUNT_ERROR]', error?.message || error);
+    return { count: 0, error };
+  }
+}
+
+async function detectWorkspaceProgress({ supabase, workspaceId }) {
+  const [
+    workspaceResp,
+    templatesResp,
+    eventTypesResp,
+    precontractsResp,
+    signedContractsResp,
+    eventsResp,
+    channelsResp,
+    membersResp,
+  ] = await Promise.all([
+    safeCount(
+      supabase
+        .from('workspaces')
+        .select('id', { count: 'exact', head: true })
+        .eq('id', workspaceId)
+    ),
+    safeCount(
+      supabase
+        .from('contract_templates')
+        .select('id', { count: 'exact', head: true })
+        .eq('workspace_id', workspaceId)
+    ),
+    safeCount(
+      supabase
+        .from('event_types')
+        .select('id', { count: 'exact', head: true })
+        .eq('workspace_id', workspaceId)
+    ),
+    safeCount(
+      supabase
+        .from('precontracts')
+        .select('id', { count: 'exact', head: true })
+        .eq('workspace_id', workspaceId)
+    ),
+    safeCount(
+      supabase
+        .from('contracts')
+        .select('id', { count: 'exact', head: true })
+        .eq('workspace_id', workspaceId)
+        .in('status', ['signed', 'assinado', 'ASSINADO'])
+    ),
+    safeCount(
+      supabase
+        .from('events')
+        .select('id', { count: 'exact', head: true })
+        .eq('workspace_id', workspaceId)
+    ),
+    safeCount(
+      supabase
+        .from('whatsapp_channels')
+        .select('id', { count: 'exact', head: true })
+        .eq('workspace_id', workspaceId)
+    ),
+    safeCount(
+      supabase
+        .from('workspace_members')
+        .select('id', { count: 'exact', head: true })
+        .eq('workspace_id', workspaceId)
+    ),
+  ]);
+
+  return {
+    workspace_configured: hasCount(workspaceResp),
+    template_created: hasCount(templatesResp),
+    event_type_created: hasCount(eventTypesResp),
+    precontract_created: hasCount(precontractsResp),
+    contract_signed_test: hasCount(signedContractsResp),
+    first_event_created: hasCount(eventsResp),
+    automation_configured: hasCount(channelsResp),
+    team_configured: Number(membersResp?.count || 0) > 1,
+  };
+}
+
+async function syncDetectedProgress({ supabase, workspaceId, progress }) {
+  const detected = await detectWorkspaceProgress({ supabase, workspaceId });
+  const updatePayload = { updated_at: new Date().toISOString() };
+  let changed = false;
+
+  for (const [key, value] of Object.entries(detected)) {
+    if (value === true && progress?.[key] !== true) {
+      updatePayload[key] = true;
+      changed = true;
+    }
+  }
+
+  if (!changed) return progress;
+
+  const mergedForSummary = { ...progress, ...updatePayload };
+  const summary = calculateOnboardingProgress(mergedForSummary);
+  updatePayload.completed_at = summary.completed === summary.total ? new Date().toISOString() : progress.completed_at || null;
+
+  const { data: updated, error } = await supabase
+    .from('workspace_onboarding_progress')
+    .update(updatePayload)
+    .eq('workspace_id', workspaceId)
+    .select('*')
+    .single();
+
+  if (error) throw error;
+  return updated;
+}
+
 export async function GET(request) {
   const supabase = getSupabaseAdmin();
 
@@ -45,7 +161,8 @@ export async function GET(request) {
       return NextResponse.json({ ok: false, error: auth.error }, { status: auth.status || 401 });
     }
 
-    const progress = await ensureProgressRow({ supabase, workspaceId: auth.workspaceId });
+    const row = await ensureProgressRow({ supabase, workspaceId: auth.workspaceId });
+    const progress = await syncDetectedProgress({ supabase, workspaceId: auth.workspaceId, progress: row });
 
     return NextResponse.json({
       ok: true,

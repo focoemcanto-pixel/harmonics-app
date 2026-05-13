@@ -23,6 +23,7 @@ const ITEMS = [
 
 const SETTINGS_ITEMS = [
   ['Visão geral', '/settings'],
+  ['Onboarding', '/settings/onboarding'],
   ['Primeiros passos', '/getting-started'],
   ['Workspace', '/settings/workspace'],
   ['Equipe', '/configuracoes/equipe'],

@@ -29,25 +29,29 @@ const SETTINGS_CARDS = [
     title: 'Assinatura',
     href: '/settings/billing',
     icon: '💳',
-    description: 'Plano atual, upgrade, downgrade, cobrança e status de pagamento.',
-    status: 'Em breve',
-    disabled: true,
+    description: 'Plano atual, estrutura de upgrade, downgrade, cobrança e status de pagamento.',
+    status: 'Base pronta',
   },
   {
     title: 'Segurança',
     href: '/settings/security',
     icon: '🔐',
-    description: 'Sessões, auditoria, proteção de conta e configurações sensíveis.',
-    status: 'Em breve',
-    disabled: true,
+    description: 'Sessões, auditoria, proteção de conta, governança e hardening multi-tenant.',
+    status: 'Base pronta',
   },
   {
     title: 'Integrações',
     href: '/settings/integrations',
     icon: '🔌',
     description: 'WhatsApp, provedores de envio, automações externas e canais conectados.',
-    status: 'Em breve',
-    disabled: true,
+    status: 'Base pronta',
+  },
+  {
+    title: 'Primeiros passos',
+    href: '/getting-started',
+    icon: '🚀',
+    description: 'Checklist guiado para configurar evento, equipe, contratos, automações e repertórios.',
+    status: 'Disponível',
   },
   {
     title: 'White-label',
@@ -85,7 +89,7 @@ function SettingsCard({ item }) {
       </p>
 
       <div className="mt-6 text-[13px] font-black text-violet-700">
-        {item.disabled ? 'Ainda não configurado' : 'Abrir configurações →'}
+        {item.disabled ? 'Ainda não liberado' : 'Abrir configurações →'}
       </div>
     </div>
   );
@@ -111,7 +115,7 @@ export default function SettingsOverviewPage() {
             Configurações
           </h1>
           <p className="mt-3 max-w-3xl text-[15px] font-semibold leading-7 text-[#64748b]">
-            Gerencie os ajustes gerais do workspace: identidade, equipe, conta, assinatura, segurança, integrações e recursos avançados. A exclusão do workspace fica protegida dentro da área Workspace, na zona de perigo.
+            Gerencie os ajustes gerais do workspace: identidade, equipe, conta, assinatura, segurança, integrações, onboarding e recursos avançados. A exclusão do workspace fica protegida dentro da área Workspace, na zona de perigo.
           </p>
         </section>
 

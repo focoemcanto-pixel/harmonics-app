@@ -5,6 +5,13 @@ import { ONBOARDING_STEPS, calculateOnboardingProgress } from '@/lib/onboarding/
 
 const STEP_KEYS = new Set(ONBOARDING_STEPS.map((step) => step.key));
 
+const LEGACY_WORKSPACE_KEYS = new Set(
+  String(process.env.HARMONICS_LEGACY_WORKSPACE_SLUGS || 'harmonics,harmonics-producao,default')
+    .split(',')
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean)
+);
+
 const DEFAULT_PROGRESS = {
   workspace_configured: false,
   template_created: false,
@@ -15,6 +22,10 @@ const DEFAULT_PROGRESS = {
   automation_configured: false,
   team_configured: false,
 };
+
+const ALL_DONE_PROGRESS = Object.fromEntries(
+  Object.keys(DEFAULT_PROGRESS).map((key) => [key, true])
+);
 
 async function ensureProgressRow({ supabase, workspaceId }) {
   const { data: existing, error: existingError } = await supabase
@@ -47,6 +58,29 @@ async function safeCount(queryPromise) {
     console.warn('[ONBOARDING_PROGRESS][SAFE_COUNT_ERROR]', error?.message || error);
     return { count: 0, error };
   }
+}
+
+async function getWorkspaceInfo({ supabase, workspaceId }) {
+  const { data, error } = await supabase
+    .from('workspaces')
+    .select('id, slug, key, name')
+    .eq('id', workspaceId)
+    .maybeSingle();
+
+  if (error) {
+    console.warn('[ONBOARDING_PROGRESS][WORKSPACE_INFO_ERROR]', error?.message || error);
+    return { id: workspaceId };
+  }
+
+  return data || { id: workspaceId };
+}
+
+function isLegacyWorkspace(workspace) {
+  const keys = [workspace?.slug, workspace?.key, workspace?.name]
+    .map((item) => String(item || '').trim().toLowerCase())
+    .filter(Boolean);
+
+  return keys.some((key) => LEGACY_WORKSPACE_KEYS.has(key));
 }
 
 async function detectWorkspaceProgress({ supabase, workspaceId }) {
@@ -124,6 +158,8 @@ async function detectWorkspaceProgress({ supabase, workspaceId }) {
 }
 
 async function syncDetectedProgress({ supabase, workspaceId, progress }) {
+  if (progress?.completed_at) return progress;
+
   const detected = await detectWorkspaceProgress({ supabase, workspaceId });
   const updatePayload = { updated_at: new Date().toISOString() };
   let changed = false;
@@ -139,7 +175,9 @@ async function syncDetectedProgress({ supabase, workspaceId, progress }) {
 
   const mergedForSummary = { ...progress, ...updatePayload };
   const summary = calculateOnboardingProgress(mergedForSummary);
-  updatePayload.completed_at = summary.completed === summary.total ? new Date().toISOString() : progress.completed_at || null;
+  updatePayload.completed_at = summary.completed === summary.total
+    ? new Date().toISOString()
+    : progress.completed_at || null;
 
   const { data: updated, error } = await supabase
     .from('workspace_onboarding_progress')
@@ -156,19 +194,59 @@ export async function GET(request) {
   const supabase = getSupabaseAdmin();
 
   try {
-    const auth = await requireWorkspaceAccess({ supabase, request, logPrefix: '[ONBOARDING_PROGRESS][GET]' });
+    const auth = await requireWorkspaceAccess({
+      supabase,
+      request,
+      logPrefix: '[ONBOARDING_PROGRESS][GET]',
+    });
+
     if (!auth.ok) {
-      return NextResponse.json({ ok: false, error: auth.error }, { status: auth.status || 401 });
+      return NextResponse.json(
+        { ok: false, error: auth.error },
+        { status: auth.status || 401 }
+      );
     }
 
-    const row = await ensureProgressRow({ supabase, workspaceId: auth.workspaceId });
-    const progress = await syncDetectedProgress({ supabase, workspaceId: auth.workspaceId, progress: row });
+    const workspace = await getWorkspaceInfo({
+      supabase,
+      workspaceId: auth.workspaceId,
+    });
+
+    const row = await ensureProgressRow({
+      supabase,
+      workspaceId: auth.workspaceId,
+    });
+
+    let progress = await syncDetectedProgress({
+      supabase,
+      workspaceId: auth.workspaceId,
+      progress: row,
+    });
+
+    if (isLegacyWorkspace(workspace) && !progress.completed_at) {
+      const { data: hiddenProgress, error } = await supabase
+        .from('workspace_onboarding_progress')
+        .update({
+          ...ALL_DONE_PROGRESS,
+          completed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('workspace_id', auth.workspaceId)
+        .select('*')
+        .single();
+
+      if (error) throw error;
+      progress = hiddenProgress;
+    }
+
+    const summary = calculateOnboardingProgress(progress);
 
     return NextResponse.json({
       ok: true,
       workspaceId: auth.workspaceId,
+      showOnboarding: summary.percentage < 100,
       progress,
-      summary: calculateOnboardingProgress(progress),
+      summary,
       steps: ONBOARDING_STEPS,
     });
   } catch (error) {
@@ -179,7 +257,10 @@ export async function GET(request) {
     });
 
     return NextResponse.json(
-      { ok: false, error: error?.message || 'Erro ao carregar progresso do onboarding.' },
+      {
+        ok: false,
+        error: error?.message || 'Erro ao carregar progresso do onboarding.',
+      },
       { status: 500 }
     );
   }
@@ -189,20 +270,62 @@ export async function PATCH(request) {
   const supabase = getSupabaseAdmin();
 
   try {
-    const auth = await requireWorkspaceAdmin({ supabase, request, logPrefix: '[ONBOARDING_PROGRESS][PATCH]' });
+    const auth = await requireWorkspaceAdmin({
+      supabase,
+      request,
+      logPrefix: '[ONBOARDING_PROGRESS][PATCH]',
+    });
+
     if (!auth.ok) {
-      return NextResponse.json({ ok: false, error: auth.error }, { status: auth.status || 401 });
+      return NextResponse.json(
+        { ok: false, error: auth.error },
+        { status: auth.status || 401 }
+      );
     }
 
     const body = await request.json().catch(() => ({}));
+
+    if (body?.skipOnboarding === true) {
+      await ensureProgressRow({
+        supabase,
+        workspaceId: auth.workspaceId,
+      });
+
+      const { data: skipped, error: skipError } = await supabase
+        .from('workspace_onboarding_progress')
+        .update({
+          ...ALL_DONE_PROGRESS,
+          completed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('workspace_id', auth.workspaceId)
+        .select('*')
+        .single();
+
+      if (skipError) throw skipError;
+
+      return NextResponse.json({
+        ok: true,
+        skipped: true,
+        progress: skipped,
+        summary: calculateOnboardingProgress(skipped),
+      });
+    }
+
     const stepKey = String(body?.stepKey || '').trim();
     const completed = body?.completed !== false;
 
     if (!STEP_KEYS.has(stepKey)) {
-      return NextResponse.json({ ok: false, error: 'Etapa de onboarding inválida.' }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: 'Etapa de onboarding inválida.' },
+        { status: 400 }
+      );
     }
 
-    await ensureProgressRow({ supabase, workspaceId: auth.workspaceId });
+    await ensureProgressRow({
+      supabase,
+      workspaceId: auth.workspaceId,
+    });
 
     const updatePayload = {
       [stepKey]: completed,
@@ -222,13 +345,18 @@ export async function PATCH(request) {
 
     const finalPayload = {
       ...updated,
-      completed_at: summary.completed === summary.total ? new Date().toISOString() : null,
+      completed_at: summary.completed === summary.total
+        ? new Date().toISOString()
+        : null,
     };
 
     if (finalPayload.completed_at !== updated.completed_at) {
       const { data: finalUpdated, error: finalError } = await supabase
         .from('workspace_onboarding_progress')
-        .update({ completed_at: finalPayload.completed_at, updated_at: new Date().toISOString() })
+        .update({
+          completed_at: finalPayload.completed_at,
+          updated_at: new Date().toISOString(),
+        })
         .eq('workspace_id', auth.workspaceId)
         .select('*')
         .single();
@@ -255,7 +383,10 @@ export async function PATCH(request) {
     });
 
     return NextResponse.json(
-      { ok: false, error: error?.message || 'Erro ao atualizar progresso do onboarding.' },
+      {
+        ok: false,
+        error: error?.message || 'Erro ao atualizar progresso do onboarding.',
+      },
       { status: 500 }
     );
   }

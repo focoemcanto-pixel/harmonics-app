@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import useWorkspaceMe from '@/hooks/useWorkspaceMe';
+import useCurrentWorkspace from '@/hooks/useCurrentWorkspace';
 
 function navClass(active) {
   return active
@@ -55,6 +56,7 @@ export default function AdminSidebar({ activeItem = 'eventos' }) {
   const { signOut, profile } = useAuth();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const { workspaceMe, loading: permissionsLoading, modules, role } = useWorkspaceMe();
+  const { workspace: currentWorkspace } = useCurrentWorkspace();
   const automationOpen = pathname?.startsWith('/automacoes');
   const contractsOpen = pathname?.startsWith('/contratos');
   const eventsOpen = pathname?.startsWith('/eventos');
@@ -70,6 +72,10 @@ export default function AdminSidebar({ activeItem = 'eventos' }) {
     () => ALL_ITEMS.filter((item) => allowedModules.has(item.module)),
     [allowedModules]
   );
+
+  const brandingName = currentWorkspace?.displayName || 'Workspace';
+  const brandingInitials = currentWorkspace?.initials || 'W';
+  const brandingColor = currentWorkspace?.primaryColor || '#7c3aed';
 
   const automationItems = [
     { label: 'Regras', href: '/automacoes/regras' },
@@ -102,12 +108,22 @@ export default function AdminSidebar({ activeItem = 'eventos' }) {
   return (
     <aside className="sticky top-0 flex min-h-screen w-[280px] shrink-0 flex-col bg-[#020b2c] px-5 py-6 text-white">
       <div className="flex items-center gap-3 px-2">
-        <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-black/90 shadow-[0_4px_20px_rgba(0,0,0,0.45),inset_0_1px_1px_rgba(255,255,255,0.08)]">
-          <span className="text-lg font-semibold tracking-tight text-white">H</span>
+        <div
+          className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-black/90 shadow-[0_4px_20px_rgba(0,0,0,0.45),inset_0_1px_1px_rgba(255,255,255,0.08)]"
+          style={{ borderColor: `${brandingColor}55` }}
+        >
+          <span className="text-lg font-semibold tracking-tight text-white">
+            {brandingInitials}
+          </span>
         </div>
-        <div>
-          <div className="text-[15px] font-black">Harmonics</div>
-          <div className="text-[12px] text-[#a5b4fc]">Admin</div>
+
+        <div className="min-w-0">
+          <div className="truncate text-[15px] font-black text-white">
+            {brandingName}
+          </div>
+          <div className="text-[12px] text-[#a5b4fc]">
+            Workspace Admin
+          </div>
         </div>
       </div>
 
@@ -191,8 +207,10 @@ export default function AdminSidebar({ activeItem = 'eventos' }) {
         </button>
 
         <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4">
-          <div className="text-[12px] font-extrabold uppercase tracking-[0.08em] text-[#a5b4fc]">Harmonics SaaS</div>
-          <div className="mt-2 text-[14px] font-bold text-white">Painel administrativo híbrido</div>
+          <div className="text-[12px] font-extrabold uppercase tracking-[0.08em] text-[#a5b4fc]">Workspace atual</div>
+          <div className="mt-2 truncate text-[14px] font-bold text-white">
+            {brandingName}
+          </div>
         </div>
       </div>
     </aside>

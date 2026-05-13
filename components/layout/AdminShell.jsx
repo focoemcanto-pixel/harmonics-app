@@ -10,6 +10,7 @@ import OnboardingTourOverlay from '@/components/onboarding/OnboardingTourOverlay
 import OperationalRouteOnboarding from '@/components/onboarding/OperationalRouteOnboarding';
 import WorkspaceActivityTimeline from '@/components/workspace/WorkspaceActivityTimeline';
 import WorkspaceInsightCard from '@/components/workspace/WorkspaceInsightCard';
+import WorkspaceRecommendationsFeed from '@/components/workspace/WorkspaceRecommendationsFeed';
 import { useAuth } from '@/contexts/AuthContext';
 import { redirectToLogin } from '@/lib/auth/logoutRedirect';
 import useWorkspaceMe from '@/hooks/useWorkspaceMe';
@@ -212,6 +213,7 @@ export default function AdminShell({ pageTitle, children, mobileActions, activeI
           <div className="mx-auto w-full max-w-[1440px] px-6 py-6">
             {showDashboardOnboarding ? <div className="mb-5"><DashboardOnboardingBanner /></div> : null}
             {showDashboardOnboarding ? <div className="mb-5"><WorkspaceInsightCard /></div> : null}
+            {showDashboardOnboarding ? <div className="mb-5"><WorkspaceRecommendationsFeed /></div> : null}
             {showDashboardOnboarding ? <div className="mb-5"><WorkspaceActivityTimeline limit={6} compact /></div> : null}
             {showOperationalRouteOnboarding ? <OperationalRouteOnboarding enabled /> : null}
             {children}
@@ -225,6 +227,7 @@ export default function AdminShell({ pageTitle, children, mobileActions, activeI
         <main className="px-4 pb-28 pt-4">
           {showDashboardOnboarding ? <div className="mb-4"><DashboardOnboardingBanner /></div> : null}
           {showDashboardOnboarding ? <div className="mb-4"><WorkspaceInsightCard /></div> : null}
+          {showDashboardOnboarding ? <div className="mb-4"><WorkspaceRecommendationsFeed limit={2} /></div> : null}
           {showDashboardOnboarding ? <div className="mb-4"><WorkspaceActivityTimeline limit={4} compact /></div> : null}
           {showOperationalRouteOnboarding ? <OperationalRouteOnboarding enabled /> : null}
           {children}

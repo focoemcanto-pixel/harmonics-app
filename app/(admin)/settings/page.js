@@ -54,13 +54,6 @@ const SETTINGS_CARDS = [
     status: 'Base pronta',
   },
   {
-    title: 'Primeiros passos',
-    href: '/getting-started',
-    icon: '🚀',
-    description: 'Roteiro visual para configurar evento, equipe, contratos, automações e repertórios.',
-    status: 'Disponível',
-  },
-  {
     title: 'White-label',
     href: '/settings/white-label',
     icon: '✨',

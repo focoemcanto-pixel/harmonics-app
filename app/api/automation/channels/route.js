@@ -3,6 +3,8 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { getCurrentAutomationWorkspaceSettings } from '@/lib/automation/get-workspace';
 import { validateChannelConfig } from '@/lib/whatsapp/channel-config';
 import { requireAdmin } from '@/lib/api/require-admin';
+import { emitWorkspaceEvent } from '@/lib/workspace-events/emitWorkspaceEvent';
+import { WORKSPACE_EVENT_TYPES } from '@/lib/workspace-events/eventTypes';
 
 const SAVE_CHANNELS_AUDIT_VERSION = '2026-04-12-audit-v2';
 
@@ -179,6 +181,16 @@ export async function POST(request) {
       .single();
 
     if (error) throw error;
+
+    await emitWorkspaceEvent({
+      supabase: supabaseAdmin,
+      workspaceId,
+      type: WORKSPACE_EVENT_TYPES.AUTOMATION_CHANNEL_CONNECTED,
+      metadata: {
+        channelId: data?.id,
+        provider: insertPayload.provider,
+      },
+    });
 
     return NextResponse.json({ ok: true, channel: data }, { status: 201 });
   } catch (error) {

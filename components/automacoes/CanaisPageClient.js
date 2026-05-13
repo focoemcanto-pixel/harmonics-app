@@ -7,6 +7,7 @@ import { cachedPromise, invalidateCache, readCachedValue } from '@/lib/client/li
 import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
 import { useAppToast } from '@/components/ui/ToastProvider';
 import AppModal from '@/components/ui/AppModal';
+import { WHATSAPP_PROVIDER_REGISTRY, getWhatsappProvider } from '@/lib/automation/provider-registry';
 
 const FORM_INICIAL = {
   name: '',
@@ -19,8 +20,60 @@ const FORM_INICIAL = {
   is_default: false,
 };
 
-const PROVIDERS = [{ value: 'wasender', label: 'WaSender' }];
 const CHANNELS_CACHE_KEY = 'automation:channels';
+
+const PROVIDER_DEFAULTS = {
+  wasender: {
+    api_url: 'https://wasenderapi.com/api/send-message',
+    instance_id_label: 'Instance ID',
+    api_key_label: 'API Key',
+    api_url_label: 'API URL',
+  },
+  evolution: {
+    api_url: '',
+    instance_id_label: 'Nome da instância',
+    api_key_label: 'API Key / Token',
+    api_url_label: 'Base URL da Evolution',
+  },
+  zapi: {
+    api_url: '',
+    instance_id_label: 'Instance ID',
+    api_key_label: 'Token',
+    api_url_label: 'URL da instância Z-API',
+  },
+  meta_cloud: {
+    api_url: 'https://graph.facebook.com/v20.0',
+    instance_id_label: 'Phone Number ID',
+    api_key_label: 'Access Token',
+    api_url_label: 'Graph API Base URL',
+  },
+  wppconnect: {
+    api_url: '',
+    instance_id_label: 'Session name',
+    api_key_label: 'Secret / Token',
+    api_url_label: 'Base URL do WPPConnect',
+  },
+  twilio: {
+    api_url: 'https://api.twilio.com',
+    instance_id_label: 'From / Sender ID',
+    api_key_label: 'Auth Token',
+    api_url_label: 'Twilio API URL',
+  },
+  ultramsg: {
+    api_url: '',
+    instance_id_label: 'Instance ID',
+    api_key_label: 'Token',
+    api_url_label: 'UltraMsg API URL',
+  },
+};
+
+function getProviderDefaults(provider) {
+  return PROVIDER_DEFAULTS[provider] || PROVIDER_DEFAULTS.wasender;
+}
+
+function getProviderLabel(provider) {
+  return getWhatsappProvider(provider)?.label || provider || 'Provider';
+}
 
 function formatarData(isoString) {
   if (!isoString) return '-';
@@ -64,6 +117,8 @@ export default function CanaisPageClient() {
   const [toastTest, setToastTest] = useState(null);
   const { confirm } = useConfirm() || {};
   const toast = useAppToast();
+
+  const providerDefaults = getProviderDefaults(form.provider);
 
   const carregarCanais = useCallback(async ({ force = false } = {}) => {
     try {
@@ -114,6 +169,15 @@ export default function CanaisPageClient() {
     setModalAberto(true);
   }
 
+  function handleProviderChange(provider) {
+    const defaults = getProviderDefaults(provider);
+    setForm((current) => ({
+      ...current,
+      provider,
+      api_url: current.api_url && current.provider === provider ? current.api_url : defaults.api_url || '',
+    }));
+  }
+
   function fecharModal() {
     setModalAberto(false);
     setEditandoId(null);
@@ -136,7 +200,7 @@ export default function CanaisPageClient() {
       setSalvando(true);
       const url = editandoId ? `/api/automation/channels/${editandoId}` : '/api/automation/channels';
       const method = editandoId ? 'PATCH' : 'POST';
-      const payload = { ...form, provider: 'wasender' };
+      const payload = { ...form };
       if (!payload.api_key) delete payload.api_key;
 
       const response = await fetch(url, {
@@ -170,7 +234,7 @@ export default function CanaisPageClient() {
       const response = await fetch('/api/automation/channels/ping', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, provider: 'wasender' }),
+        body: JSON.stringify({ ...form }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Falha no teste de conexão');
@@ -243,6 +307,9 @@ export default function CanaisPageClient() {
           <div>
             <div className="text-[12px] font-black uppercase tracking-[0.14em] text-violet-600">Canais</div>
             <h1 className="mt-1 text-[28px] font-black tracking-[-0.03em] text-[#0f172a]">Canais WhatsApp</h1>
+            <p className="mt-2 max-w-2xl text-[14px] font-semibold leading-6 text-[#64748b]">
+              Conecte a API WhatsApp do próprio workspace. O Harmonics organiza os disparos, mas cada cliente pode usar seu provedor preferido.
+            </p>
           </div>
           <button type="button" onClick={abrirModalNovo} className="rounded-full bg-violet-600 px-5 py-2.5 text-[14px] font-bold text-white">+ Novo canal</button>
         </div>
@@ -281,7 +348,7 @@ export default function CanaisPageClient() {
                     {canal.is_default && <span className="rounded-full bg-violet-600 px-3 py-1 text-[11px] font-bold text-white">Padrão</span>}
                   </div>
                   <div className="mt-2 text-[13px] text-[#64748b] space-y-0.5">
-                    <div><span className="font-semibold">Provider:</span> {canal.provider}</div>
+                    <div><span className="font-semibold">Provider:</span> {getProviderLabel(canal.provider)}</div>
                     <div><span className="font-semibold">API URL:</span> {canal.api_url || '—'}</div>
                     <div><span className="font-semibold">API Key:</span> {canal.has_api_key ? '•••••••• configurada' : 'não configurada'}</div>
                     <div><span className="font-semibold">Instance ID:</span> {canal.instance_id || '—'}</div>
@@ -291,17 +358,7 @@ export default function CanaisPageClient() {
                 </div>
 
                 <div className="flex shrink-0 flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setCanalParaTestar(canal);
-                      setTelefoneTest('');
-                      setToastTest(null);
-                    }}
-                    className="rounded-full border border-sky-200 bg-sky-50 px-4 py-1.5 text-[13px] font-bold text-sky-700"
-                  >
-                    Testar envio
-                  </button>
+                  <button type="button" onClick={() => { setCanalParaTestar(canal); setTelefoneTest(''); setToastTest(null); }} className="rounded-full border border-sky-200 bg-sky-50 px-4 py-1.5 text-[13px] font-bold text-sky-700">Testar envio</button>
                   {!canal.is_default && <button type="button" onClick={() => definirPadrao(canal.id)} className="rounded-full border border-violet-200 px-4 py-1.5 text-[13px] font-bold text-violet-700">Definir padrão</button>}
                   <button type="button" onClick={() => abrirModalEditar(canal)} className="rounded-full border border-[#e2e8f0] px-4 py-1.5 text-[13px] font-bold text-[#475569]">Editar</button>
                   <button type="button" onClick={() => toggleAtivo(canal.id, canal.is_active)} className="rounded-full border border-gray-200 px-4 py-1.5 text-[13px] font-bold text-gray-600">{canal.is_active ? 'Desativar' : 'Ativar'}</button>
@@ -313,124 +370,55 @@ export default function CanaisPageClient() {
         </section>
       )}
 
-      <AppModal
-        open={modalAberto}
-        onClose={fecharModal}
-        title={editandoId ? 'Editar canal' : 'Novo canal'}
-        maxWidthClass="max-w-lg"
-        footer={(
-          <div className="flex gap-3 justify-end">
-            <button
-              type="button"
-              onClick={fecharModal}
-              className="rounded-full border border-[#e2e8f0] bg-white px-4 py-2 text-[13px] font-bold text-[#475569]"
-            >
-              Cancelar
-            </button>
-            <button
-              type="button"
-              onClick={testarConexao}
-              disabled={testandoConexao}
-              className="rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-[13px] font-bold text-violet-700 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {testandoConexao ? 'Testando...' : 'Salvar'}
-            </button>
-            <button
-              type="button"
-              onClick={salvarCanal}
-              disabled={salvando}
-              className="rounded-full bg-violet-600 px-4 py-2 text-[13px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {salvando ? 'Salvando...' : 'Salvar e enviar'}
-            </button>
+      <AppModal open={modalAberto} onClose={fecharModal} title={editandoId ? 'Editar canal' : 'Novo canal'} maxWidthClass="max-w-2xl" footer={(<div className="flex gap-3 justify-end"><button type="button" onClick={fecharModal} className="rounded-full border border-[#e2e8f0] bg-white px-4 py-2 text-[13px] font-bold text-[#475569]">Cancelar</button><button type="button" onClick={testarConexao} disabled={testandoConexao} className="rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-[13px] font-bold text-violet-700 disabled:cursor-not-allowed disabled:opacity-60">{testandoConexao ? 'Testando...' : 'Testar conexão'}</button><button type="button" onClick={salvarCanal} disabled={salvando} className="rounded-full bg-violet-600 px-4 py-2 text-[13px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-60">{salvando ? 'Salvando...' : 'Salvar canal'}</button></div>)}>
+        <div className="space-y-5">
+          <div>
+            <label className="block text-[13px] font-bold text-[#0f172a]">Nome *</label>
+            <input type="text" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className="mt-1.5 w-full rounded-xl border border-[#e2e8f0] px-4 py-2.5 text-[14px]" />
           </div>
-        )}
-      >
-        <div className="space-y-4">
-              <div>
-                <label className="block text-[13px] font-bold text-[#0f172a]">Nome *</label>
-                <input type="text" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className="mt-1.5 w-full rounded-xl border border-[#e2e8f0] px-4 py-2.5 text-[14px]" />
-              </div>
 
-              <div>
-                <label className="block text-[13px] font-bold text-[#0f172a]">Provider *</label>
-                <select value={form.provider} onChange={(e) => setForm((f) => ({ ...f, provider: e.target.value }))} className="mt-1.5 w-full rounded-xl border border-[#e2e8f0] px-4 py-2.5 text-[14px]">
-                  {PROVIDERS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[13px] font-bold text-[#0f172a]">API URL *</label>
-                <input type="url" value={form.api_url} onChange={(e) => setForm((f) => ({ ...f, api_url: e.target.value }))} className="mt-1.5 w-full rounded-xl border border-[#e2e8f0] px-4 py-2.5 text-[14px]" />
-              </div>
-
-              <div>
-                <label className="block text-[13px] font-bold text-[#0f172a]">API Key {!editandoId && '*'}</label>
-                <input type="password" value={form.api_key} onChange={(e) => setForm((f) => ({ ...f, api_key: e.target.value }))} placeholder={editandoId ? 'Deixe em branco para manter' : ''} className="mt-1.5 w-full rounded-xl border border-[#e2e8f0] px-4 py-2.5 text-[14px]" />
-              </div>
-
-              <div>
-                <label className="block text-[13px] font-bold text-[#0f172a]">WhatsApp do admin para alertas do sistema</label>
-                <input type="tel" value={form.admin_alert_number} onChange={(e) => setForm((f) => ({ ...f, admin_alert_number: e.target.value }))} placeholder="+55 71 99999-9999" className="mt-1.5 w-full rounded-xl border border-[#e2e8f0] px-4 py-2.5 text-[14px]" />
-              </div>
-
-              <div>
-                <label className="block text-[13px] font-bold text-[#0f172a]">Instance ID *</label>
-                <input type="text" value={form.instance_id} onChange={(e) => setForm((f) => ({ ...f, instance_id: e.target.value }))} className="mt-1.5 w-full rounded-xl border border-[#e2e8f0] px-4 py-2.5 text-[14px]" />
-              </div>
-
-              <div className="flex gap-6">
-                <label className="text-[13px] font-semibold"><input type="checkbox" checked={form.is_active} onChange={(e) => setForm((f) => ({ ...f, is_active: e.target.checked }))} className="mr-2" />Ativo</label>
-                <label className="text-[13px] font-semibold"><input type="checkbox" checked={form.is_default} onChange={(e) => setForm((f) => ({ ...f, is_default: e.target.checked }))} className="mr-2" />Padrão</label>
-              </div>
+          <div>
+            <label className="block text-[13px] font-bold text-[#0f172a]">Provider *</label>
+            <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {WHATSAPP_PROVIDER_REGISTRY.map((provider) => (
+                <button key={provider.key} type="button" onClick={() => handleProviderChange(provider.key)} className={`rounded-2xl border px-4 py-3 text-left transition ${form.provider === provider.key ? 'border-violet-300 bg-violet-50 text-violet-900' : 'border-[#e2e8f0] bg-white text-[#334155] hover:border-violet-200'}`}>
+                  <div className="text-[13px] font-black">{provider.label}</div>
+                  <div className="mt-1 text-[11px] font-semibold leading-4 opacity-75">{provider.description}</div>
+                </button>
+              ))}
             </div>
+          </div>
+
+          <div>
+            <label className="block text-[13px] font-bold text-[#0f172a]">{providerDefaults.api_url_label} *</label>
+            <input type="url" value={form.api_url} onChange={(e) => setForm((f) => ({ ...f, api_url: e.target.value }))} className="mt-1.5 w-full rounded-xl border border-[#e2e8f0] px-4 py-2.5 text-[14px]" />
+          </div>
+
+          <div>
+            <label className="block text-[13px] font-bold text-[#0f172a]">{providerDefaults.api_key_label} {!editandoId && '*'}</label>
+            <input type="password" value={form.api_key} onChange={(e) => setForm((f) => ({ ...f, api_key: e.target.value }))} placeholder={editandoId ? 'Deixe em branco para manter' : ''} className="mt-1.5 w-full rounded-xl border border-[#e2e8f0] px-4 py-2.5 text-[14px]" />
+          </div>
+
+          <div>
+            <label className="block text-[13px] font-bold text-[#0f172a]">{providerDefaults.instance_id_label} *</label>
+            <input type="text" value={form.instance_id} onChange={(e) => setForm((f) => ({ ...f, instance_id: e.target.value }))} className="mt-1.5 w-full rounded-xl border border-[#e2e8f0] px-4 py-2.5 text-[14px]" />
+          </div>
+
+          <div>
+            <label className="block text-[13px] font-bold text-[#0f172a]">WhatsApp do admin para alertas do sistema</label>
+            <input type="tel" value={form.admin_alert_number} onChange={(e) => setForm((f) => ({ ...f, admin_alert_number: e.target.value }))} placeholder="+55 71 99999-9999" className="mt-1.5 w-full rounded-xl border border-[#e2e8f0] px-4 py-2.5 text-[14px]" />
+          </div>
+
+          <div className="flex gap-6">
+            <label className="text-[13px] font-semibold"><input type="checkbox" checked={form.is_active} onChange={(e) => setForm((f) => ({ ...f, is_active: e.target.checked }))} className="mr-2" />Ativo</label>
+            <label className="text-[13px] font-semibold"><input type="checkbox" checked={form.is_default} onChange={(e) => setForm((f) => ({ ...f, is_default: e.target.checked }))} className="mr-2" />Padrão</label>
+          </div>
+        </div>
       </AppModal>
 
-      <AppModal
-        open={Boolean(canalParaTestar)}
-        onClose={() => setCanalParaTestar(null)}
-        title="Testar envio"
-        subtitle={canalParaTestar?.name}
-        maxWidthClass="max-w-md"
-        footer={(
-          <div className="flex gap-3 justify-end">
-            <button
-              type="button"
-              onClick={() => setCanalParaTestar(null)}
-              className="rounded-full border border-[#e2e8f0] bg-white px-4 py-2 text-[13px] font-bold text-[#475569]"
-            >
-              Cancelar
-            </button>
-            <button
-              type="button"
-              disabled={enviandoTeste || !telefoneTest.trim()}
-              onClick={async () => {
-                setEnviandoTeste(true);
-                setToastTest(null);
-                try {
-                  const res = await fetch('/api/automation/test-channel', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ channelId: canalParaTestar.id, phone: telefoneTest.trim() }),
-                  });
-                  const data = await res.json();
-                  if (!res.ok) throw new Error(data.error || 'Erro ao enviar teste');
-                  setToastTest({ message: 'Mensagem de teste enviada com sucesso!', type: 'success' });
-                } catch (err) {
-                  setToastTest({ message: err.message, type: 'error' });
-                } finally {
-                  setEnviandoTeste(false);
-                }
-              }}
-              className="rounded-full bg-violet-600 px-4 py-2 text-[13px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {enviandoTeste ? 'Enviando...' : 'Salvar e enviar'}
-            </button>
-          </div>
-        )}
-      >
-            <input type="tel" value={telefoneTest} onChange={(e) => setTelefoneTest(e.target.value)} placeholder="Ex: 5511999999999" className="mt-4 w-full rounded-xl border border-[#e2e8f0] px-4 py-2.5 text-[14px]" />
-            {toastTest && <div className={`mt-3 rounded-xl px-4 py-3 text-[13px] font-semibold ${toastTest.type === 'success' ? 'border border-emerald-200 bg-emerald-50 text-emerald-700' : 'border border-red-200 bg-red-50 text-red-700'}`}>{toastTest.message}</div>}
+      <AppModal open={Boolean(canalParaTestar)} onClose={() => setCanalParaTestar(null)} title="Testar envio" subtitle={canalParaTestar?.name} maxWidthClass="max-w-md" footer={(<div className="flex gap-3 justify-end"><button type="button" onClick={() => setCanalParaTestar(null)} className="rounded-full border border-[#e2e8f0] bg-white px-4 py-2 text-[13px] font-bold text-[#475569]">Cancelar</button><button type="button" disabled={enviandoTeste || !telefoneTest.trim()} onClick={async () => { setEnviandoTeste(true); setToastTest(null); try { const res = await fetch('/api/automation/test-channel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ channelId: canalParaTestar.id, phone: telefoneTest.trim() }), }); const data = await res.json(); if (!res.ok) throw new Error(data.error || 'Erro ao enviar teste'); setToastTest({ message: 'Mensagem de teste enviada com sucesso!', type: 'success' }); } catch (err) { setToastTest({ message: err.message, type: 'error' }); } finally { setEnviandoTeste(false); } }} className="rounded-full bg-violet-600 px-4 py-2 text-[13px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-60">{enviandoTeste ? 'Enviando...' : 'Enviar teste'}</button></div>)}>
+        <input type="tel" value={telefoneTest} onChange={(e) => setTelefoneTest(e.target.value)} placeholder="Ex: 5511999999999" className="mt-4 w-full rounded-xl border border-[#e2e8f0] px-4 py-2.5 text-[14px]" />
+        {toastTest && <div className={`mt-3 rounded-xl px-4 py-3 text-[13px] font-semibold ${toastTest.type === 'success' ? 'border border-emerald-200 bg-emerald-50 text-emerald-700' : 'border border-red-200 bg-red-50 text-red-700'}`}>{toastTest.message}</div>}
       </AppModal>
     </div>
   );

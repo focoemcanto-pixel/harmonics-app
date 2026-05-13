@@ -22,6 +22,31 @@ function LoginPageContent() {
         : ''
   );
 
+  async function verifyWorkspaceOrRedirect(accessToken) {
+    if (!accessToken) return false;
+
+    const response = await fetch('/api/workspace/me', {
+      method: 'GET',
+      cache: 'no-store',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    if (response.ok) return true;
+
+    const payload = await response.json().catch(() => null);
+    const message = String(payload?.error || '').toLowerCase();
+
+    if (response.status === 403 || message.includes('não pertence') || message.includes('workspace')) {
+      await supabase?.auth?.signOut?.();
+      router.replace('/no-workspace');
+      return false;
+    }
+
+    throw new Error(payload?.error || 'Não foi possível validar seu workspace.');
+  }
+
   async function handleSubmit(event) {
     event.preventDefault();
     setError('');
@@ -79,6 +104,10 @@ function LoginPageContent() {
           return;
         }
       }
+
+      const accessToken = data?.session?.access_token || null;
+      const hasWorkspace = await verifyWorkspaceOrRedirect(accessToken);
+      if (!hasWorkspace) return;
 
       const next = searchParams?.get('next') || '/eventos';
       router.push(next);

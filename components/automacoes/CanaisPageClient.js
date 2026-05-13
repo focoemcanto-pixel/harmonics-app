@@ -9,6 +9,7 @@ import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
 import { useAppToast } from '@/components/ui/ToastProvider';
 import AppModal from '@/components/ui/AppModal';
 import { WHATSAPP_PROVIDER_REGISTRY, getWhatsappProvider } from '@/lib/automation/provider-registry';
+import { completeOnboardingStep } from '@/lib/onboarding/completeOnboardingStep';
 
 const FORM_INICIAL = {
   name: '',
@@ -185,6 +186,22 @@ export default function CanaisPageClient() {
     setForm(FORM_INICIAL);
   }
 
+  async function completeAutomationOnboarding() {
+    try {
+      const { data } = await (await import('@/lib/supabase')).supabase.auth.getSession();
+      const accessToken = data?.session?.access_token || null;
+      if (!accessToken) return;
+
+      await completeOnboardingStep({
+        supabase: (await import('@/lib/supabase')).supabase,
+        accessToken,
+        stepKey: 'automation_configured',
+      });
+    } catch (error) {
+      console.warn('[AUTOMATION_CHANNELS][ONBOARDING_COMPLETE_ERROR]', error?.message || error);
+    }
+  }
+
   async function salvarCanal() {
     const missing = validateForm(form, Boolean(editandoId));
     if (missing.length) {
@@ -199,6 +216,7 @@ export default function CanaisPageClient() {
 
     try {
       setSalvando(true);
+      const isCreating = !editandoId;
       const url = editandoId ? `/api/automation/channels/${editandoId}` : '/api/automation/channels';
       const method = editandoId ? 'PATCH' : 'POST';
       const payload = { ...form };
@@ -212,10 +230,11 @@ export default function CanaisPageClient() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Erro ao salvar canal');
 
+      if (isCreating) await completeAutomationOnboarding();
       invalidateCache(CHANNELS_CACHE_KEY);
       await carregarCanais({ force: true });
       fecharModal();
-      toast.success(editandoId ? 'Canal atualizado com sucesso.' : 'Canal criado com sucesso.');
+      toast.success(isCreating ? 'Canal criado com sucesso. Próximo passo: teste o envio e ative suas automações.' : 'Canal atualizado com sucesso.');
     } catch (error) {
       toast.error(error.message || 'Não foi possível concluir a ação');
     } finally {

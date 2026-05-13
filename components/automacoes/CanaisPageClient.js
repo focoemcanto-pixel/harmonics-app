@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import AdminSummaryCard from '@/components/admin/AdminSummaryCard';
 import AutomationBackLink from '@/components/automacoes/AutomationBackLink';
+import SmartEmptyState from '@/components/onboarding/SmartEmptyState';
 import { cachedPromise, invalidateCache, readCachedValue } from '@/lib/client/light-cache';
 import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
 import { useAppToast } from '@/components/ui/ToastProvider';
@@ -329,9 +330,15 @@ export default function CanaisPageClient() {
       </section>
 
       {!carregando && !erro && canais.length === 0 && (
-        <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-12 text-center">
-          Nenhum canal cadastrado.
-        </section>
+        <SmartEmptyState
+          eyebrow="Automação"
+          title="Você ainda não conectou um canal WhatsApp."
+          description="Conecte um provedor para liberar convites, lembretes, mensagens operacionais e alertas automáticos dentro do workspace."
+          bullets={['Convites automáticos', 'Lembretes de evento', 'Alertas para administradores', 'Logs de envio']}
+          primaryHref="/automacoes/canais"
+          primaryLabel="Conectar primeiro canal"
+          icon="📲"
+        />
       )}
 
       {!carregando && erro && <section className="rounded-[28px] border border-red-200 bg-red-50 p-8">{erro}</section>}

@@ -57,6 +57,33 @@ const PRECONTRACT_SELECT_FIELDS = [
   'event_id',
 ].join(', ');
 
+async function markPrecontractOnboardingDone({ supabase, workspaceId }) {
+  try {
+    const now = new Date().toISOString();
+    const { data: existing } = await supabase
+      .from('workspace_onboarding_progress')
+      .select('id, precontract_created, completed_at')
+      .eq('workspace_id', workspaceId)
+      .maybeSingle();
+
+    if (!existing?.id) {
+      await supabase
+        .from('workspace_onboarding_progress')
+        .insert({ workspace_id: workspaceId, precontract_created: true, updated_at: now });
+      return;
+    }
+
+    if (existing.precontract_created !== true && !existing.completed_at) {
+      await supabase
+        .from('workspace_onboarding_progress')
+        .update({ precontract_created: true, updated_at: now })
+        .eq('workspace_id', workspaceId);
+    }
+  } catch (error) {
+    console.warn('[PRECONTRACTS_API][ONBOARDING_MARK_ERROR]', error?.message || error);
+  }
+}
+
 function parseDateOnly(value) {
   const raw = String(value || '').trim();
   if (!raw) return null;
@@ -255,6 +282,7 @@ export async function POST(request) {
 
     const body = await request.json();
     const id = String(body?.id || '').trim();
+    const isCreating = !id;
     const payload = body?.payload && typeof body.payload === 'object' ? body.payload : {};
     const eventDateRaw = payload?.event_date;
     const eventDate = parseDateOnly(eventDateRaw);
@@ -326,6 +354,10 @@ export async function POST(request) {
         .single();
       if (response.error) throw response.error;
       data = response.data;
+    }
+
+    if (isCreating) {
+      await markPrecontractOnboardingDone({ supabase, workspaceId: auth.workspaceId });
     }
 
     if (data?.event_id) {

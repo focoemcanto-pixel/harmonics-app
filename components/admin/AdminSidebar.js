@@ -60,7 +60,7 @@ export default function AdminSidebar({ activeItem = 'eventos' }) {
   const automationOpen = pathname?.startsWith('/automacoes');
   const contractsOpen = pathname?.startsWith('/contratos');
   const eventsOpen = pathname?.startsWith('/eventos');
-  const settingsOpen = pathname?.startsWith('/settings') || pathname?.startsWith('/configuracoes');
+  const settingsOpen = pathname?.startsWith('/settings') || pathname?.startsWith('/configuracoes') || pathname?.startsWith('/getting-started');
 
   const allowedModules = useMemo(() => {
     if (Array.isArray(modules) && modules.length > 0) {
@@ -97,6 +97,7 @@ export default function AdminSidebar({ activeItem = 'eventos' }) {
 
   const settingsItems = [
     { label: 'Visão geral', href: '/settings' },
+    { label: 'Primeiros passos', href: '/getting-started' },
     { label: 'Workspace', href: '/settings/workspace' },
     { label: 'Equipe', href: '/configuracoes/equipe' },
   ];
@@ -112,124 +113,5 @@ export default function AdminSidebar({ activeItem = 'eventos' }) {
     }
   }
 
-  return (
-    <aside className="sticky top-0 flex min-h-screen w-[280px] shrink-0 flex-col bg-[#020b2c] px-5 py-6 text-white">
-      <div className="flex items-center gap-3 px-2">
-        <div
-          className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-black/90 shadow-[0_4px_20px_rgba(0,0,0,0.45),inset_0_1px_1px_rgba(255,255,255,0.08)]"
-          style={{ borderColor: `${brandingColor}55` }}
-        >
-          <span className="text-lg font-semibold tracking-tight text-white">
-            {brandingInitials}
-          </span>
-        </div>
-
-        <div className="min-w-0">
-          <div className="truncate text-[15px] font-black text-white">
-            {brandingName}
-          </div>
-          <div className="text-[12px] text-[#a5b4fc]">
-            Workspace Admin
-          </div>
-        </div>
-      </div>
-
-      {permissionsLoading ? (
-        <SidebarSkeleton />
-      ) : (
-        <nav className="mt-8 space-y-2">
-          {items.map((item) => (
-            <div key={item.key}>
-              <Link href={item.href} className={`flex w-full items-center rounded-2xl px-4 py-3 text-left text-[15px] font-bold transition ${navClass(activeItem === item.key || (item.key === 'settings' && settingsOpen))}`}>
-                {item.label}
-              </Link>
-
-              {item.key === 'eventos' && eventsOpen && (
-                <div className="ml-6 mt-1 space-y-1 border-l border-violet-400/30 pl-3">
-                  {eventItems.map((sub) => (
-                    <Link key={sub.href} href={sub.href} className={`block rounded-lg px-3 py-1.5 text-[13px] font-semibold ${pathname === sub.href ? 'bg-violet-200/20 text-violet-200' : 'text-[#a5b4fc] hover:text-white'}`}>
-                      {sub.label}
-                    </Link>
-                  ))}
-                </div>
-              )}
-
-              {item.key === 'contratos' && contractsOpen && (
-                <div className="ml-6 mt-1 space-y-1 border-l border-violet-400/30 pl-3">
-                  {contractItems.map((sub) => (
-                    <Link key={sub.href} href={sub.href} className={`block rounded-lg px-3 py-1.5 text-[13px] font-semibold ${pathname === sub.href ? 'bg-violet-200/20 text-violet-200' : 'text-[#a5b4fc] hover:text-white'}`}>
-                      {sub.label}
-                    </Link>
-                  ))}
-                </div>
-              )}
-
-              {item.key === 'automacoes' && automationOpen && (
-                <div className="ml-6 mt-1 space-y-1 border-l border-violet-400/30 pl-3">
-                  {automationItems.map((sub) => (
-                    <Link key={sub.href} href={sub.href} className={`block rounded-lg px-3 py-1.5 text-[13px] font-semibold ${pathname === sub.href ? 'bg-violet-200/20 text-violet-200' : 'text-[#a5b4fc] hover:text-white'}`}>
-                      {sub.label}
-                    </Link>
-                  ))}
-                </div>
-              )}
-
-              {item.key === 'settings' && settingsOpen && (
-                <div className="ml-6 mt-1 space-y-1 border-l border-violet-400/30 pl-3">
-                  {settingsItems.map((sub) => (
-                    <Link key={sub.href} href={sub.href} className={`block rounded-lg px-3 py-1.5 text-[13px] font-semibold ${pathname === sub.href ? 'bg-violet-200/20 text-violet-200' : 'text-[#a5b4fc] hover:text-white'}`}>
-                      {sub.label}
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
-        </nav>
-      )}
-
-      <div className="mt-auto px-2 pt-6">
-        {profile && (
-          <div className="mb-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-            <div className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#a5b4fc]">Usuário atual</div>
-            <div className="mt-1 truncate text-[13px] font-bold text-white">{profile.name || profile.email}</div>
-            <div className="mt-1 text-[11px] font-semibold text-violet-300">
-              {normalizeRoleLabel(role || workspaceMe?.role || profile.role)}
-            </div>
-          </div>
-        )}
-
-        <button
-          type="button"
-          onClick={handleLogout}
-          disabled={isLoggingOut}
-          aria-busy={isLoggingOut}
-          className={`group mb-3 w-full rounded-2xl border px-4 py-3 text-[14px] font-bold transition duration-200 ${
-            isLoggingOut
-              ? 'cursor-wait border-red-400/30 bg-[linear-gradient(135deg,rgba(127,29,29,0.56),rgba(69,10,10,0.42))] text-red-100 opacity-75'
-              : 'border-red-400/30 bg-[linear-gradient(135deg,rgba(127,29,29,0.28),rgba(69,10,10,0.18))] text-red-100 shadow-[0_8px_24px_rgba(239,68,68,0.16)] hover:scale-[1.01] hover:border-red-300/60 hover:shadow-[0_12px_32px_rgba(239,68,68,0.24)] active:scale-[0.995]'
-          }`}
-        >
-          <span className="flex items-center justify-center gap-2">
-            {isLoggingOut && <span className="h-4 w-4 animate-spin rounded-full border-2 border-red-200/70 border-t-red-300" />}
-            {!isLoggingOut && (
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                <polyline points="16 17 21 12 16 7" />
-                <line x1="21" y1="12" x2="9" y2="12" />
-              </svg>
-            )}
-            {isLoggingOut ? 'Encerrando sessão...' : 'Sair da conta'}
-          </span>
-        </button>
-
-        <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4">
-          <div className="text-[12px] font-extrabold uppercase tracking-[0.08em] text-[#a5b4fc]">Workspace atual</div>
-          <div className="mt-2 truncate text-[14px] font-bold text-white">
-            {brandingName}
-          </div>
-        </div>
-      </div>
-    </aside>
-  );
+  return 'TRUNCATED_FOR_UPDATE';
 }

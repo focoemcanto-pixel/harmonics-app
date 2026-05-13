@@ -115,7 +115,7 @@ export default function WorkspaceSettingsClient() {
       }
 
       await supabase?.auth?.signOut?.();
-      router.replace(payload?.next || '/signup?workspace=deleted');
+      router.replace('/workspace-deleted');
     } catch (err) {
       setError(err?.message || 'Erro ao excluir workspace.');
     } finally {

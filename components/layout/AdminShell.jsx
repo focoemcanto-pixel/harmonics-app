@@ -10,7 +10,8 @@ import { redirectToLogin } from '@/lib/auth/logoutRedirect';
 import useWorkspaceMe from '@/hooks/useWorkspaceMe';
 
 const MORE_ITEMS = [
-  { module: 'workspace', label: 'Workspace', href: '/settings/workspace', icon: '🏢', helper: 'Branding, tema e tenant' },
+  { module: 'workspace', label: 'Configurações', href: '/settings', icon: '⚙️', helper: 'Perfil, workspace, assinatura e segurança' },
+  { module: 'workspace', label: 'Workspace', href: '/settings/workspace', icon: '🏢', helper: 'Branding, tema e zona de perigo' },
   { module: 'escalas', label: 'Escalas', href: '/escalas', icon: '🎼', helper: 'Operação musical' },
   { module: 'convites', label: 'Convites', href: '/convites', icon: '✉️', helper: 'Chamadas e respostas' },
   { module: 'contratos', label: 'Contratos', href: '/contratos', icon: '📝', helper: 'Fluxo contratual' },

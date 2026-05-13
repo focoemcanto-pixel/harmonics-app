@@ -1,13 +1,15 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { requireAdmin } from '@/lib/api/require-admin';
+import { requireWorkspaceAdmin } from '@/lib/api/require-workspace-access';
+import { emitWorkspaceEvent } from '@/lib/workspace-events/emitWorkspaceEvent';
+import { WORKSPACE_EVENT_TYPES } from '@/lib/workspace-events/eventTypes';
 
-const SELECT_FIELDS = 'id, name, slug, description, is_active, sort_order, color, icon, default_contract_template_id, created_at, updated_at';
+const SELECT_FIELDS = 'id, workspace_id, name, slug, description, is_active, sort_order, color, icon, default_contract_template_id, created_at, updated_at';
 
 export async function GET(request) {
   const supabaseAdmin = getSupabaseAdmin();
 
-  const auth = await requireAdmin({
+  const auth = await requireWorkspaceAdmin({
     supabase: supabaseAdmin,
     request,
     logPrefix: '[EVENT_TYPES_API][GET]',
@@ -21,12 +23,13 @@ export async function GET(request) {
     const { data, error } = await supabaseAdmin
       .from('event_types')
       .select(SELECT_FIELDS)
+      .eq('workspace_id', auth.workspaceId)
       .order('sort_order', { ascending: true, nullsFirst: false })
       .order('name', { ascending: true });
 
     if (error) throw error;
 
-    return NextResponse.json({ ok: true, eventTypes: data || [] });
+    return NextResponse.json({ ok: true, eventTypes: data || [], workspaceId: auth.workspaceId });
   } catch (error) {
     console.error('[EVENT_TYPES_API][GET][ERROR]', {
       message: error?.message,
@@ -44,7 +47,7 @@ export async function GET(request) {
 export async function POST(request) {
   const supabaseAdmin = getSupabaseAdmin();
 
-  const auth = await requireAdmin({
+  const auth = await requireWorkspaceAdmin({
     supabase: supabaseAdmin,
     request,
     logPrefix: '[EVENT_TYPES_API][POST]',
@@ -58,6 +61,7 @@ export async function POST(request) {
     const body = await request.json();
 
     const payload = {
+      workspace_id: auth.workspaceId,
       name: String(body?.name || '').trim(),
       slug: String(body?.slug || '').trim(),
       description: String(body?.description || '').trim(),
@@ -83,10 +87,18 @@ export async function POST(request) {
 
     if (error) throw error;
 
+    await emitWorkspaceEvent({
+      supabase: supabaseAdmin,
+      workspaceId: auth.workspaceId,
+      type: WORKSPACE_EVENT_TYPES.EVENT_TYPE_CREATED,
+      metadata: { eventTypeId: inserted.id, slug: payload.slug },
+    });
+
     const { data: eventType, error: fetchError } = await supabaseAdmin
       .from('event_types')
       .select(SELECT_FIELDS)
       .eq('id', inserted.id)
+      .eq('workspace_id', auth.workspaceId)
       .single();
 
     if (fetchError) throw fetchError;

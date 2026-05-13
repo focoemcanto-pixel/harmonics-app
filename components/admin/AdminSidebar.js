@@ -24,7 +24,6 @@ const ITEMS = [
 const SETTINGS_ITEMS = [
   ['Visão geral', '/settings'],
   ['Onboarding', '/settings/onboarding'],
-  ['Primeiros passos', '/getting-started'],
   ['Workspace', '/settings/workspace'],
   ['Equipe', '/configuracoes/equipe'],
 ];
@@ -46,7 +45,7 @@ export default function AdminSidebar({ activeItem = 'dashboard' }) {
     }
   }
 
-  const settingsOpen = pathname?.startsWith('/settings') || pathname?.startsWith('/configuracoes') || pathname?.startsWith('/getting-started');
+  const settingsOpen = pathname?.startsWith('/settings') || pathname?.startsWith('/configuracoes');
 
   return (
     <aside className="sticky top-0 flex min-h-screen w-[280px] shrink-0 flex-col bg-[#020b2c] px-5 py-6 text-white">

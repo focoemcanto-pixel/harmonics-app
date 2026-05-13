@@ -18,6 +18,20 @@ const ROUTE_CONFIG = {
       'Depois gere pré-contrato ou siga para escala e financeiro.',
     ],
   },
+  '/eventos/tipos': {
+    badge: 'Catálogo comercial',
+    title: 'Configure os tipos de evento do seu negócio.',
+    description:
+      'Tipos de evento organizam a venda e permitem associar automaticamente o modelo de contrato correto para cada situação.',
+    primaryAction: { label: 'Criar tipo de evento', href: '/eventos/tipos' },
+    secondaryAction: { label: 'Criar template primeiro', href: '/contratos/templates' },
+    tourKey: 'event-type-created',
+    tips: [
+      'Crie categorias como casamento, aniversário, corporativo ou culto.',
+      'Associe um template padrão ao tipo quando possível.',
+      'Use isso para acelerar a geração de pré-contratos.',
+    ],
+  },
   '/pre-contratos': {
     badge: 'Fluxo comercial',
     title: 'Gere seu primeiro pré-contrato guiado.',
@@ -44,6 +58,34 @@ const ROUTE_CONFIG = {
       'Crie um modelo base com linguagem jurídica simples.',
       'Use tags dinâmicas para cliente, data, local, valor e formação.',
       'Associe o template ao tipo de evento para agilizar novos contratos.',
+    ],
+  },
+  '/automacoes/canais': {
+    badge: 'Comunicação automática',
+    title: 'Conecte o primeiro canal WhatsApp do workspace.',
+    description:
+      'Canais liberam convites, lembretes, mensagens operacionais, alertas administrativos e logs de envio dentro do Harmonics.',
+    primaryAction: { label: 'Conectar canal', href: '/automacoes/canais' },
+    secondaryAction: { label: 'Ver automações', href: '/automacoes' },
+    tourKey: 'automation-channel',
+    tips: [
+      'Escolha o provedor WhatsApp usado pelo workspace.',
+      'Cadastre API URL, token e instância.',
+      'Teste o envio antes de ativar automações reais.',
+    ],
+  },
+  '/configuracoes/equipe': {
+    badge: 'Equipe',
+    title: 'Convide pessoas para operar o workspace com você.',
+    description:
+      'A equipe permite separar funções administrativas, financeiras e operacionais sem compartilhar uma única conta.',
+    primaryAction: { label: 'Convidar membro', href: '/configuracoes/equipe' },
+    secondaryAction: { label: 'Revisar workspace', href: '/settings/workspace' },
+    tourKey: 'team-configured',
+    tips: [
+      'Adicione administradores ou operadores conforme a função.',
+      'Revise permissões antes de liberar acesso.',
+      'Use a equipe para preparar o app para uso comercial real.',
     ],
   },
 };

@@ -1,0 +1,29 @@
+:root {
+  --workspace-primary: #7c3aed;
+  --workspace-primary-soft: rgba(124, 58, 237, 0.12);
+  --workspace-primary-border: rgba(124, 58, 237, 0.28);
+}
+
+.workspace-primary-bg {
+  background: var(--workspace-primary) !important;
+}
+
+.workspace-primary-text {
+  color: var(--workspace-primary) !important;
+}
+
+.workspace-primary-border {
+  border-color: var(--workspace-primary-border) !important;
+}
+
+.workspace-primary-soft {
+  background: var(--workspace-primary-soft) !important;
+}
+
+.workspace-primary-ring {
+  box-shadow: 0 0 0 4px var(--workspace-primary-soft) !important;
+}
+
+.workspace-primary-gradient {
+  background: linear-gradient(135deg, var(--workspace-primary), color-mix(in srgb, var(--workspace-primary) 70%, white 30%)) !important;
+}

@@ -1,29 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { OPERATIONAL_ONBOARDING_TOUR } from '@/lib/onboarding/operationalTourRegistry';
 
 const TOUR_STORAGE_KEY = 'harmonics:onboarding-tour:v1';
-
-const DEFAULT_STEPS = [
-  {
-    title: 'Comece pelo onboarding',
-    description: 'Este bloco mostra o progresso real do workspace e indica o próximo passo para deixar a operação pronta.',
-    selector: '[data-onboarding-tour="dashboard-banner"]',
-    placement: 'bottom',
-  },
-  {
-    title: 'Use o checklist completo',
-    description: 'Aqui você acompanha modelos, tipos de evento, pré-contratos, automações, equipe e primeiros eventos.',
-    selector: '[data-onboarding-tour="onboarding-link"]',
-    placement: 'top',
-  },
-  {
-    title: 'Acesse os módulos pelo Mais',
-    description: 'No celular, o botão Mais abre os atalhos administrativos sem sair da página atual.',
-    selector: '[data-onboarding-tour="mobile-more"]',
-    placement: 'top',
-  },
-];
 
 function getRect(selector) {
   if (typeof document === 'undefined') return null;
@@ -36,24 +16,26 @@ function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
 
-export default function OnboardingTourOverlay({ steps = DEFAULT_STEPS }) {
+export default function OnboardingTourOverlay({ steps = OPERATIONAL_ONBOARDING_TOUR }) {
   const [active, setActive] = useState(false);
   const [index, setIndex] = useState(0);
   const [rect, setRect] = useState(null);
+  const [snapshotKey, setSnapshotKey] = useState(0);
 
   const availableSteps = useMemo(() => {
-    if (typeof document === 'undefined') return steps;
-    return steps.filter((step) => document.querySelector(step.selector));
-  }, [steps, active]);
+    if (typeof document === 'undefined') return [];
+    return steps.filter((step) => step?.selector && document.querySelector(step.selector));
+  }, [steps, active, snapshotKey]);
 
   const current = availableSteps[index] || null;
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined') return undefined;
     const alreadySeen = window.localStorage.getItem(TOUR_STORAGE_KEY) === 'done';
-    if (alreadySeen) return;
+    if (alreadySeen) return undefined;
 
     const timer = window.setTimeout(() => {
+      setSnapshotKey((value) => value + 1);
       setActive(true);
     }, 900);
 
@@ -61,11 +43,25 @@ export default function OnboardingTourOverlay({ steps = DEFAULT_STEPS }) {
   }, []);
 
   useEffect(() => {
-    if (!active || !current) return;
+    if (!active) return;
+    if (availableSteps.length === 0) {
+      setActive(false);
+      return;
+    }
+    if (index > availableSteps.length - 1) {
+      setIndex(availableSteps.length - 1);
+    }
+  }, [active, availableSteps.length, index]);
+
+  useEffect(() => {
+    if (!active || !current) return undefined;
 
     function updateRect() {
       const nextRect = getRect(current.selector);
-      if (!nextRect) return;
+      if (!nextRect) {
+        setSnapshotKey((value) => value + 1);
+        return;
+      }
       setRect(nextRect);
     }
 
@@ -104,6 +100,9 @@ export default function OnboardingTourOverlay({ steps = DEFAULT_STEPS }) {
   if (!active || !current || !rect) return null;
 
   const padding = 10;
+  const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 390;
+  const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 800;
+
   const spotlightStyle = {
     left: rect.left - padding,
     top: rect.top - padding,
@@ -111,11 +110,11 @@ export default function OnboardingTourOverlay({ steps = DEFAULT_STEPS }) {
     height: rect.height + padding * 2,
   };
 
-  const tooltipWidth = Math.min(360, typeof window !== 'undefined' ? window.innerWidth - 32 : 360);
-  const tooltipLeft = clamp(rect.left, 16, (typeof window !== 'undefined' ? window.innerWidth : 390) - tooltipWidth - 16);
+  const tooltipWidth = Math.min(360, viewportWidth - 32);
+  const tooltipLeft = clamp(rect.left, 16, viewportWidth - tooltipWidth - 16);
   const tooltipTop = current.placement === 'top'
-    ? Math.max(16, rect.top - 210)
-    : Math.min((typeof window !== 'undefined' ? window.innerHeight : 800) - 220, rect.bottom + 20);
+    ? Math.max(16, rect.top - 230)
+    : Math.min(viewportHeight - 240, rect.bottom + 20);
 
   return (
     <div className="fixed inset-0 z-[220] pointer-events-none">

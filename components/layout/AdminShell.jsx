@@ -6,9 +6,11 @@ import AdminSidebar from '../admin/AdminSidebar';
 import AdminMobileTopbar from '../admin/AdminMobileTopbar';
 import AdminBottomNav from '../admin/AdminBottomNav';
 import DashboardOnboardingBanner from '@/components/onboarding/DashboardOnboardingBanner';
+import OnboardingTourOverlay from '@/components/onboarding/OnboardingTourOverlay';
 import { useAuth } from '@/contexts/AuthContext';
 import { redirectToLogin } from '@/lib/auth/logoutRedirect';
 import useWorkspaceMe from '@/hooks/useWorkspaceMe';
+import { getSupabase } from '@/lib/supabase';
 
 const MORE_ITEMS = [
   { module: 'workspace', label: 'Configurações', href: '/settings', icon: '⚙️', helper: 'Perfil, workspace, assinatura e segurança' },
@@ -30,12 +32,7 @@ const MOBILE_NAV_ALLOWED_ITEMS = new Set(['dashboard', 'eventos', 'contatos', 'c
 
 function getInitials(name) {
   if (!name) return '?';
-  return name
-    .split(' ')
-    .map((n) => n[0])
-    .slice(0, 2)
-    .join('')
-    .toUpperCase();
+  return name.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase();
 }
 
 function normalizeRoleLabel(role) {
@@ -51,25 +48,13 @@ function normalizeRoleLabel(role) {
   return labels[value] || value || 'Membro';
 }
 
-const MobileMoreSheet = memo(function MobileMoreSheet({
-  open,
-  onClose,
-  onNavigate,
-  visibleItems,
-  workspaceRole,
-}) {
+const MobileMoreSheet = memo(function MobileMoreSheet({ open, onClose, onNavigate, visibleItems, workspaceRole }) {
   const { signOut, profile } = useAuth();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   useEffect(() => {
-    if (open) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
-    return () => {
-      document.body.style.overflow = '';
-    };
+    document.body.style.overflow = open ? 'hidden' : '';
+    return () => { document.body.style.overflow = ''; };
   }, [open]);
 
   useEffect(() => {
@@ -80,21 +65,14 @@ const MobileMoreSheet = memo(function MobileMoreSheet({
     }
 
     window.addEventListener('keydown', handleEscape);
-    return () => {
-      window.removeEventListener('keydown', handleEscape);
-    };
+    return () => window.removeEventListener('keydown', handleEscape);
   }, [isLoggingOut, open, onClose]);
 
   if (!open) return null;
 
-  function handleBackdropClick(e) {
-    if (e.target === e.currentTarget && !isLoggingOut) onClose?.();
-  }
-
   async function handleLogout() {
     if (isLoggingOut) return;
     setIsLoggingOut(true);
-
     try {
       await signOut({ redirect: true });
       onClose?.();
@@ -104,7 +82,7 @@ const MobileMoreSheet = memo(function MobileMoreSheet({
   }
 
   return (
-    <div role="dialog" aria-modal="true" className="fixed inset-0 z-[120] bg-black/50 backdrop-blur-[3px] md:hidden" onClick={handleBackdropClick}>
+    <div role="dialog" aria-modal="true" className="fixed inset-0 z-[120] bg-black/50 backdrop-blur-[3px] md:hidden" onClick={(e) => e.target === e.currentTarget && !isLoggingOut && onClose?.()}>
       <div className="flex h-[100dvh] items-end justify-center">
         <div className="w-full max-h-[85dvh] overflow-y-auto overscroll-contain rounded-t-[30px] border border-white/10 bg-white px-4 pb-[calc(env(safe-area-inset-bottom)+18px)] pt-4 shadow-[0_-20px_60px_rgba(15,23,42,0.18)]" onClick={(e) => e.stopPropagation()}>
           <div className="mx-auto mb-3 h-1.5 w-14 rounded-full bg-slate-200" />
@@ -116,9 +94,7 @@ const MobileMoreSheet = memo(function MobileMoreSheet({
               <div className="mt-1 text-[13px] font-semibold text-[#64748b]">Módulos disponíveis para seu nível de acesso.</div>
             </div>
 
-            <button type="button" onClick={() => !isLoggingOut && onClose?.()} disabled={isLoggingOut} className="rounded-[16px] border border-[#e5e7eb] bg-white px-4 py-2 text-[13px] font-black text-[#111827]">
-              Fechar
-            </button>
+            <button type="button" onClick={() => !isLoggingOut && onClose?.()} disabled={isLoggingOut} className="rounded-[16px] border border-[#e5e7eb] bg-white px-4 py-2 text-[13px] font-black text-[#111827]">Fechar</button>
           </div>
 
           <div className="mt-5 grid grid-cols-2 gap-3">
@@ -145,11 +121,8 @@ const MobileMoreSheet = memo(function MobileMoreSheet({
             </div>
           )}
 
-          <button type="button" onClick={handleLogout} disabled={isLoggingOut} aria-busy={isLoggingOut} className={`mt-3 flex w-full items-center justify-between rounded-[22px] border px-5 py-4 text-[15px] font-black transition duration-200 ${isLoggingOut ? 'cursor-wait border-red-400/40 bg-gradient-to-r from-red-500 to-red-600 text-white opacity-75' : 'border-red-400/30 bg-gradient-to-r from-red-500 to-red-600 text-white opacity-100 shadow-[0_16px_34px_rgba(239,68,68,0.28)] hover:scale-[1.01] hover:shadow-[0_20px_42px_rgba(239,68,68,0.34)] active:scale-[0.995]'}`}>
-            <span className="flex items-center gap-2">
-              {isLoggingOut && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/70 border-t-white" />}
-              {isLoggingOut ? 'Encerrando sessão...' : 'Sair da conta'}
-            </span>
+          <button type="button" onClick={handleLogout} disabled={isLoggingOut} className="mt-3 flex w-full items-center justify-between rounded-[22px] border border-red-400/30 bg-gradient-to-r from-red-500 to-red-600 px-5 py-4 text-[15px] font-black text-white shadow-[0_16px_34px_rgba(239,68,68,0.28)]">
+            <span>{isLoggingOut ? 'Encerrando sessão...' : 'Sair da conta'}</span>
           </button>
         </div>
       </div>
@@ -157,55 +130,62 @@ const MobileMoreSheet = memo(function MobileMoreSheet({
   );
 });
 
-export default function AdminShell({
-  pageTitle,
-  children,
-  mobileActions,
-  activeItem = 'eventos',
-  mobileSubtitle = '',
-}) {
+export default function AdminShell({ pageTitle, children, mobileActions, activeItem = 'eventos', mobileSubtitle = '' }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, initialized, loading, sessionEndReason } = useAuth();
+  const supabase = useMemo(() => getSupabase(), []);
+  const { user, initialized, loading } = useAuth();
   const [moreOpen, setMoreOpen] = useState(false);
+  const [showTour, setShowTour] = useState(false);
   const { workspaceMe, modules, role } = useWorkspaceMe({ enabled: Boolean(initialized && !loading && user) });
 
   const allowedModules = useMemo(() => {
     if (Array.isArray(modules) && modules.length > 0) {
       return new Set([...modules, 'workspace']);
     }
-
     return new Set(['dashboard', 'workspace']);
   }, [modules]);
 
-  const visibleMoreItems = useMemo(
-    () => MORE_ITEMS.filter((item) => allowedModules.has(item.module)),
-    [allowedModules]
-  );
-
-  const mobileActiveItem = (() => {
-    if (MOBILE_NAV_ALLOWED_ITEMS.has(activeItem)) return activeItem;
-    return 'mais';
-  })();
-
-  const handleMoreNavigate = useCallback((href) => {
-    setMoreOpen(false);
-    router.push(href);
-  }, [router]);
-
-  const handleOpenMore = useCallback(() => {
-    setMoreOpen(true);
-  }, []);
-
-  const handleCloseMore = useCallback(() => {
-    setMoreOpen(false);
-  }, []);
+  const visibleMoreItems = useMemo(() => MORE_ITEMS.filter((item) => allowedModules.has(item.module)), [allowedModules]);
+  const mobileActiveItem = MOBILE_NAV_ALLOWED_ITEMS.has(activeItem) ? activeItem : 'mais';
 
   useEffect(() => {
     if (initialized && !loading && !user && pathname !== '/login') {
       redirectToLogin();
     }
   }, [initialized, loading, pathname, user]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadTourEligibility() {
+      try {
+        const { data } = await supabase.auth.getSession();
+        const token = data?.session?.access_token;
+        if (!token) return;
+
+        const response = await fetch('/api/onboarding/progress', {
+          cache: 'no-store',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        const payload = await response.json().catch(() => null);
+        if (!active) return;
+
+        setShowTour(Boolean(response.ok && payload?.showOnboarding));
+      } catch {
+        if (active) setShowTour(false);
+      }
+    }
+
+    if (pathname === '/dashboard') {
+      loadTourEligibility();
+    }
+
+    return () => {
+      active = false;
+    };
+  }, [pathname, supabase]);
 
   if (initialized && !loading && !user) {
     return null;
@@ -215,8 +195,11 @@ export default function AdminShell({
 
   return (
     <div className="min-h-screen bg-[#f4f6fa] text-[#111827]">
+      {showTour ? <OnboardingTourOverlay /> : null}
+
       <div className="hidden md:flex">
         <AdminSidebar activeItem={activeItem} />
+
         <main className="min-h-screen flex-1">
           <div className="mx-auto w-full max-w-[1440px] px-6 py-6">
             {showDashboardOnboarding ? <div className="mb-5"><DashboardOnboardingBanner /></div> : null}
@@ -233,9 +216,9 @@ export default function AdminShell({
           {children}
         </main>
 
-        <AdminBottomNav activeItem={mobileActiveItem} onOpenMore={handleOpenMore} allowedModules={allowedModules} />
+        <AdminBottomNav activeItem={mobileActiveItem} onOpenMore={() => setMoreOpen(true)} allowedModules={allowedModules} />
 
-        <MobileMoreSheet open={moreOpen} onClose={handleCloseMore} onNavigate={handleMoreNavigate} visibleItems={visibleMoreItems} workspaceRole={role || workspaceMe?.role} />
+        <MobileMoreSheet open={moreOpen} onClose={() => setMoreOpen(false)} onNavigate={(href) => { setMoreOpen(false); router.push(href); }} visibleItems={visibleMoreItems} workspaceRole={role || workspaceMe?.role} />
       </div>
     </div>
   );

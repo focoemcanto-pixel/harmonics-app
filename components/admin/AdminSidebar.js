@@ -25,7 +25,7 @@ const ALL_ITEMS = [
   { key: 'automacoes', module: 'automacoes', label: 'Automação', href: '/automacoes' },
   { key: 'avaliacoes', module: 'avaliacoes', label: 'Avaliações', href: '/avaliacoes' },
   { key: 'pagamentos', module: 'pagamentos', label: 'Pagamentos', href: '/pagamentos' },
-  { key: 'usuarios', module: 'usuarios', label: 'Usuários', href: '/configuracoes/equipe' },
+  { key: 'settings', module: 'workspace', label: 'Configurações', href: '/settings' },
 ];
 
 function normalizeRoleLabel(role) {
@@ -60,12 +60,13 @@ export default function AdminSidebar({ activeItem = 'eventos' }) {
   const automationOpen = pathname?.startsWith('/automacoes');
   const contractsOpen = pathname?.startsWith('/contratos');
   const eventsOpen = pathname?.startsWith('/eventos');
+  const settingsOpen = pathname?.startsWith('/settings') || pathname?.startsWith('/configuracoes');
 
   const allowedModules = useMemo(() => {
     if (Array.isArray(modules) && modules.length > 0) {
-      return new Set(modules);
+      return new Set([...modules, 'workspace']);
     }
-    return new Set(['dashboard']);
+    return new Set(['dashboard', 'workspace']);
   }, [modules]);
 
   const items = useMemo(
@@ -92,6 +93,12 @@ export default function AdminSidebar({ activeItem = 'eventos' }) {
   const eventItems = [
     { label: 'Visão geral', href: '/eventos' },
     { label: 'Tipos de evento', href: '/eventos/tipos' },
+  ];
+
+  const settingsItems = [
+    { label: 'Visão geral', href: '/settings' },
+    { label: 'Workspace', href: '/settings/workspace' },
+    { label: 'Equipe', href: '/configuracoes/equipe' },
   ];
 
   async function handleLogout() {
@@ -133,7 +140,7 @@ export default function AdminSidebar({ activeItem = 'eventos' }) {
         <nav className="mt-8 space-y-2">
           {items.map((item) => (
             <div key={item.key}>
-              <Link href={item.href} className={`flex w-full items-center rounded-2xl px-4 py-3 text-left text-[15px] font-bold transition ${navClass(activeItem === item.key)}`}>
+              <Link href={item.href} className={`flex w-full items-center rounded-2xl px-4 py-3 text-left text-[15px] font-bold transition ${navClass(activeItem === item.key || (item.key === 'settings' && settingsOpen))}`}>
                 {item.label}
               </Link>
 
@@ -160,6 +167,16 @@ export default function AdminSidebar({ activeItem = 'eventos' }) {
               {item.key === 'automacoes' && automationOpen && (
                 <div className="ml-6 mt-1 space-y-1 border-l border-violet-400/30 pl-3">
                   {automationItems.map((sub) => (
+                    <Link key={sub.href} href={sub.href} className={`block rounded-lg px-3 py-1.5 text-[13px] font-semibold ${pathname === sub.href ? 'bg-violet-200/20 text-violet-200' : 'text-[#a5b4fc] hover:text-white'}`}>
+                      {sub.label}
+                    </Link>
+                  ))}
+                </div>
+              )}
+
+              {item.key === 'settings' && settingsOpen && (
+                <div className="ml-6 mt-1 space-y-1 border-l border-violet-400/30 pl-3">
+                  {settingsItems.map((sub) => (
                     <Link key={sub.href} href={sub.href} className={`block rounded-lg px-3 py-1.5 text-[13px] font-semibold ${pathname === sub.href ? 'bg-violet-200/20 text-violet-200' : 'text-[#a5b4fc] hover:text-white'}`}>
                       {sub.label}
                     </Link>

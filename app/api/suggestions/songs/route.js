@@ -4,6 +4,7 @@ import {
   fetchAdminEditorialCatalog,
   fetchClientSuggestionsCatalog,
 } from '@/lib/sugestoes/client-suggestions-catalog';
+import { requireWorkspaceAccess } from '@/lib/api/require-workspace-access';
 
 function normalizeYoutubeId(value) {
   const input = String(value || '').trim();
@@ -136,21 +137,51 @@ async function replaceSongCollections(supabase, songId, collectionIds = []) {
 
 export async function GET(request) {
   try {
+    const supabase = getSupabaseAdmin();
+
+    const auth = await requireWorkspaceAccess({
+      supabase,
+      request,
+      moduleKey: 'sugestoes',
+      actionKey: 'read',
+      logPrefix: '[SUGGESTIONS_SONGS_API]',
+    });
+
+    if (!auth.ok) {
+      return NextResponse.json(
+        {
+          ok: false,
+          songs: [],
+          error: auth.error || 'Acesso não autorizado.',
+        },
+        { status: auth.status || 401 }
+      );
+    }
+
+    const workspaceId = auth.workspaceId;
+
     const { searchParams } = new URL(request.url);
     const scope = String(searchParams.get('scope') || '').trim();
     const isAdminScope = scope === 'admin-editorial';
 
-    console.info('[sugestoes] load start songs', { scope: isAdminScope ? 'admin-editorial' : 'client' });
-    const supabase = getSupabaseAdmin();
-    const songs = isAdminScope
-      ? await fetchAdminEditorialCatalog(supabase)
-      : await fetchClientSuggestionsCatalog(supabase);
+    console.info('[sugestoes] load start songs', {
+      scope: isAdminScope ? 'admin-editorial' : 'client',
+      workspaceId,
+    });
 
-    console.info('[sugestoes] data loaded songs', { count: songs.length });
+    const songs = isAdminScope
+      ? await fetchAdminEditorialCatalog(supabase, { workspaceId })
+      : await fetchClientSuggestionsCatalog(supabase, { workspaceId });
+
+    console.info('[sugestoes] data loaded songs', {
+      count: songs.length,
+      workspaceId,
+    });
 
     return NextResponse.json({
       ok: true,
       songs,
+      workspaceId,
     });
   } catch (error) {
     console.error('[sugestoes] error songs GET /api/suggestions/songs', {
@@ -175,6 +206,20 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const supabase = getSupabaseAdmin();
+
+    const auth = await requireWorkspaceAccess({
+      supabase,
+      request,
+      moduleKey: 'sugestoes',
+      actionKey: 'write',
+      logPrefix: '[SUGGESTIONS_SONGS_POST_API]',
+    });
+
+    if (!auth.ok) {
+      return NextResponse.json({ error: auth.error || 'Acesso não autorizado' }, { status: auth.status || 401 });
+    }
+
+    const workspaceId = auth.workspaceId;
     const body = await request.json();
 
     const payload = sanitizeSongPayload(body);
@@ -190,6 +235,7 @@ export async function POST(request) {
       .from('suggestion_songs')
       .insert({
         ...payload,
+        workspace_id: workspaceId,
         source_type: 'admin',
         updated_at: new Date().toISOString(),
       })
@@ -208,12 +254,13 @@ export async function POST(request) {
       body?.collection_ids || []
     );
 
-    const songs = await fetchClientSuggestionsCatalog(supabase);
+    const songs = await fetchClientSuggestionsCatalog(supabase, { workspaceId });
     const song = songs.find((item) => item.id === inserted.id) || null;
 
     return NextResponse.json({
       ok: true,
       song,
+      workspaceId,
     });
   } catch (error) {
     console.error('Erro ao criar suggestion_song:', error);

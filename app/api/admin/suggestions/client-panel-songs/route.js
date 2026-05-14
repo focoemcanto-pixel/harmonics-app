@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { requireAdminServer } from '@/lib/api/require-admin-server';
+import { requireWorkspaceAccess } from '@/lib/api/require-workspace-access';
 
 function normalizeText(value) {
   const text = String(value || '').trim();
@@ -16,21 +16,45 @@ function buildSongKey({ title = '', artist = '', youtubeId = '' }) {
   return `txt:${normalizedTitle}::${normalizedArtist}`;
 }
 
+function isMissingWorkspaceColumnError(error) {
+  const message = String(error?.message || error?.details || '').toLowerCase();
+  return message.includes('workspace_id') && (message.includes('does not exist') || message.includes('could not find'));
+}
+
 export async function GET(request) {
-  const adminGuard = await requireAdminServer(request);
-  if (!adminGuard.ok) {
-    return adminGuard.response;
+  const supabase = getSupabaseAdmin();
+  const auth = await requireWorkspaceAccess({
+    supabase,
+    request,
+    moduleKey: 'sugestoes',
+    actionKey: 'read',
+    logPrefix: '[ADMIN_SUGGESTIONS_CLIENT_PANEL_SONGS]',
+  });
+
+  if (!auth.ok) {
+    return NextResponse.json({ ok: false, songs: [], error: auth.error || 'Acesso não autorizado.' }, { status: auth.status || 401 });
   }
 
   try {
-    const supabase = getSupabaseAdmin();
+    const workspaceId = auth.workspaceId;
+
     const { data: catalogSongs, error } = await supabase
       .from('suggestion_songs')
-      .select('id, title, artist, genre:suggestion_genres(name), moment:suggestion_moments(name), youtube_id, youtube_url, thumbnail_url, is_active, source_type, created_at')
+      .select('id, workspace_id, title, artist, genre:suggestion_genres(name), moment:suggestion_moments(name), youtube_id, youtube_url, thumbnail_url, is_active, source_type, created_at')
+      .eq('workspace_id', workspaceId)
       .eq('source_type', 'client')
       .order('created_at', { ascending: false });
 
-    if (error) throw error;
+    if (error) {
+      if (isMissingWorkspaceColumnError(error)) {
+        console.warn('[admin/suggestions/client-panel-songs] workspace_id missing; returning empty list to avoid cross-workspace leakage', {
+          workspaceId,
+          message: error?.message,
+        });
+        return NextResponse.json({ ok: true, songs: [], workspaceId, migrationRequired: true });
+      }
+      throw error;
+    }
 
     const songs = (catalogSongs || [])
       .map((song, index) => {
@@ -58,11 +82,11 @@ export async function GET(request) {
       })
       .filter((song) => song.title);
 
-    return NextResponse.json({ ok: true, songs });
+    return NextResponse.json({ ok: true, songs, workspaceId });
   } catch (error) {
     console.error('[admin/suggestions/client-panel-songs] error', error);
     return NextResponse.json(
-      { ok: false, error: error?.message || 'Falha ao carregar sugestões do painel do cliente.' },
+      { ok: false, songs: [], error: error?.message || 'Falha ao carregar sugestões do painel do cliente.' },
       { status: 500 }
     );
   }

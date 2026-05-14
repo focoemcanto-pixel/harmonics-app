@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { requireAdminServer } from '@/lib/api/require-admin-server';
+import { requireWorkspaceAccess } from '@/lib/api/require-workspace-access';
 
 const DEFAULT_IMPORT_ARTIST = 'não informado';
 const CATALOG_SOURCE_TYPES = ['admin', 'imported'];
@@ -26,13 +26,35 @@ function toTimestamp(value) {
 }
 
 export async function GET(request) {
-  const adminGuard = await requireAdminServer(request);
-  if (!adminGuard.ok) {
-    return adminGuard.response;
+  const supabase = getSupabaseAdmin();
+  const auth = await requireWorkspaceAccess({
+    supabase,
+    request,
+    moduleKey: 'sugestoes',
+    actionKey: 'read',
+    logPrefix: '[ADMIN_SUGGESTIONS_REPERTOIRE_SONGS]',
+  });
+
+  if (!auth.ok) {
+    return NextResponse.json({ ok: false, error: auth.error || 'Acesso não autorizado.' }, { status: auth.status || 401 });
   }
 
   try {
-    const supabase = getSupabaseAdmin();
+    const workspaceId = auth.workspaceId;
+
+    const { data: workspaceEvents, error: eventsError } = await supabase
+      .from('events')
+      .select('id, workspace_id, client_name, event_date')
+      .eq('workspace_id', workspaceId);
+
+    if (eventsError) throw eventsError;
+
+    const eventRowsById = new Map((workspaceEvents || []).map((event) => [String(event.id), event]));
+    const eventIds = Array.from(eventRowsById.keys());
+
+    if (eventIds.length === 0) {
+      return NextResponse.json({ ok: true, songs: [], workspaceId });
+    }
 
     const [{ data: repertoireItems, error: repertoireError }, { data: catalogRows, error: catalogError }] =
       await Promise.all([
@@ -47,9 +69,9 @@ export async function GET(request) {
             reference_link,
             reference_thumbnail,
             notes,
-            created_at,
-            events:event_id(id, client_name, event_date)
+            created_at
           `)
+          .in('event_id', eventIds)
           .order('created_at', { ascending: false }),
         supabase
           .from('suggestion_songs')
@@ -72,7 +94,6 @@ export async function GET(request) {
       }
     }
 
-
     const catalogByTitleWithDefaultArtist = new Map();
     for (const song of catalogRows || []) {
       const normalizedArtist = normalizeText(song?.artist).toLowerCase();
@@ -91,10 +112,12 @@ export async function GET(request) {
       const title = normalizeText(item?.song_name);
       if (!title) continue;
 
+      const eventRow = eventRowsById.get(String(item?.event_id));
+      if (!eventRow) continue;
+
       const artist = normalizeText(item?.artists);
       const youtubeId = normalizeText(item?.reference_video_id);
       const key = buildSongKey({ title, artist, youtubeId });
-      const eventRow = item?.events || null;
       const eventDate = eventRow?.event_date || null;
       const createdAt = item?.created_at || null;
       const currentTimestamp = Math.max(toTimestamp(eventDate), toTimestamp(createdAt));
@@ -153,7 +176,7 @@ export async function GET(request) {
       return toTimestamp(b.last_used_at) - toTimestamp(a.last_used_at);
     });
 
-    return NextResponse.json({ ok: true, songs: list });
+    return NextResponse.json({ ok: true, songs: list, workspaceId });
   } catch (error) {
     console.error('[admin/suggestions/repertoire-songs] error', error);
     return NextResponse.json(

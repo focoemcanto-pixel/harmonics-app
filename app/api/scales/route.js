@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { requireAdmin } from '@/lib/api/require-admin';
-import { getCurrentWorkspace } from '@/lib/workspaces/get-current-workspace';
+import { requireWorkspaceAccess } from '@/lib/api/require-workspace-access';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -14,16 +13,23 @@ export async function GET(request) {
   const supabase = getSupabaseAdmin();
 
   try {
-    const auth = await requireAdmin({ supabase, request, logPrefix: '[SCALES_API]' });
+    const auth = await requireWorkspaceAccess({
+      supabase,
+      request,
+      moduleKey: 'escalas',
+      actionKey: 'read',
+      logPrefix: '[SCALES_API]',
+    });
+
     if (!auth.ok) {
-      return NextResponse.json({ ok: false, message: auth.error }, { status: auth.status || 401 });
+      return NextResponse.json({ ok: false, message: auth.error || 'Acesso não autorizado.' }, { status: auth.status || 401 });
     }
 
-    const { workspaceId } = await getCurrentWorkspace({ supabase });
+    const workspaceId = auth.workspaceId;
 
     const { data: eventos, error: eventosError } = await supabase
       .from('events')
-      .select('id, client_name, event_date, event_time, location_name, formation, instruments, status, created_at')
+      .select('id, workspace_id, client_name, event_date, event_time, location_name, formation, instruments, status, created_at')
       .eq('workspace_id', workspaceId)
       .order('event_date', { ascending: true });
 
@@ -60,7 +66,8 @@ export async function GET(request) {
     if (musicianIds.length > 0) {
       const { data: contacts, error: contactsError } = await supabase
         .from('contacts')
-        .select('id, name, phone, email, tag, category')
+        .select('id, workspace_id, name, phone, email, tag, category')
+        .eq('workspace_id', workspaceId)
         .in('id', musicianIds);
 
       if (contactsError) throw contactsError;
@@ -81,13 +88,13 @@ export async function GET(request) {
     if (invitesError) throw invitesError;
 
     const inviteContactIds = uniq((inviteRows || []).map((invite) => invite?.contact_id));
-    const inviteEventIds = uniq((inviteRows || []).map((invite) => invite?.event_id));
 
     let inviteContactsById = new Map();
     if (inviteContactIds.length > 0) {
       const { data: inviteContacts, error: inviteContactsError } = await supabase
         .from('contacts')
-        .select('id, name, phone, email')
+        .select('id, workspace_id, name, phone, email')
+        .eq('workspace_id', workspaceId)
         .in('id', inviteContactIds);
 
       if (inviteContactsError) throw inviteContactsError;
@@ -96,11 +103,13 @@ export async function GET(request) {
 
     const eventsById = new Map((eventos || []).map((event) => [String(event.id), event]));
 
-    const invites = (inviteRows || []).map((invite) => ({
-      ...invite,
-      event: eventsById.get(String(invite?.event_id || '')) || null,
-      contact: inviteContactsById.get(String(invite?.contact_id || '')) || null,
-    })).filter((invite) => invite.event && inviteEventIds.includes(String(invite.event_id)));
+    const invites = (inviteRows || [])
+      .map((invite) => ({
+        ...invite,
+        event: eventsById.get(String(invite?.event_id || '')) || null,
+        contact: inviteContactsById.get(String(invite?.contact_id || '')) || null,
+      }))
+      .filter((invite) => invite.event);
 
     return NextResponse.json({
       ok: true,

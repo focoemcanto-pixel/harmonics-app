@@ -4,33 +4,11 @@ import { useMemo, useState } from 'react';
 import {
   CONTRACT_TAG_CATEGORIES,
   CONTRACT_TAGS,
-  getMockContractTagValues,
 } from '@/lib/contracts/contractTagsRegistry';
 import { analyzeTemplateQuality } from '@/lib/contracts/analyzeTemplateQuality';
 import { buildContractExperience } from '@/lib/contracts/contractExperienceEngine';
 import { useContractEditor } from '@/contexts/ContractEditorContext';
-
-function replaceTagsWithMockValues(content = '') {
-  const values = getMockContractTagValues();
-  let output = String(content || '');
-
-  Object.entries(values).forEach(([tag, example]) => {
-    output = output.split(tag).join(example);
-  });
-
-  return output;
-}
-
-function stripHtml(value = '') {
-  return String(value || '')
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<\/p>/gi, '\n\n')
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/\s+\n/g, '\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .replace(/\s{2,}/g, ' ')
-    .trim();
-}
+import LiveContractPreview from '@/components/contracts/LiveContractPreview';
 
 function copyToClipboard(value) {
   if (typeof navigator === 'undefined' || !navigator.clipboard) return Promise.resolve(false);
@@ -65,11 +43,6 @@ export default function ContractAssistantPanel({ content = '', onInsertTag }) {
   }, [editorContext, liveContent]);
 
   const experience = useMemo(() => buildContractExperience(analysis), [analysis]);
-
-  const preview = useMemo(() => {
-    if (editorContext?.preview) return editorContext.preview;
-    return stripHtml(replaceTagsWithMockValues(liveContent));
-  }, [editorContext, liveContent]);
 
   async function handleTagClick(tag) {
     if (typeof onInsertTag === 'function') {
@@ -263,32 +236,10 @@ export default function ContractAssistantPanel({ content = '', onInsertTag }) {
                 Seu template possui as tags obrigatórias para automação básica.
               </div>
             )}
-
-            {analysis.duplicatedTags.length > 0 ? (
-              <div className="rounded-[22px] border border-violet-200 bg-violet-50 px-4 py-4">
-                <div className="text-[13px] font-black text-violet-800">
-                  Tags repetidas
-                </div>
-
-                <p className="mt-1 text-[12px] font-semibold leading-5 text-violet-700">
-                  Revise se estas tags precisam aparecer mais de uma vez.
-                </p>
-              </div>
-            ) : null}
           </div>
         ) : null}
 
-        {activeTab === 'preview' ? (
-          <div className="rounded-[22px] border border-[#e2e8f0] bg-[#f8fafc] p-4">
-            <div className="text-[12px] font-black uppercase tracking-[0.12em] text-violet-700">
-              Preview com dados fictícios
-            </div>
-
-            <pre className="mt-3 max-h-[420px] whitespace-pre-wrap text-[12px] font-semibold leading-6 text-[#334155]">
-              {preview || 'Escreva o texto do contrato e use tags para visualizar o contrato preenchido aqui.'}
-            </pre>
-          </div>
-        ) : null}
+        {activeTab === 'preview' ? <LiveContractPreview html={liveContent} /> : null}
 
         {activeTab === 'guide' ? (
           <div className="space-y-3">

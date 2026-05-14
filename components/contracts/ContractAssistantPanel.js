@@ -1,13 +1,20 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   CONTRACT_TAG_CATEGORIES,
   CONTRACT_TAGS,
 } from '@/lib/contracts/contractTagsRegistry';
 import { analyzeTemplateQuality } from '@/lib/contracts/analyzeTemplateQuality';
 import { buildContractExperience } from '@/lib/contracts/contractExperienceEngine';
+import {
+  buildMilestoneToastMessage,
+  buildReadinessToastMessage,
+  diffCompletedMilestones,
+  getCompletedMilestoneKeys,
+} from '@/lib/contracts/contractExperienceEvents';
 import { useContractEditor } from '@/contexts/ContractEditorContext';
+import { useAppToast } from '@/components/ui/ToastProvider';
 import LiveContractPreview from '@/components/contracts/LiveContractPreview';
 
 function copyToClipboard(value) {
@@ -31,11 +38,15 @@ const READINESS_BADGES = {
 
 export default function ContractAssistantPanel({ content = '', onInsertTag }) {
   const editorContext = useContractEditor();
+  const toast = useAppToast();
 
   const liveContent = editorContext?.html ?? content;
 
   const [activeTab, setActiveTab] = useState('tags');
   const [copiedTag, setCopiedTag] = useState('');
+
+  const previousMilestonesRef = useRef([]);
+  const previousReadinessRef = useRef('draft');
 
   const analysis = useMemo(() => {
     if (editorContext?.analysis) return editorContext.analysis;
@@ -43,6 +54,35 @@ export default function ContractAssistantPanel({ content = '', onInsertTag }) {
   }, [editorContext, liveContent]);
 
   const experience = useMemo(() => buildContractExperience(analysis), [analysis]);
+
+  useEffect(() => {
+    const newMilestones = diffCompletedMilestones(previousMilestonesRef.current, experience);
+
+    newMilestones.forEach((milestone) => {
+      const message = buildMilestoneToastMessage(milestone);
+
+      if (message) {
+        toast.success(message);
+      }
+    });
+
+    previousMilestonesRef.current = getCompletedMilestoneKeys(experience);
+  }, [experience, toast]);
+
+  useEffect(() => {
+    const previous = previousReadinessRef.current;
+    const current = experience.readiness.key;
+
+    if (previous !== current) {
+      const message = buildReadinessToastMessage(experience.readiness);
+
+      if (message) {
+        toast.info(message);
+      }
+    }
+
+    previousReadinessRef.current = current;
+  }, [experience.readiness, toast]);
 
   async function handleTagClick(tag) {
     if (typeof onInsertTag === 'function') {
@@ -136,10 +176,7 @@ export default function ContractAssistantPanel({ content = '', onInsertTag }) {
               return (
                 <section key={category.key} className="rounded-[22px] border border-[#e2e8f0] bg-[#f8fafc] p-3">
                   <div className="text-[13px] font-black text-[#0f172a]">{category.label}</div>
-
-                  <p className="mt-1 text-[11px] font-semibold leading-5 text-[#64748b]">
-                    {category.description}
-                  </p>
+                  <p className="mt-1 text-[11px] font-semibold leading-5 text-[#64748b]">{category.description}</p>
 
                   <div className="mt-3 space-y-2">
                     {tags.map((tag) => {
@@ -154,13 +191,8 @@ export default function ContractAssistantPanel({ content = '', onInsertTag }) {
                         >
                           <div className="flex items-start justify-between gap-3">
                             <div>
-                              <div className="text-[12px] font-black text-[#0f172a]">
-                                {tag.label}
-                              </div>
-
-                              <div className="mt-1 font-mono text-[11px] font-black text-violet-700">
-                                {tag.tag}
-                              </div>
+                              <div className="text-[12px] font-black text-[#0f172a]">{tag.label}</div>
+                              <div className="mt-1 font-mono text-[11px] font-black text-violet-700">{tag.tag}</div>
                             </div>
 
                             <span className={`rounded-full px-2 py-1 text-[10px] font-black ${isPresent ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
@@ -168,9 +200,7 @@ export default function ContractAssistantPanel({ content = '', onInsertTag }) {
                             </span>
                           </div>
 
-                          <p className="mt-2 text-[11px] font-semibold leading-5 text-[#64748b]">
-                            {tag.description}
-                          </p>
+                          <p className="mt-2 text-[11px] font-semibold leading-5 text-[#64748b]">{tag.description}</p>
                         </button>
                       );
                     })}
@@ -197,6 +227,7 @@ export default function ContractAssistantPanel({ content = '', onInsertTag }) {
                   {experience.completedMilestones}/{experience.milestones.length}
                 </span>
               </div>
+
               <div className="mt-3 space-y-2">
                 {experience.milestones.map((milestone) => (
                   <div key={milestone.key} className={`rounded-[18px] border px-3 py-3 ${milestone.completed ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-white'}`}>
@@ -204,6 +235,7 @@ export default function ContractAssistantPanel({ content = '', onInsertTag }) {
                       <span className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-black ${milestone.completed ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-600'}`}>
                         {milestone.completed ? '✓' : '•'}
                       </span>
+
                       <div>
                         <div className="text-[12px] font-black text-[#0f172a]">{milestone.title}</div>
                         <p className="mt-1 text-[11px] font-semibold leading-5 text-[#64748b]">{milestone.reward}</p>
@@ -254,9 +286,7 @@ export default function ContractAssistantPanel({ content = '', onInsertTag }) {
                   {index + 1}
                 </div>
 
-                <p className="text-[13px] font-semibold leading-6 text-[#475569]">
-                  {item}
-                </p>
+                <p className="text-[13px] font-semibold leading-6 text-[#475569]">{item}</p>
               </div>
             ))}
           </div>

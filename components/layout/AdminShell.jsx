@@ -5,13 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import AdminSidebar from '../admin/AdminSidebar';
 import AdminMobileTopbar from '../admin/AdminMobileTopbar';
 import AdminBottomNav from '../admin/AdminBottomNav';
-import DashboardOnboardingBanner from '@/components/onboarding/DashboardOnboardingBanner';
-import OnboardingTourOverlay from '@/components/onboarding/OnboardingTourOverlay';
-import OperationalRouteOnboarding from '@/components/onboarding/OperationalRouteOnboarding';
-import SectionGuidedOnboarding from '@/components/onboarding/SectionGuidedOnboarding';
-import WorkspaceActivityTimeline from '@/components/workspace/WorkspaceActivityTimeline';
-import WorkspaceInsightCard from '@/components/workspace/WorkspaceInsightCard';
-import WorkspaceRecommendationsFeed from '@/components/workspace/WorkspaceRecommendationsFeed';
+import DeferredOnboardingMount from '@/components/onboarding/DeferredOnboardingMount';
 import { useAuth } from '@/contexts/AuthContext';
 import { redirectToLogin } from '@/lib/auth/logoutRedirect';
 import useWorkspaceMe from '@/hooks/useWorkspaceMe';
@@ -205,19 +199,19 @@ export default function AdminShell({ pageTitle, children, mobileActions, activeI
 
   return (
     <div className="min-h-screen bg-[#f4f6fa] text-[#111827]">
-      {showTour ? <OnboardingTourOverlay /> : null}
-
       <div className="hidden md:flex">
         <AdminSidebar activeItem={activeItem} />
 
         <main className="min-h-screen flex-1">
           <div className="mx-auto w-full max-w-[1440px] px-6 py-6">
-            {showDashboardOnboarding ? <div className="mb-5"><DashboardOnboardingBanner /></div> : null}
-            {showDashboardOnboarding ? <div className="mb-5"><WorkspaceInsightCard /></div> : null}
-            {showDashboardOnboarding ? <div className="mb-5"><WorkspaceRecommendationsFeed /></div> : null}
-            {showDashboardOnboarding ? <div className="mb-5"><WorkspaceActivityTimeline limit={6} compact /></div> : null}
-            {showOperationalRouteOnboarding ? <OperationalRouteOnboarding enabled /> : null}
-            {showOperationalRouteOnboarding ? <SectionGuidedOnboarding enabled /> : null}
+            {showDashboardOnboarding ? (
+              <DeferredOnboardingMount variant="dashboard" showTour={showTour} dashboardTimelineLimit={6} />
+            ) : null}
+
+            {showOperationalRouteOnboarding ? (
+              <DeferredOnboardingMount variant="route" showTour={showTour} />
+            ) : null}
+
             {children}
           </div>
         </main>
@@ -227,12 +221,14 @@ export default function AdminShell({ pageTitle, children, mobileActions, activeI
         <AdminMobileTopbar title={pageTitle} subtitle={mobileSubtitle} actions={mobileActions} />
 
         <main className="px-4 pb-28 pt-4">
-          {showDashboardOnboarding ? <div className="mb-4"><DashboardOnboardingBanner /></div> : null}
-          {showDashboardOnboarding ? <div className="mb-4"><WorkspaceInsightCard /></div> : null}
-          {showDashboardOnboarding ? <div className="mb-4"><WorkspaceRecommendationsFeed limit={2} /></div> : null}
-          {showDashboardOnboarding ? <div className="mb-4"><WorkspaceActivityTimeline limit={4} compact /></div> : null}
-          {showOperationalRouteOnboarding ? <OperationalRouteOnboarding enabled /> : null}
-          {showOperationalRouteOnboarding ? <SectionGuidedOnboarding enabled /> : null}
+          {showDashboardOnboarding ? (
+            <DeferredOnboardingMount variant="dashboard" showTour={showTour} dashboardTimelineLimit={4} recommendationsLimit={2} />
+          ) : null}
+
+          {showOperationalRouteOnboarding ? (
+            <DeferredOnboardingMount variant="route" showTour={showTour} />
+          ) : null}
+
           {children}
         </main>
 

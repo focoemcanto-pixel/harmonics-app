@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requireWorkspaceAdmin } from '@/lib/api/require-workspace-access';
-import { getCurrentAutomationWorkspaceSettings } from '@/lib/automation/get-workspace';
 import { getLatestAutomationCronRun } from '@/lib/automation/cron-run';
 import { validateChannelConfig } from '@/lib/whatsapp/channel-config';
 
@@ -21,13 +20,6 @@ function getSaoPauloBounds() {
     start: `${today}T00:00:00${offset}`,
     end: `${today}T23:59:59${offset}`,
   };
-}
-
-function asUuidOrNull(value) {
-  const raw = String(value || '').trim();
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(raw)
-    ? raw
-    : null;
 }
 
 function scopeWorkspace(query, workspaceId) {
@@ -103,8 +95,7 @@ export async function GET(request) {
       return NextResponse.json({ ok: false, error: auth.error }, { status: auth.status || 401 });
     }
 
-    const workspace = await getCurrentAutomationWorkspaceSettings({ supabase, request });
-    const workspaceId = asUuidOrNull(workspace?.id) || auth.workspaceId;
+    const workspaceId = auth.workspaceId;
     const { start: todayStart, end: todayEnd } = getSaoPauloBounds();
 
     const templatesQuery = scopeWorkspace(
@@ -271,10 +262,9 @@ export async function GET(request) {
       recent_failures: failures,
       workspace_debug: {
         workspaceId,
-        rawWorkspaceId: workspace?.id || null,
         authWorkspaceId: auth.workspaceId,
-        source: workspace?.source || auth.source || null,
-        migrationMode: !workspaceId,
+        source: auth.source || 'requireWorkspaceAdmin',
+        migrationMode: false,
       },
     };
 

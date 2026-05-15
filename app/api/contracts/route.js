@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requireWorkspaceAccess } from '@/lib/api/require-workspace-access';
-import { getCurrentWorkspace } from '@/lib/workspaces/get-current-workspace';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -26,16 +25,17 @@ export async function GET(request) {
     const auth = await requireWorkspaceAccess({
       supabase,
       request,
+      moduleKey: 'contratos',
+      actionKey: 'read',
       logPrefix: '[CONTRACTS_API][GET]',
       allowedRoles: ['owner', 'admin', 'financeiro', 'operacional', 'viewer'],
     });
 
     if (!auth.ok) {
-      return NextResponse.json({ ok: false, message: auth.error }, { status: auth.status || 401 });
+      return NextResponse.json({ ok: false, message: auth.error || 'Acesso não autorizado.' }, { status: auth.status || 401 });
     }
 
-    const workspaceContext = await getCurrentWorkspace({ supabase, request });
-    const workspaceId = workspaceContext?.workspaceId || auth.workspaceId;
+    const workspaceId = auth.workspaceId;
     const { searchParams } = new URL(request.url);
     const limit = normalizeListLimit(searchParams.get('limit'));
 

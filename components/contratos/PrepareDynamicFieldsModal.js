@@ -70,10 +70,7 @@ const GUIDE_STEPS = {
 };
 
 function normalizeText(value) {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase();
+  return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 }
 
 function getLineContext(text, start, end) {
@@ -91,7 +88,6 @@ function detectDynamicField({ selectedText, lineContext }) {
   const selected = normalizeText(selectedText);
   const context = normalizeText(lineContext);
   const haystack = `${selected} ${context}`;
-
   if (!selected.trim() && !context.trim()) return null;
 
   const scored = FIELD_RULES.map((rule) => {
@@ -100,11 +96,8 @@ function detectDynamicField({ selectedText, lineContext }) {
       const contextMatch = pattern.test(lineContext || '') || pattern.test(context);
       return total + (selectedMatch ? 4 : 0) + (contextMatch ? 2 : 0);
     }, 0);
-
     return { ...rule, score };
-  })
-    .filter((rule) => rule.score > 0)
-    .sort((a, b) => b.score - a.score);
+  }).filter((rule) => rule.score > 0).sort((a, b) => b.score - a.score);
 
   if (scored[0]) return scored[0];
   if (/____|___|:/.test(haystack)) return { field: 'client_name', label: 'Nome do cliente', score: 1 };
@@ -115,50 +108,25 @@ function GuideCard({ step, canContinue, onContinue, onDismiss, suggestionLabel }
   if (!step) return null;
 
   return (
-    <div className="pointer-events-auto absolute right-5 top-[150px] z-[1300] w-[340px] rounded-[26px] border border-violet-200 bg-white p-4 shadow-[0_22px_70px_rgba(15,23,42,0.28)]">
+    <div className="pointer-events-auto absolute bottom-[96px] left-[calc(100%-410px)] z-[1260] w-[320px] rounded-[24px] border border-violet-200 bg-white/95 p-4 shadow-[0_22px_70px_rgba(15,23,42,0.22)] backdrop-blur-xl">
       <div className="flex items-center justify-between gap-3">
         <div className="text-[10px] font-black uppercase tracking-[0.14em] text-violet-700">Assistente de automação</div>
-        <button
-          type="button"
-          onClick={onDismiss}
-          className="rounded-full border border-slate-200 bg-white px-2 py-1 text-[11px] font-black text-slate-500 hover:bg-slate-50"
-          aria-label="Minimizar assistente"
-        >
-          ✕
-        </button>
+        <button type="button" onClick={onDismiss} className="rounded-full border border-slate-200 bg-white px-2 py-1 text-[11px] font-black text-slate-500 hover:bg-slate-50" aria-label="Minimizar assistente">✕</button>
       </div>
-
-      <h4 className="mt-3 text-[20px] font-black tracking-[-0.04em] text-[#0f172a]">{step.title}</h4>
-      <p className="mt-2 text-[13px] font-semibold leading-6 text-[#64748b]">{step.description}</p>
-
-      {suggestionLabel ? (
-        <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-[12px] font-black text-emerald-700">
-          Sugestão detectada: {suggestionLabel}
-        </div>
-      ) : null}
-
-      <button
-        type="button"
-        disabled={!canContinue}
-        onClick={onContinue}
-        className="mt-4 rounded-2xl bg-violet-600 px-4 py-2.5 text-sm font-black text-white shadow-[0_12px_28px_rgba(124,58,237,0.32)] disabled:cursor-not-allowed disabled:opacity-40"
-      >
+      <h4 className="mt-3 text-[18px] font-black tracking-[-0.04em] text-[#0f172a]">{step.title}</h4>
+      <p className="mt-2 text-[12px] font-semibold leading-5 text-[#64748b]">{step.description}</p>
+      {suggestionLabel ? <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] font-black text-emerald-700">Sugestão detectada: {suggestionLabel}</div> : null}
+      <button type="button" disabled={!canContinue} onClick={onContinue} className="mt-4 rounded-2xl bg-violet-600 px-4 py-2 text-sm font-black text-white shadow-[0_12px_28px_rgba(124,58,237,0.28)] disabled:cursor-not-allowed disabled:opacity-40">
         {step === GUIDE_STEPS.done ? 'Continuar preparando' : 'Entendi'}
       </button>
     </div>
   );
 }
 
-export default function PrepareDynamicFieldsModal({
-  initialText,
-  onCancel,
-  onConclude,
-  onLiveChange,
-}) {
+export default function PrepareDynamicFieldsModal({ initialText, onCancel, onConclude, onLiveChange }) {
   const textareaRef = useRef(null);
   const selectRef = useRef(null);
   const replaceButtonRef = useRef(null);
-
   const [workingText, setWorkingText] = useState(String(initialText || ''));
   const [selectedField, setSelectedField] = useState(DYNAMIC_FIELDS[0].value);
   const [selectionStart, setSelectionStart] = useState(0);
@@ -169,30 +137,22 @@ export default function PrepareDynamicFieldsModal({
   const [smartSuggestion, setSmartSuggestion] = useState(null);
   const [guideVisible, setGuideVisible] = useState(true);
 
-  const selectedFieldLabel = useMemo(
-    () => DYNAMIC_FIELDS.find((item) => item.value === selectedField)?.label || '',
-    [selectedField]
-  );
+  const selectedFieldLabel = useMemo(() => DYNAMIC_FIELDS.find((item) => item.value === selectedField)?.label || '', [selectedField]);
 
-  useEffect(() => {
-    if (guideStep === 'select') textareaRef.current?.focus();
-  }, [guideStep]);
+  useEffect(() => { if (guideStep === 'select') textareaRef.current?.focus(); }, [guideStep]);
 
   function handleSelect(event) {
     const start = event.target.selectionStart || 0;
     const end = event.target.selectionEnd || 0;
     setSelectionStart(start);
     setSelectionEnd(end);
-
     const text = workingText.slice(start, end);
     setSelectedText(text);
-
     if (text?.trim()) {
       const context = getLineContext(workingText, start, end);
       const suggestion = detectDynamicField({ selectedText: text, lineContext: context });
       setSmartSuggestion(suggestion);
       setGuideVisible(true);
-
       if (suggestion?.field) {
         setSelectedField(suggestion.field);
         setGuideStep('replace');
@@ -202,27 +162,19 @@ export default function PrepareDynamicFieldsModal({
     }
   }
 
-  function handleTextChange(value) {
-    setWorkingText(value);
-    onLiveChange?.(value);
-  }
+  function handleTextChange(value) { setWorkingText(value); onLiveChange?.(value); }
 
   function handleReplace() {
     if (selectionStart === selectionEnd || !selectedText) return;
-
     const placeholder = `{{${selectedField}}}`;
     const nextText = `${workingText.slice(0, selectionStart)}${placeholder}${workingText.slice(selectionEnd)}`;
-
     handleTextChange(nextText);
-
     const nextCursor = selectionStart + placeholder.length;
-
     requestAnimationFrame(() => {
       if (!textareaRef.current) return;
       textareaRef.current.focus();
       textareaRef.current.setSelectionRange(nextCursor, nextCursor);
     });
-
     setSelectionStart(0);
     setSelectionEnd(0);
     setSelectedText('');
@@ -233,28 +185,12 @@ export default function PrepareDynamicFieldsModal({
   }
 
   function handleGuideContinue() {
-    if (guideStep === 'choose') {
-      selectRef.current?.focus();
-      return;
-    }
-
-    if (guideStep === 'replace') {
-      replaceButtonRef.current?.focus();
-      return;
-    }
-
-    if (guideStep === 'done') {
-      setGuideStep('select');
-      setGuideVisible(false);
-      textareaRef.current?.focus();
-    }
+    if (guideStep === 'choose') { selectRef.current?.focus(); return; }
+    if (guideStep === 'replace') { replaceButtonRef.current?.focus(); return; }
+    if (guideStep === 'done') { setGuideStep('select'); setGuideVisible(false); textareaRef.current?.focus(); }
   }
 
-  const canContinue =
-    (guideStep === 'select' && !!selectedText) ||
-    guideStep === 'choose' ||
-    guideStep === 'replace' ||
-    guideStep === 'done';
+  const canContinue = (guideStep === 'select' && !!selectedText) || guideStep === 'choose' || guideStep === 'replace' || guideStep === 'done';
 
   return (
     <div className="fixed inset-0 z-[1200] flex items-center justify-center bg-[#020617]/70 p-4 backdrop-blur-[2px]">
@@ -271,21 +207,10 @@ export default function PrepareDynamicFieldsModal({
               <p className="text-xs font-bold uppercase tracking-[0.08em] text-[#64748b]">Texto do contrato</p>
               {guideStep === 'select' ? <span className="rounded-full bg-violet-100 px-3 py-1 text-[11px] font-black text-violet-700 animate-pulse">Selecione um trecho</span> : null}
             </div>
-
             <div className={`rounded-[24px] transition-all duration-300 ${guideStep === 'select' ? 'ring-4 ring-violet-400/30 shadow-[0_0_0_2px_rgba(124,58,237,0.20)]' : ''}`}>
-              <textarea
-                ref={textareaRef}
-                value={workingText}
-                onChange={(event) => handleTextChange(event.target.value)}
-                onSelect={handleSelect}
-                className="min-h-[460px] w-full rounded-2xl border border-[#dbe3ef] bg-white px-4 py-3 text-sm text-[#0f172a] outline-none transition focus:border-violet-400"
-                placeholder="Selecione trechos e substitua por placeholders dinâmicos."
-              />
+              <textarea ref={textareaRef} value={workingText} onChange={(event) => handleTextChange(event.target.value)} onSelect={handleSelect} className="min-h-[460px] w-full rounded-2xl border border-[#dbe3ef] bg-white px-4 py-3 text-sm text-[#0f172a] outline-none transition focus:border-violet-400" placeholder="Selecione trechos e substitua por placeholders dinâmicos." />
             </div>
-
-            <p className="text-xs text-[#64748b]">
-              Seleção atual: <span className="font-semibold text-[#334155]">{selectedText ? `“${selectedText}”` : 'nenhuma'}</span>
-            </p>
+            <p className="text-xs text-[#64748b]">Seleção atual: <span className="font-semibold text-[#334155]">{selectedText ? `“${selectedText}”` : 'nenhuma'}</span></p>
           </section>
 
           <section className="space-y-3 rounded-2xl border border-[#e2e8f0] bg-[#f8fafc] p-4">
@@ -293,42 +218,15 @@ export default function PrepareDynamicFieldsModal({
               <p className="text-xs font-bold uppercase tracking-[0.08em] text-[#64748b]">Campos dinâmicos disponíveis</p>
               {smartSuggestion ? <span className="rounded-full bg-emerald-100 px-3 py-1 text-[11px] font-black text-emerald-700">Auto</span> : null}
             </div>
-
             <div className={`rounded-[22px] transition-all duration-300 ${guideStep === 'choose' ? 'ring-4 ring-violet-400/30 shadow-[0_0_0_2px_rgba(124,58,237,0.20)]' : ''}`}>
-              <select
-                ref={selectRef}
-                value={selectedField}
-                onChange={(event) => {
-                  setSelectedField(event.target.value);
-                  setSmartSuggestion(null);
-                }}
-                className="w-full rounded-2xl border border-[#dbe3ef] bg-white px-3 py-2.5 text-sm font-semibold text-[#0f172a] outline-none transition focus:border-violet-400"
-              >
-                {DYNAMIC_FIELDS.map((field) => (
-                  <option key={field.value} value={field.value}>{field.label} ({field.value})</option>
-                ))}
+              <select ref={selectRef} value={selectedField} onChange={(event) => { setSelectedField(event.target.value); setSmartSuggestion(null); }} className="w-full rounded-2xl border border-[#dbe3ef] bg-white px-3 py-2.5 text-sm font-semibold text-[#0f172a] outline-none transition focus:border-violet-400">
+                {DYNAMIC_FIELDS.map((field) => <option key={field.value} value={field.value}>{field.label} ({field.value})</option>)}
               </select>
             </div>
-
-            {smartSuggestion ? (
-              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-bold text-emerald-700">
-                Reconhecido automaticamente como: {smartSuggestion.label}
-              </div>
-            ) : null}
-
-            <button
-              ref={replaceButtonRef}
-              type="button"
-              onClick={handleReplace}
-              disabled={!selectedText}
-              className={`w-full rounded-2xl px-4 py-2.5 text-sm font-black text-white shadow-[0_12px_25px_rgba(124,58,237,0.32)] transition disabled:cursor-not-allowed disabled:opacity-60 ${guideStep === 'replace' ? 'bg-fuchsia-600 ring-4 ring-fuchsia-400/30 animate-pulse' : 'bg-violet-600 hover:bg-violet-700'}`}
-            >
-              Substituir por campo
-            </button>
-
+            {smartSuggestion ? <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-bold text-emerald-700">Reconhecido automaticamente como: {smartSuggestion.label}</div> : null}
+            <button ref={replaceButtonRef} type="button" onClick={handleReplace} disabled={!selectedText} className={`w-full rounded-2xl px-4 py-2.5 text-sm font-black text-white shadow-[0_12px_25px_rgba(124,58,237,0.32)] transition disabled:cursor-not-allowed disabled:opacity-60 ${guideStep === 'replace' ? 'bg-fuchsia-600 ring-4 ring-fuchsia-400/30 animate-pulse' : 'bg-violet-600 hover:bg-violet-700'}`}>Substituir por campo</button>
             <div className="rounded-xl border border-violet-100 bg-white px-3 py-2 text-xs text-[#475569]">
-              Próxima substituição: <span className="font-bold text-violet-700">{'{{'}{selectedField}{'}}'}</span>
-              <br />
+              Próxima substituição: <span className="font-bold text-violet-700">{'{{'}{selectedField}{'}}'}</span><br />
               Campo selecionado: <span className="font-semibold">{selectedFieldLabel}</span>
               {lastReplacement ? <><br />Última automação criada: <span className="font-black text-emerald-600">{lastReplacement}</span></> : null}
             </div>
@@ -340,15 +238,7 @@ export default function PrepareDynamicFieldsModal({
           <button type="button" onClick={() => onConclude?.(workingText)} className="rounded-2xl bg-violet-600 px-5 py-2.5 text-sm font-black text-white shadow-[0_12px_25px_rgba(124,58,237,0.32)] transition hover:bg-violet-700">Concluir</button>
         </div>
 
-        {guideVisible ? (
-          <GuideCard
-            step={GUIDE_STEPS[guideStep]}
-            canContinue={canContinue}
-            onContinue={handleGuideContinue}
-            onDismiss={() => setGuideVisible(false)}
-            suggestionLabel={smartSuggestion?.label}
-          />
-        ) : null}
+        {guideVisible ? <GuideCard step={GUIDE_STEPS[guideStep]} canContinue={canContinue} onContinue={handleGuideContinue} onDismiss={() => setGuideVisible(false)} suggestionLabel={smartSuggestion?.label} /> : null}
       </div>
     </div>
   );

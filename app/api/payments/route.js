@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requireWorkspaceAccess } from '@/lib/api/require-workspace-access';
-import { getCurrentWorkspace } from '@/lib/workspaces/get-current-workspace';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -14,6 +13,19 @@ async function requirePaymentsAccess({ supabase, request, logPrefix }) {
   return requireWorkspaceAccess({
     supabase,
     request,
+    moduleKey: 'pagamentos',
+    actionKey: 'read',
+    logPrefix,
+    allowedRoles: ['owner', 'admin', 'financeiro'],
+  });
+}
+
+async function requirePaymentsWriteAccess({ supabase, request, logPrefix }) {
+  return requireWorkspaceAccess({
+    supabase,
+    request,
+    moduleKey: 'pagamentos',
+    actionKey: 'write',
     logPrefix,
     allowedRoles: ['owner', 'admin', 'financeiro'],
   });
@@ -25,11 +37,10 @@ export async function GET(request) {
   try {
     const auth = await requirePaymentsAccess({ supabase, request, logPrefix: '[PAYMENTS_API][GET]' });
     if (!auth.ok) {
-      return NextResponse.json({ ok: false, message: auth.error }, { status: auth.status || 401 });
+      return NextResponse.json({ ok: false, message: auth.error || 'Acesso não autorizado.' }, { status: auth.status || 401 });
     }
 
-    const workspaceContext = await getCurrentWorkspace({ supabase, request });
-    const workspaceId = workspaceContext?.workspaceId || auth.workspaceId;
+    const workspaceId = auth.workspaceId;
 
     const { data: events, error: eventsError } = await supabase
       .from('events')
@@ -86,13 +97,12 @@ export async function POST(request) {
   const supabase = getSupabaseAdmin();
 
   try {
-    const auth = await requirePaymentsAccess({ supabase, request, logPrefix: '[PAYMENTS_API][POST]' });
+    const auth = await requirePaymentsWriteAccess({ supabase, request, logPrefix: '[PAYMENTS_API][POST]' });
     if (!auth.ok) {
-      return NextResponse.json({ ok: false, message: auth.error }, { status: auth.status || 401 });
+      return NextResponse.json({ ok: false, message: auth.error || 'Acesso não autorizado.' }, { status: auth.status || 401 });
     }
 
-    const workspaceContext = await getCurrentWorkspace({ supabase, request });
-    const workspaceId = workspaceContext?.workspaceId || auth.workspaceId;
+    const workspaceId = auth.workspaceId;
     const body = await request.json().catch(() => ({}));
     const payload = body?.payload && typeof body.payload === 'object' ? body.payload : body || {};
     const eventId = String(payload?.event_id || '').trim();
@@ -132,7 +142,7 @@ export async function POST(request) {
 
     if (error) throw error;
 
-    return NextResponse.json({ ok: true, data });
+    return NextResponse.json({ ok: true, data, workspaceId });
   } catch (error) {
     console.error('[PAYMENTS_API][POST][ERROR]', {
       message: error?.message,

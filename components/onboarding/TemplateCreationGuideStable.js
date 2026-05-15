@@ -16,19 +16,11 @@ const STEPS = [
   {
     key: 'name',
     title: 'Dê um nome claro ao modelo',
-    description: 'Use um nome operacional. Exemplo: Contrato Casamento Premium.',
+    description: 'Use um nome operacional. Exemplo: Contrato Casamento Premium. O identificador interno será gerado automaticamente a partir desse nome.',
     selector: '[data-tour="template-name-input"]',
     texts: ['Nome', 'Contrato padrão casamento'],
     requiresValue: true,
     hint: 'Digite um nome para o template antes de avançar.',
-    focus: true,
-  },
-  {
-    key: 'slug',
-    title: 'Confira o identificador interno',
-    description: 'O slug ajuda o sistema a encontrar este modelo depois. Se ele já foi preenchido automaticamente, pode seguir.',
-    selector: '[data-tour="template-slug-input"]',
-    texts: ['Slug', 'contrato-casamento-padrao'],
     focus: true,
   },
   {
@@ -98,9 +90,27 @@ function ensureAnchors() {
   const inputSelector = 'input, textarea, [contenteditable="true"]';
 
   setAnchor(findByText(['Novo template'], buttonSelector) || findByText(['Criar template'], buttonSelector), 'template-new-button');
-  setAnchor(document.querySelector('input[placeholder*="Contrato" i]') || findByText(['Nome'], 'label')?.querySelector?.('input'), 'template-name-input');
-  setAnchor(document.querySelector('input[placeholder*="contrato" i]') || findByText(['Slug'], 'label')?.querySelector?.('input'), 'template-slug-input');
-  setAnchor(document.querySelector('[contenteditable="true"]') || document.querySelector('[data-contract-rich-editor="true"]') || findByText(['Texto do contrato'], inputSelector), 'template-editor');
+
+  const formFields = Array.from(document.querySelectorAll('input, textarea, [contenteditable="true"]')).filter(isVisible);
+  const visibleInputs = formFields.filter((field) => {
+    const placeholder = normalize(field.getAttribute?.('placeholder') || '');
+    return !placeholder.includes('buscar por nome') && !placeholder.includes('buscar');
+  });
+
+  setAnchor(
+    document.querySelector('input[placeholder*="Contrato padrão" i]') ||
+      visibleInputs.find((field) => normalize(field.getAttribute?.('placeholder') || '').includes('contrato')) ||
+      findByText(['Nome'], 'label')?.querySelector?.('input'),
+    'template-name-input'
+  );
+
+  setAnchor(
+    document.querySelector('[contenteditable="true"]') ||
+      document.querySelector('[data-contract-rich-editor="true"]') ||
+      findByText(['Texto do contrato'], inputSelector),
+    'template-editor'
+  );
+
   setAnchor(findByText(['Preparar campos dinâmicos'], buttonSelector), 'template-dynamic-fields');
   setAnchor(findByText(['Salvar template', 'Criar template', 'Salvar alterações'], buttonSelector), 'template-save-button');
 }
@@ -149,7 +159,7 @@ function getSpotlightBox(rect) {
 }
 
 function getDesiredCenterY(key, vh) {
-  if (key === 'name' || key === 'slug') return vh * 0.46;
+  if (key === 'name') return vh * 0.46;
   if (key === 'editor') return vh * 0.43;
   return vh * 0.5;
 }
@@ -187,7 +197,6 @@ function getTooltipPosition(rect, vw, vh, tooltipWidth, tooltipHeight = 300) {
   const targetCenterY = rect.top + rect.height / 2;
   let top = targetCenterY - tooltipHeight / 2;
 
-  // Evita que o card empurre visualmente o alvo para o rodapé em campos baixos.
   if (rect.bottom > vh * 0.68) {
     top = rect.top - tooltipHeight - gap;
   }
@@ -230,7 +239,7 @@ export default function TemplateCreationGuideStable({ enabled = false }) {
 
   const step = STEPS[index];
   const shouldForce = searchParams?.get('guide') === 'template' || searchParams?.get('onboarding') === 'template';
-  const sessionKey = useMemo(() => 'harmonics:template-guide-stable:v2', []);
+  const sessionKey = useMemo(() => 'harmonics:template-guide-stable:v3', []);
 
   useEffect(() => {
     if (!enabled || pathname !== '/contratos/templates') return;

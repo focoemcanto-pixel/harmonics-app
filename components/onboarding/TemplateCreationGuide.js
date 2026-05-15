@@ -1,55 +1,55 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
 const GUIDE_STEPS = [
   {
     key: 'start',
     title: 'Comece criando o template',
-    description: 'Clique em Novo template ou na aba Novo / Editar para abrir a área de criação do modelo-base.',
+    description: 'Clique em Novo template para abrir a área de criação do modelo-base do contrato.',
     targetTexts: ['Novo template', 'Novo / Editar'],
-    fallbackSelector: '[data-guide-target="contract-template-create"]',
+    fallbackSelector: '[data-tour="template-new-button"], button',
     actionLabel: 'Abrir criação',
   },
   {
     key: 'name',
     title: 'Dê um nome claro ao modelo',
     description: 'Use um nome operacional, como Contrato Casamento, Contrato Aniversário ou Contrato Corporativo.',
-    targetTexts: ['Nome', 'Nome do template', 'Título'],
-    fallbackSelector: 'input[name="name"], input[placeholder*="nome" i]',
-    actionLabel: 'Entendi',
-  },
-  {
-    key: 'editor',
-    title: 'Escreva o contrato normalmente',
-    description: 'Cole ou escreva o texto base como se fosse um contrato manual. Depois substitua os dados variáveis por tags.',
-    targetTexts: ['Cole aqui o contrato', 'Texto do contrato'],
-    fallbackSelector: '[data-contract-rich-editor="true"], [contenteditable="true"]',
+    targetTexts: ['Nome', 'Nome do template', 'Contrato padrão casamento'],
+    fallbackSelector: '[data-tour="template-name-input"], input[placeholder*="Contrato padrão" i], input[placeholder*="nome" i]',
     actionLabel: 'Próximo',
   },
   {
-    key: 'tags',
-    title: 'Use tags nos dados variáveis',
-    description: 'Substitua nome do cliente, data, local, valor e assinatura por tags como {{cliente_nome}}, {{evento_data}} e {{valor_total}}.',
-    targetTexts: ['Assistente de contrato', 'Tags', '{{cliente_nome}}'],
-    fallbackSelector: '[data-contract-assistant="true"], aside',
-    actionLabel: 'Ver exemplo',
+    key: 'slug',
+    title: 'Confira o identificador do template',
+    description: 'O slug ajuda o sistema a identificar esse modelo de forma interna. Ele pode ser preenchido automaticamente pelo nome.',
+    targetTexts: ['Slug', 'contrato-casamento-padrao'],
+    fallbackSelector: '[data-tour="template-slug-input"], input[placeholder*="contrato-casamento" i]',
+    actionLabel: 'Próximo',
   },
   {
-    key: 'preview',
-    title: 'Confira o preview vivo',
-    description: 'Abra a aba Preview no assistente para ver o contrato preenchido com dados fictícios antes de salvar.',
-    targetTexts: ['Preview'],
-    fallbackSelector: '[data-contract-preview="true"]',
-    actionLabel: 'Conferir preview',
+    key: 'editor',
+    title: 'Escreva ou cole o contrato',
+    description: 'Cole o texto base do contrato como se fosse um documento manual. Depois você trocará os dados variáveis por tags automáticas.',
+    targetTexts: ['Texto do contrato', 'Cole aqui o contrato'],
+    fallbackSelector: '[data-tour="template-editor"], [data-contract-rich-editor="true"], [contenteditable="true"]',
+    actionLabel: 'Próximo',
+  },
+  {
+    key: 'dynamic_fields',
+    title: 'Prepare os campos dinâmicos',
+    description: 'Depois de inserir o texto, use este botão para transformar cliente, data, local, valor e assinatura em campos automáticos.',
+    targetTexts: ['Preparar campos dinâmicos'],
+    fallbackSelector: '[data-tour="template-dynamic-fields"], button',
+    actionLabel: 'Continuar',
   },
   {
     key: 'save',
-    title: 'Salve como modelo ativo',
-    description: 'Depois de revisar tags e preview, salve o template. Em seguida, associe esse modelo a um tipo de evento.',
-    targetTexts: ['Salvar template', 'Salvar', 'Criar template'],
-    fallbackSelector: 'button[type="submit"]',
+    title: 'Salve o template',
+    description: 'Depois de revisar o texto e os campos automáticos, salve o template. Em seguida ele poderá ser associado aos tipos de evento.',
+    targetTexts: ['Criar template', 'Salvar alterações', 'Salvar template'],
+    fallbackSelector: '[data-tour="template-save-button"], button',
     actionLabel: 'Finalizar guia',
   },
 ];
@@ -75,11 +75,22 @@ function findByVisibleText(texts = []) {
   const candidates = texts.map(normalizeText).filter(Boolean);
   if (!candidates.length) return null;
 
-  const elements = Array.from(document.querySelectorAll('button, a, label, input, textarea, [role="button"], [contenteditable="true"], p, h1, h2, h3, aside'));
+  const elements = Array.from(document.querySelectorAll('button, a, label, input, textarea, [role="button"], [contenteditable="true"], p, h1, h2, h3, aside, section'));
 
   return elements.find((element) => {
     if (!isVisibleElement(element)) return false;
     const text = normalizeText(element.getAttribute('placeholder') || element.getAttribute('aria-label') || element.textContent || element.value || '');
+    return candidates.some((candidate) => text.includes(candidate));
+  }) || null;
+}
+
+function findBestButtonByText(texts = []) {
+  if (typeof document === 'undefined') return null;
+  const candidates = texts.map(normalizeText).filter(Boolean);
+  const buttons = Array.from(document.querySelectorAll('button, [role="button"]'));
+  return buttons.find((button) => {
+    if (!isVisibleElement(button)) return false;
+    const text = normalizeText(button.textContent || button.getAttribute('aria-label') || '');
     return candidates.some((candidate) => text.includes(candidate));
   }) || null;
 }
@@ -99,17 +110,33 @@ function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
 
+function getArrowPosition(targetRect, tooltipTop, tooltipLeft, tooltipWidth) {
+  if (!targetRect) return null;
+  const targetCenterX = targetRect.left + targetRect.width / 2;
+  const targetCenterY = targetRect.top + targetRect.height / 2;
+  const tooltipCenterX = tooltipLeft + tooltipWidth / 2;
+  const tooltipCenterY = tooltipTop + 120;
+
+  const horizontal = targetCenterX < tooltipCenterX ? 'left' : 'right';
+  const vertical = targetCenterY < tooltipCenterY ? 'up' : 'down';
+
+  return { horizontal, vertical };
+}
+
 export default function TemplateCreationGuide({ enabled = false }) {
   const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const isTemplateRoute = pathname === '/contratos/templates';
   const [active, setActive] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
   const [targetRect, setTargetRect] = useState(null);
+  const [targetMissing, setTargetMissing] = useState(false);
 
   const step = GUIDE_STEPS[stepIndex];
 
-  const storageKey = useMemo(() => 'harmonics:template-creation-guide:v1', []);
+  const sessionKey = useMemo(() => 'harmonics:template-creation-guide:session-v2', []);
+  const forceGuide = searchParams?.get('guide') === 'template' || searchParams?.get('onboarding') === 'template';
 
   useEffect(() => {
     if (!enabled || !isTemplateRoute || typeof window === 'undefined') {
@@ -117,38 +144,53 @@ export default function TemplateCreationGuide({ enabled = false }) {
       return;
     }
 
-    const alreadyDone = window.localStorage.getItem(storageKey) === 'done';
-    if (alreadyDone) return;
+    const skippedThisSession = window.sessionStorage.getItem(sessionKey) === 'skipped';
+    if (skippedThisSession && !forceGuide) return;
 
-    const timer = window.setTimeout(() => setActive(true), 700);
+    if (forceGuide) {
+      window.sessionStorage.removeItem(sessionKey);
+      setStepIndex(0);
+    }
+
+    const timer = window.setTimeout(() => setActive(true), 550);
     return () => window.clearTimeout(timer);
-  }, [enabled, isTemplateRoute, storageKey]);
+  }, [enabled, forceGuide, isTemplateRoute, sessionKey]);
 
   useEffect(() => {
     if (!active || !step || typeof window === 'undefined') return undefined;
+
+    let retryTimer;
 
     function syncTarget() {
       const element = findTarget(step);
 
       if (!element) {
         setTargetRect(null);
+        setTargetMissing(true);
+        retryTimer = window.setTimeout(syncTarget, 450);
         return;
       }
 
+      setTargetMissing(false);
       element.scrollIntoView?.({ behavior: 'smooth', block: 'center', inline: 'center' });
 
       window.setTimeout(() => {
         setTargetRect(element.getBoundingClientRect());
-      }, 250);
+      }, 260);
     }
 
     syncTarget();
     window.addEventListener('resize', syncTarget);
     window.addEventListener('scroll', syncTarget, true);
 
+    const observer = new MutationObserver(syncTarget);
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true });
+
     return () => {
+      window.clearTimeout(retryTimer);
       window.removeEventListener('resize', syncTarget);
       window.removeEventListener('scroll', syncTarget, true);
+      observer.disconnect();
     };
   }, [active, step]);
 
@@ -156,25 +198,20 @@ export default function TemplateCreationGuide({ enabled = false }) {
 
   function finishGuide() {
     if (typeof window !== 'undefined') {
-      window.localStorage.setItem(storageKey, 'done');
+      window.sessionStorage.setItem(sessionKey, 'skipped');
     }
     setActive(false);
   }
 
   function nextStep() {
     if (step.key === 'start') {
-      const target = findTarget(step);
+      const target = findTarget(step) || findBestButtonByText(['Novo template']);
       target?.click?.();
     }
 
-    if (step.key === 'tags') {
-      const assistantButton = Array.from(document.querySelectorAll('button')).find((button) => normalizeText(button.textContent).includes('assistente'));
-      assistantButton?.click?.();
-    }
-
-    if (step.key === 'preview') {
-      const previewButton = Array.from(document.querySelectorAll('button')).find((button) => normalizeText(button.textContent).includes('preview'));
-      previewButton?.click?.();
+    if (step.key === 'dynamic_fields') {
+      const target = findTarget(step) || findBestButtonByText(['Preparar campos dinâmicos']);
+      if (target && !targetMissing) target.click?.();
     }
 
     if (stepIndex >= GUIDE_STEPS.length - 1) {
@@ -188,32 +225,49 @@ export default function TemplateCreationGuide({ enabled = false }) {
 
   const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 390;
   const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 800;
-  const tooltipWidth = Math.min(430, viewportWidth - 32);
+  const tooltipWidth = Math.min(450, viewportWidth - 32);
   const tooltipLeft = targetRect
     ? clamp(targetRect.left, 16, viewportWidth - tooltipWidth - 16)
     : 16;
   const tooltipTop = targetRect
-    ? clamp(targetRect.bottom + 18, 16, viewportHeight - 360)
+    ? clamp(targetRect.bottom + 22, 16, viewportHeight - 380)
     : 120;
 
   const spotlightStyle = targetRect
     ? {
-        left: targetRect.left - 10,
-        top: targetRect.top - 10,
-        width: targetRect.width + 20,
-        height: targetRect.height + 20,
+        left: Math.max(targetRect.left - 12, 8),
+        top: Math.max(targetRect.top - 12, 8),
+        width: targetRect.width + 24,
+        height: targetRect.height + 24,
       }
     : null;
 
+  const arrow = getArrowPosition(targetRect, tooltipTop, tooltipLeft, tooltipWidth);
+
   return (
     <div className="fixed inset-0 z-[260] pointer-events-none">
-      <div className="absolute inset-0 bg-slate-950/50 backdrop-blur-[2px]" />
+      <div className="absolute inset-0 bg-slate-950/55 backdrop-blur-[2px]" />
 
       {spotlightStyle ? (
         <div
-          className="absolute rounded-[24px] border-2 border-white shadow-[0_0_0_9999px_rgba(15,23,42,0.50),0_22px_80px_rgba(124,58,237,0.35)] transition-all duration-300"
+          className="absolute rounded-[24px] border-2 border-white bg-white/5 shadow-[0_0_0_9999px_rgba(15,23,42,0.48),0_22px_80px_rgba(124,58,237,0.35)] transition-all duration-300"
           style={spotlightStyle}
         />
+      ) : null}
+
+      {targetRect && arrow ? (
+        <div
+          className={`absolute z-[262] text-[34px] font-black text-white drop-shadow-[0_10px_24px_rgba(0,0,0,0.38)] animate-bounce ${arrow.horizontal === 'left' ? '-rotate-45' : 'rotate-45'}`}
+          style={{
+            left: clamp(targetRect.left + targetRect.width / 2 - 16, 20, viewportWidth - 52),
+            top: arrow.vertical === 'up'
+              ? clamp(targetRect.bottom + 8, 20, viewportHeight - 60)
+              : clamp(targetRect.top - 46, 20, viewportHeight - 60),
+          }}
+          aria-hidden="true"
+        >
+          ➜
+        </div>
       ) : null}
 
       <div
@@ -237,9 +291,9 @@ export default function TemplateCreationGuide({ enabled = false }) {
           {step.description}
         </p>
 
-        {!targetRect ? (
+        {targetMissing ? (
           <div className="mt-4 rounded-[20px] border border-amber-200 bg-amber-50 px-4 py-3 text-[12px] font-bold leading-5 text-amber-800">
-            Ainda não encontrei o alvo visual nesta tela. Use o botão abaixo para avançar e abrir a área correspondente.
+            Estou aguardando essa área aparecer na tela. Avance para abrir o próximo ponto ou preencha o texto quando necessário.
           </div>
         ) : null}
 

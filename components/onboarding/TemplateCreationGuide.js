@@ -9,7 +9,7 @@ const GUIDE_STEPS = [
     title: 'Comece criando o template',
     description: 'Clique em Novo template para abrir a área de criação do modelo-base do contrato.',
     targetTexts: ['Novo template', 'Novo / Editar'],
-    fallbackSelector: '[data-tour="template-new-button"], button',
+    fallbackSelector: '[data-tour="template-new-button"]',
     actionLabel: 'Abrir criação',
     autoAction: true,
   },
@@ -18,7 +18,7 @@ const GUIDE_STEPS = [
     title: 'Dê um nome claro ao modelo',
     description: 'Use um nome operacional, como Contrato Casamento, Contrato Aniversário ou Contrato Corporativo.',
     targetTexts: ['Nome', 'Nome do template', 'Contrato padrão casamento'],
-    fallbackSelector: '[data-tour="template-name-input"], input[placeholder*="Contrato padrão" i], input[placeholder*="nome" i]',
+    fallbackSelector: '[data-tour="template-name-input"]',
     actionLabel: 'Próximo',
   },
   {
@@ -26,7 +26,7 @@ const GUIDE_STEPS = [
     title: 'Confira o identificador do template',
     description: 'O slug ajuda o sistema a identificar esse modelo de forma interna. Ele pode ser preenchido automaticamente pelo nome.',
     targetTexts: ['Slug', 'contrato-casamento-padrao'],
-    fallbackSelector: '[data-tour="template-slug-input"], input[placeholder*="contrato-casamento" i]',
+    fallbackSelector: '[data-tour="template-slug-input"]',
     actionLabel: 'Próximo',
   },
   {
@@ -34,7 +34,7 @@ const GUIDE_STEPS = [
     title: 'Escreva ou cole o contrato',
     description: 'Cole o texto base do contrato como se fosse um documento manual. Depois você trocará os dados variáveis por tags automáticas.',
     targetTexts: ['Texto do contrato', 'Cole aqui o contrato'],
-    fallbackSelector: '[data-tour="template-editor"], [data-contract-rich-editor="true"], [contenteditable="true"]',
+    fallbackSelector: '[data-tour="template-editor"]',
     actionLabel: 'Próximo',
   },
   {
@@ -42,7 +42,7 @@ const GUIDE_STEPS = [
     title: 'Prepare os campos dinâmicos',
     description: 'Depois de inserir o texto, use este botão para transformar cliente, data, local, valor e assinatura em campos automáticos.',
     targetTexts: ['Preparar campos dinâmicos'],
-    fallbackSelector: '[data-tour="template-dynamic-fields"], button',
+    fallbackSelector: '[data-tour="template-dynamic-fields"]',
     actionLabel: 'Continuar',
   },
   {
@@ -50,7 +50,7 @@ const GUIDE_STEPS = [
     title: 'Salve o template',
     description: 'Depois de revisar o texto e os campos automáticos, salve o template. Em seguida ele poderá ser associado aos tipos de evento.',
     targetTexts: ['Criar template', 'Salvar alterações', 'Salvar template'],
-    fallbackSelector: '[data-tour="template-save-button"], button',
+    fallbackSelector: '[data-tour="template-save-button"]',
     actionLabel: 'Finalizar guia',
   },
 ];
@@ -71,12 +71,12 @@ function isVisibleElement(element) {
   return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
 }
 
-function findByVisibleText(texts = []) {
+function findByVisibleText(texts = [], selector = 'button, a, label, input, textarea, [role="button"], [contenteditable="true"], p, h1, h2, h3, aside, section') {
   if (typeof document === 'undefined') return null;
   const candidates = texts.map(normalizeText).filter(Boolean);
   if (!candidates.length) return null;
 
-  const elements = Array.from(document.querySelectorAll('button, a, label, input, textarea, [role="button"], [contenteditable="true"], p, h1, h2, h3, aside, section'));
+  const elements = Array.from(document.querySelectorAll(selector));
 
   return elements.find((element) => {
     if (!isVisibleElement(element)) return false;
@@ -85,20 +85,47 @@ function findByVisibleText(texts = []) {
   }) || null;
 }
 
-function findBestButtonByText(texts = []) {
-  if (typeof document === 'undefined') return null;
-  const candidates = texts.map(normalizeText).filter(Boolean);
-  const buttons = Array.from(document.querySelectorAll('button, [role="button"]'));
+function setTourAnchor(element, name) {
+  if (!element || !name) return null;
+  if (!element.getAttribute('data-tour')) {
+    element.setAttribute('data-tour', name);
+  }
+  return element;
+}
 
-  return buttons.find((button) => {
-    if (!isVisibleElement(button)) return false;
-    const text = normalizeText(button.textContent || button.getAttribute('aria-label') || '');
-    return candidates.some((candidate) => text.includes(candidate));
-  }) || null;
+function findBestButtonByText(texts = []) {
+  return findByVisibleText(texts, 'button, [role="button"]');
+}
+
+function ensureTemplateTourAnchors() {
+  if (typeof document === 'undefined') return;
+
+  setTourAnchor(findBestButtonByText(['Novo template']), 'template-new-button');
+
+  const nameInput =
+    document.querySelector('input[placeholder*="Contrato padrão" i]') ||
+    findByVisibleText(['Nome'], 'label')?.querySelector?.('input');
+  setTourAnchor(nameInput, 'template-name-input');
+
+  const slugInput =
+    document.querySelector('input[placeholder*="contrato-casamento" i]') ||
+    findByVisibleText(['Slug'], 'label')?.querySelector?.('input');
+  setTourAnchor(slugInput, 'template-slug-input');
+
+  const editor =
+    document.querySelector('[contenteditable="true"]') ||
+    document.querySelector('[data-contract-rich-editor="true"]') ||
+    findByVisibleText(['Texto do contrato'], 'label');
+  setTourAnchor(editor, 'template-editor');
+
+  setTourAnchor(findBestButtonByText(['Preparar campos dinâmicos']), 'template-dynamic-fields');
+  setTourAnchor(findBestButtonByText(['Criar template', 'Salvar alterações', 'Salvar template']), 'template-save-button');
 }
 
 function findTarget(step) {
   if (typeof document === 'undefined') return null;
+
+  ensureTemplateTourAnchors();
 
   if (step.fallbackSelector) {
     const explicit = document.querySelector(step.fallbackSelector);
@@ -141,7 +168,7 @@ export default function TemplateCreationGuide({ enabled = false }) {
 
   const step = GUIDE_STEPS[stepIndex];
 
-  const sessionKey = useMemo(() => 'harmonics:template-creation-guide:session-v4', []);
+  const sessionKey = useMemo(() => 'harmonics:template-creation-guide:session-v5', []);
   const forceGuide = searchParams?.get('guide') === 'template' || searchParams?.get('onboarding') === 'template';
 
   useEffect(() => {
@@ -171,6 +198,7 @@ export default function TemplateCreationGuide({ enabled = false }) {
     let retryTimer;
 
     function syncTarget() {
+      ensureTemplateTourAnchors();
       const element = findTarget(step);
 
       if (!element) {

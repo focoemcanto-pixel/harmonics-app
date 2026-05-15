@@ -39,7 +39,7 @@ const OnboardingTourOverlay = dynamic(() => import('@/components/onboarding/Onbo
   loading: () => null,
 });
 
-const TemplateCreationGuide = dynamic(() => import('@/components/onboarding/TemplateCreationGuide'), {
+const TemplateCreationGuideStable = dynamic(() => import('@/components/onboarding/TemplateCreationGuideStable'), {
   ssr: false,
   loading: () => null,
 });
@@ -85,7 +85,7 @@ export default function DeferredOnboardingMount({
         {showTour ? <OnboardingTourOverlay /> : null}
         <OperationalRouteOnboarding enabled />
         <SectionGuidedOnboarding enabled />
-        {pathname === '/contratos/templates' ? <TemplateCreationGuide enabled /> : null}
+        {pathname === '/contratos/templates' ? <TemplateCreationGuideStable enabled /> : null}
       </>
     );
   }

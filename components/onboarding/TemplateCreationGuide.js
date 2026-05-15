@@ -169,6 +169,12 @@ function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
 
+function shouldScrollTargetIntoView(rect) {
+  if (!rect || typeof window === 'undefined') return false;
+  const margin = 92;
+  return rect.top < margin || rect.bottom > window.innerHeight - margin;
+}
+
 function getArrowPosition(targetRect, tooltipTop, tooltipLeft, tooltipWidth) {
   if (!targetRect) return null;
 
@@ -196,10 +202,13 @@ export default function TemplateCreationGuide({ enabled = false }) {
   const [validationHint, setValidationHint] = useState('');
 
   const autoActionExecutedRef = useRef(false);
+  const scrolledStepRef = useRef(null);
+  const rectFrameRef = useRef(null);
+  const lastRectRef = useRef(null);
 
   const step = GUIDE_STEPS[stepIndex];
 
-  const sessionKey = useMemo(() => 'harmonics:template-creation-guide:session-v6', []);
+  const sessionKey = useMemo(() => 'harmonics:template-creation-guide:session-v7', []);
   const forceGuide = searchParams?.get('guide') === 'template' || searchParams?.get('onboarding') === 'template';
 
   useEffect(() => {
@@ -216,6 +225,7 @@ export default function TemplateCreationGuide({ enabled = false }) {
       window.sessionStorage.removeItem(sessionKey);
       setStepIndex(0);
       autoActionExecutedRef.current = false;
+      scrolledStepRef.current = null;
     }
 
     const timer = window.setTimeout(() => setActive(true), 550);
@@ -224,58 +234,112 @@ export default function TemplateCreationGuide({ enabled = false }) {
   }, [enabled, forceGuide, isTemplateRoute, sessionKey]);
 
   useEffect(() => {
+    if (!active || typeof window === 'undefined') return undefined;
+
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousHtmlOverflow;
+    };
+  }, [active]);
+
+  useEffect(() => {
     if (!active || !step || typeof window === 'undefined') return undefined;
 
     let retryTimer;
+    let mutationTimer;
 
-    function syncTarget() {
+    function updateRect(element) {
+      if (!element) return;
+
+      if (rectFrameRef.current) {
+        window.cancelAnimationFrame(rectFrameRef.current);
+      }
+
+      rectFrameRef.current = window.requestAnimationFrame(() => {
+        const nextRect = element.getBoundingClientRect();
+        const previous = lastRectRef.current;
+        const changed = !previous
+          || Math.abs(previous.top - nextRect.top) > 2
+          || Math.abs(previous.left - nextRect.left) > 2
+          || Math.abs(previous.width - nextRect.width) > 2
+          || Math.abs(previous.height - nextRect.height) > 2;
+
+        if (changed) {
+          lastRectRef.current = nextRect;
+          setTargetRect(nextRect);
+        }
+      });
+    }
+
+    function syncTarget({ allowScroll = false } = {}) {
       ensureTemplateTourAnchors();
       setValidationHint('');
       const element = findTarget(step);
 
       if (!element) {
         setTargetRect(null);
+        lastRectRef.current = null;
         setTargetMissing(true);
 
-        retryTimer = window.setTimeout(syncTarget, 450);
+        retryTimer = window.setTimeout(() => syncTarget({ allowScroll: true }), 450);
         return;
       }
 
       setTargetMissing(false);
 
-      element.scrollIntoView?.({
-        behavior: 'smooth',
-        block: 'center',
-        inline: 'center',
-      });
+      const currentRect = element.getBoundingClientRect();
+      const shouldScroll = allowScroll && scrolledStepRef.current !== step.key && shouldScrollTargetIntoView(currentRect);
 
-      window.setTimeout(() => {
-        setTargetRect(element.getBoundingClientRect());
+      if (shouldScroll) {
+        scrolledStepRef.current = step.key;
+        element.scrollIntoView?.({
+          behavior: 'auto',
+          block: 'nearest',
+          inline: 'nearest',
+        });
 
-        if (step.autoAction && !autoActionExecutedRef.current) {
-          autoActionExecutedRef.current = true;
+        window.setTimeout(() => updateRect(element), 80);
+      } else {
+        updateRect(element);
+      }
 
-          window.setTimeout(() => {
-            try {
-              element.click?.();
+      if (step.autoAction && !autoActionExecutedRef.current) {
+        autoActionExecutedRef.current = true;
 
-              window.setTimeout(() => {
-                setStepIndex(1);
-              }, 900);
-            } catch (error) {
-              console.error('[TemplateCreationGuide] autoAction error', error);
-            }
-          }, 650);
-        }
-      }, 260);
+        window.setTimeout(() => {
+          try {
+            element.click?.();
+
+            window.setTimeout(() => {
+              scrolledStepRef.current = null;
+              lastRectRef.current = null;
+              setStepIndex(1);
+            }, 900);
+          } catch (error) {
+            console.error('[TemplateCreationGuide] autoAction error', error);
+          }
+        }, 650);
+      }
     }
 
-    syncTarget();
+    syncTarget({ allowScroll: true });
 
-    window.addEventListener('resize', syncTarget);
-    window.addEventListener('scroll', syncTarget, true);
+    function handleResize() {
+      syncTarget({ allowScroll: false });
+    }
 
-    const observer = new MutationObserver(syncTarget);
+    window.addEventListener('resize', handleResize);
+
+    const observer = new MutationObserver(() => {
+      window.clearTimeout(mutationTimer);
+      mutationTimer = window.setTimeout(() => syncTarget({ allowScroll: false }), 180);
+    });
 
     observer.observe(document.body, {
       childList: true,
@@ -285,8 +349,9 @@ export default function TemplateCreationGuide({ enabled = false }) {
 
     return () => {
       window.clearTimeout(retryTimer);
-      window.removeEventListener('resize', syncTarget);
-      window.removeEventListener('scroll', syncTarget, true);
+      window.clearTimeout(mutationTimer);
+      if (rectFrameRef.current) window.cancelAnimationFrame(rectFrameRef.current);
+      window.removeEventListener('resize', handleResize);
       observer.disconnect();
     };
   }, [active, step]);
@@ -326,6 +391,8 @@ export default function TemplateCreationGuide({ enabled = false }) {
       return;
     }
 
+    scrolledStepRef.current = null;
+    lastRectRef.current = null;
     setStepIndex((current) => current + 1);
   }
 
@@ -436,6 +503,8 @@ export default function TemplateCreationGuide({ enabled = false }) {
                 type="button"
                 onClick={() => {
                   setValidationHint('');
+                  scrolledStepRef.current = null;
+                  lastRectRef.current = null;
                   setStepIndex((current) => Math.max(0, current - 1));
                 }}
                 className="rounded-2xl border border-violet-200 bg-white px-4 py-2.5 text-[13px] font-black text-violet-700"

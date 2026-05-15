@@ -148,6 +148,60 @@ function getSpotlightBox(rect) {
   };
 }
 
+function getDesiredCenterY(key, vh) {
+  if (key === 'name' || key === 'slug') return vh * 0.46;
+  if (key === 'editor') return vh * 0.43;
+  return vh * 0.5;
+}
+
+function centerTargetComfortably(target, stepKey) {
+  const rect = target.getBoundingClientRect();
+  const desiredCenterY = getDesiredCenterY(stepKey, window.innerHeight);
+  const currentCenterY = rect.top + rect.height / 2;
+  const delta = currentCenterY - desiredCenterY;
+
+  if (Math.abs(delta) < 56) return;
+
+  const root = document.scrollingElement || document.documentElement;
+  root.scrollTo({ top: root.scrollTop + delta, behavior: 'auto' });
+}
+
+function getTooltipPosition(rect, vw, vh, tooltipWidth, tooltipHeight = 300) {
+  if (!rect) return { left: 16, top: 120 };
+
+  const gap = 24;
+  const spaceRight = vw - rect.right;
+  const spaceLeft = rect.left;
+  const canFitRight = spaceRight >= tooltipWidth + gap + 16;
+  const canFitLeft = spaceLeft >= tooltipWidth + gap + 16;
+
+  let left;
+  if (canFitRight) {
+    left = rect.right + gap;
+  } else if (canFitLeft) {
+    left = rect.left - tooltipWidth - gap;
+  } else {
+    left = clamp(rect.left + rect.width / 2 - tooltipWidth / 2, 16, vw - tooltipWidth - 16);
+  }
+
+  const targetCenterY = rect.top + rect.height / 2;
+  let top = targetCenterY - tooltipHeight / 2;
+
+  // Evita que o card empurre visualmente o alvo para o rodapé em campos baixos.
+  if (rect.bottom > vh * 0.68) {
+    top = rect.top - tooltipHeight - gap;
+  }
+
+  if (top < 18) {
+    top = rect.bottom + gap;
+  }
+
+  return {
+    left: clamp(left, 16, vw - tooltipWidth - 16),
+    top: clamp(top, 18, vh - tooltipHeight - 18),
+  };
+}
+
 function Mask({ box, width, height }) {
   const cls = 'absolute bg-slate-950/62 backdrop-blur-[2px] transition-all duration-200';
   if (!box) return <div className={`${cls} inset-0`} />;
@@ -172,10 +226,11 @@ export default function TemplateCreationGuideStable({ enabled = false }) {
   const autoClickedRef = useRef(false);
   const focusedRef = useRef(null);
   const retryRef = useRef(null);
+  const centeredStepRef = useRef(null);
 
   const step = STEPS[index];
   const shouldForce = searchParams?.get('guide') === 'template' || searchParams?.get('onboarding') === 'template';
-  const sessionKey = useMemo(() => 'harmonics:template-guide-stable:v1', []);
+  const sessionKey = useMemo(() => 'harmonics:template-guide-stable:v2', []);
 
   useEffect(() => {
     if (!enabled || pathname !== '/contratos/templates') return;
@@ -185,6 +240,7 @@ export default function TemplateCreationGuideStable({ enabled = false }) {
       sessionStorage.removeItem(sessionKey);
       autoClickedRef.current = false;
       focusedRef.current = null;
+      centeredStepRef.current = null;
       setIndex(0);
     }
 
@@ -195,30 +251,26 @@ export default function TemplateCreationGuideStable({ enabled = false }) {
   useEffect(() => {
     if (!active || !step) return;
 
-    function sync({ scroll = false } = {}) {
+    function sync({ center = false } = {}) {
       const target = findTarget(step);
       if (!target) {
         setTargetRect(null);
-        retryRef.current = setTimeout(() => sync({ scroll: true }), 450);
+        retryRef.current = setTimeout(() => sync({ center: true }), 450);
         return;
       }
 
-      const before = target.getBoundingClientRect();
-      const targetCenter = before.top + before.height / 2;
-      const needsScroll = scroll && (targetCenter < window.innerHeight * 0.28 || targetCenter > window.innerHeight * 0.68);
-
-      if (needsScroll) {
-        target.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'nearest' });
+      if (center && centeredStepRef.current !== step.key) {
+        centeredStepRef.current = step.key;
+        centerTargetComfortably(target, step.key);
       }
 
       requestAnimationFrame(() => {
-        const rect = target.getBoundingClientRect();
-        setTargetRect(rect);
+        setTargetRect(target.getBoundingClientRect());
       });
 
       if (step.focus && focusedRef.current !== step.key) {
         focusedRef.current = step.key;
-        setTimeout(() => findFocusable(target)?.focus?.({ preventScroll: true }), 120);
+        setTimeout(() => findFocusable(target)?.focus?.({ preventScroll: true }), 160);
       }
 
       if (step.autoClick && !autoClickedRef.current) {
@@ -227,20 +279,21 @@ export default function TemplateCreationGuideStable({ enabled = false }) {
           target.click?.();
           setTimeout(() => {
             focusedRef.current = null;
+            centeredStepRef.current = null;
             setIndex(1);
           }, 700);
         }, 550);
       }
     }
 
-    sync({ scroll: true });
+    sync({ center: true });
 
-    const onResize = () => sync({ scroll: false });
+    const onResize = () => sync({ center: false });
     window.addEventListener('resize', onResize);
 
     const observer = new MutationObserver(() => {
       clearTimeout(retryRef.current);
-      retryRef.current = setTimeout(() => sync({ scroll: false }), 180);
+      retryRef.current = setTimeout(() => sync({ center: false }), 180);
     });
     observer.observe(document.body, { childList: true, subtree: true, attributes: true });
 
@@ -272,6 +325,7 @@ export default function TemplateCreationGuideStable({ enabled = false }) {
     setHint('');
     if (index >= STEPS.length - 1) return finish();
     focusedRef.current = null;
+    centeredStepRef.current = null;
     setIndex((current) => current + 1);
   }
 
@@ -279,9 +333,7 @@ export default function TemplateCreationGuideStable({ enabled = false }) {
   const vh = typeof window !== 'undefined' ? window.innerHeight : 800;
   const box = getSpotlightBox(targetRect);
   const tooltipWidth = Math.min(450, vw - 32);
-  const tooltipLeft = targetRect ? clamp(targetRect.right + 24, 16, vw - tooltipWidth - 16) : 16;
-  const fallbackTop = targetRect ? targetRect.top : 120;
-  const tooltipTop = clamp(fallbackTop, 18, vh - 330);
+  const tooltipPosition = getTooltipPosition(targetRect, vw, vh, tooltipWidth, hint ? 352 : 304);
   const arrowLeft = box ? clamp(box.left + box.width / 2 - 14, 18, vw - 44) : 18;
   const arrowTop = box ? clamp(box.top - 48, 18, vh - 58) : 80;
 
@@ -302,7 +354,7 @@ export default function TemplateCreationGuideStable({ enabled = false }) {
 
       <div
         className="pointer-events-auto absolute rounded-[30px] border border-violet-200 bg-white p-5 shadow-[0_24px_90px_rgba(15,23,42,0.36)]"
-        style={{ width: tooltipWidth, left: tooltipLeft, top: tooltipTop }}
+        style={{ width: tooltipWidth, left: tooltipPosition.left, top: tooltipPosition.top }}
       >
         <div className="flex items-center justify-between gap-3">
           <div className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-700">Guia de criação de contrato</div>
@@ -322,7 +374,7 @@ export default function TemplateCreationGuideStable({ enabled = false }) {
           <button type="button" onClick={finish} className="rounded-2xl border border-[#e2e8f0] bg-white px-4 py-2.5 text-[13px] font-black text-[#475569]">Pular guia</button>
 
           <div className="flex gap-2">
-            {index > 0 ? <button type="button" onClick={() => { setHint(''); focusedRef.current = null; setIndex((current) => Math.max(0, current - 1)); }} className="rounded-2xl border border-violet-200 bg-white px-4 py-2.5 text-[13px] font-black text-violet-700">Voltar</button> : null}
+            {index > 0 ? <button type="button" onClick={() => { setHint(''); focusedRef.current = null; centeredStepRef.current = null; setIndex((current) => Math.max(0, current - 1)); }} className="rounded-2xl border border-violet-200 bg-white px-4 py-2.5 text-[13px] font-black text-violet-700">Voltar</button> : null}
             <button type="button" onClick={next} className="rounded-2xl bg-violet-600 px-4 py-2.5 text-[13px] font-black text-white shadow-[0_12px_28px_rgba(124,58,237,0.28)]">{index >= STEPS.length - 1 ? 'Finalizar guia' : 'Próximo'}</button>
           </div>
         </div>

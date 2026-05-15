@@ -21,6 +21,7 @@ const GUIDE_STEPS = [
     fallbackSelector: '[data-tour="template-name-input"]',
     actionLabel: 'Próximo',
     validationMessage: 'Digite um nome para o template antes de avançar. Exemplo: Contrato Casamento Premium.',
+    autoFocus: true,
   },
   {
     key: 'slug',
@@ -29,6 +30,7 @@ const GUIDE_STEPS = [
     targetTexts: ['Slug', 'contrato-casamento-padrao'],
     fallbackSelector: '[data-tour="template-slug-input"]',
     actionLabel: 'Próximo',
+    autoFocus: true,
   },
   {
     key: 'editor',
@@ -38,6 +40,7 @@ const GUIDE_STEPS = [
     fallbackSelector: '[data-tour="template-editor"]',
     actionLabel: 'Próximo',
     validationMessage: 'Cole ou escreva o texto do contrato antes de seguir para os campos dinâmicos.',
+    autoFocus: true,
   },
   {
     key: 'dynamic_fields',
@@ -71,6 +74,47 @@ function hasValue(element) {
   if (!element) return false;
   if ('value' in element) return String(element.value || '').trim().length > 0;
   return String(element.textContent || '').replace(/\u00a0/g, ' ').trim().length > 0;
+}
+
+function isFocusableElement(element) {
+  if (!element) return false;
+  const tag = String(element.tagName || '').toLowerCase();
+  return tag === 'input' || tag === 'textarea' || element.isContentEditable || element.getAttribute('contenteditable') === 'true';
+}
+
+function focusTargetForStep(element) {
+  if (!element || typeof window === 'undefined') return;
+
+  const focusable = isFocusableElement(element)
+    ? element
+    : element.querySelector?.('input, textarea, [contenteditable="true"]');
+
+  if (!focusable || !isFocusableElement(focusable)) return;
+
+  window.setTimeout(() => {
+    try {
+      focusable.focus?.({ preventScroll: true });
+
+      if ('select' in focusable && String(focusable.value || '').trim().length === 0) {
+        focusable.select?.();
+      }
+    } catch (error) {
+      console.warn('[TemplateCreationGuide] focus error', error);
+    }
+  }, 140);
+}
+
+function clearGuideQueryFromUrl() {
+  if (typeof window === 'undefined') return;
+
+  const url = new URL(window.location.href);
+  const hadGuide = url.searchParams.has('guide') || url.searchParams.has('onboarding');
+  url.searchParams.delete('guide');
+  url.searchParams.delete('onboarding');
+
+  if (hadGuide) {
+    window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+  }
 }
 
 function isVisibleElement(element) {
@@ -205,10 +249,11 @@ export default function TemplateCreationGuide({ enabled = false }) {
   const scrolledStepRef = useRef(null);
   const rectFrameRef = useRef(null);
   const lastRectRef = useRef(null);
+  const focusedStepRef = useRef(null);
 
   const step = GUIDE_STEPS[stepIndex];
 
-  const sessionKey = useMemo(() => 'harmonics:template-creation-guide:session-v7', []);
+  const sessionKey = useMemo(() => 'harmonics:template-creation-guide:session-v8', []);
   const forceGuide = searchParams?.get('guide') === 'template' || searchParams?.get('onboarding') === 'template';
 
   useEffect(() => {
@@ -226,6 +271,7 @@ export default function TemplateCreationGuide({ enabled = false }) {
       setStepIndex(0);
       autoActionExecutedRef.current = false;
       scrolledStepRef.current = null;
+      focusedStepRef.current = null;
     }
 
     const timer = window.setTimeout(() => setActive(true), 550);
@@ -309,6 +355,11 @@ export default function TemplateCreationGuide({ enabled = false }) {
         updateRect(element);
       }
 
+      if (step.autoFocus && focusedStepRef.current !== step.key) {
+        focusedStepRef.current = step.key;
+        focusTargetForStep(element);
+      }
+
       if (step.autoAction && !autoActionExecutedRef.current) {
         autoActionExecutedRef.current = true;
 
@@ -319,6 +370,7 @@ export default function TemplateCreationGuide({ enabled = false }) {
             window.setTimeout(() => {
               scrolledStepRef.current = null;
               lastRectRef.current = null;
+              focusedStepRef.current = null;
               setStepIndex(1);
             }, 900);
           } catch (error) {
@@ -363,6 +415,7 @@ export default function TemplateCreationGuide({ enabled = false }) {
       window.sessionStorage.setItem(sessionKey, 'skipped');
     }
 
+    clearGuideQueryFromUrl();
     setActive(false);
   }
 
@@ -393,6 +446,7 @@ export default function TemplateCreationGuide({ enabled = false }) {
 
     scrolledStepRef.current = null;
     lastRectRef.current = null;
+    focusedStepRef.current = null;
     setStepIndex((current) => current + 1);
   }
 
@@ -505,6 +559,7 @@ export default function TemplateCreationGuide({ enabled = false }) {
                   setValidationHint('');
                   scrolledStepRef.current = null;
                   lastRectRef.current = null;
+                  focusedStepRef.current = null;
                   setStepIndex((current) => Math.max(0, current - 1));
                 }}
                 className="rounded-2xl border border-violet-200 bg-white px-4 py-2.5 text-[13px] font-black text-violet-700"

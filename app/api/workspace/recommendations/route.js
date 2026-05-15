@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { requireWorkspaceAdmin } from '@/lib/api/require-workspace-access';
+import { requireWorkspaceAccess } from '@/lib/api/require-workspace-access';
 import { calculateWorkspaceHealth } from '@/lib/workspace-events/calculateWorkspaceHealth';
 import { getWorkspaceRecommendations } from '@/lib/workspace-recommendations/getWorkspaceRecommendations';
 
@@ -8,17 +8,20 @@ export async function GET(request) {
   const supabase = getSupabaseAdmin();
 
   try {
-    const auth = await requireWorkspaceAdmin({
+    const auth = await requireWorkspaceAccess({
       supabase,
       request,
+      moduleKey: 'dashboard',
+      actionKey: 'read',
       logPrefix: '[WORKSPACE_RECOMMENDATIONS_API]',
+      allowedRoles: ['owner', 'admin', 'financeiro', 'operacional', 'editor', 'viewer'],
     });
 
     if (!auth.ok) {
       return NextResponse.json(
         {
           ok: false,
-          error: auth.error,
+          error: auth.error || 'Acesso não autorizado.',
         },
         { status: auth.status || 401 },
       );

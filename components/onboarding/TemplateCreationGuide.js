@@ -233,6 +233,37 @@ function getArrowPosition(targetRect, tooltipTop, tooltipLeft, tooltipWidth) {
   return { horizontal, vertical };
 }
 
+function getSpotlightBox(rect) {
+  if (!rect) return null;
+  const padding = 14;
+  return {
+    left: Math.max(rect.left - padding, 8),
+    top: Math.max(rect.top - padding, 8),
+    width: rect.width + padding * 2,
+    height: rect.height + padding * 2,
+  };
+}
+
+function SpotlightMask({ box, viewportWidth, viewportHeight }) {
+  const overlay = 'absolute bg-slate-950/62 backdrop-blur-[2px] transition-all duration-300';
+
+  if (!box) {
+    return <div className={`${overlay} inset-0`} />;
+  }
+
+  const rightWidth = Math.max(viewportWidth - (box.left + box.width), 0);
+  const bottomHeight = Math.max(viewportHeight - (box.top + box.height), 0);
+
+  return (
+    <>
+      <div className={overlay} style={{ left: 0, top: 0, width: '100%', height: box.top }} />
+      <div className={overlay} style={{ left: 0, top: box.top, width: box.left, height: box.height }} />
+      <div className={overlay} style={{ left: box.left + box.width, top: box.top, width: rightWidth, height: box.height }} />
+      <div className={overlay} style={{ left: 0, top: box.top + box.height, width: '100%', height: bottomHeight }} />
+    </>
+  );
+}
+
 export default function TemplateCreationGuide({ enabled = false }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -253,7 +284,7 @@ export default function TemplateCreationGuide({ enabled = false }) {
 
   const step = GUIDE_STEPS[stepIndex];
 
-  const sessionKey = useMemo(() => 'harmonics:template-creation-guide:session-v8', []);
+  const sessionKey = useMemo(() => 'harmonics:template-creation-guide:session-v9', []);
   const forceGuide = searchParams?.get('guide') === 'template' || searchParams?.get('onboarding') === 'template';
 
   useEffect(() => {
@@ -454,6 +485,7 @@ export default function TemplateCreationGuide({ enabled = false }) {
   const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 800;
 
   const tooltipWidth = Math.min(450, viewportWidth - 32);
+  const spotlightBox = getSpotlightBox(targetRect);
 
   const tooltipLeft = targetRect
     ? clamp(targetRect.left, 16, viewportWidth - tooltipWidth - 16)
@@ -463,25 +495,21 @@ export default function TemplateCreationGuide({ enabled = false }) {
     ? clamp(targetRect.bottom + 22, 16, viewportHeight - 380)
     : 120;
 
-  const spotlightStyle = targetRect
-    ? {
-        left: Math.max(targetRect.left - 12, 8),
-        top: Math.max(targetRect.top - 12, 8),
-        width: targetRect.width + 24,
-        height: targetRect.height + 24,
-      }
-    : null;
-
   const arrow = getArrowPosition(targetRect, tooltipTop, tooltipLeft, tooltipWidth);
 
   return (
     <div className="fixed inset-0 z-[260] pointer-events-none">
-      <div className="absolute inset-0 bg-slate-950/55 backdrop-blur-[2px]" />
+      <SpotlightMask box={spotlightBox} viewportWidth={viewportWidth} viewportHeight={viewportHeight} />
 
-      {spotlightStyle ? (
+      {spotlightBox ? (
         <div
-          className="absolute rounded-[24px] border-2 border-white bg-white/5 shadow-[0_0_0_9999px_rgba(15,23,42,0.48),0_22px_80px_rgba(124,58,237,0.35)] transition-all duration-300"
-          style={spotlightStyle}
+          className="absolute rounded-[24px] border-2 border-white/95 bg-white/0 shadow-[0_0_0_2px_rgba(124,58,237,0.28),0_18px_70px_rgba(124,58,237,0.42)] ring-4 ring-violet-500/25 transition-all duration-300"
+          style={{
+            left: spotlightBox.left,
+            top: spotlightBox.top,
+            width: spotlightBox.width,
+            height: spotlightBox.height,
+          }}
         />
       ) : null}
 

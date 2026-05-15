@@ -1,7 +1,7 @@
 'use client';
 
 import { memo, useEffect, useMemo, useState } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import AdminSidebar from '../admin/AdminSidebar';
 import AdminMobileTopbar from '../admin/AdminMobileTopbar';
 import AdminBottomNav from '../admin/AdminBottomNav';
@@ -18,7 +18,7 @@ const MORE_ITEMS = [
   { module: 'convites', label: 'Convites', href: '/convites', icon: '✉️', helper: 'Chamadas e respostas' },
   { module: 'contratos', label: 'Contratos', href: '/contratos', icon: '📝', helper: 'Fluxo contratual' },
   { module: 'eventos', label: 'Tipos de evento', href: '/eventos/tipos', icon: '🏷️', helper: 'Catálogo de eventos' },
-  { module: 'contratos', label: 'Templates contratos', href: '/contratos/templates', icon: '📄', helper: 'Modelos base' },
+  { module: 'contratos', label: 'Templates contratos', href: '/contratos/templates?guide=template', icon: '📄', helper: 'Modelos base' },
   { module: 'contratos', label: 'Pré-contratos', href: '/pre-contratos', icon: '🔗', helper: 'Comercial inicial' },
   { module: 'repertorios', label: 'Repertórios', href: '/repertorios', icon: '🎧', helper: 'Organização musical' },
   { module: 'sugestoes', label: 'Sugestões', href: '/sugestoes', icon: '✨', helper: 'Ideias e votações' },
@@ -133,6 +133,7 @@ const MobileMoreSheet = memo(function MobileMoreSheet({ open, onClose, onNavigat
 export default function AdminShell({ pageTitle, children, mobileActions, activeItem = 'eventos', mobileSubtitle = '' }) {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const supabase = useMemo(() => getSupabase(), []);
   const { user, initialized, loading } = useAuth();
   const [moreOpen, setMoreOpen] = useState(false);
@@ -149,6 +150,7 @@ export default function AdminShell({ pageTitle, children, mobileActions, activeI
   const visibleMoreItems = useMemo(() => MORE_ITEMS.filter((item) => allowedModules.has(item.module)), [allowedModules]);
   const mobileActiveItem = MOBILE_NAV_ALLOWED_ITEMS.has(activeItem) ? activeItem : 'mais';
   const isOnboardingRoute = ONBOARDING_ROUTE_PREFIXES.some((prefix) => pathname === prefix || pathname?.startsWith(`${prefix}/`));
+  const forceTemplateGuide = pathname === '/contratos/templates' && (searchParams?.get('guide') === 'template' || searchParams?.get('onboarding') === 'template');
 
   useEffect(() => {
     if (initialized && !loading && !user && pathname !== '/login') {
@@ -161,6 +163,11 @@ export default function AdminShell({ pageTitle, children, mobileActions, activeI
 
     async function loadTourEligibility() {
       try {
+        if (forceTemplateGuide) {
+          setShowTour(true);
+          return;
+        }
+
         const { data } = await supabase.auth.getSession();
         const token = data?.session?.access_token;
         if (!token) return;
@@ -179,7 +186,7 @@ export default function AdminShell({ pageTitle, children, mobileActions, activeI
       }
     }
 
-    if (isOnboardingRoute) {
+    if (isOnboardingRoute || forceTemplateGuide) {
       loadTourEligibility();
     } else {
       setShowTour(false);
@@ -188,14 +195,14 @@ export default function AdminShell({ pageTitle, children, mobileActions, activeI
     return () => {
       active = false;
     };
-  }, [isOnboardingRoute, pathname, supabase]);
+  }, [forceTemplateGuide, isOnboardingRoute, pathname, supabase]);
 
   if (initialized && !loading && !user) {
     return null;
   }
 
   const showDashboardOnboarding = pathname === '/dashboard';
-  const showOperationalRouteOnboarding = showTour && pathname !== '/dashboard';
+  const showOperationalRouteOnboarding = (showTour || forceTemplateGuide) && pathname !== '/dashboard';
 
   return (
     <div className="min-h-screen bg-[#f4f6fa] text-[#111827]">
@@ -209,7 +216,7 @@ export default function AdminShell({ pageTitle, children, mobileActions, activeI
             ) : null}
 
             {showOperationalRouteOnboarding ? (
-              <DeferredOnboardingMount variant="route" showTour={showTour} />
+              <DeferredOnboardingMount variant="route" showTour={showTour || forceTemplateGuide} />
             ) : null}
 
             {children}
@@ -226,7 +233,7 @@ export default function AdminShell({ pageTitle, children, mobileActions, activeI
           ) : null}
 
           {showOperationalRouteOnboarding ? (
-            <DeferredOnboardingMount variant="route" showTour={showTour} />
+            <DeferredOnboardingMount variant="route" showTour={showTour || forceTemplateGuide} />
           ) : null}
 
           {children}

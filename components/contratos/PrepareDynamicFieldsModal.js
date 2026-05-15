@@ -107,23 +107,32 @@ function detectDynamicField({ selectedText, lineContext }) {
     .sort((a, b) => b.score - a.score);
 
   if (scored[0]) return scored[0];
-
   if (/____|___|:/.test(haystack)) return { field: 'client_name', label: 'Nome do cliente', score: 1 };
-
   return null;
 }
 
-function GuideCard({ step, canContinue, onContinue, suggestionLabel }) {
+function GuideCard({ step, canContinue, onContinue, onDismiss, suggestionLabel }) {
   if (!step) return null;
 
   return (
-    <div className="pointer-events-auto absolute bottom-5 right-5 z-[1300] w-[360px] rounded-[28px] border border-violet-200 bg-white p-5 shadow-[0_25px_80px_rgba(15,23,42,0.35)]">
-      <div className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-700">Assistente de automação</div>
-      <h4 className="mt-3 text-[24px] font-black tracking-[-0.04em] text-[#0f172a]">{step.title}</h4>
-      <p className="mt-2 text-[14px] font-semibold leading-7 text-[#64748b]">{step.description}</p>
+    <div className="pointer-events-auto absolute right-5 top-[150px] z-[1300] w-[340px] rounded-[26px] border border-violet-200 bg-white p-4 shadow-[0_22px_70px_rgba(15,23,42,0.28)]">
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-[10px] font-black uppercase tracking-[0.14em] text-violet-700">Assistente de automação</div>
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="rounded-full border border-slate-200 bg-white px-2 py-1 text-[11px] font-black text-slate-500 hover:bg-slate-50"
+          aria-label="Minimizar assistente"
+        >
+          ✕
+        </button>
+      </div>
+
+      <h4 className="mt-3 text-[20px] font-black tracking-[-0.04em] text-[#0f172a]">{step.title}</h4>
+      <p className="mt-2 text-[13px] font-semibold leading-6 text-[#64748b]">{step.description}</p>
 
       {suggestionLabel ? (
-        <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-[12px] font-black text-emerald-700">
+        <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-[12px] font-black text-emerald-700">
           Sugestão detectada: {suggestionLabel}
         </div>
       ) : null}
@@ -132,7 +141,7 @@ function GuideCard({ step, canContinue, onContinue, suggestionLabel }) {
         type="button"
         disabled={!canContinue}
         onClick={onContinue}
-        className="mt-5 rounded-2xl bg-violet-600 px-4 py-2.5 text-sm font-black text-white shadow-[0_12px_28px_rgba(124,58,237,0.32)] disabled:cursor-not-allowed disabled:opacity-40"
+        className="mt-4 rounded-2xl bg-violet-600 px-4 py-2.5 text-sm font-black text-white shadow-[0_12px_28px_rgba(124,58,237,0.32)] disabled:cursor-not-allowed disabled:opacity-40"
       >
         {step === GUIDE_STEPS.done ? 'Continuar preparando' : 'Entendi'}
       </button>
@@ -158,6 +167,7 @@ export default function PrepareDynamicFieldsModal({
   const [guideStep, setGuideStep] = useState('select');
   const [lastReplacement, setLastReplacement] = useState('');
   const [smartSuggestion, setSmartSuggestion] = useState(null);
+  const [guideVisible, setGuideVisible] = useState(true);
 
   const selectedFieldLabel = useMemo(
     () => DYNAMIC_FIELDS.find((item) => item.value === selectedField)?.label || '',
@@ -181,6 +191,7 @@ export default function PrepareDynamicFieldsModal({
       const context = getLineContext(workingText, start, end);
       const suggestion = detectDynamicField({ selectedText: text, lineContext: context });
       setSmartSuggestion(suggestion);
+      setGuideVisible(true);
 
       if (suggestion?.field) {
         setSelectedField(suggestion.field);
@@ -212,12 +223,13 @@ export default function PrepareDynamicFieldsModal({
       textareaRef.current.setSelectionRange(nextCursor, nextCursor);
     });
 
-    setSelectionStart(nextCursor);
-    setSelectionEnd(nextCursor);
+    setSelectionStart(0);
+    setSelectionEnd(0);
     setSelectedText('');
     setLastReplacement(placeholder);
     setSmartSuggestion(null);
     setGuideStep('done');
+    setGuideVisible(true);
   }
 
   function handleGuideContinue() {
@@ -233,6 +245,8 @@ export default function PrepareDynamicFieldsModal({
 
     if (guideStep === 'done') {
       setGuideStep('select');
+      setGuideVisible(false);
+      textareaRef.current?.focus();
     }
   }
 
@@ -321,12 +335,20 @@ export default function PrepareDynamicFieldsModal({
           </section>
         </div>
 
-        <div className="flex flex-wrap justify-end gap-3 border-t border-[#e2e8f0] bg-white px-6 py-4">
+        <div className="relative z-[1350] flex flex-wrap justify-end gap-3 border-t border-[#e2e8f0] bg-white px-6 py-4">
           <button type="button" onClick={onCancel} className="rounded-2xl border border-[#dbe3ef] bg-white px-4 py-2.5 text-sm font-bold text-[#475569] transition hover:bg-slate-50">Cancelar</button>
           <button type="button" onClick={() => onConclude?.(workingText)} className="rounded-2xl bg-violet-600 px-5 py-2.5 text-sm font-black text-white shadow-[0_12px_25px_rgba(124,58,237,0.32)] transition hover:bg-violet-700">Concluir</button>
         </div>
 
-        <GuideCard step={GUIDE_STEPS[guideStep]} canContinue={canContinue} onContinue={handleGuideContinue} suggestionLabel={smartSuggestion?.label} />
+        {guideVisible ? (
+          <GuideCard
+            step={GUIDE_STEPS[guideStep]}
+            canContinue={canContinue}
+            onContinue={handleGuideContinue}
+            onDismiss={() => setGuideVisible(false)}
+            suggestionLabel={smartSuggestion?.label}
+          />
+        ) : null}
       </div>
     </div>
   );

@@ -4,7 +4,6 @@ import { requireRequiredEnv } from '@/lib/config/validate-env';
 import { generateContractDocument } from '@/lib/contracts/generate-contract-document';
 import { logError, logInfo, logWarn, safeError } from '@/lib/observability/server-log';
 import { sendAdminWhatsAppAlert } from '@/lib/whatsapp/send-admin-alert';
-import { getCurrentWorkspace } from '@/lib/workspaces/get-current-workspace';
 import { requireWorkspaceAccess } from '@/lib/api/require-workspace-access';
 
 export const dynamic = 'force-dynamic';
@@ -65,6 +64,8 @@ export async function POST(request) {
     const auth = await requireWorkspaceAccess({
       supabase,
       request,
+      moduleKey: 'contratos',
+      actionKey: 'write',
       logPrefix: '[CONTRACT_GENERATE][POST]',
       allowedRoles: ['owner', 'admin', 'financeiro'],
     });
@@ -73,11 +74,10 @@ export async function POST(request) {
       return NextResponse.json({ ok: false, message: auth.error, error: auth.error }, { status: auth.status || 401 });
     }
 
-    const workspaceContext = await getCurrentWorkspace({ supabase, request });
-    const workspaceId = workspaceContext?.workspaceId || auth.workspaceId;
+    const workspaceId = auth.workspaceId;
     logInfo('CONTRACT_GENERATE', 'WORKSPACE_CONTEXT', {
       workspaceId,
-      source: workspaceContext?.source || auth.source,
+      source: auth.source || 'requireWorkspaceAccess',
       userId: auth.userId,
       role: auth.role,
     });
@@ -104,7 +104,7 @@ export async function POST(request) {
     });
 
     const contextWorkspaceId = context?.contract?.workspace_id || context?.precontract?.workspace_id || context?.event?.workspace_id || null;
-    if (contextWorkspaceId && String(contextWorkspaceId) !== String(workspaceId)) {
+    if (!contextWorkspaceId || String(contextWorkspaceId) !== String(workspaceId)) {
       logWarn('CONTRACT_GENERATE', 'WORKSPACE_MISMATCH_BLOCKED', {
         contextWorkspaceId,
         authWorkspaceId: workspaceId,

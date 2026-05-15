@@ -20,6 +20,7 @@ const GUIDE_STEPS = [
     targetTexts: ['Nome', 'Nome do template', 'Contrato padrão casamento'],
     fallbackSelector: '[data-tour="template-name-input"]',
     actionLabel: 'Próximo',
+    validationMessage: 'Digite um nome para o template antes de avançar. Exemplo: Contrato Casamento Premium.',
   },
   {
     key: 'slug',
@@ -36,6 +37,7 @@ const GUIDE_STEPS = [
     targetTexts: ['Texto do contrato', 'Cole aqui o contrato'],
     fallbackSelector: '[data-tour="template-editor"]',
     actionLabel: 'Próximo',
+    validationMessage: 'Cole ou escreva o texto do contrato antes de seguir para os campos dinâmicos.',
   },
   {
     key: 'dynamic_fields',
@@ -44,6 +46,7 @@ const GUIDE_STEPS = [
     targetTexts: ['Preparar campos dinâmicos'],
     fallbackSelector: '[data-tour="template-dynamic-fields"]',
     actionLabel: 'Continuar',
+    validationMessage: 'O botão de campos dinâmicos aparece depois que existe texto no contrato. Insira o texto para continuar.',
   },
   {
     key: 'save',
@@ -62,6 +65,12 @@ function normalizeText(value) {
     .replace(/\s+/g, ' ')
     .trim()
     .toLowerCase();
+}
+
+function hasValue(element) {
+  if (!element) return false;
+  if ('value' in element) return String(element.value || '').trim().length > 0;
+  return String(element.textContent || '').replace(/\u00a0/g, ' ').trim().length > 0;
 }
 
 function isVisibleElement(element) {
@@ -135,6 +144,27 @@ function findTarget(step) {
   return findByVisibleText(step.targetTexts);
 }
 
+function getStepValidationMessage(step) {
+  if (!step) return '';
+
+  if (step.key === 'name') {
+    const nameInput = document.querySelector('[data-tour="template-name-input"]');
+    return hasValue(nameInput) ? '' : step.validationMessage;
+  }
+
+  if (step.key === 'editor') {
+    const editor = document.querySelector('[data-tour="template-editor"]');
+    return hasValue(editor) ? '' : step.validationMessage;
+  }
+
+  if (step.key === 'dynamic_fields') {
+    const button = document.querySelector('[data-tour="template-dynamic-fields"]');
+    return button && isVisibleElement(button) ? '' : step.validationMessage;
+  }
+
+  return '';
+}
+
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
@@ -163,12 +193,13 @@ export default function TemplateCreationGuide({ enabled = false }) {
   const [stepIndex, setStepIndex] = useState(0);
   const [targetRect, setTargetRect] = useState(null);
   const [targetMissing, setTargetMissing] = useState(false);
+  const [validationHint, setValidationHint] = useState('');
 
   const autoActionExecutedRef = useRef(false);
 
   const step = GUIDE_STEPS[stepIndex];
 
-  const sessionKey = useMemo(() => 'harmonics:template-creation-guide:session-v5', []);
+  const sessionKey = useMemo(() => 'harmonics:template-creation-guide:session-v6', []);
   const forceGuide = searchParams?.get('guide') === 'template' || searchParams?.get('onboarding') === 'template';
 
   useEffect(() => {
@@ -199,6 +230,7 @@ export default function TemplateCreationGuide({ enabled = false }) {
 
     function syncTarget() {
       ensureTemplateTourAnchors();
+      setValidationHint('');
       const element = findTarget(step);
 
       if (!element) {
@@ -270,6 +302,16 @@ export default function TemplateCreationGuide({ enabled = false }) {
   }
 
   function nextStep() {
+    ensureTemplateTourAnchors();
+
+    const message = getStepValidationMessage(step);
+    if (message) {
+      setValidationHint(message);
+      return;
+    }
+
+    setValidationHint('');
+
     if (step.key === 'dynamic_fields') {
       const target = findTarget(step) || findBestButtonByText(['Preparar campos dinâmicos']);
 
@@ -364,9 +406,9 @@ export default function TemplateCreationGuide({ enabled = false }) {
           {step.description}
         </p>
 
-        {targetMissing ? (
+        {(targetMissing || validationHint) ? (
           <div className="mt-4 rounded-[20px] border border-amber-200 bg-amber-50 px-4 py-3 text-[12px] font-bold leading-5 text-amber-800">
-            Estou aguardando essa área aparecer na tela. Avance para abrir o próximo ponto ou preencha o texto quando necessário.
+            {validationHint || 'Estou aguardando essa área aparecer na tela. Avance para abrir o próximo ponto ou preencha o texto quando necessário.'}
           </div>
         ) : null}
 
@@ -392,7 +434,10 @@ export default function TemplateCreationGuide({ enabled = false }) {
             {stepIndex > 0 ? (
               <button
                 type="button"
-                onClick={() => setStepIndex((current) => Math.max(0, current - 1))}
+                onClick={() => {
+                  setValidationHint('');
+                  setStepIndex((current) => Math.max(0, current - 1));
+                }}
                 className="rounded-2xl border border-violet-200 bg-white px-4 py-2.5 text-[13px] font-black text-violet-700"
               >
                 Voltar

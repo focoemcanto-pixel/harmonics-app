@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import AdminSidebar from './AdminSidebar';
 import AdminMobileTopbar from './AdminMobileTopbar';
 import AdminBottomNav from './AdminBottomNav';
 import WorkspaceThemeProvider from './WorkspaceThemeProvider';
+import DeferredOnboardingMount from '@/components/onboarding/DeferredOnboardingMount';
 import { MobileMoreSheet } from '../layout/AdminShell';
 
 export default function AdminShell({
@@ -15,7 +16,13 @@ export default function AdminShell({
   activeItem = 'eventos',
 }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [moreOpen, setMoreOpen] = useState(false);
+
+  const forceTemplateGuide = pathname === '/contratos/templates' && (
+    searchParams?.get('guide') === 'template' || searchParams?.get('onboarding') === 'template'
+  );
 
   const mobileActiveItem = useMemo(() => {
     const allowed = ['dashboard', 'eventos', 'contatos', 'contratos', 'mais'];
@@ -39,6 +46,7 @@ export default function AdminShell({
           <AdminSidebar activeItem={activeItem} />
           <main className="min-h-screen flex-1">
             <div className="mx-auto w-full max-w-[1440px] px-6 py-6">
+              {forceTemplateGuide ? <DeferredOnboardingMount variant="route" showTour /> : null}
               {children}
             </div>
           </main>
@@ -46,7 +54,10 @@ export default function AdminShell({
 
         <div className="md:hidden">
           <AdminMobileTopbar title={pageTitle} actions={mobileActions} />
-          <main className="px-4 pb-28 pt-4">{children}</main>
+          <main className="px-4 pb-28 pt-4">
+            {forceTemplateGuide ? <DeferredOnboardingMount variant="route" showTour /> : null}
+            {children}
+          </main>
 
           <AdminBottomNav
             activeItem={mobileActiveItem}

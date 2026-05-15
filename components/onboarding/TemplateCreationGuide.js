@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
 const GUIDE_STEPS = [
@@ -11,6 +11,7 @@ const GUIDE_STEPS = [
     targetTexts: ['Novo template', 'Novo / Editar'],
     fallbackSelector: '[data-tour="template-new-button"], button',
     actionLabel: 'Abrir criação',
+    autoAction: true,
   },
   {
     key: 'name',
@@ -88,6 +89,7 @@ function findBestButtonByText(texts = []) {
   if (typeof document === 'undefined') return null;
   const candidates = texts.map(normalizeText).filter(Boolean);
   const buttons = Array.from(document.querySelectorAll('button, [role="button"]'));
+
   return buttons.find((button) => {
     if (!isVisibleElement(button)) return false;
     const text = normalizeText(button.textContent || button.getAttribute('aria-label') || '');
@@ -112,6 +114,7 @@ function clamp(value, min, max) {
 
 function getArrowPosition(targetRect, tooltipTop, tooltipLeft, tooltipWidth) {
   if (!targetRect) return null;
+
   const targetCenterX = targetRect.left + targetRect.width / 2;
   const targetCenterY = targetRect.top + targetRect.height / 2;
   const tooltipCenterX = tooltipLeft + tooltipWidth / 2;
@@ -128,14 +131,17 @@ export default function TemplateCreationGuide({ enabled = false }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const isTemplateRoute = pathname === '/contratos/templates';
+
   const [active, setActive] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
   const [targetRect, setTargetRect] = useState(null);
   const [targetMissing, setTargetMissing] = useState(false);
 
+  const autoActionExecutedRef = useRef(false);
+
   const step = GUIDE_STEPS[stepIndex];
 
-  const sessionKey = useMemo(() => 'harmonics:template-creation-guide:session-v2', []);
+  const sessionKey = useMemo(() => 'harmonics:template-creation-guide:session-v4', []);
   const forceGuide = searchParams?.get('guide') === 'template' || searchParams?.get('onboarding') === 'template';
 
   useEffect(() => {
@@ -145,14 +151,17 @@ export default function TemplateCreationGuide({ enabled = false }) {
     }
 
     const skippedThisSession = window.sessionStorage.getItem(sessionKey) === 'skipped';
+
     if (skippedThisSession && !forceGuide) return;
 
     if (forceGuide) {
       window.sessionStorage.removeItem(sessionKey);
       setStepIndex(0);
+      autoActionExecutedRef.current = false;
     }
 
     const timer = window.setTimeout(() => setActive(true), 550);
+
     return () => window.clearTimeout(timer);
   }, [enabled, forceGuide, isTemplateRoute, sessionKey]);
 
@@ -167,24 +176,52 @@ export default function TemplateCreationGuide({ enabled = false }) {
       if (!element) {
         setTargetRect(null);
         setTargetMissing(true);
+
         retryTimer = window.setTimeout(syncTarget, 450);
         return;
       }
 
       setTargetMissing(false);
-      element.scrollIntoView?.({ behavior: 'smooth', block: 'center', inline: 'center' });
+
+      element.scrollIntoView?.({
+        behavior: 'smooth',
+        block: 'center',
+        inline: 'center',
+      });
 
       window.setTimeout(() => {
         setTargetRect(element.getBoundingClientRect());
+
+        if (step.autoAction && !autoActionExecutedRef.current) {
+          autoActionExecutedRef.current = true;
+
+          window.setTimeout(() => {
+            try {
+              element.click?.();
+
+              window.setTimeout(() => {
+                setStepIndex(1);
+              }, 900);
+            } catch (error) {
+              console.error('[TemplateCreationGuide] autoAction error', error);
+            }
+          }, 650);
+        }
       }, 260);
     }
 
     syncTarget();
+
     window.addEventListener('resize', syncTarget);
     window.addEventListener('scroll', syncTarget, true);
 
     const observer = new MutationObserver(syncTarget);
-    observer.observe(document.body, { childList: true, subtree: true, attributes: true });
+
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+    });
 
     return () => {
       window.clearTimeout(retryTimer);
@@ -200,18 +237,17 @@ export default function TemplateCreationGuide({ enabled = false }) {
     if (typeof window !== 'undefined') {
       window.sessionStorage.setItem(sessionKey, 'skipped');
     }
+
     setActive(false);
   }
 
   function nextStep() {
-    if (step.key === 'start') {
-      const target = findTarget(step) || findBestButtonByText(['Novo template']);
-      target?.click?.();
-    }
-
     if (step.key === 'dynamic_fields') {
       const target = findTarget(step) || findBestButtonByText(['Preparar campos dinâmicos']);
-      if (target && !targetMissing) target.click?.();
+
+      if (target && !targetMissing) {
+        target.click?.();
+      }
     }
 
     if (stepIndex >= GUIDE_STEPS.length - 1) {
@@ -225,10 +261,13 @@ export default function TemplateCreationGuide({ enabled = false }) {
 
   const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 390;
   const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 800;
+
   const tooltipWidth = Math.min(450, viewportWidth - 32);
+
   const tooltipLeft = targetRect
     ? clamp(targetRect.left, 16, viewportWidth - tooltipWidth - 16)
     : 16;
+
   const tooltipTop = targetRect
     ? clamp(targetRect.bottom + 22, 16, viewportHeight - 380)
     : 120;
@@ -260,9 +299,10 @@ export default function TemplateCreationGuide({ enabled = false }) {
           className={`absolute z-[262] text-[34px] font-black text-white drop-shadow-[0_10px_24px_rgba(0,0,0,0.38)] animate-bounce ${arrow.horizontal === 'left' ? '-rotate-45' : 'rotate-45'}`}
           style={{
             left: clamp(targetRect.left + targetRect.width / 2 - 16, 20, viewportWidth - 52),
-            top: arrow.vertical === 'up'
-              ? clamp(targetRect.bottom + 8, 20, viewportHeight - 60)
-              : clamp(targetRect.top - 46, 20, viewportHeight - 60),
+            top:
+              arrow.vertical === 'up'
+                ? clamp(targetRect.bottom + 8, 20, viewportHeight - 60)
+                : clamp(targetRect.top - 46, 20, viewportHeight - 60),
           }}
           aria-hidden="true"
         >
@@ -272,12 +312,17 @@ export default function TemplateCreationGuide({ enabled = false }) {
 
       <div
         className="pointer-events-auto absolute rounded-[30px] border border-violet-200 bg-white p-5 shadow-[0_24px_90px_rgba(15,23,42,0.36)]"
-        style={{ width: tooltipWidth, left: tooltipLeft, top: tooltipTop }}
+        style={{
+          width: tooltipWidth,
+          left: tooltipLeft,
+          top: tooltipTop,
+        }}
       >
         <div className="flex items-center justify-between gap-3">
           <div className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-700">
             Guia de criação de contrato
           </div>
+
           <span className="rounded-full bg-violet-100 px-3 py-1 text-[11px] font-black text-violet-700">
             {stepIndex + 1}/{GUIDE_STEPS.length}
           </span>
@@ -300,7 +345,9 @@ export default function TemplateCreationGuide({ enabled = false }) {
         <div className="mt-5 h-2 overflow-hidden rounded-full bg-slate-100">
           <div
             className="h-full rounded-full bg-violet-600 transition-all duration-300"
-            style={{ width: `${Math.round(((stepIndex + 1) / GUIDE_STEPS.length) * 100)}%` }}
+            style={{
+              width: `${Math.round(((stepIndex + 1) / GUIDE_STEPS.length) * 100)}%`,
+            }}
           />
         </div>
 

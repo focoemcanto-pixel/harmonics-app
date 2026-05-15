@@ -2,6 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import { useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
 
 const DashboardOnboardingBanner = dynamic(() => import('@/components/onboarding/DashboardOnboardingBanner'), {
   ssr: false,
@@ -38,12 +39,18 @@ const OnboardingTourOverlay = dynamic(() => import('@/components/onboarding/Onbo
   loading: () => null,
 });
 
+const TemplateCreationGuide = dynamic(() => import('@/components/onboarding/TemplateCreationGuide'), {
+  ssr: false,
+  loading: () => null,
+});
+
 export default function DeferredOnboardingMount({
   variant,
   showTour = false,
   dashboardTimelineLimit = 6,
   recommendationsLimit,
 }) {
+  const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -78,6 +85,7 @@ export default function DeferredOnboardingMount({
         {showTour ? <OnboardingTourOverlay /> : null}
         <OperationalRouteOnboarding enabled />
         <SectionGuidedOnboarding enabled />
+        {pathname === '/contratos/templates' ? <TemplateCreationGuide enabled /> : null}
       </>
     );
   }

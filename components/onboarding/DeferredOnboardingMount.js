@@ -49,6 +49,11 @@ const EventTypeTemplateGuideStable = dynamic(() => import('@/components/onboardi
   loading: () => null,
 });
 
+const PrecontractGuideStable = dynamic(() => import('@/components/onboarding/PrecontractGuideStable'), {
+  ssr: false,
+  loading: () => null,
+});
+
 export default function DeferredOnboardingMount({
   variant,
   showTour = false,
@@ -92,6 +97,7 @@ export default function DeferredOnboardingMount({
         <SectionGuidedOnboarding enabled />
         {pathname === '/contratos/templates' ? <TemplateCreationGuideStable enabled /> : null}
         {pathname === '/eventos/tipos' ? <EventTypeTemplateGuideStable enabled /> : null}
+        {pathname === '/pre-contratos' ? <PrecontractGuideStable enabled /> : null}
       </>
     );
   }

@@ -5,6 +5,16 @@ import { Suspense, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getSupabase } from '@/lib/supabase';
 
+function getSafeNext(searchParams) {
+  const next = searchParams?.get('next') || '/eventos';
+
+  if (!next.startsWith('/') || next.startsWith('//')) {
+    return '/eventos';
+  }
+
+  return next;
+}
+
 function LoginPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -39,8 +49,7 @@ function LoginPageContent() {
     const message = String(payload?.error || '').toLowerCase();
 
     if (response.status === 403 || message.includes('não pertence') || message.includes('workspace')) {
-      await supabase?.auth?.signOut?.();
-      router.replace('/no-workspace');
+      router.replace('/workspace/new');
       return false;
     }
 
@@ -106,10 +115,13 @@ function LoginPageContent() {
       }
 
       const accessToken = data?.session?.access_token || null;
-      const hasWorkspace = await verifyWorkspaceOrRedirect(accessToken);
-      if (!hasWorkspace) return;
+      const next = getSafeNext(searchParams);
 
-      const next = searchParams?.get('next') || '/eventos';
+      if (next !== '/workspace/new') {
+        const hasWorkspace = await verifyWorkspaceOrRedirect(accessToken);
+        if (!hasWorkspace) return;
+      }
+
       router.push(next);
       router.refresh();
     } catch (err) {

@@ -20,7 +20,7 @@ export default function NoWorkspacePage() {
 
         <div className="mt-8 grid gap-4 sm:grid-cols-2">
           <Link
-            href="/signup"
+            href="/workspace/new"
             className="rounded-3xl bg-emerald-300 px-5 py-5 text-center font-black text-slate-950 transition hover:bg-emerald-200"
           >
             Criar novo workspace

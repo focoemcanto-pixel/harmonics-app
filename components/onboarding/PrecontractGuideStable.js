@@ -12,30 +12,100 @@ const STEPS = [
     selector: 'select, input, button, label',
   },
   {
+    key: 'formation',
+    title: 'Escolha a formação musical',
+    description: 'Defina se será duo, trio, quarteto ou outra formação. Essa informação entra no contrato e ajuda na operação da escala.',
+    texts: ['formação', 'formation', 'duo', 'trio', 'quarteto'],
+    selector: 'select, input, label, button',
+  },
+  {
     key: 'event_date',
-    title: 'Informe data e horário do evento',
-    description: 'Esses campos entram diretamente no contrato e ajudam o cliente a conferir as informações principais antes de assinar.',
-    texts: ['data do evento', 'event_date', 'data', 'horário', 'hora'],
+    title: 'Informe a data do evento',
+    description: 'A data é obrigatória para validar agenda, calcular prazos de pagamento e aparecer corretamente no contrato.',
+    texts: ['data do evento', 'event_date', 'data'],
     selector: 'input, label, button',
   },
   {
-    key: 'formation_value',
-    title: 'Defina formação e valor',
-    description: 'Preencha a formação musical e o valor acertado. Esses são dados essenciais do pré-contrato.',
-    texts: ['formação', 'formation', 'valor acertado', 'valor', 'agreed_amount'],
+    key: 'event_time',
+    title: 'Informe o horário',
+    description: 'Preencha o horário principal do evento. Se ainda não souber, deixe pendente, mas o ideal é confirmar antes de enviar ao cliente.',
+    texts: ['hora', 'horário', 'event_time'],
+    selector: 'input, label, button',
+  },
+  {
+    key: 'duration',
+    title: 'Revise a duração',
+    description: 'Confira a duração prevista da apresentação. Esse dado orienta contrato, agenda e cálculo da operação.',
+    texts: ['duração', 'duration', 'min'],
+    selector: 'input, label, button',
+  },
+  {
+    key: 'instruments',
+    title: 'Informe os instrumentos',
+    description: 'Liste os instrumentos incluídos na formação. Isso evita dúvidas do cliente e ajuda a equipe a entender o escopo.',
+    texts: ['instrumentos', 'instrumento', 'instruments'],
+    selector: 'input, textarea, label',
+  },
+  {
+    key: 'location_optional',
+    title: 'Local e endereço podem ficar para o cliente',
+    description: 'Local e endereço são opcionais aqui porque o cliente poderá preencher no link público. Preencha agora apenas se já tiver certeza.',
+    texts: ['local', 'endereço', 'location', 'address'],
+    selector: 'input, textarea, label',
+  },
+  {
+    key: 'reception',
+    title: 'Configure o receptivo se houver',
+    description: 'Se o contrato incluir receptivo, informe horas, formação e instrumentos do receptivo. Se não houver, mantenha desativado ou zerado.',
+    texts: ['receptivo', 'recepção', 'reception', 'reception_hours'],
     selector: 'input, select, label, button',
   },
   {
-    key: 'optional_client',
+    key: 'sound_transport',
+    title: 'Marque som e transporte quando existir',
+    description: 'Se houver adicional de som ou transporte, marque as opções e confira os valores extras antes de salvar.',
+    texts: ['som', 'transporte', 'sound', 'transport'],
+    selector: 'input, label, button',
+  },
+  {
+    key: 'base_amount',
+    title: 'Preencha o valor base',
+    description: 'Informe o valor principal do serviço. Esse é o ponto de partida para o valor acertado no contrato.',
+    texts: ['valor base', 'base_amount'],
+    selector: 'input, label',
+  },
+  {
+    key: 'extras_amount',
+    title: 'Confira os adicionais',
+    description: 'Revise adicional de receptivo, som e transporte. Eles devem compor o valor final se forem cobrados separadamente.',
+    texts: ['adicional receptivo', 'adicional som', 'adicional transporte', 'add_reception', 'add_sound', 'add_transport'],
+    selector: 'input, label',
+  },
+  {
+    key: 'agreed_amount',
+    title: 'Confirme o valor acertado',
+    description: 'O valor acertado é o que será apresentado no contrato. Confira antes de avançar para o preview.',
+    texts: ['valor acertado', 'agreed_amount', 'valor final'],
+    selector: 'input, label, div',
+  },
+  {
+    key: 'payment',
+    title: 'Revise sinal, saldo e pagamento',
+    description: 'Se usar sinal, saldo ou cartão, confira valores, datas e método de pagamento. Esses dados podem aparecer no contrato.',
+    texts: ['sinal', 'saldo', 'pagamento', 'payment', 'signal', 'balance', 'cartão'],
+    selector: 'input, select, label, button',
+  },
+  {
+    key: 'client_optional',
     title: 'Dados do cliente são opcionais aqui',
-    description: 'Nome, WhatsApp, e-mail, local e endereço podem ser deixados para o cliente preencher no link público. Preencha aqui apenas se já tiver certeza.',
-    texts: ['nome do cliente', 'cliente', 'whatsapp', 'e-mail', 'email', 'local', 'endereço'],
+    description: 'Nome, WhatsApp e e-mail podem ser deixados para o cliente preencher no link público. Use esses campos só quando já tiver os dados corretos.',
+    texts: ['nome do cliente', 'cliente', 'whatsapp', 'e-mail', 'email'],
     selector: 'input, textarea, label',
   },
   {
     key: 'preview',
     title: 'Veja o preview antes de salvar',
-    description: 'Confira o modal inteiro de visualização. Verifique dados do evento, valores, formação e se o contrato está puxando o template correto antes de salvar.',
+    description: 'Abra a prévia e confira o modal inteiro: dados do evento, valores, formação e contrato puxando o template correto.',
     texts: ['preview', 'visualizar', 'prévia', 'ver contrato', 'visualização'],
     selector: 'button, a, [role="button"]',
     preferPreviewModal: true,
@@ -43,7 +113,7 @@ const STEPS = [
   {
     key: 'edit_contract_optional',
     title: 'Edição do contrato é opcional',
-    description: 'Se precisar ajustar alguma cláusula só neste contrato, use a opção de editar o contrato aqui. Se o template estiver certo, pode seguir sem mexer.',
+    description: 'Se precisar ajustar uma cláusula só neste contrato, use a edição personalizada. Se o template estiver certo, siga sem mexer.',
     texts: ['editar contrato', 'contrato personalizado', 'personalizar contrato', 'customizar contrato', 'editar modelo'],
     selector: 'button, a, label, input, [role="button"]',
   },
@@ -51,7 +121,7 @@ const STEPS = [
     key: 'save',
     title: 'Finalize o pré-contrato',
     description: 'Agora salve ou gere o link. O sistema criará o pré-contrato e abrirá o compartilhamento para envio ao cliente.',
-    texts: ['salvar', 'gerar link', 'criar pré-contrato', 'finalizar', 'salvar pré-contrato'],
+    texts: ['salvar e abrir envio', 'salvar', 'gerar link', 'criar pré-contrato', 'finalizar', 'salvar pré-contrato'],
     selector: 'button, [role="button"]',
   },
   {
@@ -91,6 +161,7 @@ function isVisible(el) {
 function textOf(el) {
   if (!el) return '';
   const labelText = el.closest?.('label')?.textContent || '';
+  const parentText = el.parentElement?.textContent || '';
   return normalize([
     el.getAttribute?.('data-tour'),
     el.getAttribute?.('placeholder'),
@@ -100,6 +171,7 @@ function textOf(el) {
     el.value,
     el.textContent,
     labelText,
+    parentText,
   ].filter(Boolean).join(' '));
 }
 
@@ -217,7 +289,7 @@ export default function PrecontractGuideStable({ enabled = false }) {
 
   const step = STEPS[index];
   const shouldForce = searchParams?.get('guide') === 'precontract' || searchParams?.get('onboarding') === 'precontract';
-  const sessionKey = useMemo(() => 'harmonics:precontract-guide:v2', []);
+  const sessionKey = useMemo(() => 'harmonics:precontract-guide:v3', []);
 
   useEffect(() => {
     if (!enabled || pathname !== '/pre-contratos') return;
@@ -339,7 +411,7 @@ export default function PrecontractGuideStable({ enabled = false }) {
 
         {missing ? (
           <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[12px] font-bold leading-5 text-amber-800">
-            Estou aguardando esse elemento aparecer. Se você ainda não salvou o pré-contrato, conclua a etapa anterior para continuar.
+            Estou aguardando esse elemento aparecer. Se esta etapa estiver mais abaixo, role a página ou avance após preencher o bloco atual.
           </div>
         ) : null}
 

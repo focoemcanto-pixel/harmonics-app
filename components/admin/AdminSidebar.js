@@ -31,7 +31,7 @@ const SETTINGS_ITEMS = [
 export default function AdminSidebar({ activeItem = 'dashboard' }) {
   const pathname = usePathname();
   const { signOut, profile } = useAuth();
-  const { workspace } = useCurrentWorkspace();
+  const { workspace, loading: workspaceLoading } = useCurrentWorkspace();
   const [loading, setLoading] = useState(false);
 
   async function handleLogout() {
@@ -51,12 +51,12 @@ export default function AdminSidebar({ activeItem = 'dashboard' }) {
     <aside className="sticky top-0 flex min-h-screen w-[280px] shrink-0 flex-col bg-[#020b2c] px-5 py-6 text-white">
       <div className="flex items-center gap-3 px-2">
         <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-black/70 text-lg font-black text-white">
-          {workspace?.initials || 'H'}
+          {workspaceLoading ? '…' : workspace?.initials || 'H'}
         </div>
 
         <div>
           <div className="text-[15px] font-black text-white">
-            {workspace?.displayName || 'Harmonics'}
+            {workspaceLoading ? 'Carregando workspace...' : workspace?.displayName || 'Harmonics'}
           </div>
           <div className="text-[12px] text-[#a5b4fc]">
             Workspace Admin

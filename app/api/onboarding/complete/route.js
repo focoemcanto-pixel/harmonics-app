@@ -130,6 +130,15 @@ export async function POST(request) {
       },
     });
 
+    await supabase
+      .from('workspace_onboarding_progress')
+      .upsert({
+        workspace_id: auth.workspaceId,
+        workspace_configured: true,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'workspace_id' })
+      .then?.(() => null);
+
     // Mantém o nome do workspace alinhado com a identidade pública quando possível.
     await supabase
       .from('workspaces')

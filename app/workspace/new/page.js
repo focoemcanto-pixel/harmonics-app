@@ -3,8 +3,56 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getSupabase } from '@/lib/supabase';
+import { WORKSPACE_CACHE_KEY } from '@/hooks/useCurrentWorkspace';
 
 const DEFAULT_COLOR = '#8b5cf6';
+
+const WORKSPACE_STORAGE_PREFIXES = [
+  'harmonics:workspace-',
+  'harmonics:section-guide:',
+  'harmonics:template-guide-stable:',
+  'harmonics:event-type-template-guide:',
+  'harmonics:precontract-guide:',
+];
+
+const WORKSPACE_STORAGE_KEYS = [
+  WORKSPACE_CACHE_KEY,
+  'harmonics:onboarding-tour:v1',
+];
+
+function resetWorkspaceScopedStorage(nextWorkspaceId) {
+  if (typeof window === 'undefined') return;
+
+  const clearStorage = (storage) => {
+    if (!storage) return;
+
+    for (const key of WORKSPACE_STORAGE_KEYS) {
+      storage.removeItem(key);
+    }
+
+    for (let index = storage.length - 1; index >= 0; index -= 1) {
+      const key = storage.key(index);
+      if (!key) continue;
+      if (WORKSPACE_STORAGE_PREFIXES.some((prefix) => key.startsWith(prefix))) {
+        storage.removeItem(key);
+      }
+    }
+  };
+
+  try {
+    clearStorage(window.localStorage);
+    clearStorage(window.sessionStorage);
+
+    if (nextWorkspaceId) {
+      window.localStorage.setItem(
+        WORKSPACE_CACHE_KEY,
+        JSON.stringify({ workspaceId: nextWorkspaceId, pendingConfirmation: true })
+      );
+    }
+  } catch {
+    // Storage não deve bloquear a criação do workspace nem o redirecionamento limpo.
+  }
+}
 
 function normalizeHexColor(value) {
   const color = String(value || '').trim();
@@ -94,7 +142,8 @@ export default function NewWorkspacePage() {
         throw new Error(payload?.error || 'Não foi possível criar o workspace.');
       }
 
-      router.push(payload?.next || '/dashboard');
+      resetWorkspaceScopedStorage(payload?.workspaceId);
+      router.push(payload?.next || '/dashboard?onboarding=fresh-workspace');
       router.refresh();
     } catch (err) {
       setError(err?.message || 'Não foi possível criar o workspace.');

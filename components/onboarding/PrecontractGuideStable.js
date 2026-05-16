@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 
 const STEPS = [
-  { key: 'event_type', title: 'Escolha o tipo de evento', description: 'Comece selecionando o tipo configurado antes. Ele define o template padrão que será usado no contrato.', texts: ['tipo de evento'], exactNames: ['event_type', 'event_type_id'], selector: 'select, input, button, label' },
+  { key: 'event_type', title: 'Escolha o tipo de evento', description: 'Comece selecionando o tipo configurado antes. Ele define o template padrão que será usado no contrato.', texts: ['tipo de evento', 'tipo do evento'], exactNames: ['event_type', 'event_type_id', 'eventTypeId'], selector: 'select, input, button, label, [role="combobox"]', required: true, requiredMessage: 'Selecione um tipo de evento para continuar.' },
   { key: 'formation', title: 'Escolha a formação musical', description: 'Defina se será duo, trio, quarteto ou outra formação. Essa informação entra no contrato e ajuda na operação da escala.', texts: ['formação'], exactNames: ['formation'], selector: 'select, input, label, button' },
   { key: 'event_date', title: 'Informe a data do evento', description: 'A data é obrigatória para validar agenda, calcular prazos de pagamento e aparecer corretamente no contrato.', texts: ['data'], exactNames: ['event_date'], selector: 'input, label, button' },
   { key: 'event_time', title: 'Informe o horário', description: 'Preencha o horário principal do evento. Se ainda não souber, deixe pendente, mas o ideal é confirmar antes de enviar ao cliente.', texts: ['hora'], exactNames: ['event_time'], selector: 'input, label, button' },
@@ -43,7 +43,7 @@ function getControlFromLabel(label) {
     const explicit = document.getElementById(explicitFor);
     if (explicit && isVisible(explicit)) return explicit;
   }
-  return label.querySelector?.('select, input, textarea, button, a, [role="button"]') || label;
+  return label.querySelector?.('select, input, textarea, button, a, [role="combobox"], [role="button"]') || label;
 }
 
 function getLabelText(el) {
@@ -65,6 +65,8 @@ function getLabelText(el) {
   if (closestLabel) parts.push(closestLabel.textContent || '');
   const previous = el.previousElementSibling;
   if (previous && ['LABEL', 'SPAN', 'P', 'DIV'].includes(previous.tagName)) parts.push(previous.textContent || '');
+  const parent = el.parentElement;
+  if (parent) parts.push(parent.textContent || '');
   return normalize(parts.join(' '));
 }
 
@@ -72,6 +74,7 @@ function fieldIdentityText(el) {
   if (!el) return '';
   return normalize([
     el.getAttribute?.('data-tour'),
+    el.getAttribute?.('data-guide'),
     el.getAttribute?.('data-field'),
     el.getAttribute?.('name'),
     el.getAttribute?.('id'),
@@ -90,7 +93,7 @@ function findByExactNames(names = []) {
   if (!names.length) return null;
   const selectors = names.flatMap((name) => {
     const escaped = CSS.escape(name);
-    return [`[name="${escaped}"]`, `#${escaped}`, `[data-tour="${escaped}"]`, `[data-field="${escaped}"]`];
+    return [`[name="${escaped}"]`, `#${escaped}`, `[data-tour="${escaped}"]`, `[data-guide="${escaped}"]`, `[data-field="${escaped}"]`];
   }).join(',');
   if (!selectors) return null;
   return Array.from(document.querySelectorAll(selectors)).find(isVisible) || null;
@@ -109,7 +112,7 @@ function findLabelControlByTexts(texts = []) {
 
 function findByFieldIdentity(texts, selector) {
   const needles = (texts || []).map(normalize).filter(Boolean);
-  const elements = Array.from(document.querySelectorAll(selector || 'input, select, textarea, button, a, label, [role="button"]'));
+  const elements = Array.from(document.querySelectorAll(selector || 'input, select, textarea, button, a, label, [role="combobox"], [role="button"]'));
   const found = elements.find((el) => {
     if (!isVisible(el)) return false;
     const identity = fieldIdentityText(el);
@@ -121,7 +124,7 @@ function findByFieldIdentity(texts, selector) {
 
 function findByTexts(texts, selector) {
   const needles = (texts || []).map(normalize).filter(Boolean);
-  const elements = Array.from(document.querySelectorAll(selector || 'input, select, textarea, button, a, label, [role="button"]'));
+  const elements = Array.from(document.querySelectorAll(selector || 'input, select, textarea, button, a, label, [role="combobox"], [role="button"]'));
   const found = elements.find((el) => {
     if (!isVisible(el)) return false;
     const text = textOf(el);
@@ -129,6 +132,33 @@ function findByTexts(texts, selector) {
   });
   if (!found) return null;
   return found.tagName === 'LABEL' ? getControlFromLabel(found) : found;
+}
+
+function findEventTypeTarget() {
+  const direct = findByExactNames(['event_type_id', 'event_type', 'eventTypeId'])
+    || document.querySelector('[data-guide="event-type-select"], [data-tour="event-type-select"], [data-field="event-type-select"]');
+  if (direct && isVisible(direct)) return direct;
+
+  const controls = Array.from(document.querySelectorAll('select, input, button, [role="combobox"]')).filter(isVisible);
+  const preferred = controls.find((el) => {
+    const identity = fieldIdentityText(el);
+    const text = textOf(el);
+    return identity.includes('tipo de evento') || identity.includes('tipo do evento') || text.includes('tipo de evento') || text.includes('tipo do evento');
+  });
+
+  return preferred || findLabelControlByTexts(['tipo de evento', 'tipo do evento']);
+}
+
+function getFieldValue(el) {
+  if (!el) return '';
+  const tag = String(el.tagName || '').toLowerCase();
+  if (tag === 'select' || tag === 'input' || tag === 'textarea') return String(el.value || '').trim();
+  if (el.getAttribute?.('aria-expanded') !== null || el.getAttribute?.('role') === 'combobox') {
+    const text = normalize(el.textContent || '');
+    if (!text || text.includes('selecione') || text.includes('escolha') || text.includes('tipo de evento')) return '';
+    return text;
+  }
+  return String(el.value || el.getAttribute?.('data-value') || '').trim();
 }
 
 function findPreviewModal() {
@@ -146,6 +176,7 @@ function findPreviewModal() {
 }
 
 function findTarget(step) {
+  if (step.key === 'event_type') return findEventTypeTarget();
   if (step.preferPreviewModal) {
     const modal = findPreviewModal();
     if (modal) return modal;
@@ -163,8 +194,8 @@ function findTarget(step) {
 function findFocusable(el) {
   if (!el) return null;
   const tag = String(el.tagName || '').toLowerCase();
-  if (['input', 'textarea', 'select', 'button', 'a'].includes(tag) || el.isContentEditable) return el;
-  return el.querySelector?.('input, textarea, select, button, a, [contenteditable="true"]') || null;
+  if (['input', 'textarea', 'select', 'button', 'a'].includes(tag) || el.isContentEditable || el.getAttribute?.('role') === 'combobox') return el;
+  return el.querySelector?.('input, textarea, select, button, a, [role="combobox"], [contenteditable="true"]') || null;
 }
 
 function clamp(value, min, max) {
@@ -207,12 +238,13 @@ export default function PrecontractGuideStable({ enabled = false }) {
   const [index, setIndex] = useState(0);
   const [targetRect, setTargetRect] = useState(null);
   const [missing, setMissing] = useState(false);
+  const [validationHint, setValidationHint] = useState('');
   const retryRef = useRef(null);
   const centeredRef = useRef(null);
   const focusedRef = useRef(null);
   const step = STEPS[index];
   const shouldForce = searchParams?.get('guide') === 'precontract' || searchParams?.get('onboarding') === 'precontract';
-  const sessionKey = useMemo(() => 'harmonics:precontract-guide:v5', []);
+  const sessionKey = useMemo(() => 'harmonics:precontract-guide:v6', []);
 
   useEffect(() => {
     if (!enabled || pathname !== '/pre-contratos') return;
@@ -248,7 +280,7 @@ export default function PrecontractGuideStable({ enabled = false }) {
         setTimeout(() => {
           const focusable = findFocusable(target);
           const tag = String(focusable?.tagName || '').toLowerCase();
-          if (tag !== 'button' && tag !== 'a') focusable?.focus?.({ preventScroll: true });
+          if (step.key === 'event_type' || (tag !== 'button' && tag !== 'a')) focusable?.focus?.({ preventScroll: true });
         }, 160);
       }
     }
@@ -256,10 +288,7 @@ export default function PrecontractGuideStable({ enabled = false }) {
     const onResize = () => sync({ center: false });
     window.addEventListener('resize', onResize);
     const observer = new MutationObserver((mutations) => {
-      const onlyGuideMutations = mutations.every((mutation) => {
-        const target = mutation.target;
-        return target?.closest?.('[data-precontract-guide="true"]');
-      });
+      const onlyGuideMutations = mutations.every((mutation) => mutation.target?.closest?.('[data-precontract-guide="true"]'));
       if (onlyGuideMutations) return;
       clearTimeout(retryRef.current);
       retryRef.current = window.setTimeout(() => sync({ center: false }), 220);
@@ -281,6 +310,19 @@ export default function PrecontractGuideStable({ enabled = false }) {
   }
 
   function next() {
+    const target = findTarget(step);
+    if (step.required && !getFieldValue(findFocusable(target) || target)) {
+      setValidationHint(step.requiredMessage || 'Preencha esta etapa para continuar.');
+      centeredRef.current = null;
+      if (target) {
+        centerTarget(target, step);
+        findFocusable(target)?.focus?.({ preventScroll: true });
+        requestAnimationFrame(() => setTargetRect(target.getBoundingClientRect()));
+      }
+      return;
+    }
+
+    setValidationHint('');
     if (index >= STEPS.length - 1) return finish();
     centeredRef.current = null;
     focusedRef.current = null;
@@ -307,6 +349,7 @@ export default function PrecontractGuideStable({ enabled = false }) {
       </div>
       <h3 className="mt-3 text-[22px] font-black tracking-[-0.04em] text-[#0f172a]">{step.title}</h3>
       <p className="mt-2 text-[14px] font-semibold leading-7 text-[#64748b]">{step.description}</p>
+      {validationHint ? <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-[12px] font-bold leading-5 text-red-700">{validationHint}</div> : null}
       {missing ? <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[12px] font-bold leading-5 text-amber-800">Estou aguardando esse elemento aparecer. Se esta etapa estiver mais abaixo, role a página ou avance após preencher o bloco atual.</div> : null}
       {previewMode ? <div className="mt-4 rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3 text-[12px] font-bold leading-5 text-violet-800">O preview está liberado no tamanho completo. Role dentro dele se precisar conferir todas as cláusulas antes de salvar.</div> : null}
       <div className="mt-5 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-violet-600 transition-all duration-300" style={{ width: `${Math.round(((index + 1) / STEPS.length) * 100)}%` }} /></div>

@@ -35,9 +35,10 @@ const STEPS = [
   {
     key: 'preview',
     title: 'Veja o preview antes de salvar',
-    description: 'Antes de finalizar, abra a prévia para conferir se o contrato está puxando o template, valores, data, formação e campos automáticos corretamente.',
+    description: 'Confira o modal inteiro de visualização. Verifique dados do evento, valores, formação e se o contrato está puxando o template correto antes de salvar.',
     texts: ['preview', 'visualizar', 'prévia', 'ver contrato', 'visualização'],
     selector: 'button, a, [role="button"]',
+    preferPreviewModal: true,
   },
   {
     key: 'edit_contract_optional',
@@ -113,7 +114,34 @@ function findByTexts(texts, selector) {
   }) || null;
 }
 
+function findPreviewModal() {
+  if (typeof document === 'undefined') return null;
+
+  const candidates = Array.from(document.querySelectorAll('div'))
+    .filter((el) => isVisible(el))
+    .filter((el) => {
+      const text = normalize(el.textContent || '');
+      const rect = el.getBoundingClientRect();
+      return rect.width >= 520
+        && rect.height >= 360
+        && text.includes('visualizacao premium')
+        && text.includes('preview do contrato');
+    })
+    .sort((a, b) => {
+      const ar = a.getBoundingClientRect();
+      const br = b.getBoundingClientRect();
+      return (a.children.length - b.children.length) || ((ar.width * ar.height) - (br.width * br.height));
+    });
+
+  return candidates[0] || null;
+}
+
 function findTarget(step) {
+  if (step.preferPreviewModal) {
+    const modal = findPreviewModal();
+    if (modal) return modal;
+  }
+
   if (step.waitsForShareModal) {
     const modalTarget = findByTexts(step.texts, step.selector);
     if (modalTarget) return modalTarget;
@@ -133,9 +161,9 @@ function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
 
-function getBox(rect) {
+function getBox(rect, step) {
   if (!rect) return null;
-  const padding = 14;
+  const padding = step?.preferPreviewModal ? 6 : 14;
   return {
     left: Math.max(8, rect.left - padding),
     top: Math.max(8, rect.top - padding),
@@ -144,7 +172,9 @@ function getBox(rect) {
   };
 }
 
-function centerTarget(target) {
+function centerTarget(target, step) {
+  if (step?.preferPreviewModal && findPreviewModal()) return;
+
   const rect = target.getBoundingClientRect();
   const desiredY = window.innerHeight * 0.44;
   const delta = rect.top + rect.height / 2 - desiredY;
@@ -187,7 +217,7 @@ export default function PrecontractGuideStable({ enabled = false }) {
 
   const step = STEPS[index];
   const shouldForce = searchParams?.get('guide') === 'precontract' || searchParams?.get('onboarding') === 'precontract';
-  const sessionKey = useMemo(() => 'harmonics:precontract-guide:v1', []);
+  const sessionKey = useMemo(() => 'harmonics:precontract-guide:v2', []);
 
   useEffect(() => {
     if (!enabled || pathname !== '/pre-contratos') return;
@@ -221,12 +251,12 @@ export default function PrecontractGuideStable({ enabled = false }) {
 
       if (center && centeredRef.current !== step.key) {
         centeredRef.current = step.key;
-        centerTarget(target);
+        centerTarget(target, step);
       }
 
       requestAnimationFrame(() => setTargetRect(target.getBoundingClientRect()));
 
-      if (!step.waitsForShareModal && focusedRef.current !== step.key) {
+      if (!step.waitsForShareModal && !step.preferPreviewModal && focusedRef.current !== step.key) {
         focusedRef.current = step.key;
         setTimeout(() => {
           const focusable = findFocusable(target);
@@ -272,14 +302,17 @@ export default function PrecontractGuideStable({ enabled = false }) {
 
   const vw = typeof window !== 'undefined' ? window.innerWidth : 1280;
   const vh = typeof window !== 'undefined' ? window.innerHeight : 800;
-  const box = getBox(targetRect);
+  const box = getBox(targetRect, step);
   const tooltipWidth = Math.min(460, vw - 32);
+  const previewMode = step?.preferPreviewModal && !!findPreviewModal();
   const preferredLeft = targetRect ? targetRect.right + 24 : 16;
   const fallbackLeft = targetRect ? targetRect.left - tooltipWidth - 24 : 16;
-  const left = preferredLeft + tooltipWidth < vw - 16
-    ? preferredLeft
-    : clamp(fallbackLeft, 16, vw - tooltipWidth - 16);
-  const top = targetRect ? clamp(targetRect.top, 18, vh - 340) : 120;
+  const left = previewMode
+    ? clamp(vw - tooltipWidth - 28, 16, vw - tooltipWidth - 16)
+    : (preferredLeft + tooltipWidth < vw - 16 ? preferredLeft : clamp(fallbackLeft, 16, vw - tooltipWidth - 16));
+  const top = previewMode
+    ? clamp(vh - 330, 18, vh - 320)
+    : (targetRect ? clamp(targetRect.top, 18, vh - 340) : 120);
 
   return (
     <div className="fixed inset-0 z-[270] pointer-events-none">
@@ -307,6 +340,12 @@ export default function PrecontractGuideStable({ enabled = false }) {
         {missing ? (
           <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[12px] font-bold leading-5 text-amber-800">
             Estou aguardando esse elemento aparecer. Se você ainda não salvou o pré-contrato, conclua a etapa anterior para continuar.
+          </div>
+        ) : null}
+
+        {previewMode ? (
+          <div className="mt-4 rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3 text-[12px] font-bold leading-5 text-violet-800">
+            O preview está liberado no tamanho completo. Role dentro dele se precisar conferir todas as cláusulas antes de salvar.
           </div>
         ) : null}
 

@@ -4,6 +4,25 @@ import { useEffect, useMemo, useState } from 'react';
 
 export const WORKSPACE_CACHE_KEY = 'harmonics:last-current-workspace';
 
+const WORKSPACE_STORAGE_KEYS_TO_CLEAR = [
+  WORKSPACE_CACHE_KEY,
+  'harmonics:precontract-guide:v9',
+  'harmonics_pending_signup_bootstrap',
+];
+
+export function clearWorkspaceScopedStorage() {
+  if (typeof window === 'undefined') return;
+
+  try {
+    for (const key of WORKSPACE_STORAGE_KEYS_TO_CLEAR) {
+      window.localStorage.removeItem(key);
+      window.sessionStorage.removeItem(key);
+    }
+  } catch {
+    // storage pode estar indisponível em alguns contextos; não deve quebrar a UI.
+  }
+}
+
 function safeWriteWorkspaceCache(workspace) {
   if (typeof window === 'undefined' || !workspace?.workspaceId) return;
 

@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
+import { ONBOARDING_Z_INDEX, calculateOnboardingPopoverPosition } from '@/lib/onboarding/popoverPositioning';
 
 const STEPS = [
   {
@@ -117,10 +118,6 @@ function clearGuideQuery() {
   window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
 }
 
-function clamp(value, min, max) {
-  return Math.min(Math.max(value, min), max);
-}
-
 function getBox(rect) {
   if (!rect) return null;
   const padding = 14;
@@ -160,7 +157,9 @@ export default function EventTypeTemplateGuideStable({ enabled = false }) {
   const [active, setActive] = useState(false);
   const [index, setIndex] = useState(0);
   const [targetRect, setTargetRect] = useState(null);
+  const [popoverSize, setPopoverSize] = useState({ width: 430, height: 300 });
   const retryRef = useRef(null);
+  const popoverRef = useRef(null);
   const centeredRef = useRef(null);
   const focusedRef = useRef(null);
   const step = STEPS[index];
@@ -170,14 +169,18 @@ export default function EventTypeTemplateGuideStable({ enabled = false }) {
   useEffect(() => {
     if (!enabled || pathname !== '/eventos/tipos') return;
     if (!shouldForce && sessionStorage.getItem(sessionKey) === 'skipped') return;
+    let resetTimer;
     if (shouldForce) {
       sessionStorage.removeItem(sessionKey);
-      setIndex(0);
+      resetTimer = setTimeout(() => setIndex(0), 0);
       centeredRef.current = null;
       focusedRef.current = null;
     }
     const timer = setTimeout(() => setActive(true), 350);
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(resetTimer);
+      clearTimeout(timer);
+    };
   }, [enabled, pathname, sessionKey, shouldForce]);
 
   useEffect(() => {
@@ -216,6 +219,26 @@ export default function EventTypeTemplateGuideStable({ enabled = false }) {
     };
   }, [active, step]);
 
+
+  useLayoutEffect(() => {
+    if (!active || !popoverRef.current) return undefined;
+
+    function syncPopoverSize() {
+      const rect = popoverRef.current?.getBoundingClientRect();
+      if (!rect?.width || !rect?.height) return;
+      setPopoverSize((current) => {
+        const next = { width: Math.ceil(rect.width), height: Math.ceil(rect.height) };
+        if (current.width === next.width && current.height === next.height) return current;
+        return next;
+      });
+    }
+
+    syncPopoverSize();
+    const observer = new ResizeObserver(syncPopoverSize);
+    observer.observe(popoverRef.current);
+    return () => observer.disconnect();
+  }, [active, index]);
+
   if (!enabled || pathname !== '/eventos/tipos' || !active || !step) return null;
 
   function finish() {
@@ -235,14 +258,33 @@ export default function EventTypeTemplateGuideStable({ enabled = false }) {
   const vh = typeof window !== 'undefined' ? window.innerHeight : 800;
   const box = getBox(targetRect);
   const tooltipWidth = Math.min(430, vw - 32);
-  const left = targetRect ? clamp(targetRect.right + 24, 16, vw - tooltipWidth - 16) : 16;
-  const top = targetRect ? clamp(targetRect.top, 18, vh - 320) : 120;
+  const tooltipPosition = calculateOnboardingPopoverPosition({
+    targetRect,
+    viewportWidth: vw,
+    viewportHeight: vh,
+    popoverWidth: tooltipWidth,
+    popoverHeight: popoverSize.height,
+    margin: vw < 640 ? 16 : 24,
+    gap: 18,
+  });
 
   return (
-    <div className="fixed inset-0 z-[260] pointer-events-none">
+    <div className="fixed inset-0 pointer-events-none" style={{ zIndex: ONBOARDING_Z_INDEX.overlay }}>
       <Mask box={box} width={vw} height={vh} />
-      {box ? <div className="absolute rounded-[24px] border-2 border-white bg-transparent shadow-[0_0_0_2px_rgba(124,58,237,0.30),0_18px_70px_rgba(124,58,237,0.44)] ring-4 ring-violet-500/25" style={{ left: box.left, top: box.top, width: box.width, height: box.height }} /> : null}
-      <div className="pointer-events-auto absolute rounded-[30px] border border-violet-200 bg-white p-5 shadow-[0_24px_90px_rgba(15,23,42,0.36)]" style={{ width: tooltipWidth, left, top }}>
+      {box ? <div className="absolute rounded-[24px] border-2 border-white bg-transparent shadow-[0_0_0_2px_rgba(124,58,237,0.30),0_18px_70px_rgba(124,58,237,0.44)] ring-4 ring-violet-500/25 transition-all duration-300 ease-out" style={{ zIndex: ONBOARDING_Z_INDEX.spotlight, left: box.left, top: box.top, width: box.width, height: box.height }} /> : null}
+      <div
+        ref={popoverRef}
+        data-placement={tooltipPosition.placement}
+        className="pointer-events-auto absolute rounded-[30px] border border-violet-200 bg-white p-5 shadow-[0_24px_90px_rgba(15,23,42,0.36)] transition-[left,top,transform] duration-300 ease-out will-change-[left,top]"
+        style={{ zIndex: ONBOARDING_Z_INDEX.tooltip, width: tooltipWidth, left: tooltipPosition.left, top: tooltipPosition.top }}
+      >
+        {tooltipPosition.arrow ? (
+          <span
+            aria-hidden="true"
+            className="absolute h-3 w-3 rotate-45 border-violet-200 bg-white"
+            style={{ left: tooltipPosition.arrow.left, top: tooltipPosition.arrow.top }}
+          />
+        ) : null}
         <div className="flex items-center justify-between gap-3">
           <div className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-700">Guia: tipo de evento</div>
           <span className="rounded-full bg-violet-100 px-3 py-1 text-[11px] font-black text-violet-700">{index + 1}/{STEPS.length}</span>

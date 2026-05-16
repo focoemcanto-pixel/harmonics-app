@@ -13,9 +13,11 @@ export function Field({ label, children, helper }) {
 }
 
 export const Input = forwardRef(function Input(
-  { value, onChange, placeholder = '', type = 'text', disabled = false, helpText, step },
+  { value, onChange, placeholder = '', type = 'text', disabled = false, helpText: _helpText, step, ...props },
   ref,
 ) {
+  void _helpText;
+
   return (
     <input
       ref={ref}
@@ -25,17 +27,19 @@ export const Input = forwardRef(function Input(
       placeholder={placeholder}
       disabled={disabled}
       step={step}
+      {...props}
       className="w-full rounded-[18px] border border-[#dbe3ef] bg-white px-4 py-4 text-[15px] font-semibold text-[#0f172a] outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100 disabled:bg-slate-50 disabled:text-slate-400"
     />
   );
 });
 
-export function Select({ value, onChange, children, disabled = false }) {
+export function Select({ value, onChange, children, disabled = false, ...props }) {
   return (
     <select
       value={value}
       onChange={onChange}
       disabled={disabled}
+      {...props}
       className="w-full rounded-[18px] border border-[#dbe3ef] bg-white px-4 py-4 text-[15px] font-semibold text-[#0f172a] outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100 disabled:bg-slate-50 disabled:text-slate-400"
     >
       {children}

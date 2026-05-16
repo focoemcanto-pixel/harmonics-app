@@ -54,6 +54,11 @@ const PrecontractGuideStable = dynamic(() => import('@/components/onboarding/Pre
   loading: () => null,
 });
 
+const OnboardingPrerequisiteGate = dynamic(() => import('@/components/onboarding/OnboardingPrerequisiteGate'), {
+  ssr: false,
+  loading: () => null,
+});
+
 export default function DeferredOnboardingMount({
   variant,
   showTour = false,
@@ -93,7 +98,7 @@ export default function DeferredOnboardingMount({
   }
 
   if (variant === 'route') {
-    return (
+    const routeGuides = (
       <>
         {showTour ? <OnboardingTourOverlay /> : null}
         <OperationalRouteOnboarding enabled />
@@ -103,6 +108,16 @@ export default function DeferredOnboardingMount({
         {pathname === '/pre-contratos' ? <PrecontractGuideStable enabled /> : null}
       </>
     );
+
+    if (pathname === '/eventos/tipos') {
+      return <OnboardingPrerequisiteGate requiredStep="event_type">{routeGuides}</OnboardingPrerequisiteGate>;
+    }
+
+    if (pathname === '/pre-contratos') {
+      return <OnboardingPrerequisiteGate requiredStep="precontract">{routeGuides}</OnboardingPrerequisiteGate>;
+    }
+
+    return routeGuides;
   }
 
   return showTour ? <OnboardingTourOverlay /> : null;

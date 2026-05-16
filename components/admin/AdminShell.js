@@ -28,7 +28,12 @@ export default function AdminShell({
     searchParams?.get('guide') === 'event-types' || searchParams?.get('onboarding') === 'event-types'
   );
 
-  const shouldForceGuide = forceTemplateGuide || forceEventTypesGuide;
+  const forcePrecontractGuide = pathname === '/pre-contratos' && (
+    searchParams?.get('guide') === 'precontract' || searchParams?.get('onboarding') === 'precontract'
+  );
+
+  const isSetupGuideRoute = pathname === '/contratos/templates' || pathname === '/eventos/tipos' || pathname === '/pre-contratos';
+  const shouldMountRouteGuides = isSetupGuideRoute || forceTemplateGuide || forceEventTypesGuide || forcePrecontractGuide;
 
   const mobileActiveItem = useMemo(() => {
     const allowed = ['dashboard', 'eventos', 'contatos', 'contratos', 'mais'];
@@ -52,7 +57,7 @@ export default function AdminShell({
           <AdminSidebar activeItem={activeItem} />
           <main className="min-h-screen flex-1">
             <div className="mx-auto w-full max-w-[1440px] px-6 py-6">
-              {shouldForceGuide ? <DeferredOnboardingMount variant="route" showTour /> : null}
+              {shouldMountRouteGuides ? <DeferredOnboardingMount variant="route" showTour /> : null}
               {children}
             </div>
           </main>
@@ -61,7 +66,7 @@ export default function AdminShell({
         <div className="md:hidden">
           <AdminMobileTopbar title={pageTitle} actions={mobileActions} />
           <main className="px-4 pb-28 pt-4">
-            {shouldForceGuide ? <DeferredOnboardingMount variant="route" showTour /> : null}
+            {shouldMountRouteGuides ? <DeferredOnboardingMount variant="route" showTour /> : null}
             {children}
           </main>
 

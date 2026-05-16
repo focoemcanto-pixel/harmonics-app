@@ -44,6 +44,11 @@ const TemplateCreationGuideStable = dynamic(() => import('@/components/onboardin
   loading: () => null,
 });
 
+const EventTypeTemplateGuideStable = dynamic(() => import('@/components/onboarding/EventTypeTemplateGuideStable'), {
+  ssr: false,
+  loading: () => null,
+});
+
 export default function DeferredOnboardingMount({
   variant,
   showTour = false,
@@ -86,6 +91,7 @@ export default function DeferredOnboardingMount({
         <OperationalRouteOnboarding enabled />
         <SectionGuidedOnboarding enabled />
         {pathname === '/contratos/templates' ? <TemplateCreationGuideStable enabled /> : null}
+        {pathname === '/eventos/tipos' ? <EventTypeTemplateGuideStable enabled /> : null}
       </>
     );
   }

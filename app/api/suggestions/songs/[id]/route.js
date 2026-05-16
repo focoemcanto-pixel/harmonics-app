@@ -1,5 +1,11 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '../../../../../lib/supabase-admin';
+import { requireWorkspaceAccess } from '@/lib/api/require-workspace-access';
+import {
+  assertOptionalForeignKeyInWorkspace,
+  filterExistingWorkspaceIds,
+  stripCrossWorkspaceRelations,
+} from '@/lib/sugestoes/workspace-scope';
 
 function normalizeYoutubeId(value) {
   const input = String(value || '').trim();
@@ -69,7 +75,7 @@ function sanitizeSongPayload(body) {
   };
 }
 
-async function replaceSongTags(supabase, songId, tagIds = []) {
+async function replaceSongTags(supabase, songId, tagIds = [], workspaceId) {
   const normalized = Array.from(
     new Set(
       (Array.isArray(tagIds) ? tagIds : [])
@@ -87,7 +93,10 @@ async function replaceSongTags(supabase, songId, tagIds = []) {
 
   if (!normalized.length) return;
 
-  const rows = normalized.map((tagId) => ({
+  const scopedTagIds = await filterExistingWorkspaceIds(supabase, 'suggestion_tags', normalized, workspaceId);
+  if (!scopedTagIds.length) return;
+
+  const rows = scopedTagIds.map((tagId) => ({
     song_id: songId,
     tag_id: tagId,
   }));
@@ -99,7 +108,7 @@ async function replaceSongTags(supabase, songId, tagIds = []) {
   if (insertError) throw insertError;
 }
 
-async function replaceSongCollections(supabase, songId, collectionIds = []) {
+async function replaceSongCollections(supabase, songId, collectionIds = [], workspaceId) {
   const normalized = Array.from(
     new Set(
       (Array.isArray(collectionIds) ? collectionIds : [])
@@ -117,7 +126,10 @@ async function replaceSongCollections(supabase, songId, collectionIds = []) {
 
   if (!normalized.length) return;
 
-  const rows = normalized.map((collectionId, index) => ({
+  const scopedCollectionIds = await filterExistingWorkspaceIds(supabase, 'suggestion_collections', normalized, workspaceId);
+  if (!scopedCollectionIds.length) return;
+
+  const rows = scopedCollectionIds.map((collectionId, index) => ({
     collection_id: collectionId,
     song_id: songId,
     sort_order: index,
@@ -130,12 +142,27 @@ async function replaceSongCollections(supabase, songId, collectionIds = []) {
   if (insertError) throw insertError;
 }
 
-async function fetchSongById(supabase, id) {
+
+async function assertSongInWorkspace(supabase, id, workspaceId) {
+  const { data, error } = await supabase
+    .from('suggestion_songs')
+    .select('id, workspace_id')
+    .eq('id', id)
+    .eq('workspace_id', workspaceId)
+    .in('source_type', ['admin', 'imported'])
+    .maybeSingle();
+
+  if (error) throw error;
+  return Boolean(data?.id);
+}
+
+async function fetchSongById(supabase, id, workspaceId) {
   const sourceFilter = 'source_type.eq.admin,source_type.eq.imported';
   const { data, error } = await supabase
     .from('suggestion_songs')
     .select(`
       id,
+      workspace_id,
       title,
       artist,
       genre_id,
@@ -157,29 +184,34 @@ async function fetchSongById(supabase, id) {
       sort_order,
       created_at,
       updated_at,
-      genre:suggestion_genres(id, name, slug, is_active, sort_order),
-      moment:suggestion_moments(id, name, slug, is_active, sort_order),
+      genre:suggestion_genres(id, workspace_id, name, slug, is_active, sort_order),
+      moment:suggestion_moments(id, workspace_id, name, slug, is_active, sort_order),
       song_tags:suggestion_song_tags(
         id,
-        tag:suggestion_tags(id, name, slug, is_active)
+        tag:suggestion_tags(id, workspace_id, name, slug, is_active)
       ),
       collection_links:suggestion_collection_songs(
         id,
         sort_order,
-        collection:suggestion_collections(id, name, slug, is_active, sort_order)
+        collection:suggestion_collections(id, workspace_id, name, slug, is_active, sort_order)
       )
     `)
     .eq('id', id)
+    .eq('workspace_id', workspaceId)
     .or(sourceFilter)
     .single();
 
   if (error) throw error;
-  return data;
+  return stripCrossWorkspaceRelations(data, workspaceId);
 }
 
 export async function PATCH(request, context) {
   try {
     const supabase = getSupabaseAdmin();
+    const auth = await requireWorkspaceAccess({ supabase, request, moduleKey: 'sugestoes', actionKey: 'write', logPrefix: '[SUGGESTIONS_SONGS_PATCH_API]' });
+    if (!auth.ok) return NextResponse.json({ ok: false, error: auth.error || 'Acesso não autorizado.' }, { status: auth.status || 401 });
+
+    const workspaceId = auth.workspaceId;
     const routeParams = await context?.params;
     const id = String(routeParams?.id || '').trim();
 
@@ -190,8 +222,15 @@ export async function PATCH(request, context) {
       );
     }
 
+    const songBelongsToWorkspace = await assertSongInWorkspace(supabase, id, workspaceId);
+    if (!songBelongsToWorkspace) {
+      return NextResponse.json({ ok: false, error: 'Música não encontrada neste workspace.' }, { status: 404 });
+    }
+
     const body = await request.json();
     const payload = sanitizeSongPayload(body);
+    payload.genre_id = await assertOptionalForeignKeyInWorkspace(supabase, 'suggestion_genres', payload.genre_id, workspaceId, 'Gênero');
+    payload.moment_id = await assertOptionalForeignKeyInWorkspace(supabase, 'suggestion_moments', payload.moment_id, workspaceId, 'Momento');
 
     if (!payload.title) {
       return NextResponse.json(
@@ -204,14 +243,15 @@ export async function PATCH(request, context) {
       .from('suggestion_songs')
       .update(payload)
       .eq('id', id)
+      .eq('workspace_id', workspaceId)
       .or('source_type.eq.admin,source_type.eq.imported');
 
     if (updateError) throw updateError;
 
-    await replaceSongTags(supabase, id, body?.tag_ids || []);
-    await replaceSongCollections(supabase, id, body?.collection_ids || []);
+    await replaceSongTags(supabase, id, body?.tag_ids || [], workspaceId);
+    await replaceSongCollections(supabase, id, body?.collection_ids || [], workspaceId);
 
-    const song = await fetchSongById(supabase, id);
+    const song = await fetchSongById(supabase, id, workspaceId);
 
     return NextResponse.json({
       ok: true,
@@ -230,9 +270,13 @@ export async function PATCH(request, context) {
   }
 }
 
-export async function DELETE(_request, context) {
+export async function DELETE(request, context) {
   try {
     const supabase = getSupabaseAdmin();
+    const auth = await requireWorkspaceAccess({ supabase, request, moduleKey: 'sugestoes', actionKey: 'write', logPrefix: '[SUGGESTIONS_SONGS_DELETE_API]' });
+    if (!auth.ok) return NextResponse.json({ ok: false, error: auth.error || 'Acesso não autorizado.' }, { status: auth.status || 401 });
+
+    const workspaceId = auth.workspaceId;
     const routeParams = await context?.params;
     const id = String(routeParams?.id || '').trim();
 
@@ -243,10 +287,16 @@ export async function DELETE(_request, context) {
       );
     }
 
+    const songBelongsToWorkspace = await assertSongInWorkspace(supabase, id, workspaceId);
+    if (!songBelongsToWorkspace) {
+      return NextResponse.json({ ok: false, error: 'Música não encontrada neste workspace.' }, { status: 404 });
+    }
+
     const { error } = await supabase
       .from('suggestion_songs')
       .delete()
       .eq('id', id)
+      .eq('workspace_id', workspaceId)
       .or('source_type.eq.admin,source_type.eq.imported');
 
     if (error) throw error;
@@ -254,6 +304,7 @@ export async function DELETE(_request, context) {
     return NextResponse.json({
       ok: true,
       deletedId: id,
+      workspaceId,
     });
   } catch (error) {
     console.error('[sugestoes] error delete song', error);

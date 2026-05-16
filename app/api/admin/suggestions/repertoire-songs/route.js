@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requireWorkspaceAccess } from '@/lib/api/require-workspace-access';
+import { isMissingWorkspaceColumnError, logSuggestionScope } from '@/lib/sugestoes/workspace-scope';
 
 const DEFAULT_IMPORT_ARTIST = 'não informado';
 const CATALOG_SOURCE_TYPES = ['admin', 'imported'];
@@ -75,12 +76,25 @@ export async function GET(request) {
           .order('created_at', { ascending: false }),
         supabase
           .from('suggestion_songs')
-          .select('id, title, artist, youtube_id, source_type, is_active, created_at')
+          .select('id, workspace_id, title, artist, youtube_id, source_type, is_active, created_at')
+          .eq('workspace_id', workspaceId)
           .in('source_type', CATALOG_SOURCE_TYPES),
       ]);
 
     if (repertoireError) throw repertoireError;
-    if (catalogError) throw catalogError;
+    if (catalogError) {
+      if (isMissingWorkspaceColumnError(catalogError)) {
+        return NextResponse.json({ ok: true, songs: [], workspaceId, migrationRequired: true });
+      }
+      throw catalogError;
+    }
+
+    logSuggestionScope('[admin/suggestions/repertoire-songs] scoped data loaded', {
+      workspaceId,
+      eventCount: eventIds.length,
+      repertoireCount: (repertoireItems || []).length,
+      catalogCount: (catalogRows || []).length,
+    });
 
     const catalogByKey = new Map();
     for (const song of catalogRows || []) {

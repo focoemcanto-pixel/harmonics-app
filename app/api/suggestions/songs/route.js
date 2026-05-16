@@ -5,6 +5,11 @@ import {
   fetchClientSuggestionsCatalog,
 } from '@/lib/sugestoes/client-suggestions-catalog';
 import { requireWorkspaceAccess } from '@/lib/api/require-workspace-access';
+import {
+  assertOptionalForeignKeyInWorkspace,
+  filterExistingWorkspaceIds,
+  logSuggestionScope,
+} from '@/lib/sugestoes/workspace-scope';
 
 function normalizeYoutubeId(value) {
   const input = String(value || '').trim();
@@ -74,7 +79,7 @@ function sanitizeSongPayload(body) {
   };
 }
 
-async function replaceSongTags(supabase, songId, tagIds = []) {
+async function replaceSongTags(supabase, songId, tagIds = [], workspaceId) {
   const normalized = Array.from(
     new Set(
       (Array.isArray(tagIds) ? tagIds : [])
@@ -92,7 +97,10 @@ async function replaceSongTags(supabase, songId, tagIds = []) {
 
   if (!normalized.length) return;
 
-  const rows = normalized.map((tagId) => ({
+  const scopedTagIds = await filterExistingWorkspaceIds(supabase, 'suggestion_tags', normalized, workspaceId);
+  if (!scopedTagIds.length) return;
+
+  const rows = scopedTagIds.map((tagId) => ({
     song_id: songId,
     tag_id: tagId,
   }));
@@ -104,7 +112,7 @@ async function replaceSongTags(supabase, songId, tagIds = []) {
   if (insertError) throw insertError;
 }
 
-async function replaceSongCollections(supabase, songId, collectionIds = []) {
+async function replaceSongCollections(supabase, songId, collectionIds = [], workspaceId) {
   const normalized = Array.from(
     new Set(
       (Array.isArray(collectionIds) ? collectionIds : [])
@@ -122,7 +130,10 @@ async function replaceSongCollections(supabase, songId, collectionIds = []) {
 
   if (!normalized.length) return;
 
-  const rows = normalized.map((collectionId, index) => ({
+  const scopedCollectionIds = await filterExistingWorkspaceIds(supabase, 'suggestion_collections', normalized, workspaceId);
+  if (!scopedCollectionIds.length) return;
+
+  const rows = scopedCollectionIds.map((collectionId, index) => ({
     collection_id: collectionId,
     song_id: songId,
     sort_order: index,
@@ -164,7 +175,7 @@ export async function GET(request) {
     const scope = String(searchParams.get('scope') || '').trim();
     const isAdminScope = scope === 'admin-editorial';
 
-    console.info('[sugestoes] load start songs', {
+    logSuggestionScope('[sugestoes] load start songs', {
       scope: isAdminScope ? 'admin-editorial' : 'client',
       workspaceId,
     });
@@ -173,7 +184,7 @@ export async function GET(request) {
       ? await fetchAdminEditorialCatalog(supabase, { workspaceId })
       : await fetchClientSuggestionsCatalog(supabase, { workspaceId });
 
-    console.info('[sugestoes] data loaded songs', {
+    logSuggestionScope('[sugestoes] data loaded songs', {
       count: songs.length,
       workspaceId,
     });
@@ -223,6 +234,8 @@ export async function POST(request) {
     const body = await request.json();
 
     const payload = sanitizeSongPayload(body);
+    payload.genre_id = await assertOptionalForeignKeyInWorkspace(supabase, 'suggestion_genres', payload.genre_id, workspaceId, 'Gênero');
+    payload.moment_id = await assertOptionalForeignKeyInWorkspace(supabase, 'suggestion_moments', payload.moment_id, workspaceId, 'Momento');
 
     if (!payload.title) {
       return NextResponse.json(
@@ -247,11 +260,12 @@ export async function POST(request) {
       throw new Error('Não foi possível obter o ID da música criada');
     }
 
-    await replaceSongTags(supabase, inserted.id, body?.tag_ids || []);
+    await replaceSongTags(supabase, inserted.id, body?.tag_ids || [], workspaceId);
     await replaceSongCollections(
       supabase,
       inserted.id,
-      body?.collection_ids || []
+      body?.collection_ids || [],
+      workspaceId
     );
 
     const songs = await fetchClientSuggestionsCatalog(supabase, { workspaceId });

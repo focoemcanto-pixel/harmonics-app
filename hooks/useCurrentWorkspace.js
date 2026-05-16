@@ -2,20 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
-const WORKSPACE_CACHE_KEY = 'harmonics:last-current-workspace';
-
-function safeReadWorkspaceCache() {
-  if (typeof window === 'undefined') return null;
-
-  try {
-    const raw = window.localStorage.getItem(WORKSPACE_CACHE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    return parsed?.workspaceId ? parsed : null;
-  } catch {
-    return null;
-  }
-}
+export const WORKSPACE_CACHE_KEY = 'harmonics:last-current-workspace';
 
 function safeWriteWorkspaceCache(workspace) {
   if (typeof window === 'undefined' || !workspace?.workspaceId) return;
@@ -67,8 +54,8 @@ function normalizeWorkspacePayload(payload) {
 }
 
 export default function useCurrentWorkspace() {
-  const [data, setData] = useState(() => safeReadWorkspaceCache());
-  const [loading, setLoading] = useState(() => !safeReadWorkspaceCache());
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -76,7 +63,7 @@ export default function useCurrentWorkspace() {
 
     async function loadWorkspace() {
       try {
-        setLoading((current) => current || !data);
+        setLoading(true);
         setError(null);
 
         const response = await fetch('/api/workspace/current', {
@@ -100,8 +87,9 @@ export default function useCurrentWorkspace() {
       } catch (err) {
         if (active) {
           setError(err);
-          // Mantém o último workspace em cache para evitar flash da marca padrão durante navegação.
-          setData((current) => current || safeReadWorkspaceCache());
+          // Não renderiza workspace antigo em cache: em troca/criação/exclusão multi-tenant,
+          // o nome só pode aparecer depois de confirmado por /api/workspace/current.
+          setData(null);
         }
       } finally {
         if (active) setLoading(false);
@@ -113,8 +101,7 @@ export default function useCurrentWorkspace() {
     return () => {
       active = false;
     };
-    // intentionally only once per mount; cache prevents branding flash on route transitions.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // intentionally only once per mount; workspace identity is confirmed by the API before rendering.
   }, []);
 
   return useMemo(

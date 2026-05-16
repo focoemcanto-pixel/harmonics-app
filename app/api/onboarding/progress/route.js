@@ -85,7 +85,6 @@ function isLegacyWorkspace(workspace) {
 
 async function detectWorkspaceProgress({ supabase, workspaceId }) {
   const [
-    workspaceResp,
     templatesResp,
     eventTypesResp,
     precontractsResp,
@@ -94,12 +93,6 @@ async function detectWorkspaceProgress({ supabase, workspaceId }) {
     channelsResp,
     membersResp,
   ] = await Promise.all([
-    safeCount(
-      supabase
-        .from('workspaces')
-        .select('id', { count: 'exact', head: true })
-        .eq('id', workspaceId)
-    ),
     safeCount(
       supabase
         .from('contract_templates')
@@ -146,7 +139,7 @@ async function detectWorkspaceProgress({ supabase, workspaceId }) {
   ]);
 
   return {
-    workspace_configured: hasCount(workspaceResp),
+    workspace_configured: false,
     template_created: hasCount(templatesResp),
     event_type_created: hasCount(eventTypesResp),
     precontract_created: hasCount(precontractsResp),

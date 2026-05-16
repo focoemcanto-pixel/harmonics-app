@@ -67,6 +67,34 @@ async function resolveUserFromRequest(request) {
   return { user: data?.user || null, error: error || null };
 }
 
+async function resetOnboardingProgressForWorkspace({ supabase, workspaceId }) {
+  const now = new Date().toISOString();
+  const progressPayload = {
+    workspace_id: workspaceId,
+    workspace_configured: false,
+    template_created: false,
+    event_type_created: false,
+    precontract_created: false,
+    contract_signed_test: false,
+    first_event_created: false,
+    automation_configured: false,
+    team_configured: false,
+    completed_at: null,
+    updated_at: now,
+  };
+
+  const { error } = await supabase
+    .from('workspace_onboarding_progress')
+    .upsert(progressPayload, { onConflict: 'workspace_id' });
+
+  if (error) {
+    console.warn('[WORKSPACE_CREATE][ONBOARDING_RESET_FAILED]', {
+      message: error?.message,
+      code: error?.code || null,
+    });
+  }
+}
+
 async function updateProfileWorkspaceSafe({ supabase, user, workspaceId }) {
   const basePayload = {
     id: user.id,
@@ -168,6 +196,11 @@ export async function POST(request) {
       workspaceId: bootstrap.workspace.id,
     });
 
+    await resetOnboardingProgressForWorkspace({
+      supabase,
+      workspaceId: bootstrap.workspace.id,
+    });
+
     return NextResponse.json({
       ok: true,
       user: {
@@ -175,11 +208,12 @@ export async function POST(request) {
         email: user.email,
       },
       profile,
+      workspaceId: bootstrap.workspace.id,
       workspace: bootstrap.workspace,
       membership: bootstrap.ownerMembership,
       settings: bootstrap.settings,
       subscription: bootstrap.subscription,
-      next: '/dashboard',
+      next: '/dashboard?onboarding=fresh-workspace',
     });
   } catch (error) {
     console.error('[WORKSPACE_CREATE][ERROR]', {

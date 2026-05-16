@@ -3,9 +3,9 @@
 import useCurrentWorkspace from '@/hooks/useCurrentWorkspace';
 
 export default function AdminMobileTopbar({ title, actions, subtitle }) {
-  const { workspace } = useCurrentWorkspace();
+  const { workspace, loading: workspaceLoading } = useCurrentWorkspace();
 
-  const brandingName = workspace?.displayName || 'Workspace';
+  const brandingName = workspaceLoading ? 'Carregando workspace...' : workspace?.displayName || 'Workspace';
   const primaryColor = workspace?.primaryColor || '#7c3aed';
 
   return (

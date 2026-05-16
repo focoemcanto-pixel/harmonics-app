@@ -250,7 +250,7 @@ export default function TemplateCreationGuideStable({ enabled = false }) {
       autoClickedRef.current = false;
       focusedRef.current = null;
       centeredStepRef.current = null;
-      setIndex(0);
+      window.setTimeout(() => setIndex(0), 0);
     }
 
     const timer = setTimeout(() => setActive(true), 350);
@@ -315,10 +315,17 @@ export default function TemplateCreationGuideStable({ enabled = false }) {
 
   if (!enabled || pathname !== '/contratos/templates' || !active || !step) return null;
 
+  function skipGuide() {
+    sessionStorage.setItem(sessionKey, 'skipped');
+    clearGuideQuery();
+    setActive(false);
+  }
+
   function finish() {
     sessionStorage.setItem(sessionKey, 'skipped');
     clearGuideQuery();
     setActive(false);
+    window.location.assign('/eventos/tipos?guide=event-types');
   }
 
   function next() {
@@ -380,7 +387,7 @@ export default function TemplateCreationGuideStable({ enabled = false }) {
         </div>
 
         <div className="mt-5 flex flex-wrap justify-between gap-3">
-          <button type="button" onClick={finish} className="rounded-2xl border border-[#e2e8f0] bg-white px-4 py-2.5 text-[13px] font-black text-[#475569]">Pular guia</button>
+          <button type="button" onClick={skipGuide} className="rounded-2xl border border-[#e2e8f0] bg-white px-4 py-2.5 text-[13px] font-black text-[#475569]">Pular guia</button>
 
           <div className="flex gap-2">
             {index > 0 ? <button type="button" onClick={() => { setHint(''); focusedRef.current = null; centeredStepRef.current = null; setIndex((current) => Math.max(0, current - 1)); }} className="rounded-2xl border border-violet-200 bg-white px-4 py-2.5 text-[13px] font-black text-violet-700">Voltar</button> : null}

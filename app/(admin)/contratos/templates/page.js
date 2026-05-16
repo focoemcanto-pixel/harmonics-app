@@ -390,6 +390,9 @@ export default function ContractTemplatesPage() {
       setIsDirty(false);
       devLog('[TEMPLATE_EDITOR][SAVE_RESULT]', { mode: isEditing ? 'update' : 'create', id: savedTemplate.id, ok: true });
       toast.success(isEditing ? 'Template atualizado com sucesso.' : 'Template criado com sucesso.');
+      window.dispatchEvent(new CustomEvent('harmonics:contract-template-saved', {
+        detail: { template: savedTemplate, mode: isEditing ? 'update' : 'create' },
+      }));
       console.log('[TEMPLATE SAVED]', {
         rich_len: currentRichHtml.length,
         text_len: payload.source_text.length,
@@ -762,6 +765,8 @@ export default function ContractTemplatesPage() {
 
               <button
                 type="button"
+                data-guide="save_contract_template"
+                data-tour="template-save-button"
                 disabled={salvando}
                 onClick={salvarTemplate}
                 className="w-full rounded-2xl bg-violet-600 px-5 py-3 text-sm font-black text-white shadow-[0_14px_28px_rgba(124,58,237,0.35)] transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-60"

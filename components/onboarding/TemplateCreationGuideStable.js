@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { usePathname, useSearchParams } from 'next/navigation';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { markOnboardingStepClient } from '@/lib/onboarding/markOnboardingStepClient';
 
 const STEPS = [
   {
@@ -43,12 +44,14 @@ const STEPS = [
     hint: 'Esse botão aparece depois que existe texto no contrato.',
   },
   {
-    key: 'save',
-    title: 'Salve o template',
-    description: 'Depois de revisar o texto, salve. Em seguida, associe o template aos tipos de evento.',
-    selector: '[data-tour="template-save-button"]',
-    texts: ['Salvar template', 'Criar template', 'Salvar alterações'],
+    key: 'save_template',
+    title: 'Salve seu template',
+    description: 'Clique em salvar para registrar este modelo e liberar a criação dos tipos de evento.',
+    selector: '[data-guide="save_contract_template"]',
+    dataGuide: 'save_contract_template',
+    texts: ['Salvar template', 'Criar template', 'Salvar modelo', 'Salvar alterações'],
     button: true,
+    hint: 'Salve o template para continuar para a próxima etapa.',
   },
 ];
 
@@ -78,6 +81,13 @@ function findByText(texts, selector) {
 
   const elements = Array.from(document.querySelectorAll(selector));
   return elements.find((el) => isVisible(el) && needles.some((needle) => textOf(el).includes(needle))) || null;
+}
+
+function findByDataGuide(dataGuide) {
+  if (!dataGuide) return null;
+  const exact = document.querySelector(`[data-guide="${dataGuide}"]`);
+  if (exact && isVisible(exact)) return exact;
+  return null;
 }
 
 function setAnchor(el, name) {
@@ -112,10 +122,13 @@ function ensureAnchors() {
   );
 
   setAnchor(findByText(['Preparar campos dinâmicos'], buttonSelector), 'template-dynamic-fields');
-  setAnchor(findByText(['Salvar template', 'Criar template', 'Salvar alterações'], buttonSelector), 'template-save-button');
+  setAnchor(findByDataGuide('save_contract_template') || findByText(['Salvar template', 'Criar template', 'Salvar modelo', 'Salvar alterações'], buttonSelector), 'template-save-button');
 }
 
 function findTarget(step) {
+  const dataGuideTarget = findByDataGuide(step.dataGuide);
+  if (dataGuideTarget) return dataGuideTarget;
+
   ensureAnchors();
   const explicit = document.querySelector(step.selector);
   if (explicit && isVisible(explicit)) return explicit;
@@ -227,6 +240,7 @@ function Mask({ box, width, height }) {
 
 export default function TemplateCreationGuideStable({ enabled = false }) {
   const pathname = usePathname();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [active, setActive] = useState(false);
   const [index, setIndex] = useState(0);
@@ -236,10 +250,19 @@ export default function TemplateCreationGuideStable({ enabled = false }) {
   const focusedRef = useRef(null);
   const retryRef = useRef(null);
   const centeredStepRef = useRef(null);
+  const savedRef = useRef(false);
 
   const step = STEPS[index];
   const shouldForce = searchParams?.get('guide') === 'template' || searchParams?.get('onboarding') === 'template';
-  const sessionKey = useMemo(() => 'harmonics:template-guide-stable:v3', []);
+  const sessionKey = useMemo(() => 'harmonics:template-guide-stable:v4', []);
+
+  const completeAndRedirect = useCallback(async () => {
+    sessionStorage.setItem(sessionKey, 'skipped');
+    clearGuideQuery();
+    setActive(false);
+    await markOnboardingStepClient('template_created', true);
+    router.push('/eventos/tipos?guide=event-types');
+  }, [router, sessionKey]);
 
   useEffect(() => {
     if (!enabled || pathname !== '/contratos/templates') return;
@@ -250,6 +273,7 @@ export default function TemplateCreationGuideStable({ enabled = false }) {
       autoClickedRef.current = false;
       focusedRef.current = null;
       centeredStepRef.current = null;
+      savedRef.current = false;
       window.setTimeout(() => setIndex(0), 0);
     }
 
@@ -313,6 +337,19 @@ export default function TemplateCreationGuideStable({ enabled = false }) {
     };
   }, [active, step]);
 
+  useEffect(() => {
+    if (!enabled || pathname !== '/contratos/templates' || !active) return undefined;
+
+    function handleTemplateSaved() {
+      savedRef.current = true;
+      setHint('');
+      void completeAndRedirect();
+    }
+
+    window.addEventListener('harmonics:contract-template-saved', handleTemplateSaved);
+    return () => window.removeEventListener('harmonics:contract-template-saved', handleTemplateSaved);
+  }, [active, completeAndRedirect, enabled, pathname]);
+
   if (!enabled || pathname !== '/contratos/templates' || !active || !step) return null;
 
   function skipGuide() {
@@ -322,10 +359,7 @@ export default function TemplateCreationGuideStable({ enabled = false }) {
   }
 
   function finish() {
-    sessionStorage.setItem(sessionKey, 'skipped');
-    clearGuideQuery();
-    setActive(false);
-    window.location.assign('/eventos/tipos?guide=event-types');
+    void completeAndRedirect();
   }
 
   function next() {
@@ -337,6 +371,14 @@ export default function TemplateCreationGuideStable({ enabled = false }) {
     }
 
     if (step.key === 'dynamic_fields' && target) target.click?.();
+
+    if (step.key === 'save_template') {
+      if (savedRef.current) return finish();
+      setHint(step.hint || 'Salve o template para continuar para a próxima etapa.');
+      centerTargetComfortably(target, step.key);
+      target?.focus?.({ preventScroll: true });
+      return;
+    }
 
     setHint('');
     if (index >= STEPS.length - 1) return finish();
@@ -391,7 +433,7 @@ export default function TemplateCreationGuideStable({ enabled = false }) {
 
           <div className="flex gap-2">
             {index > 0 ? <button type="button" onClick={() => { setHint(''); focusedRef.current = null; centeredStepRef.current = null; setIndex((current) => Math.max(0, current - 1)); }} className="rounded-2xl border border-violet-200 bg-white px-4 py-2.5 text-[13px] font-black text-violet-700">Voltar</button> : null}
-            <button type="button" onClick={next} className="rounded-2xl bg-violet-600 px-4 py-2.5 text-[13px] font-black text-white shadow-[0_12px_28px_rgba(124,58,237,0.28)]">{index >= STEPS.length - 1 ? 'Finalizar guia' : 'Próximo'}</button>
+            <button type="button" onClick={next} className="rounded-2xl bg-violet-600 px-4 py-2.5 text-[13px] font-black text-white shadow-[0_12px_28px_rgba(124,58,237,0.28)]">Próximo</button>
           </div>
         </div>
       </div>

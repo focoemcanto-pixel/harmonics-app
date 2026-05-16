@@ -4,25 +4,25 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 
 const STEPS = [
-  { key: 'event_type', title: 'Escolha o tipo de evento', description: 'Comece selecionando o tipo configurado antes. Ele define o template padrão que será usado no contrato.', texts: ['tipo de evento', 'event_type', 'casamento'], exactNames: ['event_type', 'event_type_id'], selector: 'select, input, button, label' },
-  { key: 'formation', title: 'Escolha a formação musical', description: 'Defina se será duo, trio, quarteto ou outra formação. Essa informação entra no contrato e ajuda na operação da escala.', texts: ['formação', 'formation'], exactNames: ['formation'], selector: 'select, input, label, button' },
+  { key: 'event_type', title: 'Escolha o tipo de evento', description: 'Comece selecionando o tipo configurado antes. Ele define o template padrão que será usado no contrato.', texts: ['tipo de evento'], exactNames: ['event_type', 'event_type_id'], selector: 'select, input, button, label' },
+  { key: 'formation', title: 'Escolha a formação musical', description: 'Defina se será duo, trio, quarteto ou outra formação. Essa informação entra no contrato e ajuda na operação da escala.', texts: ['formação'], exactNames: ['formation'], selector: 'select, input, label, button' },
   { key: 'event_date', title: 'Informe a data do evento', description: 'A data é obrigatória para validar agenda, calcular prazos de pagamento e aparecer corretamente no contrato.', texts: ['data'], exactNames: ['event_date'], selector: 'input, label, button' },
-  { key: 'event_time', title: 'Informe o horário', description: 'Preencha o horário principal do evento. Se ainda não souber, deixe pendente, mas o ideal é confirmar antes de enviar ao cliente.', texts: ['hora', 'horário'], exactNames: ['event_time'], selector: 'input, label, button' },
-  { key: 'duration', title: 'Revise a duração', description: 'Confira a duração prevista da apresentação. Esse dado orienta contrato, agenda e cálculo da operação.', texts: ['duração', 'duration', 'min'], exactNames: ['duration_min'], selector: 'input, label, button' },
-  { key: 'instruments', title: 'Informe os instrumentos', description: 'Liste os instrumentos incluídos na formação. Isso evita dúvidas do cliente e ajuda a equipe a entender o escopo.', texts: ['instrumentos', 'instrumento'], exactNames: ['instruments'], selector: 'input, textarea, label' },
+  { key: 'event_time', title: 'Informe o horário', description: 'Preencha o horário principal do evento. Se ainda não souber, deixe pendente, mas o ideal é confirmar antes de enviar ao cliente.', texts: ['hora'], exactNames: ['event_time'], selector: 'input, label, button' },
+  { key: 'duration', title: 'Revise a duração', description: 'Confira a duração prevista da apresentação. Esse dado orienta contrato, agenda e cálculo da operação.', texts: ['duração'], exactNames: ['duration_min'], selector: 'input, label, button' },
+  { key: 'instruments', title: 'Informe os instrumentos', description: 'Liste os instrumentos incluídos na formação. Isso evita dúvidas do cliente e ajuda a equipe a entender o escopo.', texts: ['instrumentos'], exactNames: ['instruments'], selector: 'input, textarea, label' },
   { key: 'location_optional', title: 'Local e endereço podem ficar para o cliente', description: 'Local e endereço são opcionais aqui porque o cliente poderá preencher no link público. Preencha agora apenas se já tiver certeza.', texts: ['local', 'endereço'], exactNames: ['location_name', 'location_address'], selector: 'input, textarea, label' },
   { key: 'reception', title: 'Configure o receptivo se houver', description: 'Se o contrato incluir receptivo, informe horas, formação e instrumentos do receptivo. Se não houver, mantenha desativado ou zerado.', texts: ['receptivo', 'recepção'], exactNames: ['reception_hours', 'reception_formation', 'reception_instruments', 'add_reception'], selector: 'input, select, label, button' },
   { key: 'sound_transport', title: 'Marque som e transporte quando existir', description: 'Se houver adicional de som ou transporte, marque as opções e confira os valores extras antes de salvar.', texts: ['som', 'transporte'], exactNames: ['has_sound', 'has_transport', 'add_sound', 'add_transport'], selector: 'input, label, button' },
   { key: 'base_amount', title: 'Preencha o valor base', description: 'Informe o valor principal do serviço. Esse é o ponto de partida para o valor acertado no contrato.', texts: ['valor base'], exactNames: ['base_amount'], selector: 'input, label' },
   { key: 'extras_amount', title: 'Confira os adicionais', description: 'Revise adicional de receptivo, som e transporte. Eles devem compor o valor final se forem cobrados separadamente.', texts: ['adicional receptivo', 'adicional som', 'adicional transporte'], exactNames: ['add_reception', 'add_sound', 'add_transport'], selector: 'input, label' },
-  { key: 'agreed_amount', title: 'Confirme o valor acertado', description: 'O valor acertado é o que será apresentado no contrato. Confira antes de avançar para o preview.', texts: ['valor acertado', 'valor final'], exactNames: ['agreed_amount'], selector: 'input, label, div' },
+  { key: 'agreed_amount', title: 'Confirme o valor acertado', description: 'O valor acertado é o que será apresentado no contrato. Confira antes de avançar para o preview.', texts: ['valor acertado'], exactNames: ['agreed_amount'], selector: 'input, label, div' },
   { key: 'payment', title: 'Revise sinal, saldo e pagamento', description: 'Se usar sinal, saldo ou cartão, confira valores, datas e método de pagamento. Esses dados podem aparecer no contrato.', texts: ['sinal', 'saldo', 'pagamento', 'cartão'], exactNames: ['signal_amount', 'remaining_amount', 'payment_method', 'signal_due_date', 'balance_due_date', 'card_due_date', 'payment_card'], selector: 'input, select, label, button' },
-  { key: 'client_optional', title: 'Dados do cliente são opcionais aqui', description: 'Nome, WhatsApp e e-mail podem ser deixados para o cliente preencher no link público. Use esses campos só quando já tiver os dados corretos.', texts: ['nome do cliente', 'whatsapp', 'e-mail', 'email'], exactNames: ['client_name', 'client_phone', 'client_email'], selector: 'input, textarea, label' },
-  { key: 'preview', title: 'Veja o preview antes de salvar', description: 'Abra a prévia e confira o modal inteiro: dados do evento, valores, formação e contrato puxando o template correto.', texts: ['preview', 'visualizar', 'prévia', 'ver contrato', 'visualização'], selector: 'button, a, [role="button"]', preferPreviewModal: true },
-  { key: 'edit_contract_optional', title: 'Edição do contrato é opcional', description: 'Se precisar ajustar uma cláusula só neste contrato, use a edição personalizada. Se o template estiver certo, siga sem mexer.', texts: ['editar contrato', 'contrato personalizado', 'personalizar contrato', 'customizar contrato', 'editar modelo'], exactNames: ['custom_contract_enabled', 'custom_contract_content', 'custom_contract_rich_html'], selector: 'button, a, label, input, [role="button"]' },
-  { key: 'save', title: 'Finalize o pré-contrato', description: 'Agora salve ou gere o link. O sistema criará o pré-contrato e abrirá o compartilhamento para envio ao cliente.', texts: ['salvar e abrir envio', 'salvar', 'gerar link', 'criar pré-contrato', 'finalizar', 'salvar pré-contrato'], selector: 'button, [role="button"]' },
-  { key: 'copy_link', title: 'Copie o link do contrato', description: 'Depois de salvar, copie o link para enviar ao cliente pelo WhatsApp ou outro canal.', texts: ['copiar link', 'link do contrato', 'contrato salvo', 'link pronto'], selector: 'button, a, textarea, div', waitsForShareModal: true },
-  { key: 'open_contract', title: 'Abra o contrato em outra aba', description: 'Abra o link para visualizar a experiência do cliente e conferir se tudo está correto antes de enviar.', texts: ['abrir whatsapp', 'abrir painel do cliente', 'abrir contrato', 'link do contrato'], selector: 'button, a, div', waitsForShareModal: true },
+  { key: 'client_optional', title: 'Dados do cliente são opcionais aqui', description: 'Nome, WhatsApp e e-mail podem ser deixados para o cliente preencher no link público. Use esses campos só quando já tiver os dados corretos.', texts: ['nome de referência', 'whatsapp de referência', 'email de referência'], exactNames: ['client_name', 'client_phone', 'client_email'], selector: 'input, textarea, label' },
+  { key: 'preview', title: 'Veja o preview antes de salvar', description: 'Abra a prévia e confira o modal inteiro: dados do evento, valores, formação e contrato puxando o template correto.', texts: ['ver preview', 'preview', 'visualizar', 'prévia'], selector: 'button, a, [role="button"]', preferPreviewModal: true },
+  { key: 'edit_contract_optional', title: 'Edição do contrato é opcional', description: 'Se precisar ajustar uma cláusula só neste contrato, use a edição personalizada. Se o template estiver certo, siga sem mexer.', texts: ['editar contrato', 'contrato personalizado'], exactNames: ['custom_contract_enabled', 'custom_contract_content', 'custom_contract_rich_html'], selector: 'button, a, label, input, [role="button"]' },
+  { key: 'save', title: 'Finalize o pré-contrato', description: 'Agora salve ou gere o link. O sistema criará o pré-contrato e abrirá o compartilhamento para envio ao cliente.', texts: ['salvar e abrir envio', 'salvar', 'gerar link', 'criar pré-contrato'], selector: 'button, [role="button"]' },
+  { key: 'copy_link', title: 'Copie o link do contrato', description: 'Depois de salvar, copie o link para enviar ao cliente pelo WhatsApp ou outro canal.', texts: ['copiar link', 'link do contrato'], selector: 'button, a, textarea, div', waitsForShareModal: true },
+  { key: 'open_contract', title: 'Abra o contrato em outra aba', description: 'Abra o link para visualizar a experiência do cliente e conferir se tudo está correto antes de enviar.', texts: ['abrir contrato', 'abrir painel do cliente', 'abrir whatsapp'], selector: 'button, a, div', waitsForShareModal: true },
 ];
 
 function normalize(value) {
@@ -36,30 +36,35 @@ function isVisible(el) {
   return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
 }
 
+function getControlFromLabel(label) {
+  if (!label) return null;
+  const explicitFor = label.getAttribute?.('for');
+  if (explicitFor) {
+    const explicit = document.getElementById(explicitFor);
+    if (explicit && isVisible(explicit)) return explicit;
+  }
+  return label.querySelector?.('select, input, textarea, button, a, [role="button"]') || label;
+}
+
 function getLabelText(el) {
   if (!el) return '';
   const id = el.getAttribute?.('id');
   const aria = el.getAttribute?.('aria-labelledby');
   const parts = [];
-
   if (id) {
     const label = document.querySelector(`label[for="${CSS.escape(id)}"]`);
     if (label) parts.push(label.textContent || '');
   }
-
   if (aria) {
     aria.split(/\s+/).forEach((labelId) => {
       const node = document.getElementById(labelId);
       if (node) parts.push(node.textContent || '');
     });
   }
-
   const closestLabel = el.closest?.('label');
   if (closestLabel) parts.push(closestLabel.textContent || '');
-
   const previous = el.previousElementSibling;
   if (previous && ['LABEL', 'SPAN', 'P', 'DIV'].includes(previous.tagName)) parts.push(previous.textContent || '');
-
   return normalize(parts.join(' '));
 }
 
@@ -67,6 +72,7 @@ function fieldIdentityText(el) {
   if (!el) return '';
   return normalize([
     el.getAttribute?.('data-tour'),
+    el.getAttribute?.('data-field'),
     el.getAttribute?.('name'),
     el.getAttribute?.('id'),
     el.getAttribute?.('placeholder'),
@@ -77,11 +83,7 @@ function fieldIdentityText(el) {
 
 function textOf(el) {
   if (!el) return '';
-  return normalize([
-    fieldIdentityText(el),
-    el.value,
-    el.textContent,
-  ].filter(Boolean).join(' '));
+  return normalize([fieldIdentityText(el), el.value, el.textContent].filter(Boolean).join(' '));
 }
 
 function findByExactNames(names = []) {
@@ -90,31 +92,43 @@ function findByExactNames(names = []) {
     const escaped = CSS.escape(name);
     return [`[name="${escaped}"]`, `#${escaped}`, `[data-tour="${escaped}"]`, `[data-field="${escaped}"]`];
   }).join(',');
-
   if (!selectors) return null;
   return Array.from(document.querySelectorAll(selectors)).find(isVisible) || null;
+}
+
+function findLabelControlByTexts(texts = []) {
+  const needles = texts.map(normalize).filter(Boolean);
+  const labels = Array.from(document.querySelectorAll('label')).filter(isVisible);
+  const exactLabel = labels.find((label) => {
+    const labelText = normalize(label.textContent || '');
+    return needles.some((needle) => labelText === needle || labelText.startsWith(`${needle} `) || labelText.includes(needle));
+  });
+  const control = getControlFromLabel(exactLabel);
+  return control && isVisible(control) ? control : null;
 }
 
 function findByFieldIdentity(texts, selector) {
   const needles = (texts || []).map(normalize).filter(Boolean);
   const elements = Array.from(document.querySelectorAll(selector || 'input, select, textarea, button, a, label, [role="button"]'));
-
-  return elements.find((el) => {
+  const found = elements.find((el) => {
     if (!isVisible(el)) return false;
     const identity = fieldIdentityText(el);
     return needles.some((needle) => identity.includes(needle));
-  }) || null;
+  });
+  if (!found) return null;
+  return found.tagName === 'LABEL' ? getControlFromLabel(found) : found;
 }
 
 function findByTexts(texts, selector) {
   const needles = (texts || []).map(normalize).filter(Boolean);
   const elements = Array.from(document.querySelectorAll(selector || 'input, select, textarea, button, a, label, [role="button"]'));
-
-  return elements.find((el) => {
+  const found = elements.find((el) => {
     if (!isVisible(el)) return false;
     const text = textOf(el);
     return needles.some((needle) => text.includes(needle));
-  }) || null;
+  });
+  if (!found) return null;
+  return found.tagName === 'LABEL' ? getControlFromLabel(found) : found;
 }
 
 function findPreviewModal() {
@@ -136,13 +150,12 @@ function findTarget(step) {
     const modal = findPreviewModal();
     if (modal) return modal;
   }
-
   if (step.waitsForShareModal) {
     const modalTarget = findByTexts(step.texts, step.selector);
     if (modalTarget) return modalTarget;
   }
-
   return findByExactNames(step.exactNames)
+    || findLabelControlByTexts(step.texts)
     || findByFieldIdentity(step.texts, step.selector)
     || findByTexts(step.texts, step.selector);
 }
@@ -166,12 +179,7 @@ function getBox(rect, step) {
 
 function centerTarget(target, step) {
   if (step?.preferPreviewModal && findPreviewModal()) return;
-  const rect = target.getBoundingClientRect();
-  const desiredY = window.innerHeight * 0.44;
-  const delta = rect.top + rect.height / 2 - desiredY;
-  if (Math.abs(delta) < 60) return;
-  const root = document.scrollingElement || document.documentElement;
-  root.scrollTo({ top: root.scrollTop + delta, behavior: 'auto' });
+  target?.scrollIntoView?.({ block: 'center', inline: 'nearest', behavior: 'auto' });
 }
 
 function clearGuideQuery() {
@@ -204,7 +212,7 @@ export default function PrecontractGuideStable({ enabled = false }) {
   const focusedRef = useRef(null);
   const step = STEPS[index];
   const shouldForce = searchParams?.get('guide') === 'precontract' || searchParams?.get('onboarding') === 'precontract';
-  const sessionKey = useMemo(() => 'harmonics:precontract-guide:v4', []);
+  const sessionKey = useMemo(() => 'harmonics:precontract-guide:v5', []);
 
   useEffect(() => {
     if (!enabled || pathname !== '/pre-contratos') return;
@@ -247,11 +255,16 @@ export default function PrecontractGuideStable({ enabled = false }) {
     sync({ center: true });
     const onResize = () => sync({ center: false });
     window.addEventListener('resize', onResize);
-    const observer = new MutationObserver(() => {
+    const observer = new MutationObserver((mutations) => {
+      const onlyGuideMutations = mutations.every((mutation) => {
+        const target = mutation.target;
+        return target?.closest?.('[data-precontract-guide="true"]');
+      });
+      if (onlyGuideMutations) return;
       clearTimeout(retryRef.current);
       retryRef.current = window.setTimeout(() => sync({ center: false }), 220);
     });
-    observer.observe(document.body, { childList: true, subtree: true, attributes: true });
+    observer.observe(document.body, { childList: true, subtree: true, attributes: false });
     return () => {
       clearTimeout(retryRef.current);
       window.removeEventListener('resize', onResize);
@@ -284,7 +297,7 @@ export default function PrecontractGuideStable({ enabled = false }) {
   const left = previewMode ? clamp(vw - tooltipWidth - 28, 16, vw - tooltipWidth - 16) : (preferredLeft + tooltipWidth < vw - 16 ? preferredLeft : clamp(fallbackLeft, 16, vw - tooltipWidth - 16));
   const top = previewMode ? clamp(vh - 330, 18, vh - 320) : (targetRect ? clamp(targetRect.top, 18, vh - 340) : 120);
 
-  return <div className="fixed inset-0 z-[270] pointer-events-none">
+  return <div data-precontract-guide="true" className="fixed inset-0 z-[270] pointer-events-none">
     <Mask box={box} width={vw} height={vh} />
     {box ? <div className="absolute rounded-[24px] border-2 border-white bg-transparent shadow-[0_0_0_2px_rgba(124,58,237,0.30),0_18px_70px_rgba(124,58,237,0.44)] ring-4 ring-violet-500/25 transition-all duration-200" style={{ left: box.left, top: box.top, width: box.width, height: box.height }} /> : null}
     <div className="pointer-events-auto absolute rounded-[30px] border border-violet-200 bg-white p-5 shadow-[0_24px_90px_rgba(15,23,42,0.36)]" style={{ width: tooltipWidth, left, top }}>

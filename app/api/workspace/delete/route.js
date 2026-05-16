@@ -148,7 +148,7 @@ export async function DELETE(request) {
       ok: true,
       deletedWorkspaceId: workspaceId,
       report,
-      next: '/signup?workspace=deleted',
+      next: '/login?next=/workspace/new',
     });
   } catch (error) {
     console.error('[WORKSPACE_DELETE][ERROR]', {

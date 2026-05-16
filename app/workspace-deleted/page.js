@@ -22,7 +22,7 @@ export default function WorkspaceDeletedPage() {
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <Link href="/signup" className="rounded-3xl bg-emerald-300 px-5 py-5 text-center font-black text-slate-950 hover:bg-emerald-200 transition">
+            <Link href="/login?next=/workspace/new" className="rounded-3xl bg-emerald-300 px-5 py-5 text-center font-black text-slate-950 hover:bg-emerald-200 transition">
               Criar novo workspace
             </Link>
 

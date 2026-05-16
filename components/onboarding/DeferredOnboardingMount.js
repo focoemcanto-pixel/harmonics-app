@@ -49,7 +49,7 @@ const EventTypeTemplateGuideStable = dynamic(() => import('@/components/onboardi
   loading: () => null,
 });
 
-const PrecontractGuideStable = dynamic(() => import('@/components/onboarding/PrecontractGuideStable'), {
+const PrecontractGuideStable = dynamic(() => import('@/components/onboarding/PrecontractGuideStableV2'), {
   ssr: false,
   loading: () => null,
 });

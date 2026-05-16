@@ -28,7 +28,7 @@ function normalize(value) {
 }
 
 function isVisible(el) {
-  if (!el || typeof window === 'undefined') return false;
+  if (!el || typeof window === 'undefined' || !document.body.contains(el)) return false;
   const rect = el.getBoundingClientRect();
   const style = window.getComputedStyle(el);
   return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
@@ -143,6 +143,11 @@ function boxFor(rect, step) {
   return { left: Math.max(8, rect.left - pad), top: Math.max(8, rect.top - pad), width: rect.width + pad * 2, height: rect.height + pad * 2 };
 }
 
+function rectChanged(a, b) {
+  if (!a || !b) return true;
+  return Math.abs(a.left - b.left) > 1 || Math.abs(a.top - b.top) > 1 || Math.abs(a.width - b.width) > 1 || Math.abs(a.height - b.height) > 1;
+}
+
 function Mask({ box, width, height }) {
   const cls = 'absolute bg-slate-950/42 backdrop-blur-[1px] transition-all duration-200';
   if (!box) return <div className={`${cls} inset-0`} />;
@@ -162,12 +167,14 @@ export default function PrecontractGuideStableV2({ enabled = false }) {
   const [rect, setRect] = useState(null);
   const [hint, setHint] = useState('');
   const [missing, setMissing] = useState(false);
+  const targetRef = useRef(null);
+  const rafRef = useRef(null);
   const retryRef = useRef(null);
   const centeredRef = useRef(null);
   const focusedRef = useRef(null);
   const step = STEPS[index];
   const forced = searchParams?.get('guide') === 'precontract' || searchParams?.get('onboarding') === 'precontract';
-  const sessionKey = useMemo(() => 'harmonics:precontract-guide:v8', []);
+  const sessionKey = useMemo(() => 'harmonics:precontract-guide:v9', []);
 
   useEffect(() => {
     if (!enabled || pathname !== '/pre-contratos') return;
@@ -175,6 +182,7 @@ export default function PrecontractGuideStableV2({ enabled = false }) {
     if (forced) {
       sessionStorage.removeItem(sessionKey);
       setIndex(0);
+      targetRef.current = null;
       centeredRef.current = null;
       focusedRef.current = null;
     }
@@ -183,43 +191,86 @@ export default function PrecontractGuideStableV2({ enabled = false }) {
   }, [enabled, forced, pathname, sessionKey]);
 
   useEffect(() => {
+    targetRef.current = null;
+    centeredRef.current = null;
+    focusedRef.current = null;
+    setRect(null);
+    setMissing(false);
+  }, [index]);
+
+  useEffect(() => {
     if (!active || !step) return undefined;
 
-    function sync({ center = false } = {}) {
-      const target = findTarget(step);
-      if (!target) {
+    function sync({ center = false, focus = false } = {}) {
+      const current = targetRef.current;
+      const nextTarget = isVisible(current) ? current : findTarget(step);
+
+      if (!nextTarget) {
+        targetRef.current = null;
         setMissing(true);
         setRect(null);
-        retryRef.current = setTimeout(() => sync({ center: true }), 600);
-        return;
+        return null;
       }
 
+      targetRef.current = nextTarget;
       setMissing(false);
+
       if (center && centeredRef.current !== step.key && !(step.preview && findPreviewModal())) {
         centeredRef.current = step.key;
-        target.scrollIntoView?.({ block: 'center', inline: 'nearest', behavior: 'auto' });
+        nextTarget.scrollIntoView?.({ block: 'center', inline: 'nearest', behavior: 'auto' });
       }
 
-      requestAnimationFrame(() => setRect(target.getBoundingClientRect()));
-
-      if (!step.preview && !step.share && focusedRef.current !== step.key) {
+      if (focus && !step.preview && !step.share && focusedRef.current !== step.key) {
         focusedRef.current = step.key;
-        setTimeout(() => focusable(target)?.focus?.({ preventScroll: true }), 160);
+        setTimeout(() => focusable(nextTarget)?.focus?.({ preventScroll: true }), 160);
       }
+
+      const nextRect = nextTarget.getBoundingClientRect();
+      setRect((previous) => (rectChanged(previous, nextRect) ? nextRect : previous));
+      return nextTarget;
     }
 
-    sync({ center: true });
-    const onResize = () => sync({ center: false });
-    window.addEventListener('resize', onResize);
+    sync({ center: true, focus: true });
+
+    function tick() {
+      const latest = findTarget(step);
+      if (latest && latest !== targetRef.current) {
+        targetRef.current = latest;
+        if (centeredRef.current !== step.key && !(step.preview && findPreviewModal())) {
+          latest.scrollIntoView?.({ block: 'center', inline: 'nearest', behavior: 'auto' });
+          centeredRef.current = step.key;
+        }
+      }
+      sync({ center: false, focus: false });
+      rafRef.current = window.setTimeout(() => {
+        rafRef.current = requestAnimationFrame(tick);
+      }, 180);
+    }
+
+    rafRef.current = requestAnimationFrame(tick);
+
+    const onScrollOrResize = () => sync({ center: false, focus: false });
+    window.addEventListener('resize', onScrollOrResize);
+    window.addEventListener('scroll', onScrollOrResize, true);
+
     const observer = new MutationObserver((mutations) => {
       if (mutations.every((m) => m.target?.closest?.('[data-precontract-guide="true"]'))) return;
       clearTimeout(retryRef.current);
-      retryRef.current = setTimeout(() => sync({ center: false }), 220);
+      retryRef.current = setTimeout(() => {
+        targetRef.current = null;
+        sync({ center: false, focus: false });
+      }, 80);
     });
-    observer.observe(document.body, { childList: true, subtree: true });
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true });
+
     return () => {
       clearTimeout(retryRef.current);
-      window.removeEventListener('resize', onResize);
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+        clearTimeout(rafRef.current);
+      }
+      window.removeEventListener('resize', onScrollOrResize);
+      window.removeEventListener('scroll', onScrollOrResize, true);
       observer.disconnect();
     };
   }, [active, step]);
@@ -236,6 +287,7 @@ export default function PrecontractGuideStableV2({ enabled = false }) {
     const target = findTarget(step);
     if (step.required && !valueOf(target)) {
       setHint(step.error || 'Preencha esta etapa para continuar.');
+      targetRef.current = target;
       target?.scrollIntoView?.({ block: 'center', inline: 'nearest', behavior: 'auto' });
       focusable(target)?.focus?.({ preventScroll: true });
       if (target) requestAnimationFrame(() => setRect(target.getBoundingClientRect()));
@@ -247,14 +299,16 @@ export default function PrecontractGuideStableV2({ enabled = false }) {
     if (step.preview && findPreviewModal()) {
       closePreviewModal();
       setTimeout(() => {
+        targetRef.current = null;
         centeredRef.current = null;
         focusedRef.current = null;
         setIndex((current) => Math.min(current + 1, STEPS.length - 1));
-      }, 280);
+      }, 300);
       return;
     }
 
     if (index >= STEPS.length - 1) return finish();
+    targetRef.current = null;
     centeredRef.current = null;
     focusedRef.current = null;
     setIndex((current) => current + 1);

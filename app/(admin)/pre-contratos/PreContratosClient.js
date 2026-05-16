@@ -1633,6 +1633,7 @@ async function carregarModelosContrato({ force = false } = {}) {
                     label="Nome de referência (opcional)"
                     value={form.client_name}
                     onChange={(e) => handleFormChange('client_name', e.target.value)}
+                    data-guide="client_name"
                     placeholder="Pode deixar em branco e deixar o cliente preencher depois"
                   />
 
@@ -1640,12 +1641,14 @@ async function carregarModelosContrato({ force = false } = {}) {
                     label="WhatsApp de referência"
                     value={form.client_phone}
                     onChange={(e) => handleFormChange('client_phone', e.target.value)}
+                    data-guide="client_phone"
                   />
 
                   <Input
                     label="Email de referência"
                     value={form.client_email}
                     onChange={(e) => handleFormChange('client_email', e.target.value)}
+                    data-guide="client_email"
                     className="md:col-span-2"
                   />
                 </div>
@@ -1657,6 +1660,7 @@ async function carregarModelosContrato({ force = false } = {}) {
                     label="Tipo de evento"
                     value={form.event_type_id}
                     onChange={(e) => handleFormChange('event_type_id', e.target.value)}
+                    data-guide="event_type_id"
                   >
                     <option value="">
                       {eventTypesLoading
@@ -1681,6 +1685,7 @@ async function carregarModelosContrato({ force = false } = {}) {
                       label="Tipo de evento (legado/fallback)"
                       value={form.event_type}
                       onChange={(e) => handleFormChange('event_type', e.target.value)}
+                      data-guide="event_type"
                       className="md:col-span-2"
                     />
                   ) : null}
@@ -1696,6 +1701,7 @@ async function carregarModelosContrato({ force = false } = {}) {
                     label="Formação"
                     value={form.formation}
                     onChange={(e) => handleFormChange('formation', e.target.value)}
+                    data-guide="formation"
                   >
                     <option value="">Selecione</option>
                     {FORMATIONS.map((f) => (
@@ -1710,6 +1716,7 @@ async function carregarModelosContrato({ force = false } = {}) {
                     type="date"
                     value={form.event_date}
                     onChange={(e) => handleFormChange('event_date', e.target.value)}
+                    data-guide="event_date"
                     min={todayISO}
                     className={eventDateError ? 'rounded-2xl border border-red-300 p-2' : ''}
                   />
@@ -1725,6 +1732,7 @@ async function carregarModelosContrato({ force = false } = {}) {
                     step="60"
                     value={form.event_time}
                     onChange={(e) => handleFormChange('event_time', e.target.value)}
+                    data-guide="event_time"
                   />
 
                   <Input
@@ -1733,24 +1741,28 @@ async function carregarModelosContrato({ force = false } = {}) {
                     min="1"
                     value={form.duration_min}
                     onChange={(e) => handleFormChange('duration_min', e.target.value)}
+                    data-guide="duration_min"
                   />
 
                   <Input
                     label="Instrumentos"
                     value={form.instruments}
                     onChange={(e) => handleFormChange('instruments', e.target.value)}
+                    data-guide="instruments"
                   />
 
                   <Input
                     label="Local"
                     value={form.location_name}
                     onChange={(e) => handleFormChange('location_name', e.target.value)}
+                    data-guide="location_name"
                   />
 
                   <Input
                     label="Endereço"
                     value={form.location_address}
                     onChange={(e) => handleFormChange('location_address', e.target.value)}
+                    data-guide="location_address"
                   />
                 </div>
               </Card>
@@ -1763,6 +1775,7 @@ async function carregarModelosContrato({ force = false } = {}) {
                       type="checkbox"
                       checked={form.has_sound}
                       onChange={(e) => handleFormChange('has_sound', e.target.checked)}
+                      data-guide="add_sound"
                       className="h-5 w-5"
                     />
                   </label>
@@ -1774,6 +1787,7 @@ async function carregarModelosContrato({ force = false } = {}) {
                     max="6"
                     value={form.reception_hours}
                     onChange={(e) => handleFormChange('reception_hours', e.target.value)}
+                    data-guide="reception_hours"
                   />
                   {Number(form.reception_hours || 0) > 0 ? (
                     <>
@@ -1781,6 +1795,7 @@ async function carregarModelosContrato({ force = false } = {}) {
                         label="Formação do receptivo"
                         value={form.reception_formation}
                         onChange={(e) => handleFormChange('reception_formation', e.target.value)}
+                        data-guide="reception_formation"
                       >
                         <option value="">Selecione</option>
                         {FORMATIONS.map((f) => (
@@ -1793,6 +1808,7 @@ async function carregarModelosContrato({ force = false } = {}) {
                         label="Instrumentos do receptivo"
                         value={form.reception_instruments}
                         onChange={(e) => handleFormChange('reception_instruments', e.target.value)}
+                        data-guide="reception_instruments"
                       />
                     </>
                   ) : null}
@@ -1803,6 +1819,7 @@ async function carregarModelosContrato({ force = false } = {}) {
                       type="checkbox"
                       checked={form.has_transport}
                       onChange={(e) => handleFormChange('has_transport', e.target.checked)}
+                      data-guide="add_transport"
                       className="h-5 w-5"
                     />
                   </label>
@@ -1819,16 +1836,19 @@ async function carregarModelosContrato({ force = false } = {}) {
                         max="6"
                         value={form.reception_hours}
                         onChange={(e) => handleFormChange('reception_hours', e.target.value)}
+                        data-guide="reception_hours"
                       />
                       <Input
                         label="Formação do receptivo"
                         value={form.reception_formation}
                         onChange={(e) => handleFormChange('reception_formation', e.target.value)}
+                        data-guide="reception_formation"
                       />
                       <Input
                         label="Instrumentos do receptivo"
                         value={form.reception_instruments}
                         onChange={(e) => handleFormChange('reception_instruments', e.target.value)}
+                        data-guide="reception_instruments"
                       />
                     </div>
                   </div>
@@ -1841,6 +1861,7 @@ async function carregarModelosContrato({ force = false } = {}) {
                     label="Valor base"
                     value={form.base_amount}
                     onChange={(e) => handleFormChange('base_amount', e.target.value)}
+                    data-guide="base_amount"
                   />
 
                   <Input
@@ -1865,6 +1886,7 @@ async function carregarModelosContrato({ force = false } = {}) {
                     label="Valor acertado"
                     value={form.agreed_amount}
                     onChange={(e) => handleFormChange('agreed_amount', e.target.value)}
+                    data-guide="agreed_amount"
                     className="xl:col-span-2"
                   />
 

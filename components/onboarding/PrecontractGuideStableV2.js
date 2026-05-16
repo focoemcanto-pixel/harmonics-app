@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 
 const STEPS = [
@@ -41,7 +41,15 @@ function labelTextFor(el) {
   if (id) parts.push(document.querySelector(`label[for="${CSS.escape(id)}"]`)?.textContent || '');
   if (aria) aria.split(/\s+/).forEach((item) => parts.push(document.getElementById(item)?.textContent || ''));
   parts.push(el?.closest?.('label')?.textContent || '');
-  parts.push(el?.parentElement?.textContent || '');
+
+  const guideGroup = el?.closest?.('[data-guide-group]');
+  if (guideGroup) {
+    const focusableItems = guideGroup.querySelectorAll?.('input,select,textarea,button,a,[role="combobox"],[role="button"]');
+    if (!focusableItems || focusableItems.length <= 1) {
+      parts.push(guideGroup.textContent || '');
+    }
+  }
+
   return normalize(parts.join(' '));
 }
 
@@ -71,11 +79,26 @@ function fromLabel(label) {
 }
 
 function findByNames(names = []) {
+  const exactAttributes = ['data-guide', 'data-field', 'data-tour'];
+  const fallbackAttributes = ['name'];
+
   for (const name of names) {
     const escaped = CSS.escape(name);
-    const found = document.querySelector(`[name="${escaped}"],#${escaped},[data-guide="${escaped}"],[data-tour="${escaped}"],[data-field="${escaped}"]`);
-    if (isVisible(found)) return found;
+
+    for (const attr of exactAttributes) {
+      const found = document.querySelector(`[${attr}="${escaped}"]`);
+      if (isVisible(found)) return focusable(found) || found;
+    }
+
+    for (const attr of fallbackAttributes) {
+      const found = document.querySelector(`[${attr}="${escaped}"]`);
+      if (isVisible(found)) return focusable(found) || found;
+    }
+
+    const foundById = document.querySelector(`#${escaped}`);
+    if (isVisible(foundById)) return focusable(foundById) || foundById;
   }
+
   return null;
 }
 
@@ -172,6 +195,13 @@ export default function PrecontractGuideStableV2({ enabled = false }) {
   const retryRef = useRef(null);
   const centeredRef = useRef(null);
   const focusedRef = useRef(null);
+
+  const resetTargetState = useCallback(() => {
+    targetRef.current = null;
+    centeredRef.current = null;
+    focusedRef.current = null;
+    setRect(null);
+  }, []);
   const step = STEPS[index];
   const forced = searchParams?.get('guide') === 'precontract' || searchParams?.get('onboarding') === 'precontract';
   const sessionKey = useMemo(() => 'harmonics:precontract-guide:v9', []);
@@ -179,24 +209,46 @@ export default function PrecontractGuideStableV2({ enabled = false }) {
   useEffect(() => {
     if (!enabled || pathname !== '/pre-contratos') return;
     if (!forced && sessionStorage.getItem(sessionKey) === 'skipped') return;
+
+    let resetFrame = null;
     if (forced) {
       sessionStorage.removeItem(sessionKey);
-      setIndex(0);
       targetRef.current = null;
       centeredRef.current = null;
       focusedRef.current = null;
+      resetFrame = requestAnimationFrame(() => {
+        setIndex(0);
+        resetTargetState();
+      });
     }
+
     const timer = setTimeout(() => setActive(true), 450);
-    return () => clearTimeout(timer);
-  }, [enabled, forced, pathname, sessionKey]);
+
+    return () => {
+      if (resetFrame) cancelAnimationFrame(resetFrame);
+      clearTimeout(timer);
+    };
+  }, [enabled, forced, pathname, resetTargetState, sessionKey]);
 
   useEffect(() => {
     targetRef.current = null;
     centeredRef.current = null;
     focusedRef.current = null;
-    setRect(null);
-    setMissing(false);
-  }, [index]);
+
+    const frame = requestAnimationFrame(() => {
+      resetTargetState();
+      setMissing(false);
+
+      if (!active || !step) return;
+
+      const nextTarget = findTarget(step);
+      targetRef.current = nextTarget;
+      setMissing(!nextTarget);
+      if (nextTarget) setRect(nextTarget.getBoundingClientRect());
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [active, index, resetTargetState, step]);
 
   useEffect(() => {
     if (!active || !step) return undefined;
@@ -299,18 +351,14 @@ export default function PrecontractGuideStableV2({ enabled = false }) {
     if (step.preview && findPreviewModal()) {
       closePreviewModal();
       setTimeout(() => {
-        targetRef.current = null;
-        centeredRef.current = null;
-        focusedRef.current = null;
+        resetTargetState();
         setIndex((current) => Math.min(current + 1, STEPS.length - 1));
       }, 300);
       return;
     }
 
     if (index >= STEPS.length - 1) return finish();
-    targetRef.current = null;
-    centeredRef.current = null;
-    focusedRef.current = null;
+    resetTargetState();
     setIndex((current) => current + 1);
   }
 

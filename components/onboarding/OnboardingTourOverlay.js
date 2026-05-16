@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { OPERATIONAL_ONBOARDING_TOUR } from '@/lib/onboarding/operationalTourRegistry';
+import { ONBOARDING_Z_INDEX, calculateOnboardingPopoverPosition } from '@/lib/onboarding/popoverPositioning';
 
 const TOUR_STORAGE_KEY = 'harmonics:onboarding-tour:v1';
 
@@ -10,10 +11,6 @@ function getRect(selector) {
   const element = document.querySelector(selector);
   if (!element) return null;
   return element.getBoundingClientRect();
-}
-
-function clamp(value, min, max) {
-  return Math.min(Math.max(value, min), max);
 }
 
 export default function OnboardingTourOverlay({
@@ -26,6 +23,8 @@ export default function OnboardingTourOverlay({
   const [index, setIndex] = useState(0);
   const [rect, setRect] = useState(null);
   const [snapshotKey, setSnapshotKey] = useState(0);
+  const [popoverSize, setPopoverSize] = useState({ width: 360, height: 260 });
+  const popoverRef = useRef(null);
 
   const availableSteps = useMemo(() => {
     if (typeof document === 'undefined') return [];
@@ -107,6 +106,26 @@ export default function OnboardingTourOverlay({
     setIndex((value) => Math.max(0, value - 1));
   }
 
+
+  useLayoutEffect(() => {
+    if (!active || !popoverRef.current) return undefined;
+
+    function syncPopoverSize() {
+      const measured = popoverRef.current?.getBoundingClientRect();
+      if (!measured?.width || !measured?.height) return;
+      setPopoverSize((current) => {
+        const next = { width: Math.ceil(measured.width), height: Math.ceil(measured.height) };
+        if (current.width === next.width && current.height === next.height) return current;
+        return next;
+      });
+    }
+
+    syncPopoverSize();
+    const observer = new ResizeObserver(syncPopoverSize);
+    observer.observe(popoverRef.current);
+    return () => observer.disconnect();
+  }, [active, index]);
+
   if (!active || !current || !rect) return null;
 
   const padding = 10;
@@ -121,24 +140,42 @@ export default function OnboardingTourOverlay({
   };
 
   const tooltipWidth = Math.min(360, viewportWidth - 32);
-  const tooltipLeft = clamp(rect.left, 16, viewportWidth - tooltipWidth - 16);
-  const tooltipTop = current.placement === 'top'
-    ? Math.max(16, rect.top - 230)
-    : Math.min(viewportHeight - 240, rect.bottom + 20);
+  const preferredPlacements = current.placement === 'top'
+    ? ['top', 'right', 'left', 'bottom']
+    : ['right', 'left', 'bottom', 'top'];
+  const tooltipPosition = calculateOnboardingPopoverPosition({
+    targetRect: rect,
+    viewportWidth,
+    viewportHeight,
+    popoverWidth: tooltipWidth,
+    popoverHeight: popoverSize.height,
+    margin: viewportWidth < 640 ? 16 : 24,
+    gap: 18,
+    preferredPlacements,
+  });
 
   return (
-    <div className="fixed inset-0 z-[220] pointer-events-none">
+    <div className="fixed inset-0 pointer-events-none" style={{ zIndex: ONBOARDING_Z_INDEX.overlay }}>
       <div className="absolute inset-0 bg-slate-950/55 backdrop-blur-[2px]" />
 
       <div
-        className="absolute rounded-[28px] border-2 border-white bg-transparent shadow-[0_0_0_9999px_rgba(15,23,42,0.55),0_20px_60px_rgba(124,58,237,0.28)] transition-all duration-300"
-        style={spotlightStyle}
+        className="absolute rounded-[28px] border-2 border-white bg-transparent shadow-[0_0_0_9999px_rgba(15,23,42,0.55),0_20px_60px_rgba(124,58,237,0.28)] transition-all duration-300 ease-out"
+        style={{ zIndex: ONBOARDING_Z_INDEX.spotlight, ...spotlightStyle }}
       />
 
       <div
-        className="pointer-events-auto absolute rounded-[26px] border border-violet-200 bg-white p-5 shadow-[0_22px_70px_rgba(15,23,42,0.28)]"
-        style={{ width: tooltipWidth, left: tooltipLeft, top: tooltipTop }}
+        ref={popoverRef}
+        data-placement={tooltipPosition.placement}
+        className="pointer-events-auto absolute rounded-[26px] border border-violet-200 bg-white p-5 shadow-[0_22px_70px_rgba(15,23,42,0.28)] transition-[left,top,transform] duration-300 ease-out will-change-[left,top]"
+        style={{ zIndex: ONBOARDING_Z_INDEX.tooltip, width: tooltipWidth, left: tooltipPosition.left, top: tooltipPosition.top }}
       >
+        {tooltipPosition.arrow ? (
+          <span
+            aria-hidden="true"
+            className="absolute h-3 w-3 rotate-45 border-violet-200 bg-white"
+            style={{ left: tooltipPosition.arrow.left, top: tooltipPosition.arrow.top }}
+          />
+        ) : null}
         <div className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-700">
           Guia inicial {index + 1}/{availableSteps.length}
         </div>

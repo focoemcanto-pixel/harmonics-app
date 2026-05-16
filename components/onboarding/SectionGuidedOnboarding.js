@@ -2,9 +2,10 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { getSupabase } from '@/lib/supabase';
+import { ONBOARDING_Z_INDEX, calculateOnboardingPopoverPosition } from '@/lib/onboarding/popoverPositioning';
 
 const SECTION_GUIDES = {
   '/eventos': {
@@ -100,10 +101,6 @@ function findTargetElement(guide) {
   }) || null;
 }
 
-function clamp(value, min, max) {
-  return Math.min(Math.max(value, min), max);
-}
-
 export default function SectionGuidedOnboarding({ enabled = false }) {
   const pathname = usePathname();
   const supabase = useMemo(() => getSupabase(), []);
@@ -111,6 +108,8 @@ export default function SectionGuidedOnboarding({ enabled = false }) {
   const [open, setOpen] = useState(false);
   const [targetRect, setTargetRect] = useState(null);
   const [shouldShowGuide, setShouldShowGuide] = useState(false);
+  const [popoverSize, setPopoverSize] = useState({ width: 420, height: 320 });
+  const popoverRef = useRef(null);
 
   useEffect(() => {
     let active = true;
@@ -160,8 +159,8 @@ export default function SectionGuidedOnboarding({ enabled = false }) {
 
   useEffect(() => {
     if (!shouldShowGuide || typeof window === 'undefined') {
-      setOpen(false);
-      return;
+      const timer = window.setTimeout(() => setOpen(false), 0);
+      return () => window.clearTimeout(timer);
     }
 
     const timer = window.setTimeout(() => setOpen(true), 500);
@@ -197,6 +196,26 @@ export default function SectionGuidedOnboarding({ enabled = false }) {
     };
   }, [guide, open]);
 
+
+  useLayoutEffect(() => {
+    if (!open || !popoverRef.current) return undefined;
+
+    function syncPopoverSize() {
+      const rect = popoverRef.current?.getBoundingClientRect();
+      if (!rect?.width || !rect?.height) return;
+      setPopoverSize((current) => {
+        const next = { width: Math.ceil(rect.width), height: Math.ceil(rect.height) };
+        if (current.width === next.width && current.height === next.height) return current;
+        return next;
+      });
+    }
+
+    syncPopoverSize();
+    const observer = new ResizeObserver(syncPopoverSize);
+    observer.observe(popoverRef.current);
+    return () => observer.disconnect();
+  }, [open, guide]);
+
   if (!enabled || !guide || !shouldShowGuide) return null;
 
   function closeGuide() {
@@ -211,25 +230,27 @@ export default function SectionGuidedOnboarding({ enabled = false }) {
   const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 800;
 
   const tooltipWidth = Math.min(420, viewportWidth - 32);
-
-  const tooltipLeft = targetRect
-    ? clamp(targetRect.left, 16, viewportWidth - tooltipWidth - 16)
-    : 16;
-
-  const tooltipTop = targetRect
-    ? clamp(targetRect.bottom + 18, 16, viewportHeight - 340)
-    : 120;
+  const tooltipPosition = calculateOnboardingPopoverPosition({
+    targetRect,
+    viewportWidth,
+    viewportHeight,
+    popoverWidth: tooltipWidth,
+    popoverHeight: popoverSize.height,
+    margin: viewportWidth < 640 ? 16 : 24,
+    gap: 18,
+  });
 
   return (
     <>
       {open ? (
-        <div className="fixed inset-0 z-[230] pointer-events-none">
+        <div className="fixed inset-0 pointer-events-none" style={{ zIndex: ONBOARDING_Z_INDEX.overlay }}>
           <div className="absolute inset-0 bg-slate-950/55 backdrop-blur-[2px]" />
 
           {targetRect ? (
             <div
-              className="absolute rounded-[24px] border-2 border-white shadow-[0_0_0_9999px_rgba(15,23,42,0.48),0_22px_70px_rgba(124,58,237,0.35)] transition-all duration-300"
+              className="absolute rounded-[24px] border-2 border-white shadow-[0_0_0_9999px_rgba(15,23,42,0.48),0_22px_70px_rgba(124,58,237,0.35)] transition-all duration-300 ease-out"
               style={{
+                zIndex: ONBOARDING_Z_INDEX.spotlight,
                 left: targetRect.left - 10,
                 top: targetRect.top - 10,
                 width: targetRect.width + 20,
@@ -239,9 +260,18 @@ export default function SectionGuidedOnboarding({ enabled = false }) {
           ) : null}
 
           <div
-            className="pointer-events-auto absolute rounded-[28px] border border-violet-200 bg-white p-5 shadow-[0_24px_80px_rgba(15,23,42,0.35)]"
-            style={{ width: tooltipWidth, left: tooltipLeft, top: tooltipTop }}
+            ref={popoverRef}
+            data-placement={tooltipPosition.placement}
+            className="pointer-events-auto absolute rounded-[28px] border border-violet-200 bg-white p-5 shadow-[0_24px_80px_rgba(15,23,42,0.35)] transition-[left,top,transform] duration-300 ease-out will-change-[left,top]"
+            style={{ zIndex: ONBOARDING_Z_INDEX.tooltip, width: tooltipWidth, left: tooltipPosition.left, top: tooltipPosition.top }}
           >
+            {tooltipPosition.arrow ? (
+              <span
+                aria-hidden="true"
+                className="absolute h-3 w-3 rotate-45 border-violet-200 bg-white"
+                style={{ left: tooltipPosition.arrow.left, top: tooltipPosition.arrow.top }}
+              />
+            ) : null}
             <div className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-700">
               Próxima etapa do onboarding
             </div>

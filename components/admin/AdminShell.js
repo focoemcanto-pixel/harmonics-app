@@ -24,6 +24,12 @@ export default function AdminShell({
     searchParams?.get('guide') === 'template' || searchParams?.get('onboarding') === 'template'
   );
 
+  const forceEventTypesGuide = pathname === '/eventos/tipos' && (
+    searchParams?.get('guide') === 'event-types' || searchParams?.get('onboarding') === 'event-types'
+  );
+
+  const shouldForceGuide = forceTemplateGuide || forceEventTypesGuide;
+
   const mobileActiveItem = useMemo(() => {
     const allowed = ['dashboard', 'eventos', 'contatos', 'contratos', 'mais'];
     if (allowed.includes(activeItem)) return activeItem;
@@ -46,7 +52,7 @@ export default function AdminShell({
           <AdminSidebar activeItem={activeItem} />
           <main className="min-h-screen flex-1">
             <div className="mx-auto w-full max-w-[1440px] px-6 py-6">
-              {forceTemplateGuide ? <DeferredOnboardingMount variant="route" showTour /> : null}
+              {shouldForceGuide ? <DeferredOnboardingMount variant="route" showTour /> : null}
               {children}
             </div>
           </main>
@@ -55,7 +61,7 @@ export default function AdminShell({
         <div className="md:hidden">
           <AdminMobileTopbar title={pageTitle} actions={mobileActions} />
           <main className="px-4 pb-28 pt-4">
-            {forceTemplateGuide ? <DeferredOnboardingMount variant="route" showTour /> : null}
+            {shouldForceGuide ? <DeferredOnboardingMount variant="route" showTour /> : null}
             {children}
           </main>
 

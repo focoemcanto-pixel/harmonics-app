@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { getSupabase } from '@/lib/supabase';
 
 const OPERATIONAL_SHORTCUTS = [
@@ -27,6 +28,7 @@ const OPERATIONAL_SHORTCUTS = [
 
 export default function DashboardOnboardingBanner() {
   const supabase = useMemo(() => getSupabase(), []);
+  const searchParams = useSearchParams();
   const [payload, setPayload] = useState(null);
   const [loading, setLoading] = useState(true);
   const [skipping, setSkipping] = useState(false);
@@ -96,6 +98,7 @@ export default function DashboardOnboardingBanner() {
   if (loading || hidden) return null;
   if (!payload?.showOnboarding) return null;
 
+  const freshWorkspace = searchParams?.get('onboarding') === 'fresh-workspace' || searchParams?.get('tour') === 'workspace-created';
   const summary = payload.summary || { completed: 0, total: 8, percentage: 0 };
   const progress = payload.progress || {};
   const steps = Array.isArray(payload.steps) ? payload.steps : [];
@@ -115,7 +118,9 @@ export default function DashboardOnboardingBanner() {
           </h2>
 
           <p className="mt-2 text-[14px] font-semibold leading-6 text-[#64748b]">
-            Você concluiu {summary.completed} de {summary.total} etapas. Continue o checklist inicial ou use um dos atalhos abaixo para configurar o fluxo principal.
+            {freshWorkspace
+              ? 'Conheça as abas principais do dashboard e siga para o primeiro guia prático: criar o template de contratos.'
+              : `Você concluiu ${summary.completed} de ${summary.total} etapas. Continue o checklist inicial ou use um dos atalhos abaixo para configurar o fluxo principal.`}
           </p>
 
           {missingSteps.length > 0 ? (
@@ -157,7 +162,7 @@ export default function DashboardOnboardingBanner() {
           </div>
 
           <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-            <Link data-onboarding-tour="onboarding-link" href={nextStep?.href || '/settings/onboarding'} className="rounded-2xl bg-violet-600 px-4 py-3 text-center text-[13px] font-black text-white hover:bg-violet-500">
+            <Link data-onboarding-tour="onboarding-link" href={freshWorkspace ? '/contratos/templates?guide=template' : nextStep?.href || '/settings/onboarding'} className="rounded-2xl bg-violet-600 px-4 py-3 text-center text-[13px] font-black text-white hover:bg-violet-500">
               Continuar
             </Link>
             <button type="button" onClick={skipOnboarding} disabled={skipping} className="rounded-2xl border border-violet-200 bg-white px-4 py-3 text-center text-[13px] font-black text-violet-700 hover:bg-violet-50 disabled:opacity-60">

@@ -151,6 +151,9 @@ export default function AdminShell({ pageTitle, children, mobileActions, activeI
   const mobileActiveItem = MOBILE_NAV_ALLOWED_ITEMS.has(activeItem) ? activeItem : 'mais';
   const isOnboardingRoute = ONBOARDING_ROUTE_PREFIXES.some((prefix) => pathname === prefix || pathname?.startsWith(`${prefix}/`));
   const forceTemplateGuide = pathname === '/contratos/templates' && (searchParams?.get('guide') === 'template' || searchParams?.get('onboarding') === 'template');
+  const forceFreshWorkspaceTour = pathname === '/dashboard' && (
+    searchParams?.get('onboarding') === 'fresh-workspace' || searchParams?.get('tour') === 'workspace-created'
+  );
 
   useEffect(() => {
     if (initialized && !loading && !user && pathname !== '/login') {
@@ -163,7 +166,7 @@ export default function AdminShell({ pageTitle, children, mobileActions, activeI
 
     async function loadTourEligibility() {
       try {
-        if (forceTemplateGuide) {
+        if (forceTemplateGuide || forceFreshWorkspaceTour) {
           setShowTour(true);
           return;
         }
@@ -182,20 +185,24 @@ export default function AdminShell({ pageTitle, children, mobileActions, activeI
 
         setShowTour(Boolean(response.ok && payload?.showOnboarding));
       } catch {
-        if (active) setShowTour(false);
+        if (active) window.setTimeout(() => setShowTour(false), 0);
       }
     }
 
-    if (isOnboardingRoute || forceTemplateGuide) {
+    if (isOnboardingRoute || forceTemplateGuide || forceFreshWorkspaceTour) {
       loadTourEligibility();
     } else {
-      setShowTour(false);
+      const timer = window.setTimeout(() => setShowTour(false), 0);
+      return () => {
+        active = false;
+        window.clearTimeout(timer);
+      };
     }
 
     return () => {
       active = false;
     };
-  }, [forceTemplateGuide, isOnboardingRoute, pathname, supabase]);
+  }, [forceFreshWorkspaceTour, forceTemplateGuide, isOnboardingRoute, pathname, supabase]);
 
   if (initialized && !loading && !user) {
     return null;

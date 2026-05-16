@@ -20,6 +20,10 @@ export default function AdminShell({
   const searchParams = useSearchParams();
   const [moreOpen, setMoreOpen] = useState(false);
 
+  const forceFreshWorkspaceTour = pathname === '/dashboard' && (
+    searchParams?.get('onboarding') === 'fresh-workspace' || searchParams?.get('tour') === 'workspace-created'
+  );
+
   const forceTemplateGuide = pathname === '/contratos/templates' && (
     searchParams?.get('guide') === 'template' || searchParams?.get('onboarding') === 'template'
   );
@@ -34,6 +38,7 @@ export default function AdminShell({
 
   const isSetupGuideRoute = pathname === '/contratos/templates' || pathname === '/eventos/tipos' || pathname === '/pre-contratos';
   const shouldMountRouteGuides = isSetupGuideRoute || forceTemplateGuide || forceEventTypesGuide || forcePrecontractGuide;
+  const shouldMountDashboardGuide = forceFreshWorkspaceTour;
 
   const mobileActiveItem = useMemo(() => {
     const allowed = ['dashboard', 'eventos', 'contatos', 'contratos', 'mais'];
@@ -57,6 +62,7 @@ export default function AdminShell({
           <AdminSidebar activeItem={activeItem} />
           <main className="min-h-screen flex-1">
             <div className="mx-auto w-full max-w-[1440px] px-6 py-6">
+              {shouldMountDashboardGuide ? <DeferredOnboardingMount variant="dashboard" showTour /> : null}
               {shouldMountRouteGuides ? <DeferredOnboardingMount variant="route" showTour /> : null}
               {children}
             </div>
@@ -66,6 +72,7 @@ export default function AdminShell({
         <div className="md:hidden">
           <AdminMobileTopbar title={pageTitle} actions={mobileActions} />
           <main className="px-4 pb-28 pt-4">
+            {shouldMountDashboardGuide ? <DeferredOnboardingMount variant="dashboard" showTour /> : null}
             {shouldMountRouteGuides ? <DeferredOnboardingMount variant="route" showTour /> : null}
             {children}
           </main>

@@ -16,7 +16,12 @@ function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
 
-export default function OnboardingTourOverlay({ steps = OPERATIONAL_ONBOARDING_TOUR }) {
+export default function OnboardingTourOverlay({
+  steps = OPERATIONAL_ONBOARDING_TOUR,
+  force = false,
+  onFinishHref = null,
+  finalLabel = 'Concluir',
+}) {
   const [active, setActive] = useState(false);
   const [index, setIndex] = useState(0);
   const [rect, setRect] = useState(null);
@@ -32,7 +37,7 @@ export default function OnboardingTourOverlay({ steps = OPERATIONAL_ONBOARDING_T
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
     const alreadySeen = window.localStorage.getItem(TOUR_STORAGE_KEY) === 'done';
-    if (alreadySeen) return undefined;
+    if (alreadySeen && !force) return undefined;
 
     const timer = window.setTimeout(() => {
       setSnapshotKey((value) => value + 1);
@@ -40,16 +45,17 @@ export default function OnboardingTourOverlay({ steps = OPERATIONAL_ONBOARDING_T
     }, 900);
 
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [force]);
 
   useEffect(() => {
     if (!active) return;
     if (availableSteps.length === 0) {
-      setActive(false);
-      return;
+      const timer = window.setTimeout(() => setActive(false), 0);
+      return () => window.clearTimeout(timer);
     }
     if (index > availableSteps.length - 1) {
-      setIndex(availableSteps.length - 1);
+      const timer = window.setTimeout(() => setIndex(availableSteps.length - 1), 0);
+      return () => window.clearTimeout(timer);
     }
   }, [active, availableSteps.length, index]);
 
@@ -81,6 +87,10 @@ export default function OnboardingTourOverlay({ steps = OPERATIONAL_ONBOARDING_T
   function finishTour() {
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(TOUR_STORAGE_KEY, 'done');
+      if (onFinishHref) {
+        window.location.assign(onFinishHref);
+        return;
+      }
     }
     setActive(false);
   }
@@ -148,7 +158,7 @@ export default function OnboardingTourOverlay({ steps = OPERATIONAL_ONBOARDING_T
               Voltar
             </button>
             <button type="button" onClick={nextStep} className="rounded-2xl bg-violet-600 px-4 py-2.5 text-[13px] font-black text-white">
-              {index >= availableSteps.length - 1 ? 'Concluir' : 'Próximo'}
+              {index >= availableSteps.length - 1 ? finalLabel : 'Próximo'}
             </button>
           </div>
         </div>

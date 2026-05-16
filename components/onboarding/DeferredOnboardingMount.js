@@ -2,7 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import { useEffect, useState } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 
 const DashboardOnboardingBanner = dynamic(() => import('@/components/onboarding/DashboardOnboardingBanner'), {
   ssr: false,
@@ -61,6 +61,7 @@ export default function DeferredOnboardingMount({
   recommendationsLimit,
 }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -77,10 +78,12 @@ export default function DeferredOnboardingMount({
 
   if (!mounted) return null;
 
+  const freshWorkspace = searchParams?.get('onboarding') === 'fresh-workspace' || searchParams?.get('tour') === 'workspace-created';
+
   if (variant === 'dashboard') {
     return (
       <>
-        {showTour ? <OnboardingTourOverlay /> : null}
+        {showTour ? <OnboardingTourOverlay force={freshWorkspace} onFinishHref={freshWorkspace ? '/contratos/templates?guide=template' : null} finalLabel={freshWorkspace ? 'Continuar' : 'Concluir'} /> : null}
         <div className="mb-5"><DashboardOnboardingBanner /></div>
         <div className="mb-5"><WorkspaceInsightCard /></div>
         <div className="mb-5"><WorkspaceRecommendationsFeed limit={recommendationsLimit} /></div>

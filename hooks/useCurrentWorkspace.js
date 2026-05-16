@@ -2,27 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
-const WORKSPACE_CACHE_KEY = 'harmonics:last-current-workspace';
-
-export function clearWorkspaceScopedStorage() {
-  if (typeof window === 'undefined') return;
-
-  const exactKeys = new Set([WORKSPACE_CACHE_KEY, 'workspace_id', 'current_workspace_id', 'harmonics_workspace_id']);
-  const scopedPrefixes = ['harmonics:last-current-workspace', 'harmonics_workspace_', 'workspace:', 'sugestoes:', 'suggestions:'];
-
-  for (const storage of [window.localStorage, window.sessionStorage]) {
-    try {
-      const keys = Array.from({ length: storage.length }, (_, index) => storage.key(index)).filter(Boolean);
-      for (const key of keys) {
-        if (exactKeys.has(key) || scopedPrefixes.some((prefix) => key.startsWith(prefix))) {
-          storage.removeItem(key);
-        }
-      }
-    } catch {
-      // storage pode estar indisponível em alguns contextos; limpeza não deve quebrar a UI.
-    }
-  }
-}
+export const WORKSPACE_CACHE_KEY = 'harmonics:last-current-workspace';
 
 function safeWriteWorkspaceCache(workspace) {
   if (typeof window === 'undefined' || !workspace?.workspaceId) return;
@@ -107,7 +87,8 @@ export default function useCurrentWorkspace() {
       } catch (err) {
         if (active) {
           setError(err);
-          clearWorkspaceScopedStorage();
+          // Não renderiza workspace antigo em cache: em troca/criação/exclusão multi-tenant,
+          // o nome só pode aparecer depois de confirmado por /api/workspace/current.
           setData(null);
         }
       } finally {
@@ -120,6 +101,7 @@ export default function useCurrentWorkspace() {
     return () => {
       active = false;
     };
+    // intentionally only once per mount; workspace identity is confirmed by the API before rendering.
   }, []);
 
   return useMemo(

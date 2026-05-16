@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { supabase } from '@/lib/supabase';
 import AdminShell from '@/components/admin/AdminShell';
 import AdminPageHero from '@/components/admin/AdminPageHero';
 import AdminSummaryCard from '@/components/admin/AdminSummaryCard';
@@ -53,6 +52,7 @@ export default function EventTypesPage() {
   const toast = useAppToast();
   const [eventTypes, setEventTypes] = useState([]);
   const [templates, setTemplates] = useState([]);
+  const [templatesMigrationWarning, setTemplatesMigrationWarning] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
@@ -72,17 +72,26 @@ export default function EventTypesPage() {
 
       const [eventTypesResp, templatesResp] = await Promise.all([
         fetch('/api/admin/event-types', { cache: 'no-store' }),
-        supabase
-          .from('contract_templates')
-          .select('id, name, is_active')
-          .order('name', { ascending: true }),
+        fetch('/api/admin/contract-templates', { cache: 'no-store' }),
       ]);
 
-      const eventTypesJson = await eventTypesResp.json();
+      const [eventTypesJson, templatesJson] = await Promise.all([
+        eventTypesResp.json(),
+        templatesResp.json(),
+      ]);
+
       if (!eventTypesResp.ok || eventTypesJson?.ok === false) {
         throw new Error(eventTypesJson?.error || 'Falha ao carregar tipos de evento');
       }
-      if (templatesResp.error) throw templatesResp.error;
+      if (!templatesResp.ok || templatesJson?.ok === false) {
+        throw new Error(templatesJson?.error || 'Falha ao carregar templates de contrato');
+      }
+
+      if (templatesJson?.migrationRequired) {
+        setTemplatesMigrationWarning(templatesJson?.warning || 'A estrutura de templates por workspace ainda precisa ser atualizada. Aplique a migration antes de vincular templates.');
+      } else {
+        setTemplatesMigrationWarning('');
+      }
 
       const rawEventTypes = eventTypesJson?.eventTypes || [];
       const uniqueEventTypes = dedupeById(rawEventTypes);
@@ -90,8 +99,16 @@ export default function EventTypesPage() {
         console.warn('[EVENT_TYPES] Registros duplicados detectados na consulta. Mantendo apenas 1 por id.');
       }
 
+      const apiTemplates = templatesJson?.migrationRequired ? [] : (templatesJson?.templates || []);
+      const normalizedTemplates = apiTemplates.map((template) => ({
+        id: template.id,
+        name: template.name,
+        is_active: template.is_active,
+        is_default: template.is_default,
+      }));
+
       setEventTypes(uniqueEventTypes);
-      setTemplates(dedupeById(templatesResp.data || []));
+      setTemplates(dedupeById(normalizedTemplates));
     } catch (error) {
       console.error('Erro ao carregar tipos de evento:', error);
       toast.error(`Não foi possível carregar dados: ${error?.message || 'erro desconhecido'}`);
@@ -115,6 +132,14 @@ export default function EventTypesPage() {
     () => templates.filter((template) => template.is_active !== false),
     [templates],
   );
+
+  useEffect(() => {
+    if (editingId || activeTemplates.length !== 1) return;
+    setForm((prev) => {
+      if (prev.default_contract_template_id) return prev;
+      return { ...prev, default_contract_template_id: String(activeTemplates[0].id) };
+    });
+  }, [activeTemplates, editingId]);
 
   const templateOptions = useMemo(() => {
     const selectedId = String(form.default_contract_template_id || '');
@@ -148,9 +173,17 @@ export default function EventTypesPage() {
     return { total, active, withoutTemplate: total - withTemplate };
   }, [eventTypes]);
 
+  function getNewFormDefaults() {
+    const initialForm = getInitialForm();
+    if (activeTemplates.length === 1) {
+      initialForm.default_contract_template_id = String(activeTemplates[0].id);
+    }
+    return initialForm;
+  }
+
   function resetForm() {
     setEditingId(null);
-    setForm(getInitialForm());
+    setForm(getNewFormDefaults());
   }
 
   function startCreate() {
@@ -347,6 +380,7 @@ export default function EventTypesPage() {
             <button
               type="button"
               onClick={startCreate}
+              data-tour="event-type-new-button"
               className="rounded-[16px] bg-violet-600 px-5 py-3 text-[13px] font-black text-white shadow-[0_10px_20px_rgba(109,40,217,0.25)]"
             >
               Novo tipo
@@ -359,6 +393,13 @@ export default function EventTypesPage() {
           <AdminSummaryCard label="Ativos" value={summary.active} helper="Disponíveis para novos pré-contratos" tone="success" />
           <AdminSummaryCard label="Sem template" value={summary.withoutTemplate} helper="Defina padrão para agilizar contratos" tone="warning" />
         </section>
+
+        {templatesMigrationWarning ? (
+          <div className="rounded-[20px] border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] font-semibold leading-6 text-amber-800">
+            Não foi possível listar templates deste workspace porque a estrutura de templates por workspace ainda precisa ser atualizada.
+            {' '}Aplique a migration indicada pela API antes de vincular templates aos tipos de evento.
+          </div>
+        ) : null}
 
         <section className="grid gap-6 xl:grid-cols-[1.45fr_1fr]">
           <div className="rounded-[26px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_28px_rgba(17,24,39,0.05)] md:p-6">
@@ -460,7 +501,7 @@ export default function EventTypesPage() {
 
             <div className="mt-4 space-y-4">
               <Field label="Nome">
-                <Input value={form.name} onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))} placeholder="Ex.: Casamento" />
+                <Input data-tour="event-type-name-input" value={form.name} onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))} placeholder="Ex.: Casamento" />
               </Field>
 
               <Field label="Slug" helper="Se vazio, será gerado com base no nome.">
@@ -478,6 +519,7 @@ export default function EventTypesPage() {
 
                 <Field label="Template padrão">
                   <Select
+                    data-tour="event-type-template-select"
                     value={form.default_contract_template_id || ''}
                     onChange={(event) => setForm((prev) => ({ ...prev, default_contract_template_id: event.target.value }))}
                   >
@@ -512,6 +554,7 @@ export default function EventTypesPage() {
                 <button
                   type="button"
                   onClick={saveEventType}
+                  data-tour="event-type-save-button"
                   disabled={saving}
                   className="rounded-[14px] bg-violet-600 px-4 py-2.5 text-[13px] font-black text-white disabled:cursor-not-allowed disabled:opacity-60"
                 >

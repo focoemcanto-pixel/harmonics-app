@@ -111,6 +111,11 @@ function findFocusable(el) {
   return el.querySelector?.('input, textarea, select, [contenteditable="true"]') || null;
 }
 
+function getTemplateSelectValue() {
+  const select = document.querySelector('[data-tour="event-type-template-select"]');
+  return String(select?.value || '').trim();
+}
+
 function clearGuideQuery() {
   const url = new URL(window.location.href);
   url.searchParams.delete('guide');
@@ -158,6 +163,7 @@ export default function EventTypeTemplateGuideStable({ enabled = false }) {
   const [index, setIndex] = useState(0);
   const [targetRect, setTargetRect] = useState(null);
   const [popoverSize, setPopoverSize] = useState({ width: 430, height: 300 });
+  const [validationMessage, setValidationMessage] = useState('');
   const retryRef = useRef(null);
   const popoverRef = useRef(null);
   const centeredRef = useRef(null);
@@ -248,6 +254,13 @@ export default function EventTypeTemplateGuideStable({ enabled = false }) {
   }
 
   function next() {
+    if (step?.key === 'template' && !getTemplateSelectValue()) {
+      setValidationMessage('Selecione um template padrão para continuar o guia.');
+      findFocusable(findTarget(step))?.focus?.({ preventScroll: true });
+      return;
+    }
+
+    setValidationMessage('');
     if (index >= STEPS.length - 1) return finish();
     centeredRef.current = null;
     focusedRef.current = null;
@@ -291,6 +304,11 @@ export default function EventTypeTemplateGuideStable({ enabled = false }) {
         </div>
         <h3 className="mt-3 text-[22px] font-black tracking-[-0.04em] text-[#0f172a]">{step.title}</h3>
         <p className="mt-2 text-[14px] font-semibold leading-7 text-[#64748b]">{step.description}</p>
+        {validationMessage ? (
+          <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] font-black text-amber-800">
+            {validationMessage}
+          </div>
+        ) : null}
         <div className="mt-5 h-2 overflow-hidden rounded-full bg-slate-100">
           <div className="h-full rounded-full bg-violet-600 transition-all duration-300" style={{ width: `${Math.round(((index + 1) / STEPS.length) * 100)}%` }} />
         </div>

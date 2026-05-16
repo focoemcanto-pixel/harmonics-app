@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { requireWorkspaceAccess } from '@/lib/api/require-workspace-access';
 
 const DEFAULT_ARTIST = 'Não informado';
 const CATALOG_SOURCE_TYPES = ['admin', 'imported'];
@@ -33,11 +34,12 @@ function normalizeTitle(value) {
     .trim();
 }
 
-async function findDuplicateSong(supabase, { youtubeId, normalizedTitle, artist }) {
+async function findDuplicateSong(supabase, { youtubeId, normalizedTitle, artist, workspaceId }) {
   if (youtubeId) {
     const { data, error } = await supabase
       .from('suggestion_songs')
       .select('id')
+      .eq('workspace_id', workspaceId)
       .eq('youtube_id', youtubeId)
       .in('source_type', CATALOG_SOURCE_TYPES)
       .limit(1)
@@ -50,6 +52,7 @@ async function findDuplicateSong(supabase, { youtubeId, normalizedTitle, artist 
   const { data, error } = await supabase
     .from('suggestion_songs')
     .select('id')
+    .eq('workspace_id', workspaceId)
     .eq('normalized_title', normalizedTitle)
     .eq('normalized_artist', String(artist || '').toLowerCase())
     .in('source_type', CATALOG_SOURCE_TYPES)
@@ -62,6 +65,11 @@ async function findDuplicateSong(supabase, { youtubeId, normalizedTitle, artist 
 
 export async function POST(request) {
   try {
+    const supabase = getSupabaseAdmin();
+    const auth = await requireWorkspaceAccess({ supabase, request, moduleKey: 'sugestoes', actionKey: 'write', logPrefix: '[SUGGESTIONS_IMPORT_FROM_REPERTOIRE_API]' });
+    if (!auth.ok) return NextResponse.json({ ok: false, error: auth.error || 'Acesso não autorizado.' }, { status: auth.status || 401 });
+
+    const workspaceId = auth.workspaceId;
     const body = await request.json();
     const repertoireItemId = normalizeText(body?.repertoire_item_id);
 
@@ -69,18 +77,16 @@ export async function POST(request) {
       return NextResponse.json({ ok: false, error: 'repertoire_item_id é obrigatório.' }, { status: 400 });
     }
 
-    const supabase = getSupabaseAdmin();
-
     const { data: repertoireItem, error: repertoireError } = await supabase
       .from('repertoire_items')
-      .select('id, song_name, artists, reference_video_id, reference_link, reference_thumbnail, notes')
+      .select('id, event_id, song_name, artists, reference_video_id, reference_link, reference_thumbnail, notes, event:events(id, workspace_id)')
       .eq('id', repertoireItemId)
       .limit(1)
       .maybeSingle();
 
     if (repertoireError) throw repertoireError;
 
-    if (!repertoireItem?.id) {
+    if (!repertoireItem?.id || String(repertoireItem?.event?.workspace_id || '') !== workspaceId) {
       return NextResponse.json({ ok: false, error: 'Item de repertório não encontrado.' }, { status: 404 });
     }
 
@@ -103,6 +109,7 @@ export async function POST(request) {
       youtubeId,
       normalizedTitle,
       artist,
+      workspaceId,
     });
 
     if (duplicate?.id) {
@@ -111,6 +118,7 @@ export async function POST(request) {
 
     const now = new Date().toISOString();
     const payload = {
+      workspace_id: workspaceId,
       title: songName,
       artist,
       youtube_id: youtubeId,
@@ -127,7 +135,7 @@ export async function POST(request) {
     const { error: insertError } = await supabase.from('suggestion_songs').insert(payload);
     if (insertError) throw insertError;
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, workspaceId });
   } catch (error) {
     console.error('[suggestions/import-from-repertoire] error', error);
     return NextResponse.json(

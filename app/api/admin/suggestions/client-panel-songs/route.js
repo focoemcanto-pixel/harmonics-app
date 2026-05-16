@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requireWorkspaceAccess } from '@/lib/api/require-workspace-access';
+import { logSuggestionScope } from '@/lib/sugestoes/workspace-scope';
 
 function normalizeText(value) {
   const text = String(value || '').trim();
@@ -40,7 +41,7 @@ export async function GET(request) {
 
     const { data: catalogSongs, error } = await supabase
       .from('suggestion_songs')
-      .select('id, workspace_id, title, artist, genre:suggestion_genres(name), moment:suggestion_moments(name), youtube_id, youtube_url, thumbnail_url, is_active, source_type, created_at')
+      .select('id, workspace_id, title, artist, genre:suggestion_genres(workspace_id, name), moment:suggestion_moments(workspace_id, name), youtube_id, youtube_url, thumbnail_url, is_active, source_type, created_at')
       .eq('workspace_id', workspaceId)
       .eq('source_type', 'client')
       .order('created_at', { ascending: false });
@@ -56,6 +57,8 @@ export async function GET(request) {
       throw error;
     }
 
+    logSuggestionScope('[admin/suggestions/client-panel-songs] scoped data loaded', { workspaceId, count: (catalogSongs || []).length });
+
     const songs = (catalogSongs || [])
       .map((song, index) => {
         const key = buildSongKey({
@@ -69,8 +72,8 @@ export async function GET(request) {
           source_key: key,
           title: normalizeText(song?.title),
           artist: normalizeText(song?.artist),
-          genre: normalizeText(song?.genre?.name) || null,
-          moment: normalizeText(song?.moment?.name) || null,
+          genre: String(song?.genre?.workspace_id || '') === workspaceId ? normalizeText(song?.genre?.name) || null : null,
+          moment: String(song?.moment?.workspace_id || '') === workspaceId ? normalizeText(song?.moment?.name) || null : null,
           youtube_id: normalizeText(song?.youtube_id) || null,
           youtube_url: normalizeText(song?.youtube_url) || null,
           thumbnail_url: normalizeText(song?.thumbnail_url) || null,

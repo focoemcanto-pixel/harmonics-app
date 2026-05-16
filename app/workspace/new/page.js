@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getSupabase } from '@/lib/supabase';
+import { clearWorkspaceScopedStorage } from '@/hooks/useCurrentWorkspace';
 
 const DEFAULT_COLOR = '#8b5cf6';
 
@@ -94,6 +95,7 @@ export default function NewWorkspacePage() {
         throw new Error(payload?.error || 'Não foi possível criar o workspace.');
       }
 
+      clearWorkspaceScopedStorage();
       router.push(payload?.next || '/dashboard');
       router.refresh();
     } catch (err) {

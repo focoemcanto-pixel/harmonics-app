@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { requireAdminServer } from '@/lib/api/require-admin-server';
+import { requireWorkspaceAdmin } from '@/lib/api/require-workspace-access';
 
 function normalizeText(value) {
   const text = String(value || '').trim();
@@ -43,11 +43,12 @@ function buildThumbnailUrl(youtubeId, fallback = null) {
   return `https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg`;
 }
 
-async function findExistingCatalogSong(supabase, { title, artist, youtubeId }) {
+async function findExistingCatalogSong(supabase, { title, artist, youtubeId, workspaceId }) {
   if (youtubeId) {
     const { data, error } = await supabase
       .from('suggestion_songs')
-      .select('id, title, artist, youtube_id, source_type')
+      .select('id, workspace_id, title, artist, youtube_id, source_type')
+      .eq('workspace_id', workspaceId)
       .eq('youtube_id', youtubeId)
       .limit(1)
       .maybeSingle();
@@ -58,7 +59,8 @@ async function findExistingCatalogSong(supabase, { title, artist, youtubeId }) {
 
   const { data, error } = await supabase
     .from('suggestion_songs')
-    .select('id, title, artist, youtube_id, source_type')
+    .select('id, workspace_id, title, artist, youtube_id, source_type')
+    .eq('workspace_id', workspaceId)
     .eq('normalized_title', String(title || '').toLowerCase())
     .eq('normalized_artist', String(artist || '').toLowerCase())
     .limit(1)
@@ -69,13 +71,12 @@ async function findExistingCatalogSong(supabase, { title, artist, youtubeId }) {
 }
 
 export async function POST(request) {
-  const adminGuard = await requireAdminServer(request);
-  if (!adminGuard.ok) {
-    return adminGuard.response;
-  }
-
   try {
     const supabase = getSupabaseAdmin();
+    const auth = await requireWorkspaceAdmin({ supabase, request, moduleKey: 'sugestoes', actionKey: 'write', logPrefix: '[ADMIN_SUGGESTIONS_IMPORT_API]' });
+    if (!auth.ok) return NextResponse.json({ ok: false, error: auth.error || 'Acesso não autorizado.' }, { status: auth.status || 401 });
+
+    const workspaceId = auth.workspaceId;
     const body = await request.json();
 
     const title = normalizeText(body?.title);
@@ -88,7 +89,7 @@ export async function POST(request) {
       return NextResponse.json({ ok: false, error: 'Título da música é obrigatório.' }, { status: 400 });
     }
 
-    const existing = await findExistingCatalogSong(supabase, { title, artist, youtubeId });
+    const existing = await findExistingCatalogSong(supabase, { title, artist, youtubeId, workspaceId });
     if (existing?.id) {
       return NextResponse.json({
         ok: true,
@@ -99,6 +100,7 @@ export async function POST(request) {
     }
 
     const payload = {
+      workspace_id: workspaceId,
       title,
       artist: artist || null,
       youtube_url: youtubeUrl,
@@ -111,16 +113,10 @@ export async function POST(request) {
       updated_at: new Date().toISOString(),
     };
 
-    const hasYoutubeId = Boolean(youtubeId);
-    const onConflict = hasYoutubeId ? 'youtube_id' : 'normalized_title,normalized_artist';
-
     const { data: inserted, error: insertError } = await supabase
       .from('suggestion_songs')
-      .upsert(payload, {
-        onConflict,
-        ignoreDuplicates: false,
-      })
-      .select('id, title, artist, youtube_id, source_type')
+      .insert(payload)
+      .select('id, workspace_id, title, artist, youtube_id, source_type')
       .single();
 
     if (insertError) throw insertError;
@@ -130,6 +126,7 @@ export async function POST(request) {
       alreadyExists: false,
       message: 'Música importada para o catálogo editorial com sucesso.',
       song: inserted,
+      workspaceId,
     });
   } catch (error) {
     console.error('[admin/suggestions/repertoire-songs/import] error', error);

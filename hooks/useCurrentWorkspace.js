@@ -4,16 +4,23 @@ import { useEffect, useMemo, useState } from 'react';
 
 const WORKSPACE_CACHE_KEY = 'harmonics:last-current-workspace';
 
-function safeReadWorkspaceCache() {
-  if (typeof window === 'undefined') return null;
+export function clearWorkspaceScopedStorage() {
+  if (typeof window === 'undefined') return;
 
-  try {
-    const raw = window.localStorage.getItem(WORKSPACE_CACHE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    return parsed?.workspaceId ? parsed : null;
-  } catch {
-    return null;
+  const exactKeys = new Set([WORKSPACE_CACHE_KEY, 'workspace_id', 'current_workspace_id', 'harmonics_workspace_id']);
+  const scopedPrefixes = ['harmonics:last-current-workspace', 'harmonics_workspace_', 'workspace:', 'sugestoes:', 'suggestions:'];
+
+  for (const storage of [window.localStorage, window.sessionStorage]) {
+    try {
+      const keys = Array.from({ length: storage.length }, (_, index) => storage.key(index)).filter(Boolean);
+      for (const key of keys) {
+        if (exactKeys.has(key) || scopedPrefixes.some((prefix) => key.startsWith(prefix))) {
+          storage.removeItem(key);
+        }
+      }
+    } catch {
+      // storage pode estar indisponível em alguns contextos; limpeza não deve quebrar a UI.
+    }
   }
 }
 
@@ -67,8 +74,8 @@ function normalizeWorkspacePayload(payload) {
 }
 
 export default function useCurrentWorkspace() {
-  const [data, setData] = useState(() => safeReadWorkspaceCache());
-  const [loading, setLoading] = useState(() => !safeReadWorkspaceCache());
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -76,7 +83,7 @@ export default function useCurrentWorkspace() {
 
     async function loadWorkspace() {
       try {
-        setLoading((current) => current || !data);
+        setLoading(true);
         setError(null);
 
         const response = await fetch('/api/workspace/current', {
@@ -100,8 +107,8 @@ export default function useCurrentWorkspace() {
       } catch (err) {
         if (active) {
           setError(err);
-          // Mantém o último workspace em cache para evitar flash da marca padrão durante navegação.
-          setData((current) => current || safeReadWorkspaceCache());
+          clearWorkspaceScopedStorage();
+          setData(null);
         }
       } finally {
         if (active) setLoading(false);
@@ -113,8 +120,6 @@ export default function useCurrentWorkspace() {
     return () => {
       active = false;
     };
-    // intentionally only once per mount; cache prevents branding flash on route transitions.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return useMemo(

@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getSupabase } from '@/lib/supabase';
-import useCurrentWorkspace from '@/hooks/useCurrentWorkspace';
+import useCurrentWorkspace, { clearWorkspaceScopedStorage } from '@/hooks/useCurrentWorkspace';
 
 function normalizePhone(value) {
   return String(value || '').replace(/\D+/g, '');
@@ -114,6 +114,7 @@ export default function WorkspaceSettingsClient() {
         throw new Error(payload?.error || 'Não foi possível excluir o workspace.');
       }
 
+      clearWorkspaceScopedStorage();
       await supabase?.auth?.signOut?.();
       router.replace('/workspace-deleted');
     } catch (err) {

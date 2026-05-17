@@ -3,6 +3,7 @@
 import dynamic from 'next/dynamic';
 import { useEffect, useState } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
+import { useOnboardingSession } from '@/contexts/OnboardingSessionContext';
 
 const DashboardOnboardingBanner = dynamic(() => import('@/components/onboarding/DashboardOnboardingBanner'), {
   ssr: false,
@@ -68,6 +69,7 @@ export default function DeferredOnboardingMount({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [mounted, setMounted] = useState(false);
+  const { onboardingSession } = useOnboardingSession();
 
   useEffect(() => {
     let timer;
@@ -83,15 +85,20 @@ export default function DeferredOnboardingMount({
 
   if (!mounted) return null;
 
-  const freshWorkspace = searchParams?.get('onboarding') === 'fresh-workspace' || searchParams?.get('tour') === 'workspace-created';
+  const guideQuery = searchParams?.get('guide');
+  const onboardingQuery = searchParams?.get('onboarding');
+  const requestedGuide = guideQuery || onboardingQuery;
+  const hasDynamicGuideQuery = ['template', 'event-types', 'precontract'].includes(requestedGuide);
+  const isGuideActive = Boolean(onboardingSession.activeGuide) || hasDynamicGuideQuery;
+  const freshWorkspace = onboardingQuery === 'fresh-workspace' || searchParams?.get('tour') === 'workspace-created';
 
   if (variant === 'dashboard') {
     return (
       <>
-        {showTour ? <OnboardingTourOverlay force={freshWorkspace} onFinishHref={freshWorkspace ? '/contratos/templates?guide=template' : null} finalLabel={freshWorkspace ? 'Continuar' : 'Concluir'} /> : null}
-        <div className="mb-5"><DashboardOnboardingBanner /></div>
+        {showTour && !isGuideActive ? <OnboardingTourOverlay force={freshWorkspace} onFinishHref={freshWorkspace ? '/contratos/templates?guide=template' : null} finalLabel={freshWorkspace ? 'Continuar' : 'Concluir'} /> : null}
+        {!isGuideActive ? <div className="mb-5"><DashboardOnboardingBanner /></div> : null}
         <div className="mb-5"><WorkspaceInsightCard /></div>
-        <div className="mb-5"><WorkspaceRecommendationsFeed limit={recommendationsLimit} /></div>
+        {!isGuideActive ? <div className="mb-5"><WorkspaceRecommendationsFeed limit={recommendationsLimit} /></div> : null}
         <div className="mb-5"><WorkspaceActivityTimeline limit={dashboardTimelineLimit} compact /></div>
       </>
     );
@@ -100,12 +107,12 @@ export default function DeferredOnboardingMount({
   if (variant === 'route') {
     const routeGuides = (
       <>
-        {showTour ? <OnboardingTourOverlay /> : null}
-        <OperationalRouteOnboarding enabled />
-        <SectionGuidedOnboarding enabled />
-        {pathname === '/contratos/templates' ? <TemplateCreationGuideStable enabled /> : null}
-        {pathname === '/eventos/tipos' ? <EventTypeTemplateGuideStable enabled /> : null}
-        {pathname === '/pre-contratos' ? <PrecontractGuideStable enabled /> : null}
+        {showTour && !isGuideActive ? <OnboardingTourOverlay /> : null}
+        {!isGuideActive ? <OperationalRouteOnboarding enabled /> : null}
+        {!isGuideActive ? <SectionGuidedOnboarding enabled /> : null}
+        {pathname === '/contratos/templates' && (!isGuideActive || requestedGuide === 'template' || onboardingSession.activeGuide === 'template') ? <TemplateCreationGuideStable enabled /> : null}
+        {pathname === '/eventos/tipos' && (!isGuideActive || requestedGuide === 'event-types' || onboardingSession.activeGuide === 'event-types') ? <EventTypeTemplateGuideStable enabled /> : null}
+        {pathname === '/pre-contratos' && (!isGuideActive || requestedGuide === 'precontract' || onboardingSession.activeGuide === 'precontract') ? <PrecontractGuideStable enabled /> : null}
       </>
     );
 
@@ -120,5 +127,5 @@ export default function DeferredOnboardingMount({
     return routeGuides;
   }
 
-  return showTour ? <OnboardingTourOverlay /> : null;
+  return showTour && !isGuideActive ? <OnboardingTourOverlay /> : null;
 }

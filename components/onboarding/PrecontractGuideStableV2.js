@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
+import { useOnboardingSession } from '@/contexts/OnboardingSessionContext';
+
+const GUIDE_ID = 'precontract';
 
 const STEPS = [
   { key: 'event_type', title: 'Escolha o tipo de evento', description: 'Selecione o tipo configurado antes. Ele define o template padrão que será usado no contrato.', words: ['tipo de evento', 'tipo do evento'], names: ['event_type', 'event_type_id', 'eventTypeId'], required: true, error: 'Selecione um tipo de evento para continuar.' },
@@ -185,6 +188,7 @@ function Mask({ box, width, height }) {
 export default function PrecontractGuideStableV2({ enabled = false }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const { onboardingSession, startOnboardingSession, endOnboardingSession } = useOnboardingSession();
   const [active, setActive] = useState(false);
   const [index, setIndex] = useState(0);
   const [rect, setRect] = useState(null);
@@ -205,6 +209,14 @@ export default function PrecontractGuideStableV2({ enabled = false }) {
   const step = STEPS[index];
   const forced = searchParams?.get('guide') === 'precontract' || searchParams?.get('onboarding') === 'precontract';
   const sessionKey = useMemo(() => 'harmonics:precontract-guide:v9', []);
+
+  useEffect(() => {
+    if (!active) return undefined;
+    startOnboardingSession({ guide: GUIDE_ID, overlay: GUIDE_ID, mode: 'dynamic-guide' });
+    return () => endOnboardingSession(GUIDE_ID);
+  }, [active, endOnboardingSession, startOnboardingSession]);
+
+  const isBlockedByAnotherOnboarding = Boolean((onboardingSession.activeGuide && onboardingSession.activeGuide !== GUIDE_ID) || (onboardingSession.activeOverlay && onboardingSession.activeOverlay !== GUIDE_ID));
 
   useEffect(() => {
     if (!enabled || pathname !== '/pre-contratos') return;
@@ -327,7 +339,7 @@ export default function PrecontractGuideStableV2({ enabled = false }) {
     };
   }, [active, step]);
 
-  if (!enabled || pathname !== '/pre-contratos' || !active || !step) return null;
+  if (!enabled || pathname !== '/pre-contratos' || !active || !step || isBlockedByAnotherOnboarding) return null;
 
   function finish() {
     sessionStorage.setItem(sessionKey, 'skipped');

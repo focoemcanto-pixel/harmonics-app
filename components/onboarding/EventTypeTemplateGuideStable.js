@@ -3,6 +3,9 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { ONBOARDING_Z_INDEX, calculateOnboardingPopoverPosition } from '@/lib/onboarding/popoverPositioning';
+import { useOnboardingSession } from '@/contexts/OnboardingSessionContext';
+
+const GUIDE_ID = 'event-types';
 
 const STEPS = [
   {
@@ -159,6 +162,7 @@ function Mask({ box, width, height }) {
 export default function EventTypeTemplateGuideStable({ enabled = false }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const { onboardingSession, startOnboardingSession, endOnboardingSession } = useOnboardingSession();
   const [active, setActive] = useState(false);
   const [index, setIndex] = useState(0);
   const [targetRect, setTargetRect] = useState(null);
@@ -171,6 +175,14 @@ export default function EventTypeTemplateGuideStable({ enabled = false }) {
   const step = STEPS[index];
   const shouldForce = searchParams?.get('guide') === 'event-types' || searchParams?.get('onboarding') === 'event-types';
   const sessionKey = useMemo(() => 'harmonics:event-type-template-guide:v1', []);
+
+  useEffect(() => {
+    if (!active) return undefined;
+    startOnboardingSession({ guide: GUIDE_ID, overlay: GUIDE_ID, mode: 'dynamic-guide' });
+    return () => endOnboardingSession(GUIDE_ID);
+  }, [active, endOnboardingSession, startOnboardingSession]);
+
+  const isBlockedByAnotherOnboarding = Boolean((onboardingSession.activeGuide && onboardingSession.activeGuide !== GUIDE_ID) || (onboardingSession.activeOverlay && onboardingSession.activeOverlay !== GUIDE_ID));
 
   useEffect(() => {
     if (!enabled || pathname !== '/eventos/tipos') return;
@@ -245,7 +257,7 @@ export default function EventTypeTemplateGuideStable({ enabled = false }) {
     return () => observer.disconnect();
   }, [active, index]);
 
-  if (!enabled || pathname !== '/eventos/tipos' || !active || !step) return null;
+  if (!enabled || pathname !== '/eventos/tipos' || !active || !step || isBlockedByAnotherOnboarding) return null;
 
   function finish() {
     sessionStorage.setItem(sessionKey, 'skipped');

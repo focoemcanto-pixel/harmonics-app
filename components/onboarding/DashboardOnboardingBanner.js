@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { getSupabase } from '@/lib/supabase';
+import { useHasActiveGuide } from '@/contexts/OnboardingSessionContext';
 
 const OPERATIONAL_SHORTCUTS = [
   {
@@ -27,6 +28,7 @@ const OPERATIONAL_SHORTCUTS = [
 ];
 
 export default function DashboardOnboardingBanner() {
+  const isGuideActive = useHasActiveGuide();
   const supabase = useMemo(() => getSupabase(), []);
   const searchParams = useSearchParams();
   const [payload, setPayload] = useState(null);
@@ -80,6 +82,12 @@ export default function DashboardOnboardingBanner() {
   }
 
   useEffect(() => {
+    if (isGuideActive) {
+      setPayload(null);
+      setLoading(false);
+      return undefined;
+    }
+
     let active = true;
 
     async function run() {
@@ -93,9 +101,9 @@ export default function DashboardOnboardingBanner() {
       active = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isGuideActive]);
 
-  if (loading || hidden) return null;
+  if (isGuideActive || loading || hidden) return null;
   if (!payload?.showOnboarding) return null;
 
   const freshWorkspace = searchParams?.get('onboarding') === 'fresh-workspace' || searchParams?.get('tour') === 'workspace-created';

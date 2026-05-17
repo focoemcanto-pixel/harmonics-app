@@ -1,11 +1,14 @@
 'use client';
 
 import { AuthProvider } from '@/contexts/AuthContext';
+import { OnboardingSessionProvider } from '@/contexts/OnboardingSessionContext';
 
 export default function AdminLayout({ children }) {
   return (
     <AuthProvider>
-      {children}
+      <OnboardingSessionProvider>
+        {children}
+      </OnboardingSessionProvider>
     </AuthProvider>
   );
 }

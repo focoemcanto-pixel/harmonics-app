@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
+import { useHasActiveGuide } from '@/contexts/OnboardingSessionContext';
 
 const PRIORITY_STYLES = {
   critical: {
@@ -28,11 +29,18 @@ const PRIORITY_STYLES = {
 };
 
 export default function WorkspaceRecommendationsFeed({ limit = 3 }) {
+  const isGuideActive = useHasActiveGuide();
   const supabase = useMemo(() => getSupabase(), []);
   const [recommendations, setRecommendations] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (isGuideActive) {
+      setRecommendations([]);
+      setLoading(false);
+      return undefined;
+    }
+
     let active = true;
 
     async function loadRecommendations() {
@@ -75,7 +83,9 @@ export default function WorkspaceRecommendationsFeed({ limit = 3 }) {
     return () => {
       active = false;
     };
-  }, [limit, supabase]);
+  }, [isGuideActive, limit, supabase]);
+
+  if (isGuideActive) return null;
 
   if (loading) {
     return (

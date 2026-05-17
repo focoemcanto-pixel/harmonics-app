@@ -3,9 +3,10 @@
 
 import Link from 'next/link';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { getSupabase } from '@/lib/supabase';
 import { ONBOARDING_Z_INDEX, calculateOnboardingPopoverPosition } from '@/lib/onboarding/popoverPositioning';
+import { useOnboardingSession } from '@/contexts/OnboardingSessionContext';
 
 const SECTION_GUIDES = {
   '/eventos': {
@@ -103,6 +104,8 @@ function findTargetElement(guide) {
 
 export default function SectionGuidedOnboarding({ enabled = false }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const { onboardingSession, startOnboardingSession, endOnboardingSession } = useOnboardingSession();
   const supabase = useMemo(() => getSupabase(), []);
   const guide = useMemo(() => getGuideForPath(pathname), [pathname]);
   const [open, setOpen] = useState(false);
@@ -110,12 +113,17 @@ export default function SectionGuidedOnboarding({ enabled = false }) {
   const [shouldShowGuide, setShouldShowGuide] = useState(false);
   const [popoverSize, setPopoverSize] = useState({ width: 420, height: 320 });
   const popoverRef = useRef(null);
+  const guideOwner = guide?.key ? `section-guide:${guide.key}` : 'section-guide';
+  const requestedGuide = searchParams?.get('guide') || searchParams?.get('onboarding');
+  const hasDynamicGuideQuery = ['template', 'event-types', 'precontract'].includes(requestedGuide);
+  const currentOnboardingOwner = onboardingSession.activeOverlay || onboardingSession.activeGuide;
+  const isGuideActive = Boolean(hasDynamicGuideQuery || (currentOnboardingOwner && currentOnboardingOwner !== guideOwner));
 
   useEffect(() => {
     let active = true;
 
     async function loadEligibility() {
-      if (!enabled || !guide || typeof window === 'undefined') {
+      if (!enabled || !guide || isGuideActive || typeof window === 'undefined') {
         if (active) setShouldShowGuide(false);
         return;
       }
@@ -155,20 +163,26 @@ export default function SectionGuidedOnboarding({ enabled = false }) {
     return () => {
       active = false;
     };
-  }, [enabled, guide, supabase]);
+  }, [enabled, guide, isGuideActive, supabase]);
 
   useEffect(() => {
-    if (!shouldShowGuide || typeof window === 'undefined') {
+    if (!shouldShowGuide || isGuideActive || typeof window === 'undefined') {
       const timer = window.setTimeout(() => setOpen(false), 0);
       return () => window.clearTimeout(timer);
     }
 
     const timer = window.setTimeout(() => setOpen(true), 500);
     return () => window.clearTimeout(timer);
-  }, [shouldShowGuide]);
+  }, [isGuideActive, shouldShowGuide]);
 
   useEffect(() => {
-    if (!open || !guide || typeof window === 'undefined') return;
+    if (!open || !guide || isGuideActive) return undefined;
+    startOnboardingSession({ overlay: guideOwner, mode: 'section-guide' });
+    return () => endOnboardingSession(guideOwner);
+  }, [endOnboardingSession, guide, guideOwner, isGuideActive, open, startOnboardingSession]);
+
+  useEffect(() => {
+    if (!open || !guide || isGuideActive || typeof window === 'undefined') return;
 
     function syncTarget() {
       const element = findTargetElement(guide);
@@ -194,11 +208,11 @@ export default function SectionGuidedOnboarding({ enabled = false }) {
       window.removeEventListener('resize', syncTarget);
       window.removeEventListener('scroll', syncTarget, true);
     };
-  }, [guide, open]);
+  }, [guide, isGuideActive, open]);
 
 
   useLayoutEffect(() => {
-    if (!open || !popoverRef.current) return undefined;
+    if (!open || isGuideActive || !popoverRef.current) return undefined;
 
     function syncPopoverSize() {
       const rect = popoverRef.current?.getBoundingClientRect();
@@ -214,9 +228,9 @@ export default function SectionGuidedOnboarding({ enabled = false }) {
     const observer = new ResizeObserver(syncPopoverSize);
     observer.observe(popoverRef.current);
     return () => observer.disconnect();
-  }, [open, guide]);
+  }, [isGuideActive, open, guide]);
 
-  if (!enabled || !guide || !shouldShowGuide) return null;
+  if (!enabled || !guide || !shouldShowGuide || isGuideActive) return null;
 
   function closeGuide() {
     if (typeof window !== 'undefined') {

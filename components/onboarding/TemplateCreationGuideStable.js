@@ -3,6 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { markOnboardingStepClient } from '@/lib/onboarding/markOnboardingStepClient';
+import { useOnboardingSession } from '@/contexts/OnboardingSessionContext';
+
+const GUIDE_ID = 'template';
 
 const STEPS = [
   {
@@ -242,6 +245,7 @@ export default function TemplateCreationGuideStable({ enabled = false }) {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { onboardingSession, startOnboardingSession, endOnboardingSession } = useOnboardingSession();
   const [active, setActive] = useState(false);
   const [index, setIndex] = useState(0);
   const [targetRect, setTargetRect] = useState(null);
@@ -255,6 +259,14 @@ export default function TemplateCreationGuideStable({ enabled = false }) {
   const step = STEPS[index];
   const shouldForce = searchParams?.get('guide') === 'template' || searchParams?.get('onboarding') === 'template';
   const sessionKey = useMemo(() => 'harmonics:template-guide-stable:v4', []);
+
+  useEffect(() => {
+    if (!active) return undefined;
+    startOnboardingSession({ guide: GUIDE_ID, overlay: GUIDE_ID, mode: 'dynamic-guide' });
+    return () => endOnboardingSession(GUIDE_ID);
+  }, [active, endOnboardingSession, startOnboardingSession]);
+
+  const isBlockedByAnotherOnboarding = Boolean((onboardingSession.activeGuide && onboardingSession.activeGuide !== GUIDE_ID) || (onboardingSession.activeOverlay && onboardingSession.activeOverlay !== GUIDE_ID));
 
   const completeAndRedirect = useCallback(async () => {
     sessionStorage.setItem(sessionKey, 'skipped');
@@ -350,7 +362,7 @@ export default function TemplateCreationGuideStable({ enabled = false }) {
     return () => window.removeEventListener('harmonics:contract-template-saved', handleTemplateSaved);
   }, [active, completeAndRedirect, enabled, pathname]);
 
-  if (!enabled || pathname !== '/contratos/templates' || !active || !step) return null;
+  if (!enabled || pathname !== '/contratos/templates' || !active || !step || isBlockedByAnotherOnboarding) return null;
 
   function skipGuide() {
     sessionStorage.setItem(sessionKey, 'skipped');

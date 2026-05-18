@@ -57,7 +57,6 @@ const PRECONTRACT_SELECT_FIELDS = [
   'contract_template_id',
   'contract_mode',
   'event_id',
-  'metadata',
   'source',
 ].join(', ');
 
@@ -151,16 +150,11 @@ function sanitizePrecontractWritePayload(payload = {}) {
   const sanitized = { ...payload };
   const isOnboardingDemo = isOnboardingDemoPayload(sanitized);
 
-  // The production schema does not currently expose an `is_demo` column on precontracts.
-  // Keep demo state in stable fields that already exist instead of breaking writes.
   delete sanitized.is_demo;
+  delete sanitized.metadata;
 
   if (isOnboardingDemo) {
     sanitized.source = 'onboarding_demo';
-    sanitized.metadata = {
-      ...(sanitized.metadata && typeof sanitized.metadata === 'object' ? sanitized.metadata : {}),
-      is_onboarding_demo: true,
-    };
   }
 
   return sanitized;
@@ -232,7 +226,7 @@ async function syncEventSnapshotFromPrecontract({ supabase, precontract }) {
     ...(isOnboardingDemoPayload(precontract)
       ? {
           source: 'onboarding_demo',
-          metadata: { ...(precontract?.metadata || {}), is_onboarding_demo: true },
+          metadata: { is_onboarding_demo: true },
         }
       : {}),
   };

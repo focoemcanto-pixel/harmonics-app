@@ -10,8 +10,11 @@ create extension if not exists pgcrypto;
 create table if not exists public.workspaces (
   id uuid primary key default gen_random_uuid(),
   key text not null unique,
+  workspace_id uuid references public.workspaces(id) on delete cascade,
   name text not null,
   is_active boolean not null default true,
+  source text null,
+  metadata jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -211,6 +214,7 @@ create index if not exists automation_cron_runs_started_idx
 
 create table if not exists public.scale_templates (
   id uuid primary key default gen_random_uuid(),
+  workspace_id uuid references public.workspaces(id) on delete cascade,
   name text not null,
   formation text not null,
   instruments text null,
@@ -218,15 +222,20 @@ create table if not exists public.scale_templates (
   suggestion_priority integer not null default 100,
   notes text null,
   is_active boolean not null default true,
+  source text null,
+  metadata jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
 alter table if exists public.scale_templates
+  add column if not exists workspace_id uuid references public.workspaces(id) on delete cascade,
   add column if not exists compatible_tags text,
   add column if not exists suggestion_priority integer not null default 100,
   add column if not exists is_active boolean not null default true,
-  add column if not exists updated_at timestamptz not null default now();
+  add column if not exists updated_at timestamptz not null default now(),
+  add column if not exists source text,
+  add column if not exists metadata jsonb not null default '{}'::jsonb;
 
 -- Normalização opcional para tags em array (sem quebrar o campo texto usado pelo frontend atual)
 alter table if exists public.scale_templates
@@ -239,6 +248,13 @@ where compatible_tags_arr is null
 
 create index if not exists scale_templates_active_formation_priority_idx
   on public.scale_templates (is_active, formation, suggestion_priority);
+
+create index if not exists scale_templates_workspace_active_idx
+  on public.scale_templates (workspace_id, is_active, created_at desc);
+
+create index if not exists scale_templates_onboarding_demo_idx
+  on public.scale_templates (workspace_id, source)
+  where source = 'onboarding_demo';
 
 create table if not exists public.scale_template_items (
   id uuid primary key default gen_random_uuid(),
@@ -254,7 +270,9 @@ alter table if exists public.scale_template_items
   add column if not exists role text,
   add column if not exists sort_order integer not null default 0,
   add column if not exists created_at timestamptz not null default now(),
-  add column if not exists updated_at timestamptz not null default now();
+  add column if not exists updated_at timestamptz not null default now(),
+  add column if not exists source text,
+  add column if not exists metadata jsonb not null default '{}'::jsonb;
 
 create index if not exists scale_template_items_template_sort_idx
   on public.scale_template_items (template_id, sort_order);
@@ -282,7 +300,9 @@ alter table if exists public.event_musicians
   add column if not exists confirmed_at timestamptz,
   add column if not exists is_active boolean not null default true,
   add column if not exists created_at timestamptz not null default now(),
-  add column if not exists updated_at timestamptz not null default now();
+  add column if not exists updated_at timestamptz not null default now(),
+  add column if not exists source text,
+  add column if not exists metadata jsonb not null default '{}'::jsonb;
 
 update public.event_musicians
 set status = coalesce(nullif(trim(status), ''), 'pending')

@@ -135,7 +135,7 @@ async function collectFacts({ supabase, workspaceId, progress }) {
     safeCount(supabase.from('precontracts').select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId), 'precontracts'),
     safeCount(supabase.from('contracts').select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId).in('status', ['signed', 'assinado', 'ASSINADO']), 'contracts.signed'),
     safeCount(supabase.from('contacts').select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId).in('contact_type', ['musician', 'member', 'team', 'staff']), 'contacts.members'),
-    safeCount(supabase.from('scale_templates').select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId).eq('is_active', true), 'scale_templates'),
+    safeCount(supabase.from('scale_templates').select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId).eq('is_active', true).or('source.eq.onboarding_demo,metadata->>is_onboarding_demo.eq.true,notes.ilike.%[onboarding_demo:formation_template]%'), 'scale_templates.demo'),
     demoEventId
       ? safeCount(supabase.from('event_musicians').select('id', { count: 'exact', head: true }).eq('event_id', demoEventId), 'event_musicians.demo')
       : Promise.resolve({ count: 0 }),
@@ -170,6 +170,7 @@ async function collectFacts({ supabase, workspaceId, progress }) {
     hasClientRepertoireSubmitted: hasCount(repertoireResp),
     hasFakeMembers: progress?.team_configured === true || Number(membersResp?.count || 0) >= 2,
     hasFormationTemplate: hasCount(formationTemplatesResp),
+    formationTemplateCount: Number(formationTemplatesResp?.count || 0),
     hasScale: hasCount(scaleResp),
     hasMemberPanelViewed,
     hasAutomationsViewed,

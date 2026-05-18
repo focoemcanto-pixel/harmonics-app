@@ -1351,6 +1351,13 @@ async function carregarModelosContrato({ force = false } = {}) {
             : null,
         contract_template_id: form.contract_template_id || null,
         contract_mode: form.custom_contract_enabled ? 'internal' : (form.contract_mode || null),
+        ...(searchParams.get('guide') === 'precontract' || searchParams.get('onboarding') === 'precontract'
+          ? {
+              source: 'onboarding_demo',
+              is_demo: true,
+              metadata: { is_onboarding_demo: true, onboarding_step: 'precontract' },
+            }
+          : {}),
       };
 
       let savedItem = null;

@@ -5590,9 +5590,20 @@ export default function ClienteHome({ data, initialTab = 'inicio' }) {
 
       if (mode === 'final') {
         setActiveTab('repertorio');
+
+        if (typeof window !== 'undefined') {
+          const params = new URLSearchParams(window.location.search || '');
+          if (params.get('guide') === 'client-panel') {
+            const eventId = params.get('eventId') || panelData?.eventId || panelData?.repertorio?.eventId || '';
+            const next = new URL('/configuracoes/equipe', window.location.origin);
+            next.searchParams.set('guide', 'fake-members');
+            if (eventId) next.searchParams.set('eventId', eventId);
+            window.location.assign(next.toString());
+          }
+        }
       }
     },
-    []
+    [panelData]
   );
 
   const handleReviewRequested = useCallback(() => {

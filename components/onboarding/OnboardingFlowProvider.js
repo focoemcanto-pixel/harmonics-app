@@ -72,7 +72,7 @@ export function OnboardingFlowProvider({ children }) {
       return;
     }
 
-    if (guard.ok && ['member-panel', 'automations', 'finance', 'admin-repertoire', 'dashboard-demo'].includes(guide)) {
+    if (guard.ok && ['member-panel', 'member-panel-demo', 'automations', 'automation-overview', 'finance', 'admin-repertoire', 'dashboard-demo'].includes(guide)) {
       fetch('/api/onboarding/flow-status', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },

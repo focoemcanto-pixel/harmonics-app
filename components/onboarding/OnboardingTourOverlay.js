@@ -18,6 +18,7 @@ export default function OnboardingTourOverlay({
   force = false,
   onFinishHref = null,
   finalLabel = 'Concluir',
+  onFinish = null,
 }) {
   const [active, setActive] = useState(false);
   const [index, setIndex] = useState(0);
@@ -86,10 +87,14 @@ export default function OnboardingTourOverlay({
   function finishTour() {
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(TOUR_STORAGE_KEY, 'done');
-      if (onFinishHref) {
-        window.location.assign(onFinishHref);
-        return;
-      }
+    }
+    if (typeof onFinish === 'function') {
+      onFinish();
+      return;
+    }
+    if (typeof window !== 'undefined' && onFinishHref) {
+      window.location.assign(onFinishHref);
+      return;
     }
     setActive(false);
   }

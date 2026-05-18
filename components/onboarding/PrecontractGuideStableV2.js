@@ -5,8 +5,11 @@ import { usePathname, useSearchParams } from 'next/navigation';
 import { useOnboardingSession } from '@/contexts/OnboardingSessionContext';
 
 const GUIDE_ID = 'precontract';
-
 const CONTRACT_LINK_UNAVAILABLE_MESSAGE = 'O link do contrato ainda não está disponível.';
+
+function normalize(value) {
+  return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+}
 
 function getContractUrlFromSuccessModal() {
   if (typeof window === 'undefined') return '';
@@ -48,12 +51,8 @@ const STEPS = [
   { key: 'preview', title: 'Veja o preview antes de salvar', description: 'Abra a prévia e confira os dados. Ao clicar em Próximo, eu fecho a prévia e levo você ao botão de salvar.', words: ['ver preview', 'preview', 'visualizar', 'prévia'], preview: true },
   { key: 'save', title: 'Finalize o pré-contrato', description: 'Agora salve ou gere o link. O sistema criará o pré-contrato e abrirá o compartilhamento.', words: ['salvar e abrir envio', 'salvar', 'gerar link', 'criar pré-contrato'], button: true },
   { key: 'copy_link', title: 'Copie o link do contrato', description: 'Depois de salvar, copie o link para enviar ao cliente.', words: ['copiar link', 'link do contrato'], share: true },
-  { key: 'open_contract', title: 'Abra o contrato em outra aba', description: 'Confira a experiência do cliente antes de enviar.', words: ['abrir contrato', 'abrir painel do cliente', 'abrir whatsapp'], share: true },
+  { key: 'open_contract', title: 'Abra o contrato em outra aba', description: 'Confira a experiência do cliente antes de enviar.', words: ['abrir contrato', 'abrir painel do cliente', 'abrir whatsapp'], share: true, staticCard: true },
 ];
-
-function normalize(value) {
-  return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
-}
 
 function isVisible(el) {
   if (!el || typeof window === 'undefined' || !document.body.contains(el)) return false;
@@ -73,9 +72,7 @@ function labelTextFor(el) {
   const guideGroup = el?.closest?.('[data-guide-group]');
   if (guideGroup) {
     const focusableItems = guideGroup.querySelectorAll?.('input,select,textarea,button,a,[role="combobox"],[role="button"]');
-    if (!focusableItems || focusableItems.length <= 1) {
-      parts.push(guideGroup.textContent || '');
-    }
+    if (!focusableItems || focusableItems.length <= 1) parts.push(guideGroup.textContent || '');
   }
 
   return normalize(parts.join(' '));
@@ -154,15 +151,9 @@ function closePreviewModal() {
   return Boolean(button);
 }
 
-function findOpenContractTarget(step) {
-  return findByWords(['abrir contrato'], 'button,a,[role="button"]')
-    || document.querySelector('[data-precontract-share-modal="true"] [data-guide="contract_link"]')
-    || findByWords(step.words, 'button,a,textarea,div,[role="button"]');
-}
-
 function findTarget(step) {
+  if (step.staticCard) return null;
   if (step.preview) return findPreviewModal() || findByWords(step.words, 'button,a,[role="button"]');
-  if (step.key === 'open_contract') return findOpenContractTarget(step);
   if (step.share) return findByWords(step.words, 'button,a,textarea,div,[role="button"]');
   return findByNames(step.names) || findByWords(step.words, step.button ? 'button,[role="button"],a' : undefined);
 }
@@ -196,7 +187,7 @@ function clamp(value, min, max) {
 }
 
 function boxFor(rect, step) {
-  if (!rect) return null;
+  if (!rect || step?.staticCard) return null;
   const pad = step?.preview ? 6 : 14;
   return { left: Math.max(8, rect.left - pad), top: Math.max(8, rect.top - pad), width: rect.width + pad * 2, height: rect.height + pad * 2 };
 }
@@ -206,8 +197,8 @@ function rectChanged(a, b) {
   return Math.abs(a.left - b.left) > 1 || Math.abs(a.top - b.top) > 1 || Math.abs(a.width - b.width) > 1 || Math.abs(a.height - b.height) > 1;
 }
 
-function Mask({ box, width, height }) {
-  const cls = 'absolute bg-slate-950/42 backdrop-blur-[1px] transition-all duration-200';
+function Mask({ box, width, height, staticMode = false }) {
+  const cls = `absolute bg-slate-950/42 backdrop-blur-[1px] ${staticMode ? '' : 'transition-all duration-200'}`;
   if (!box) return <div className={`${cls} inset-0`} />;
   return <>
     <div className={cls} style={{ left: 0, top: 0, width: '100%', height: box.top }} />
@@ -238,9 +229,11 @@ export default function PrecontractGuideStableV2({ enabled = false }) {
     focusedRef.current = null;
     setRect(null);
   }, []);
+
   const step = STEPS[index];
   const forced = searchParams?.get('guide') === 'precontract' || searchParams?.get('onboarding') === 'precontract';
   const sessionKey = useMemo(() => 'harmonics:precontract-guide:v9', []);
+  const staticMode = Boolean(step?.staticCard);
 
   useEffect(() => {
     if (!active) return undefined;
@@ -257,9 +250,6 @@ export default function PrecontractGuideStableV2({ enabled = false }) {
     let resetFrame = null;
     if (forced) {
       sessionStorage.removeItem(sessionKey);
-      targetRef.current = null;
-      centeredRef.current = null;
-      focusedRef.current = null;
       resetFrame = requestAnimationFrame(() => {
         setIndex(0);
         resetTargetState();
@@ -282,8 +272,7 @@ export default function PrecontractGuideStableV2({ enabled = false }) {
     const frame = requestAnimationFrame(() => {
       resetTargetState();
       setMissing(false);
-
-      if (!active || !step) return;
+      if (!active || !step || step.staticCard) return;
 
       const nextTarget = findTarget(step);
       targetRef.current = nextTarget;
@@ -295,7 +284,7 @@ export default function PrecontractGuideStableV2({ enabled = false }) {
   }, [active, index, resetTargetState, step]);
 
   useEffect(() => {
-    if (!active || !step) return undefined;
+    if (!active || !step || step.staticCard) return undefined;
 
     function sync({ center = false, focus = false } = {}) {
       const current = targetRef.current;
@@ -391,7 +380,7 @@ export default function PrecontractGuideStableV2({ enabled = false }) {
   }
 
   function next() {
-    const target = findTarget(step);
+    const target = step.staticCard ? null : findTarget(step);
     if (step.required && !valueOf(target)) {
       setHint(step.error || 'Preencha esta etapa para continuar.');
       targetRef.current = target;
@@ -422,17 +411,25 @@ export default function PrecontractGuideStableV2({ enabled = false }) {
   const spotlight = boxFor(rect, step);
   const tooltipWidth = Math.min(460, vw - 32);
   const previewMode = step.preview && !!findPreviewModal();
-  const left = previewMode
-    ? clamp(vw - tooltipWidth - 28, 16, vw - tooltipWidth - 16)
-    : rect && rect.right + tooltipWidth + 24 < vw - 16
-      ? rect.right + 24
+  const left = staticMode
+    ? clamp((vw - tooltipWidth) / 2, 16, vw - tooltipWidth - 16)
+    : previewMode
+      ? clamp(vw - tooltipWidth - 28, 16, vw - tooltipWidth - 16)
+      : rect && rect.right + tooltipWidth + 24 < vw - 16
+        ? rect.right + 24
+        : rect
+          ? clamp(rect.left - tooltipWidth - 24, 16, vw - tooltipWidth - 16)
+          : 16;
+  const top = staticMode
+    ? clamp(vh - 330, 18, vh - 320)
+    : previewMode
+      ? clamp(vh - 330, 18, vh - 320)
       : rect
-        ? clamp(rect.left - tooltipWidth - 24, 16, vw - tooltipWidth - 16)
-        : 16;
-  const top = previewMode ? clamp(vh - 330, 18, vh - 320) : rect ? clamp(rect.top, 18, vh - 340) : 120;
+        ? clamp(rect.top, 18, vh - 340)
+        : 120;
 
   return <div data-precontract-guide="true" className="fixed inset-0 z-[270] pointer-events-none">
-    <Mask box={spotlight} width={vw} height={vh} />
+    <Mask box={spotlight} width={vw} height={vh} staticMode={staticMode} />
     {spotlight ? <div className="absolute rounded-[24px] border-2 border-white bg-transparent shadow-[0_0_0_2px_rgba(124,58,237,0.30),0_18px_70px_rgba(124,58,237,0.44)] ring-4 ring-violet-500/25 transition-all duration-200" style={spotlight} /> : null}
     <div className="pointer-events-auto absolute rounded-[30px] border border-violet-200 bg-white p-5 shadow-[0_24px_90px_rgba(15,23,42,0.36)]" style={{ width: tooltipWidth, left, top }}>
       <div className="flex items-center justify-between gap-3">
@@ -441,13 +438,14 @@ export default function PrecontractGuideStableV2({ enabled = false }) {
       </div>
       <h3 className="mt-3 text-[22px] font-black tracking-[-0.04em] text-[#0f172a]">{step.title}</h3>
       <p className="mt-2 text-[14px] font-semibold leading-7 text-[#64748b]">{step.description}</p>
+      {staticMode ? <div className="mt-4 rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3 text-[12px] font-bold leading-5 text-violet-800">Use o botão abaixo para abrir a visão do cliente em uma nova aba. Esta etapa não fica presa aos botões do modal para evitar instabilidade visual.</div> : null}
       {hint ? <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-[12px] font-bold leading-5 text-red-700">{hint}</div> : null}
-      {missing ? <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[12px] font-bold leading-5 text-amber-800">Estou aguardando esse elemento aparecer.</div> : null}
+      {!staticMode && missing ? <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[12px] font-bold leading-5 text-amber-800">Estou aguardando esse elemento aparecer.</div> : null}
       {previewMode ? <div className="mt-4 rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3 text-[12px] font-bold leading-5 text-violet-800">Confira a prévia. No próximo clique eu fecho o preview e mostro o botão de salvar corretamente.</div> : null}
       <div className="mt-5 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-violet-600 transition-all duration-300" style={{ width: `${Math.round(((index + 1) / STEPS.length) * 100)}%` }} /></div>
       <div className="mt-5 flex flex-wrap justify-between gap-3">
         <button type="button" onClick={finish} className="rounded-2xl border border-[#e2e8f0] bg-white px-4 py-2.5 text-[13px] font-black text-[#475569]">Pular guia</button>
-        <button type="button" onClick={next} className="rounded-2xl bg-violet-600 px-4 py-2.5 text-[13px] font-black text-white shadow-[0_12px_28px_rgba(124,58,237,0.28)]">{index >= STEPS.length - 1 ? 'Abrir contrato e finalizar' : 'Próximo'}</button>
+        <button type="button" onClick={next} data-precontract-guide-final-action={staticMode ? 'true' : undefined} className={`rounded-2xl bg-violet-600 px-4 py-2.5 text-[13px] font-black text-white shadow-[0_12px_28px_rgba(124,58,237,0.28)] ${staticMode ? 'ring-4 ring-violet-200' : ''}`}>{index >= STEPS.length - 1 ? 'Abrir contrato e finalizar' : 'Próximo'}</button>
       </div>
     </div>
   </div>;

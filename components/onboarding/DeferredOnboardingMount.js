@@ -40,6 +40,11 @@ const OnboardingTourOverlay = dynamic(() => import('@/components/onboarding/Onbo
   loading: () => null,
 });
 
+const FreshWorkspaceStartGuide = dynamic(() => import('@/components/onboarding/FreshWorkspaceStartGuide'), {
+  ssr: false,
+  loading: () => null,
+});
+
 const TemplateCreationGuideStable = dynamic(() => import('@/components/onboarding/TemplateCreationGuideStable'), {
   ssr: false,
   loading: () => null,
@@ -162,10 +167,7 @@ export default function DeferredOnboardingMount({
   }, [searchParams]);
 
   if (!mounted || loadingEligibility) return null;
-
-  if (!onboardingEnabled) {
-    return null;
-  }
+  if (!onboardingEnabled) return null;
 
   const hasDynamicGuideQuery = onboardingEnabled && GUIDE_KEYS.includes(requestedGuide);
   const isGuideActive = Boolean(onboardingSession.activeGuide) || hasDynamicGuideQuery;
@@ -174,7 +176,8 @@ export default function DeferredOnboardingMount({
   if (variant === 'dashboard') {
     return (
       <>
-        {showTour && !isGuideActive ? <OnboardingTourOverlay force={freshWorkspace} onFinishHref={freshWorkspace ? '/contratos/templates?guide=template' : null} finalLabel={freshWorkspace ? 'Continuar' : 'Concluir'} /> : null}
+        {freshWorkspace && !isGuideActive ? <FreshWorkspaceStartGuide /> : null}
+        {showTour && !freshWorkspace && !isGuideActive ? <OnboardingTourOverlay /> : null}
         {!isGuideActive ? <div className="mb-5"><DashboardOnboardingBanner /></div> : null}
         <div className="mb-5"><WorkspaceInsightCard /></div>
         {!isGuideActive ? <div className="mb-5"><WorkspaceRecommendationsFeed limit={recommendationsLimit} /></div> : null}

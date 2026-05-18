@@ -59,7 +59,6 @@ const PRECONTRACT_SELECT_FIELDS = [
   'event_id',
   'metadata',
   'source',
-  'is_demo',
 ].join(', ');
 
 function parseDateOnly(value) {
@@ -140,6 +139,67 @@ function normalizePrecontractFinancialPayload(payload = {}) {
   };
 }
 
+function isOnboardingDemoPayload(value = {}) {
+  return (
+    value?.is_demo === true ||
+    value?.source === 'onboarding_demo' ||
+    value?.metadata?.is_onboarding_demo === true
+  );
+}
+
+function sanitizePrecontractWritePayload(payload = {}) {
+  const sanitized = { ...payload };
+  const isOnboardingDemo = isOnboardingDemoPayload(sanitized);
+
+  // The production schema does not currently expose an `is_demo` column on precontracts.
+  // Keep demo state in stable fields that already exist instead of breaking writes.
+  delete sanitized.is_demo;
+
+  if (isOnboardingDemo) {
+    sanitized.source = 'onboarding_demo';
+    sanitized.metadata = {
+      ...(sanitized.metadata && typeof sanitized.metadata === 'object' ? sanitized.metadata : {}),
+      is_onboarding_demo: true,
+    };
+  }
+
+  return sanitized;
+}
+
+async function updateEventWithSchemaFallback({ supabase, eventId, payload }) {
+  const attempts = [payload];
+
+  const withoutSource = { ...payload };
+  delete withoutSource.source;
+  attempts.push(withoutSource);
+
+  const withoutMetadata = { ...payload };
+  delete withoutMetadata.metadata;
+  attempts.push(withoutMetadata);
+
+  const minimal = { ...payload };
+  delete minimal.source;
+  delete minimal.metadata;
+  attempts.push(minimal);
+
+  let lastError = null;
+  for (const attemptPayload of attempts) {
+    const { error } = await supabase
+      .from('events')
+      .update(attemptPayload)
+      .eq('id', eventId);
+
+    if (!error) return;
+
+    lastError = error;
+    const message = String(error?.message || error?.details || '').toLowerCase();
+    const isMissingColumn = message.includes('schema cache') || message.includes('could not find') || message.includes('does not exist');
+    if (!isMissingColumn) throw error;
+  }
+
+  if (lastError) throw lastError;
+}
+
 async function syncEventSnapshotFromPrecontract({ supabase, precontract }) {
   const eventId = String(precontract?.event_id || '').trim();
   if (!eventId) return;
@@ -169,9 +229,8 @@ async function syncEventSnapshotFromPrecontract({ supabase, precontract }) {
     card_due_date: precontract?.card_due_date || null,
     reception_formation: precontract?.reception_formation || null,
     reception_instruments: precontract?.reception_instruments || null,
-    ...(precontract?.is_demo === true || precontract?.source === 'onboarding_demo' || precontract?.metadata?.is_onboarding_demo === true
+    ...(isOnboardingDemoPayload(precontract)
       ? {
-          is_demo: true,
           source: 'onboarding_demo',
           metadata: { ...(precontract?.metadata || {}), is_onboarding_demo: true },
         }
@@ -184,12 +243,11 @@ async function syncEventSnapshotFromPrecontract({ supabase, precontract }) {
     eventUpdatePayload.event_type = precontractEventType;
   }
 
-  const { error: updateEventError } = await supabase
-    .from('events')
-    .update(eventUpdatePayload)
-    .eq('id', eventId);
-
-  if (updateEventError) throw updateEventError;
+  await updateEventWithSchemaFallback({
+    supabase,
+    eventId,
+    payload: eventUpdatePayload,
+  });
 
   await createPaymentScheduleForPrecontract({
     supabase,
@@ -313,12 +371,12 @@ export async function POST(request) {
       );
     }
 
-    const writePayload = normalizePrecontractFinancialPayload({
+    const writePayload = sanitizePrecontractWritePayload(normalizePrecontractFinancialPayload({
       ...payload,
       workspace_id: auth.workspaceId,
       public_token: body?.public_token || null,
       generated_link: body?.generated_link || null,
-    });
+    }));
 
     let data = null;
     if (id) {

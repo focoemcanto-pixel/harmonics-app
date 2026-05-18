@@ -32,8 +32,6 @@ const PRECONTRACT_SELECT_FIELDS = [
   'reception_instruments',
   'has_sound',
   'reception_hours',
-  'reception_formation',
-  'reception_instruments',
   'has_transport',
   'base_amount',
   'add_reception',
@@ -57,7 +55,6 @@ const PRECONTRACT_SELECT_FIELDS = [
   'contract_template_id',
   'contract_mode',
   'event_id',
-  'source',
 ].join(', ');
 
 function parseDateOnly(value) {
@@ -85,13 +82,7 @@ function addDays(dateInput, days) {
 
 function getAutoPaymentDueDates(eventDateRaw) {
   const eventDate = parseDateOnly(eventDateRaw);
-  if (!eventDate) {
-    return {
-      signalDueDate: null,
-      balanceDueDate: null,
-    };
-  }
-
+  if (!eventDate) return { signalDueDate: null, balanceDueDate: null };
   return {
     signalDueDate: formatDateOnly(addDays(eventDate, -14)),
     balanceDueDate: formatDateOnly(addDays(eventDate, -2)),
@@ -138,60 +129,21 @@ function normalizePrecontractFinancialPayload(payload = {}) {
   };
 }
 
-function isOnboardingDemoPayload(value = {}) {
-  return (
-    value?.is_demo === true ||
-    value?.source === 'onboarding_demo' ||
-    value?.metadata?.is_onboarding_demo === true
-  );
-}
-
 function sanitizePrecontractWritePayload(payload = {}) {
   const sanitized = { ...payload };
-  const isOnboardingDemo = isOnboardingDemoPayload(sanitized);
 
+  // Campos que não existem no schema atual de produção de precontracts.
+  // O estado demo/onboarding deve ser controlado fora desta tabela até existir migration oficial.
   delete sanitized.is_demo;
   delete sanitized.metadata;
-
-  if (isOnboardingDemo) {
-    sanitized.source = 'onboarding_demo';
-  }
+  delete sanitized.source;
 
   return sanitized;
 }
 
 async function updateEventWithSchemaFallback({ supabase, eventId, payload }) {
-  const attempts = [payload];
-
-  const withoutSource = { ...payload };
-  delete withoutSource.source;
-  attempts.push(withoutSource);
-
-  const withoutMetadata = { ...payload };
-  delete withoutMetadata.metadata;
-  attempts.push(withoutMetadata);
-
-  const minimal = { ...payload };
-  delete minimal.source;
-  delete minimal.metadata;
-  attempts.push(minimal);
-
-  let lastError = null;
-  for (const attemptPayload of attempts) {
-    const { error } = await supabase
-      .from('events')
-      .update(attemptPayload)
-      .eq('id', eventId);
-
-    if (!error) return;
-
-    lastError = error;
-    const message = String(error?.message || error?.details || '').toLowerCase();
-    const isMissingColumn = message.includes('schema cache') || message.includes('could not find') || message.includes('does not exist');
-    if (!isMissingColumn) throw error;
-  }
-
-  if (lastError) throw lastError;
+  const { error } = await supabase.from('events').update(payload).eq('id', eventId);
+  if (error) throw error;
 }
 
 async function syncEventSnapshotFromPrecontract({ supabase, precontract }) {
@@ -223,25 +175,12 @@ async function syncEventSnapshotFromPrecontract({ supabase, precontract }) {
     card_due_date: precontract?.card_due_date || null,
     reception_formation: precontract?.reception_formation || null,
     reception_instruments: precontract?.reception_instruments || null,
-    ...(isOnboardingDemoPayload(precontract)
-      ? {
-          source: 'onboarding_demo',
-          metadata: { is_onboarding_demo: true },
-        }
-      : {}),
   };
 
   const precontractEventType = String(precontract?.event_type || '').trim();
+  if (precontractEventType) eventUpdatePayload.event_type = precontractEventType;
 
-  if (precontractEventType) {
-    eventUpdatePayload.event_type = precontractEventType;
-  }
-
-  await updateEventWithSchemaFallback({
-    supabase,
-    eventId,
-    payload: eventUpdatePayload,
-  });
+  await updateEventWithSchemaFallback({ supabase, eventId, payload: eventUpdatePayload });
 
   await createPaymentScheduleForPrecontract({
     supabase,
@@ -281,11 +220,7 @@ export async function GET(request) {
 
     if (error) throw error;
 
-    return NextResponse.json({
-      ok: true,
-      data: data || [],
-      workspaceId: auth.workspaceId,
-    });
+    return NextResponse.json({ ok: true, data: data || [], workspaceId: auth.workspaceId });
   } catch (error) {
     console.error('[PRECONTRACTS_API][GET][ERROR]', {
       message: error?.message,
@@ -294,10 +229,7 @@ export async function GET(request) {
       code: error?.code,
     });
     return NextResponse.json(
-      {
-        ok: false,
-        message: error?.message || 'Erro inesperado ao carregar pré-contratos.',
-      },
+      { ok: false, message: error?.message || 'Erro inesperado ao carregar pré-contratos.' },
       { status: 500 }
     );
   }
@@ -312,11 +244,6 @@ export async function POST(request) {
       return NextResponse.json({ ok: false, message: auth.error }, { status: auth.status || 401 });
     }
 
-    console.info('[PRECONTRACTS_API][WORKSPACE_CONTEXT]', {
-      workspaceId: auth.workspaceId,
-      source: auth.source,
-    });
-
     const body = await request.json();
     const id = String(body?.id || '').trim();
     const isCreating = !id;
@@ -327,10 +254,7 @@ export async function POST(request) {
 
     if (!eventDateRaw || !eventDate) {
       return NextResponse.json(
-        {
-          ok: false,
-          message: 'Data do evento inválida. Informe uma data válida para continuar.',
-        },
+        { ok: false, message: 'Data do evento inválida. Informe uma data válida para continuar.' },
         { status: 400 }
       );
     }
@@ -357,20 +281,19 @@ export async function POST(request) {
 
     if (isTryingPastDate && !isLegacyUnchangedPastEdit) {
       return NextResponse.json(
-        {
-          ok: false,
-          message: 'Data do evento inválida. Não é permitido salvar datas passadas.',
-        },
+        { ok: false, message: 'Data do evento inválida. Não é permitido salvar datas passadas.' },
         { status: 400 }
       );
     }
 
-    const writePayload = sanitizePrecontractWritePayload(normalizePrecontractFinancialPayload({
-      ...payload,
-      workspace_id: auth.workspaceId,
-      public_token: body?.public_token || null,
-      generated_link: body?.generated_link || null,
-    }));
+    const writePayload = sanitizePrecontractWritePayload(
+      normalizePrecontractFinancialPayload({
+        ...payload,
+        workspace_id: auth.workspaceId,
+        public_token: body?.public_token || null,
+        generated_link: body?.generated_link || null,
+      })
+    );
 
     let data = null;
     if (id) {
@@ -407,10 +330,7 @@ export async function POST(request) {
     }
 
     if (data?.event_id) {
-      await syncEventSnapshotFromPrecontract({
-        supabase,
-        precontract: data,
-      });
+      await syncEventSnapshotFromPrecontract({ supabase, precontract: data });
     }
 
     return NextResponse.json({ ok: true, data });
@@ -422,10 +342,7 @@ export async function POST(request) {
       code: error?.code,
     });
     return NextResponse.json(
-      {
-        ok: false,
-        message: error?.message || 'Erro inesperado ao salvar pré-contrato.',
-      },
+      { ok: false, message: error?.message || 'Erro inesperado ao salvar pré-contrato.' },
       { status: 500 }
     );
   }

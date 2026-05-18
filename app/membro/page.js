@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '../../lib/supabase';
 import MembroHomeTab from '../../components/membro/MembroHomeTab';
 import MembroSolicitacoesTab from '../../components/membro/MembroSolicitacoesTab';
@@ -15,6 +16,7 @@ import MembroRepertorioResumoModal from '../../components/membro/MembroRepertori
 import { buildMemberDashboardData } from '../../lib/membro/membro-invites';
 import { useAppToast } from '../../components/ui/ToastProvider';
 import { useGlobalPlayer } from '../../components/player/GlobalPlayerProvider';
+import OnboardingTourOverlay from '../../components/onboarding/OnboardingTourOverlay';
 
 const DESKTOP_TABS = [
   { key: 'home', label: 'Início', icon: '🏠' },
@@ -55,6 +57,66 @@ const REPERTOIRE_ITEMS_SELECT = [
   'genres',
   'artists',
 ].join(', ');
+
+const MEMBER_PANEL_DEMO_STEPS = [
+  {
+    key: 'intro',
+    selector: '[data-onboarding-tour="member-panel-demo-intro"]',
+    title: 'Agora você verá como o músico recebe as informações do evento.',
+    description:
+      'Este modo guia usa o painel real do membro em preview administrativo, sem disparar convite, WhatsApp ou login real de músico.',
+    placement: 'bottom',
+  },
+  {
+    key: 'upcoming-events',
+    selector: '[data-onboarding-tour="member-upcoming-events"]',
+    title: 'Próximos eventos',
+    description:
+      'O músico visualiza os eventos em que está escalado e consegue acessar rapidamente os dados operacionais.',
+    placement: 'bottom',
+  },
+  {
+    key: 'event-details',
+    selector: '[data-onboarding-tour="member-event-details"]',
+    title: 'Detalhes do evento',
+    description:
+      'Data, horário, local e informações de chegada ficam disponíveis para consulta no dia do evento.',
+    placement: 'bottom',
+  },
+  {
+    key: 'assigned-role',
+    selector: '[data-onboarding-tour="member-assigned-role"]',
+    title: 'Escala e função atribuída',
+    description:
+      'A formação inteligente aparece para o membro com a função prevista na escala demo.',
+    placement: 'bottom',
+  },
+  {
+    key: 'attendance-confirmation',
+    selector: '[data-onboarding-tour="member-attendance-confirmation"]',
+    title: 'Confirmação de presença',
+    description:
+      'Aqui o músico entende o status de participação. No modo demo nenhum convite real é enviado ou respondido.',
+    placement: 'bottom',
+  },
+  {
+    key: 'client-repertoire',
+    selector: '[data-onboarding-tour="member-client-repertoire"]',
+    title: 'Repertório enviado pelo cliente',
+    description:
+      'O repertório que o cliente enviou já aparece para os membros escalados.',
+    placement: 'bottom',
+  },
+  {
+    key: 'references',
+    selector: '[data-onboarding-tour="member-reference-links"]',
+    title: 'Referências e links',
+    description:
+      'Links de YouTube, PDFs e observações ficam agrupados para estudo antes do evento.',
+    placement: 'bottom',
+  },
+];
+
 const CONTRACTS_SELECT = [
   'id',
   'precontract_id',
@@ -440,8 +502,87 @@ function WelcomeSplash({ visible, memberName }) {
   );
 }
 
+
+function MemberPanelDemoIntro({ demoEventId, demoItem, demoScale }) {
+  const repertoireCount = Array.isArray(demoItem?.repertorioItems) ? demoItem.repertorioItems.length : 0;
+  const referencesCount = Array.isArray(demoItem?.youtubeUrls) ? demoItem.youtubeUrls.length : 0;
+
+  return (
+    <section
+      data-onboarding-tour="member-panel-demo-intro"
+      className="rounded-[28px] border border-violet-300/20 bg-[linear-gradient(135deg,rgba(124,58,237,0.22),rgba(14,20,39,0.95))] p-5 text-white shadow-[0_22px_70px_rgba(0,0,0,0.28)]"
+    >
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="max-w-3xl">
+          <div className="inline-flex rounded-full border border-violet-200/20 bg-violet-400/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-violet-100">
+            Tour do painel do membro
+          </div>
+          <h2 className="mt-3 text-[28px] font-black tracking-[-0.05em] md:text-[34px]">
+            Agora você verá como o músico recebe as informações do evento.
+          </h2>
+          <p className="mt-3 text-[14px] font-semibold leading-7 text-white/68">
+            Esta é uma prévia administrativa do painel real do membro para o evento demo. Ela preserva o evento e não dispara convites, WhatsApp ou respostas reais.
+          </p>
+        </div>
+
+        <div className="grid min-w-[240px] gap-2 text-[12px] font-black uppercase tracking-[0.1em] text-white/70">
+          <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
+            Evento demo: <span className="text-white">{demoEventId ? 'carregado' : 'não informado'}</span>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
+            Função: <span className="text-white">{demoScale?.role || demoItem?.suggestedRoleName || demoItem?.formation || 'escala demo'}</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <div data-onboarding-tour="member-upcoming-events" className="rounded-[20px] border border-white/10 bg-white/[0.06] p-4">
+          <div className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-100/75">Próximos eventos</div>
+          <div className="mt-2 text-[20px] font-black">{demoItem?.clientName || 'Evento demo'}</div>
+          <p className="mt-1 text-[13px] leading-6 text-white/60">O evento escalado aparece na agenda do músico.</p>
+        </div>
+
+        <div data-onboarding-tour="member-event-details" className="rounded-[20px] border border-white/10 bg-white/[0.06] p-4">
+          <div className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-100/75">Detalhes do evento</div>
+          <div className="mt-2 text-[15px] font-black">{demoItem?.eventDate || 'Data'} • {demoItem?.eventTime || 'Horário'}</div>
+          <p className="mt-1 text-[13px] leading-6 text-white/60">{demoItem?.locationName || 'Local informado no evento demo.'}</p>
+        </div>
+
+        <div data-onboarding-tour="member-assigned-role" className="rounded-[20px] border border-white/10 bg-white/[0.06] p-4">
+          <div className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-100/75">Escala/função</div>
+          <div className="mt-2 text-[20px] font-black">{demoScale?.role || demoItem?.suggestedRoleName || demoItem?.formation || 'Membro escalado'}</div>
+          <p className="mt-1 text-[13px] leading-6 text-white/60">Função atribuída pela formação inteligente.</p>
+        </div>
+
+        <div data-onboarding-tour="member-attendance-confirmation" className="rounded-[20px] border border-white/10 bg-white/[0.06] p-4">
+          <div className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-100/75">Confirmação de presença</div>
+          <div className="mt-2 text-[20px] font-black">Confirmado</div>
+          <p className="mt-1 text-[13px] leading-6 text-white/60">Preview sem envio de convite real.</p>
+        </div>
+
+        <div data-onboarding-tour="member-client-repertoire" className="rounded-[20px] border border-white/10 bg-white/[0.06] p-4">
+          <div className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-100/75">Repertório do cliente</div>
+          <div className="mt-2 text-[20px] font-black">{repertoireCount} itens</div>
+          <p className="mt-1 text-[13px] leading-6 text-white/60">O repertório enviado pelo cliente já aparece para os membros escalados.</p>
+        </div>
+
+        <div data-onboarding-tour="member-reference-links" className="rounded-[20px] border border-white/10 bg-white/[0.06] p-4">
+          <div className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-100/75">Referências/links</div>
+          <div className="mt-2 text-[20px] font-black">{referencesCount} links</div>
+          <p className="mt-1 text-[13px] leading-6 text-white/60">Referências musicais e materiais ficam agrupados para estudo.</p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function MembroPage() {
   const authBootstrappedRef = useRef(false);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const guide = String(searchParams?.get('guide') || '').trim().toLowerCase();
+  const demoEventId = String(searchParams?.get('eventId') || '').trim();
+  const isMemberPanelDemoGuide = guide === 'member-panel-demo';
 
   const [sessionChecked, setSessionChecked] = useState(false);
   const [member, setMember] = useState(null);
@@ -487,6 +628,7 @@ export default function MembroPage() {
   const [scaleModalOpen, setScaleModalOpen] = useState(false);
   const [scaleModalEvent, setScaleModalEvent] = useState(null);
   const [scaleModalMusicians, setScaleModalMusicians] = useState([]);
+  const [demoScaleRows, setDemoScaleRows] = useState([]);
 
   const [repertorioResumoOpen, setRepertorioResumoOpen] = useState(false);
   const [repertorioResumoItem, setRepertorioResumoItem] = useState(null);
@@ -590,7 +732,7 @@ export default function MembroPage() {
         ] = await Promise.all([
           supabase
             .from('event_musicians')
-            .select('event_id'),
+            .select('id, event_id, musician_id, musician_name, snapshot_name, role, status, notes'),
           supabase
             .from('invites')
             .select('event_id')
@@ -631,13 +773,22 @@ export default function MembroPage() {
           repertoireItems: repertoireItemsResp.data?.length || 0,
         });
 
-        const operationalEventIds = Array.from(
-          new Set(
-            [...(scalesResp.data || []), ...(invitesResp.data || [])]
-              .map((item) => String(item?.event_id || '').trim())
-              .filter(Boolean)
-          )
-        );
+        const selectedDemoEventId = isMemberPanelDemoGuide && demoEventId ? demoEventId : '';
+        const scaleRows = Array.isArray(scalesResp.data) ? scalesResp.data : [];
+        const demoScaleRowsForEvent = selectedDemoEventId
+          ? scaleRows.filter((item) => String(item?.event_id || '').trim() === selectedDemoEventId)
+          : scaleRows;
+        setDemoScaleRows(demoScaleRowsForEvent);
+
+        const operationalEventIds = selectedDemoEventId
+          ? [selectedDemoEventId]
+          : Array.from(
+              new Set(
+                [...scaleRows, ...(invitesResp.data || [])]
+                  .map((item) => String(item?.event_id || '').trim())
+                  .filter(Boolean)
+              )
+            );
         const eventsResp = await supabase
           .from('events')
           .select(`
@@ -662,11 +813,13 @@ export default function MembroPage() {
             .filter(Boolean)
         );
         const operationalEventIdsSet = new Set(operationalEventIds);
-        const relevantEventIds = new Set([
-          ...signedContractEventIds,
-          ...repertoireEventIds,
-          ...operationalEventIdsSet,
-        ]);
+        const relevantEventIds = selectedDemoEventId
+          ? new Set([selectedDemoEventId])
+          : new Set([
+              ...signedContractEventIds,
+              ...repertoireEventIds,
+              ...operationalEventIdsSet,
+            ]);
 
         const adminEvents = (Array.isArray(eventsResp.data) ? eventsResp.data : [])
           .filter((event) => {
@@ -677,23 +830,30 @@ export default function MembroPage() {
             if (!isValidEventDate(event?.event_date)) return false;
             return true;
           });
-        const adminInvites = adminEvents.map((event) => ({
-          id: `admin-event-${event.id}`,
-          event_id: event.id,
-          contact_id: currentMember.id,
-          suggested_role_name: '',
-          message: '',
-          status: 'confirmed',
-          sent_at: event?.created_at || null,
-          responded_at: event?.created_at || null,
-          created_at: event?.created_at || null,
-          events: event,
-          source_flags: {
-            contractSigned: signedContractEventIds.has(String(event?.id || '').trim()),
-            repertoireReady: repertoireEventIds.has(String(event?.id || '').trim()),
-            operationActive: operationalEventIdsSet.has(String(event?.id || '').trim()),
-          },
-        }));
+        const scaleByEventId = new Map(
+          demoScaleRowsForEvent.map((row) => [String(row?.event_id || '').trim(), row])
+        );
+        const adminInvites = adminEvents.map((event) => {
+          const scaleRow = scaleByEventId.get(String(event?.id || '').trim()) || null;
+          return {
+            id: `admin-event-${event.id}`,
+            event_id: event.id,
+            contact_id: currentMember.id,
+            suggested_role_name: scaleRow?.role || scaleRow?.snapshot_name || scaleRow?.musician_name || '',
+            message: scaleRow?.notes || '',
+            status: 'confirmed',
+            sent_at: event?.created_at || null,
+            responded_at: event?.created_at || null,
+            created_at: event?.created_at || null,
+            events: event,
+            source_flags: {
+              contractSigned: signedContractEventIds.has(String(event?.id || '').trim()),
+              repertoireReady: repertoireEventIds.has(String(event?.id || '').trim()),
+              operationActive: operationalEventIdsSet.has(String(event?.id || '').trim()),
+              adminPreview: true,
+            },
+          };
+        });
 
         console.info('[MEMBER_PANEL][ADMIN_BYPASS]', {
           memberId: currentMember.id,
@@ -860,6 +1020,7 @@ export default function MembroPage() {
 
   useEffect(() => {
     if (!member?.id) return;
+    if (isMemberPanelDemoGuide) return;
     if (loadingData) return;
     if (lastWelcomedMemberId === member.id) return;
 
@@ -883,7 +1044,7 @@ export default function MembroPage() {
       clearTimeout(exitTimer);
       clearTimeout(finishTimer);
     };
-  }, [member?.id, loadingData, lastWelcomedMemberId]);
+  }, [member?.id, loadingData, lastWelcomedMemberId, isMemberPanelDemoGuide]);
 
   const dashboard = useMemo(() => {
     return buildMemberDashboardData({
@@ -921,6 +1082,42 @@ export default function MembroPage() {
         (Array.isArray(row?.repertorioItems) && row.repertorioItems.length > 0)
     );
   }, [confirmados]);
+
+  const demoDashboardItem = useMemo(() => {
+    if (!demoEventId) return proximosConfirmados[0] || confirmados[0] || repertorios[0] || null;
+    return (
+      confirmados.find((item) => String(item?.eventId || '').trim() === demoEventId) ||
+      proximosConfirmados.find((item) => String(item?.eventId || '').trim() === demoEventId) ||
+      repertorios.find((item) => String(item?.eventId || '').trim() === demoEventId) ||
+      null
+    );
+  }, [confirmados, demoEventId, proximosConfirmados, repertorios]);
+
+  const demoScaleRow = useMemo(() => {
+    if (!demoEventId) return demoScaleRows[0] || null;
+    return demoScaleRows.find((row) => String(row?.event_id || '').trim() === demoEventId) || demoScaleRows[0] || null;
+  }, [demoEventId, demoScaleRows]);
+
+  async function finishMemberPanelDemoTour() {
+    const targetEventId = demoEventId || demoDashboardItem?.eventId || '';
+    try {
+      await fetch('/api/onboarding/flow-status', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          guide: 'member-panel-demo',
+          flowState: { member_panel_tour_completed: true },
+        }),
+      });
+    } catch (error) {
+      console.warn('[MEMBER_PANEL_DEMO][MARK_ERROR]', error?.message || error);
+    }
+
+    const params = new URLSearchParams({ guide: 'automation-overview' });
+    if (targetEventId) params.set('eventId', targetEventId);
+    router.push(`/automacoes?${params.toString()}`);
+  }
+
 
   useEffect(() => {
     console.log('[MEMBRO_PANEL][EVENTS_MONTH_RESULT]', {
@@ -1526,6 +1723,14 @@ export default function MembroPage() {
             </div>
 
             <div className="space-y-5 md:space-y-6">
+              {isMemberPanelDemoGuide ? (
+                <MemberPanelDemoIntro
+                  demoEventId={demoEventId}
+                  demoItem={demoDashboardItem}
+                  demoScale={demoScaleRow}
+                />
+              ) : null}
+
               {error ? (
                 <div className="rounded-[20px] border border-red-300/15 bg-red-400/10 px-4 py-3 text-[14px] font-semibold text-red-100">
                   {error}
@@ -1656,6 +1861,15 @@ export default function MembroPage() {
         onNext={handleNextTrack}
         onTogglePlay={handleTogglePlaying}
       />
+
+      {isMemberPanelDemoGuide && !loadingData ? (
+        <OnboardingTourOverlay
+          steps={MEMBER_PANEL_DEMO_STEPS}
+          force
+          finalLabel="Ir para automações"
+          onFinish={finishMemberPanelDemoTour}
+        />
+      ) : null}
 
       <MiniPlayerBar
         isMiniPlayerVisible={isMiniPlayerVisible}

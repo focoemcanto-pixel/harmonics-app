@@ -20,7 +20,9 @@ const DEFAULT_PROGRESS = {
 
 const GUIDE_VIEW_MARKS = {
   'member-panel': 'hasMemberPanelViewed',
+  'member-panel-demo': 'hasMemberPanelViewed',
   automations: 'hasAutomationsViewed',
+  'automation-overview': 'hasAutomationsViewed',
   finance: 'hasFinanceViewed',
   'admin-repertoire': 'hasAdminRepertoireViewed',
   'dashboard-demo': 'hasDashboardDemoViewed',
@@ -39,6 +41,7 @@ const ALLOWED_FLOW_STATE_KEYS = new Set([
   'signed_pdf_opened',
   'client_panel_opened',
   'client_panel_tour_completed',
+  'member_panel_tour_completed',
   'returned_to_admin',
   'demo_event_cleanup_completed',
   'onboarding_completed',
@@ -238,7 +241,8 @@ async function collectFacts({ supabase, workspaceId, progress }) {
   ]);
 
   const flowState = progress?.flow_state && typeof progress.flow_state === 'object' ? progress.flow_state : {};
-  const hasMemberPanelViewed = flowState.hasMemberPanelViewed === true;
+  const memberPanelTourCompleted = flowState.member_panel_tour_completed === true;
+  const hasMemberPanelViewed = flowState.hasMemberPanelViewed === true || memberPanelTourCompleted;
   const hasAutomationsViewed = flowState.hasAutomationsViewed === true || progress?.automation_configured === true;
   const hasFinanceViewed = flowState.hasFinanceViewed === true;
   const hasAdminRepertoireViewed = flowState.hasAdminRepertoireViewed === true;
@@ -266,6 +270,7 @@ async function collectFacts({ supabase, workspaceId, progress }) {
     formationTemplateCount: Number(formationTemplatesResp?.count || 0),
     hasScale: hasCount(scaleResp),
     hasMemberPanelViewed,
+    memberPanelTourCompleted,
     hasAutomationsViewed,
     hasFinanceViewed,
     hasAdminRepertoireViewed,

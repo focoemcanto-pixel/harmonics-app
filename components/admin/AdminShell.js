@@ -36,8 +36,18 @@ export default function AdminShell({
     searchParams?.get('guide') === 'precontract' || searchParams?.get('onboarding') === 'precontract'
   );
 
-  const isSetupGuideRoute = pathname === '/contratos/templates' || pathname === '/eventos/tipos' || pathname === '/pre-contratos';
-  const shouldMountRouteGuides = isSetupGuideRoute || forceTemplateGuide || forceEventTypesGuide || forcePrecontractGuide;
+  const isOnboardingGuideRoute = [
+    '/contratos/templates',
+    '/eventos/tipos',
+    '/pre-contratos',
+    '/configuracoes/equipe',
+    '/templates-escala',
+    '/eventos',
+    '/automacoes',
+    '/pagamentos',
+    '/repertorios',
+  ].some((prefix) => pathname === prefix || pathname?.startsWith(`${prefix}/`));
+  const shouldMountRouteGuides = isOnboardingGuideRoute || forceTemplateGuide || forceEventTypesGuide || forcePrecontractGuide;
   const shouldMountDashboardGuide = forceFreshWorkspaceTour;
 
   const mobileActiveItem = useMemo(() => {

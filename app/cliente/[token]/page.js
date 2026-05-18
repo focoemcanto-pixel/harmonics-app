@@ -1786,6 +1786,7 @@ export default async function ClienteTokenPage({ params, searchParams }) {
 
   const data = {
     token: clientToken,
+    eventId: event?.id || eventId || null,
     clienteNome: event.client_name || 'Cliente',
     eventoTitulo: event.client_name
       ? `${eventoTituloPrefix} • ${event.client_name}`

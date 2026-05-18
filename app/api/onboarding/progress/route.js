@@ -27,6 +27,8 @@ const ALL_DONE_PROGRESS = Object.fromEntries(
   Object.keys(DEFAULT_PROGRESS).map((key) => [key, true])
 );
 
+const MIN_VALID_TEMPLATE_CONTENT_LENGTH = 20;
+
 async function ensureProgressRow({ supabase, workspaceId }) {
   const { data: existing, error: existingError } = await supabase
     .from('workspace_onboarding_progress')
@@ -60,6 +62,58 @@ async function safeCount(queryPromise) {
   }
 }
 
+function stripHtml(value) {
+  return String(value || '')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function getTemplateContentLength(template) {
+  return Math.max(
+    stripHtml(template?.content).length,
+    stripHtml(template?.source_text).length,
+    stripHtml(template?.source_rich_html).length
+  );
+}
+
+function isValidContractTemplate(template, workspaceId) {
+  return Boolean(
+    template?.id &&
+    template?.workspace_id &&
+    String(template.workspace_id) === String(workspaceId) &&
+    template?.is_active !== false &&
+    getTemplateContentLength(template) >= MIN_VALID_TEMPLATE_CONTENT_LENGTH
+  );
+}
+
+async function safeList(queryPromise) {
+  try {
+    const response = await queryPromise;
+    if (response?.error) return [];
+    return response?.data || [];
+  } catch (error) {
+    console.warn('[ONBOARDING_PROGRESS][SAFE_LIST_ERROR]', error?.message || error);
+    return [];
+  }
+}
+
+async function hasValidContractTemplate({ supabase, workspaceId }) {
+  const templates = await safeList(
+    supabase
+      .from('contract_templates')
+      .select('id, workspace_id, content, source_text, source_rich_html, is_active')
+      .eq('workspace_id', workspaceId)
+      .eq('is_active', true)
+      .limit(100)
+  );
+
+  return templates.some((template) => isValidContractTemplate(template, workspaceId));
+}
+
 async function getWorkspaceInfo({ supabase, workspaceId }) {
   const { data, error } = await supabase
     .from('workspaces')
@@ -85,7 +139,7 @@ function isLegacyWorkspace(workspace) {
 
 async function detectWorkspaceProgress({ supabase, workspaceId }) {
   const [
-    templatesResp,
+    hasTemplate,
     eventTypesResp,
     precontractsResp,
     signedContractsResp,
@@ -93,12 +147,7 @@ async function detectWorkspaceProgress({ supabase, workspaceId }) {
     channelsResp,
     membersResp,
   ] = await Promise.all([
-    safeCount(
-      supabase
-        .from('contract_templates')
-        .select('id', { count: 'exact', head: true })
-        .eq('workspace_id', workspaceId)
-    ),
+    hasValidContractTemplate({ supabase, workspaceId }),
     safeCount(
       supabase
         .from('event_types')
@@ -140,7 +189,7 @@ async function detectWorkspaceProgress({ supabase, workspaceId }) {
 
   return {
     workspace_configured: false,
-    template_created: hasCount(templatesResp),
+    template_created: hasTemplate,
     event_type_created: hasCount(eventTypesResp),
     precontract_created: hasCount(precontractsResp),
     contract_signed_test: hasCount(signedContractsResp),

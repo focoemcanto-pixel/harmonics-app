@@ -30,7 +30,10 @@ const GUIDE_VIEW_MARKS = {
   'client-contract-success': 'client_contract_signed',
   'client-panel': 'client_panel_opened',
   'cleanup-fake-event': 'returned_to_admin',
+  template: 'contract_template_completed',
 };
+
+const MIN_VALID_TEMPLATE_CONTENT_LENGTH = 20;
 
 const ALLOWED_FLOW_STATE_KEYS = new Set([
   'client_contract_opened',
@@ -42,6 +45,7 @@ const ALLOWED_FLOW_STATE_KEYS = new Set([
   'returned_to_admin',
   'demo_event_cleanup_completed',
   'onboarding_completed',
+  'contract_template_completed',
 ]);
 
 function hasCount(response) {
@@ -73,6 +77,80 @@ async function safeList(queryPromise, label) {
     return [];
   }
   return response?.data || [];
+}
+
+function stripHtml(value) {
+  return String(value || '')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function getTemplateContentLength(template) {
+  const content = stripHtml(template?.content);
+  const sourceText = stripHtml(template?.source_text);
+  const sourceRichHtml = stripHtml(template?.source_rich_html);
+  return Math.max(content.length, sourceText.length, sourceRichHtml.length);
+}
+
+function isValidContractTemplate(template, workspaceId) {
+  return Boolean(
+    template?.id &&
+    template?.workspace_id &&
+    String(template.workspace_id) === String(workspaceId) &&
+    template?.is_active !== false &&
+    getTemplateContentLength(template) >= MIN_VALID_TEMPLATE_CONTENT_LENGTH
+  );
+}
+
+async function getValidContractTemplateCount({ supabase, workspaceId }) {
+  const templates = await safeList(
+    supabase
+      .from('contract_templates')
+      .select('id, workspace_id, content, source_text, source_rich_html, is_active')
+      .eq('workspace_id', workspaceId)
+      .eq('is_active', true)
+      .limit(100),
+    'contract_templates.valid'
+  );
+
+  return templates.filter((template) => isValidContractTemplate(template, workspaceId)).length;
+}
+
+async function syncContractTemplateCompletion({ supabase, workspaceId, progress, hasValidContractTemplate }) {
+  if (!hasValidContractTemplate) return progress;
+
+  const flowState = progress?.flow_state && typeof progress.flow_state === 'object' ? progress.flow_state : {};
+  if (progress?.template_created === true && flowState.contract_template_completed === true) return progress;
+
+  const nextFlowState = {
+    ...flowState,
+    contract_template_completed: true,
+    updatedAt: new Date().toISOString(),
+  };
+
+  const updatePayload = {
+    template_created: true,
+    flow_state: nextFlowState,
+    updated_at: new Date().toISOString(),
+  };
+
+  const { data: updated, error } = await supabase
+    .from('workspace_onboarding_progress')
+    .update(updatePayload)
+    .eq('workspace_id', workspaceId)
+    .select('*')
+    .single();
+
+  if (error) {
+    console.warn('[ONBOARDING_FLOW_STATUS][TEMPLATE_PROGRESS_SYNC_ERROR]', { message: error?.message, code: error?.code });
+    return progress;
+  }
+
+  return updated || progress;
 }
 
 function isDemoEvent(event) {
@@ -147,8 +225,8 @@ async function collectFacts({ supabase, workspaceId, progress }) {
   const demoEvent = await getDemoEvent({ supabase, workspaceId });
   const demoEventId = demoEvent?.id || null;
 
-  const [templatesResp, eventTypesResp, precontractsResp, signedContractsResp, membersResp, formationTemplatesResp, scaleResp, repertoireResp] = await Promise.all([
-    safeCount(supabase.from('contract_templates').select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId), 'contract_templates'),
+  const [validContractTemplateCount, eventTypesResp, precontractsResp, signedContractsResp, membersResp, formationTemplatesResp, scaleResp, repertoireResp] = await Promise.all([
+    getValidContractTemplateCount({ supabase, workspaceId }),
     safeCount(supabase.from('event_types').select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId), 'event_types'),
     safeCount(supabase.from('precontracts').select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId), 'precontracts'),
     safeCount(supabase.from('contracts').select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId).in('status', ['signed', 'assinado', 'ASSINADO']), 'contracts.signed'),
@@ -182,7 +260,7 @@ async function collectFacts({ supabase, workspaceId, progress }) {
   return {
     workspaceId,
     demoEventId,
-    hasContractTemplate: progress?.template_created === true || hasCount(templatesResp),
+    hasContractTemplate: validContractTemplateCount > 0,
     hasEventType: progress?.event_type_created === true || hasCount(eventTypesResp),
     hasPrecontract: progress?.precontract_created === true || hasCount(precontractsResp),
     hasSignedContract: progress?.contract_signed_test === true || hasCount(signedContractsResp),
@@ -216,8 +294,12 @@ export async function GET(request) {
       return NextResponse.json({ ok: false, error: auth.error }, { status: auth.status || 401 });
     }
 
-    const progress = await ensureProgressRow({ supabase, workspaceId: auth.workspaceId });
-    const facts = await collectFacts({ supabase, workspaceId: auth.workspaceId, progress });
+    let progress = await ensureProgressRow({ supabase, workspaceId: auth.workspaceId });
+    let facts = await collectFacts({ supabase, workspaceId: auth.workspaceId, progress });
+    progress = await syncContractTemplateCompletion({ supabase, workspaceId: auth.workspaceId, progress, hasValidContractTemplate: facts.hasContractTemplate });
+    if (progress?.template_created === true && facts.hasContractTemplate !== true) {
+      facts = await collectFacts({ supabase, workspaceId: auth.workspaceId, progress });
+    }
     const flow = buildOnboardingFlowStatus(facts);
 
     return NextResponse.json({
@@ -269,7 +351,11 @@ export async function PATCH(request) {
 
     const { data: updated, error } = await supabase
       .from('workspace_onboarding_progress')
-      .update({ flow_state: nextFlowState, updated_at: new Date().toISOString() })
+      .update({
+        ...(guide === 'template' || sanitizedFlowState.contract_template_completed === true ? { template_created: true } : {}),
+        flow_state: nextFlowState,
+        updated_at: new Date().toISOString(),
+      })
       .eq('workspace_id', auth.workspaceId)
       .select('*')
       .single();

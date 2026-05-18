@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { canStartOnboardingGuide, normalizeOnboardingGuide } from '@/lib/onboarding/onboarding-flow';
 import { useOnboardingSession } from '@/contexts/OnboardingSessionContext';
@@ -42,7 +42,7 @@ export function OnboardingFlowProvider({ children }) {
   const [loading, setLoading] = useState(false);
   const guide = getGuideFromSearchParams(searchParams);
 
-  async function refresh() {
+  const refresh = useCallback(async () => {
     setLoading(true);
     try {
       const response = await fetch('/api/onboarding/flow-status', { cache: 'no-store' });
@@ -56,12 +56,12 @@ export function OnboardingFlowProvider({ children }) {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     if (!guide) return;
     void refresh();
-  }, [guide, pathname]);
+  }, [guide, pathname, refresh]);
 
   useEffect(() => {
     if (!guide || !status?.ok) return;
@@ -82,7 +82,7 @@ export function OnboardingFlowProvider({ children }) {
       });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [guide, pathname, router, searchParams, status?.ok]);
+  }, [guide, pathname, router, searchParams, status?.hasContractTemplate, status?.ok]);
 
   useEffect(() => {
     if (!guide || !hasCompetingOnboarding?.(guide)) return;
@@ -93,7 +93,7 @@ export function OnboardingFlowProvider({ children }) {
     router.replace(query ? `${pathname}?${query}` : pathname);
   }, [guide, hasCompetingOnboarding, pathname, router, searchParams]);
 
-  const value = useMemo(() => ({ status, loading, refresh }), [loading, status]);
+  const value = useMemo(() => ({ status, loading, refresh }), [loading, refresh, status]);
 
   return (
     <OnboardingFlowContext.Provider value={value}>

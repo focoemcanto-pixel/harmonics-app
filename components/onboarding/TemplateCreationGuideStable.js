@@ -4,8 +4,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { markOnboardingStepClient } from '@/lib/onboarding/markOnboardingStepClient';
 import { useOnboardingSession } from '@/contexts/OnboardingSessionContext';
+import { useOnboardingFlow } from '@/components/onboarding/OnboardingFlowProvider';
 
 const GUIDE_ID = 'template';
+const NEXT_GUIDE_HREF = '/eventos/tipos?guide=event-types';
 
 const STEPS = [
   {
@@ -246,6 +248,7 @@ export default function TemplateCreationGuideStable({ enabled = false }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { onboardingSession, startOnboardingSession, endOnboardingSession } = useOnboardingSession();
+  const { status: flowStatus, loading: flowLoading, refresh: refreshFlowStatus } = useOnboardingFlow();
   const [active, setActive] = useState(false);
   const [index, setIndex] = useState(0);
   const [targetRect, setTargetRect] = useState(null);
@@ -259,6 +262,8 @@ export default function TemplateCreationGuideStable({ enabled = false }) {
   const step = STEPS[index];
   const shouldForce = searchParams?.get('guide') === 'template' || searchParams?.get('onboarding') === 'template';
   const sessionKey = useMemo(() => 'harmonics:template-guide-stable:v4', []);
+  const shouldSkipCompletedTemplateGuide = flowStatus?.ok === true && flowStatus.hasContractTemplate === true;
+  const isCheckingTemplateProgress = pathname === '/contratos/templates' && (flowLoading || !flowStatus?.ok);
 
   useEffect(() => {
     if (!active) return undefined;
@@ -273,11 +278,40 @@ export default function TemplateCreationGuideStable({ enabled = false }) {
     clearGuideQuery();
     setActive(false);
     await markOnboardingStepClient('template_created', true);
-    router.push('/eventos/tipos?guide=event-types');
+    await fetch('/api/onboarding/flow-status', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ guide: GUIDE_ID, flowState: { contract_template_completed: true } }),
+    }).catch((error) => {
+      console.warn('[TemplateCreationGuideStable] flow status completion sync failed', error?.message || error);
+    });
+    router.push(NEXT_GUIDE_HREF);
   }, [router, sessionKey]);
 
   useEffect(() => {
     if (!enabled || pathname !== '/contratos/templates') return;
+    void refreshFlowStatus?.();
+  }, [enabled, pathname, refreshFlowStatus]);
+
+  useEffect(() => {
+    if (!enabled || pathname !== '/contratos/templates' || !shouldForce || !shouldSkipCompletedTemplateGuide) return;
+    sessionStorage.setItem(sessionKey, 'skipped');
+    clearGuideQuery();
+    void markOnboardingStepClient('template_created', true);
+    fetch('/api/onboarding/flow-status', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ guide: GUIDE_ID, flowState: { contract_template_completed: true } }),
+    }).catch((error) => {
+      console.warn('[TemplateCreationGuideStable] flow status completion sync failed', error?.message || error);
+    });
+    const timer = setTimeout(() => router.replace(NEXT_GUIDE_HREF), 250);
+    return () => clearTimeout(timer);
+  }, [enabled, pathname, router, sessionKey, shouldForce, shouldSkipCompletedTemplateGuide]);
+
+  useEffect(() => {
+    if (!enabled || pathname !== '/contratos/templates') return;
+    if (shouldSkipCompletedTemplateGuide || isCheckingTemplateProgress) return;
     if (!shouldForce && sessionStorage.getItem(sessionKey) === 'skipped') return;
 
     if (shouldForce) {
@@ -291,7 +325,7 @@ export default function TemplateCreationGuideStable({ enabled = false }) {
 
     const timer = setTimeout(() => setActive(true), 350);
     return () => clearTimeout(timer);
-  }, [enabled, pathname, sessionKey, shouldForce]);
+  }, [enabled, isCheckingTemplateProgress, pathname, sessionKey, shouldForce, shouldSkipCompletedTemplateGuide]);
 
   useEffect(() => {
     if (!active || !step) return;
@@ -362,7 +396,17 @@ export default function TemplateCreationGuideStable({ enabled = false }) {
     return () => window.removeEventListener('harmonics:contract-template-saved', handleTemplateSaved);
   }, [active, completeAndRedirect, enabled, pathname]);
 
-  if (!enabled || pathname !== '/contratos/templates' || !active || !step || isBlockedByAnotherOnboarding) return null;
+  if (enabled && pathname === '/contratos/templates' && shouldForce && (isCheckingTemplateProgress || shouldSkipCompletedTemplateGuide)) {
+    return (
+      <div className="fixed inset-0 z-[260] flex items-center justify-center bg-slate-950/20 px-4 backdrop-blur-[2px]">
+        <div className="rounded-3xl border border-violet-100 bg-white px-5 py-4 text-sm font-black text-violet-700 shadow-[0_20px_70px_rgba(15,23,42,0.22)]">
+          Validando progresso do onboarding...
+        </div>
+      </div>
+    );
+  }
+
+  if (!enabled || pathname !== '/contratos/templates' || shouldSkipCompletedTemplateGuide || isCheckingTemplateProgress || !active || !step || isBlockedByAnotherOnboarding) return null;
 
   function skipGuide() {
     sessionStorage.setItem(sessionKey, 'skipped');

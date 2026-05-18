@@ -1,11 +1,14 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requireWorkspaceAccess } from '@/lib/api/require-workspace-access';
+import { MIN_FAKE_MEMBERS, ONBOARDING_DEMO_NOTE_MARKER } from '@/lib/onboarding/fakeMembers';
 
 const STEP_HREFS = {
   contract_template: '/contratos/templates?guide=template',
   event_type: '/eventos/tipos?guide=event-types',
   precontract: '/pre-contratos?guide=precontract',
+  fake_members: '/configuracoes/equipe?guide=fake-members',
+  formation_template: '/templates-escala?guide=formation-template',
   done: '/dashboard',
 };
 
@@ -27,11 +30,36 @@ async function safeCount(queryPromise, label) {
   }
 }
 
-function getNextRequiredStep({ hasContractTemplate, hasEventType, hasPrecontract }) {
+function getNextRequiredStep({ hasContractTemplate, hasEventType, hasPrecontract, hasFakeMembers }) {
   if (!hasContractTemplate) return 'contract_template';
   if (!hasEventType) return 'event_type';
   if (!hasPrecontract) return 'precontract';
-  return 'done';
+  if (!hasFakeMembers) return 'fake_members';
+  return 'formation_template';
+}
+
+async function countFakeMembers({ supabase, workspaceId }) {
+  const baseQuery = () => supabase
+    .from('contacts')
+    .select('id', { count: 'exact', head: true })
+    .eq('workspace_id', workspaceId)
+    .eq('is_active', true)
+    .in('contact_type', ['musician', 'staff']);
+
+  const richResponse = await safeCount(
+    baseQuery().or(`notes.ilike.%${ONBOARDING_DEMO_NOTE_MARKER}%,source.eq.onboarding_demo`),
+    'fake_members',
+  );
+
+  if (!richResponse.error) return richResponse;
+
+  const message = `${richResponse.error?.message || ''} ${richResponse.error?.details || ''} ${richResponse.error?.hint || ''}`;
+  if (!/source|schema cache|column/i.test(message)) return richResponse;
+
+  return safeCount(
+    baseQuery().ilike('notes', `%${ONBOARDING_DEMO_NOTE_MARKER}%`),
+    'fake_members_notes_fallback',
+  );
 }
 
 export async function GET(request) {
@@ -51,7 +79,7 @@ export async function GET(request) {
       );
     }
 
-    const [templatesResp, eventTypesResp, precontractsResp] = await Promise.all([
+    const [templatesResp, eventTypesResp, precontractsResp, fakeMembersResp] = await Promise.all([
       safeCount(
         supabase
           .from('contract_templates')
@@ -73,12 +101,16 @@ export async function GET(request) {
           .eq('workspace_id', auth.workspaceId),
         'precontracts',
       ),
+      countFakeMembers({ supabase, workspaceId: auth.workspaceId }),
     ]);
 
     const hasContractTemplate = hasCount(templatesResp);
     const hasEventType = hasCount(eventTypesResp);
     const hasPrecontract = hasCount(precontractsResp);
-    const nextRequiredStep = getNextRequiredStep({ hasContractTemplate, hasEventType, hasPrecontract });
+    const fakeMembersCount = Number(fakeMembersResp?.count || 0);
+    const hasFakeMembers = fakeMembersCount >= MIN_FAKE_MEMBERS;
+    const nextRequiredStep = getNextRequiredStep({ hasContractTemplate, hasEventType, hasPrecontract, hasFakeMembers });
+    const nextStep = hasFakeMembers ? 'formation_template' : nextRequiredStep;
 
     return NextResponse.json({
       ok: true,
@@ -86,6 +118,10 @@ export async function GET(request) {
       hasContractTemplate,
       hasEventType,
       hasPrecontract,
+      hasFakeMembers,
+      fakeMembersCount,
+      minFakeMembers: MIN_FAKE_MEMBERS,
+      nextStep,
       nextRequiredStep,
       nextHref: STEP_HREFS[nextRequiredStep],
     });

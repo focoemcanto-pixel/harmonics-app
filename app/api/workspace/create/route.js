@@ -89,14 +89,38 @@ async function resetOnboardingProgressForWorkspace({ supabase, workspaceId }) {
     updated_at: now,
   };
 
-  const { error } = await supabase
+  const fallbackPayload = {
+    workspace_id: workspaceId,
+    completed_at: null,
+    flow_state: progressPayload.flow_state,
+    updated_at: now,
+  };
+
+  const minimalPayload = {
+    workspace_id: workspaceId,
+    flow_state: progressPayload.flow_state,
+  };
+
+  let response = await supabase
     .from('workspace_onboarding_progress')
     .upsert(progressPayload, { onConflict: 'workspace_id' });
 
-  if (error) {
+  if (response.error && isMissingColumnError(response.error)) {
+    response = await supabase
+      .from('workspace_onboarding_progress')
+      .upsert(fallbackPayload, { onConflict: 'workspace_id' });
+  }
+
+  if (response.error && isMissingColumnError(response.error)) {
+    response = await supabase
+      .from('workspace_onboarding_progress')
+      .upsert(minimalPayload, { onConflict: 'workspace_id' });
+  }
+
+  if (response.error) {
     console.warn('[WORKSPACE_CREATE][ONBOARDING_RESET_FAILED]', {
-      message: error?.message,
-      code: error?.code || null,
+      message: response.error?.message,
+      code: response.error?.code || null,
     });
   }
 }
@@ -207,7 +231,7 @@ export async function POST(request) {
       workspaceId: bootstrap.workspace.id,
     });
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       ok: true,
       user: {
         id: user.id,
@@ -221,6 +245,20 @@ export async function POST(request) {
       subscription: bootstrap.subscription,
       next: '/dashboard?onboarding=fresh-workspace',
     });
+
+    const cookieOptions = {
+      httpOnly: false,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      path: '/',
+      maxAge: 60 * 60 * 24 * 365,
+    };
+
+    response.cookies.set('workspace_id', bootstrap.workspace.id, cookieOptions);
+    response.cookies.set('current_workspace_id', bootstrap.workspace.id, cookieOptions);
+    response.cookies.set('harmonics_workspace_id', bootstrap.workspace.id, cookieOptions);
+
+    return response;
   } catch (error) {
     console.error('[WORKSPACE_CREATE][ERROR]', {
       message: error?.message,

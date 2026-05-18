@@ -339,14 +339,19 @@ export async function PATCH(request) {
 
     const updated = response?.data || { ...progress, flow_state: nextFlowState };
     const facts = await countFacts({ supabase, workspaceId: auth.workspaceId, progress: updated });
-    const flow = buildFallbackFlow(facts);
+    const primaryWorkspace = isPrimaryHarmonicsWorkspace(auth.workspace);
+    const onboardingEnabled = primaryWorkspace
+      ? false
+      : nextFlowState.onboarding_enabled === true || nextFlowState.workspace_created_for_onboarding === true;
+    const flow = buildFallbackFlow({ ...facts, onboardingEnabled });
 
     return NextResponse.json({
       ok: true,
       workspaceId: auth.workspaceId,
       progress: updated,
       flow_state: nextFlowState,
-      onboardingEnabled: nextFlowState.onboarding_enabled === true || nextFlowState.workspace_created_for_onboarding === true,
+      onboardingEnabled,
+      primaryWorkspace,
       ...facts,
       ...flow,
     });

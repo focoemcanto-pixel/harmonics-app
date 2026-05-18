@@ -130,12 +130,29 @@ export async function POST(request) {
       },
     });
 
+    const completionTimestamp = new Date().toISOString();
+    const { data: existingProgress } = await supabase
+      .from('workspace_onboarding_progress')
+      .select('flow_state')
+      .eq('workspace_id', auth.workspaceId)
+      .maybeSingle();
+    const previousFlowState = existingProgress?.flow_state && typeof existingProgress.flow_state === 'object'
+      ? existingProgress.flow_state
+      : {};
+
     await supabase
       .from('workspace_onboarding_progress')
       .upsert({
         workspace_id: auth.workspaceId,
         workspace_configured: true,
-        updated_at: new Date().toISOString(),
+        flow_state: {
+          ...previousFlowState,
+          onboarding_enabled: false,
+          onboarding_completed: true,
+          updatedAt: completionTimestamp,
+        },
+        completed_at: completionTimestamp,
+        updated_at: completionTimestamp,
       }, { onConflict: 'workspace_id' })
       .then?.(() => null);
 

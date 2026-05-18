@@ -123,12 +123,16 @@ export default function DeferredOnboardingMount({
         }
 
         const data = await response.json();
-        const flowState = data?.flow_state || {};
+        const enabled = data?.onboardingEnabled === true;
 
-        const enabled = Boolean(
-          flowState?.onboarding_enabled === true ||
-          flowState?.workspace_created_for_onboarding === true
-        );
+        if (process.env.NODE_ENV !== 'production') {
+          console.debug('[ONBOARDING][DeferredOnboardingMount]', {
+            workspaceId: data?.workspaceId || null,
+            onboardingEnabled: enabled,
+            reason: enabled ? 'flow-status-enabled' : 'flow-status-disabled',
+            path: pathname || null,
+          });
+        }
 
         if (active) {
           setOnboardingEnabled(enabled);
@@ -149,7 +153,7 @@ export default function DeferredOnboardingMount({
     return () => {
       active = false;
     };
-  }, [mounted]);
+  }, [mounted, pathname]);
 
   const requestedGuide = useMemo(() => {
     const guideQuery = searchParams?.get('guide');
@@ -163,7 +167,7 @@ export default function DeferredOnboardingMount({
     return null;
   }
 
-  const hasDynamicGuideQuery = GUIDE_KEYS.includes(requestedGuide);
+  const hasDynamicGuideQuery = onboardingEnabled && GUIDE_KEYS.includes(requestedGuide);
   const isGuideActive = Boolean(onboardingSession.activeGuide) || hasDynamicGuideQuery;
   const freshWorkspace = requestedGuide === 'fresh-workspace' || searchParams?.get('tour') === 'workspace-created';
 

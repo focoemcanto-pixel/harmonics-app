@@ -54,6 +54,17 @@ function hasCount(response) {
   return Number(response?.count || 0) > 0;
 }
 
+function isPrimaryHarmonicsWorkspace(workspace) {
+  const key = String(workspace?.key || '').trim().toLowerCase();
+  const slug = String(workspace?.slug || '').trim().toLowerCase();
+  const name = String(workspace?.name || '').trim().toLowerCase();
+
+  if (key === 'default') return true;
+  if (slug === 'harmonics-producao') return true;
+  if (name.includes('harmonics') && (slug === 'harmonics-producao' || key === 'default')) return true;
+  return false;
+}
+
 async function safeCount(queryPromise, label) {
   const response = await queryPromise;
   if (response?.error) {
@@ -306,12 +317,19 @@ export async function GET(request) {
     }
     const flow = buildOnboardingFlowStatus(facts);
 
+    const flowState = progress?.flow_state && typeof progress.flow_state === 'object' ? progress.flow_state : {};
+    const primaryWorkspace = isPrimaryHarmonicsWorkspace(auth.workspace);
+    const onboardingEnabled = primaryWorkspace
+      ? false
+      : Boolean(flowState?.onboarding_enabled === true || flowState?.workspace_created_for_onboarding === true);
+
     return NextResponse.json({
       ok: true,
       progress,
-      flow_state: progress?.flow_state && typeof progress.flow_state === 'object' ? progress.flow_state : {},
-      onboardingEnabled: Boolean(progress?.flow_state?.onboarding_enabled === true || progress?.flow_state?.workspace_created_for_onboarding === true),
+      flow_state: flowState,
+      workspaceId: auth.workspaceId,
       ...facts,
+      onboardingEnabled,
       ...flow,
     });
   } catch (error) {

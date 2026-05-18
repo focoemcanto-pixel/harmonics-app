@@ -80,6 +80,12 @@ async function resetOnboardingProgressForWorkspace({ supabase, workspaceId }) {
     automation_configured: false,
     team_configured: false,
     completed_at: null,
+    flow_state: {
+      onboarding_enabled: true,
+      workspace_created_for_onboarding: true,
+      onboarding_started_at: now,
+      updatedAt: now,
+    },
     updated_at: now,
   };
 

@@ -88,7 +88,7 @@ export default function DeferredOnboardingMount({
   const guideQuery = searchParams?.get('guide');
   const onboardingQuery = searchParams?.get('onboarding');
   const requestedGuide = guideQuery || onboardingQuery;
-  const hasDynamicGuideQuery = ['template', 'event-types', 'precontract', 'client-panel', 'fake-members', 'formation-template', 'scale', 'member-panel', 'automations', 'finance', 'admin-repertoire', 'dashboard-demo', 'cleanup-fake-event'].includes(requestedGuide);
+  const hasDynamicGuideQuery = ['template', 'event-types', 'precontract', 'client-panel', 'fake-members', 'formation-template', 'scale', 'member-panel', 'automations', 'finance', 'admin-repertoire', 'dashboard-demo', 'cleanup-fake-event', 'scale-with-formation'].includes(requestedGuide);
   const isGuideActive = Boolean(onboardingSession.activeGuide) || hasDynamicGuideQuery;
   const freshWorkspace = onboardingQuery === 'fresh-workspace' || searchParams?.get('tour') === 'workspace-created';
 

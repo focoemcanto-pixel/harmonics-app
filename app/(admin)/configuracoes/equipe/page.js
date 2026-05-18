@@ -155,7 +155,7 @@ function EquipeContent() {
   const formationGuideHref = useMemo(() => {
     const params = new URLSearchParams({ guide: 'formation-template' });
     if (demoEventId) params.set('eventId', demoEventId);
-    return `/templates-escala?${params.toString()}`;
+    return `/escalas/templates?${params.toString()}`;
   }, [demoEventId]);
 
   const carregarFakeGuide = useCallback(async () => {

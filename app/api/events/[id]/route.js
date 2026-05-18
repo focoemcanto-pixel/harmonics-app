@@ -34,11 +34,12 @@ async function canCleanupDemoEventNow({ supabase, workspaceId }) {
 
   const flowState = progress?.flow_state && typeof progress.flow_state === 'object' ? progress.flow_state : {};
   return Boolean(
-    flowState.hasMemberPanelViewed === true &&
-    flowState.hasAutomationsViewed === true &&
-    flowState.hasFinanceViewed === true &&
-    flowState.hasAdminRepertoireViewed === true &&
-    flowState.hasDashboardDemoViewed === true
+    flowState.client_panel_tour_completed === true ||
+    (flowState.hasMemberPanelViewed === true &&
+      flowState.hasAutomationsViewed === true &&
+      flowState.hasFinanceViewed === true &&
+      flowState.hasAdminRepertoireViewed === true &&
+      flowState.hasDashboardDemoViewed === true)
   );
 }
 
@@ -135,7 +136,13 @@ export async function DELETE(request, context) {
       await supabase
         .from('workspace_onboarding_progress')
         .update({
-          flow_state: { ...currentFlowState, onboardingCompleted: true, demoEventDeletedAt: new Date().toISOString() },
+          flow_state: {
+            ...currentFlowState,
+            demo_event_cleanup_completed: true,
+            onboarding_completed: true,
+            onboardingCompleted: true,
+            demoEventDeletedAt: new Date().toISOString(),
+          },
           completed_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })

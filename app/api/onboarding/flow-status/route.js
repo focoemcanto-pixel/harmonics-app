@@ -24,7 +24,22 @@ const GUIDE_VIEW_MARKS = {
   finance: 'hasFinanceViewed',
   'admin-repertoire': 'hasAdminRepertoireViewed',
   'dashboard-demo': 'hasDashboardDemoViewed',
+  'client-contract': 'client_contract_opened',
+  'client-contract-success': 'client_contract_signed',
+  'client-panel': 'client_panel_opened',
+  'cleanup-fake-event': 'returned_to_admin',
 };
+
+const ALLOWED_FLOW_STATE_KEYS = new Set([
+  'client_contract_opened',
+  'client_contract_signed',
+  'signed_pdf_opened',
+  'client_panel_opened',
+  'client_panel_tour_completed',
+  'returned_to_admin',
+  'demo_event_cleanup_completed',
+  'onboarding_completed',
+]);
 
 function hasCount(response) {
   return Number(response?.count || 0) > 0;
@@ -228,7 +243,12 @@ export async function PATCH(request) {
     const body = await request.json().catch(() => ({}));
     const guide = String(body?.guide || '').trim().toLowerCase();
     const markKey = GUIDE_VIEW_MARKS[guide];
-    if (!markKey && body?.completed !== true) {
+    const requestedFlowState = body?.flowState && typeof body.flowState === 'object' ? body.flowState : {};
+    const sanitizedFlowState = Object.fromEntries(
+      Object.entries(requestedFlowState)
+        .filter(([key, value]) => ALLOWED_FLOW_STATE_KEYS.has(key) && value === true)
+    );
+    if (!markKey && body?.completed !== true && Object.keys(sanitizedFlowState).length === 0) {
       return NextResponse.json({ ok: false, error: 'Guia de onboarding inválido.' }, { status: 400 });
     }
 
@@ -237,7 +257,8 @@ export async function PATCH(request) {
     const nextFlowState = {
       ...currentFlowState,
       ...(markKey ? { [markKey]: true } : {}),
-      ...(body?.completed === true ? { onboardingCompleted: true } : {}),
+      ...sanitizedFlowState,
+      ...(body?.completed === true || sanitizedFlowState.onboarding_completed === true ? { onboardingCompleted: true } : {}),
       updatedAt: new Date().toISOString(),
     };
 

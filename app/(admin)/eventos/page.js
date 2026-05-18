@@ -89,7 +89,7 @@ const DESKTOP_TABS = [
 ];
 const ADMIN_LIST_LIMIT = 100;
 const EVENTS_SELECT_FIELDS =
-  'id, created_at, client_name, event_type, event_date, event_time, duration_min, location_name, formation, instruments, has_sound, has_transport, reception_hours, whatsapp_name, whatsapp_phone, agreed_amount, paid_amount, open_amount, payment_status, status, has_antesala, antesala_enabled, antesala_requested_by_client, antesala_request_status, antesala_duration_minutes, antesala_price_increment, musician_cost, sound_cost, extra_transport_cost, other_cost, profit_amount, transport_price, cost_breakdown, costs_source';
+  'id, created_at, client_name, event_type, event_date, event_time, duration_min, location_name, formation, instruments, has_sound, has_transport, reception_hours, whatsapp_name, whatsapp_phone, agreed_amount, paid_amount, open_amount, payment_status, status, has_antesala, antesala_enabled, antesala_requested_by_client, antesala_request_status, antesala_duration_minutes, antesala_price_increment, musician_cost, sound_cost, extra_transport_cost, other_cost, profit_amount, transport_price, cost_breakdown, costs_source, is_demo, source, metadata';
 const PRECONTRACTS_SELECT_FIELDS =
   'id, created_at, event_id, client_name, event_date, event_time, status, public_token';
 const CONTRACTS_SELECT_FIELDS =
@@ -289,6 +289,58 @@ function FeedbackBanner({ feedback, onClose }) {
   );
 }
 
+
+function isOnboardingDemoEvent(event) {
+  const metadata = event?.metadata && typeof event.metadata === 'object' ? event.metadata : {};
+  return Boolean(
+    event?.is_demo === true ||
+    event?.source === 'onboarding_demo' ||
+    metadata?.is_onboarding_demo === true
+  );
+}
+
+function CleanupFakeEventGuide({ event, eventId, onDelete, deleting, onClose }) {
+  const isDemo = isOnboardingDemoEvent(event);
+  return (
+    <aside className="fixed bottom-4 right-4 z-[70] w-[calc(100vw-2rem)] max-w-lg rounded-3xl border border-amber-200 bg-white/95 p-4 shadow-2xl shadow-amber-950/20 backdrop-blur md:bottom-6 md:right-6">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.22em] text-amber-600">Cleanup do onboarding</p>
+          <h2 className="mt-1 text-lg font-black text-slate-950">Apague o evento de teste</h2>
+        </div>
+        <button type="button" onClick={onClose} className="rounded-full border border-slate-200 px-2.5 py-1 text-xs font-bold text-slate-500">×</button>
+      </div>
+
+      <p className="mt-4 rounded-2xl bg-amber-50 p-3 text-sm font-semibold leading-6 text-amber-950 ring-1 ring-amber-100">
+        Este evento foi criado para simulação. Agora você pode apagá-lo para manter seu workspace limpo.
+      </p>
+
+      <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 p-3 text-sm leading-6 text-red-800">
+        <strong>Aviso importante:</strong> Ao deletar um evento, tudo relacionado a ele será excluído do app: contrato, pré-contrato, repertório, convites, financeiro, arquivos e registros operacionais vinculados.
+      </div>
+
+      {eventId && !event ? (
+        <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs font-semibold text-slate-600">Carregando ou filtrando o evento informado. Se ele não aparecer, localize manualmente o evento de teste.</div>
+      ) : null}
+
+      {event && !isDemo ? (
+        <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 p-3 text-xs font-bold text-red-700">
+          Segurança: este evento não está marcado como demo/onboarding. O guia não fará exclusão automática; revise manualmente antes de qualquer ação.
+        </div>
+      ) : null}
+
+      <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+        {event && isDemo ? (
+          <button type="button" onClick={() => onDelete(event.id, { onboardingCleanup: true })} disabled={deleting} className="rounded-2xl bg-red-600 px-4 py-3 text-sm font-black text-white disabled:opacity-60">
+            {deleting ? 'Apagando...' : 'Apagar evento de teste'}
+          </button>
+        ) : null}
+        <button type="button" onClick={onClose} className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-black text-slate-700">Entendi</button>
+      </div>
+    </aside>
+  );
+}
+
 function DeleteEventDialog({
   open,
   eventName,
@@ -411,6 +463,7 @@ export default function EventosPage() {
     eventId: null,
     eventName: '',
   });
+  const [cleanupGuideVisible, setCleanupGuideVisible] = useState(false);
 
   const [viewMode, setViewMode] = useState('Mês atual');
   const [monthFilter, setMonthFilter] = useState('all');
@@ -438,6 +491,16 @@ export default function EventosPage() {
     ? mobileTab
     : 'lista';
   const currentParamsValue = searchParams.toString();
+  const cleanupGuideEventId = searchParams.get('eventId') || '';
+  const isCleanupGuideActive = searchParams.get('guide') === 'cleanup-fake-event';
+
+  useEffect(() => {
+    if (isCleanupGuideActive) {
+      setCleanupGuideVisible(true);
+      setMobileTab('lista');
+      setDesktopTab('visao');
+    }
+  }, [isCleanupGuideActive]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -1478,7 +1541,7 @@ export default function EventosPage() {
     }
   }
 
-  async function excluirEvento(id) {
+  async function excluirEvento(id, options = {}) {
     console.info('[EVENT_DELETE][CONFIRMED]', { eventId: id });
     console.info('[EVENT_DELETE][REQUEST_START]', { eventId: id });
     console.info('[EVENT_DELETE][REQUEST_PAYLOAD]', { eventId: id });
@@ -1486,7 +1549,8 @@ export default function EventosPage() {
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       const accessToken = sessionData?.session?.access_token;
-      const response = await fetch(`/api/events/${id}`, {
+      const deleteUrl = options?.onboardingCleanup ? `/api/events/${id}?guide=cleanup-fake-event` : `/api/events/${id}`;
+      const response = await fetch(deleteUrl, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
@@ -1548,6 +1612,17 @@ export default function EventosPage() {
         title: 'Evento excluído',
         message: 'O evento foi removido com sucesso.',
       });
+      if (options?.onboardingCleanup) {
+        await fetch('/api/onboarding/flow-status', {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+          },
+          body: JSON.stringify({ flowState: { demo_event_cleanup_completed: true, onboarding_completed: true }, completed: true }),
+        }).catch(() => null);
+        router.push('/dashboard?onboarding=done');
+      }
     } catch (error) {
       console.error('[EVENT_DELETE][DB_DELETE_ERROR]', {
         eventId: id,
@@ -1714,6 +1789,10 @@ export default function EventosPage() {
   const selectedEventIdsSet = useMemo(
     () => new Set(selectedEventIds.map((id) => String(id))),
     [selectedEventIds]
+  );
+  const cleanupGuideEvent = useMemo(
+    () => eventos.find((item) => String(item?.id || '') === String(cleanupGuideEventId || '')) || null,
+    [cleanupGuideEventId, eventos]
   );
 
   const visibleEventIds = useMemo(
@@ -2042,6 +2121,7 @@ export default function EventosPage() {
   timelineText={timeline.text}
   timelineTone={timeline.tone}
   event={ev}
+  onboardingHighlight={isCleanupGuideActive && String(cleanupGuideEventId || '') === String(ev.id)}
   totalMusicians={scaleSummary.totalMusicians}
   confirmedMusicians={scaleSummary.confirmedMusicians}
   contractLabel={contractInfo?.label || 'Sem contrato'}
@@ -2109,6 +2189,7 @@ export default function EventosPage() {
   timelineText={timeline.text}
   timelineTone={timeline.tone}
   event={ev}
+  onboardingHighlight={isCleanupGuideActive && String(cleanupGuideEventId || '') === String(ev.id)}
   totalMusicians={scaleSummary.totalMusicians}
   confirmedMusicians={scaleSummary.confirmedMusicians}
   contractLabel={contractInfo?.label || 'Sem contrato'}
@@ -2161,6 +2242,16 @@ export default function EventosPage() {
     onClose={() => setFeedback(null)}
   />
 ) : null}
+
+        {isCleanupGuideActive && cleanupGuideVisible ? (
+          <CleanupFakeEventGuide
+            event={cleanupGuideEvent}
+            eventId={cleanupGuideEventId}
+            deleting={!!excluindoEventoId}
+            onDelete={excluirEvento}
+            onClose={() => setCleanupGuideVisible(false)}
+          />
+        ) : null}
 
         <DeleteEventDialog
           open={deleteDialog.open}

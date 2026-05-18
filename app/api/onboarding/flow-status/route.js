@@ -17,6 +17,8 @@ const DEFAULT_PROGRESS = {
   team_configured: false,
   flow_state: {},
 };
+const PROGRESS_MIN_SELECT = 'id, workspace_id, flow_state, completed_at';
+const PROGRESS_FULL_SELECT = '*, id, workspace_id, flow_state, completed_at';
 
 const GUIDE_VIEW_MARKS = {
   'member-panel': 'hasMemberPanelViewed',
@@ -52,6 +54,19 @@ const ALLOWED_FLOW_STATE_KEYS = new Set([
 
 function hasCount(response) {
   return Number(response?.count || 0) > 0;
+}
+
+function isMissingColumnError(error) {
+  const code = String(error?.code || '').toLowerCase();
+  const message = String(error?.message || '').toLowerCase();
+  const details = String(error?.details || '').toLowerCase();
+  return code === '42703' || message.includes('does not exist') || message.includes('could not find the') || details.includes('schema cache');
+}
+
+function devWarn(label, error) {
+  if (process.env.NODE_ENV !== 'production') {
+    console.warn(label, { message: error?.message, code: error?.code, details: error?.details });
+  }
 }
 
 function isPrimaryHarmonicsWorkspace(workspace) {
@@ -155,8 +170,23 @@ async function syncContractTemplateCompletion({ supabase, workspaceId, progress,
     .from('workspace_onboarding_progress')
     .update(updatePayload)
     .eq('workspace_id', workspaceId)
-    .select('*')
+    .select(PROGRESS_FULL_SELECT)
     .single();
+
+  if (error && isMissingColumnError(error)) {
+    devWarn('[ONBOARDING_FLOW_STATUS][TEMPLATE_PROGRESS_SYNC_FALLBACK]', error);
+    const retry = await supabase
+      .from('workspace_onboarding_progress')
+      .update({ flow_state: nextFlowState })
+      .eq('workspace_id', workspaceId)
+      .select(PROGRESS_MIN_SELECT)
+      .single();
+    if (retry.error) {
+      console.warn('[ONBOARDING_FLOW_STATUS][TEMPLATE_PROGRESS_SYNC_ERROR]', { message: retry.error?.message, code: retry.error?.code });
+      return progress;
+    }
+    return retry.data || progress;
+  }
 
   if (error) {
     console.warn('[ONBOARDING_FLOW_STATUS][TEMPLATE_PROGRESS_SYNC_ERROR]', { message: error?.message, code: error?.code });
@@ -179,18 +209,26 @@ async function ensureProgressRow({ supabase, workspaceId }) {
   const existing = await safeMaybeSingle(
     supabase
       .from('workspace_onboarding_progress')
-      .select('*')
+      .select(PROGRESS_FULL_SELECT)
       .eq('workspace_id', workspaceId)
       .maybeSingle(),
     'workspace_onboarding_progress.select'
   );
   if (existing?.id) return existing;
 
-  const inserted = await supabase
+  let inserted = await supabase
     .from('workspace_onboarding_progress')
     .insert({ workspace_id: workspaceId, ...DEFAULT_PROGRESS })
-    .select('*')
+    .select(PROGRESS_FULL_SELECT)
     .single();
+  if (inserted.error && isMissingColumnError(inserted.error)) {
+    devWarn('[ONBOARDING_FLOW_STATUS][PROGRESS_INSERT_FALLBACK]', inserted.error);
+    inserted = await supabase
+      .from('workspace_onboarding_progress')
+      .insert({ workspace_id: workspaceId })
+      .select(PROGRESS_MIN_SELECT)
+      .single();
+  }
   if (inserted.error) throw inserted.error;
   return inserted.data || { workspace_id: workspaceId, flow_state: {} };
 }
@@ -374,7 +412,7 @@ export async function PATCH(request) {
       updatedAt: new Date().toISOString(),
     };
 
-    const { data: updated, error } = await supabase
+    let updateResponse = await supabase
       .from('workspace_onboarding_progress')
       .update({
         ...(guide === 'template' || sanitizedFlowState.contract_template_completed === true ? { template_created: true } : {}),
@@ -382,9 +420,19 @@ export async function PATCH(request) {
         updated_at: new Date().toISOString(),
       })
       .eq('workspace_id', auth.workspaceId)
-      .select('*')
+      .select(PROGRESS_FULL_SELECT)
       .single();
-    if (error) throw error;
+    if (updateResponse.error && isMissingColumnError(updateResponse.error)) {
+      devWarn('[ONBOARDING_FLOW_STATUS][PATCH_FALLBACK]', updateResponse.error);
+      updateResponse = await supabase
+        .from('workspace_onboarding_progress')
+        .update({ flow_state: nextFlowState })
+        .eq('workspace_id', auth.workspaceId)
+        .select(PROGRESS_MIN_SELECT)
+        .single();
+    }
+    if (updateResponse.error) throw updateResponse.error;
+    const updated = updateResponse.data || null;
 
     const facts = await collectFacts({ supabase, workspaceId: auth.workspaceId, progress: updated });
     const flow = buildOnboardingFlowStatus(facts);

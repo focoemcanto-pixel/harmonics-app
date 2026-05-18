@@ -360,6 +360,8 @@ function ShareLinkModal({
 
   return (
     <div
+      data-precontract-share-modal="true"
+      data-contract-url={data.contractLink || ''}
       className="fixed inset-0 z-[180] bg-black/70 backdrop-blur-[4px]"
       onClick={handleBackdropClick}
     >
@@ -425,7 +427,11 @@ function ShareLinkModal({
                 <div className="text-[11px] font-black uppercase tracking-[0.1em] text-slate-500">
                   Link do contrato
                 </div>
-                <div className="mt-2 break-all rounded-[18px] border border-slate-200 bg-white px-4 py-3 text-[14px] font-semibold text-slate-800">
+                <div
+                  data-guide="contract_link"
+                  data-contract-url={data.contractLink || ''}
+                  className="mt-2 break-all rounded-[18px] border border-slate-200 bg-white px-4 py-3 text-[14px] font-semibold text-slate-800"
+                >
                   {data.contractLink}
                 </div>
               </div>

@@ -3,6 +3,31 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 
+const CONTRACT_LINK_UNAVAILABLE_MESSAGE = 'O link do contrato ainda não está disponível.';
+
+function getContractUrlFromSuccessModal() {
+  if (typeof window === 'undefined') return '';
+
+  const modal = document.querySelector('[data-precontract-share-modal="true"]');
+  const openContractLink = Array.from(modal?.querySelectorAll?.('a[href]') || [])
+    .find((link) => normalize(link.textContent || '').includes('abrir contrato'));
+  const candidates = [
+    modal?.getAttribute?.('data-contract-url'),
+    modal?.querySelector?.('[data-contract-url]')?.getAttribute?.('data-contract-url'),
+    modal?.querySelector?.('[data-guide="contract_link"]')?.textContent,
+    openContractLink?.getAttribute('href'),
+  ];
+
+  const rawUrl = candidates.find((candidate) => String(candidate || '').trim());
+  if (!rawUrl) return '';
+
+  try {
+    return new URL(String(rawUrl).trim(), window.location.origin).toString();
+  } catch {
+    return String(rawUrl).trim();
+  }
+}
+
 const STEPS = [
   { key: 'event_type', title: 'Escolha o tipo de evento', description: 'Comece selecionando o tipo configurado antes. Ele define o template padrão que será usado no contrato.', texts: ['tipo de evento', 'tipo do evento'], exactNames: ['event_type', 'event_type_id', 'eventTypeId'], selector: 'select, input, button, label, [role="combobox"]', required: true, requiredMessage: 'Selecione um tipo de evento para continuar.' },
   { key: 'formation', title: 'Escolha a formação musical', description: 'Defina se será duo, trio, quarteto ou outra formação. Essa informação entra no contrato e ajuda na operação da escala.', texts: ['formação'], exactNames: ['formation'], selector: 'select, input, label, button' },
@@ -175,12 +200,19 @@ function findPreviewModal() {
   return candidates[0] || null;
 }
 
+function findOpenContractTarget(step) {
+  return findByTexts(['abrir contrato'], 'button, a, [role="button"]')
+    || document.querySelector('[data-precontract-share-modal="true"] [data-guide="contract_link"]')
+    || findByTexts(step.texts, step.selector);
+}
+
 function findTarget(step) {
   if (step.key === 'event_type') return findEventTypeTarget();
   if (step.preferPreviewModal) {
     const modal = findPreviewModal();
     if (modal) return modal;
   }
+  if (step.key === 'open_contract') return findOpenContractTarget(step);
   if (step.waitsForShareModal) {
     const modalTarget = findByTexts(step.texts, step.selector);
     if (modalTarget) return modalTarget;
@@ -249,14 +281,20 @@ export default function PrecontractGuideStable({ enabled = false }) {
   useEffect(() => {
     if (!enabled || pathname !== '/pre-contratos') return;
     if (!shouldForce && sessionStorage.getItem(sessionKey) === 'skipped') return;
+
+    let resetFrame = null;
     if (shouldForce) {
       sessionStorage.removeItem(sessionKey);
-      setIndex(0);
       centeredRef.current = null;
       focusedRef.current = null;
+      resetFrame = requestAnimationFrame(() => setIndex(0));
     }
+
     const timer = setTimeout(() => setActive(true), 450);
-    return () => clearTimeout(timer);
+    return () => {
+      if (resetFrame) cancelAnimationFrame(resetFrame);
+      clearTimeout(timer);
+    };
   }, [enabled, pathname, sessionKey, shouldForce]);
 
   useEffect(() => {
@@ -309,6 +347,17 @@ export default function PrecontractGuideStable({ enabled = false }) {
     setActive(false);
   }
 
+  function openContractAndFinish() {
+    const contractUrl = getContractUrlFromSuccessModal();
+    if (!contractUrl) {
+      setValidationHint(CONTRACT_LINK_UNAVAILABLE_MESSAGE);
+      return;
+    }
+
+    window.open(contractUrl, '_blank', 'noopener,noreferrer');
+    finish();
+  }
+
   function next() {
     const target = findTarget(step);
     if (step.required && !getFieldValue(findFocusable(target) || target)) {
@@ -323,7 +372,7 @@ export default function PrecontractGuideStable({ enabled = false }) {
     }
 
     setValidationHint('');
-    if (index >= STEPS.length - 1) return finish();
+    if (index >= STEPS.length - 1) return openContractAndFinish();
     centeredRef.current = null;
     focusedRef.current = null;
     setIndex((current) => current + 1);
@@ -355,7 +404,7 @@ export default function PrecontractGuideStable({ enabled = false }) {
       <div className="mt-5 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-violet-600 transition-all duration-300" style={{ width: `${Math.round(((index + 1) / STEPS.length) * 100)}%` }} /></div>
       <div className="mt-5 flex flex-wrap justify-between gap-3">
         <button type="button" onClick={finish} className="rounded-2xl border border-[#e2e8f0] bg-white px-4 py-2.5 text-[13px] font-black text-[#475569]">Pular guia</button>
-        <button type="button" onClick={next} className="rounded-2xl bg-violet-600 px-4 py-2.5 text-[13px] font-black text-white shadow-[0_12px_28px_rgba(124,58,237,0.28)]">{index >= STEPS.length - 1 ? 'Finalizar guia' : 'Próximo'}</button>
+        <button type="button" onClick={next} className="rounded-2xl bg-violet-600 px-4 py-2.5 text-[13px] font-black text-white shadow-[0_12px_28px_rgba(124,58,237,0.28)]">{index >= STEPS.length - 1 ? 'Abrir contrato e finalizar' : 'Próximo'}</button>
       </div>
     </div>
   </div>;

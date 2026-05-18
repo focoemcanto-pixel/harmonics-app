@@ -1798,6 +1798,9 @@ export default async function ClienteTokenPage({ params, searchParams }) {
     instrumentos: resolvedInstruments,
     receptivoResumo,
     statusContrato: contract?.signed_at ? 'Contrato assinado' : 'Contrato pendente',
+    contratoPdfUrl: contract?.pdf_url || '',
+    contratoDocUrl: contract?.doc_url || '',
+    contratoAssinadoEm: contract?.signed_at || null,
     statusEvento: event.status || 'Confirmado',
     observacoes:
       sanitizedObservations ||

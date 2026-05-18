@@ -1,5 +1,6 @@
 'use client';
 import { useToast } from '../ui/ToastProvider';
+import { supabase } from '../../lib/supabase';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ReferenceSearchInput from '../repertorio/ReferenceSearchInput';
 import {
@@ -686,11 +687,189 @@ function TimelineItem({ title, status }) {
   );
 }
 
+
+function markOnboardingFlowState(patch = {}) {
+  if (!patch || typeof patch !== 'object') return Promise.resolve(null);
+  return supabase.auth.getSession()
+    .then(({ data }) => {
+      const accessToken = data?.session?.access_token;
+      return fetch('/api/onboarding/flow-status', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+        body: JSON.stringify({ flowState: patch }),
+      });
+    })
+    .catch((error) => {
+      console.warn('[CLIENT_PANEL_GUIDE][FLOW_STATE_ERROR]', error?.message || error);
+      return null;
+    });
+}
+
+function ClientPanelGuide({ data, activeTab, setActiveTab, hideSuggestions = false }) {
+  const [stepIndex, setStepIndex] = useState(0);
+  const [visible, setVisible] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return new URLSearchParams(window.location.search).get('guide') === 'client-panel';
+  });
+
+  const steps = useMemo(() => {
+    const base = [
+      {
+        key: 'inicio',
+        tab: 'inicio',
+        title: 'Início',
+        text: 'Aqui o cliente vê o resumo do evento, dados principais e próximos passos para se orientar sem depender do admin.',
+        target: 'client-tab-inicio',
+      },
+      {
+        key: 'repertorio',
+        tab: 'repertorio',
+        title: 'Repertório',
+        text: 'Nesta aba o cliente pode enviar músicas, referências, momentos e finalizar a lista. Depois de finalizar, o admin recebe e pode revisar ou liberar ajustes.',
+        target: 'client-tab-repertorio',
+      },
+      ...(!hideSuggestions ? [{
+        key: 'sugestoes',
+        tab: 'sugestoes',
+        title: 'Sugestões',
+        text: 'Aqui o cliente encontra sugestões musicais e referências cadastradas pelo admin para acelerar as escolhas.',
+        target: 'client-tab-sugestoes',
+      }] : []),
+      {
+        key: 'financeiro',
+        tab: 'financeiro',
+        title: 'Financeiro',
+        text: 'O cliente acompanha valores, sinal, saldo, comprovantes e pendências financeiras quando essas informações estiverem disponíveis.',
+        target: 'client-tab-financeiro',
+      },
+      {
+        key: 'contrato',
+        tab: 'contrato',
+        title: 'Contrato/PDF',
+        text: 'Nesta área o cliente pode revisar o contrato assinado e abrir o PDF sempre que precisar.',
+        target: 'client-tab-contrato',
+      },
+      {
+        key: 'revisao',
+        tab: 'repertorio',
+        title: 'Solicitar revisão',
+        text: 'Se existir algum erro, o cliente pode solicitar revisão. O fluxo fica bloqueado até o admin corrigir e liberar novamente.',
+        target: 'client-review-action',
+      },
+      {
+        key: 'final',
+        tab: activeTab,
+        title: 'Tour concluído',
+        text: 'Você concluiu a visão do cliente. Agora volte ao painel admin para limpar o evento de teste.',
+        target: 'client-panel-root',
+      },
+    ];
+    return base;
+  }, [activeTab, hideSuggestions]);
+
+  const currentStep = steps[stepIndex] || steps[0];
+
+  useEffect(() => {
+    if (!visible || !currentStep?.tab || currentStep.key === 'final') return;
+    if (activeTab !== currentStep.tab) setActiveTab(currentStep.tab);
+  }, [activeTab, currentStep, setActiveTab, visible]);
+
+  useEffect(() => {
+    if (!visible) return;
+    void markOnboardingFlowState({ client_panel_opened: true });
+  }, [visible]);
+
+  useEffect(() => {
+    if (!visible || !currentStep?.target || typeof document === 'undefined') return undefined;
+    const target = document.querySelector(`[data-onboarding-tour="${currentStep.target}"]`);
+    if (!target) return undefined;
+    const spotlightClass = 'relative z-[65] rounded-[22px] ring-4 ring-violet-400/70 shadow-[0_0_0_9999px_rgba(15,23,42,0.18),0_20px_60px_rgba(124,58,237,0.30)]';
+    const classes = spotlightClass.split(' ');
+    target.classList.add(...classes);
+    target.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+    return () => {
+      target.classList.remove(...classes);
+    };
+  }, [currentStep, visible]);
+
+  if (!visible || !currentStep) return null;
+
+  const isFinal = currentStep.key === 'final';
+  const returnTo = typeof window !== 'undefined'
+    ? new URLSearchParams(window.location.search).get('returnTo')
+    : '';
+  const eventId = data?.eventId || (typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('eventId') : '');
+
+  async function handleNext() {
+    if (isFinal) {
+      await markOnboardingFlowState({ client_panel_tour_completed: true, returned_to_admin: true });
+      const target = returnTo
+        ? `${returnTo}${returnTo.includes('?') ? '&' : '?'}guide=cleanup-fake-event${eventId ? `&eventId=${encodeURIComponent(eventId)}` : ''}`
+        : eventId
+          ? `/eventos?guide=cleanup-fake-event&eventId=${encodeURIComponent(eventId)}`
+          : '/dashboard?guide=cleanup-fake-event';
+      window.location.href = target;
+      return;
+    }
+    setStepIndex((index) => Math.min(index + 1, steps.length - 1));
+  }
+
+  return (
+    <>
+      <div className="pointer-events-none fixed inset-0 z-[55] bg-slate-950/25" />
+      <aside className="fixed bottom-24 left-4 right-4 z-[70] mx-auto w-[calc(100vw-2rem)] max-w-md rounded-[28px] border border-violet-200 bg-white/95 p-4 text-[#241a14] shadow-2xl shadow-violet-950/20 backdrop-blur">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.20em] text-violet-600">Tour do painel do cliente</p>
+            <h2 className="mt-1 text-xl font-black">{currentStep.title}</h2>
+          </div>
+          <button type="button" onClick={() => setVisible(false)} className="rounded-full border border-zinc-200 px-2.5 py-1 text-xs font-bold text-zinc-500">×</button>
+        </div>
+        <p className="mt-3 text-sm font-semibold leading-6 text-[#6f5d51]">{currentStep.text}</p>
+        <div className="mt-4 flex items-center justify-between text-xs font-black text-zinc-500">
+          <span>Etapa {Math.min(stepIndex + 1, steps.length)} de {steps.length}</span>
+          <span>{currentStep.target}</span>
+        </div>
+        <button type="button" onClick={handleNext} className="mt-4 w-full rounded-[18px] bg-violet-600 px-4 py-3 text-sm font-black text-white">
+          {isFinal ? 'Voltar ao painel admin' : 'Próxima aba'}
+        </button>
+      </aside>
+    </>
+  );
+}
+
+function ContratoTab({ data }) {
+  const pdfUrl = data?.contratoPdfUrl || '';
+  const docUrl = data?.contratoDocUrl || '';
+  return (
+    <div data-onboarding-tour="client-tab-contrato" className="space-y-4">
+      <SectionCard>
+        <div className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#9b8576]">Contrato/PDF</div>
+        <div className="mt-2 text-[20px] font-black text-[#241a14]">Contrato assinado</div>
+        <div className="mt-2 text-[14px] leading-6 text-[#6f5d51]">
+          Revise aqui o contrato assinado e acesse o PDF entregue ao cliente.
+        </div>
+        {data?.contratoAssinadoEm ? (
+          <div className="mt-3 rounded-[14px] bg-emerald-50 px-3 py-2 text-[12px] font-black text-emerald-700">Assinado em {formatDateBR(data.contratoAssinadoEm)}</div>
+        ) : null}
+        <div className="mt-5 flex flex-col gap-3">
+          {pdfUrl ? <a href={pdfUrl} target="_blank" rel="noreferrer" className="rounded-[18px] bg-violet-600 px-4 py-3 text-center text-[14px] font-black text-white">Abrir PDF assinado</a> : <div className="rounded-[18px] border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] font-bold text-amber-800">PDF ainda não disponível.</div>}
+          {docUrl ? <a href={docUrl} target="_blank" rel="noreferrer" className="rounded-[18px] border border-[#eadfd6] bg-[#faf7f3] px-4 py-3 text-center text-[14px] font-black text-[#241a14]">Abrir documento</a> : null}
+        </div>
+      </SectionCard>
+    </div>
+  );
+}
+
 function FooterNav({ activeTab, setActiveTab, hideSuggestions = false }) {
   const items = [
     { key: 'inicio', icon: '🏠', label: 'Início' },
     { key: 'repertorio', icon: '🎼', label: 'Repertório' },
     { key: 'financeiro', icon: '💰', label: 'Financeiro' },
+    { key: 'contrato', icon: '📄', label: 'Contrato' },
   ];
   if (!hideSuggestions) {
     items.splice(2, 0, { key: 'sugestoes', icon: '✨', label: 'Sugestões' });
@@ -701,7 +880,7 @@ function FooterNav({ activeTab, setActiveTab, hideSuggestions = false }) {
       <div
         className={classNames(
           'mx-auto grid w-full max-w-[520px] gap-2',
-          hideSuggestions ? 'grid-cols-3' : 'grid-cols-4'
+          hideSuggestions ? 'grid-cols-4' : 'grid-cols-5'
         )}
       >
         {items.map((item) => {
@@ -712,6 +891,7 @@ function FooterNav({ activeTab, setActiveTab, hideSuggestions = false }) {
               key={item.key}
               type="button"
               onClick={() => setActiveTab(item.key)}
+              data-onboarding-tour={`client-tab-${item.key}`}
               className={classNames(
                 'flex flex-col items-center justify-center rounded-2xl px-2 py-2 text-center transition',
                 active
@@ -3776,6 +3956,7 @@ async function handleRequestReview() {
 
             <button
               type="button"
+              data-onboarding-tour="client-review-action"
               onClick={handleRequestReview}
               disabled={aguardandoRevisao}
               className="w-full rounded-[20px] bg-[linear-gradient(135deg,#6d28d9_0%,#8b5cf6_100%)] px-4 py-4 text-[15px] font-black text-white disabled:cursor-not-allowed disabled:opacity-60"
@@ -5692,7 +5873,7 @@ export default function ClienteHome({ data, initialTab = 'inicio' }) {
   }
 
   return (
-    <main className="min-h-screen bg-[#f8f4ef] text-[#241a14]">
+    <main className="min-h-screen bg-[#f8f4ef] text-[#241a14]" data-onboarding-tour="client-panel-root">
       {shouldShowRepertoire15DaysAlert ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#1f1427]/55 px-4">
           <div className="w-full max-w-[520px] rounded-[28px] border border-red-200 bg-white p-6 shadow-[0_20px_60px_rgba(36,26,20,0.28)]">
@@ -5790,15 +5971,27 @@ export default function ClienteHome({ data, initialTab = 'inicio' }) {
           )}
 
           {resolvedActiveTab === 'financeiro' && (
+            <div data-onboarding-tour="client-tab-financeiro">
             <FinanceiroTab
               data={panelData}
               paymentHistory={paymentHistory}
               setPaymentHistory={setPaymentHistory}
               onPaymentRegistered={handlePaymentRegistered}
             />
+            </div>
+          )}
+          {resolvedActiveTab === 'contrato' && (
+            <ContratoTab data={panelData} />
           )}
         </div>
       </div>
+
+      <ClientPanelGuide
+        data={panelData}
+        activeTab={resolvedActiveTab}
+        setActiveTab={setActiveTab}
+        hideSuggestions={isCustomEvent}
+      />
 
       <FooterNav
         activeTab={resolvedActiveTab}

@@ -398,6 +398,7 @@ function FieldFeedback({ error, success }) {
 
 
 const CLIENT_CONTRACT_GUIDE_QUERY_VALUE = 'client-contract';
+const CLIENT_CONTRACT_SUCCESS_GUIDE_QUERY_VALUE = 'client-contract-success';
 const GUIDE_TEST_CPF = '529.982.247-25';
 
 const CLIENT_CONTRACT_GUIDE_SAMPLE_DATA = [
@@ -409,6 +410,90 @@ const CLIENT_CONTRACT_GUIDE_SAMPLE_DATA = [
   ['Cidade/UF', 'Salvador/BA'],
   ['Nome na assinatura', 'Cliente Teste'],
 ];
+
+
+function markOnboardingFlowState(patch = {}) {
+  if (!patch || typeof patch !== 'object') return Promise.resolve(null);
+  return supabase.auth.getSession()
+    .then(({ data }) => {
+      const accessToken = data?.session?.access_token;
+      return fetch('/api/onboarding/flow-status', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+        body: JSON.stringify({ flowState: patch }),
+      });
+    })
+    .catch((error) => {
+      console.warn('[ONBOARDING_GUIDE][FLOW_STATE_ERROR]', error?.message || error);
+      return null;
+    });
+}
+
+function ClientContractSuccessGuide({ pdfUrl, clientPanelUrl, onOpenPdf, onOpenClientPanel, onClose }) {
+  const [step, setStep] = useState('pdf');
+  const [message, setMessage] = useState('');
+
+  const isPdfStep = step === 'pdf';
+  const title = isPdfStep ? 'Confira o PDF assinado' : 'Abra o painel do cliente';
+  const text = isPdfStep
+    ? 'Abra o PDF em uma nova aba para conferir como o contrato assinado será entregue ao cliente.'
+    : 'Agora abra o painel do cliente para conhecer a área onde ele poderá acompanhar informações, repertório, financeiro e próximos passos.';
+
+  async function handlePrimaryAction() {
+    setMessage('');
+    if (isPdfStep) {
+      if (!pdfUrl) {
+        setMessage('O PDF ainda não está disponível. Aguarde a geração finalizar e tente novamente.');
+        return;
+      }
+      onOpenPdf?.();
+      await markOnboardingFlowState({ signed_pdf_opened: true });
+      setStep('panel');
+      return;
+    }
+
+    if (!clientPanelUrl) {
+      setMessage('O link do painel do cliente ainda não está disponível para este contrato.');
+      return;
+    }
+    await markOnboardingFlowState({ client_panel_opened: true });
+    onOpenClientPanel?.();
+  }
+
+  return (
+    <aside className="fixed bottom-4 right-4 z-[70] w-[calc(100vw-2rem)] max-w-md rounded-3xl border border-emerald-200 bg-white/95 p-4 shadow-2xl shadow-emerald-950/20 backdrop-blur md:bottom-6 md:right-6">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.22em] text-emerald-600">Guia pós-assinatura</p>
+          <h2 className="mt-1 text-lg font-black text-slate-950">{title}</h2>
+        </div>
+        <button type="button" onClick={onClose} className="rounded-full border border-slate-200 px-2.5 py-1 text-xs font-bold text-slate-500 transition hover:bg-slate-50" aria-label="Ocultar guia">×</button>
+      </div>
+
+      <div className="mt-4 rounded-2xl bg-emerald-50 p-3 text-sm leading-relaxed text-emerald-950 ring-1 ring-emerald-100">
+        {text}
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-2 text-xs font-bold text-slate-500">
+        <div className={`rounded-2xl border px-3 py-2 ${isPdfStep ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-emerald-200 bg-white text-emerald-700'}`}>1. PDF assinado</div>
+        <div className={`rounded-2xl border px-3 py-2 ${!isPdfStep ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-white'}`}>2. Painel do cliente</div>
+      </div>
+
+      {message ? <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs font-semibold text-amber-800">{message}</div> : null}
+
+      <button type="button" onClick={handlePrimaryAction} className="mt-4 w-full rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-black text-white transition hover:bg-emerald-700">
+        {isPdfStep ? 'Abrir PDF' : 'Abrir painel do cliente'}
+      </button>
+
+      <p className="mt-3 text-[11px] leading-relaxed text-slate-500">
+        Nada será aberto automaticamente: a nova aba só aparece depois do seu clique e esta tela de sucesso permanece aberta.
+      </p>
+    </aside>
+  );
+}
 
 function ClientContractGuide({
   steps,
@@ -897,6 +982,13 @@ async function upsertEventFromSignature({
 
     status: 'Confirmado',
     legacy_id: legacyId || null,
+    ...(precontract?.is_demo === true || precontract?.source === 'onboarding_demo' || precontract?.metadata?.is_onboarding_demo === true
+      ? {
+          is_demo: true,
+          source: 'onboarding_demo',
+          metadata: { ...(precontract?.metadata || {}), is_onboarding_demo: true, onboarding_step: 'client_contract_signed' },
+        }
+      : {}),
   };
 
   let finalEventId = null;
@@ -969,9 +1061,14 @@ export default function ContratoPublicoPage() {
     }
     return String(params?.token || '').trim();
   }, [params]);
+  const guideQueryValue = searchParams.get('guide');
   const isClientContractGuideActive =
-    searchParams.get('guide') === CLIENT_CONTRACT_GUIDE_QUERY_VALUE;
+    guideQueryValue === CLIENT_CONTRACT_GUIDE_QUERY_VALUE;
+  const isClientContractSuccessGuideActive =
+    guideQueryValue === CLIENT_CONTRACT_GUIDE_QUERY_VALUE ||
+    guideQueryValue === CLIENT_CONTRACT_SUCCESS_GUIDE_QUERY_VALUE;
   const [guideVisible, setGuideVisible] = useState(isClientContractGuideActive);
+  const [successGuideVisible, setSuccessGuideVisible] = useState(isClientContractSuccessGuideActive);
   const [guideCorrectionExplained, setGuideCorrectionExplained] = useState(false);
   const [previewAberto, setPreviewAberto] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -1026,7 +1123,10 @@ const mapsLoaded = useGoogleMapsReady();
     if (isClientContractGuideActive) {
       setGuideVisible(true);
     }
-  }, [isClientContractGuideActive]);
+    if (isClientContractSuccessGuideActive) {
+      setSuccessGuideVisible(true);
+    }
+  }, [isClientContractGuideActive, isClientContractSuccessGuideActive]);
   const isInternalMode =
     precontract?.custom_contract_enabled === true ||
     precontract?.contract_mode === 'internal';
@@ -2381,6 +2481,7 @@ function preencherDadosDoGuia() {
         setSalvando(false);
         setSignatureStep('');
         toast.success('Simulação concluída: o contrato assinado libera o fluxo operacional no app.');
+        void markOnboardingFlowState({ client_contract_signed: true });
       }, 500);
       return;
     }
@@ -2846,7 +2947,8 @@ if (contractSignedError) throw contractSignedError;
         href={pdfUrl}
         target="_blank"
         rel="noreferrer"
-        className="inline-flex"
+        className={`inline-flex ${getGuideSpotlightClass(isClientContractSuccessGuideActive && successGuideVisible)}`}
+        data-onboarding-tour="signed-contract-pdf"
       >
         <Button>Abrir PDF</Button>
       </a>
@@ -2855,7 +2957,8 @@ if (contractSignedError) throw contractSignedError;
         href={painelUrl}
         target="_blank"
         rel="noreferrer"
-        className="inline-flex"
+        className={`inline-flex ${getGuideSpotlightClass(isClientContractSuccessGuideActive && successGuideVisible)}`}
+        data-onboarding-tour="client-panel-link"
       >
         <Button variant="secondary">Abrir painel do cliente</Button>
       </a>
@@ -2910,7 +3013,19 @@ if (contractSignedError) throw contractSignedError;
           </Card>
         </div>
       </main>
-      {isClientContractGuideActive && guideVisible ? (
+      {isClientContractSuccessGuideActive && successGuideVisible ? (
+        <ClientContractSuccessGuide
+          pdfUrl={pdfUrl}
+          clientPanelUrl={`${painelUrl}${painelUrl.includes('?') ? '&' : '?'}guide=client-panel&returnTo=${encodeURIComponent('/eventos')}${eventData?.id ? `&eventId=${encodeURIComponent(eventData.id)}` : ''}`}
+          onOpenPdf={() => window.open(pdfUrl, '_blank', 'noopener,noreferrer')}
+          onOpenClientPanel={() => {
+            const url = `${painelUrl}${painelUrl.includes('?') ? '&' : '?'}guide=client-panel&returnTo=${encodeURIComponent('/eventos')}${eventData?.id ? `&eventId=${encodeURIComponent(eventData.id)}` : ''}`;
+            window.location.href = url;
+          }}
+          onClose={() => setSuccessGuideVisible(false)}
+        />
+      ) : null}
+      {isClientContractGuideActive && guideVisible && !contratoFinalizado ? (
         <ClientContractGuide
           steps={guideSteps}
           currentSpotlight={currentGuideSpotlight}

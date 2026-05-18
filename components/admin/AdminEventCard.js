@@ -164,6 +164,7 @@ function AdminEventCard({
   selected = false,
   onToggleSelect,
   event,
+  onboardingHighlight = false,
 }) {
   const phoneDigits = String(whatsappNumero || '').replace(/\D/g, '');
   const whatsappHref = phoneDigits
@@ -206,10 +207,12 @@ function AdminEventCard({
 
   return (
     <article
+      data-event-id={id}
+      data-onboarding-demo={event?.is_demo === true || event?.source === 'onboarding_demo' || event?.metadata?.is_onboarding_demo === true ? 'true' : undefined}
       className={
         flat
           ? 'rounded-[22px] border-0 bg-transparent p-0 shadow-none'
-          : `rounded-[24px] border border-[#dbe3ef] bg-white p-5 shadow-[0_8px_22px_rgba(17,24,39,0.04)]${visualStateClasses}`
+          : `rounded-[24px] border ${onboardingHighlight ? 'border-amber-400 ring-4 ring-amber-300/60 shadow-[0_0_0_9999px_rgba(15,23,42,0.18),0_18px_50px_rgba(245,158,11,0.25)]' : 'border-[#dbe3ef] shadow-[0_8px_22px_rgba(17,24,39,0.04)]'} bg-white p-5${visualStateClasses}`
       }
     >
       <div className={flat ? 'space-y-4' : ''}>
@@ -436,7 +439,8 @@ function areEventCardPropsEqual(prev, next) {
     prev.flat === next.flat &&
     prev.selectable === next.selectable &&
     prev.selected === next.selected &&
-    prev.onToggleSelect === next.onToggleSelect
+    prev.onToggleSelect === next.onToggleSelect &&
+    prev.onboardingHighlight === next.onboardingHighlight
   );
 }
 

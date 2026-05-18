@@ -42,18 +42,18 @@ async function getProfileSafe({ supabase, userId }) {
 }
 
 export async function GET(request) {
-  const supabaseAdmin = getSupabaseAdmin();
-  const auth = await requireWorkspaceAccess({
-    supabase: supabaseAdmin,
-    request,
-    logPrefix: '[WORKSPACE_ME][GET]',
-  });
-
-  if (!auth.ok) {
-    return NextResponse.json({ ok: false, error: auth.error }, { status: auth.status || 401 });
-  }
-
   try {
+    const supabaseAdmin = getSupabaseAdmin();
+    const auth = await requireWorkspaceAccess({
+      supabase: supabaseAdmin,
+      request,
+      logPrefix: '[WORKSPACE_ME][GET]',
+    });
+
+    if (!auth.ok) {
+      return NextResponse.json({ ok: false, error: auth.error }, { status: auth.status || 401 });
+    }
+
     const role = normalizeRole(auth.role);
     const permissions = getPermissions(role);
     const profile = await getProfileSafe({ supabase: supabaseAdmin, userId: auth.userId });

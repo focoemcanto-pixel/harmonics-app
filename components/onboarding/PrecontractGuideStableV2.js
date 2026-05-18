@@ -6,6 +6,31 @@ import { useOnboardingSession } from '@/contexts/OnboardingSessionContext';
 
 const GUIDE_ID = 'precontract';
 
+const CONTRACT_LINK_UNAVAILABLE_MESSAGE = 'O link do contrato ainda não está disponível.';
+
+function getContractUrlFromSuccessModal() {
+  if (typeof window === 'undefined') return '';
+
+  const modal = document.querySelector('[data-precontract-share-modal="true"]');
+  const openContractLink = Array.from(modal?.querySelectorAll?.('a[href]') || [])
+    .find((link) => normalize(link.textContent || '').includes('abrir contrato'));
+  const candidates = [
+    modal?.getAttribute?.('data-contract-url'),
+    modal?.querySelector?.('[data-contract-url]')?.getAttribute?.('data-contract-url'),
+    modal?.querySelector?.('[data-guide="contract_link"]')?.textContent,
+    openContractLink?.getAttribute('href'),
+  ];
+
+  const rawUrl = candidates.find((candidate) => String(candidate || '').trim());
+  if (!rawUrl) return '';
+
+  try {
+    return new URL(String(rawUrl).trim(), window.location.origin).toString();
+  } catch {
+    return String(rawUrl).trim();
+  }
+}
+
 const STEPS = [
   { key: 'event_type', title: 'Escolha o tipo de evento', description: 'Selecione o tipo configurado antes. Ele define o template padrão que será usado no contrato.', words: ['tipo de evento', 'tipo do evento'], names: ['event_type', 'event_type_id', 'eventTypeId'], required: true, error: 'Selecione um tipo de evento para continuar.' },
   { key: 'formation', title: 'Escolha a formação musical', description: 'Defina se será solo, duo, trio, quarteto ou outra formação.', words: ['formação'], names: ['formation'] },
@@ -129,8 +154,15 @@ function closePreviewModal() {
   return Boolean(button);
 }
 
+function findOpenContractTarget(step) {
+  return findByWords(['abrir contrato'], 'button,a,[role="button"]')
+    || document.querySelector('[data-precontract-share-modal="true"] [data-guide="contract_link"]')
+    || findByWords(step.words, 'button,a,textarea,div,[role="button"]');
+}
+
 function findTarget(step) {
   if (step.preview) return findPreviewModal() || findByWords(step.words, 'button,a,[role="button"]');
+  if (step.key === 'open_contract') return findOpenContractTarget(step);
   if (step.share) return findByWords(step.words, 'button,a,textarea,div,[role="button"]');
   return findByNames(step.names) || findByWords(step.words, step.button ? 'button,[role="button"],a' : undefined);
 }
@@ -347,6 +379,17 @@ export default function PrecontractGuideStableV2({ enabled = false }) {
     setActive(false);
   }
 
+  function openContractAndFinish() {
+    const contractUrl = getContractUrlFromSuccessModal();
+    if (!contractUrl) {
+      setHint(CONTRACT_LINK_UNAVAILABLE_MESSAGE);
+      return;
+    }
+
+    window.open(contractUrl, '_blank', 'noopener,noreferrer');
+    finish();
+  }
+
   function next() {
     const target = findTarget(step);
     if (step.required && !valueOf(target)) {
@@ -369,7 +412,7 @@ export default function PrecontractGuideStableV2({ enabled = false }) {
       return;
     }
 
-    if (index >= STEPS.length - 1) return finish();
+    if (index >= STEPS.length - 1) return openContractAndFinish();
     resetTargetState();
     setIndex((current) => current + 1);
   }
@@ -404,7 +447,7 @@ export default function PrecontractGuideStableV2({ enabled = false }) {
       <div className="mt-5 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-violet-600 transition-all duration-300" style={{ width: `${Math.round(((index + 1) / STEPS.length) * 100)}%` }} /></div>
       <div className="mt-5 flex flex-wrap justify-between gap-3">
         <button type="button" onClick={finish} className="rounded-2xl border border-[#e2e8f0] bg-white px-4 py-2.5 text-[13px] font-black text-[#475569]">Pular guia</button>
-        <button type="button" onClick={next} className="rounded-2xl bg-violet-600 px-4 py-2.5 text-[13px] font-black text-white shadow-[0_12px_28px_rgba(124,58,237,0.28)]">{index >= STEPS.length - 1 ? 'Finalizar guia' : 'Próximo'}</button>
+        <button type="button" onClick={next} className="rounded-2xl bg-violet-600 px-4 py-2.5 text-[13px] font-black text-white shadow-[0_12px_28px_rgba(124,58,237,0.28)]">{index >= STEPS.length - 1 ? 'Abrir contrato e finalizar' : 'Próximo'}</button>
       </div>
     </div>
   </div>;

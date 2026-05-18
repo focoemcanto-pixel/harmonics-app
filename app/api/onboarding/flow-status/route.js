@@ -36,6 +36,8 @@ const GUIDE_VIEW_MARKS = {
 const MIN_VALID_TEMPLATE_CONTENT_LENGTH = 20;
 
 const ALLOWED_FLOW_STATE_KEYS = new Set([
+  'onboarding_enabled',
+  'workspace_created_for_onboarding',
   'client_contract_opened',
   'client_contract_signed',
   'signed_pdf_opened',
@@ -260,6 +262,8 @@ async function collectFacts({ supabase, workspaceId, progress }) {
   return {
     workspaceId,
     demoEventId,
+    flow_state: flowState,
+    onboardingEnabled: flowState.onboarding_enabled === true || flowState.workspace_created_for_onboarding === true,
     hasContractTemplate: validContractTemplateCount > 0,
     hasEventType: progress?.event_type_created === true || hasCount(eventTypesResp),
     hasPrecontract: progress?.precontract_created === true || hasCount(precontractsResp),
@@ -304,6 +308,9 @@ export async function GET(request) {
 
     return NextResponse.json({
       ok: true,
+      progress,
+      flow_state: progress?.flow_state && typeof progress.flow_state === 'object' ? progress.flow_state : {},
+      onboardingEnabled: Boolean(progress?.flow_state?.onboarding_enabled === true || progress?.flow_state?.workspace_created_for_onboarding === true),
       ...facts,
       ...flow,
     });
@@ -364,7 +371,7 @@ export async function PATCH(request) {
     const facts = await collectFacts({ supabase, workspaceId: auth.workspaceId, progress: updated });
     const flow = buildOnboardingFlowStatus(facts);
 
-    return NextResponse.json({ ok: true, ...facts, ...flow });
+    return NextResponse.json({ ok: true, progress: updated, flow_state: nextFlowState, ...facts, ...flow });
   } catch (error) {
     console.error('[ONBOARDING_FLOW_STATUS][PATCH][ERROR]', { message: error?.message, code: error?.code, details: error?.details });
     return NextResponse.json({ ok: false, error: error?.message || 'Erro ao atualizar status do onboarding.' }, { status: 500 });

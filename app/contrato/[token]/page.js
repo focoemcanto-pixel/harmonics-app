@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { supabase } from '../../../lib/supabase';
 import Card from '../../../components/ui/Card';
 import Button from '../../../components/ui/Button';
@@ -394,6 +394,145 @@ function FieldFeedback({ error, success }) {
   }
 
   return null;
+}
+
+
+const CLIENT_CONTRACT_GUIDE_QUERY_VALUE = 'client-contract';
+const GUIDE_TEST_CPF = '529.982.247-25';
+
+const CLIENT_CONTRACT_GUIDE_SAMPLE_DATA = [
+  ['Nome completo', 'Cliente Teste'],
+  ['Estado civil', 'Solteiro'],
+  ['Profissão', 'Empresário'],
+  ['CPF', GUIDE_TEST_CPF],
+  ['Endereço', 'Rua Teste, 123'],
+  ['Cidade/UF', 'Salvador/BA'],
+  ['Nome na assinatura', 'Cliente Teste'],
+];
+
+function ClientContractGuide({
+  steps,
+  currentSpotlight,
+  onMarkCorrectionExplained,
+  onFillSampleData,
+  onClose,
+}) {
+  const completedCount = steps.filter((step) => step.done).length;
+  const progressPercent = Math.round((completedCount / steps.length) * 100);
+  const currentStep = steps.find((step) => !step.done) || steps[steps.length - 1];
+  const spotlightLabels = {
+    contractViewer: 'Visualizar contrato',
+    clientData: 'Dados do contratante',
+    correction: 'Solicitar correção',
+    signature: 'Assinatura eletrônica',
+    signButton: 'Botão assinar',
+    done: 'Fluxo finalizado',
+  };
+
+  return (
+    <aside className="fixed bottom-4 right-4 z-[60] w-[calc(100vw-2rem)] max-w-md rounded-3xl border border-violet-200 bg-white/95 p-4 shadow-2xl shadow-violet-950/20 backdrop-blur md:bottom-6 md:right-6">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.22em] text-violet-600">
+            Guia do onboarding
+          </p>
+          <h2 className="mt-1 text-lg font-black text-slate-950">
+            Simulação da visão do cliente
+          </h2>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-full border border-slate-200 px-2.5 py-1 text-xs font-bold text-slate-500 transition hover:bg-slate-50"
+          aria-label="Ocultar guia"
+        >
+          ×
+        </button>
+      </div>
+
+      <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-900">
+        <p className="font-bold">Use apenas em token de teste/onboarding.</p>
+        <p className="mt-1">
+          Este modo não salva o rascunho, não envia WhatsApp real e não dispara automações reais ao simular a assinatura.
+        </p>
+      </div>
+
+      <div className="mt-4">
+        <div className="flex items-center justify-between text-xs font-bold text-slate-500">
+          <span>{completedCount}/{steps.length} etapas concluídas</span>
+          <span>{progressPercent}%</span>
+        </div>
+        <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
+          <div
+            className="h-full rounded-full bg-violet-600 transition-all"
+            style={{ width: `${progressPercent}%` }}
+          />
+        </div>
+      </div>
+
+      <div className="mt-4 rounded-2xl bg-violet-50 p-3 text-sm text-violet-950 ring-1 ring-violet-100">
+        <p className="font-bold">Agora:</p>
+        <p className="mt-1">{currentStep?.hint}</p>
+        <p className="mt-2 text-xs font-semibold text-violet-700">
+          Área em foco: {spotlightLabels[currentSpotlight] || 'Visão geral'}
+        </p>
+      </div>
+
+      <ul className="mt-4 space-y-2">
+        {steps.map((step) => (
+          <li key={step.key} className="flex gap-3 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2">
+            <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-black ${step.done ? 'bg-emerald-500 text-white' : 'bg-white text-slate-400 ring-1 ring-slate-200'}`}>
+              {step.done ? '✓' : '•'}
+            </span>
+            <div>
+              <p className="text-sm font-bold text-slate-800">{step.label}</p>
+              <p className="text-xs leading-relaxed text-slate-500">{step.description}</p>
+            </div>
+          </li>
+        ))}
+      </ul>
+
+      <div className="mt-4 rounded-2xl border border-slate-200 p-3">
+        <p className="text-xs font-black uppercase tracking-wide text-slate-500">
+          Dados fictícios sugeridos
+        </p>
+        <dl className="mt-2 grid grid-cols-1 gap-1.5 text-xs text-slate-600 sm:grid-cols-2">
+          {CLIENT_CONTRACT_GUIDE_SAMPLE_DATA.map(([label, value]) => (
+            <div key={label}>
+              <dt className="font-bold text-slate-700">{label}</dt>
+              <dd>{value}</dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={onFillSampleData}
+          className="rounded-2xl bg-violet-600 px-3 py-2 text-xs font-black text-white transition hover:bg-violet-700"
+        >
+          Aplicar dados de exemplo
+        </button>
+        <button
+          type="button"
+          onClick={onMarkCorrectionExplained}
+          className="rounded-2xl border border-violet-200 px-3 py-2 text-xs font-black text-violet-700 transition hover:bg-violet-50"
+        >
+          Entendi correções
+        </button>
+      </div>
+
+      <p className="mt-3 text-[11px] leading-relaxed text-slate-500">
+        Se o cliente perceber qualquer erro nos dados do pré-contrato, ele pode solicitar uma revisão. A assinatura ficará bloqueada até que o admin corrija o pré-contrato. Você será sinalizado no WhatsApp do admin e também no dashboard do app.
+      </p>
+    </aside>
+  );
+}
+
+function getGuideSpotlightClass(isActive) {
+  if (!isActive) return '';
+  return 'relative z-30 rounded-[2rem] ring-4 ring-violet-400/70 shadow-[0_0_0_9999px_rgba(15,23,42,0.30),0_24px_70px_rgba(109,40,217,0.35)] transition-all';
 }
 
 function AlertCard({ tone = 'default', title, children }) {
@@ -823,12 +962,17 @@ async function upsertEventFromSignature({
 export default function ContratoPublicoPage() {
   const toast = useAppToast();
   const params = useParams();
+  const searchParams = useSearchParams();
   const token = useMemo(() => {
     if (Array.isArray(params?.token)) {
       return String(params.token[0] || '').trim();
     }
     return String(params?.token || '').trim();
   }, [params]);
+  const isClientContractGuideActive =
+    searchParams.get('guide') === CLIENT_CONTRACT_GUIDE_QUERY_VALUE;
+  const [guideVisible, setGuideVisible] = useState(isClientContractGuideActive);
+  const [guideCorrectionExplained, setGuideCorrectionExplained] = useState(false);
   const [previewAberto, setPreviewAberto] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState('');
@@ -877,6 +1021,12 @@ const mapsLoaded = useGoogleMapsReady();
   const [clientAddressStatus, setClientAddressStatus] = useState('idle'); // 'idle' | 'typing' | 'selected' | 'fallback'
   const [eventAddressStatus, setEventAddressStatus] = useState('idle');   // 'idle' | 'typing' | 'selected' | 'fallback'
   const autosaveTimerRef = useRef(null);
+
+  useEffect(() => {
+    if (isClientContractGuideActive) {
+      setGuideVisible(true);
+    }
+  }, [isClientContractGuideActive]);
   const isInternalMode =
     precontract?.custom_contract_enabled === true ||
     precontract?.contract_mode === 'internal';
@@ -888,9 +1038,10 @@ const mapsLoaded = useGoogleMapsReady();
   );
 
   const markContractViewed = useCallback(async () => {
-    if (!contract?.id) return;
     const nowIso = new Date().toISOString();
     setViewedAt((prev) => prev || nowIso);
+    if (isClientContractGuideActive) return;
+    if (!contract?.id) return;
     const rawPayload = {
       ...(contract?.raw_payload || {}),
       contract_viewed_at: contract?.raw_payload?.contract_viewed_at || nowIso,
@@ -902,7 +1053,7 @@ const mapsLoaded = useGoogleMapsReady();
     } else {
       setContract((prev) => (prev ? { ...prev, raw_payload: rawPayload } : prev));
     }
-  }, [contract]);
+  }, [contract, isClientContractGuideActive]);
 
   const contextTemplateData = useMemo(
     () => buildContractTemplateData({
@@ -1728,6 +1879,120 @@ const canSubmitSignature =
   !!String(form.signer_cpf || '').trim() &&
   !salvando &&
   !hasPendingAdjustment;
+
+const guideRequiredDataFilled = useMemo(() => {
+  const checks = [
+    String(form.full_name || '').trim(),
+    String(form.marital_status || '').trim(),
+    String(form.profession || '').trim(),
+    String(form.rg || '').trim(),
+    isValidCpf(form.cpf),
+    isValidPhone(form.whatsapp),
+    String(form.address_street || '').trim(),
+    String(form.address_number || '').trim(),
+    String(form.address_neighborhood || '').trim(),
+    isValidCep(form.address_cep),
+    String(form.address_city || '').trim(),
+    String(form.address_state || '').trim(),
+    isValidDateBr(form.event_date),
+    isValidTime(form.event_time),
+    String(form.event_location_name || '').trim(),
+    String(form.event_location_address || '').trim(),
+  ];
+
+  return checks.every(Boolean);
+}, [form]);
+
+const guideSignatureReady =
+  guideRequiredDataFilled &&
+  String(form.signer_name || '').trim() &&
+  isValidCpf(form.signer_cpf) &&
+  !!form.accepted_terms &&
+  !hasPendingAdjustment;
+
+const guideSteps = useMemo(() => [
+  {
+    key: 'clientView',
+    label: 'Entender a visão do cliente',
+    description: 'Você está navegando como o cliente vê o contrato público.',
+    hint: 'Explique ao admin que esta tela é exatamente a experiência pública do cliente antes da assinatura.',
+    done: true,
+  },
+  {
+    key: 'contractViewed',
+    label: 'Visualizar contrato completo',
+    description: 'Abra a prévia para simular a leitura do documento antes do aceite.',
+    hint: 'Clique em “Visualizar contrato” e percorra o conteúdo geral antes de continuar.',
+    done: !!contractViewedAt || previewAberto,
+  },
+  {
+    key: 'requiredDataFilled',
+    label: 'Preencher dados obrigatórios',
+    description: 'Use dados fictícios de teste para demonstrar o preenchimento sem microgerenciar cada campo.',
+    hint: `Preencha dados fictícios, como Cliente Teste, Solteiro, Empresário, CPF ${GUIDE_TEST_CPF}, Rua Teste, 123 e Salvador/BA.`,
+    done: guideRequiredDataFilled,
+  },
+  {
+    key: 'correctionAreaExplained',
+    label: 'Explicar Solicitar correção',
+    description: 'Mostre que uma solicitação bloqueia assinatura até revisão do admin.',
+    hint: 'Destaque “Solicitar correção”: se o cliente apontar erro, a assinatura fica bloqueada e o admin é avisado no WhatsApp e no dashboard.',
+    done: guideCorrectionExplained,
+  },
+  {
+    key: 'signatureReady',
+    label: 'Preparar assinatura',
+    description: 'Preencha nome/CPF da assinatura e marque o aceite para liberar o botão.',
+    hint: 'Agora destaque a assinatura eletrônica: use Cliente Teste, o CPF de teste e marque o aceite.',
+    done: guideSignatureReady,
+  },
+  {
+    key: 'signed',
+    label: 'Confirmar assinatura',
+    description: 'Finalize a simulação para mostrar que o contrato assinado libera o operacional no app.',
+    hint: 'Clique em “Assinar contrato”. Neste guia, a assinatura é simulada e não dispara automações reais.',
+    done: enviado || contratoFinalizado,
+  },
+], [contractViewedAt, contratoFinalizado, enviado, guideCorrectionExplained, guideRequiredDataFilled, guideSignatureReady, previewAberto]);
+
+const currentGuideSpotlight = useMemo(() => {
+  if (!isClientContractGuideActive) return '';
+  if (!contractViewedAt && !previewAberto) return 'contractViewer';
+  if (!guideRequiredDataFilled) return 'clientData';
+  if (!guideCorrectionExplained) return 'correction';
+  if (!guideSignatureReady) return 'signature';
+  if (!enviado && !contratoFinalizado) return 'signButton';
+  return 'done';
+}, [contractViewedAt, contratoFinalizado, enviado, guideCorrectionExplained, guideRequiredDataFilled, guideSignatureReady, isClientContractGuideActive, previewAberto]);
+
+function preencherDadosDoGuia() {
+  setForm((prev) => ({
+    ...prev,
+    full_name: 'Cliente Teste',
+    marital_status: 'Solteiro',
+    profession: 'Empresário',
+    cpf: GUIDE_TEST_CPF,
+    rg: '12.345.678-9',
+    whatsapp: '(71) 99999-9999',
+    address_street: 'Rua Teste',
+    address_number: '123',
+    address_neighborhood: 'Centro',
+    address_cep: '40000-000',
+    address_city: 'Salvador',
+    address_state: 'BA',
+    event_date: prev.event_date || convertDateToBr(precontract?.event_date || '') || '31/12/2026',
+    event_time: prev.event_time || normalizeTimeStrict(precontract?.event_time || '') || '19:00',
+    event_location_name: prev.event_location_name || precontract?.location_name || 'Local Teste',
+    event_location_address: prev.event_location_address || precontract?.location_address || 'Rua Teste, 123 - Salvador/BA',
+    signer_name: 'Cliente Teste',
+    signer_cpf: GUIDE_TEST_CPF,
+  }));
+  setAddressValidation({ clientAddressConfirmed: true, eventAddressConfirmed: true });
+  setClientAddressStatus('selected');
+  setEventAddressStatus('selected');
+  setFieldErrors({});
+  toast.success('Dados fictícios aplicados apenas nesta simulação.');
+}
   function validateFormFields() {
     const errors = {};
 
@@ -1902,6 +2167,19 @@ const canSubmitSignature =
       return;
     }
 
+    if (isClientContractGuideActive) {
+      setGuideCorrectionExplained(true);
+      setPendingAdjustmentRequest({
+        id: 'guide-adjustment-request',
+        precontract_id: precontract.id,
+        status: 'pending',
+        request_message: form.adjustment_request.trim(),
+        requested_at: new Date().toISOString(),
+      });
+      toast.info('Simulação: a correção bloquearia a assinatura até o admin revisar. Nenhum WhatsApp real foi enviado.');
+      return;
+    }
+
     try {
       setSolicitandoAjuste(true);
 
@@ -2018,6 +2296,10 @@ const canSubmitSignature =
 
   const persistDraft = useCallback(async (formSnapshot) => {
     if (!token) return { ok: false };
+    if (isClientContractGuideActive) {
+      setDraftStatus('idle');
+      return { ok: true, skipped: true, simulation: true };
+    }
     try {
       setDraftStatus('saving');
       const result = await savePublicContractDraft(token, formSnapshot);
@@ -2031,10 +2313,10 @@ const canSubmitSignature =
       setDraftStatus('error');
       throw error;
     }
-  }, [token]);
+  }, [isClientContractGuideActive, token]);
 
   useEffect(() => {
-    if (!token || carregando) return;
+    if (!token || carregando || isClientContractGuideActive) return;
     if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
     autosaveTimerRef.current = setTimeout(() => {
       persistDraft(form).catch(() => null);
@@ -2042,7 +2324,7 @@ const canSubmitSignature =
     return () => {
       if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
     };
-  }, [form, token, carregando, persistDraft]);
+  }, [form, token, carregando, persistDraft, isClientContractGuideActive]);
 
   useEffect(() => {
     const onBlur = () => { persistDraft(form).catch(() => null); };
@@ -2080,6 +2362,26 @@ const canSubmitSignature =
 
     if (!precontract?.id) {
       toast.error('Pré-contrato não encontrado.');
+      return;
+    }
+
+    if (isClientContractGuideActive) {
+      setSalvando(true);
+      setSignatureStep('Simulando assinatura sem salvar dados reais...');
+      setResultadoFinal({
+        pdfUrl: '',
+        docUrl: '',
+        html: contratoHtmlResolvido,
+        clientPanelUrl: `${window.location.origin}/cliente/${token}`,
+        documentHash: 'simulacao-onboarding',
+        missingColumns: [],
+      });
+      window.setTimeout(() => {
+        setEnviado(true);
+        setSalvando(false);
+        setSignatureStep('');
+        toast.success('Simulação concluída: o contrato assinado libera o fluxo operacional no app.');
+      }, 500);
       return;
     }
 
@@ -2505,6 +2807,7 @@ if (contractSignedError) throw contractSignedError;
       isInternalMode && !pdfUrl && internalPdfStatus === 'failed' && !!signedHtml;
 
     return (
+      <>
       <main className="min-h-screen bg-slate-100 px-4 py-6">
         <div className="mx-auto max-w-4xl">
           <Card>
@@ -2518,9 +2821,11 @@ if (contractSignedError) throw contractSignedError;
               </h1>
 
               <p className="mx-auto max-w-2xl text-sm text-slate-500 md:text-base">
-                Seu contrato foi concluído com sucesso. {isInternalMode
+                {isClientContractGuideActive
+                  ? 'Simulação concluída: quando o cliente assina, o contrato libera o fluxo operacional no app para seguir com evento, financeiro e próximas etapas.'
+                  : <>Seu contrato foi concluído com sucesso. {isInternalMode
                   ? 'Seu documento foi registrado com segurança.'
-                  : 'Abaixo você já pode acessar o PDF do contrato e também o seu painel do cliente, onde poderá acompanhar informações importantes do seu evento, financeiro e as próximas etapas.'}
+                  : 'Abaixo você já pode acessar o PDF do contrato e também o seu painel do cliente, onde poderá acompanhar informações importantes do seu evento, financeiro e as próximas etapas.'}</>}
               </p>
 
               {resultadoFinal.documentHash ? (
@@ -2605,6 +2910,16 @@ if (contractSignedError) throw contractSignedError;
           </Card>
         </div>
       </main>
+      {isClientContractGuideActive && guideVisible ? (
+        <ClientContractGuide
+          steps={guideSteps}
+          currentSpotlight={currentGuideSpotlight}
+          onMarkCorrectionExplained={() => setGuideCorrectionExplained(true)}
+          onFillSampleData={preencherDadosDoGuia}
+          onClose={() => setGuideVisible(false)}
+        />
+      ) : null}
+    </>
     );
   }
 
@@ -2683,7 +2998,7 @@ if (contractSignedError) throw contractSignedError;
                 </div>
               </Card>
 
-              <Card>
+              <Card className={getGuideSpotlightClass(currentGuideSpotlight === 'clientData')}>
   <SectionTitle subtitle="Preencha os dados do contratante exatamente como deseja que constem no contrato.">
     Dados do contratante
   </SectionTitle>
@@ -2755,7 +3070,7 @@ if (contractSignedError) throw contractSignedError;
   </div>
 </Card>
 
-<Card>
+<Card className={getGuideSpotlightClass(currentGuideSpotlight === 'clientData')}>
   <SectionTitle subtitle="Comece digitando e selecione um endereço válido do Google.">
     Endereço do contratante
   </SectionTitle>
@@ -2882,7 +3197,7 @@ if (contractSignedError) throw contractSignedError;
   </div>
 </Card>
 
-<Card>
+<Card className={getGuideSpotlightClass(currentGuideSpotlight === 'clientData')}>
   <SectionTitle subtitle="Confirme com atenção os dados do evento.">
     Dados do evento
   </SectionTitle>
@@ -2987,9 +3302,9 @@ if (contractSignedError) throw contractSignedError;
   </div>
 </Card>
 
-              <Card>
+              <Card className={getGuideSpotlightClass(currentGuideSpotlight === 'correction')}>
                 <SectionTitle subtitle="Caso precise corrigir alguma informação antes da assinatura, descreva abaixo.">
-                  Solicitar ajuste
+                  Solicitar correção
                 </SectionTitle>
 
       {pendingAdjustmentRequest?.id &&
@@ -3008,7 +3323,7 @@ if (contractSignedError) throw contractSignedError;
                     handleChange('adjustment_request', e.target.value)
                   }
                   className="min-h-[110px] w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-100"
-                  placeholder="Descreva aqui o ajuste que deseja solicitar..."
+                  placeholder="Descreva aqui a correção que deseja solicitar..."
                 />
 
                 <div className="mt-4 flex flex-wrap gap-3">
@@ -3017,7 +3332,7 @@ if (contractSignedError) throw contractSignedError;
                     onClick={solicitarAjuste}
                     disabled={solicitandoAjuste}
                   >
-                    {solicitandoAjuste ? 'Enviando ajuste...' : 'Solicitar ajuste'}
+                    {solicitandoAjuste ? 'Enviando correção...' : 'Solicitar correção'}
                   </Button>
 
                   <Button
@@ -3042,7 +3357,7 @@ if (contractSignedError) throw contractSignedError;
                 </div>
               </Card>
 
-              <Card title="Leitura do contrato">
+              <Card title="Leitura do contrato" className={getGuideSpotlightClass(currentGuideSpotlight === 'contractViewer')}>
                 <div className="space-y-3">
                   <p className="text-sm text-slate-600">
                     Leia o contrato completo antes da assinatura.
@@ -3060,7 +3375,7 @@ if (contractSignedError) throw contractSignedError;
                 </div>
               </Card>
 
-              <Card title="Assinatura eletrônica">
+              <Card title="Assinatura eletrônica" className={getGuideSpotlightClass(currentGuideSpotlight === 'signature' || currentGuideSpotlight === 'signButton')}>
                 <div className="space-y-4">
                   {hasPendingAdjustment ? (
                     <AlertCard tone="amber" title="Assinatura bloqueada temporariamente">
@@ -3109,9 +3424,11 @@ if (contractSignedError) throw contractSignedError;
                   {draftStatus === 'saved' ? <p className="text-xs text-emerald-600">Dados salvos</p> : null}
                   {draftStatus === 'error' ? <p className="text-xs text-amber-600">Falha ao salvar, tentando novamente</p> : null}
 
-                  <Button onClick={assinarContrato} disabled={!canSubmitSignature}>
-                    {salvando ? 'Assinando...' : 'Assinar contrato'}
-                  </Button>
+                  <span className={getGuideSpotlightClass(currentGuideSpotlight === 'signButton')}>
+                    <Button onClick={assinarContrato} disabled={!canSubmitSignature}>
+                      {salvando ? 'Assinando...' : 'Assinar contrato'}
+                    </Button>
+                  </span>
                 </div>
               </Card>
 
@@ -3125,6 +3442,16 @@ if (contractSignedError) throw contractSignedError;
             </div>
           </div>
         </div>
+
+        {isClientContractGuideActive && guideVisible ? (
+          <ClientContractGuide
+            steps={guideSteps}
+            currentSpotlight={currentGuideSpotlight}
+            onMarkCorrectionExplained={() => setGuideCorrectionExplained(true)}
+            onFillSampleData={preencherDadosDoGuia}
+            onClose={() => setGuideVisible(false)}
+          />
+        ) : null}
 
         {previewAberto && (
           <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-black/60 p-3">

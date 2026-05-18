@@ -53,19 +53,13 @@ function isMissingColumnError(error) {
   const code = String(error?.code || '').toLowerCase();
   const message = String(error?.message || '').toLowerCase();
   const details = String(error?.details || '').toLowerCase();
-  return (
-    code === '42703' ||
-    message.includes('does not exist') ||
-    message.includes('could not find') ||
-    details.includes('schema cache')
-  );
+  return code === '42703' || message.includes('does not exist') || message.includes('could not find') || details.includes('schema cache');
 }
 
 function isPrimaryHarmonicsWorkspace(workspace) {
   const key = String(workspace?.key || '').trim().toLowerCase();
   const slug = String(workspace?.slug || '').trim().toLowerCase();
   const name = String(workspace?.name || '').trim().toLowerCase();
-
   if (key === 'default') return true;
   if (slug === 'harmonics-producao') return true;
   if (name.includes('harmonics') && (slug === 'harmonics-producao' || key === 'default')) return true;
@@ -80,24 +74,27 @@ function hasCount(response) {
   return Number(response?.count || 0) > 0;
 }
 
+function requestCameFromFreshWorkspaceDashboard(request) {
+  const referer = String(request?.headers?.get('referer') || '');
+  if (!referer) return false;
+  try {
+    const url = new URL(referer);
+    return url.pathname === '/dashboard' && url.searchParams.get('onboarding') === 'fresh-workspace';
+  } catch {
+    return referer.includes('/dashboard') && referer.includes('onboarding=fresh-workspace');
+  }
+}
+
 async function safeCount(queryPromise, label) {
   try {
     const response = await queryPromise;
     if (response?.error) {
-      console.warn('[ONBOARDING_FLOW_STATUS][COUNT_ERROR]', {
-        label,
-        message: response.error?.message,
-        code: response.error?.code,
-      });
+      console.warn('[ONBOARDING_FLOW_STATUS][COUNT_ERROR]', { label, message: response.error?.message, code: response.error?.code });
       return { count: 0 };
     }
     return response || { count: 0 };
   } catch (error) {
-    console.warn('[ONBOARDING_FLOW_STATUS][COUNT_EXCEPTION]', {
-      label,
-      message: error?.message,
-      code: error?.code,
-    });
+    console.warn('[ONBOARDING_FLOW_STATUS][COUNT_EXCEPTION]', { label, message: error?.message, code: error?.code });
     return { count: 0 };
   }
 }
@@ -106,74 +103,96 @@ async function safeMaybeSingle(queryPromise, label) {
   try {
     const response = await queryPromise;
     if (response?.error) {
-      console.warn('[ONBOARDING_FLOW_STATUS][QUERY_ERROR]', {
-        label,
-        message: response.error?.message,
-        code: response.error?.code,
-      });
+      console.warn('[ONBOARDING_FLOW_STATUS][QUERY_ERROR]', { label, message: response.error?.message, code: response.error?.code });
       return null;
     }
     return response?.data || null;
   } catch (error) {
-    console.warn('[ONBOARDING_FLOW_STATUS][QUERY_EXCEPTION]', {
-      label,
-      message: error?.message,
-      code: error?.code,
-    });
+    console.warn('[ONBOARDING_FLOW_STATUS][QUERY_EXCEPTION]', { label, message: error?.message, code: error?.code });
     return null;
   }
 }
 
 async function getProgressRow({ supabase, workspaceId }) {
   const existing = await safeMaybeSingle(
-    supabase
-      .from('workspace_onboarding_progress')
-      .select('*')
-      .eq('workspace_id', workspaceId)
-      .maybeSingle(),
+    supabase.from('workspace_onboarding_progress').select('*').eq('workspace_id', workspaceId).maybeSingle(),
     'workspace_onboarding_progress.select'
   );
-
   if (existing?.workspace_id || existing?.id) return existing;
 
   const now = new Date().toISOString();
-  const insertPayload = {
-    workspace_id: workspaceId,
-    ...DEFAULT_PROGRESS,
-    updated_at: now,
-  };
+  const insertPayload = { workspace_id: workspaceId, ...DEFAULT_PROGRESS, updated_at: now };
 
   try {
-    let response = await supabase
+    let response = await supabase.from('workspace_onboarding_progress').insert(insertPayload).select('*').single();
+    if (response?.error && isMissingColumnError(response.error)) {
+      response = await supabase.from('workspace_onboarding_progress').insert({ workspace_id: workspaceId }).select('*').single();
+    }
+    if (response?.error) {
+      console.warn('[ONBOARDING_FLOW_STATUS][PROGRESS_INSERT_ERROR]', { message: response.error?.message, code: response.error?.code });
+      return { workspace_id: workspaceId, flow_state: {} };
+    }
+    return response?.data || { workspace_id: workspaceId, flow_state: {} };
+  } catch (error) {
+    console.warn('[ONBOARDING_FLOW_STATUS][PROGRESS_INSERT_EXCEPTION]', { message: error?.message, code: error?.code });
+    return { workspace_id: workspaceId, flow_state: {} };
+  }
+}
+
+async function updateProgressFlowState({ supabase, workspaceId, progress, flowState }) {
+  const now = new Date().toISOString();
+  const payloads = [
+    { flow_state: flowState, completed_at: null, updated_at: now },
+    { flow_state: flowState, updated_at: now },
+    { flow_state: flowState },
+  ];
+
+  for (const payload of payloads) {
+    const response = await supabase
       .from('workspace_onboarding_progress')
-      .insert(insertPayload)
+      .update(payload)
+      .eq('workspace_id', workspaceId)
+      .select('*')
+      .maybeSingle();
+
+    if (!response.error && response.data) return response.data;
+    if (response.error && !isMissingColumnError(response.error)) break;
+  }
+
+  for (const payload of payloads) {
+    const response = await supabase
+      .from('workspace_onboarding_progress')
+      .insert({ workspace_id: workspaceId, ...payload })
       .select('*')
       .single();
 
-    if (response?.error && isMissingColumnError(response.error)) {
-      response = await supabase
-        .from('workspace_onboarding_progress')
-        .insert({ workspace_id: workspaceId })
-        .select('*')
-        .single();
-    }
-
-    if (response?.error) {
-      console.warn('[ONBOARDING_FLOW_STATUS][PROGRESS_INSERT_ERROR]', {
-        message: response.error?.message,
-        code: response.error?.code,
-      });
-      return { workspace_id: workspaceId, flow_state: {} };
-    }
-
-    return response?.data || { workspace_id: workspaceId, flow_state: {} };
-  } catch (error) {
-    console.warn('[ONBOARDING_FLOW_STATUS][PROGRESS_INSERT_EXCEPTION]', {
-      message: error?.message,
-      code: error?.code,
-    });
-    return { workspace_id: workspaceId, flow_state: {} };
+    if (!response.error && response.data) return response.data;
+    if (response.error && !isMissingColumnError(response.error)) break;
   }
+
+  return { ...progress, workspace_id: workspaceId, flow_state: flowState };
+}
+
+async function maybeEnableFreshWorkspaceOnboarding({ supabase, request, workspaceId, workspace, progress }) {
+  const primaryWorkspace = isPrimaryHarmonicsWorkspace(workspace);
+  const flowState = normalizeFlowState(progress?.flow_state);
+  const alreadyEnabled = flowState.onboarding_enabled === true || flowState.workspace_created_for_onboarding === true;
+  const completed = Boolean(progress?.completed_at || flowState.onboarding_completed === true || flowState.onboardingCompleted === true);
+
+  if (primaryWorkspace || alreadyEnabled || completed) return progress;
+  if (!requestCameFromFreshWorkspaceDashboard(request)) return progress;
+
+  const now = new Date().toISOString();
+  const nextFlowState = {
+    ...flowState,
+    onboarding_enabled: true,
+    workspace_created_for_onboarding: true,
+    onboarding_started_at: flowState.onboarding_started_at || now,
+    auto_healed_from_fresh_workspace_route: true,
+    updatedAt: now,
+  };
+
+  return updateProgressFlowState({ supabase, workspaceId, progress, flowState: nextFlowState });
 }
 
 async function countFacts({ supabase, workspaceId, progress }) {
@@ -218,11 +237,7 @@ function buildFallbackFlow(facts) {
     return buildOnboardingFlowStatus(facts) || {};
   } catch (error) {
     console.warn('[ONBOARDING_FLOW_STATUS][FLOW_BUILD_ERROR]', { message: error?.message });
-    return {
-      currentStep: 'template',
-      nextStep: 'template',
-      nextHref: '/contratos/templates?guide=template',
-    };
+    return { currentStep: 'template', nextStep: 'template', nextHref: '/contratos/templates?guide=template' };
   }
 }
 
@@ -230,17 +245,18 @@ export async function GET(request) {
   const supabase = getSupabaseAdmin();
 
   try {
-    const auth = await requireWorkspaceAccess({
+    const auth = await requireWorkspaceAccess({ supabase, request, logPrefix: '[ONBOARDING_FLOW_STATUS][GET]' });
+    if (!auth.ok) return NextResponse.json({ ok: false, error: auth.error }, { status: auth.status || 401 });
+
+    let progress = await getProgressRow({ supabase, workspaceId: auth.workspaceId });
+    progress = await maybeEnableFreshWorkspaceOnboarding({
       supabase,
       request,
-      logPrefix: '[ONBOARDING_FLOW_STATUS][GET]',
+      workspaceId: auth.workspaceId,
+      workspace: auth.workspace,
+      progress,
     });
 
-    if (!auth.ok) {
-      return NextResponse.json({ ok: false, error: auth.error }, { status: auth.status || 401 });
-    }
-
-    const progress = await getProgressRow({ supabase, workspaceId: auth.workspaceId });
     const facts = await countFacts({ supabase, workspaceId: auth.workspaceId, progress });
     const primaryWorkspace = isPrimaryHarmonicsWorkspace(auth.workspace);
     const flowState = normalizeFlowState(progress?.flow_state);
@@ -260,16 +276,8 @@ export async function GET(request) {
       ...flow,
     });
   } catch (error) {
-    console.error('[ONBOARDING_FLOW_STATUS][GET][ERROR]', {
-      message: error?.message,
-      code: error?.code,
-      details: error?.details,
-    });
-
-    return NextResponse.json(
-      { ok: false, error: error?.message || 'Erro ao carregar status do onboarding.' },
-      { status: 500 }
-    );
+    console.error('[ONBOARDING_FLOW_STATUS][GET][ERROR]', { message: error?.message, code: error?.code, details: error?.details });
+    return NextResponse.json({ ok: false, error: error?.message || 'Erro ao carregar status do onboarding.' }, { status: 500 });
   }
 }
 
@@ -277,24 +285,14 @@ export async function PATCH(request) {
   const supabase = getSupabaseAdmin();
 
   try {
-    const auth = await requireWorkspaceAdmin({
-      supabase,
-      request,
-      logPrefix: '[ONBOARDING_FLOW_STATUS][PATCH]',
-    });
-
-    if (!auth.ok) {
-      return NextResponse.json({ ok: false, error: auth.error }, { status: auth.status || 401 });
-    }
+    const auth = await requireWorkspaceAdmin({ supabase, request, logPrefix: '[ONBOARDING_FLOW_STATUS][PATCH]' });
+    if (!auth.ok) return NextResponse.json({ ok: false, error: auth.error }, { status: auth.status || 401 });
 
     const body = await request.json().catch(() => ({}));
     const guide = String(body?.guide || '').trim().toLowerCase();
     const markKey = GUIDE_VIEW_MARKS[guide];
     const requestedFlowState = body?.flowState && typeof body.flowState === 'object' ? body.flowState : {};
-    const sanitizedFlowState = Object.fromEntries(
-      Object.entries(requestedFlowState)
-        .filter(([key, value]) => ALLOWED_FLOW_STATE_KEYS.has(key) && value === true)
-    );
+    const sanitizedFlowState = Object.fromEntries(Object.entries(requestedFlowState).filter(([key, value]) => ALLOWED_FLOW_STATE_KEYS.has(key) && value === true));
 
     if (!markKey && body?.completed !== true && Object.keys(sanitizedFlowState).length === 0) {
       return NextResponse.json({ ok: false, error: 'Guia de onboarding inválido.' }, { status: 400 });
@@ -312,55 +310,15 @@ export async function PATCH(request) {
       updatedAt: new Date().toISOString(),
     };
 
-    const updatePayload = {
-      flow_state: nextFlowState,
-      updated_at: new Date().toISOString(),
-      ...(guide === 'template' || sanitizedFlowState.contract_template_completed === true ? { template_created: true } : {}),
-      ...(body?.completed === true || sanitizedFlowState.onboarding_completed === true ? { completed_at: new Date().toISOString() } : {}),
-    };
-
-    let response = await supabase
-      .from('workspace_onboarding_progress')
-      .update(updatePayload)
-      .eq('workspace_id', auth.workspaceId)
-      .select('*')
-      .single();
-
-    if (response?.error && isMissingColumnError(response.error)) {
-      response = await supabase
-        .from('workspace_onboarding_progress')
-        .update({ flow_state: nextFlowState })
-        .eq('workspace_id', auth.workspaceId)
-        .select('*')
-        .single();
-    }
-
-    if (response?.error) throw response.error;
-
-    const updated = response?.data || { ...progress, flow_state: nextFlowState };
+    const updated = await updateProgressFlowState({ supabase, workspaceId: auth.workspaceId, progress, flowState: nextFlowState });
     const facts = await countFacts({ supabase, workspaceId: auth.workspaceId, progress: updated });
     const primaryWorkspace = isPrimaryHarmonicsWorkspace(auth.workspace);
-    const onboardingEnabled = primaryWorkspace
-      ? false
-      : nextFlowState.onboarding_enabled === true || nextFlowState.workspace_created_for_onboarding === true;
+    const onboardingEnabled = primaryWorkspace ? false : nextFlowState.onboarding_enabled === true || nextFlowState.workspace_created_for_onboarding === true;
     const flow = buildFallbackFlow({ ...facts, onboardingEnabled });
 
-    return NextResponse.json({
-      ok: true,
-      workspaceId: auth.workspaceId,
-      progress: updated,
-      flow_state: nextFlowState,
-      onboardingEnabled,
-      primaryWorkspace,
-      ...facts,
-      ...flow,
-    });
+    return NextResponse.json({ ok: true, workspaceId: auth.workspaceId, progress: updated, flow_state: nextFlowState, onboardingEnabled, primaryWorkspace, ...facts, ...flow });
   } catch (error) {
-    console.error('[ONBOARDING_FLOW_STATUS][PATCH][ERROR]', {
-      message: error?.message,
-      code: error?.code,
-      details: error?.details,
-    });
+    console.error('[ONBOARDING_FLOW_STATUS][PATCH][ERROR]', { message: error?.message, code: error?.code, details: error?.details });
     return NextResponse.json({ ok: false, error: error?.message || 'Erro ao atualizar status do onboarding.' }, { status: 500 });
   }
 }

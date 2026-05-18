@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import AdminShell from '@/components/admin/AdminShell';
 import WorkspaceModuleGuard from '@/components/workspace/WorkspaceModuleGuard';
 import { invalidateWorkspaceMeCache } from '@/hooks/useWorkspaceMe';
@@ -82,6 +83,12 @@ function LoadingSkeleton() {
 }
 
 function EquipeContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const guide = searchParams?.get('guide') || '';
+  const demoEventId = searchParams?.get('eventId') || '';
+  const isFakeMembersGuide = guide === 'fake-members';
+  const redirectedAfterFakeMembersRef = useRef(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [members, setMembers] = useState([]);
@@ -92,6 +99,16 @@ function EquipeContent() {
   const [success, setSuccess] = useState('');
   const [inviteForm, setInviteForm] = useState({ email: '', role: 'viewer' });
   const [busyMemberId, setBusyMemberId] = useState('');
+  const [fakeGuideLoading, setFakeGuideLoading] = useState(false);
+  const [fakeGuideSaving, setFakeGuideSaving] = useState(false);
+  const [fakeGuideError, setFakeGuideError] = useState('');
+  const [fakeGuideStatus, setFakeGuideStatus] = useState({
+    fakeMembersCount: 0,
+    minRequired: 3,
+    hasFakeMembers: false,
+    members: [],
+    suggestions: [],
+  });
 
   const activeMembers = useMemo(
     () => members.filter((member) => String(member.status || '').toLowerCase() === 'active'),
@@ -133,6 +150,93 @@ function EquipeContent() {
   useEffect(() => {
     carregarEquipe();
   }, [carregarEquipe]);
+
+
+  const formationGuideHref = useMemo(() => {
+    const params = new URLSearchParams({ guide: 'formation-template' });
+    if (demoEventId) params.set('eventId', demoEventId);
+    return `/templates-escala?${params.toString()}`;
+  }, [demoEventId]);
+
+  const carregarFakeGuide = useCallback(async () => {
+    if (!isFakeMembersGuide) return;
+
+    setFakeGuideLoading(true);
+    setFakeGuideError('');
+
+    try {
+      const response = await fetch('/api/onboarding/fake-members', {
+        method: 'GET',
+        cache: 'no-store',
+        credentials: 'include',
+      });
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok || !payload?.ok) {
+        throw new Error(payload?.error || 'Erro ao carregar membros demo.');
+      }
+
+      setFakeGuideStatus({
+        fakeMembersCount: Number(payload.fakeMembersCount || 0),
+        minRequired: Number(payload.minRequired || 3),
+        hasFakeMembers: Boolean(payload.hasFakeMembers),
+        members: payload.members || [],
+        suggestions: payload.suggestions || [],
+      });
+    } catch (err) {
+      setFakeGuideError(err?.message || 'Erro ao carregar membros demo.');
+    } finally {
+      setFakeGuideLoading(false);
+    }
+  }, [isFakeMembersGuide]);
+
+  useEffect(() => {
+    carregarFakeGuide();
+  }, [carregarFakeGuide]);
+
+  useEffect(() => {
+    if (!isFakeMembersGuide || !fakeGuideStatus.hasFakeMembers || redirectedAfterFakeMembersRef.current) return undefined;
+
+    redirectedAfterFakeMembersRef.current = true;
+    const timer = window.setTimeout(() => {
+      router.push(formationGuideHref);
+    }, 1400);
+
+    return () => window.clearTimeout(timer);
+  }, [fakeGuideStatus.hasFakeMembers, formationGuideHref, isFakeMembersGuide, router]);
+
+  async function criarMembrosFakeSugeridos() {
+    setFakeGuideSaving(true);
+    setFakeGuideError('');
+    setSuccess('');
+
+    try {
+      const response = await fetch('/api/onboarding/fake-members', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'seed' }),
+      });
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok || !payload?.ok) {
+        throw new Error(payload?.error || 'Erro ao criar membros fake.');
+      }
+
+      setFakeGuideStatus((prev) => ({
+        ...prev,
+        fakeMembersCount: Number(payload.fakeMembersCount || 0),
+        minRequired: Number(payload.minRequired || prev.minRequired || 3),
+        hasFakeMembers: Boolean(payload.hasFakeMembers),
+        members: payload.members || [],
+      }));
+      setSuccess('Membros fake criados apenas para esta simulação. Nenhum convite ou WhatsApp real foi enviado.');
+    } catch (err) {
+      setFakeGuideError(err?.message || 'Erro ao criar membros fake.');
+    } finally {
+      setFakeGuideSaving(false);
+    }
+  }
 
   async function convidarMembro(event) {
     event.preventDefault();
@@ -257,6 +361,115 @@ function EquipeContent() {
             </div>
           </div>
         </div>
+
+        {isFakeMembersGuide ? (
+          <section className="overflow-hidden rounded-[32px] border border-violet-200 bg-white shadow-[0_18px_54px_rgba(124,58,237,0.12)]" data-onboarding-tour="fake-members-guide">
+            <div className="bg-gradient-to-br from-violet-700 via-fuchsia-700 to-slate-950 p-6 text-white">
+              <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-violet-100">Onboarding operacional</p>
+                  <h2 className="mt-2 text-3xl font-black tracking-[-0.05em]">Cadastre sua equipe</h2>
+                  <p className="mt-3 max-w-3xl text-sm font-semibold leading-7 text-violet-50/90">
+                    Para montar escalas, primeiro você precisa cadastrar membros/músicos da equipe. Nesta etapa, crie membros fake no workspace atual para simular a escala do evento demo sem misturar dados do Harmonics principal.
+                  </p>
+                </div>
+                <div className="rounded-[24px] border border-white/15 bg-white/10 px-5 py-4 text-center backdrop-blur">
+                  <p className="text-3xl font-black">{fakeGuideStatus.fakeMembersCount}/{fakeGuideStatus.minRequired}</p>
+                  <p className="mt-1 text-[11px] font-black uppercase tracking-wide text-violet-100">membros demo</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-5 p-5 lg:grid-cols-[1.1fr_0.9fr]">
+              <div className="space-y-4">
+                <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
+                  <h3 className="text-base font-black text-slate-900">O que cadastrar</h3>
+                  <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
+                    Use dados fictícios: nome, função/instrumento, WhatsApp fake, e-mail fake se necessário e tags/funções operacionais usadas na escala. Estes contatos são apenas da simulação e ficam salvos com o workspace atual.
+                  </p>
+                  <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {(fakeGuideStatus.suggestions.length ? fakeGuideStatus.suggestions : [
+                      { name: 'João Piano', tag: 'Piano' },
+                      { name: 'Maria Voz', tag: 'Voz' },
+                      { name: 'Pedro Violino', tag: 'Violino' },
+                      { name: 'Lucas Sax', tag: 'Sax' },
+                    ]).map((item) => (
+                      <div key={`${item.name}-${item.tag}`} className="rounded-2xl border border-white bg-white px-4 py-3 text-sm font-black text-slate-800 shadow-sm">
+                        {item.name} <span className="text-violet-600">· {item.tag}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-[24px] border border-amber-200 bg-amber-50 p-4 text-sm font-bold leading-6 text-amber-800">
+                  Nenhum WhatsApp real será disparado e nenhum convite real será enviado nesta etapa. O botão abaixo cria somente contatos operacionais fake marcados como demo.
+                </div>
+
+                {fakeGuideError ? (
+                  <div className="rounded-[18px] border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{fakeGuideError}</div>
+                ) : null}
+
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <button
+                    type="button"
+                    onClick={criarMembrosFakeSugeridos}
+                    disabled={fakeGuideSaving || fakeGuideLoading || fakeGuideStatus.hasFakeMembers}
+                    className="rounded-[18px] bg-violet-600 px-5 py-4 text-sm font-black text-white shadow-lg shadow-violet-600/20 transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {fakeGuideSaving ? 'Criando membros fake...' : fakeGuideStatus.hasFakeMembers ? 'Mínimo concluído' : 'Criar membros demo sugeridos'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => router.push(formationGuideHref)}
+                    disabled={!fakeGuideStatus.hasFakeMembers}
+                    className="rounded-[18px] border border-slate-200 bg-white px-5 py-4 text-sm font-black text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Avançar para formações
+                  </button>
+                </div>
+              </div>
+
+              <div className="rounded-[24px] border border-slate-200 bg-white p-4">
+                <h3 className="text-base font-black text-slate-900">Checklist do guia</h3>
+                <div className="mt-4 space-y-3">
+                  {[
+                    { label: 'Criar primeiro membro fake', done: fakeGuideStatus.fakeMembersCount >= 1 },
+                    { label: 'Definir função/instrumento e tag operacional', done: fakeGuideStatus.fakeMembersCount >= 1 },
+                    { label: 'Salvar membro no workspace atual', done: fakeGuideStatus.fakeMembersCount >= 1 },
+                    { label: `Repetir até ${fakeGuideStatus.minRequired} membros demo`, done: fakeGuideStatus.hasFakeMembers },
+                  ].map((item) => (
+                    <div key={item.label} className="flex items-start gap-3 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
+                      <span className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-black ${item.done ? 'bg-emerald-500 text-white' : 'bg-white text-slate-400 border border-slate-200'}`}>
+                        {item.done ? '✓' : '•'}
+                      </span>
+                      <span className="text-sm font-bold leading-6 text-slate-700">{item.label}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-4 rounded-[20px] border border-violet-100 bg-violet-50 px-4 py-3 text-xs font-bold leading-5 text-violet-800">
+                  {fakeGuideStatus.hasFakeMembers
+                    ? 'Etapa concluída. Vamos abrir o guia de formações/templates de escala em instantes.'
+                    : `Cadastre pelo menos ${fakeGuideStatus.minRequired} membros demo para concluir esta etapa.`}
+                </div>
+
+                {fakeGuideStatus.members.length > 0 ? (
+                  <div className="mt-4 space-y-2">
+                    {fakeGuideStatus.members.slice(0, 4).map((member) => (
+                      <div key={member.id} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-100 px-3 py-2">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-black text-slate-900">{member.name}</p>
+                          <p className="truncate text-xs font-semibold text-slate-500">{member.email || 'email fake não informado'}</p>
+                        </div>
+                        <span className="rounded-full bg-violet-100 px-3 py-1 text-[11px] font-black text-violet-700">{member.tag || 'Função'}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </section>
+        ) : null}
 
         {error ? <div className="rounded-[18px] border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{error}</div> : null}
         {success ? <div className="rounded-[18px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-700">{success}</div> : null}

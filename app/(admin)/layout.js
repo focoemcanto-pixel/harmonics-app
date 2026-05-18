@@ -2,12 +2,13 @@
 
 import { AuthProvider } from '@/contexts/AuthContext';
 import { OnboardingSessionProvider } from '@/contexts/OnboardingSessionContext';
+import { OnboardingFlowProvider } from '@/components/onboarding/OnboardingFlowProvider';
 
 export default function AdminLayout({ children }) {
   return (
     <AuthProvider>
       <OnboardingSessionProvider>
-        {children}
+        <OnboardingFlowProvider>{children}</OnboardingFlowProvider>
       </OnboardingSessionProvider>
     </AuthProvider>
   );

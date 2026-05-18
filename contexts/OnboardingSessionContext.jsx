@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useCallback, useContext, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
 
 const IDLE_SESSION = {
   activeGuide: null,
@@ -18,14 +18,19 @@ const OnboardingSessionContext = createContext({
 
 export function OnboardingSessionProvider({ children }) {
   const [onboardingSession, setOnboardingSession] = useState(IDLE_SESSION);
+  const activeOwnerRef = useRef(null);
 
   const startOnboardingSession = useCallback(({ guide = null, overlay = null, mode = 'guide' } = {}) => {
     const owner = overlay || guide;
     if (!owner) return false;
 
+    const currentOwner = activeOwnerRef.current;
+    if (currentOwner && currentOwner !== owner) return false;
+    activeOwnerRef.current = owner;
+
     setOnboardingSession((current) => {
-      const currentOwner = current.activeOverlay || current.activeGuide;
-      if (currentOwner && currentOwner !== owner) return current;
+      const stateOwner = current.activeOverlay || current.activeGuide;
+      if (stateOwner && stateOwner !== owner) return current;
 
       return {
         activeGuide: guide ?? current.activeGuide,
@@ -43,6 +48,7 @@ export function OnboardingSessionProvider({ children }) {
     setOnboardingSession((current) => {
       const currentOwner = current.activeOverlay || current.activeGuide;
       if (currentOwner && currentOwner !== owner) return current;
+      activeOwnerRef.current = null;
       return IDLE_SESSION;
     });
   }, []);

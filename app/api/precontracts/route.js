@@ -57,6 +57,9 @@ const PRECONTRACT_SELECT_FIELDS = [
   'contract_template_id',
   'contract_mode',
   'event_id',
+  'metadata',
+  'source',
+  'is_demo',
 ].join(', ');
 
 function parseDateOnly(value) {
@@ -166,6 +169,13 @@ async function syncEventSnapshotFromPrecontract({ supabase, precontract }) {
     card_due_date: precontract?.card_due_date || null,
     reception_formation: precontract?.reception_formation || null,
     reception_instruments: precontract?.reception_instruments || null,
+    ...(precontract?.is_demo === true || precontract?.source === 'onboarding_demo' || precontract?.metadata?.is_onboarding_demo === true
+      ? {
+          is_demo: true,
+          source: 'onboarding_demo',
+          metadata: { ...(precontract?.metadata || {}), is_onboarding_demo: true },
+        }
+      : {}),
   };
 
   const precontractEventType = String(precontract?.event_type || '').trim();

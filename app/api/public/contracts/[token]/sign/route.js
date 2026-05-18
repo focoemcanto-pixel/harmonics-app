@@ -48,11 +48,15 @@ async function upsertContactFromSignature({ supabase, precontract, form, workspa
 
   let existing = null;
   if (email) {
-    const { data } = await supabase.from('contacts').select('id, workspace_id').eq('email', email).maybeSingle();
+    let query = supabase.from('contacts').select('id, workspace_id').eq('email', email);
+    if (resolvedWorkspaceId) query = query.eq('workspace_id', resolvedWorkspaceId);
+    const { data } = await query.maybeSingle();
     existing = data || null;
   }
   if (!existing && phone) {
-    const { data } = await supabase.from('contacts').select('id, workspace_id').eq('phone', phone).maybeSingle();
+    let query = supabase.from('contacts').select('id, workspace_id').eq('phone', phone);
+    if (resolvedWorkspaceId) query = query.eq('workspace_id', resolvedWorkspaceId);
+    const { data } = await query.maybeSingle();
     existing = data || null;
   }
 
@@ -149,6 +153,13 @@ async function upsertEventFromSignature({ supabase, precontract, contactId, form
     notes: ['Criado/atualizado automaticamente após assinatura.', precontract?.notes || ''].filter(Boolean).join('\n\n'),
     status: 'Confirmado',
     legacy_id: asString(precontract?.legacy_id) || null,
+    ...(precontract?.is_demo === true || precontract?.source === 'onboarding_demo' || precontract?.metadata?.is_onboarding_demo === true
+      ? {
+          is_demo: true,
+          source: 'onboarding_demo',
+          metadata: { ...(precontract?.metadata || {}), is_onboarding_demo: true },
+        }
+      : {}),
   };
 
   let finalEventId = precontract?.event_id || null;

@@ -67,9 +67,16 @@ async function resolveUserFromRequest(request) {
   return { user: data?.user || null, error: error || null };
 }
 
-async function resetOnboardingProgressForWorkspace({ supabase, workspaceId }) {
+async function ensureOnboardingProgressMarked({ supabase, workspaceId }) {
   const now = new Date().toISOString();
-  const progressPayload = {
+  const flowState = {
+    onboarding_enabled: true,
+    workspace_created_for_onboarding: true,
+    onboarding_started_at: now,
+    updatedAt: now,
+  };
+
+  const fullPayload = {
     workspace_id: workspaceId,
     workspace_configured: false,
     template_created: false,
@@ -80,49 +87,62 @@ async function resetOnboardingProgressForWorkspace({ supabase, workspaceId }) {
     automation_configured: false,
     team_configured: false,
     completed_at: null,
-    flow_state: {
-      onboarding_enabled: true,
-      workspace_created_for_onboarding: true,
-      onboarding_started_at: now,
-      updatedAt: now,
-    },
+    flow_state: flowState,
     updated_at: now,
   };
 
   const fallbackPayload = {
     workspace_id: workspaceId,
     completed_at: null,
-    flow_state: progressPayload.flow_state,
+    flow_state: flowState,
     updated_at: now,
   };
 
   const minimalPayload = {
     workspace_id: workspaceId,
-    flow_state: progressPayload.flow_state,
+    flow_state: flowState,
   };
 
-  let response = await supabase
-    .from('workspace_onboarding_progress')
-    .upsert(progressPayload, { onConflict: 'workspace_id' });
+  const payloadAttempts = [fullPayload, fallbackPayload, minimalPayload];
 
-  if (response.error && isMissingColumnError(response.error)) {
-    response = await supabase
+  for (const payload of payloadAttempts) {
+    const upsert = await supabase
       .from('workspace_onboarding_progress')
-      .upsert(fallbackPayload, { onConflict: 'workspace_id' });
+      .upsert(payload, { onConflict: 'workspace_id' });
+
+    if (!upsert.error) return true;
+    if (!isMissingColumnError(upsert.error)) break;
   }
 
-  if (response.error && isMissingColumnError(response.error)) {
-    response = await supabase
+  for (const payload of payloadAttempts) {
+    const update = await supabase
       .from('workspace_onboarding_progress')
-      .upsert(minimalPayload, { onConflict: 'workspace_id' });
+      .update(payload)
+      .eq('workspace_id', workspaceId)
+      .select('workspace_id')
+      .maybeSingle();
+
+    if (!update.error && update.data?.workspace_id) return true;
+    if (update.error && !isMissingColumnError(update.error)) break;
   }
 
-  if (response.error) {
-    console.warn('[WORKSPACE_CREATE][ONBOARDING_RESET_FAILED]', {
-      message: response.error?.message,
-      code: response.error?.code || null,
-    });
+  for (const payload of payloadAttempts) {
+    const insert = await supabase
+      .from('workspace_onboarding_progress')
+      .insert(payload);
+
+    if (!insert.error) return true;
+    if (!isMissingColumnError(insert.error)) {
+      console.warn('[WORKSPACE_CREATE][ONBOARDING_MARK_INSERT_FAILED]', {
+        message: insert.error?.message,
+        code: insert.error?.code || null,
+      });
+      break;
+    }
   }
+
+  console.warn('[WORKSPACE_CREATE][ONBOARDING_MARK_FAILED]', { workspaceId });
+  return false;
 }
 
 async function updateProfileWorkspaceSafe({ supabase, user, workspaceId }) {
@@ -226,7 +246,7 @@ export async function POST(request) {
       workspaceId: bootstrap.workspace.id,
     });
 
-    await resetOnboardingProgressForWorkspace({
+    const onboardingMarked = await ensureOnboardingProgressMarked({
       supabase,
       workspaceId: bootstrap.workspace.id,
     });
@@ -243,6 +263,7 @@ export async function POST(request) {
       membership: bootstrap.ownerMembership,
       settings: bootstrap.settings,
       subscription: bootstrap.subscription,
+      onboardingMarked,
       next: '/dashboard?onboarding=fresh-workspace',
     });
 

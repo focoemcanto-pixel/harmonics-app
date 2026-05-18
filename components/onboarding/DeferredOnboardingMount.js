@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { useOnboardingSession } from '@/contexts/OnboardingSessionContext';
 
@@ -60,6 +60,25 @@ const OnboardingPrerequisiteGate = dynamic(() => import('@/components/onboarding
   loading: () => null,
 });
 
+const GUIDE_KEYS = [
+  'template',
+  'event-types',
+  'precontract',
+  'client-panel',
+  'fake-members',
+  'formation-template',
+  'scale',
+  'member-panel',
+  'member-panel-demo',
+  'automations',
+  'automation-overview',
+  'finance',
+  'admin-repertoire',
+  'dashboard-demo',
+  'cleanup-fake-event',
+  'scale-with-formation',
+];
+
 export default function DeferredOnboardingMount({
   variant,
   showTour = false,
@@ -69,6 +88,8 @@ export default function DeferredOnboardingMount({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [mounted, setMounted] = useState(false);
+  const [onboardingEnabled, setOnboardingEnabled] = useState(false);
+  const [loadingEligibility, setLoadingEligibility] = useState(true);
   const { onboardingSession } = useOnboardingSession();
 
   useEffect(() => {
@@ -83,14 +104,68 @@ export default function DeferredOnboardingMount({
     return () => window.clearTimeout(timer);
   }, []);
 
-  if (!mounted) return null;
+  useEffect(() => {
+    let active = true;
 
-  const guideQuery = searchParams?.get('guide');
-  const onboardingQuery = searchParams?.get('onboarding');
-  const requestedGuide = guideQuery || onboardingQuery;
-  const hasDynamicGuideQuery = ['template', 'event-types', 'precontract', 'client-panel', 'fake-members', 'formation-template', 'scale', 'member-panel', 'member-panel-demo', 'automations', 'automation-overview', 'finance', 'admin-repertoire', 'dashboard-demo', 'cleanup-fake-event', 'scale-with-formation'].includes(requestedGuide);
+    async function loadEligibility() {
+      try {
+        const response = await fetch('/api/onboarding/flow-status', {
+          credentials: 'include',
+          cache: 'no-store',
+        });
+
+        if (!response.ok) {
+          if (active) {
+            setOnboardingEnabled(false);
+            setLoadingEligibility(false);
+          }
+          return;
+        }
+
+        const data = await response.json();
+        const flowState = data?.flow_state || {};
+
+        const enabled = Boolean(
+          flowState?.onboarding_enabled === true ||
+          flowState?.workspace_created_for_onboarding === true
+        );
+
+        if (active) {
+          setOnboardingEnabled(enabled);
+          setLoadingEligibility(false);
+        }
+      } catch {
+        if (active) {
+          setOnboardingEnabled(false);
+          setLoadingEligibility(false);
+        }
+      }
+    }
+
+    if (mounted) {
+      loadEligibility();
+    }
+
+    return () => {
+      active = false;
+    };
+  }, [mounted]);
+
+  const requestedGuide = useMemo(() => {
+    const guideQuery = searchParams?.get('guide');
+    const onboardingQuery = searchParams?.get('onboarding');
+    return guideQuery || onboardingQuery;
+  }, [searchParams]);
+
+  if (!mounted || loadingEligibility) return null;
+
+  if (!onboardingEnabled) {
+    return null;
+  }
+
+  const hasDynamicGuideQuery = GUIDE_KEYS.includes(requestedGuide);
   const isGuideActive = Boolean(onboardingSession.activeGuide) || hasDynamicGuideQuery;
-  const freshWorkspace = onboardingQuery === 'fresh-workspace' || searchParams?.get('tour') === 'workspace-created';
+  const freshWorkspace = requestedGuide === 'fresh-workspace' || searchParams?.get('tour') === 'workspace-created';
 
   if (variant === 'dashboard') {
     return (

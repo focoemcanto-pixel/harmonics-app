@@ -12,6 +12,7 @@ const CLIENT_EVENT_SELECT_FIELDS = [
   'event_date',
   'event_time',
   'location_name',
+  'location_address',
   'formation',
   'instruments',
   'reception_formation',
@@ -42,6 +43,7 @@ const CLIENT_EVENT_SELECT_FIELDS_FALLBACK = [
   'event_date',
   'event_time',
   'location_name',
+  'location_address',
   'formation',
   'instruments',
   'reception_formation',
@@ -69,6 +71,7 @@ const CLIENT_EVENT_SELECT_FIELDS_MINIMAL_FALLBACK = [
   'event_date',
   'event_time',
   'location_name',
+  'location_address',
   'formation',
   'instruments',
   'reception_formation',
@@ -83,6 +86,10 @@ const CLIENT_PRECONTRACT_BASE_SELECT_FIELDS = [
   'event_id',
   'event_type_id',
   'event_type',
+  'event_date',
+  'event_time',
+  'location_name',
+  'location_address',
   'contract_template_id',
   'reception_hours',
   'reception_formation',
@@ -99,6 +106,10 @@ const CLIENT_PRECONTRACT_BASE_SELECT_FIELDS_FALLBACK = [
   'workspace_id',
   'public_token',
   'event_id',
+  'event_date',
+  'event_time',
+  'location_name',
+  'location_address',
   'reception_hours',
   'reception_formation',
   'reception_instruments',
@@ -1830,28 +1841,38 @@ export default async function ClienteTokenPage({ params, searchParams }) {
     ? `Receptivo: ${receptionFormation || '—'}${receptionInstruments ? ` (${receptionInstruments})` : ''}`
     : '';
 
+  const eventSource = event || precontract || {};
+
   const data = {
     token: clientToken,
     eventId: event?.id || eventId || null,
-    clienteNome: event.client_name || 'Cliente',
-    eventoTitulo: event.client_name
-      ? `${eventoTituloPrefix} • ${event.client_name}`
+    clienteNome: eventSource.client_name || 'Cliente',
+    eventoTitulo: eventSource.client_name
+      ? `${eventoTituloPrefix} • ${eventSource.client_name}`
       : 'Evento',
-    dataEvento: event.event_date || '',
-    horarioEvento: event.event_time || '',
-    localEvento: event.location_name || '',
+    dataEvento: eventSource.event_date || '',
+    horarioEvento: eventSource.event_time || '',
+    localEvento:
+      eventSource.location ||
+      eventSource.location_name ||
+      eventSource.event_location_name ||
+      '',
     formacao: resolvedFormation,
     instrumentos: resolvedInstruments,
+    enderecoEvento:
+      eventSource.location_address ||
+      eventSource.event_location_address ||
+      '',
     receptivoResumo,
     statusContrato: contract?.signed_at ? 'Contrato assinado' : 'Contrato pendente',
     contratoPdfUrl: contract?.pdf_url || '',
     contratoDocUrl: contract?.doc_url || '',
     contratoAssinadoEm: contract?.signed_at || null,
-    statusEvento: event.status || 'Confirmado',
+    statusEvento: eventSource.status || 'Confirmado',
     observacoes:
       sanitizedObservations ||
       'Alinhar com a assessoria a ordem correta do cortejo e o roteiro enviado à equipe.',
-    horarioChegada: addHoursToTime(event.event_time, -2),
+    horarioChegada: addHoursToTime(eventSource.event_time, -2),
     suporteWhatsapp: supportConfig.phone,
     suporteWhatsappMensagem: supportConfig.message,
     reviewSubmitted: false,

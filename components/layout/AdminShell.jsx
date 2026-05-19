@@ -14,14 +14,14 @@ import { getSupabase } from '@/lib/supabase';
 
 const MOBILE_DRAWER_SECTIONS = [
   { key: 'operacional', label: 'OPERACIONAL', items: [{ module: 'dashboard', label: 'Dashboard', href: '/dashboard', icon: '🏠', helper: 'Visão executiva' }, { module: 'eventos', label: 'Eventos', href: '/eventos', icon: '📅', helper: 'Próximas entregas' }, { module: 'escalas', label: 'Escalas', href: '/escalas', icon: '🎼', helper: 'Operação musical' }, { module: 'convites', label: 'Convites', href: '/convites', icon: '✉️', helper: 'Chamadas e respostas' }] },
-  { key: 'comercial', label: 'COMERCIAL', items: [{ module: 'contratos', label: 'Contratos', href: '/contratos', icon: '📝', helper: 'Fluxo contratual' }, { module: 'contratos', label: 'Pré-contratos', href: '/pre-contratos', icon: '🔗', helper: 'Comercial inicial' }, { module: 'pagamentos', label: 'Financeiro', href: '/pagamentos', icon: '💳', helper: 'Receitas e custos' }] },
-  { key: 'musical', label: 'MUSICAL', items: [{ module: 'repertorios', label: 'Repertórios', href: '/repertorios', icon: '🎧', helper: 'Biblioteca principal' }, { module: 'sugestoes', label: 'Sugestões', href: '/sugestoes', icon: '✨', helper: 'Ideias do cliente' }, { module: 'escalas', label: 'Kits vocais', href: '/escalas/templates', icon: '🎤', helper: 'Templates de escala' }] },
-  { key: 'equipe', label: 'EQUIPE', items: [{ module: 'contatos', label: 'Contatos', href: '/contatos', icon: '📇', helper: 'Rede e fornecedores' }, { module: 'escalas', label: 'Formações', href: '/templates-escala', icon: '🧩', helper: 'Combinações musicais' }, { module: 'usuarios', label: 'Músicos', href: '/configuracoes/equipe', icon: '👥', helper: 'Gestão de usuários' }] },
-  { key: 'automacao', label: 'AUTOMAÇÃO', items: [{ module: 'automacoes', label: 'Templates', href: '/automacoes/templates', icon: '📄', helper: 'Mensagens e ações' }, { module: 'automacoes', label: 'WhatsApp', href: '/automacoes/canais', icon: '💬', helper: 'Canais ativos' }, { module: 'automacoes', label: 'Logs', href: '/automacoes/logs', icon: '🧠', helper: 'Histórico de execução' }] },
-  { key: 'sistema', label: 'SISTEMA', items: [{ module: 'workspace', label: 'Configurações', href: '/settings', icon: '⚙️', helper: 'Conta e segurança' }, { module: 'workspace', label: 'Workspace', href: '/settings/workspace', icon: '🏢', helper: 'Marca e identidade' }, { module: 'workspace', label: 'Assinatura', href: '/settings/billing', icon: '💎', helper: 'Plano e cobrança' }] },
+  { key: 'comercial', label: 'COMERCIAL', items: [{ module: 'contratos', label: 'Contratos', href: '/contratos', icon: '📝', helper: 'Fluxo contratual' }, { module: 'contratos', label: 'Pré-contratos', href: '/pre-contratos', icon: '🔗', helper: 'Comercial inicial' }, { module: 'pagamentos', label: 'Pagamentos', href: '/pagamentos', icon: '💳', helper: 'Receitas e custos' }] },
+  { key: 'musical', label: 'MUSICAL', items: [{ module: 'repertorios', label: 'Repertórios', href: '/repertorios', icon: '🎧', helper: 'Biblioteca principal' }, { module: 'sugestoes', label: 'Sugestões', href: '/sugestoes', icon: '✨', helper: 'Ideias do cliente' }] },
+  { key: 'equipe', label: 'EQUIPE', items: [{ module: 'contatos', label: 'Contatos', href: '/contatos', icon: '📇', helper: 'Rede e fornecedores' }] },
+  { key: 'automacao', label: 'AUTOMAÇÃO', items: [{ module: 'automacoes', label: 'Automação', href: '/automacoes', icon: '⚡', helper: 'Fluxos e rotinas' }, { module: 'automacoes', label: 'Templates', href: '/automacoes/templates', icon: '📄', helper: 'Mensagens e ações' }, { module: 'automacoes', label: 'Logs', href: '/automacoes/logs', icon: '🧠', helper: 'Histórico de execução' }] },
+  { key: 'sistema', label: 'SISTEMA', items: [{ module: 'workspace', label: 'Configurações', href: '/settings', icon: '⚙️', helper: 'Conta e segurança' }, { module: 'workspace', label: 'Workspace', href: '/settings/workspace', icon: '🏢', helper: 'Marca e identidade' }] },
 ];
 
-const MOBILE_NAV_ALLOWED_ITEMS = new Set(['dashboard', 'eventos', 'escalas', 'financeiro', 'mais']);
+const MOBILE_NAV_ALLOWED_ITEMS = new Set(['dashboard', 'eventos', 'mais']);
 const ONBOARDING_ROUTE_PREFIXES = ['/dashboard', '/eventos', '/pre-contratos', '/contratos/templates', '/automacoes', '/configuracoes/equipe', '/templates-escala', '/escalas/templates', '/pagamentos', '/repertorios'];
 
 function getInitials(name) {
@@ -78,8 +78,8 @@ const MobileMoreSheet = memo(function MobileMoreSheet({ open, onClose, onNavigat
   return (
     <div role="dialog" aria-modal="true" className="fixed inset-0 z-[120] bg-black/55 backdrop-blur-md md:hidden" onClick={(e) => e.target === e.currentTarget && !isLoggingOut && onClose?.()}>
       <div className="flex h-[100dvh] items-stretch justify-start">
-        <div className="h-full w-[86vw] max-w-[380px] overflow-hidden overscroll-contain border-r border-white/10 bg-[linear-gradient(180deg,#0f172a_0%,#111827_100%)] shadow-[30px_0_80px_rgba(15,23,42,0.55)]" onClick={(e) => e.stopPropagation()}>
-          <div className="flex items-center justify-between gap-4 border-b border-white/10 px-5 py-4">
+        <div className="h-full w-[84vw] max-w-[360px] overflow-hidden overscroll-contain border-r border-white/10 bg-[linear-gradient(180deg,#0f172a_0%,#111827_100%)] shadow-[30px_0_80px_rgba(15,23,42,0.55)]" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
             <div>
               <div className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-200">Navegação</div>
               <div className="mt-1 text-[20px] font-black tracking-[-0.03em] text-white">Workspace operacional</div>
@@ -88,13 +88,13 @@ const MobileMoreSheet = memo(function MobileMoreSheet({ open, onClose, onNavigat
             <button type="button" onClick={() => !isLoggingOut && onClose?.()} disabled={isLoggingOut} className="rounded-full border border-white/20 bg-white/10 p-2 text-white"><X size={18} /></button>
           </div>
 
-          <div className="max-h-[calc(100dvh-220px)] overflow-y-auto px-4 py-4">
+          <div className="max-h-[calc(100dvh-205px)] overflow-y-auto px-3 py-3">
             {visibleSections.map((section) => (
-              <section key={section.key} className="mb-5">
+              <section key={section.key} className="mb-4">
                 <p className="mb-2 text-[11px] font-extrabold uppercase tracking-[0.14em] text-slate-400">{section.label}</p>
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   {section.items.map((item) => (
-                    <button key={item.href} type="button" onClick={() => onNavigate?.(item.href)} className="flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-left backdrop-blur-sm">
+                    <button key={item.href} type="button" onClick={() => onNavigate?.(item.href)} className="flex w-full items-center gap-2.5 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-left backdrop-blur-sm">
                       <span className="text-lg">{item.icon}</span>
                       <span className="min-w-0">
                         <span className="block text-[13px] font-black text-white">{item.label}</span>

@@ -502,6 +502,7 @@ function ClientContractGuide({
   onFillSampleData,
   onClose,
 }) {
+  const shouldAvoidRightColumn = currentSpotlight === 'contractViewer' || currentSpotlight === 'signature' || currentSpotlight === 'signButton';
   const completedCount = steps.filter((step) => step.done).length;
   const progressPercent = Math.round((completedCount / steps.length) * 100);
   const currentStep = steps.find((step) => !step.done) || steps[steps.length - 1];
@@ -515,7 +516,9 @@ function ClientContractGuide({
   };
 
   return (
-    <aside className="fixed bottom-4 right-4 z-[60] w-[calc(100vw-2rem)] max-w-md rounded-3xl border border-violet-200 bg-white/95 p-4 shadow-2xl shadow-violet-950/20 backdrop-blur md:bottom-6 md:right-6">
+    <aside className={`fixed bottom-4 z-[60] w-[calc(100vw-2rem)] max-w-md rounded-3xl border border-violet-200 bg-white/95 p-4 shadow-2xl shadow-violet-950/20 backdrop-blur md:bottom-6 ${
+      shouldAvoidRightColumn ? 'left-4 right-auto md:left-6 md:right-auto' : 'right-4 md:right-6'
+    }`}>
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-black uppercase tracking-[0.22em] text-violet-600">

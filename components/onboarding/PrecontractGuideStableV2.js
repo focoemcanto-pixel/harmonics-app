@@ -34,6 +34,24 @@ function getContractUrlFromSuccessModal() {
   }
 }
 
+
+function withClientContractGuide(url) {
+  if (!url || typeof window === 'undefined') return url || '';
+
+  try {
+    const nextUrl = new URL(String(url).trim(), window.location.origin);
+
+    if (nextUrl.pathname.startsWith('/contrato/')) {
+      nextUrl.searchParams.set('guide', 'client-contract');
+    }
+
+    return nextUrl.toString();
+  } catch {
+    const separator = String(url).includes('?') ? '&' : '?';
+    return `${url}${separator}guide=client-contract`;
+  }
+}
+
 const STEPS = [
   { key: 'event_type', title: 'Escolha o tipo de evento', description: 'Selecione o tipo configurado antes. Ele define o template padrão que será usado no contrato.', words: ['tipo de evento', 'tipo do evento'], names: ['event_type', 'event_type_id', 'eventTypeId'], required: true, error: 'Selecione um tipo de evento para continuar.' },
   { key: 'formation', title: 'Escolha a formação musical', description: 'Defina se será solo, duo, trio, quarteto ou outra formação.', words: ['formação'], names: ['formation'] },
@@ -375,7 +393,7 @@ export default function PrecontractGuideStableV2({ enabled = false }) {
       return;
     }
 
-    window.open(contractUrl, '_blank', 'noopener,noreferrer');
+    window.open(withClientContractGuide(contractUrl), '_blank', 'noopener,noreferrer');
     finish();
   }
 

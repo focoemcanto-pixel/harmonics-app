@@ -1131,6 +1131,8 @@ export default function ContratoPublicoPage() {
   });
   const [internalPdfStatus, setInternalPdfStatus] = useState('idle');
   const [signatureStep, setSignatureStep] = useState('');
+  const [postSignPollingState, setPostSignPollingState] = useState('idle');
+  const [postSignPollingError, setPostSignPollingError] = useState('');
 
   const addressStreetRef = useRef(null);
 const eventAddressRef = useRef(null);
@@ -1707,17 +1709,43 @@ useEffect(() => {
   const hasSignedContract =
     contract?.status === 'signed' || precontract?.status === 'signed' || enviado;
   if (!hasSignedContract) return undefined;
-  if (resultadoFinal.pdfUrl || contract?.pdf_url) return undefined;
+  const hasPdf = Boolean(resultadoFinal.pdfUrl || contract?.pdf_url || contract?.signed_pdf_url);
+  if (hasPdf) {
+    setPostSignPollingState('ready');
+    setPostSignPollingError('');
+    return undefined;
+  }
+
+  setPostSignPollingState('polling');
+  setPostSignPollingError('');
+  const startedAt = Date.now();
+  const timeoutMs = 120000;
 
   const interval = setInterval(async () => {
     try {
+      if (Date.now() - startedAt > timeoutMs) {
+        setPostSignPollingState('timeout');
+        setPostSignPollingError('Tempo limite para geração do PDF excedido. Verifique se o workspace, template e token do contrato estão configurados.');
+        clearInterval(interval);
+        return;
+      }
       const latest = await refetchContract();
-      const latestPdfUrl = latest?.contract?.pdf_url || '';
-      if (latestPdfUrl) {
+      const latestContract = latest?.contract || null;
+      const latestPdfUrl = latestContract?.signed_pdf_url || latestContract?.pdf_url || '';
+      const latestSignedAt = latestContract?.signed_at || null;
+      const latestStatus = String(latestContract?.status || latest?.precontract?.status || '').toLowerCase();
+      const hasSignedState = latestStatus === 'signed' || Boolean(latestSignedAt);
+      if (latestPdfUrl && hasSignedState) {
         setResultadoFinal((prev) => ({
           ...prev,
           pdfUrl: prev.pdfUrl || latestPdfUrl,
         }));
+        setPostSignPollingState('ready');
+        setPostSignPollingError('');
+        clearInterval(interval);
+      } else if (!latest?.precontract?.workspace_id && !latestContract?.workspace_id) {
+        setPostSignPollingState('failed');
+        setPostSignPollingError('Contrato sem workspace_id. Não foi possível concluir a geração do PDF.');
         clearInterval(interval);
       }
     } catch (error) {
@@ -1725,8 +1753,11 @@ useEffect(() => {
         token,
         message: error?.message,
       });
+      setPostSignPollingState('failed');
+      setPostSignPollingError(error?.message || 'Falha ao consultar status do contrato e geração do PDF.');
+      clearInterval(interval);
     }
-  }, 3000);
+  }, 2000);
 
   return () => clearInterval(interval);
 }, [
@@ -1736,6 +1767,7 @@ useEffect(() => {
   contract?.status,
   resultadoFinal.pdfUrl,
   contract?.pdf_url,
+  contract?.signed_pdf_url,
   refetchContract,
 ]);
 
@@ -1994,7 +2026,7 @@ useEffect(() => {
 }, [previewAberto]);
 
 const pdfDisponivel =
-  !!resultadoFinal.pdfUrl || !!contract?.pdf_url;
+  !!resultadoFinal.pdfUrl || !!contract?.signed_pdf_url || !!contract?.pdf_url;
 const contratoHtmlResolvido = resolveContractHtml();
 const internalSnapshotDisponivel =
   isInternalMode &&
@@ -2955,7 +2987,7 @@ if (contractSignedError) throw contractSignedError;
   }
 
   if (enviado || contratoFinalizado) {
-    const pdfUrl = resultadoFinal.pdfUrl || contract?.pdf_url || '';
+    const pdfUrl = resultadoFinal.pdfUrl || contract?.signed_pdf_url || contract?.pdf_url || '';
     const signedHtml = resultadoFinal.html || contratoHtmlResolvido || '';
     const painelUrl =
       resultadoFinal.clientPanelUrl ||
@@ -2964,6 +2996,10 @@ if (contractSignedError) throw contractSignedError;
       isInternalMode && !pdfUrl && internalPdfStatus === 'generating';
     const internalPdfFailed =
       isInternalMode && !pdfUrl && internalPdfStatus === 'failed' && !!signedHtml;
+    const contractSigned = contract?.status === 'signed' || precontract?.status === 'signed' || enviado;
+    const contractLoading = postSignPollingState === 'polling';
+    const pdfGenerating = internalPdfIsGenerating || (contractSigned && contractLoading && !pdfUrl);
+    const pdfReady = !!pdfUrl;
 
     return (
       <>
@@ -2992,14 +3028,14 @@ if (contractSignedError) throw contractSignedError;
                   Documento validado com hash SHA256
                 </div>
               ) : null}
-              {pdfUrl ? (
+              {pdfReady ? (
                 <div className="mx-auto inline-flex rounded-full bg-emerald-50 px-4 py-2 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">
-                  Documento validado e disponível
+                  PDF disponível
                 </div>
               ) : null}
 
               <div className="flex flex-col justify-center gap-3 pt-2 sm:flex-row">
-  {pdfUrl ? (
+  {pdfReady ? (
     <>
       <a
         href={pdfUrl}
@@ -3021,42 +3057,22 @@ if (contractSignedError) throw contractSignedError;
         <Button variant="secondary">Abrir painel do cliente</Button>
       </a>
     </>
-  ) : internalPdfIsGenerating ? (
+  ) : pdfGenerating ? (
     <>
       <Button disabled>Contrato assinado. O PDF está sendo preparado e ficará disponível em instantes.</Button>
-      <a
-        href={painelUrl}
-        target="_blank"
-        rel="noreferrer"
-        className="inline-flex"
-      >
-        <Button variant="secondary">Abrir painel do cliente</Button>
-      </a>
+      <Button variant="secondary" disabled>
+        Painel liberado após PDF
+      </Button>
     </>
-  ) : internalPdfFailed ? (
+  ) : internalPdfFailed || postSignPollingState === 'failed' || postSignPollingState === 'timeout' ? (
     <>
       <Button disabled>Contrato assinado. O PDF ainda está sendo preparado.</Button>
-      <a
-        href={painelUrl}
-        target="_blank"
-        rel="noreferrer"
-        className="inline-flex"
-      >
-        <Button variant="secondary">Abrir painel do cliente</Button>
-      </a>
-      <p className="text-sm text-slate-500">Contrato assinado. Não foi possível preparar o PDF agora.</p>
-    </>
-  ) : isInternalMode && signedHtml ? (
-    <>
-      <p className="text-sm text-slate-500">PDF sendo preparado...</p>
-      <a
-        href={painelUrl}
-        target="_blank"
-        rel="noreferrer"
-        className="inline-flex"
-      >
-        <Button variant="secondary">Abrir painel do cliente</Button>
-      </a>
+      <Button variant="secondary" disabled>
+        Painel liberado após PDF
+      </Button>
+      <p className="text-sm text-rose-600">
+        {postSignPollingError || 'Falha na geração do PDF. Verifique template, token e configuração do workspace.'}
+      </p>
     </>
   ) : (
     <>

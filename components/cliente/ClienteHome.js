@@ -710,6 +710,7 @@ function markOnboardingFlowState(patch = {}) {
 
 function ClientPanelGuide({ data, activeTab, setActiveTab, hideSuggestions = false }) {
   const [stepIndex, setStepIndex] = useState(0);
+  const [guideStyle, setGuideStyle] = useState({});
   const [visible, setVisible] = useState(() => {
     if (typeof window === 'undefined') return false;
     return new URLSearchParams(window.location.search).get('guide') === 'client-panel';
@@ -746,9 +747,23 @@ function ClientPanelGuide({ data, activeTab, setActiveTab, hideSuggestions = fal
       {
         key: 'add-fake-song',
         tab: 'repertorio',
-        title: 'Adicionar música fake',
-        text: 'Agora simule o preenchimento do repertório: adicione uma música fake em Cortejo ou Cerimônia. Exemplo: "Marcha Nupcial" com referência https://www.youtube.com/watch?v=example.',
+        title: 'Adicionar música',
+        text: 'Clique no botão/área de Cortejo ou Cerimônia para adicionar uma música.',
         target: 'onboarding-add-song-cortejo',
+      },
+      {
+        key: 'song-name',
+        tab: 'repertorio',
+        title: 'Campo Música',
+        text: 'No campo “Música”, digite: Marcha Nupcial.',
+        target: 'onboarding-song-name',
+      },
+      {
+        key: 'song-reference',
+        tab: 'repertorio',
+        title: 'Campo Referência/YouTube',
+        text: 'No campo “Referência/YouTube”, digite: https://www.youtube.com/watch?v=example.',
+        target: 'onboarding-song-reference',
       },
       {
         key: 'save-song',
@@ -797,8 +812,30 @@ function ClientPanelGuide({ data, activeTab, setActiveTab, hideSuggestions = fal
     const classes = spotlightClass.split(' ');
     target.classList.add(...classes);
     target.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+    const placeGuide = () => {
+      const rect = target.getBoundingClientRect();
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      if (vw < 768) {
+        const top = rect.top > vh * 0.55 ? Math.max(12, rect.top - 180) : Math.min(vh - 220, rect.bottom + 12);
+        setGuideStyle({ top: `${top}px`, left: '12px', right: '12px', bottom: 'auto' });
+        return;
+      }
+      if (rect.top > vh * 0.65) {
+        setGuideStyle({ top: `${Math.max(16, rect.top - 200)}px`, left: '50%', transform: 'translateX(-50%)' });
+        return;
+      }
+      if (rect.left > vw * 0.5) {
+        setGuideStyle({ top: `${Math.max(16, rect.top)}px`, left: `${Math.max(16, rect.left - 440)}px` });
+        return;
+      }
+      setGuideStyle({ top: `${Math.max(16, rect.top)}px`, left: `${Math.min(vw - 420, rect.right + 16)}px` });
+    };
+    placeGuide();
+    window.addEventListener('resize', placeGuide);
     return () => {
       target.classList.remove(...classes);
+      window.removeEventListener('resize', placeGuide);
     };
   }, [currentStep, visible]);
 
@@ -827,7 +864,7 @@ function ClientPanelGuide({ data, activeTab, setActiveTab, hideSuggestions = fal
   return (
     <>
       <div className="pointer-events-none fixed inset-0 z-[55] bg-slate-950/25" />
-      <aside className="fixed bottom-24 left-4 right-4 z-[70] mx-auto w-[calc(100vw-2rem)] max-w-md rounded-[28px] border border-violet-200 bg-white/95 p-4 text-[#241a14] shadow-2xl shadow-violet-950/20 backdrop-blur">
+      <aside style={guideStyle} className="fixed z-[70] mx-auto w-[calc(100vw-2rem)] max-w-md rounded-[28px] border border-violet-200 bg-white/95 p-4 text-[#241a14] shadow-2xl shadow-violet-950/20 backdrop-blur md:w-full">
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.20em] text-violet-600">Tour do painel do cliente</p>
@@ -841,7 +878,7 @@ function ClientPanelGuide({ data, activeTab, setActiveTab, hideSuggestions = fal
           <span>{currentStep.target}</span>
         </div>
         <button type="button" onClick={handleNext} className="mt-4 w-full rounded-[18px] bg-violet-600 px-4 py-3 text-sm font-black text-white">
-          {isFinal ? 'Voltar ao painel admin' : 'Próxima aba'}
+          {isFinal ? 'Voltar ao painel admin' : 'Próximo passo'}
         </button>
       </aside>
     </>
@@ -1340,7 +1377,7 @@ function InicioTab({ data, setActiveTab, selectedSongs }) {
     </div>
   );
 }
-function InputField({ label, placeholder, value, onChange, textarea = false, rows = 3, disabled = false }) {
+function InputField({ label, placeholder, value, onChange, textarea = false, rows = 3, disabled = false, inputProps = {} }) {
   if (textarea) {
     return (
       <div className="space-y-2">
@@ -1354,6 +1391,7 @@ function InputField({ label, placeholder, value, onChange, textarea = false, row
           onChange={onChange}
           disabled={disabled}
           className="min-h-[100px] w-full rounded-[16px] border border-[#eadfd6] bg-white px-4 py-4 text-[15px] font-semibold text-[#241a14] outline-none disabled:cursor-not-allowed disabled:bg-[#f4efea] disabled:text-[#a59588]"
+          {...inputProps}
         />
       </div>
     );
@@ -1371,6 +1409,7 @@ function InputField({ label, placeholder, value, onChange, textarea = false, row
         onChange={onChange}
         disabled={disabled}
         className="w-full rounded-[16px] border border-[#eadfd6] bg-white px-4 py-4 text-[15px] font-semibold text-[#241a14] outline-none disabled:cursor-not-allowed disabled:bg-[#f4efea] disabled:text-[#a59588]"
+        {...inputProps}
       />
     </div>
   );
@@ -1491,6 +1530,7 @@ function EntryCard({
           placeholder="Nome da música"
           value={item.musica}
           onChange={(e) => onChange({ ...item, musica: e.target.value })}
+          inputProps={index === 0 ? { 'data-onboarding-tour': 'onboarding-song-name' } : {}}
           disabled={disabled}
         />
         <ReferenceSearchInput
@@ -1498,6 +1538,7 @@ function EntryCard({
           referenceValue={item.referencia || ''}
           selectedReference={item.referenceMeta || null}
           disabled={disabled}
+          manualInputProps={index === 0 ? { 'data-onboarding-tour': 'onboarding-song-reference' } : {}}
           onSearchValueChange={(value) => onChange({ ...item, musica: value })}
           onReferenceValueChange={(e) =>
             onChange({

@@ -15,6 +15,8 @@ export default function ReferenceSearchInput({
   disabled = false,
   autoOpenOnSearchValue = true,
   showManualInput = true,
+  searchInputProps = {},
+  manualInputProps = {},
 }) {
   const [query, setQuery] = useState(searchValue);
   const [results, setResults] = useState([]);
@@ -113,6 +115,7 @@ export default function ReferenceSearchInput({
             setIsOpen((current) => (hasSelectedReference ? current : true));
           }}
           className="w-full rounded-[16px] border border-[#eadfd6] bg-white px-4 py-4 text-[15px] font-semibold text-[#241a14] outline-none disabled:cursor-not-allowed disabled:bg-[#f4efea] disabled:text-[#a59588]"
+          {...searchInputProps}
         />
       </div>
 
@@ -187,6 +190,7 @@ export default function ReferenceSearchInput({
             onChange={onReferenceValueChange}
             disabled={disabled}
             className="w-full rounded-[16px] border border-[#eadfd6] bg-white px-4 py-4 text-[15px] font-semibold text-[#241a14] outline-none disabled:cursor-not-allowed disabled:bg-[#f4efea] disabled:text-[#a59588]"
+            {...manualInputProps}
           />
         </div>
       ) : null}

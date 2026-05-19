@@ -495,6 +495,23 @@ function ClientContractSuccessGuide({ pdfUrl, clientPanelUrl, onOpenPdf, onOpenC
   );
 }
 
+function getGuidePositionClass(currentSpotlight) {
+  if (currentSpotlight === 'clientData') {
+    return 'right-4 md:right-6';
+  }
+
+  if (
+    currentSpotlight === 'contractViewer' ||
+    currentSpotlight === 'signature' ||
+    currentSpotlight === 'signButton' ||
+    currentSpotlight === 'correction'
+  ) {
+    return 'left-4 right-auto md:left-6 md:right-auto';
+  }
+
+  return 'right-4 md:right-6';
+}
+
 function ClientContractGuide({
   steps,
   currentSpotlight,
@@ -502,7 +519,8 @@ function ClientContractGuide({
   onFillSampleData,
   onClose,
 }) {
-  const shouldAvoidRightColumn = currentSpotlight === 'contractViewer' || currentSpotlight === 'signature' || currentSpotlight === 'signButton';
+  const guidePositionClass = getGuidePositionClass(currentSpotlight);
+  const isSignatureSpotlight = currentSpotlight === 'signature' || currentSpotlight === 'signButton';
   const completedCount = steps.filter((step) => step.done).length;
   const progressPercent = Math.round((completedCount / steps.length) * 100);
   const currentStep = steps.find((step) => !step.done) || steps[steps.length - 1];
@@ -516,8 +534,8 @@ function ClientContractGuide({
   };
 
   return (
-    <aside className={`fixed bottom-4 z-[60] w-[calc(100vw-2rem)] max-w-md rounded-3xl border border-violet-200 bg-white/95 p-4 shadow-2xl shadow-violet-950/20 backdrop-blur md:bottom-6 ${
-      shouldAvoidRightColumn ? 'left-4 right-auto md:left-6 md:right-auto' : 'right-4 md:right-6'
+    <aside className={`fixed bottom-4 z-[60] w-[calc(100vw-2rem)] max-w-md rounded-3xl border border-violet-200 bg-white/95 p-4 shadow-2xl shadow-violet-950/20 backdrop-blur md:bottom-6 ${guidePositionClass} ${
+      isSignatureSpotlight ? 'max-h-[calc(100vh-2rem)] overflow-y-auto' : ''
     }`}>
       <div className="flex items-start justify-between gap-3">
         <div>
@@ -3028,7 +3046,7 @@ if (contractSignedError) throw contractSignedError;
           onClose={() => setSuccessGuideVisible(false)}
         />
       ) : null}
-      {isClientContractGuideActive && guideVisible && !contratoFinalizado ? (
+      {isClientContractGuideActive && guideVisible && !contratoFinalizado && !previewAberto ? (
         <ClientContractGuide
           steps={guideSteps}
           currentSpotlight={currentGuideSpotlight}

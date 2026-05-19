@@ -2555,39 +2555,26 @@ function preencherDadosDoGuia() {
       return;
     }
 
-    if (isClientContractGuideActive) {
-      setSalvando(true);
-      setSignatureStep('Simulando assinatura sem salvar dados reais...');
-      setResultadoFinal({
-        pdfUrl: '',
-        docUrl: '',
-        html: contratoHtmlResolvido,
-        clientPanelUrl: `${window.location.origin}/cliente/${token}`,
-        documentHash: 'simulacao-onboarding',
-        missingColumns: [],
-      });
-      window.setTimeout(() => {
-        setEnviado(true);
-        setSalvando(false);
-        setSignatureStep('');
-        toast.success('Simulação concluída: o contrato assinado libera o fluxo operacional no app.');
-        void markOnboardingFlowState({ client_contract_signed: true });
-      }, 500);
-      return;
-    }
-
     try {
      await persistDraft(form).catch(() => null);
      setSalvando(true);
      setInternalPdfStatus('idle');
-     setSignatureStep('Registrando assinatura...');
+     setSignatureStep(
+       isClientContractGuideActive
+         ? 'Registrando assinatura no onboarding...'
+         : 'Registrando assinatura...'
+     );
 
       console.info('[SERVER_SIGN_ATTEMPT]', { token });
       const serverSignRes = await fetch(`/api/public/contracts/${token}/sign`, {
         method: 'POST',
         cache: 'no-store',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ form }),
+        body: JSON.stringify(
+          isClientContractGuideActive
+            ? { form, onboarding: true, simulateAutomation: true }
+            : { form }
+        ),
       });
       const serverSignJson = await serverSignRes.json().catch(() => null);
       const hasServerPdfUrl = !!String(serverSignJson?.pdfUrl || '').trim();
@@ -2619,6 +2606,10 @@ function preencherDadosDoGuia() {
             : [],
         });
         setEnviado(true);
+        if (isClientContractGuideActive) {
+          toast.success('Assinatura concluída no onboarding.');
+          void markOnboardingFlowState({ client_contract_signed: true });
+        }
         return;
       }
 

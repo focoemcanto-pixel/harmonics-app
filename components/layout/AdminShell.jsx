@@ -86,6 +86,7 @@ const MobileMoreSheet = memo(function MobileMoreSheet({ open, onClose, onNavigat
             </div>
 
             <button type="button" onClick={() => !isLoggingOut && onClose?.()} disabled={isLoggingOut} className="rounded-full border border-white/20 bg-white/10 p-2 text-white"><X size={18} /></button>
+            </div>
           </div>
 
           <div className="max-h-[calc(100dvh-205px)] overflow-y-auto px-3 py-3">
@@ -107,23 +108,27 @@ const MobileMoreSheet = memo(function MobileMoreSheet({ open, onClose, onNavigat
             ))}
           </div>
 
-          {profile && (
-            <div className="mx-4 mt-4 rounded-[22px] border border-white/10 bg-white/10 px-4 py-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-violet-100 text-[13px] font-black text-violet-700">
-                  {getInitials(profile.name || profile.email)}
-                </div>
-                <div className="min-w-0">
-                  <p className="truncate text-[14px] font-black text-white">{profile.name || profile.email}</p>
-                  <p className="text-[12px] text-violet-200">{normalizeRoleLabel(workspaceRole || profile.role)}</p>
+          <div className="shrink-0 border-t border-white/10 bg-slate-950/55 px-4 pb-[calc(env(safe-area-inset-bottom,0px)+12px)] pt-3 backdrop-blur-xl">
+            {profile ? (
+              <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2.5">
+                <div className="flex items-center gap-2.5">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-violet-100 text-[12px] font-black text-violet-700">
+                    {getInitials(profile.name || profile.email)}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-[13px] font-bold text-white">{profile.name || profile.email}</p>
+                    <p className="truncate text-[11px] text-slate-300">{profile.email}</p>
+                    <p className="text-[11px] text-violet-200">{normalizeRoleLabel(workspaceRole || profile.role)}</p>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            ) : null}
 
-          <button type="button" onClick={handleLogout} disabled={isLoggingOut} className="mx-4 mt-3 flex w-[calc(100%-2rem)] items-center justify-between rounded-[22px] border border-red-400/30 bg-gradient-to-r from-red-500 to-red-600 px-5 py-4 text-[15px] font-black text-white shadow-[0_16px_34px_rgba(239,68,68,0.28)]">
-            <span>{isLoggingOut ? 'Encerrando sessão...' : 'Sair da conta'}</span>
-          </button>
+            <button type="button" onClick={handleLogout} disabled={isLoggingOut} className="mt-2.5 flex w-full items-center justify-between rounded-xl border border-white/15 bg-white/[0.06] px-3.5 py-2.5 text-[13px] font-semibold text-slate-200 transition hover:border-red-300/50 hover:bg-red-500/15 hover:text-red-100">
+              <span>{isLoggingOut ? 'Encerrando sessão...' : 'Sair da conta'}</span>
+              <span aria-hidden="true" className="text-base leading-none">↗</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -5,7 +5,6 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { X } from 'lucide-react';
 import AdminSidebar from '../admin/AdminSidebar';
 import AdminMobileTopbar from '../admin/AdminMobileTopbar';
-import AdminBottomNav from '../admin/AdminBottomNav';
 import DeferredOnboardingMount from '@/components/onboarding/DeferredOnboardingMount';
 import { useAuth } from '@/contexts/AuthContext';
 import { redirectToLogin } from '@/lib/auth/logoutRedirect';
@@ -18,10 +17,8 @@ const MOBILE_DRAWER_SECTIONS = [
   { key: 'musical', label: 'MUSICAL', items: [{ module: 'repertorios', label: 'Repertórios', href: '/repertorios', icon: '🎧', helper: 'Biblioteca principal' }, { module: 'sugestoes', label: 'Sugestões', href: '/sugestoes', icon: '✨', helper: 'Ideias do cliente' }] },
   { key: 'equipe', label: 'EQUIPE', items: [{ module: 'contatos', label: 'Contatos', href: '/contatos', icon: '📇', helper: 'Rede e fornecedores' }] },
   { key: 'automacao', label: 'AUTOMAÇÃO', items: [{ module: 'automacoes', label: 'Automação', href: '/automacoes', icon: '⚡', helper: 'Fluxos e rotinas' }, { module: 'automacoes', label: 'Templates', href: '/automacoes/templates', icon: '📄', helper: 'Mensagens e ações' }, { module: 'automacoes', label: 'Logs', href: '/automacoes/logs', icon: '🧠', helper: 'Histórico de execução' }] },
-  { key: 'sistema', label: 'SISTEMA', items: [{ module: 'workspace', label: 'Configurações', href: '/settings', icon: '⚙️', helper: 'Conta e segurança' }, { module: 'workspace', label: 'Workspace', href: '/settings/workspace', icon: '🏢', helper: 'Marca e identidade' }] },
+  { key: 'sistema', label: 'SISTEMA', items: [{ module: 'eventos', label: 'Tipos de eventos', href: '/eventos/tipos', icon: '🧩', helper: 'Modelos e fluxos' }, { module: 'workspace', label: 'Configurações', href: '/settings', icon: '⚙️', helper: 'Conta e segurança' }, { module: 'workspace', label: 'Workspace', href: '/settings/workspace', icon: '🏢', helper: 'Marca e identidade' }] },
 ];
-
-const MOBILE_NAV_ALLOWED_ITEMS = new Set(['dashboard', 'eventos', 'mais']);
 const ONBOARDING_ROUTE_PREFIXES = ['/dashboard', '/eventos', '/pre-contratos', '/contratos/templates', '/automacoes', '/configuracoes/equipe', '/templates-escala', '/escalas/templates', '/pagamentos', '/repertorios'];
 
 function getInitials(name) {
@@ -78,8 +75,8 @@ const MobileMoreSheet = memo(function MobileMoreSheet({ open, onClose, onNavigat
   return (
     <div role="dialog" aria-modal="true" className="fixed inset-0 z-[120] bg-black/55 backdrop-blur-md md:hidden" onClick={(e) => e.target === e.currentTarget && !isLoggingOut && onClose?.()}>
       <div className="flex h-[100dvh] items-stretch justify-start">
-        <div className="h-full w-[84vw] max-w-[360px] overflow-hidden overscroll-contain border-r border-white/10 bg-[linear-gradient(180deg,#0f172a_0%,#111827_100%)] shadow-[30px_0_80px_rgba(15,23,42,0.55)]" onClick={(e) => e.stopPropagation()}>
-          <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
+        <div className="flex h-full w-[84vw] max-w-[360px] flex-col overflow-hidden overscroll-contain border-r border-white/10 bg-[linear-gradient(180deg,#0f172a_0%,#111827_100%)] shadow-[30px_0_80px_rgba(15,23,42,0.55)]" onClick={(e) => e.stopPropagation()}>
+          <div className="shrink-0 flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
             <div>
               <div className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-200">Navegação</div>
               <div className="mt-1 text-[20px] font-black tracking-[-0.03em] text-white">Workspace operacional</div>
@@ -88,13 +85,13 @@ const MobileMoreSheet = memo(function MobileMoreSheet({ open, onClose, onNavigat
             <button type="button" onClick={() => !isLoggingOut && onClose?.()} disabled={isLoggingOut} className="rounded-full border border-white/20 bg-white/10 p-2 text-white"><X size={18} /></button>
             </div>
 
-          <div className="max-h-[calc(100dvh-205px)] overflow-y-auto px-3 py-3">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-2.5 [scrollbar-gutter:stable]">
             {visibleSections.map((section) => (
-              <section key={section.key} className="mb-4">
-                <p className="mb-2 text-[11px] font-extrabold uppercase tracking-[0.14em] text-slate-400">{section.label}</p>
+              <section key={section.key} className="mb-3.5">
+                <p className="mb-1.5 text-[11px] font-extrabold uppercase tracking-[0.14em] text-slate-400">{section.label}</p>
                 <div className="space-y-1.5">
                   {section.items.map((item) => (
-                    <button key={item.href} type="button" onClick={() => onNavigate?.(item.href)} className="flex w-full items-center gap-2.5 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-left backdrop-blur-sm">
+                    <button key={item.href} type="button" onClick={() => onNavigate?.(item.href)} className="flex w-full items-center gap-2.5 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left backdrop-blur-sm">
                       <span className="text-lg">{item.icon}</span>
                       <span className="min-w-0">
                         <span className="block text-[13px] font-black text-white">{item.label}</span>
@@ -107,7 +104,7 @@ const MobileMoreSheet = memo(function MobileMoreSheet({ open, onClose, onNavigat
             ))}
           </div>
 
-          <div className="shrink-0 border-t border-white/10 bg-slate-950/55 px-4 pb-[calc(env(safe-area-inset-bottom,0px)+12px)] pt-3 backdrop-blur-xl">
+          <div className="sticky bottom-0 shrink-0 border-t border-white/10 bg-slate-950/70 px-4 pb-[calc(env(safe-area-inset-bottom,0px)+20px)] pt-2.5 backdrop-blur-xl">
             {profile ? (
               <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2.5">
                 <div className="flex items-center gap-2.5">
@@ -123,7 +120,7 @@ const MobileMoreSheet = memo(function MobileMoreSheet({ open, onClose, onNavigat
               </div>
             ) : null}
 
-            <button type="button" onClick={handleLogout} disabled={isLoggingOut} className="mt-2.5 flex w-full items-center justify-between rounded-xl border border-white/15 bg-white/[0.06] px-3.5 py-2.5 text-[13px] font-semibold text-slate-200 transition hover:border-red-300/50 hover:bg-red-500/15 hover:text-red-100">
+            <button type="button" onClick={handleLogout} disabled={isLoggingOut} className="mt-2 flex w-full items-center justify-between rounded-xl border border-white/15 bg-white/[0.06] px-3.5 py-2.5 text-[13px] font-semibold text-slate-200 transition hover:border-red-300/50 hover:bg-red-500/15 hover:text-red-100">
               <span>{isLoggingOut ? 'Encerrando sessão...' : 'Sair da conta'}</span>
               <span aria-hidden="true" className="text-base leading-none">↗</span>
             </button>
@@ -154,7 +151,6 @@ export default function AdminShell({ pageTitle, children, mobileActions, activeI
   const visibleDrawerSections = useMemo(() => MOBILE_DRAWER_SECTIONS
     .map((section) => ({ ...section, items: section.items.filter((item) => allowedModules.has(item.module)) }))
     .filter((section) => section.items.length > 0), [allowedModules]);
-  const mobileActiveItem = MOBILE_NAV_ALLOWED_ITEMS.has(activeItem) ? activeItem : 'mais';
   const isOnboardingRoute = ONBOARDING_ROUTE_PREFIXES.some((prefix) => pathname === prefix || pathname?.startsWith(`${prefix}/`));
   const forceTemplateGuide = pathname === '/contratos/templates' && (searchParams?.get('guide') === 'template' || searchParams?.get('onboarding') === 'template');
   const forceFreshWorkspaceTour = pathname === '/dashboard' && (
@@ -240,7 +236,7 @@ export default function AdminShell({ pageTitle, children, mobileActions, activeI
       <div className="md:hidden">
         <AdminMobileTopbar title={pageTitle} subtitle={mobileSubtitle} actions={mobileActions} onOpenMenu={() => setMoreOpen(true)} />
 
-        <main className="px-4 pb-28 pt-4">
+        <main className="px-4 pb-6 pt-4">
           {showDashboardOnboarding ? (
             <DeferredOnboardingMount variant="dashboard" showTour={showTour} dashboardTimelineLimit={4} recommendationsLimit={2} />
           ) : null}
@@ -251,8 +247,6 @@ export default function AdminShell({ pageTitle, children, mobileActions, activeI
 
           {children}
         </main>
-
-        <AdminBottomNav activeItem={mobileActiveItem} onOpenMore={() => setMoreOpen(true)} allowedModules={allowedModules} />
 
         <MobileMoreSheet open={moreOpen} onClose={() => setMoreOpen(false)} onNavigate={(href) => { setMoreOpen(false); router.push(href); }} visibleSections={visibleDrawerSections} workspaceRole={role || workspaceMe?.role} />
       </div>

@@ -2249,6 +2249,8 @@ function preencherDadosDoGuia() {
 
     const contractPayload = {
       precontract_id: precontract.id,
+      event_id: precontract.event_id || null,
+      workspace_id: precontract.workspace_id || null,
       public_token: precontract.public_token || token,
       status: statusOverride,
       signed_at: statusOverride === 'signed' ? assinaturaEm : null,
@@ -2256,6 +2258,27 @@ function preencherDadosDoGuia() {
         statusOverride === 'signed' ? form.signer_name.trim() || null : null,
       raw_payload: {
         precontract_snapshot: precontract,
+        event_snapshot: {
+          event_type: precontract?.event_type || null,
+          event_date: clientForm?.event_date || precontract?.event_date || null,
+          event_time: clientForm?.event_time || precontract?.event_time || null,
+          location_name: clientForm?.event_location_name || precontract?.location_name || null,
+          formation: precontract?.formation || 'Quarteto',
+          instruments: precontract?.instruments || 'Voz, Violino, Piano e Cello',
+        },
+        client_snapshot: {
+          full_name: clientForm?.full_name || precontract?.client_name || null,
+          whatsapp: clientForm?.whatsapp || precontract?.client_phone || null,
+          event_location_name: clientForm?.event_location_name || precontract?.location_name || null,
+        },
+        onboarding_fake_event: {
+          event_type: precontract?.event_type || 'Casamento',
+          event_date: clientForm?.event_date || precontract?.event_date || '2026-12-31',
+          event_time: clientForm?.event_time || precontract?.event_time || '19:00',
+          location_name: clientForm?.event_location_name || precontract?.location_name || 'Espaço Harmonics Demo',
+          formation: precontract?.formation || 'Quarteto',
+          instruments: precontract?.instruments || 'Voz, Violino, Piano e Cello',
+        },
         client_form: clientForm,
       },
     };

@@ -78,6 +78,7 @@ const CLIENT_EVENT_SELECT_FIELDS_MINIMAL_FALLBACK = [
 ].join(', ');
 const CLIENT_PRECONTRACT_BASE_SELECT_FIELDS = [
   'id',
+  'workspace_id',
   'public_token',
   'event_id',
   'event_type_id',
@@ -95,6 +96,7 @@ const CLIENT_PRECONTRACT_BASE_SELECT_FIELDS = [
 ].join(', ');
 const CLIENT_PRECONTRACT_BASE_SELECT_FIELDS_FALLBACK = [
   'id',
+  'workspace_id',
   'public_token',
   'event_id',
   'reception_hours',
@@ -975,6 +977,7 @@ export default async function ClienteTokenPage({ params, searchParams }) {
   }
 
   let precontract = null;
+  let contractByToken = null;
   let eventId = null;
 
   try {
@@ -1015,9 +1018,9 @@ export default async function ClienteTokenPage({ params, searchParams }) {
 
   if (!eventId) {
     try {
-      const { data: contractByToken, error: contractByTokenError } = await supabase
+      const { data: contractByTokenData, error: contractByTokenError } = await supabase
         .from('contracts')
-        .select('id, event_id, public_token')
+        .select('id, event_id, precontract_id, public_token, workspace_id, raw_payload')
         .eq('public_token', normalizedToken)
         .order('created_at', { ascending: false })
         .limit(1)
@@ -1026,6 +1029,7 @@ export default async function ClienteTokenPage({ params, searchParams }) {
       if (contractByTokenError) {
         console.error('[CLIENTE PAGE] Erro ao buscar contract por public_token:', contractByTokenError);
       } else {
+        contractByToken = contractByTokenData || null;
         eventId = contractByToken?.event_id || null;
       }
       console.log('[CLIENTE PAGE][EVENT_ID]', {
@@ -1121,6 +1125,17 @@ export default async function ClienteTokenPage({ params, searchParams }) {
       console.error('[CLIENTE PAGE] Falha inesperada ao buscar precontract por event_id:', error);
     }
   }
+
+  const onboardingEventSnapshot =
+    contractByToken?.raw_payload?.event_snapshot ||
+    contractByToken?.raw_payload?.onboarding_fake_event ||
+    contractByToken?.raw_payload?.precontract_snapshot ||
+    null;
+
+  const onboardingClientSnapshot =
+    contractByToken?.raw_payload?.client_snapshot ||
+    contractByToken?.raw_payload?.client_form ||
+    null;
 
   if (precontract?.id) {
     try {
@@ -1522,6 +1537,34 @@ export default async function ClienteTokenPage({ params, searchParams }) {
       eventId,
     });
     return <ClienteHome data={buildFallbackData(token)} initialTab={initialTab} />;
+  }
+
+  if (
+    event &&
+    (!event.event_date || !event.event_time || !event.location_name || !event.formation || !event.instruments)
+  ) {
+    event = {
+      ...event,
+      event_type: event?.event_type || onboardingEventSnapshot?.event_type || precontract?.event_type || 'Casamento',
+      event_date: event?.event_date || onboardingEventSnapshot?.event_date || precontract?.event_date || '2026-12-31',
+      event_time: event?.event_time || onboardingEventSnapshot?.event_time || precontract?.event_time || '19:00',
+      location_name:
+        event?.location_name ||
+        onboardingEventSnapshot?.location_name ||
+        onboardingClientSnapshot?.event_location_name ||
+        precontract?.location_name ||
+        'Espaço Harmonics Demo',
+      formation:
+        event?.formation ||
+        onboardingEventSnapshot?.formation ||
+        precontract?.formation ||
+        'Quarteto',
+      instruments:
+        event?.instruments ||
+        onboardingEventSnapshot?.instruments ||
+        precontract?.instruments ||
+        'Voz, Violino, Piano e Cello',
+    };
   }
 
   const sanitizedObservations = sanitizeResolvedAdjustmentFromObservations(

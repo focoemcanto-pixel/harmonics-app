@@ -3561,7 +3561,7 @@ if (contractSignedError) throw contractSignedError;
           </div>
         </div>
 
-        {isClientContractGuideActive && guideVisible ? (
+        {isClientContractGuideActive && guideVisible && !previewAberto ? (
           <ClientContractGuide
             steps={guideSteps}
             currentSpotlight={currentGuideSpotlight}

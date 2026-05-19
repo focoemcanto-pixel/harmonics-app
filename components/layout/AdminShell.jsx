@@ -87,7 +87,6 @@ const MobileMoreSheet = memo(function MobileMoreSheet({ open, onClose, onNavigat
 
             <button type="button" onClick={() => !isLoggingOut && onClose?.()} disabled={isLoggingOut} className="rounded-full border border-white/20 bg-white/10 p-2 text-white"><X size={18} /></button>
             </div>
-          </div>
 
           <div className="max-h-[calc(100dvh-205px)] overflow-y-auto px-3 py-3">
             {visibleSections.map((section) => (

@@ -1528,10 +1528,12 @@ export default async function ClienteTokenPage({ params, searchParams }) {
     }
   }
 
-  if (!event) {
+  const eventSource = event || precontract || onboardingEventSnapshot || null;
+
+  if (!eventSource) {
     console.error('[CLIENTE PAGE] Evento ausente após consultas, renderizando fallback.');
     console.log('[CLIENTE PAGE][FALLBACK_TRIGGER]', {
-      reason: 'EVENT_NULL_AFTER_QUERIES',
+      reason: 'EVENT_AND_PRECONTRACT_NULL_AFTER_QUERIES',
       eventRespError: eventResp?.error || null,
       eventRespData: eventResp?.data || null,
       eventId,
@@ -1539,33 +1541,34 @@ export default async function ClienteTokenPage({ params, searchParams }) {
     return <ClienteHome data={buildFallbackData(token)} initialTab={initialTab} />;
   }
 
-  if (
-    event &&
-    (!event.event_date || !event.event_time || !event.location_name || !event.formation || !event.instruments)
-  ) {
-    event = {
-      ...event,
-      event_type: event?.event_type || onboardingEventSnapshot?.event_type || precontract?.event_type || 'Casamento',
-      event_date: event?.event_date || onboardingEventSnapshot?.event_date || precontract?.event_date || '2026-12-31',
-      event_time: event?.event_time || onboardingEventSnapshot?.event_time || precontract?.event_time || '19:00',
-      location_name:
-        event?.location_name ||
-        onboardingEventSnapshot?.location_name ||
-        onboardingClientSnapshot?.event_location_name ||
-        precontract?.location_name ||
-        'Espaço Harmonics Demo',
-      formation:
-        event?.formation ||
-        onboardingEventSnapshot?.formation ||
-        precontract?.formation ||
-        'Quarteto',
-      instruments:
-        event?.instruments ||
-        onboardingEventSnapshot?.instruments ||
-        precontract?.instruments ||
-        'Voz, Violino, Piano e Cello',
-    };
-  }
+  event = {
+    ...(event || {}),
+    event_type: event?.event_type || precontract?.event_type || onboardingEventSnapshot?.event_type || 'Casamento',
+    event_date: event?.event_date || precontract?.event_date || onboardingEventSnapshot?.event_date || '2026-12-31',
+    event_time: event?.event_time || precontract?.event_time || onboardingEventSnapshot?.event_time || '19:00',
+    location_name:
+      event?.location_name ||
+      precontract?.location_name ||
+      onboardingEventSnapshot?.location_name ||
+      onboardingClientSnapshot?.event_location_name ||
+      'Espaço Harmonics Demo',
+    location_address:
+      event?.location_address ||
+      precontract?.location_address ||
+      onboardingEventSnapshot?.location_address ||
+      onboardingClientSnapshot?.event_location_address ||
+      null,
+    formation:
+      event?.formation ||
+      precontract?.formation ||
+      onboardingEventSnapshot?.formation ||
+      'Quarteto',
+    instruments:
+      event?.instruments ||
+      precontract?.instruments ||
+      onboardingEventSnapshot?.instruments ||
+      'Voz, Violino, Piano e Cello',
+  };
 
   const sanitizedObservations = sanitizeResolvedAdjustmentFromObservations(
     event?.observations,

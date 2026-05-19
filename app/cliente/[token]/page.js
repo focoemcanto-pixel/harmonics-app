@@ -1027,7 +1027,7 @@ export default async function ClienteTokenPage({ params, searchParams }) {
   }
 
 
-  if (!eventId) {
+  if (!eventId && !precontract?.id) {
     try {
       const { data: contractByTokenData, error: contractByTokenError } = await supabase
         .from('contracts')
@@ -1053,7 +1053,7 @@ export default async function ClienteTokenPage({ params, searchParams }) {
     }
   }
 
-  if (!eventId) {
+  if (!eventId && !precontract?.id) {
     try {
       const { data: configByToken, error: configByTokenError } = await supabase
         .from('repertoire_config')
@@ -1841,38 +1841,38 @@ export default async function ClienteTokenPage({ params, searchParams }) {
     ? `Receptivo: ${receptionFormation || '—'}${receptionInstruments ? ` (${receptionInstruments})` : ''}`
     : '';
 
-  const eventSource = event || precontract || {};
+  const resolvedEventSource = event || precontract || {};
 
   const data = {
     token: clientToken,
     eventId: event?.id || eventId || null,
-    clienteNome: eventSource.client_name || 'Cliente',
-    eventoTitulo: eventSource.client_name
-      ? `${eventoTituloPrefix} • ${eventSource.client_name}`
+    clienteNome: resolvedEventSource.client_name || 'Cliente',
+    eventoTitulo: resolvedEventSource.client_name
+      ? `${eventoTituloPrefix} • ${resolvedEventSource.client_name}`
       : 'Evento',
-    dataEvento: eventSource.event_date || '',
-    horarioEvento: eventSource.event_time || '',
+    dataEvento: resolvedEventSource.event_date || '',
+    horarioEvento: resolvedEventSource.event_time || '',
     localEvento:
-      eventSource.location ||
-      eventSource.location_name ||
-      eventSource.event_location_name ||
+      resolvedEventSource.location ||
+      resolvedEventSource.location_name ||
+      resolvedEventSource.event_location_name ||
       '',
     formacao: resolvedFormation,
     instrumentos: resolvedInstruments,
     enderecoEvento:
-      eventSource.location_address ||
-      eventSource.event_location_address ||
+      resolvedEventSource.location_address ||
+      resolvedEventSource.event_location_address ||
       '',
     receptivoResumo,
     statusContrato: contract?.signed_at ? 'Contrato assinado' : 'Contrato pendente',
     contratoPdfUrl: contract?.pdf_url || '',
     contratoDocUrl: contract?.doc_url || '',
     contratoAssinadoEm: contract?.signed_at || null,
-    statusEvento: eventSource.status || 'Confirmado',
+    statusEvento: resolvedEventSource.status || 'Confirmado',
     observacoes:
       sanitizedObservations ||
       'Alinhar com a assessoria a ordem correta do cortejo e o roteiro enviado à equipe.',
-    horarioChegada: addHoursToTime(eventSource.event_time, -2),
+    horarioChegada: addHoursToTime(resolvedEventSource.event_time, -2),
     suporteWhatsapp: supportConfig.phone,
     suporteWhatsappMensagem: supportConfig.message,
     reviewSubmitted: false,

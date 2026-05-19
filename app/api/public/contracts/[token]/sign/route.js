@@ -13,6 +13,8 @@ export const runtime = 'nodejs';
 
 const asString = (v) => String(v || '').trim();
 const cleanDigits = (v) => asString(v).replace(/\D/g, '');
+const ONBOARDING_DEFAULT_LOCATION_NAME = 'Igreja Central';
+const ONBOARDING_DEFAULT_LOCATION_ADDRESS = 'Av. Exemplo, 123';
 const normalizeTime = (value) => normalizeTimeStrict(asString(value)) || null;
 const brToIsoDate = (value) => {
   const raw = asString(value);
@@ -28,6 +30,20 @@ const pickDefined = (...values) => {
     }
   }
   return null;
+};
+
+const resolveOnboardingLocationFallback = (precontract) => {
+  const isOnboardingDemo = Boolean(
+    precontract?.is_demo === true ||
+      precontract?.source === 'onboarding_demo' ||
+      precontract?.metadata?.is_onboarding_demo === true
+  );
+
+  if (!isOnboardingDemo) return { locationName: null, locationAddress: null };
+  return {
+    locationName: ONBOARDING_DEFAULT_LOCATION_NAME,
+    locationAddress: ONBOARDING_DEFAULT_LOCATION_ADDRESS,
+  };
 };
 
 function extractToken(params) {
@@ -208,6 +224,7 @@ export async function POST(request, context) {
 
     const contactId = await upsertContactFromSignature({ supabase, precontract, form, workspaceId: resolvedWorkspaceId });
     const eventId = await upsertEventFromSignature({ supabase, precontract, contactId, form, workspaceId: resolvedWorkspaceId });
+    const onboardingLocationFallback = resolveOnboardingLocationFallback(precontract);
 
     const payloadPre = {
       workspace_id: resolvedWorkspaceId,
@@ -216,8 +233,16 @@ export async function POST(request, context) {
       client_phone: cleanDigits(form.whatsapp) || precontract.client_phone || null,
       event_date: pickDefined(brToIsoDate(form.event_date), precontract.event_date),
       event_time: pickDefined(normalizeTime(form.event_time), normalizeTime(precontract.event_time)),
-      location_name: asString(form.event_location_name) || precontract.location_name || null,
-      location_address: asString(form.event_location_address) || precontract.location_address || null,
+      location_name:
+        asString(form.event_location_name) ||
+        precontract.location_name ||
+        onboardingLocationFallback.locationName ||
+        null,
+      location_address:
+        asString(form.event_location_address) ||
+        precontract.location_address ||
+        onboardingLocationFallback.locationAddress ||
+        null,
       event_id: eventId || precontract.event_id || null,
       contact_id: contactId || precontract.contact_id || null,
       status: 'client_filling',
@@ -243,8 +268,18 @@ export async function POST(request, context) {
       address_state: pickDefined(asString(form.address_state), existingClientForm.address_state),
       event_date: pickDefined(brToIsoDate(form.event_date), existingClientForm.event_date),
       event_time: pickDefined(normalizeTime(form.event_time), existingClientForm.event_time),
-      event_location_name: pickDefined(asString(form.event_location_name), existingClientForm.event_location_name),
-      event_location_address: pickDefined(asString(form.event_location_address), existingClientForm.event_location_address),
+      event_location_name: pickDefined(
+        asString(form.event_location_name),
+        existingClientForm.event_location_name,
+        precontract.location_name,
+        onboardingLocationFallback.locationName
+      ),
+      event_location_address: pickDefined(
+        asString(form.event_location_address),
+        existingClientForm.event_location_address,
+        precontract.location_address,
+        onboardingLocationFallback.locationAddress
+      ),
       signer_name: pickDefined(asString(form.signer_name), existingClientForm.signer_name),
       signer_cpf: pickDefined(cleanDigits(form.signer_cpf), existingClientForm.signer_cpf),
       accepted_terms: form.accepted_terms === true,

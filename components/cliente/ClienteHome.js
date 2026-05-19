@@ -717,15 +717,13 @@ function ClientPanelGuide({ data, activeTab, setActiveTab, hideSuggestions = fal
   });
 
   const steps = useMemo(() => ([
-    { key: 'open-repertorio', tab: 'inicio', title: 'Abrir repertório', text: 'Clique em “Abrir repertório”.', target: 'onboarding-open-repertorio', waitFor: 'click' },
-    { key: 'select-section', tab: 'repertorio', title: 'Escolha uma seção', text: 'Clique em “Adicionar entrada personalizada” (Cortejo) ou em “Adicionar momento personalizado” (Cerimônia).', target: 'onboarding-add-song-cortejo', waitFor: 'either-click', altTarget: 'onboarding-add-song-cerimonia' },
-    { key: 'add-song', tab: 'repertorio', title: 'Adicionar música', text: 'Agora adicione a música na seção escolhida.', target: 'onboarding-add-song-cortejo', waitFor: 'either-click', altTarget: 'onboarding-add-song-cerimonia' },
-    { key: 'song-name', tab: 'repertorio', title: 'Campo Música', text: 'Digite: Marcha Nupcial', target: 'onboarding-song-name', waitFor: 'input', expected: 'marcha nupcial' },
-    { key: 'song-reference', tab: 'repertorio', title: 'Referência / YouTube', text: 'Cole: https://www.youtube.com/watch?v=example', target: 'onboarding-song-reference', waitFor: 'input', expected: 'youtube.com/watch?v=example' },
-    { key: 'save-song', tab: 'repertorio', title: 'Salvar música', text: 'Clique em “Salvar rascunho”.', target: 'onboarding-save-repertoire', waitFor: 'click' },
-    { key: 'submit-repertoire', tab: 'repertorio', title: 'Finalizar repertório', text: 'Clique em “Finalizar repertório” para enviar.', target: 'onboarding-submit-repertoire', waitFor: 'click' },
-    { key: 'suggestions', tab: 'sugestoes', title: 'Sugestões', text: 'Veja sugestões extras para o evento.', target: 'client-tab-sugestoes', waitFor: 'manual' },
-    { key: 'financeiro', tab: 'financeiro', title: 'Financeiro', text: 'Aqui o cliente acompanha pagamentos e saldo.', target: 'client-tab-financeiro', waitFor: 'manual' },
+    { key: 'open-repertorio', tab: 'inicio', title: 'Abrir repertório', text: 'Clique em Abrir repertório para começar.', target: 'onboarding-open-repertorio', waitFor: 'click' },
+    { key: 'select-section', tab: 'repertorio', title: 'Escolha a etapa', text: 'Escolha uma etapa da cerimônia para adicionar uma música.', target: 'onboarding-section-cortejo', waitFor: 'either-click', altTarget: 'onboarding-section-cerimonia' },
+    { key: 'add-song', tab: 'repertorio', title: 'Adicionar entrada', text: 'Crie uma nova entrada musical.', target: 'onboarding-add-song-cortejo', waitFor: 'either-click', altTarget: 'onboarding-add-song-cerimonia' },
+    { key: 'song-name', tab: 'repertorio', title: 'Nome da música', text: 'Digite um nome fictício para a música. Exemplo: Marcha Nupcial.', target: 'onboarding-song-name', waitFor: 'input-required' },
+    { key: 'song-reference', tab: 'repertorio', title: 'Campo referência', text: 'Cole uma referência do YouTube ou Spotify.', target: 'onboarding-song-reference', waitFor: 'input-required' },
+    { key: 'save-song', tab: 'repertorio', title: 'Salvar entrada', text: 'Agora salve a música adicionada.', target: 'onboarding-save-repertoire', waitFor: 'click' },
+    { key: 'submit-repertoire', tab: 'repertorio', title: 'Finalizar repertório', text: 'Envie o repertório para concluir a simulação do cliente.', target: 'onboarding-submit-repertoire', waitFor: 'click' },
     { key: 'final', tab: 'inicio', title: 'Tour concluído', text: 'Fluxo concluído. Volte ao painel admin para continuar.', target: 'client-panel-root', waitFor: 'manual' },
   ]), []);
 
@@ -744,13 +742,21 @@ function ClientPanelGuide({ data, activeTab, setActiveTab, hideSuggestions = fal
 
   useEffect(() => {
     if (!visible || !currentStep?.target || typeof document === 'undefined') return undefined;
-    const target = document.querySelector(`[data-onboarding-tour="${currentStep.target}"]`);
+    const getTarget = () => document.querySelector(`[data-onboarding-tour="${currentStep.target}"]`);
+    let target = getTarget();
     if (!target) return undefined;
-    const spotlightClass = 'relative z-[65] rounded-[22px] ring-4 ring-violet-400/70 shadow-[0_0_0_9999px_rgba(15,23,42,0.18),0_20px_60px_rgba(124,58,237,0.30)]';
+    const spotlightClass = 'relative z-[65] rounded-[22px] ring-4 ring-violet-400/80 animate-pulse shadow-[0_0_0_9999px_rgba(15,23,42,0.60),0_20px_60px_rgba(124,58,237,0.30)]';
     const classes = spotlightClass.split(' ');
-    target.classList.add(...classes);
-    target.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+    const applyClasses = () => {
+      target = getTarget();
+      if (target) target.classList.add(...classes);
+    };
+    const clearClasses = () => target?.classList.remove(...classes);
+    applyClasses();
+    target?.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
     const placeGuide = () => {
+      target = getTarget();
+      if (!target) return;
       const rect = target.getBoundingClientRect();
       const vw = window.innerWidth;
       const vh = window.innerHeight;
@@ -771,9 +777,18 @@ function ClientPanelGuide({ data, activeTab, setActiveTab, hideSuggestions = fal
     };
     placeGuide();
     window.addEventListener('resize', placeGuide);
+    window.addEventListener('scroll', placeGuide, true);
+    const observer = new MutationObserver(() => {
+      clearClasses();
+      applyClasses();
+      placeGuide();
+    });
+    observer.observe(document.body, { subtree: true, childList: true, attributes: true });
     return () => {
-      target.classList.remove(...classes);
+      clearClasses();
       window.removeEventListener('resize', placeGuide);
+      window.removeEventListener('scroll', placeGuide, true);
+      observer.disconnect();
     };
   }, [currentStep, visible]);
 
@@ -794,10 +809,10 @@ function ClientPanelGuide({ data, activeTab, setActiveTab, hideSuggestions = fal
         altTarget?.removeEventListener('click', advance);
       };
     }
-    if (currentStep.waitFor === 'input') {
+    if (currentStep.waitFor === 'input-required') {
       const onInput = (event) => {
         const value = String(event?.target?.value || '').toLowerCase();
-        if (value.includes(String(currentStep.expected || '').toLowerCase())) advance();
+        if (value.trim().length > 0) advance();
       };
       target?.addEventListener('input', onInput);
       return () => target?.removeEventListener('input', onInput);
@@ -843,9 +858,11 @@ function ClientPanelGuide({ data, activeTab, setActiveTab, hideSuggestions = fal
           <span>Etapa {Math.min(stepIndex + 1, steps.length)} de {steps.length}</span>
           <span>{currentStep.target}</span>
         </div>
-        <button type="button" onClick={handleNext} className="mt-4 w-full rounded-[18px] bg-violet-600 px-4 py-3 text-sm font-black text-white">
-          {isFinal ? 'Voltar ao painel admin' : 'Próximo passo'}
-        </button>
+        {currentStep.waitFor === 'manual' ? (
+          <button type="button" onClick={handleNext} className="mt-4 w-full rounded-[18px] bg-violet-600 px-4 py-3 text-sm font-black text-white">
+            {isFinal ? 'Voltar ao painel admin' : 'Próximo passo'}
+          </button>
+        ) : null}
       </aside>
     </>
   );
@@ -3543,7 +3560,7 @@ async function handleRequestReview() {
 
       {isWedding && !travado && step === 3 && (
         <SectionCard>
-          <div className="text-[22px] font-black text-[#241a14]">Cortejo 💒</div>
+          <div data-onboarding-tour="onboarding-section-cortejo" className="text-[22px] font-black text-[#241a14]">Cortejo 💒</div>
           <div className="mt-2 text-[14px] leading-6 text-[#6f5d51]">
             Monte a ordem das entradas com facilidade. Use os atalhos abaixo ou crie entradas personalizadas.
           </div>
@@ -3594,7 +3611,7 @@ async function handleRequestReview() {
 
       {isWedding && !travado && step === 4 && (
         <SectionCard>
-          <div className="text-[22px] font-black text-[#241a14]">Cerimônia ⛪</div>
+          <div data-onboarding-tour="onboarding-section-cerimonia" className="text-[22px] font-black text-[#241a14]">Cerimônia ⛪</div>
           <div className="mt-2 text-[14px] leading-6 text-[#6f5d51]">
             Cadastre os momentos musicais internos da cerimônia.
           </div>

@@ -120,7 +120,6 @@ const MobileMoreSheet = memo(function MobileMoreSheet({ open, onClose, onNavigat
               </div>
             ) : null}
 
-            <button type="button" onClick={handleLogout} disabled={isLoggingOut} className="mt-2.5 flex w-full items-center justify-between rounded-xl border border-white/15 bg-white/10 px-3.5 py-2.5 text-[13px] font-semibold text-slate-200 transition hover:border-red-300/50 hover:bg-red-500/15 hover:text-red-100">
             <button type="button" onClick={handleLogout} disabled={isLoggingOut} className="mt-2 flex w-full items-center justify-between rounded-xl border border-white/15 bg-white/[0.06] px-3.5 py-2.5 text-[13px] font-semibold text-slate-200 transition hover:border-red-300/50 hover:bg-red-500/15 hover:text-red-100">
               <span>{isLoggingOut ? 'Encerrando sessão...' : 'Sair da conta'}</span>
               <span aria-hidden="true" className="text-base leading-none">↗</span>

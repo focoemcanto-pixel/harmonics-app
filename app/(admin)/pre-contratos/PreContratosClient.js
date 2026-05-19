@@ -81,6 +81,7 @@ const PRECONTRACT_SELECT_FIELDS = [
   'contract_mode',
 ].join(', ');
 let preContratosCache = {
+  workspaceId: null,
   updatedAt: 0,
   items: [],
   eventos: [],
@@ -656,6 +657,15 @@ export default function PreContratosClient() {
     document.body.style.overflow = '';
   }, []);
 
+  async function carregarWorkspaceAtual() {
+    const response = await fetch('/api/workspace/me', { credentials: 'include', cache: 'no-store' });
+    const json = await response.json();
+    if (!json?.ok || !json?.workspace?.id) {
+      throw new Error(json?.message || 'Não foi possível identificar o workspace atual.');
+    }
+    return String(json.workspace.id);
+  }
+
   async function carregarPreContratos() {
   const response = await fetch(`/api/precontracts?limit=${ADMIN_LIST_LIMIT}`);
   const json = await response.json();
@@ -707,13 +717,10 @@ export default function PreContratosClient() {
   }
 
   async function carregarEventos() {
-    const { data, error } = await supabase
-      .from('events')
-      .select('id, client_name, event_date, event_time, location_name, status')
-      .order('event_date', { ascending: true });
-
-    if (error) throw error;
-    const sanitizedEvents = (data || []).map((item) => sanitizeTimeFields(item));
+    const response = await fetch('/api/events?scope=events&limit=300', { credentials: 'include', cache: 'no-store' });
+    const json = await response.json();
+    if (!json?.ok) throw new Error(json?.message || 'Erro ao carregar eventos.');
+    const sanitizedEvents = (json.events || []).map((item) => sanitizeTimeFields(item));
     setEventos(sanitizedEvents);
     preContratosCache.eventos = sanitizedEvents;
     preContratosCache.updatedAt = Date.now();
@@ -721,11 +728,10 @@ export default function PreContratosClient() {
 
   async function carregarTiposEvento() {
     setEventTypesLoading(true);
-    const { data, error } = await supabase
-      .from('event_types')
-      .select('id, name, default_contract_template_id')
-      .eq('is_active', true)
-      .order('sort_order', { ascending: true });
+    const response = await fetch('/api/admin/event-types', { credentials: 'include', cache: 'no-store' });
+    const json = await response.json();
+    const data = json?.eventTypes || [];
+    const error = json?.ok ? null : new Error(json?.error || 'Erro ao carregar tipos de evento.');
 
     if (IS_DEV) {
       console.log('[PRECONTRATOS][event_types] resposta bruta:', data);
@@ -757,21 +763,14 @@ async function carregarModelosContrato({ force = false } = {}) {
     if (!force && contractTemplatesLoaded && contractTemplates.length > 0) return contractTemplates;
 
     setContractTemplatesLoading(true);
-    const richResult = await supabase
-      .from('contract_templates')
-      .select('id, name, content, source_text, source_rich_html')
-      .eq('is_active', true)
-      .order('name', { ascending: true });
-
-    if (richResult.error) {
-      if (String(richResult.error?.message || '').toLowerCase().includes('source_rich_html')) {
-        throw new Error('Coluna source_rich_html não existe. Rode a migration.');
-      }
+    const response = await fetch('/api/admin/contract-templates', { credentials: 'include', cache: 'no-store' });
+    const json = await response.json();
+    if (!json?.ok) {
       setContractTemplatesLoading(false);
-      throw richResult.error;
+      throw new Error(json?.error || 'Erro ao carregar templates.');
     }
 
-    const templates = richResult.data || [];
+    const templates = json.templates || [];
     setContractTemplates(templates);
     setContractTemplatesLoaded(true);
     setContractTemplatesLoading(false);
@@ -784,26 +783,23 @@ async function carregarModelosContrato({ force = false } = {}) {
   async function fetchContractTemplateFresh(templateId) {
     if (!templateId) return null;
 
-    const richResult = await supabase
-      .from('contract_templates')
-      .select('id, name, content, source_text, source_rich_html')
-      .eq('id', templateId)
-      .eq('is_active', true)
-      .single();
-
-    if (richResult.error) {
-      if (String(richResult.error?.message || '').toLowerCase().includes('source_rich_html')) {
-        throw new Error('Coluna source_rich_html não existe. Rode a migration.');
-      }
-      throw richResult.error;
+    const response = await fetch(`/api/admin/contract-templates?id=${encodeURIComponent(templateId)}`, { credentials: 'include', cache: 'no-store' });
+    const json = await response.json();
+    if (!json?.ok) {
+      throw new Error(json?.error || 'Erro ao buscar template.');
     }
-
-    return richResult.data || null;
+    return json.template || null;
   }
 
   useEffect(() => {
     async function carregar() {
       try {
+        const workspaceId = await carregarWorkspaceAtual();
+        if (preContratosCache.workspaceId && preContratosCache.workspaceId !== workspaceId) {
+          preContratosCache = { workspaceId, updatedAt: 0, items: [], eventos: [], eventTypes: [], contractTemplates: [], adjustmentRequestsByPrecontract: new Map() };
+        } else {
+          preContratosCache.workspaceId = workspaceId;
+        }
         const hasFreshCache =
           (preContratosCache.items || []).length > 0 &&
           Date.now() - Number(preContratosCache.updatedAt || 0) < PRECONTRATOS_CACHE_TTL_MS;
@@ -827,7 +823,7 @@ async function carregarModelosContrato({ force = false } = {}) {
       }
     }
 
-    if ((preContratosCache.items || []).length > 0) {
+    if ((preContratosCache.items || []).length > 0 && preContratosCache.workspaceId) {
       setItems(preContratosCache.items || []);
       setEventos(preContratosCache.eventos || []);
       setEventTypes(preContratosCache.eventTypes || []);
@@ -870,7 +866,10 @@ async function carregarModelosContrato({ force = false } = {}) {
       return;
     }
 
-    if (!template) return;
+    if (!template) {
+      showToast?.('Template não pertence ao workspace atual ou não existe.', 'error');
+      return;
+    }
 
     const resolvedTemplate = resolveContractHtmlSource(template);
     if (!resolvedTemplate.html) return;
@@ -905,7 +904,10 @@ async function carregarModelosContrato({ force = false } = {}) {
       return;
     }
 
-    if (!template?.id) return;
+    if (!template?.id) {
+      showToast?.('Template não pertence ao workspace atual ou não existe.', 'error');
+      return;
+    }
 
     const hasManualContent = String(form.custom_contract_content || '').trim().length > 0;
     if (hasManualContent && String(form.contract_template_id || '') !== String(template.id)) {

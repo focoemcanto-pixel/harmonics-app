@@ -51,11 +51,20 @@ export async function GET(request) {
   }
 
   try {
+    const { searchParams } = new URL(request.url);
+    const templateId = String(searchParams.get('id') || '').trim();
     const result = await listTemplatesScoped(supabaseAdmin, auth.workspaceId);
+    const activeTemplates = (result.data || []).filter((item) => item?.is_active === true);
+    let template = null;
+
+    if (templateId) {
+      template = activeTemplates.find((item) => String(item?.id) === templateId) || null;
+    }
 
     return NextResponse.json({
       ok: true,
-      templates: result.data || [],
+      templates: activeTemplates,
+      template,
       workspaceId: auth.workspaceId,
       migrationRequired: result.migrationRequired,
       warning: result.migrationRequired ? SCHEMA_MIGRATION_REQUIRED : null,

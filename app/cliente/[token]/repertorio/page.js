@@ -299,7 +299,7 @@ function normalizeRepertoireSection(section) {
     .replace(/[\u0300-\u036f]/g, '');
 }
 
-function resolveAntesalaRequestFromEvent(event) {
+function resolveAntesalaRequestFromEvent(resolvedEventSource) {
   const status = String(event?.antesala_request_status || '')
     .trim()
     .toLowerCase();
@@ -548,7 +548,7 @@ export default async function ClienteRepertorioPage({ params }) {
   const { data: precontractByClientToken, error: precontractByClientTokenError } =
     await supabase
       .from('precontracts')
-      .select('id, public_token, event_id, event_type, contract_mode')
+      .select('id, public_token, event_id, event_type, contract_mode, event_date, event_time, location_name, location_address, formation, instruments, agreed_amount, client_name, workspace_id')
       .eq('public_token', token)
       .maybeSingle();
 
@@ -592,22 +592,28 @@ export default async function ClienteRepertorioPage({ params }) {
       console.error('[CLIENTE REPERTORIO PAGE] Erro ao buscar repertoire_token:', tokenError);
     }
     if (tokenError || !repertoireTokenRow) {
-      return <ClienteHome data={buildFallbackData(token)} initialTab="repertorio" />;
+      if (precontractByClientToken) {
+        tokenRow = null;
+      } else {
+        return <ClienteHome data={buildFallbackData(token)} initialTab="repertorio" />;
+      }
     }
 
-    if (String(repertoireTokenRow.status || '').toLowerCase() !== 'open') {
+    if (repertoireTokenRow && String(repertoireTokenRow.status || '').toLowerCase() !== 'open') {
       notFound();
     }
 
-    if (repertoireTokenRow.expires_at) {
+    if (repertoireTokenRow?.expires_at) {
       const expiresAt = new Date(repertoireTokenRow.expires_at);
       if (!Number.isNaN(expiresAt.getTime()) && expiresAt.getTime() < requestTimeMs) {
         notFound();
       }
     }
 
-    tokenRow = repertoireTokenRow;
-    eventId = repertoireTokenRow.event_id;
+    if (repertoireTokenRow) {
+      tokenRow = repertoireTokenRow;
+      eventId = repertoireTokenRow.event_id;
+    }
   } else {
     const { data: latestToken, error: latestTokenError } = await supabase
       .from('repertoire_tokens')
@@ -663,7 +669,7 @@ export default async function ClienteRepertorioPage({ params }) {
 
       supabase
         .from('precontracts')
-        .select('id, public_token, event_id, event_type, contract_mode, reception_hours, has_sound, has_transport')
+        .select('id, public_token, event_id, event_type, contract_mode, reception_hours, has_sound, has_transport, event_date, event_time, location_name, location_address, formation, instruments, agreed_amount, client_name, workspace_id')
         .eq('event_id', eventId)
         .maybeSingle(),
 
@@ -698,7 +704,9 @@ export default async function ClienteRepertorioPage({ params }) {
   }
 
   const event = eventResp?.data || null;
-  if (!event) {
+  const precontract = precontractsResp?.data || precontractByClientToken || null;
+  const resolvedEventSource = event || precontract || {};
+  if (!event && !precontract) {
     console.error('[CLIENTE REPERTORIO PAGE] Evento ausente após consultas, renderizando fallback.');
     return <ClienteHome data={buildFallbackData(clientToken || token)} initialTab="repertorio" />;
   }
@@ -714,7 +722,6 @@ export default async function ClienteRepertorioPage({ params }) {
     console.log('[LOAD][CERIMONIA_FROM_DB]', cerimoniaFromDb);
     console.log('[LOAD][SAIDA_FROM_DB]', saidaFromDb);
   }
-  const precontract = precontractsResp?.data || null;
   const eventTypeRaw =
     precontract?.event_type ||
     precontractByClientToken?.event_type ||
@@ -768,7 +775,7 @@ export default async function ClienteRepertorioPage({ params }) {
     clientToken = precontract.public_token;
   }
 
-  const eventDate = parseLocalDate(event.event_date);
+  const eventDate = parseLocalDate(resolvedEventSource.event_date);
   const now = startOfDay(new Date());
   const reviewStartsAt = eventDate ? startOfDay(addDays(eventDate, 1)) : null;
 
@@ -780,7 +787,7 @@ export default async function ClienteRepertorioPage({ params }) {
   }
 
   const initialLists = mapItemsToInitialState(items);
-  const antesalaRequest = resolveAntesalaRequestFromEvent(event);
+  const antesalaRequest = resolveAntesalaRequestFromEvent(resolvedEventSource);
   if (IS_DEV) {
     console.log('[LOAD][INITIAL_STATE]', {
       cortejo: initialLists.cortejo,
@@ -821,21 +828,21 @@ export default async function ClienteRepertorioPage({ params }) {
 
   const data = {
     token: clientToken,
-    clienteNome: event.client_name || 'Cliente',
-    eventoTitulo: event.client_name
-      ? `Evento • ${event.client_name}`
+    clienteNome: resolvedEventSource.client_name || 'Cliente',
+    eventoTitulo: resolvedEventSource.client_name
+      ? `Evento • ${resolvedEventSource.client_name}`
       : 'Evento',
-    dataEvento: event.event_date || '',
-    horarioEvento: event.event_time || '',
-    localEvento: event.location_name || '',
-    formacao: event.formation || '',
-    instrumentos: event.instruments || '',
+    dataEvento: resolvedEventSource.event_date || '',
+    horarioEvento: resolvedEventSource.event_time || '',
+    localEvento: resolvedEventSource.location_name || resolvedEventSource.location_address || '',
+    formacao: resolvedEventSource.formation || '',
+    instrumentos: resolvedEventSource.instruments || '',
     statusContrato: contract?.signed_at ? 'Contrato assinado' : 'Contrato pendente',
-    statusEvento: event.status || 'Confirmado',
+    statusEvento: resolvedEventSource.status || (event ? 'Confirmado' : 'A confirmar'),
     observacoes:
       sanitizedObservations ||
       'Alinhar com a assessoria a ordem correta do cortejo e o roteiro enviado à equipe.',
-    horarioChegada: addHoursToTime(event.event_time, -2),
+    horarioChegada: addHoursToTime(resolvedEventSource.event_time, -2),
     suporteWhatsapp: supportConfig.phone,
     suporteWhatsappMensagem: supportConfig.message,
     reviewSubmitted: false,

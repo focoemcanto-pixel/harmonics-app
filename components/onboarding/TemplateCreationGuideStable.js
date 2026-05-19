@@ -183,6 +183,7 @@ function getDesiredCenterY(key, vh) {
 }
 
 function centerTargetComfortably(target, stepKey) {
+  if (!target) return;
   const rect = target.getBoundingClientRect();
   const desiredCenterY = getDesiredCenterY(stepKey, window.innerHeight);
   const currentCenterY = rect.top + rect.height / 2;
@@ -261,9 +262,9 @@ export default function TemplateCreationGuideStable({ enabled = false }) {
 
   const step = STEPS[index];
   const shouldForce = searchParams?.get('guide') === 'template' || searchParams?.get('onboarding') === 'template';
-  const sessionKey = useMemo(() => 'harmonics:template-guide-stable:v4', []);
-  const shouldSkipCompletedTemplateGuide = flowStatus?.ok === true && flowStatus.hasContractTemplate === true;
-  const isCheckingTemplateProgress = pathname === '/contratos/templates' && (flowLoading || !flowStatus?.ok);
+  const sessionKey = useMemo(() => 'harmonics:template-guide-stable:v5', []);
+  const shouldSkipCompletedTemplateGuide = !shouldForce && flowStatus?.ok === true && flowStatus.hasContractTemplate === true;
+  const isCheckingTemplateProgress = pathname === '/contratos/templates' && !shouldForce && (flowLoading || !flowStatus?.ok);
 
   useEffect(() => {
     if (!active) return undefined;
@@ -396,7 +397,7 @@ export default function TemplateCreationGuideStable({ enabled = false }) {
     return () => window.removeEventListener('harmonics:contract-template-saved', handleTemplateSaved);
   }, [active, completeAndRedirect, enabled, pathname]);
 
-  if (enabled && pathname === '/contratos/templates' && shouldForce && (isCheckingTemplateProgress || shouldSkipCompletedTemplateGuide)) {
+  if (enabled && pathname === '/contratos/templates' && !shouldForce && (isCheckingTemplateProgress || shouldSkipCompletedTemplateGuide)) {
     return (
       <div className="fixed inset-0 z-[260] flex items-center justify-center bg-slate-950/20 px-4 backdrop-blur-[2px]">
         <div className="rounded-3xl border border-violet-100 bg-white px-5 py-4 text-sm font-black text-violet-700 shadow-[0_20px_70px_rgba(15,23,42,0.22)]">

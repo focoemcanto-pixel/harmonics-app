@@ -6,8 +6,6 @@ import useCurrentWorkspace from '@/hooks/useCurrentWorkspace';
 const PRIMARY_ITEMS = [
   { key: 'dashboard', module: 'dashboard', icon: '🏠', label: 'Dashboard', href: '/dashboard' },
   { key: 'eventos', module: 'eventos', icon: '📅', label: 'Eventos', href: '/eventos' },
-  { key: 'escalas', module: 'escalas', icon: '🎼', label: 'Escalas', href: '/escalas' },
-  { key: 'financeiro', module: 'pagamentos', icon: '💳', label: 'Financeiro', href: '/pagamentos' },
 ];
 
 const MORE_ITEM = { key: 'mais', module: 'mais', icon: '☰', label: 'Mais' };
@@ -72,7 +70,7 @@ export default function AdminBottomNav({ activeItem = 'eventos', onOpenMore, all
   const allowed = allowedModules instanceof Set ? allowedModules : null;
 
   const visiblePrimaryItems = allowed ? PRIMARY_ITEMS.filter((item) => allowed.has(item.module)) : PRIMARY_ITEMS;
-  const items = [...visiblePrimaryItems.slice(0, 3), MORE_ITEM];
+  const items = [...visiblePrimaryItems, MORE_ITEM];
   const columnsClass = items.length === 5 ? 'grid-cols-5' : items.length === 4 ? 'grid-cols-4' : items.length === 3 ? 'grid-cols-3' : 'grid-cols-2';
 
   return (

@@ -1357,7 +1357,12 @@ async function carregarModelosContrato({ force = false } = {}) {
           ? {
               source: 'onboarding_demo',
               is_demo: true,
-              metadata: { is_onboarding_demo: true, onboarding_step: 'precontract' },
+              metadata: {
+                is_onboarding_demo: true,
+                onboarding_step: 'precontract',
+                location_name: form.location_name.trim() || null,
+                location_address: form.location_address.trim() || null,
+              },
             }
           : {}),
       };

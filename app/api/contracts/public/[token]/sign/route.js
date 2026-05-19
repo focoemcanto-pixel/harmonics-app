@@ -30,6 +30,8 @@ export async function POST(request, context) {
     const result = await signInternalContract({
       supabase,
       token,
+      precontractId: asString(body?.precontractId),
+      contractId: asString(body?.contractId),
       html: asString(body?.html || body?.signedHtml),
       signerName: asString(body?.signerName) || 'Não informado',
       signerCpf: asString(body?.signerCpf) || 'Não informado',

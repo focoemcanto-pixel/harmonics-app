@@ -1,10 +1,9 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import AdminSidebar from './AdminSidebar';
 import AdminMobileTopbar from './AdminMobileTopbar';
-import AdminBottomNav from './AdminBottomNav';
 import WorkspaceThemeProvider from './WorkspaceThemeProvider';
 import DeferredOnboardingMount from '@/components/onboarding/DeferredOnboardingMount';
 import { MobileMoreSheet } from '../layout/AdminShell';
@@ -51,20 +50,11 @@ export default function AdminShell({
   const shouldMountRouteGuides = isOnboardingGuideRoute || forceTemplateGuide || forceEventTypesGuide || forcePrecontractGuide;
   const shouldMountDashboardGuide = pathname === '/dashboard' || forceFreshWorkspaceTour;
 
-  const mobileActiveItem = useMemo(() => {
-    const allowed = ['dashboard', 'eventos', 'contatos', 'contratos', 'mais'];
-    if (allowed.includes(activeItem)) return activeItem;
-    return 'mais';
-  }, [activeItem]);
-
   function handleMoreNavigate(href) {
     setMoreOpen(false);
     router.push(href);
   }
 
-  function handleOpenMore() {
-    setMoreOpen(true);
-  }
 
   return (
     <WorkspaceThemeProvider>
@@ -82,16 +72,12 @@ export default function AdminShell({
 
         <div className="md:hidden">
           <AdminMobileTopbar title={pageTitle} actions={mobileActions} />
-          <main className="px-4 pb-28 pt-4">
+          <main className="px-4 pb-6 pt-4">
             {shouldMountDashboardGuide ? <DeferredOnboardingMount variant="dashboard" showTour={forceFreshWorkspaceTour} /> : null}
             {shouldMountRouteGuides ? <DeferredOnboardingMount variant="route" showTour /> : null}
             {children}
           </main>
 
-          <AdminBottomNav
-            activeItem={mobileActiveItem}
-            onOpenMore={handleOpenMore}
-          />
 
           <MobileMoreSheet
             open={moreOpen}

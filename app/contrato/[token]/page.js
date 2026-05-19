@@ -497,7 +497,7 @@ function ClientContractSuccessGuide({ pdfUrl, clientPanelUrl, onOpenPdf, onOpenC
 
 function getGuidePositionClass(currentSpotlight) {
   if (currentSpotlight === 'correction') {
-    return 'right-4 md:right-6';
+    return 'right-4 md:right-6 top-4 bottom-auto md:top-6';
   }
 
   if (currentSpotlight === 'clientData') {

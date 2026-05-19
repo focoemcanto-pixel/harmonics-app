@@ -24,10 +24,6 @@ export default function FreshWorkspaceStartGuide() {
           Vamos configurar o Harmonics na ordem certa: primeiro o template de contrato, depois o tipo de evento, o pré-contrato e a simulação completa do fluxo.
         </p>
 
-        <div className="mt-5 rounded-3xl border border-violet-100 bg-violet-50 p-4 text-sm font-bold leading-6 text-violet-950">
-          O workspace principal Harmonics não é afetado por este guia. Este fluxo aparece apenas em workspaces novos habilitados para onboarding.
-        </div>
-
         <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
           <button
             type="button"

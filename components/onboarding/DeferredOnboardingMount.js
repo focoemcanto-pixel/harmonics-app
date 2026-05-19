@@ -5,65 +5,18 @@ import { useEffect, useMemo, useState } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { useOnboardingSession } from '@/contexts/OnboardingSessionContext';
 
-const DashboardOnboardingBanner = dynamic(() => import('@/components/onboarding/DashboardOnboardingBanner'), {
-  ssr: false,
-  loading: () => null,
-});
-
-const WorkspaceInsightCard = dynamic(() => import('@/components/workspace/WorkspaceInsightCard'), {
-  ssr: false,
-  loading: () => null,
-});
-
-const WorkspaceRecommendationsFeed = dynamic(() => import('@/components/workspace/WorkspaceRecommendationsFeed'), {
-  ssr: false,
-  loading: () => null,
-});
-
-const WorkspaceActivityTimeline = dynamic(() => import('@/components/workspace/WorkspaceActivityTimeline'), {
-  ssr: false,
-  loading: () => null,
-});
-
-const OperationalRouteOnboarding = dynamic(() => import('@/components/onboarding/OperationalRouteOnboarding'), {
-  ssr: false,
-  loading: () => null,
-});
-
-const SectionGuidedOnboarding = dynamic(() => import('@/components/onboarding/SectionGuidedOnboarding'), {
-  ssr: false,
-  loading: () => null,
-});
-
-const OnboardingTourOverlay = dynamic(() => import('@/components/onboarding/OnboardingTourOverlay'), {
-  ssr: false,
-  loading: () => null,
-});
-
-const FreshWorkspaceStartGuide = dynamic(() => import('@/components/onboarding/FreshWorkspaceStartGuide'), {
-  ssr: false,
-  loading: () => null,
-});
-
-const TemplateCreationGuideStable = dynamic(() => import('@/components/onboarding/TemplateCreationGuideStable'), {
-  ssr: false,
-  loading: () => null,
-});
-
-const EventTypeTemplateGuideStable = dynamic(() => import('@/components/onboarding/EventTypeTemplateGuideStable'), {
-  ssr: false,
-  loading: () => null,
-});
-
-const PrecontractGuideStable = dynamic(() => import('@/components/onboarding/PrecontractGuideStableV2'), {
-  ssr: false,
-  loading: () => null,
-});
-
-const OnboardingPrerequisiteGate = dynamic(() => import('@/components/onboarding/OnboardingPrerequisiteGate'), {
-  ssr: false,
-  loading: () => null,
-});
+const DashboardOnboardingBanner = dynamic(() => import('@/components/onboarding/DashboardOnboardingBanner'), { ssr: false, loading: () => null });
+const WorkspaceInsightCard = dynamic(() => import('@/components/workspace/WorkspaceInsightCard'), { ssr: false, loading: () => null });
+const WorkspaceRecommendationsFeed = dynamic(() => import('@/components/workspace/WorkspaceRecommendationsFeed'), { ssr: false, loading: () => null });
+const WorkspaceActivityTimeline = dynamic(() => import('@/components/workspace/WorkspaceActivityTimeline'), { ssr: false, loading: () => null });
+const OperationalRouteOnboarding = dynamic(() => import('@/components/onboarding/OperationalRouteOnboarding'), { ssr: false, loading: () => null });
+const SectionGuidedOnboarding = dynamic(() => import('@/components/onboarding/SectionGuidedOnboarding'), { ssr: false, loading: () => null });
+const OnboardingTourOverlay = dynamic(() => import('@/components/onboarding/OnboardingTourOverlay'), { ssr: false, loading: () => null });
+const FreshWorkspaceStartGuide = dynamic(() => import('@/components/onboarding/FreshWorkspaceStartGuide'), { ssr: false, loading: () => null });
+const TemplateCreationGuideStable = dynamic(() => import('@/components/onboarding/TemplateCreationGuideStable'), { ssr: false, loading: () => null });
+const EventTypeTemplateGuideStable = dynamic(() => import('@/components/onboarding/EventTypeTemplateGuideStable'), { ssr: false, loading: () => null });
+const PrecontractGuideStable = dynamic(() => import('@/components/onboarding/PrecontractGuideStableV2'), { ssr: false, loading: () => null });
+const OnboardingPrerequisiteGate = dynamic(() => import('@/components/onboarding/OnboardingPrerequisiteGate'), { ssr: false, loading: () => null });
 
 const GUIDE_KEYS = [
   'template',
@@ -94,17 +47,22 @@ export default function DeferredOnboardingMount({
   const searchParams = useSearchParams();
   const [mounted, setMounted] = useState(false);
   const [onboardingEnabled, setOnboardingEnabled] = useState(false);
+  const [primaryWorkspace, setPrimaryWorkspace] = useState(false);
   const [loadingEligibility, setLoadingEligibility] = useState(true);
   const { onboardingSession } = useOnboardingSession();
 
+  const requestedGuide = useMemo(() => {
+    const guideQuery = searchParams?.get('guide');
+    const onboardingQuery = searchParams?.get('onboarding');
+    return guideQuery || onboardingQuery;
+  }, [searchParams]);
+
   useEffect(() => {
     let timer;
-
     if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
       const idleId = window.requestIdleCallback(() => setMounted(true), { timeout: 1200 });
       return () => window.cancelIdleCallback?.(idleId);
     }
-
     timer = window.setTimeout(() => setMounted(true), 350);
     return () => window.clearTimeout(timer);
   }, []);
@@ -122,6 +80,7 @@ export default function DeferredOnboardingMount({
         if (!response.ok) {
           if (active) {
             setOnboardingEnabled(false);
+            setPrimaryWorkspace(false);
             setLoadingEligibility(false);
           }
           return;
@@ -129,11 +88,14 @@ export default function DeferredOnboardingMount({
 
         const data = await response.json();
         const enabled = data?.onboardingEnabled === true;
+        const isPrimary = data?.primaryWorkspace === true;
 
         if (process.env.NODE_ENV !== 'production') {
           console.debug('[ONBOARDING][DeferredOnboardingMount]', {
             workspaceId: data?.workspaceId || null,
             onboardingEnabled: enabled,
+            primaryWorkspace: isPrimary,
+            requestedGuide: requestedGuide || null,
             reason: enabled ? 'flow-status-enabled' : 'flow-status-disabled',
             path: pathname || null,
           });
@@ -141,37 +103,35 @@ export default function DeferredOnboardingMount({
 
         if (active) {
           setOnboardingEnabled(enabled);
+          setPrimaryWorkspace(isPrimary);
           setLoadingEligibility(false);
         }
       } catch {
         if (active) {
           setOnboardingEnabled(false);
+          setPrimaryWorkspace(false);
           setLoadingEligibility(false);
         }
       }
     }
 
-    if (mounted) {
-      loadEligibility();
-    }
+    if (mounted) loadEligibility();
 
     return () => {
       active = false;
     };
-  }, [mounted, pathname]);
-
-  const requestedGuide = useMemo(() => {
-    const guideQuery = searchParams?.get('guide');
-    const onboardingQuery = searchParams?.get('onboarding');
-    return guideQuery || onboardingQuery;
-  }, [searchParams]);
+  }, [mounted, pathname, requestedGuide]);
 
   if (!mounted || loadingEligibility) return null;
-  if (!onboardingEnabled) return null;
+  if (primaryWorkspace) return null;
 
-  const hasDynamicGuideQuery = onboardingEnabled && GUIDE_KEYS.includes(requestedGuide);
-  const isGuideActive = Boolean(onboardingSession.activeGuide) || hasDynamicGuideQuery;
+  const manualGuideRequested = GUIDE_KEYS.includes(requestedGuide);
   const freshWorkspace = requestedGuide === 'fresh-workspace' || searchParams?.get('tour') === 'workspace-created';
+  const canRenderOnboarding = onboardingEnabled || manualGuideRequested || freshWorkspace;
+  if (!canRenderOnboarding) return null;
+
+  const hasDynamicGuideQuery = manualGuideRequested;
+  const isGuideActive = Boolean(onboardingSession.activeGuide) || hasDynamicGuideQuery;
 
   if (variant === 'dashboard') {
     return (
@@ -198,14 +158,8 @@ export default function DeferredOnboardingMount({
       </>
     );
 
-    if (pathname === '/eventos/tipos') {
-      return <OnboardingPrerequisiteGate requiredStep="event_type">{routeGuides}</OnboardingPrerequisiteGate>;
-    }
-
-    if (pathname === '/pre-contratos') {
-      return <OnboardingPrerequisiteGate requiredStep="precontract">{routeGuides}</OnboardingPrerequisiteGate>;
-    }
-
+    if (pathname === '/eventos/tipos') return <OnboardingPrerequisiteGate requiredStep="event_type">{routeGuides}</OnboardingPrerequisiteGate>;
+    if (pathname === '/pre-contratos') return <OnboardingPrerequisiteGate requiredStep="precontract">{routeGuides}</OnboardingPrerequisiteGate>;
     return routeGuides;
   }
 

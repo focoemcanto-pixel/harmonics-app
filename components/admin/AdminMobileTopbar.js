@@ -1,8 +1,9 @@
 'use client';
 
 import useCurrentWorkspace from '@/hooks/useCurrentWorkspace';
+import { Bell, Menu, UserCircle2 } from 'lucide-react';
 
-export default function AdminMobileTopbar({ title, actions, subtitle }) {
+export default function AdminMobileTopbar({ title, actions, subtitle, onOpenMenu }) {
   const { workspace, loading: workspaceLoading } = useCurrentWorkspace();
 
   const brandingName = workspaceLoading ? 'Carregando workspace...' : workspace?.displayName || 'Workspace';
@@ -30,7 +31,18 @@ export default function AdminMobileTopbar({ title, actions, subtitle }) {
           ) : null}
         </div>
 
-        {actions ? <div className="shrink-0">{actions}</div> : null}
+        <div className="shrink-0 flex items-center gap-2">
+          <button type="button" data-onboarding-tour="mobile-more" aria-label="Abrir menu" onClick={() => onOpenMenu?.()} className="rounded-xl border border-[#e2e8f0] bg-white p-2 text-[#0f172a]">
+            <Menu size={18} />
+          </button>
+          <button type="button" aria-label="Notificações" className="rounded-xl border border-[#e2e8f0] bg-white p-2 text-[#0f172a]">
+            <Bell size={18} />
+          </button>
+          <button type="button" aria-label="Perfil" className="rounded-xl border border-[#e2e8f0] bg-white p-2 text-[#0f172a]">
+            <UserCircle2 size={18} />
+          </button>
+          {actions ? <div className="ml-1">{actions}</div> : null}
+        </div>
       </div>
     </header>
   );

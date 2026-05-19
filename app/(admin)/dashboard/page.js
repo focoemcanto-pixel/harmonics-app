@@ -1105,6 +1105,37 @@ export default function DashboardPage() {
 </Link>
           </div>
 
+          {/* Ações Rápidas (mobile no topo) */}
+          <div className="md:hidden -mt-1">
+            <h2 className="text-lg font-bold text-slate-950 mb-2">
+              Ações Rápidas
+            </h2>
+            <div className="flex overflow-x-auto gap-3 pb-2 pr-1 snap-x snap-mandatory scrollbar-hide">
+              {quickActions.map((action) => (
+                <Link
+                  key={`mobile-top-${action.href}`}
+                  href={action.href}
+                  className={`
+                    flex-shrink-0 w-[180px] snap-start
+                    p-4 rounded-xl border-2
+                    transition-all duration-200
+                    hover:shadow-md
+                    cursor-pointer
+                    flex items-center gap-3
+                    ${quickActionColorClasses[action.color]}
+                  `}
+                >
+                  <div className="flex-shrink-0">
+                    {action.icon}
+                  </div>
+                  <span className="font-semibold text-xs">
+                    {action.label}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          </div>
+
           {erro ? (
             <div className="rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-[14px] font-semibold text-red-700">
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -1336,8 +1367,8 @@ export default function DashboardPage() {
                 <QuickActionCard key={action.href} action={action} />
               ))}
             </div>
-            {/* Mobile: scroll horizontal */}
-            <div className="md:hidden flex overflow-x-auto gap-3 pb-3 pl-4 pr-2 snap-x snap-mandatory scrollbar-hide">
+            {/* Mobile: versão no topo */}
+            <div className="hidden">
               {quickActions.map((action) => (
                 <Link
                   key={action.href}

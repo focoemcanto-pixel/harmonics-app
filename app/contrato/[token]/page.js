@@ -2752,6 +2752,10 @@ if (!generateRes.ok || !generateJson?.ok) {
             body: JSON.stringify({
               precontractId: precontract.id,
               contractId: contractAtualizado?.id || null,
+              signed_html: htmlAssinado,
+              signedHtml: htmlAssinado,
+              htmlSigned: htmlAssinado,
+              contractHtml: htmlAssinado,
               html: htmlAssinado,
               signerName: form.signer_name,
               signerCpf: form.signer_cpf,
@@ -2904,6 +2908,7 @@ if (contractSignedError) throw contractSignedError;
 }
 
       setEnviado(true);
+      await refetchContract().catch(() => null);
     } catch (error) {
       console.error('Erro ao assinar contrato:', error);
       toast.error(

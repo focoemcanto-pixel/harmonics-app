@@ -13,6 +13,16 @@ function asString(value) { return String(value || '').trim(); }
 function extractToken(params) { return Array.isArray(params?.token) ? asString(params.token[0]) : asString(params?.token); }
 function resolveSignatureOrigin(rawOrigin) { return asString(rawOrigin).toLowerCase() === 'cliente' ? 'CLIENTE' : 'Sistema Harmonics'; }
 
+function resolveSignedHtml(body) {
+  return asString(
+    body?.signed_html ||
+    body?.signedHtml ||
+    body?.htmlSigned ||
+    body?.contractHtml ||
+    body?.html
+  );
+}
+
 export async function POST(request, context) {
   const token = extractToken(await context?.params);
   const requestIp = getRequestIp(request);
@@ -25,6 +35,17 @@ export async function POST(request, context) {
   try {
     requireRequiredEnv('contracts/public-sign');
     const body = await request.json().catch(() => null);
+    const signedHtml = resolveSignedHtml(body);
+
+    console.log('[CONTRACT_PUBLIC_SIGN][REQUEST_BODY]', {
+      token: maskToken(token),
+      precontractId: asString(body?.precontractId),
+      contractId: asString(body?.contractId),
+      hasSignedHtml: !!signedHtml,
+      signedHtmlLength: signedHtml.length,
+      bodyKeys: body && typeof body === 'object' ? Object.keys(body) : [],
+    });
+
     const supabase = getSupabaseAdmin();
 
     const result = await signInternalContract({
@@ -32,7 +53,7 @@ export async function POST(request, context) {
       token,
       precontractId: asString(body?.precontractId),
       contractId: asString(body?.contractId),
-      html: asString(body?.html || body?.signedHtml),
+      html: signedHtml,
       signerName: asString(body?.signerName) || 'Não informado',
       signerCpf: asString(body?.signerCpf) || 'Não informado',
       origin: resolveSignatureOrigin(body?.origin),
@@ -42,6 +63,19 @@ export async function POST(request, context) {
     });
 
     if (!result?.pdfUrl) return NextResponse.json({ ok: false, message: 'Falha ao gerar PDF interno.' }, { status: 502 });
+
+    console.log('[CONTRACT_PUBLIC_SIGN][CONTRACT_CREATED]', {
+      token: maskToken(token),
+      contractId: result?.contractId || null,
+      precontractId: result?.precontractId || null,
+      status: result?.status || null,
+    });
+    console.log('[CONTRACT_PUBLIC_SIGN][PDF_READY]', {
+      token: maskToken(token),
+      contractId: result?.contractId || null,
+      pdfUrl: result?.pdfUrl || null,
+    });
+
     return NextResponse.json(result);
   } catch (error) {
     logError('CONTRACT_PUBLIC_SIGN', 'ERROR', error, { token: maskToken(token), code: error?.code || null, stage: error?.stage || null, message: error?.message || String(error) });

@@ -715,6 +715,11 @@ function ClientPanelGuide({ data, activeTab, setActiveTab, hideSuggestions = fal
     return new URLSearchParams(window.location.search).get('guide') === 'client-panel';
   });
 
+  const repertorioEnviado = Boolean(
+    data?.repertorio?.isLocked ||
+    ['submitted', 'finalizado', 'approved'].includes(String(data?.repertorio?.status || '').toLowerCase())
+  );
+
   const steps = useMemo(() => {
     const base = [
       {
@@ -725,50 +730,52 @@ function ClientPanelGuide({ data, activeTab, setActiveTab, hideSuggestions = fal
         target: 'client-tab-inicio',
       },
       {
-        key: 'repertorio',
+        key: 'resumo-evento',
+        tab: 'inicio',
+        title: 'Resumo do evento',
+        text: 'Revise o resumo do evento e confirme os dados principais para seguir no onboarding.',
+        target: 'client-panel-root',
+      },
+      {
+        key: 'abas-principais',
         tab: 'repertorio',
-        title: 'Repertório',
-        text: 'Nesta aba o cliente pode enviar músicas, referências, momentos e finalizar a lista. Depois de finalizar, o admin recebe e pode revisar ou liberar ajustes.',
+        title: 'Abas principais',
+        text: 'Use as abas para navegar entre início, repertório, financeiro e contrato.',
         target: 'client-tab-repertorio',
       },
-      ...(!hideSuggestions ? [{
-        key: 'sugestoes',
-        tab: 'sugestoes',
-        title: 'Sugestões',
-        text: 'Aqui o cliente encontra sugestões musicais e referências cadastradas pelo admin para acelerar as escolhas.',
-        target: 'client-tab-sugestoes',
-      }] : []),
       {
-        key: 'financeiro',
-        tab: 'financeiro',
-        title: 'Financeiro',
-        text: 'O cliente acompanha valores, sinal, saldo, comprovantes e pendências financeiras quando essas informações estiverem disponíveis.',
-        target: 'client-tab-financeiro',
-      },
-      {
-        key: 'contrato',
-        tab: 'contrato',
-        title: 'Contrato/PDF',
-        text: 'Nesta área o cliente pode revisar o contrato assinado e abrir o PDF sempre que precisar.',
-        target: 'client-tab-contrato',
-      },
-      {
-        key: 'revisao',
+        key: 'add-fake-song',
         tab: 'repertorio',
-        title: 'Solicitar revisão',
-        text: 'Se existir algum erro, o cliente pode solicitar revisão. O fluxo fica bloqueado até o admin corrigir e liberar novamente.',
-        target: 'client-review-action',
+        title: 'Adicionar música fake',
+        text: 'Agora simule o preenchimento do repertório: adicione uma música fake em Cortejo ou Cerimônia. Exemplo: "Marcha Nupcial" com referência https://www.youtube.com/watch?v=example.',
+        target: 'onboarding-add-song-cortejo',
       },
       {
+        key: 'save-song',
+        tab: 'repertorio',
+        title: 'Salvar / adicionar música',
+        text: 'Depois de preencher os campos da música fake, salve como rascunho ou avance no fluxo para continuar.',
+        target: 'onboarding-save-repertoire',
+      },
+      {
+        key: 'submit-repertoire',
+        tab: 'repertorio',
+        title: 'Finalizar envio do repertório',
+        text: 'Finalize/enviе o repertório para concluir a simulação no onboarding. Só depois disso você poderá voltar ao painel admin.',
+        target: 'onboarding-submit-repertoire',
+      },
+    ];
+    if (repertorioEnviado) {
+      base.push({
         key: 'final',
         tab: activeTab,
         title: 'Tour concluído',
-        text: 'Você concluiu a visão do cliente. Agora volte ao painel admin para limpar o evento de teste.',
+        text: 'Perfeito! O repertório fake foi enviado. Agora você pode voltar ao painel admin para continuar o onboarding.',
         target: 'client-panel-root',
-      },
-    ];
+      });
+    }
     return base;
-  }, [activeTab, hideSuggestions]);
+  }, [activeTab, repertorioEnviado]);
 
   const currentStep = steps[stepIndex] || steps[0];
 
@@ -807,10 +814,10 @@ function ClientPanelGuide({ data, activeTab, setActiveTab, hideSuggestions = fal
     if (isFinal) {
       await markOnboardingFlowState({ client_panel_tour_completed: true, returned_to_admin: true });
       const target = returnTo
-        ? `${returnTo}${returnTo.includes('?') ? '&' : '?'}guide=cleanup-fake-event${eventId ? `&eventId=${encodeURIComponent(eventId)}` : ''}`
+        ? `${returnTo}${returnTo.includes('?') ? '&' : '?'}guide=admin-repertoire${eventId ? `&eventId=${encodeURIComponent(eventId)}` : ''}`
         : eventId
-          ? `/eventos?guide=cleanup-fake-event&eventId=${encodeURIComponent(eventId)}`
-          : '/dashboard?guide=cleanup-fake-event';
+          ? `/eventos/${encodeURIComponent(eventId)}?guide=admin-repertoire`
+          : '/eventos?guide=admin-repertoire';
       window.location.href = target;
       return;
     }
@@ -3569,6 +3576,7 @@ async function handleRequestReview() {
           <button
             type="button"
             onClick={() => addCortejo('')}
+            data-onboarding-tour="onboarding-add-song-cortejo"
             className="mt-5 w-full rounded-[20px] border-2 border-dashed border-[#d9c8f7] bg-[#fcfbff] px-4 py-4 text-[15px] font-black text-violet-700"
           >
             + Adicionar entrada personalizada
@@ -3825,18 +3833,20 @@ async function handleRequestReview() {
           </SectionCard>
 
           <div className="space-y-3">
-            <button
+<button
   type="button"
   onClick={() => saveRepertorio('draft')}
+  data-onboarding-tour="onboarding-save-repertoire"
   disabled={savingMode !== ''}
   className="w-full rounded-[20px] border border-[#f1ddb1] bg-[#fff7e8] px-4 py-4 text-[15px] font-black text-[#9b6a17] disabled:cursor-not-allowed disabled:opacity-60"
 >
   {savingMode === 'draft' ? 'Salvando rascunho...' : '💾 Salvar rascunho'}
 </button>
 
-            <button
+<button
   type="button"
   onClick={() => saveRepertorio('final')}
+  data-onboarding-tour="onboarding-submit-repertoire"
   disabled={savingMode !== ''}
   className="w-full rounded-[20px] bg-[linear-gradient(135deg,#16a34a_0%,#22c55e_100%)] px-4 py-4 text-[15px] font-black text-white shadow-[0_12px_28px_rgba(34,197,94,0.24)] disabled:cursor-not-allowed disabled:opacity-60"
 >

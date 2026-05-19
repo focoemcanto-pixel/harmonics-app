@@ -496,6 +496,10 @@ function ClientContractSuccessGuide({ pdfUrl, clientPanelUrl, onOpenPdf, onOpenC
 }
 
 function getGuidePositionClass(currentSpotlight) {
+  if (currentSpotlight === 'correction') {
+    return 'right-4 md:right-6';
+  }
+
   if (currentSpotlight === 'clientData') {
     return 'right-4 md:right-6';
   }
@@ -503,8 +507,7 @@ function getGuidePositionClass(currentSpotlight) {
   if (
     currentSpotlight === 'contractViewer' ||
     currentSpotlight === 'signature' ||
-    currentSpotlight === 'signButton' ||
-    currentSpotlight === 'correction'
+    currentSpotlight === 'signButton'
   ) {
     return 'left-4 right-auto md:left-6 md:right-auto';
   }
@@ -521,6 +524,7 @@ function ClientContractGuide({
 }) {
   const guidePositionClass = getGuidePositionClass(currentSpotlight);
   const isSignatureSpotlight = currentSpotlight === 'signature' || currentSpotlight === 'signButton';
+  const isCorrectionSpotlight = currentSpotlight === 'correction';
   const completedCount = steps.filter((step) => step.done).length;
   const progressPercent = Math.round((completedCount / steps.length) * 100);
   const currentStep = steps.find((step) => !step.done) || steps[steps.length - 1];
@@ -535,7 +539,7 @@ function ClientContractGuide({
 
   return (
     <aside className={`fixed bottom-4 z-[60] w-[calc(100vw-2rem)] max-w-md rounded-3xl border border-violet-200 bg-white/95 p-4 shadow-2xl shadow-violet-950/20 backdrop-blur md:bottom-6 ${guidePositionClass} ${
-      isSignatureSpotlight ? 'max-h-[calc(100vh-2rem)] overflow-y-auto' : ''
+      isSignatureSpotlight || isCorrectionSpotlight ? 'max-h-[calc(100vh-2rem)] overflow-y-auto' : ''
     }`}>
       <div className="flex items-start justify-between gap-3">
         <div>
@@ -583,6 +587,11 @@ function ClientContractGuide({
           Área em foco: {spotlightLabels[currentSpotlight] || 'Visão geral'}
         </p>
       </div>
+      {currentSpotlight === 'correction' ? (
+        <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold leading-relaxed text-amber-800">
+          Nesta simulação, não envie uma solicitação de correção agora. Essa função bloqueia a assinatura até o admin revisar e liberar o pré-contrato.
+        </div>
+      ) : null}
 
       <ul className="mt-4 space-y-2">
         {steps.map((step) => (
@@ -630,7 +639,7 @@ function ClientContractGuide({
       </div>
 
       <p className="mt-3 text-[11px] leading-relaxed text-slate-500">
-        Se o cliente perceber qualquer erro nos dados do pré-contrato, ele pode solicitar uma revisão. A assinatura ficará bloqueada até que o admin corrija o pré-contrato. Você será sinalizado no WhatsApp do admin e também no dashboard do app.
+        Se o cliente perceber algum erro nos dados do pré-contrato, ele poderá solicitar uma correção. Quando isso acontecer, a assinatura fica bloqueada até o admin revisar e liberar. Nesta simulação, não envie uma solicitação agora para não bloquear o fluxo.
       </p>
     </aside>
   );

@@ -716,81 +716,18 @@ function ClientPanelGuide({ data, activeTab, setActiveTab, hideSuggestions = fal
     return new URLSearchParams(window.location.search).get('guide') === 'client-panel';
   });
 
-  const repertorioEnviado = Boolean(
-    data?.repertorio?.isLocked ||
-    ['submitted', 'finalizado', 'approved'].includes(String(data?.repertorio?.status || '').toLowerCase())
-  );
-
-  const steps = useMemo(() => {
-    const base = [
-      {
-        key: 'inicio',
-        tab: 'inicio',
-        title: 'Início',
-        text: 'Aqui o cliente vê o resumo do evento, dados principais e próximos passos para se orientar sem depender do admin.',
-        target: 'client-tab-inicio',
-      },
-      {
-        key: 'resumo-evento',
-        tab: 'inicio',
-        title: 'Resumo do evento',
-        text: 'Revise o resumo do evento e confirme os dados principais para seguir no onboarding.',
-        target: 'client-panel-root',
-      },
-      {
-        key: 'abas-principais',
-        tab: 'repertorio',
-        title: 'Abas principais',
-        text: 'Use as abas para navegar entre início, repertório, financeiro e contrato.',
-        target: 'client-tab-repertorio',
-      },
-      {
-        key: 'add-fake-song',
-        tab: 'repertorio',
-        title: 'Adicionar música',
-        text: 'Clique no botão/área de Cortejo ou Cerimônia para adicionar uma música.',
-        target: 'onboarding-add-song-cortejo',
-      },
-      {
-        key: 'song-name',
-        tab: 'repertorio',
-        title: 'Campo Música',
-        text: 'No campo “Música”, digite: Marcha Nupcial.',
-        target: 'onboarding-song-name',
-      },
-      {
-        key: 'song-reference',
-        tab: 'repertorio',
-        title: 'Campo Referência/YouTube',
-        text: 'No campo “Referência/YouTube”, digite: https://www.youtube.com/watch?v=example.',
-        target: 'onboarding-song-reference',
-      },
-      {
-        key: 'save-song',
-        tab: 'repertorio',
-        title: 'Salvar / adicionar música',
-        text: 'Depois de preencher os campos da música fake, salve como rascunho ou avance no fluxo para continuar.',
-        target: 'onboarding-save-repertoire',
-      },
-      {
-        key: 'submit-repertoire',
-        tab: 'repertorio',
-        title: 'Finalizar envio do repertório',
-        text: 'Finalize/enviе o repertório para concluir a simulação no onboarding. Só depois disso você poderá voltar ao painel admin.',
-        target: 'onboarding-submit-repertoire',
-      },
-    ];
-    if (repertorioEnviado) {
-      base.push({
-        key: 'final',
-        tab: activeTab,
-        title: 'Tour concluído',
-        text: 'Perfeito! O repertório fake foi enviado. Agora você pode voltar ao painel admin para continuar o onboarding.',
-        target: 'client-panel-root',
-      });
-    }
-    return base;
-  }, [activeTab, repertorioEnviado]);
+  const steps = useMemo(() => ([
+    { key: 'open-repertorio', tab: 'inicio', title: 'Abrir repertório', text: 'Clique em “Abrir repertório”.', target: 'onboarding-open-repertorio', waitFor: 'click' },
+    { key: 'select-section', tab: 'repertorio', title: 'Escolha uma seção', text: 'Clique em “Adicionar entrada personalizada” (Cortejo) ou em “Adicionar momento personalizado” (Cerimônia).', target: 'onboarding-add-song-cortejo', waitFor: 'either-click', altTarget: 'onboarding-add-song-cerimonia' },
+    { key: 'add-song', tab: 'repertorio', title: 'Adicionar música', text: 'Agora adicione a música na seção escolhida.', target: 'onboarding-add-song-cortejo', waitFor: 'either-click', altTarget: 'onboarding-add-song-cerimonia' },
+    { key: 'song-name', tab: 'repertorio', title: 'Campo Música', text: 'Digite: Marcha Nupcial', target: 'onboarding-song-name', waitFor: 'input', expected: 'marcha nupcial' },
+    { key: 'song-reference', tab: 'repertorio', title: 'Referência / YouTube', text: 'Cole: https://www.youtube.com/watch?v=example', target: 'onboarding-song-reference', waitFor: 'input', expected: 'youtube.com/watch?v=example' },
+    { key: 'save-song', tab: 'repertorio', title: 'Salvar música', text: 'Clique em “Salvar rascunho”.', target: 'onboarding-save-repertoire', waitFor: 'click' },
+    { key: 'submit-repertoire', tab: 'repertorio', title: 'Finalizar repertório', text: 'Clique em “Finalizar repertório” para enviar.', target: 'onboarding-submit-repertoire', waitFor: 'click' },
+    { key: 'suggestions', tab: 'sugestoes', title: 'Sugestões', text: 'Veja sugestões extras para o evento.', target: 'client-tab-sugestoes', waitFor: 'manual' },
+    { key: 'financeiro', tab: 'financeiro', title: 'Financeiro', text: 'Aqui o cliente acompanha pagamentos e saldo.', target: 'client-tab-financeiro', waitFor: 'manual' },
+    { key: 'final', tab: 'inicio', title: 'Tour concluído', text: 'Fluxo concluído. Volte ao painel admin para continuar.', target: 'client-panel-root', waitFor: 'manual' },
+  ]), []);
 
   const currentStep = steps[stepIndex] || steps[0];
 
@@ -798,6 +735,7 @@ function ClientPanelGuide({ data, activeTab, setActiveTab, hideSuggestions = fal
     if (!visible || !currentStep?.tab || currentStep.key === 'final') return;
     if (activeTab !== currentStep.tab) setActiveTab(currentStep.tab);
   }, [activeTab, currentStep, setActiveTab, visible]);
+  const stepReady = !visible || !currentStep?.tab ? false : activeTab === currentStep.tab;
 
   useEffect(() => {
     if (!visible) return;
@@ -816,20 +754,20 @@ function ClientPanelGuide({ data, activeTab, setActiveTab, hideSuggestions = fal
       const rect = target.getBoundingClientRect();
       const vw = window.innerWidth;
       const vh = window.innerHeight;
+      const margin = 16;
+      const cw = Math.min(420, vw - margin * 2);
+      const ch = vw < 768 ? Math.min(320, vh * 0.45) : 210;
       if (vw < 768) {
-        const top = rect.top > vh * 0.55 ? Math.max(12, rect.top - 180) : Math.min(vh - 220, rect.bottom + 12);
-        setGuideStyle({ top: `${top}px`, left: '12px', right: '12px', bottom: 'auto' });
+        const top = rect.top > vh * 0.55 ? Math.max(margin, rect.top - ch - 12) : Math.min(vh - ch - margin, rect.bottom + 12);
+        setGuideStyle({ top: `${top}px`, left: `${margin}px`, right: `${margin}px`, bottom: 'auto', maxWidth: '40vw', maxHeight: '45vh' });
         return;
       }
-      if (rect.top > vh * 0.65) {
-        setGuideStyle({ top: `${Math.max(16, rect.top - 200)}px`, left: '50%', transform: 'translateX(-50%)' });
-        return;
-      }
-      if (rect.left > vw * 0.5) {
-        setGuideStyle({ top: `${Math.max(16, rect.top)}px`, left: `${Math.max(16, rect.left - 440)}px` });
-        return;
-      }
-      setGuideStyle({ top: `${Math.max(16, rect.top)}px`, left: `${Math.min(vw - 420, rect.right + 16)}px` });
+      const placeRight = { top: Math.max(margin, Math.min(vh - ch - margin, rect.top)), left: Math.min(vw - cw - margin, rect.right + 12) };
+      const placeLeft = { top: Math.max(margin, Math.min(vh - ch - margin, rect.top)), left: Math.max(margin, rect.left - cw - 12) };
+      const placeTop = { top: Math.max(margin, rect.top - ch - 12), left: Math.max(margin, Math.min(vw - cw - margin, rect.left)) };
+      const placeBottom = { top: Math.min(vh - ch - margin, rect.bottom + 12), left: Math.max(margin, Math.min(vw - cw - margin, rect.left)) };
+      const pick = rect.left < vw / 2 ? placeRight : rect.right > vw / 2 ? placeLeft : rect.top > vh / 2 ? placeTop : placeBottom;
+      setGuideStyle({ top: `${pick.top}px`, left: `${pick.left}px` });
     };
     placeGuide();
     window.addEventListener('resize', placeGuide);
@@ -838,6 +776,34 @@ function ClientPanelGuide({ data, activeTab, setActiveTab, hideSuggestions = fal
       window.removeEventListener('resize', placeGuide);
     };
   }, [currentStep, visible]);
+
+  useEffect(() => {
+    if (!visible || !stepReady || !currentStep?.target) return;
+    const target = document.querySelector(`[data-onboarding-tour="${currentStep.target}"]`);
+    const altTarget = currentStep.altTarget ? document.querySelector(`[data-onboarding-tour="${currentStep.altTarget}"]`) : null;
+    const advance = () => setStepIndex((index) => Math.min(index + 1, steps.length - 1));
+    if (currentStep.waitFor === 'click') {
+      target?.addEventListener('click', advance, { once: true });
+      return () => target?.removeEventListener('click', advance);
+    }
+    if (currentStep.waitFor === 'either-click') {
+      target?.addEventListener('click', advance, { once: true });
+      altTarget?.addEventListener('click', advance, { once: true });
+      return () => {
+        target?.removeEventListener('click', advance);
+        altTarget?.removeEventListener('click', advance);
+      };
+    }
+    if (currentStep.waitFor === 'input') {
+      const onInput = (event) => {
+        const value = String(event?.target?.value || '').toLowerCase();
+        if (value.includes(String(currentStep.expected || '').toLowerCase())) advance();
+      };
+      target?.addEventListener('input', onInput);
+      return () => target?.removeEventListener('input', onInput);
+    }
+    return undefined;
+  }, [currentStep, stepReady, steps.length, visible]);
 
   if (!visible || !currentStep) return null;
 
@@ -1294,6 +1260,7 @@ function InicioTab({ data, setActiveTab, selectedSongs }) {
           <button
             type="button"
             onClick={() => setActiveTab('repertorio')}
+            data-onboarding-tour="onboarding-open-repertorio"
             className="mt-4 w-full min-w-0 rounded-[18px] border border-[#e6d8ff] bg-violet-50 px-4 py-3 text-[14px] font-black text-violet-700"
           >
             Abrir repertório
@@ -3665,6 +3632,7 @@ async function handleRequestReview() {
           <button
             type="button"
             onClick={() => addCerimonia('')}
+            data-onboarding-tour="onboarding-add-song-cerimonia"
             className="mt-5 w-full rounded-[20px] border-2 border-dashed border-[#d9c8f7] bg-[#fcfbff] px-4 py-4 text-[15px] font-black text-violet-700"
           >
             + Adicionar momento personalizado

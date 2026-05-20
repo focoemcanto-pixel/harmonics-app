@@ -58,15 +58,20 @@ export default function DeferredOnboardingMount({
     return guideQuery || onboardingQuery;
   }, [searchParams]);
 
+  const manualGuideRequested = GUIDE_KEYS.includes(requestedGuide);
+  const freshWorkspace = requestedGuide === 'fresh-workspace' || searchParams?.get('tour') === 'workspace-created';
+
   useEffect(() => {
-    let timer;
-    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
-      const idleId = window.requestIdleCallback(() => setMounted(true), { timeout: 1200 });
-      return () => window.cancelIdleCallback?.(idleId);
+    // On mobile Safari/Instagram webview, requestIdleCallback can delay the guide long enough
+    // to make onboarding look broken. Manual guide URLs must mount immediately.
+    if (manualGuideRequested || freshWorkspace) {
+      setMounted(true);
+      return undefined;
     }
-    timer = window.setTimeout(() => setMounted(true), 350);
+
+    const timer = window.setTimeout(() => setMounted(true), 80);
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [manualGuideRequested, freshWorkspace]);
 
   useEffect(() => {
     let active = true;
@@ -124,10 +129,10 @@ export default function DeferredOnboardingMount({
   }, [mounted, pathname, requestedGuide]);
 
   if (!mounted || loadingEligibility) return null;
-  if (primaryWorkspace) return null;
 
-  const manualGuideRequested = GUIDE_KEYS.includes(requestedGuide);
-  const freshWorkspace = requestedGuide === 'fresh-workspace' || searchParams?.get('tour') === 'workspace-created';
+  // Do not suppress explicit guide URLs. This is essential for mobile and for "Reabrir etapa".
+  if (primaryWorkspace && !manualGuideRequested && !freshWorkspace) return null;
+
   const canRenderOnboarding = onboardingEnabled || manualGuideRequested || freshWorkspace;
   if (!canRenderOnboarding) return null;
 

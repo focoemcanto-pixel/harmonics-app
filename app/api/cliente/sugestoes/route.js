@@ -30,8 +30,6 @@ async function resolveWorkspaceId({ supabase, token, eventId }) {
     .eq('public_token', normalizedToken)
     .maybeSingle();
 
-  if (asString(precontract?.workspace_id)) return asString(precontract.workspace_id);
-
   if (asString(precontract?.event_id)) {
     const { data: preEvent } = await supabase
       .from('events')
@@ -42,13 +40,13 @@ async function resolveWorkspaceId({ supabase, token, eventId }) {
     if (asString(preEvent?.workspace_id)) return asString(preEvent.workspace_id);
   }
 
+  if (asString(precontract?.workspace_id)) return asString(precontract.workspace_id);
+
   const { data: contract } = await supabase
     .from('contracts')
     .select('id, workspace_id, event_id, precontract_id, public_token')
     .eq('public_token', normalizedToken)
     .maybeSingle();
-
-  if (asString(contract?.workspace_id)) return asString(contract.workspace_id);
 
   if (asString(contract?.event_id)) {
     const { data: contractEvent } = await supabase
@@ -62,11 +60,21 @@ async function resolveWorkspaceId({ supabase, token, eventId }) {
   if (asString(contract?.precontract_id)) {
     const { data: linkedPrecontract } = await supabase
       .from('precontracts')
-      .select('id, workspace_id')
+      .select('id, workspace_id, event_id')
       .eq('id', contract.precontract_id)
       .maybeSingle();
+    if (asString(linkedPrecontract?.event_id)) {
+      const { data: linkedPreEvent } = await supabase
+        .from('events')
+        .select('id, workspace_id')
+        .eq('id', linkedPrecontract.event_id)
+        .maybeSingle();
+      if (asString(linkedPreEvent?.workspace_id)) return asString(linkedPreEvent.workspace_id);
+    }
     if (asString(linkedPrecontract?.workspace_id)) return asString(linkedPrecontract.workspace_id);
   }
+
+  if (asString(contract?.workspace_id)) return asString(contract.workspace_id);
 
   return '';
 }

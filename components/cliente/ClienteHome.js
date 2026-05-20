@@ -5084,13 +5084,10 @@ const gospelEntranceSongs = hydratedSongs.filter(
       ) : songs.length === 0 ? (
         <SectionCard className="overflow-hidden border-[#e8dcff] bg-[linear-gradient(160deg,#ffffff_0%,#faf5ff_100%)]">
           <div className="text-[30px]">🎼</div>
-          <div className="mt-3 text-[20px] font-black text-[#241a14]">Catálogo em atualização</div>
+          <div className="mt-3 text-[20px] font-black text-[#241a14]">Nenhuma sugestão disponível</div>
           <div className="mt-2 text-[14px] leading-6 text-[#6f5d51]">
-            Ainda não existem músicas publicadas para este painel. Assim que a curadoria liberar novas
-            faixas, elas aparecerão aqui automaticamente.
-          </div>
-          <div className="mt-4 inline-flex rounded-full bg-white px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#7a6a5e]">
-            Fonte única: /api/suggestions/songs
+            Ainda não existem músicas publicadas para este painel. Quando novas faixas forem cadastradas,
+            elas aparecerão aqui automaticamente.
           </div>
         </SectionCard>
       ) : (

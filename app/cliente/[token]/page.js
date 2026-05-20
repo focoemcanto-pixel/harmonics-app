@@ -967,6 +967,7 @@ export default async function ClienteTokenPage({ params, searchParams }) {
   const { token } = await params;
   const resolvedSearchParams = (await searchParams) || {};
   const initialTab = normalizeClientInitialTab(resolvedSearchParams?.tab);
+  const guideQuery = String(resolvedSearchParams?.guide || resolvedSearchParams?.onboarding || '').trim();
   const supabase = getAdminSupabase();
   const normalizedToken = String(token || '').trim();
 
@@ -984,7 +985,7 @@ export default async function ClienteTokenPage({ params, searchParams }) {
       reason: 'SUPABASE_CLIENT_MISSING',
       normalizedToken,
     });
-    return <ClienteHome data={buildFallbackData(token)} initialTab={initialTab} />;
+    return <ClienteHome data={buildFallbackData(token)} initialTab={initialTab} guideQuery={guideQuery} />;
   }
 
   let precontract = null;
@@ -1210,7 +1211,7 @@ export default async function ClienteTokenPage({ params, searchParams }) {
       reason: 'EVENT_ID_NOT_FOUND',
       normalizedToken,
     });
-    return <ClienteHome data={buildFallbackData(token)} initialTab={initialTab} />;
+    return <ClienteHome data={buildFallbackData(token)} initialTab={initialTab} guideQuery={guideQuery} />;
   }
 
   let eventResp = { data: null, error: null };
@@ -1549,7 +1550,7 @@ export default async function ClienteTokenPage({ params, searchParams }) {
       eventRespData: eventResp?.data || null,
       eventId,
     });
-    return <ClienteHome data={buildFallbackData(token)} initialTab={initialTab} />;
+    return <ClienteHome data={buildFallbackData(token)} initialTab={initialTab} guideQuery={guideQuery} />;
   }
 
   event = {
@@ -2037,5 +2038,16 @@ export default async function ClienteTokenPage({ params, searchParams }) {
     fullData: data,
   });
 
-  return <ClienteHome data={data} initialTab={initialTab} />;
+  const shouldShowGuide = guideQuery === 'client-panel';
+  console.info('[CLIENT_PANEL_GUIDE_INIT]', {
+    token: normalizedToken,
+    guideQuery,
+    hasContract: Boolean(contract?.id || contractByToken?.id),
+    hasPrecontract: Boolean(precontract?.id),
+    hasEvent: Boolean(event?.id || eventId),
+    loading: false,
+    shouldShowGuide,
+  });
+
+  return <ClienteHome data={data} initialTab={initialTab} guideQuery={guideQuery} />;
 }

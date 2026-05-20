@@ -708,14 +708,9 @@ function markOnboardingFlowState(patch = {}) {
     });
 }
 
-function ClientPanelGuide({ data, activeTab, setActiveTab, hideSuggestions = false, guideQuery = "" }) {
-  const normalizedGuideQuery = String(guideQuery || '').trim().toLowerCase();
+function ClientPanelGuide({ data, activeTab, setActiveTab }) {
   const [stepIndex, setStepIndex] = useState(0);
   const [guideStyle, setGuideStyle] = useState({});
-  const [guideLoading, setGuideLoading] = useState(normalizedGuideQuery === 'client-panel');
-  const [guideReady, setGuideReady] = useState(false);
-  const [visible, setVisible] = useState(normalizedGuideQuery === 'client-panel');
-  const shouldShowGuide = normalizedGuideQuery === 'client-panel';
 
   const steps = useMemo(() => ([
     { key: 'open-repertorio', tab: 'inicio', title: 'Abrir repertório', text: 'Clique em Abrir repertório para começar.', target: 'onboarding-open-repertorio', waitFor: 'click' },
@@ -731,90 +726,17 @@ function ClientPanelGuide({ data, activeTab, setActiveTab, hideSuggestions = fal
   const currentStep = steps[stepIndex] || steps[0];
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    if (!shouldShowGuide) return;
-
-    const hasContract = Boolean(data?.contratoPdfUrl || data?.contratoDocUrl);
-    const hasPrecontract = Boolean(data?.eventId || data?.clienteNome || data?.dataEvento);
-    const hasEvent = Boolean(data?.eventoTitulo || data?.eventId || data?.dataEvento);
-
-    console.info('[CLIENT_PANEL_GUIDE_INIT]', {
-      token: data?.token || '',
-      guideQuery,
-      hasContract,
-      hasPrecontract,
-      hasEvent,
-      loading: !guideReady,
-      shouldShowGuide,
-    });
-  }, [data, guideQuery, guideReady, shouldShowGuide]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const timer = window.setTimeout(() => {
-      const urlGuideQuery = String(new URLSearchParams(window.location.search).get('guide') || '').trim().toLowerCase();
-      const shouldOpenFromUrl = urlGuideQuery === 'client-panel';
-      setVisible(shouldShowGuide || shouldOpenFromUrl);
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, [shouldShowGuide]);
-
-  useEffect(() => {
-    if (!shouldShowGuide || typeof window === 'undefined') {
-      const timer = setTimeout(() => setGuideLoading(false), 0);
-      return () => clearTimeout(timer);
-    }
-
-    const timer = setTimeout(() => {
-      setGuideLoading(true);
-      setGuideReady(false);
-    }, 0);
-    if (!timer) {
-      return;
-    }
-
-    let cancelled = false;
-    let attempts = 0;
-    const maxAttempts = 40;
-    const tick = () => {
-      if (cancelled) return;
-      const rootMounted = Boolean(document.querySelector('[data-onboarding-tour="client-panel-root"]'));
-      const starterMounted = Boolean(document.querySelector('[data-onboarding-tour="onboarding-open-repertorio"]'));
-      if (rootMounted && starterMounted) {
-        setGuideLoading(false);
-        setGuideReady(true);
-        setVisible(true);
-        return;
-      }
-      attempts += 1;
-      if (attempts >= maxAttempts) {
-        setGuideLoading(false);
-        setGuideReady(true);
-        setVisible(true);
-        return;
-      }
-      window.setTimeout(tick, 120);
-    };
-    tick();
-    return () => {
-      clearTimeout(timer);
-      cancelled = true;
-    };
-  }, [shouldShowGuide]);
-
-  useEffect(() => {
-    if (!guideReady || !visible || !currentStep?.tab || currentStep.key === 'final') return;
+    if (!currentStep?.tab || currentStep.key === 'final') return;
     if (activeTab !== currentStep.tab) setActiveTab(currentStep.tab);
-  }, [activeTab, currentStep, guideReady, setActiveTab, visible]);
-  const stepReady = !visible || !currentStep?.tab ? false : activeTab === currentStep.tab;
+  }, [activeTab, currentStep, setActiveTab]);
+  const stepReady = !currentStep?.tab ? false : activeTab === currentStep.tab;
 
   useEffect(() => {
-    if (!visible) return;
     void markOnboardingFlowState({ client_panel_opened: true });
-  }, [visible]);
+  }, []);
 
   useEffect(() => {
-    if (!guideReady || !visible || !currentStep?.target || typeof document === 'undefined') return undefined;
+    if (!currentStep?.target || typeof document === 'undefined') return undefined;
     const getTarget = () => document.querySelector(`[data-onboarding-tour="${currentStep.target}"]`);
     let target = getTarget();
     if (!target) return undefined;
@@ -863,10 +785,10 @@ function ClientPanelGuide({ data, activeTab, setActiveTab, hideSuggestions = fal
       window.removeEventListener('scroll', placeGuide, true);
       observer.disconnect();
     };
-  }, [currentStep, guideReady, visible]);
+  }, [currentStep]);
 
   useEffect(() => {
-    if (!guideReady || !visible || !stepReady || !currentStep?.target) return;
+    if (!stepReady || !currentStep?.target) return;
     const target = document.querySelector(`[data-onboarding-tour="${currentStep.target}"]`);
     const altTarget = currentStep.altTarget ? document.querySelector(`[data-onboarding-tour="${currentStep.altTarget}"]`) : null;
     const advance = () => setStepIndex((index) => Math.min(index + 1, steps.length - 1));
@@ -891,9 +813,9 @@ function ClientPanelGuide({ data, activeTab, setActiveTab, hideSuggestions = fal
       return () => target?.removeEventListener('input', onInput);
     }
     return undefined;
-  }, [currentStep, guideReady, stepReady, steps.length, visible]);
+  }, [currentStep, stepReady, steps.length]);
 
-  if (guideLoading || !visible || !currentStep) return null;
+  if (!currentStep) return null;
 
   const isFinal = currentStep.key === 'final';
   const returnTo = typeof window !== 'undefined'
@@ -921,14 +843,14 @@ function ClientPanelGuide({ data, activeTab, setActiveTab, hideSuggestions = fal
 
   return (
     <>
-      <div className="pointer-events-none fixed inset-0 z-[55] bg-slate-950/25" />
-      <aside style={guideStyle} className="fixed z-[70] mx-auto w-[calc(100vw-2rem)] max-w-md rounded-[28px] border border-violet-200 bg-white/95 p-4 text-[#241a14] shadow-2xl shadow-violet-950/20 backdrop-blur md:w-full">
+      <div className="pointer-events-none fixed inset-0 z-[9999] bg-slate-950/25" />
+      <aside style={guideStyle} className="fixed z-[9999] mx-auto w-[calc(100vw-2rem)] max-w-md rounded-[28px] border border-violet-200 bg-white/95 p-4 text-[#241a14] shadow-2xl shadow-violet-950/20 backdrop-blur md:w-full">
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.20em] text-violet-600">Tour do painel do cliente</p>
             <h2 className="mt-1 text-xl font-black">{currentStep.title}</h2>
           </div>
-          <button type="button" onClick={() => setVisible(false)} className="rounded-full border border-zinc-200 px-2.5 py-1 text-xs font-bold text-zinc-500">×</button>
+          <button type="button" onClick={() => setStepIndex(steps.length - 1)} className="rounded-full border border-zinc-200 px-2.5 py-1 text-xs font-bold text-zinc-500">×</button>
         </div>
         <p className="mt-3 text-sm font-semibold leading-6 text-[#6f5d51]">{currentStep.text}</p>
         <div className="mt-4 flex items-center justify-between text-xs font-black text-zinc-500">
@@ -5833,6 +5755,8 @@ function EmptyStateCard({ title, text }) {
 export default function ClienteHome({ data, initialTab = 'inicio', guideQuery = '' }) {
   const [panelData, setPanelData] = useState(data);
   const [activeTab, setActiveTab] = useState(initialTab);
+  const [clientPanelGuideEnabled, setClientPanelGuideEnabled] = useState(false);
+  const [clientPanelGuideReady, setClientPanelGuideReady] = useState(false);
   const [selectedSongs, setSelectedSongs] = useState([]);
   const [favoriteSongIds, setFavoriteSongIds] = useState([]);
   const [paymentHistory, setPaymentHistory] = useState(
@@ -5846,6 +5770,7 @@ export default function ClienteHome({ data, initialTab = 'inicio', guideQuery = 
     panelData?.repertorio?.isCustomEvent === true;
   const resolvedActiveTab =
     isCustomEvent && activeTab === 'sugestoes' ? 'repertorio' : activeTab;
+  const loading = !panelData;
 
   const handleRepertorioSaved = useCallback(
     ({ mode, result }) => {
@@ -5956,17 +5881,40 @@ export default function ClienteHome({ data, initialTab = 'inicio', guideQuery = 
     );
 
   useEffect(() => {
+    requestAnimationFrame(() => {
+      const params = new URLSearchParams(window.location.search);
+      setClientPanelGuideEnabled(params.get('guide') === 'client-panel');
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!loading && clientPanelGuideEnabled) {
+      requestAnimationFrame(() => {
+        setClientPanelGuideReady(true);
+      });
+    }
+  }, [loading, clientPanelGuideEnabled]);
+
+  useEffect(() => {
     try {
-      console.info('[CLIENT_PANEL_RENDER]', {
-        token: panelData?.token || '',
+      const hasContract = Boolean(panelData?.contratoPdfUrl || panelData?.contratoDocUrl);
+      const hasPrecontract = Boolean(panelData?.eventId || panelData?.clienteNome || panelData?.dataEvento);
+      const hasEvent = Boolean(panelData?.eventoTitulo || panelData?.eventId || panelData?.dataEvento);
+
+      console.info('[CLIENT_PANEL_GUIDE_STATE]', {
         guideQuery,
-        loading: !panelData,
-        hasData: Boolean(panelData),
+        clientPanelGuideEnabled,
+        clientPanelGuideReady,
+        loading,
+        activeTab: resolvedActiveTab,
+        hasEvent,
+        hasPrecontract,
+        hasContract,
       });
     } catch (error) {
-      console.error('[CLIENT_PANEL_RENDER][LOG_ERROR]', error);
+      console.error('[CLIENT_PANEL_GUIDE_STATE][LOG_ERROR]', error);
     }
-  }, [guideQuery, panelData]);
+  }, [activeTab, clientPanelGuideEnabled, clientPanelGuideReady, guideQuery, loading, panelData, resolvedActiveTab]);
 
   useEffect(() => {
     if (!shouldShowRepertoire15DaysAlert || !panelData?.token) return;
@@ -6112,13 +6060,13 @@ export default function ClienteHome({ data, initialTab = 'inicio', guideQuery = 
         </div>
       </div>
 
-      <ClientPanelGuide
-        data={panelData}
-        activeTab={resolvedActiveTab}
-        setActiveTab={setActiveTab}
-        hideSuggestions={isCustomEvent}
-        guideQuery={guideQuery}
-      />
+      {clientPanelGuideEnabled && clientPanelGuideReady ? (
+        <ClientPanelGuide
+          data={panelData}
+          activeTab={resolvedActiveTab}
+          setActiveTab={setActiveTab}
+        />
+      ) : null}
 
       <FooterNav
         activeTab={resolvedActiveTab}

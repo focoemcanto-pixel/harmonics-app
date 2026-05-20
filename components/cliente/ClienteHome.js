@@ -709,6 +709,7 @@ function markOnboardingFlowState(patch = {}) {
 }
 
 function ClientPanelGuide({ data, activeTab, setActiveTab, hideSuggestions = false, guideQuery = "" }) {
+  const normalizedGuideQuery = String(guideQuery || '').trim().toLowerCase();
   const [stepIndex, setStepIndex] = useState(0);
   const [guideStyle, setGuideStyle] = useState({});
   const [guideReady, setGuideReady] = useState(false);
@@ -717,11 +718,7 @@ function ClientPanelGuide({ data, activeTab, setActiveTab, hideSuggestions = fal
     if (typeof window === 'undefined') return false;
     return String(new URLSearchParams(window.location.search).get('guide') || '').trim().toLowerCase() === 'client-panel';
   });
-  const guideQuery = useMemo(() => {
-    if (typeof window === 'undefined') return '';
-    return new URLSearchParams(window.location.search).get('guide') || '';
-  }, []);
-  const shouldShowGuide = guideQuery === 'client-panel';
+  const shouldShowGuide = normalizedGuideQuery === 'client-panel';
 
   const steps = useMemo(() => ([
     { key: 'open-repertorio', tab: 'inicio', title: 'Abrir repertório', text: 'Clique em Abrir repertório para começar.', target: 'onboarding-open-repertorio', waitFor: 'click' },

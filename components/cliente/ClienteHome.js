@@ -25,6 +25,7 @@ const SUGGESTION_SONGS_CACHE_TTL_MS = 5 * 60 * 1000;
 let suggestionSongsCache = {
   loadedAt: 0,
   songs: [],
+  cacheKey: '',
 };
 const ANTESALA_DURATION_OPTIONS = [
   { minutes: 30, label: '30 min' },
@@ -4670,6 +4671,8 @@ function SugestoesTab({
   setFavoriteSongIds,
   repertorioStatus = '',
   repertorioLocked = false,
+  clientToken = '',
+  eventId = '',
 }) {
   const safeSelectedSongs = useMemo(
     () => (Array.isArray(selectedSongs) ? selectedSongs : []),
@@ -4722,6 +4725,12 @@ function SugestoesTab({
   const [songsError, setSongsError] = useState('');
   const [loadAttempt, setLoadAttempt] = useState(0);
 
+  const suggestionCacheKey = useMemo(() => {
+    const tokenKey = String(clientToken || '').trim();
+    const eventKey = String(eventId || '').trim();
+    return `${tokenKey || 'sem_token'}::${eventKey || 'sem_evento'}`;
+  }, [clientToken, eventId]);
+
   const handleRetryLoadSongs = useCallback(() => {
     setLoadAttempt((prev) => prev + 1);
   }, []);
@@ -4730,7 +4739,8 @@ function SugestoesTab({
     let isMounted = true;
     const hasWarmCache =
       Array.isArray(suggestionSongsCache.songs) &&
-      suggestionSongsCache.songs.length > 0;
+      suggestionSongsCache.songs.length > 0 &&
+      suggestionSongsCache.cacheKey === suggestionCacheKey;
     const cacheAgeMs = Date.now() - Number(suggestionSongsCache.loadedAt || 0);
     const isCacheFresh = hasWarmCache && cacheAgeMs < SUGGESTION_SONGS_CACHE_TTL_MS;
 
@@ -4751,7 +4761,11 @@ function SugestoesTab({
           setIsLoadingSongs(true);
         }
         setSongsError('');
-        const response = await fetch('/api/suggestions/songs', { cache: 'no-store' });
+        const query = new URLSearchParams();
+        if (String(clientToken || '').trim()) query.set('token', String(clientToken || '').trim());
+        if (String(eventId || '').trim()) query.set('event_id', String(eventId || '').trim());
+        const endpoint = `/api/cliente/sugestoes${query.toString() ? `?${query.toString()}` : ''}`;
+        const response = await fetch(endpoint, { cache: 'no-store' });
         let payload = null;
         try {
           payload = await response.json();
@@ -4776,6 +4790,7 @@ function SugestoesTab({
           suggestionSongsCache = {
             loadedAt: Date.now(),
             songs: catalogSongs,
+            cacheKey: suggestionCacheKey,
           };
         }
       } catch (error) {
@@ -4796,7 +4811,7 @@ function SugestoesTab({
     return () => {
       isMounted = false;
     };
-  }, [loadAttempt]);
+  }, [loadAttempt, clientToken, eventId, suggestionCacheKey]);
   const hydratedSongs = useMemo(() => {
     return songs.map((song) => ({
       ...song,
@@ -6092,6 +6107,8 @@ export default function ClienteHome({ data, initialTab = 'inicio', guideQuery = 
               setFavoriteSongIds={setFavoriteSongIds}
               repertorioStatus={panelData?.repertorio?.status || ''}
               repertorioLocked={Boolean(panelData?.repertorio?.isLocked)}
+              clientToken={panelData?.token || ''}
+              eventId={panelData?.eventId || ''}
             />
           )}
 

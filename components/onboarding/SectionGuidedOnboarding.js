@@ -115,9 +115,10 @@ export default function SectionGuidedOnboarding({ enabled = false }) {
   const popoverRef = useRef(null);
   const guideOwner = guide?.key ? `section-guide:${guide.key}` : 'section-guide';
   const requestedGuide = searchParams?.get('guide') || searchParams?.get('onboarding');
-  const hasDynamicGuideQuery = ['template', 'event-types', 'precontract'].includes(requestedGuide);
+  const isEventGuideForced = requestedGuide === 'event';
+  const hasDynamicGuideQuery = ['template', 'event-types', 'precontract', 'event'].includes(requestedGuide);
   const currentOnboardingOwner = onboardingSession.activeOverlay || onboardingSession.activeGuide;
-  const isGuideActive = Boolean(hasDynamicGuideQuery || (currentOnboardingOwner && currentOnboardingOwner !== guideOwner));
+  const isGuideActive = Boolean((hasDynamicGuideQuery && !isEventGuideForced) || (currentOnboardingOwner && currentOnboardingOwner !== guideOwner));
 
   useEffect(() => {
     let active = true;
@@ -128,9 +129,18 @@ export default function SectionGuidedOnboarding({ enabled = false }) {
         return;
       }
 
-      const alreadySeen = window.localStorage.getItem(storageKeyForGuide(guide)) === 'done';
-      if (alreadySeen) {
-        if (active) setShouldShowGuide(false);
+      const forcedByQuery = isEventGuideForced && pathname === '/eventos';
+
+      if (!forcedByQuery) {
+        const alreadySeen = window.localStorage.getItem(storageKeyForGuide(guide)) === 'done';
+        if (alreadySeen) {
+          if (active) setShouldShowGuide(false);
+          return;
+        }
+      }
+
+      if (forcedByQuery) {
+        if (active) setShouldShowGuide(true);
         return;
       }
 
@@ -163,7 +173,7 @@ export default function SectionGuidedOnboarding({ enabled = false }) {
     return () => {
       active = false;
     };
-  }, [enabled, guide, isGuideActive, supabase]);
+  }, [enabled, guide, isEventGuideForced, isGuideActive, pathname, supabase]);
 
   useEffect(() => {
     if (!shouldShowGuide || isGuideActive || typeof window === 'undefined') {
@@ -171,7 +181,14 @@ export default function SectionGuidedOnboarding({ enabled = false }) {
       return () => window.clearTimeout(timer);
     }
 
-    const timer = window.setTimeout(() => setOpen(true), 500);
+    const timer = window.setTimeout(() => {
+      const readyState = document.readyState;
+      if (readyState === 'complete' || readyState === 'interactive') {
+        setOpen(true);
+        return;
+      }
+      window.addEventListener('load', () => setOpen(true), { once: true });
+    }, 220);
     return () => window.clearTimeout(timer);
   }, [isGuideActive, shouldShowGuide]);
 

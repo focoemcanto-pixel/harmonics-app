@@ -20,6 +20,7 @@ const OnboardingPrerequisiteGate = dynamic(() => import('@/components/onboarding
 
 const GUIDE_KEYS = [
   'template',
+  'event',
   'event-types',
   'precontract',
   'client-panel',

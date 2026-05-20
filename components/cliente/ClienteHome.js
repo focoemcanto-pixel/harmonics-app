@@ -708,12 +708,15 @@ function markOnboardingFlowState(patch = {}) {
     });
 }
 
-function ClientPanelGuide({ data, activeTab, setActiveTab, hideSuggestions = false }) {
+function ClientPanelGuide({ data, activeTab, setActiveTab, hideSuggestions = false, guideQuery = "" }) {
   const [stepIndex, setStepIndex] = useState(0);
   const [guideStyle, setGuideStyle] = useState({});
+  const normalizedGuideQuery = String(guideQuery || '').trim().toLowerCase();
+  const guideLoading = false;
   const [visible, setVisible] = useState(() => {
+    if (normalizedGuideQuery === 'client-panel') return true;
     if (typeof window === 'undefined') return false;
-    return new URLSearchParams(window.location.search).get('guide') === 'client-panel';
+    return String(new URLSearchParams(window.location.search).get('guide') || '').trim().toLowerCase() === 'client-panel';
   });
 
   const steps = useMemo(() => ([
@@ -820,7 +823,7 @@ function ClientPanelGuide({ data, activeTab, setActiveTab, hideSuggestions = fal
     return undefined;
   }, [currentStep, stepReady, steps.length, visible]);
 
-  if (!visible || !currentStep) return null;
+  if (guideLoading || !visible || !currentStep) return null;
 
   const isFinal = currentStep.key === 'final';
   const returnTo = typeof window !== 'undefined'
@@ -5753,7 +5756,7 @@ function EmptyStateCard({ title, text }) {
   );
 }
 
-export default function ClienteHome({ data, initialTab = 'inicio' }) {
+export default function ClienteHome({ data, initialTab = 'inicio', guideQuery = '' }) {
   const [panelData, setPanelData] = useState(data);
   const [activeTab, setActiveTab] = useState(initialTab);
   const [selectedSongs, setSelectedSongs] = useState([]);
@@ -6027,6 +6030,7 @@ export default function ClienteHome({ data, initialTab = 'inicio' }) {
         activeTab={resolvedActiveTab}
         setActiveTab={setActiveTab}
         hideSuggestions={isCustomEvent}
+        guideQuery={guideQuery}
       />
 
       <FooterNav

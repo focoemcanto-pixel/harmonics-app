@@ -1,0 +1,107 @@
+import { NextResponse } from 'next/server';
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { fetchClientSuggestionsCatalog } from '@/lib/sugestoes/client-suggestions-catalog';
+
+function asString(value) {
+  return String(value || '').trim();
+}
+
+async function resolveWorkspaceId({ supabase, token, eventId }) {
+  const normalizedEventId = asString(eventId);
+  const normalizedToken = asString(token);
+
+  if (normalizedEventId) {
+    const { data: eventRow } = await supabase
+      .from('events')
+      .select('id, workspace_id')
+      .eq('id', normalizedEventId)
+      .maybeSingle();
+
+    if (asString(eventRow?.workspace_id)) {
+      return asString(eventRow.workspace_id);
+    }
+  }
+
+  if (!normalizedToken) return '';
+
+  const { data: precontract } = await supabase
+    .from('precontracts')
+    .select('id, workspace_id, event_id, public_token')
+    .eq('public_token', normalizedToken)
+    .maybeSingle();
+
+  if (asString(precontract?.workspace_id)) return asString(precontract.workspace_id);
+
+  if (asString(precontract?.event_id)) {
+    const { data: preEvent } = await supabase
+      .from('events')
+      .select('id, workspace_id')
+      .eq('id', precontract.event_id)
+      .maybeSingle();
+
+    if (asString(preEvent?.workspace_id)) return asString(preEvent.workspace_id);
+  }
+
+  const { data: contract } = await supabase
+    .from('contracts')
+    .select('id, workspace_id, event_id, precontract_id, public_token')
+    .eq('public_token', normalizedToken)
+    .maybeSingle();
+
+  if (asString(contract?.workspace_id)) return asString(contract.workspace_id);
+
+  if (asString(contract?.event_id)) {
+    const { data: contractEvent } = await supabase
+      .from('events')
+      .select('id, workspace_id')
+      .eq('id', contract.event_id)
+      .maybeSingle();
+    if (asString(contractEvent?.workspace_id)) return asString(contractEvent.workspace_id);
+  }
+
+  if (asString(contract?.precontract_id)) {
+    const { data: linkedPrecontract } = await supabase
+      .from('precontracts')
+      .select('id, workspace_id')
+      .eq('id', contract.precontract_id)
+      .maybeSingle();
+    if (asString(linkedPrecontract?.workspace_id)) return asString(linkedPrecontract.workspace_id);
+  }
+
+  return '';
+}
+
+export async function GET(request) {
+  try {
+    const supabase = getSupabaseAdmin();
+    const { searchParams } = new URL(request.url);
+    const token = asString(searchParams.get('token'));
+    const eventId = asString(searchParams.get('event_id'));
+
+    const workspaceId = await resolveWorkspaceId({ supabase, token, eventId });
+
+    if (!workspaceId) {
+      return NextResponse.json({ ok: true, songs: [], workspaceId: null, empty: true });
+    }
+
+    const songs = await fetchClientSuggestionsCatalog(supabase, { workspaceId });
+    return NextResponse.json({ ok: true, songs, workspaceId, empty: songs.length === 0 });
+  } catch (error) {
+    console.error('[cliente/sugestoes] erro ao carregar sugestões', {
+      message: error?.message || 'unknown error',
+      details: error?.details || null,
+      hint: error?.hint || null,
+      code: error?.code || null,
+      stack: error?.stack || null,
+    });
+
+    return NextResponse.json(
+      {
+        ok: false,
+        songs: [],
+        error: 'Não foi possível carregar sugestões no momento.',
+      },
+      { status: 200 }
+    );
+  }
+}

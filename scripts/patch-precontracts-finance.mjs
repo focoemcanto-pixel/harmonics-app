@@ -11,6 +11,73 @@ const filePath = path.join(
 
 let source = fs.readFileSync(filePath, 'utf8');
 
+const robustToNumber = `function toNumber(value) {
+  if (value === null || value === undefined || value === '') return 0;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+
+  let cleaned = String(value)
+    .trim()
+    .replace(/R\$/gi, '')
+    .replace(/\s/g, '')
+    .replace(/[^0-9,.-]/g, '');
+
+  if (!cleaned || cleaned === '-' || cleaned === ',' || cleaned === '.') return 0;
+
+  const isNegative = cleaned.startsWith('-');
+  cleaned = cleaned.replace(/-/g, '');
+
+  const lastComma = cleaned.lastIndexOf(',');
+  const lastDot = cleaned.lastIndexOf('.');
+
+  let normalized = cleaned;
+
+  if (lastComma >= 0 && lastDot >= 0) {
+    // Quando há vírgula e ponto, o último separador é o decimal.
+    // Ex.: 2.000,00 => 2000.00 | 2,000.00 => 2000.00
+    if (lastComma > lastDot) {
+      normalized = cleaned.replace(/\./g, '').replace(',', '.');
+    } else {
+      normalized = cleaned.replace(/,/g, '');
+    }
+  } else if (lastComma >= 0) {
+    const decimalDigits = cleaned.length - lastComma - 1;
+    if (decimalDigits === 0) {
+      normalized = cleaned.replace(/,/g, '');
+    } else if (decimalDigits <= 2) {
+      normalized = cleaned.replace(/\./g, '').replace(',', '.');
+    } else {
+      // Ex.: 2,000 deve representar 2000, não 2.
+      normalized = cleaned.replace(/,/g, '');
+    }
+  } else if (lastDot >= 0) {
+    const dotCount = (cleaned.match(/\./g) || []).length;
+    const decimalDigits = cleaned.length - lastDot - 1;
+
+    if (dotCount > 1) {
+      // Ex.: 1.234.567 => 1234567
+      normalized = cleaned.replace(/\./g, '');
+    } else if (decimalDigits === 0) {
+      normalized = cleaned.replace(/\./g, '');
+    } else if (decimalDigits <= 2) {
+      // Ex.: 1.50 => 1.50
+      normalized = cleaned;
+    } else {
+      // Ex.: 2.000 deve representar 2000, não 2.
+      normalized = cleaned.replace(/\./g, '');
+    }
+  }
+
+  const parsed = Number(normalized);
+  if (!Number.isFinite(parsed)) return 0;
+  return isNegative ? -parsed : parsed;
+}
+`;
+
+source = source.replace(
+  /function toNumber\(value\) \{[\s\S]*?\n\}\n\nfunction formatMoney/,
+  `${robustToNumber}\nfunction formatMoney`
+);
+
 const helper = `
 function getFinancialTotal(source) {
   return (
@@ -98,4 +165,4 @@ source = source.replace(
 );
 
 fs.writeFileSync(filePath, source);
-console.log('[patch-precontracts-finance] PreContratosClient.js atualizado.');
+console.log('[patch-precontracts-finance] PreContratosClient.js atualizado com parser BRL robusto.');

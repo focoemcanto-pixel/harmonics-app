@@ -725,10 +725,16 @@ function ClientPanelGuide({ data, activeTab, setActiveTab }) {
 
   const currentStep = steps[stepIndex] || steps[0];
 
+  const openGuideTab = useCallback((nextTab) => {
+    if (!nextTab) return;
+    console.info('[CLIENT_PANEL_TAB_CLICK]', nextTab);
+    setActiveTab(nextTab);
+  }, [setActiveTab]);
+
   useEffect(() => {
     if (!currentStep?.tab || currentStep.key === 'final') return;
-    if (activeTab !== currentStep.tab) setActiveTab(currentStep.tab);
-  }, [activeTab, currentStep, setActiveTab]);
+    if (activeTab !== currentStep.tab) openGuideTab(currentStep.tab);
+  }, [activeTab, currentStep, openGuideTab]);
   const stepReady = !currentStep?.tab ? false : activeTab === currentStep.tab;
 
   useEffect(() => {
@@ -844,7 +850,7 @@ function ClientPanelGuide({ data, activeTab, setActiveTab }) {
   return (
     <>
       <div className="pointer-events-none fixed inset-0 z-[9999] bg-slate-950/25" />
-      <aside style={guideStyle} className="fixed z-[9999] mx-auto w-[calc(100vw-2rem)] max-w-md rounded-[28px] border border-violet-200 bg-white/95 p-4 text-[#241a14] shadow-2xl shadow-violet-950/20 backdrop-blur md:w-full">
+      <aside style={guideStyle} className="pointer-events-auto fixed z-[9999] mx-auto w-[calc(100vw-2rem)] max-w-md rounded-[28px] border border-violet-200 bg-white/95 p-4 text-[#241a14] shadow-2xl shadow-violet-950/20 backdrop-blur md:w-full">
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.20em] text-violet-600">Tour do painel do cliente</p>
@@ -916,7 +922,10 @@ function FooterNav({ activeTab, setActiveTab, hideSuggestions = false }) {
             <button
               key={item.key}
               type="button"
-              onClick={() => setActiveTab(item.key)}
+              onClick={() => {
+                console.info('[CLIENT_PANEL_TAB_CLICK]', item.key);
+                setActiveTab(item.key);
+              }}
               data-onboarding-tour={`client-tab-${item.key}`}
               className={classNames(
                 'flex flex-col items-center justify-center rounded-2xl px-2 py-2 text-center transition',
@@ -5754,7 +5763,7 @@ function EmptyStateCard({ title, text }) {
 
 export default function ClienteHome({ data, initialTab = 'inicio', guideQuery = '' }) {
   const [panelData, setPanelData] = useState(data);
-  const [activeTab, setActiveTab] = useState(initialTab);
+  const [activeTab, setActiveTab] = useState('inicio');
   const [clientPanelGuideEnabled, setClientPanelGuideEnabled] = useState(false);
   const [clientPanelGuideReady, setClientPanelGuideReady] = useState(false);
   const [selectedSongs, setSelectedSongs] = useState([]);
@@ -5771,6 +5780,12 @@ export default function ClienteHome({ data, initialTab = 'inicio', guideQuery = 
   const resolvedActiveTab =
     isCustomEvent && activeTab === 'sugestoes' ? 'repertorio' : activeTab;
   const loading = !panelData;
+  useEffect(() => {
+    if (initialTab && initialTab !== 'inicio') {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
+
 
   const handleRepertorioSaved = useCallback(
     ({ mode, result }) => {
@@ -5881,10 +5896,12 @@ export default function ClienteHome({ data, initialTab = 'inicio', guideQuery = 
     );
 
   useEffect(() => {
-    requestAnimationFrame(() => {
-      const params = new URLSearchParams(window.location.search);
-      setClientPanelGuideEnabled(params.get('guide') === 'client-panel');
-    });
+    const guide = new URLSearchParams(window.location.search).get('guide');
+    if (guide === 'client-panel') {
+      const timer = window.setTimeout(() => setClientPanelGuideEnabled(true), 0);
+      return () => window.clearTimeout(timer);
+    }
+    return undefined;
   }, []);
 
   useEffect(() => {
@@ -5901,10 +5918,10 @@ export default function ClienteHome({ data, initialTab = 'inicio', guideQuery = 
       const hasPrecontract = Boolean(panelData?.eventId || panelData?.clienteNome || panelData?.dataEvento);
       const hasEvent = Boolean(panelData?.eventoTitulo || panelData?.eventId || panelData?.dataEvento);
 
-      console.info('[CLIENT_PANEL_GUIDE_STATE]', {
+      console.info('[CLIENT_PANEL_RENDER_STATE]', {
         guideQuery,
-        clientPanelGuideEnabled,
-        clientPanelGuideReady,
+        guideEnabled: clientPanelGuideEnabled,
+        guideReady: clientPanelGuideReady,
         loading,
         activeTab: resolvedActiveTab,
         hasEvent,
@@ -5912,7 +5929,7 @@ export default function ClienteHome({ data, initialTab = 'inicio', guideQuery = 
         hasContract,
       });
     } catch (error) {
-      console.error('[CLIENT_PANEL_GUIDE_STATE][LOG_ERROR]', error);
+      console.error('[CLIENT_PANEL_RENDER_STATE][LOG_ERROR]', error);
     }
   }, [activeTab, clientPanelGuideEnabled, clientPanelGuideReady, guideQuery, loading, panelData, resolvedActiveTab]);
 

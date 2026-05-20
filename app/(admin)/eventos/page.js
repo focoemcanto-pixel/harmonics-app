@@ -464,6 +464,8 @@ export default function EventosPage() {
     eventName: '',
   });
   const [cleanupGuideVisible, setCleanupGuideVisible] = useState(false);
+  const [eventGuideEnabled, setEventGuideEnabled] = useState(false);
+  const [eventGuideReady, setEventGuideReady] = useState(false);
 
   const [viewMode, setViewMode] = useState('Mês atual');
   const [monthFilter, setMonthFilter] = useState('all');
@@ -492,8 +494,34 @@ export default function EventosPage() {
     : 'lista';
   const currentParamsValue = searchParams.toString();
   const cleanupGuideEventId = searchParams.get('eventId') || '';
-  const isCleanupGuideActive = searchParams.get('guide') === 'cleanup-fake-event';
+  const guideQuery = String(searchParams.get('guide') || '').trim();
+  const onboardingResume = String(searchParams.get('onboarding') || '').trim() === 'resume';
+  const isCleanupGuideActive = guideQuery === 'cleanup-fake-event';
+  const isEventGuideRequested = guideQuery === 'event' && onboardingResume;
 
+
+  useEffect(() => {
+    if (!isEventGuideRequested) {
+      setEventGuideEnabled(false);
+      setEventGuideReady(false);
+      return;
+    }
+
+    setEventGuideEnabled(true);
+    setDesktopTab('evento');
+    setMobileTab('evento');
+
+    const timer = setTimeout(() => {
+      const target = document.querySelector('[data-guide-target="event-client-name"] input, [data-guide-target="event-client-name"]');
+      if (target) {
+        setEventGuideReady(true);
+        target.focus?.();
+        target.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+      }
+    }, 180);
+
+    return () => clearTimeout(timer);
+  }, [isEventGuideRequested, eventos.length, desktopTab]);
   useEffect(() => {
     if (isCleanupGuideActive) {
       setCleanupGuideVisible(true);
@@ -2406,6 +2434,8 @@ export default function EventosPage() {
               formatPhoneDisplay={formatPhoneDisplay}
               getPaymentTone={getPaymentTone}
               toast={toast}
+              guideEnabled={eventGuideEnabled}
+              guideReady={eventGuideReady}
             />
           )}
 
@@ -2458,6 +2488,8 @@ export default function EventosPage() {
               formatPhoneDisplay={formatPhoneDisplay}
               getPaymentTone={getPaymentTone}
               toast={toast}
+              guideEnabled={eventGuideEnabled}
+              guideReady={eventGuideReady}
             />
           )}
 

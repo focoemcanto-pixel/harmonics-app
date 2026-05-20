@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import { ONBOARDING_STEPS } from '@/lib/onboarding/tourRegistry';
+import { restartOnboardingStep } from '@/lib/onboarding/restartOnboardingStep';
 
 const fallbackSummary = {
   total: ONBOARDING_STEPS.length,
@@ -188,11 +189,11 @@ export default function OnboardingChecklistClient() {
                   <p className="mt-2 text-[14px] font-semibold leading-6 text-[#64748b]">{step.description}</p>
 
                   <div className="mt-4 flex flex-wrap gap-3">
-                    <Link href={step.href} className="rounded-2xl bg-white px-4 py-2 text-[13px] font-black text-violet-700 ring-1 ring-violet-200 transition hover:bg-violet-50">
-                      {step.cta}
+                    <Link href={done ? restartOnboardingStep(step.key, step.href) : step.href} className="rounded-2xl bg-white px-4 py-2 text-[13px] font-black text-violet-700 ring-1 ring-violet-200 transition hover:bg-violet-50">
+                      {done ? 'Reabrir etapa' : step.cta}
                     </Link>
                     <button type="button" disabled={saving} onClick={() => toggleStep(step.key, !done)} className="rounded-2xl border border-[#dbe3ef] bg-white px-4 py-2 text-[13px] font-black text-[#475569] transition hover:bg-slate-50 disabled:opacity-60">
-                      {done ? 'Reabrir etapa' : 'Marcar como feito'}
+                      {done ? 'Marcar como pendente' : 'Marcar como feito'}
                     </button>
                   </div>
                 </div>

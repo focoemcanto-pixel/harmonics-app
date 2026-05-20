@@ -67,6 +67,27 @@ function MoneyCard({ label, value, tone = 'slate' }) {
   );
 }
 
+function EventOnboardingGuideCard() {
+  return (
+    <aside className="fixed bottom-4 left-1/2 z-[9999] w-[calc(100vw-1.5rem)] max-w-[420px] -translate-x-1/2 rounded-[20px] border border-violet-200 bg-white/95 p-4 shadow-[0_20px_45px_rgba(76,29,149,0.28)] backdrop-blur md:bottom-6 md:left-auto md:right-6 md:w-[400px] md:translate-x-0">
+      <div className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-violet-700">
+        Guia · Criar evento operacional
+      </div>
+      <h4 className="mt-1 text-[17px] font-black text-[#0f172a]">
+        Complete estes passos para concluir o evento
+      </h4>
+      <ol className="mt-3 list-decimal space-y-1 pl-5 text-[14px] font-semibold text-[#334155]">
+        <li>Preencha o nome do cliente.</li>
+        <li>Escolha o tipo de evento.</li>
+        <li>Preencha data, hora e local.</li>
+        <li>Escolha formação e instrumentos.</li>
+        <li>Revise os dados financeiros.</li>
+        <li>Clique em Criar evento.</li>
+      </ol>
+    </aside>
+  );
+}
+
 export default function EventosFormularioTab({
   editandoId,
   contatos,
@@ -95,11 +116,6 @@ export default function EventosFormularioTab({
   return (
     <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.9fr_1fr]">
       <div className="space-y-5">
-        {guideEnabled ? (
-          <section className="rounded-[22px] border border-violet-200 bg-violet-50 px-4 py-3 text-sm font-semibold text-violet-900">
-            {guideReady ? 'Guia de evento reaberto: siga os campos destacados para refazer o fluxo.' : 'Preparando guia de evento...'}
-          </section>
-        ) : null}
         <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_26px_rgba(17,24,39,0.04)] md:p-6">
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
@@ -179,7 +195,10 @@ export default function EventosFormularioTab({
             </Field>
 
             <Field label="Nome do cliente">
-              <div data-guide-target="event-client-name">
+              <div
+                data-guide-target="event-client-name"
+                className={guideEnabled ? 'rounded-[14px] ring-4 ring-violet-400 ring-offset-4' : ''}
+              >
               <Input
                 value={form.client_name}
                 onChange={(e) => handleFormChange('client_name', e.target.value)}
@@ -410,6 +429,7 @@ export default function EventosFormularioTab({
           </div>
         </section>
       </div>
+      {guideEnabled && guideReady ? <EventOnboardingGuideCard /> : null}
 
       <div className="space-y-5">
         {guideEnabled ? (

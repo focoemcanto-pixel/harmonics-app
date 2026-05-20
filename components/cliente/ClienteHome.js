@@ -711,10 +711,16 @@ function markOnboardingFlowState(patch = {}) {
 function ClientPanelGuide({ data, activeTab, setActiveTab, hideSuggestions = false }) {
   const [stepIndex, setStepIndex] = useState(0);
   const [guideStyle, setGuideStyle] = useState({});
+  const [guideReady, setGuideReady] = useState(false);
   const [visible, setVisible] = useState(() => {
     if (typeof window === 'undefined') return false;
     return new URLSearchParams(window.location.search).get('guide') === 'client-panel';
   });
+  const guideQuery = useMemo(() => {
+    if (typeof window === 'undefined') return '';
+    return new URLSearchParams(window.location.search).get('guide') || '';
+  }, []);
+  const shouldShowGuide = guideQuery === 'client-panel';
 
   const steps = useMemo(() => ([
     { key: 'open-repertorio', tab: 'inicio', title: 'Abrir repertório', text: 'Clique em Abrir repertório para começar.', target: 'onboarding-open-repertorio', waitFor: 'click' },
@@ -730,9 +736,56 @@ function ClientPanelGuide({ data, activeTab, setActiveTab, hideSuggestions = fal
   const currentStep = steps[stepIndex] || steps[0];
 
   useEffect(() => {
-    if (!visible || !currentStep?.tab || currentStep.key === 'final') return;
+    if (typeof window === 'undefined') return;
+    if (!shouldShowGuide) return;
+
+    const hasContract = Boolean(data?.contratoPdfUrl || data?.contratoDocUrl);
+    const hasPrecontract = Boolean(data?.eventId || data?.clienteNome || data?.dataEvento);
+    const hasEvent = Boolean(data?.eventoTitulo || data?.eventId || data?.dataEvento);
+
+    console.info('[CLIENT_PANEL_GUIDE_INIT]', {
+      token: data?.token || '',
+      guideQuery,
+      hasContract,
+      hasPrecontract,
+      hasEvent,
+      loading: !guideReady,
+      shouldShowGuide,
+    });
+  }, [data, guideQuery, guideReady, shouldShowGuide]);
+
+  useEffect(() => {
+    if (!shouldShowGuide || typeof window === 'undefined') return;
+    let cancelled = false;
+    let attempts = 0;
+    const maxAttempts = 40;
+    const tick = () => {
+      if (cancelled) return;
+      const rootMounted = Boolean(document.querySelector('[data-onboarding-tour="client-panel-root"]'));
+      const starterMounted = Boolean(document.querySelector('[data-onboarding-tour="onboarding-open-repertorio"]'));
+      if (rootMounted && starterMounted) {
+        setGuideReady(true);
+        setVisible(true);
+        return;
+      }
+      attempts += 1;
+      if (attempts >= maxAttempts) {
+        setGuideReady(true);
+        setVisible(true);
+        return;
+      }
+      window.setTimeout(tick, 120);
+    };
+    tick();
+    return () => {
+      cancelled = true;
+    };
+  }, [shouldShowGuide]);
+
+  useEffect(() => {
+    if (!guideReady || !visible || !currentStep?.tab || currentStep.key === 'final') return;
     if (activeTab !== currentStep.tab) setActiveTab(currentStep.tab);
-  }, [activeTab, currentStep, setActiveTab, visible]);
+  }, [activeTab, currentStep, guideReady, setActiveTab, visible]);
   const stepReady = !visible || !currentStep?.tab ? false : activeTab === currentStep.tab;
 
   useEffect(() => {
@@ -741,7 +794,7 @@ function ClientPanelGuide({ data, activeTab, setActiveTab, hideSuggestions = fal
   }, [visible]);
 
   useEffect(() => {
-    if (!visible || !currentStep?.target || typeof document === 'undefined') return undefined;
+    if (!guideReady || !visible || !currentStep?.target || typeof document === 'undefined') return undefined;
     const getTarget = () => document.querySelector(`[data-onboarding-tour="${currentStep.target}"]`);
     let target = getTarget();
     if (!target) return undefined;
@@ -790,10 +843,10 @@ function ClientPanelGuide({ data, activeTab, setActiveTab, hideSuggestions = fal
       window.removeEventListener('scroll', placeGuide, true);
       observer.disconnect();
     };
-  }, [currentStep, visible]);
+  }, [currentStep, guideReady, visible]);
 
   useEffect(() => {
-    if (!visible || !stepReady || !currentStep?.target) return;
+    if (!guideReady || !visible || !stepReady || !currentStep?.target) return;
     const target = document.querySelector(`[data-onboarding-tour="${currentStep.target}"]`);
     const altTarget = currentStep.altTarget ? document.querySelector(`[data-onboarding-tour="${currentStep.altTarget}"]`) : null;
     const advance = () => setStepIndex((index) => Math.min(index + 1, steps.length - 1));
@@ -818,7 +871,7 @@ function ClientPanelGuide({ data, activeTab, setActiveTab, hideSuggestions = fal
       return () => target?.removeEventListener('input', onInput);
     }
     return undefined;
-  }, [currentStep, stepReady, steps.length, visible]);
+  }, [currentStep, guideReady, stepReady, steps.length, visible]);
 
   if (!visible || !currentStep) return null;
 

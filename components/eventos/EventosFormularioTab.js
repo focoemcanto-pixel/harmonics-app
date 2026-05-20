@@ -82,6 +82,8 @@ export default function EventosFormularioTab({
   formatPhoneDisplay,
   getPaymentTone,
   toast,
+  guideEnabled = false,
+  guideReady = false,
 }) {
   const [importOpen, setImportOpen] = useState(false);
   const tituloPrincipal = editandoId ? 'Editar evento' : 'Novo evento';
@@ -93,6 +95,11 @@ export default function EventosFormularioTab({
   return (
     <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.9fr_1fr]">
       <div className="space-y-5">
+        {guideEnabled ? (
+          <section className="rounded-[22px] border border-violet-200 bg-violet-50 px-4 py-3 text-sm font-semibold text-violet-900">
+            {guideReady ? 'Guia de evento reaberto: siga os campos destacados para refazer o fluxo.' : 'Preparando guia de evento...'}
+          </section>
+        ) : null}
         <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_26px_rgba(17,24,39,0.04)] md:p-6">
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
@@ -172,10 +179,12 @@ export default function EventosFormularioTab({
             </Field>
 
             <Field label="Nome do cliente">
+              <div data-guide-target="event-client-name">
               <Input
                 value={form.client_name}
                 onChange={(e) => handleFormChange('client_name', e.target.value)}
               />
+              </div>
             </Field>
 
             <Field label="Nome no WhatsApp">
@@ -403,6 +412,11 @@ export default function EventosFormularioTab({
       </div>
 
       <div className="space-y-5">
+        {guideEnabled ? (
+          <section className="rounded-[22px] border border-violet-200 bg-violet-50 px-4 py-3 text-sm font-semibold text-violet-900">
+            {guideReady ? 'Guia de evento reaberto: siga os campos destacados para refazer o fluxo.' : 'Preparando guia de evento...'}
+          </section>
+        ) : null}
         <SectionCard
           eyebrow="Financeiro"
           title="Resumo automático"

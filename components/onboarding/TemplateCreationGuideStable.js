@@ -32,21 +32,12 @@ const STEPS = [
   {
     key: 'editor',
     title: 'Cole ou escreva o contrato',
-    description: 'Insira o texto base do contrato. Depois você vai preparar os campos dinâmicos.',
+    description: 'Insira o texto base do contrato e já deixe os campos importantes preparados no próprio modelo.',
     selector: '[data-tour="template-editor"]',
     texts: ['Texto do contrato', 'Cole aqui o contrato'],
     requiresValue: true,
     hint: 'Cole ou escreva o texto do contrato antes de avançar.',
     focus: true,
-  },
-  {
-    key: 'dynamic_fields',
-    title: 'Prepare os campos dinâmicos',
-    description: 'Agora transforme cliente, data, local, valor e formação em campos automáticos.',
-    selector: '[data-tour="template-dynamic-fields"]',
-    texts: ['Preparar campos dinâmicos'],
-    button: true,
-    hint: 'Esse botão aparece depois que existe texto no contrato.',
   },
   {
     key: 'save_template',
@@ -262,9 +253,10 @@ export default function TemplateCreationGuideStable({ enabled = false }) {
 
   const step = STEPS[index];
   const shouldForce = searchParams?.get('guide') === 'template' || searchParams?.get('onboarding') === 'template';
-  const sessionKey = useMemo(() => 'harmonics:template-guide-stable:v5', []);
-  const shouldSkipCompletedTemplateGuide = !shouldForce && flowStatus?.ok === true && flowStatus.hasContractTemplate === true;
-  const isCheckingTemplateProgress = pathname === '/contratos/templates' && !shouldForce && (flowLoading || !flowStatus?.ok);
+  const sessionKey = useMemo(() => 'harmonics:template-guide-stable:v6', []);
+  const hasContractTemplate = flowStatus?.ok === true && flowStatus.hasContractTemplate === true;
+  const shouldSkipCompletedTemplateGuide = hasContractTemplate;
+  const isCheckingTemplateProgress = pathname === '/contratos/templates' && !shouldForce && !hasContractTemplate && (flowLoading || !flowStatus?.ok);
 
   useEffect(() => {
     if (!active) return undefined;

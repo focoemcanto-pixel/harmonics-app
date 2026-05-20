@@ -512,16 +512,16 @@ export default function EventosPage() {
     setMobileTab('evento');
 
     const timer = setTimeout(() => {
-      const target = document.querySelector('[data-guide-target="event-client-name"] input, [data-guide-target="event-client-name"]');
-      if (target) {
-        setEventGuideReady(true);
-        target.focus?.();
-        target.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
-      }
-    }, 180);
+      setEventGuideReady(true);
+      const target = document.querySelector(
+        '[data-guide-target="event-client-name"] input, [data-guide-target="event-client-name"]'
+      );
+      target?.focus?.();
+      target?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+    }, 300);
 
     return () => clearTimeout(timer);
-  }, [isEventGuideRequested, eventos.length, desktopTab]);
+  }, [isEventGuideRequested]);
   useEffect(() => {
     if (isCleanupGuideActive) {
       setCleanupGuideVisible(true);

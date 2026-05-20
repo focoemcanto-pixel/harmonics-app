@@ -981,6 +981,12 @@ export default async function ClienteTokenPage({ params, searchParams }) {
   });
 
   if (!supabase) {
+    console.info('[CLIENT_PANEL_RENDER]', {
+      token: normalizedToken,
+      guideQuery,
+      loading: false,
+      hasData: true,
+    });
     console.log('[CLIENTE PAGE][FALLBACK_TRIGGER]', {
       reason: 'SUPABASE_CLIENT_MISSING',
       normalizedToken,
@@ -2047,6 +2053,13 @@ export default async function ClienteTokenPage({ params, searchParams }) {
     hasEvent: Boolean(event?.id || eventId),
     loading: false,
     shouldShowGuide,
+  });
+
+  console.info('[CLIENT_PANEL_RENDER]', {
+    token: normalizedToken,
+    guideQuery,
+    loading: false,
+    hasData: Boolean(data),
   });
 
   return <ClienteHome data={data} initialTab={initialTab} guideQuery={guideQuery} />;

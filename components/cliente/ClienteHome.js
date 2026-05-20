@@ -712,12 +712,9 @@ function ClientPanelGuide({ data, activeTab, setActiveTab, hideSuggestions = fal
   const normalizedGuideQuery = String(guideQuery || '').trim().toLowerCase();
   const [stepIndex, setStepIndex] = useState(0);
   const [guideStyle, setGuideStyle] = useState({});
+  const [guideLoading, setGuideLoading] = useState(normalizedGuideQuery === 'client-panel');
   const [guideReady, setGuideReady] = useState(false);
-  const [visible, setVisible] = useState(() => {
-    if (normalizedGuideQuery === 'client-panel') return true;
-    if (typeof window === 'undefined') return false;
-    return String(new URLSearchParams(window.location.search).get('guide') || '').trim().toLowerCase() === 'client-panel';
-  });
+  const [visible, setVisible] = useState(normalizedGuideQuery === 'client-panel');
   const shouldShowGuide = normalizedGuideQuery === 'client-panel';
 
   const steps = useMemo(() => ([
@@ -753,7 +750,29 @@ function ClientPanelGuide({ data, activeTab, setActiveTab, hideSuggestions = fal
   }, [data, guideQuery, guideReady, shouldShowGuide]);
 
   useEffect(() => {
-    if (!shouldShowGuide || typeof window === 'undefined') return;
+    if (typeof window === 'undefined') return;
+    const timer = window.setTimeout(() => {
+      const urlGuideQuery = String(new URLSearchParams(window.location.search).get('guide') || '').trim().toLowerCase();
+      const shouldOpenFromUrl = urlGuideQuery === 'client-panel';
+      setVisible(shouldShowGuide || shouldOpenFromUrl);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [shouldShowGuide]);
+
+  useEffect(() => {
+    if (!shouldShowGuide || typeof window === 'undefined') {
+      const timer = setTimeout(() => setGuideLoading(false), 0);
+      return () => clearTimeout(timer);
+    }
+
+    const timer = setTimeout(() => {
+      setGuideLoading(true);
+      setGuideReady(false);
+    }, 0);
+    if (!timer) {
+      return;
+    }
+
     let cancelled = false;
     let attempts = 0;
     const maxAttempts = 40;
@@ -762,12 +781,14 @@ function ClientPanelGuide({ data, activeTab, setActiveTab, hideSuggestions = fal
       const rootMounted = Boolean(document.querySelector('[data-onboarding-tour="client-panel-root"]'));
       const starterMounted = Boolean(document.querySelector('[data-onboarding-tour="onboarding-open-repertorio"]'));
       if (rootMounted && starterMounted) {
+        setGuideLoading(false);
         setGuideReady(true);
         setVisible(true);
         return;
       }
       attempts += 1;
       if (attempts >= maxAttempts) {
+        setGuideLoading(false);
         setGuideReady(true);
         setVisible(true);
         return;
@@ -776,6 +797,7 @@ function ClientPanelGuide({ data, activeTab, setActiveTab, hideSuggestions = fal
     };
     tick();
     return () => {
+      clearTimeout(timer);
       cancelled = true;
     };
   }, [shouldShowGuide]);
@@ -880,17 +902,21 @@ function ClientPanelGuide({ data, activeTab, setActiveTab, hideSuggestions = fal
   const eventId = data?.eventId || (typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('eventId') : '');
 
   async function handleNext() {
-    if (isFinal) {
-      await markOnboardingFlowState({ client_panel_tour_completed: true, returned_to_admin: true });
-      const target = returnTo
-        ? `${returnTo}${returnTo.includes('?') ? '&' : '?'}guide=admin-repertoire${eventId ? `&eventId=${encodeURIComponent(eventId)}` : ''}`
-        : eventId
-          ? `/eventos/${encodeURIComponent(eventId)}?guide=admin-repertoire`
-          : '/eventos?guide=admin-repertoire';
-      window.location.href = target;
-      return;
+    try {
+      if (isFinal) {
+        await markOnboardingFlowState({ client_panel_tour_completed: true, returned_to_admin: true });
+        const target = returnTo
+          ? `${returnTo}${returnTo.includes('?') ? '&' : '?'}guide=admin-repertoire${eventId ? `&eventId=${encodeURIComponent(eventId)}` : ''}`
+          : eventId
+            ? `/eventos/${encodeURIComponent(eventId)}?guide=admin-repertoire`
+            : '/eventos?guide=admin-repertoire';
+        window.location.href = target;
+        return;
+      }
+      setStepIndex((index) => Math.min(index + 1, steps.length - 1));
+    } catch (error) {
+      console.error('[CLIENT_PANEL_GUIDE][NEXT_ERROR]', error);
     }
-    setStepIndex((index) => Math.min(index + 1, steps.length - 1));
   }
 
   return (
@@ -5928,6 +5954,19 @@ export default function ClienteHome({ data, initialTab = 'inicio', guideQuery = 
       panelData?.repertorio?.status,
       panelData?.repertorio?.isLocked
     );
+
+  useEffect(() => {
+    try {
+      console.info('[CLIENT_PANEL_RENDER]', {
+        token: panelData?.token || '',
+        guideQuery,
+        loading: !panelData,
+        hasData: Boolean(panelData),
+      });
+    } catch (error) {
+      console.error('[CLIENT_PANEL_RENDER][LOG_ERROR]', error);
+    }
+  }, [guideQuery, panelData]);
 
   useEffect(() => {
     if (!shouldShowRepertoire15DaysAlert || !panelData?.token) return;

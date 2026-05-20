@@ -708,9 +708,10 @@ function markOnboardingFlowState(patch = {}) {
     });
 }
 
-function ClientPanelGuide({ data, activeTab, setActiveTab }) {
+function ClientPanelGuide({ data, activeTab, setActiveTab, setClientPanelGuideReady }) {
   const [stepIndex, setStepIndex] = useState(0);
-  const [guideStyle, setGuideStyle] = useState({});
+  const [guideStyle, setGuideStyle] = useState({ top: '50%', left: '50%', transform: 'translate(-50%, -50%)' });
+  const targetFoundRef = useRef(false);
 
   const steps = useMemo(() => ([
     { key: 'open-repertorio', tab: 'inicio', title: 'Abrir repertório', text: 'Clique em Abrir repertório para começar.', target: 'onboarding-open-repertorio', waitFor: 'click' },
@@ -742,11 +743,20 @@ function ClientPanelGuide({ data, activeTab, setActiveTab }) {
   }, []);
 
   useEffect(() => {
-    if (!currentStep?.target || typeof document === 'undefined') return undefined;
+    if (!currentStep?.target || typeof document === 'undefined') {
+      targetFoundRef.current = false;
+      setGuideStyle({ top: '50%', left: '50%', transform: 'translate(-50%, -50%)' });
+      return undefined;
+    }
     const getTarget = () => document.querySelector(`[data-onboarding-tour="${currentStep.target}"]`);
     let target = getTarget();
-    if (!target) return undefined;
-    const spotlightClass = 'relative z-[65] rounded-[22px] ring-4 ring-violet-400/80 animate-pulse shadow-[0_0_0_9999px_rgba(15,23,42,0.60),0_20px_60px_rgba(124,58,237,0.30)]';
+    if (!target) {
+      targetFoundRef.current = false;
+      setGuideStyle({ top: '50%', left: '50%', transform: 'translate(-50%, -50%)' });
+      return undefined;
+    }
+    targetFoundRef.current = true;
+    const spotlightClass = 'relative z-[9100] rounded-[22px] ring-4 ring-violet-400/80 animate-pulse shadow-[0_0_0_9999px_rgba(15,23,42,0.60),0_20px_60px_rgba(124,58,237,0.30)]';
     const classes = spotlightClass.split(' ');
     const applyClasses = () => {
       target = getTarget();
@@ -757,7 +767,12 @@ function ClientPanelGuide({ data, activeTab, setActiveTab }) {
     target?.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
     const placeGuide = () => {
       target = getTarget();
-      if (!target) return;
+      if (!target) {
+        targetFoundRef.current = false;
+        setGuideStyle({ top: '50%', left: '50%', transform: 'translate(-50%, -50%)' });
+        return;
+      }
+      targetFoundRef.current = true;
       const rect = target.getBoundingClientRect();
       const vw = window.innerWidth;
       const vh = window.innerHeight;
@@ -766,7 +781,7 @@ function ClientPanelGuide({ data, activeTab, setActiveTab }) {
       const ch = vw < 768 ? Math.min(320, vh * 0.45) : 210;
       if (vw < 768) {
         const top = rect.top > vh * 0.55 ? Math.max(margin, rect.top - ch - 12) : Math.min(vh - ch - margin, rect.bottom + 12);
-        setGuideStyle({ top: `${top}px`, left: `${margin}px`, right: `${margin}px`, bottom: 'auto', maxWidth: '40vw', maxHeight: '45vh' });
+        setGuideStyle({ top: `${top}px`, left: `${margin}px`, right: `${margin}px`, bottom: 'auto', maxWidth: '40vw', maxHeight: '45vh', transform: 'none' });
         return;
       }
       const placeRight = { top: Math.max(margin, Math.min(vh - ch - margin, rect.top)), left: Math.min(vw - cw - margin, rect.right + 12) };
@@ -774,18 +789,20 @@ function ClientPanelGuide({ data, activeTab, setActiveTab }) {
       const placeTop = { top: Math.max(margin, rect.top - ch - 12), left: Math.max(margin, Math.min(vw - cw - margin, rect.left)) };
       const placeBottom = { top: Math.min(vh - ch - margin, rect.bottom + 12), left: Math.max(margin, Math.min(vw - cw - margin, rect.left)) };
       const pick = rect.left < vw / 2 ? placeRight : rect.right > vw / 2 ? placeLeft : rect.top > vh / 2 ? placeTop : placeBottom;
-      setGuideStyle({ top: `${pick.top}px`, left: `${pick.left}px` });
+      setGuideStyle({ top: `${pick.top}px`, left: `${pick.left}px`, transform: 'none' });
     };
     placeGuide();
     window.addEventListener('resize', placeGuide);
     window.addEventListener('scroll', placeGuide, true);
     const observer = new MutationObserver(() => {
+      targetFoundRef.current = false;
       clearClasses();
       applyClasses();
       placeGuide();
     });
     observer.observe(document.body, { subtree: true, childList: true, attributes: true });
     return () => {
+      targetFoundRef.current = false;
       clearClasses();
       window.removeEventListener('resize', placeGuide);
       window.removeEventListener('scroll', placeGuide, true);
@@ -821,7 +838,24 @@ function ClientPanelGuide({ data, activeTab, setActiveTab }) {
     return undefined;
   }, [currentStep, stepReady, steps.length]);
 
+  useEffect(() => {
+    if (!currentStep) {
+      setClientPanelGuideReady(false);
+    }
+  }, [currentStep, setClientPanelGuideReady]);
+
   if (!currentStep) return null;
+
+  useEffect(() => {
+    console.info('[CLIENT_PANEL_GUIDE_RENDER]', {
+      guideEnabled: true,
+      guideReady: true,
+      currentStep: currentStep?.key || null,
+      hasCard: Boolean(currentStep),
+      targetFound: targetFoundRef.current,
+      activeTab,
+    });
+  }, [activeTab, currentStep, guideStyle]);
 
   const isFinal = currentStep.key === 'final';
   const returnTo = typeof window !== 'undefined'
@@ -849,7 +883,7 @@ function ClientPanelGuide({ data, activeTab, setActiveTab }) {
 
   return (
     <>
-      <div className="pointer-events-none fixed inset-0 z-[9999] bg-slate-950/25" />
+      <div className="pointer-events-none fixed inset-0 z-[9000] bg-slate-950/25" />
       <aside style={guideStyle} className="pointer-events-auto fixed z-[9999] mx-auto w-[calc(100vw-2rem)] max-w-md rounded-[28px] border border-violet-200 bg-white/95 p-4 text-[#241a14] shadow-2xl shadow-violet-950/20 backdrop-blur md:w-full">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -6082,6 +6116,7 @@ export default function ClienteHome({ data, initialTab = 'inicio', guideQuery = 
           data={panelData}
           activeTab={resolvedActiveTab}
           setActiveTab={setActiveTab}
+          setClientPanelGuideReady={setClientPanelGuideReady}
         />
       ) : null}
 

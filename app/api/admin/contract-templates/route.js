@@ -16,7 +16,9 @@ async function listTemplatesScoped(supabaseAdmin, workspaceId) {
   const scoped = await supabaseAdmin
     .from('contract_templates')
     .select(SELECT_FIELDS)
-    .eq('workspace_id', workspaceId)
+    .or(`workspace_id.eq.${workspaceId},workspace_id.is.null`)
+    .eq('is_active', true)
+    .order('is_default', { ascending: false })
     .order('updated_at', { ascending: false, nullsFirst: false })
     .order('created_at', { ascending: false });
 
@@ -24,6 +26,7 @@ async function listTemplatesScoped(supabaseAdmin, workspaceId) {
     return {
       data: scoped.data || [],
       migrationRequired: false,
+      source: 'workspace_plus_legacy_null',
     };
   }
 
@@ -31,14 +34,25 @@ async function listTemplatesScoped(supabaseAdmin, workspaceId) {
     throw scoped.error;
   }
 
-  console.warn('[CONTRACT_TEMPLATE_API][GET][SCHEMA_MIGRATION_REQUIRED]', {
+  console.warn('[CONTRACT_TEMPLATE_API][GET][LEGACY_SCHEMA_WITHOUT_WORKSPACE_ID]', {
     workspaceId,
     message: scoped.error?.message,
   });
 
+  const legacy = await supabaseAdmin
+    .from('contract_templates')
+    .select(SELECT_FIELDS.replace('workspace_id, ', ''))
+    .eq('is_active', true)
+    .order('is_default', { ascending: false })
+    .order('updated_at', { ascending: false, nullsFirst: false })
+    .order('created_at', { ascending: false });
+
+  if (legacy.error) throw legacy.error;
+
   return {
-    data: [],
-    migrationRequired: true,
+    data: (legacy.data || []).map((item) => ({ ...item, workspace_id: null })),
+    migrationRequired: false,
+    source: 'legacy_schema_without_workspace_id',
   };
 }
 
@@ -54,7 +68,7 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const templateId = String(searchParams.get('id') || '').trim();
     const result = await listTemplatesScoped(supabaseAdmin, auth.workspaceId);
-    const activeTemplates = (result.data || []).filter((item) => item?.is_active === true);
+    const activeTemplates = result.data || [];
     let template = null;
 
     if (templateId) {
@@ -67,6 +81,7 @@ export async function GET(request) {
       template,
       workspaceId: auth.workspaceId,
       migrationRequired: result.migrationRequired,
+      source: result.source || 'workspace',
       warning: result.migrationRequired ? SCHEMA_MIGRATION_REQUIRED : null,
     });
   } catch (error) {

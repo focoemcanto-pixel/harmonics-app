@@ -85,15 +85,39 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const token = asString(searchParams.get('token'));
     const eventId = asString(searchParams.get('event_id'));
+    const eventType = asString(searchParams.get('event_type'));
+    const moment = asString(searchParams.get('moment'));
 
     const workspaceId = await resolveWorkspaceId({ supabase, token, eventId });
 
+    console.log('[cliente/sugestoes] request', {
+      token: token || null,
+      eventId: eventId || null,
+      workspaceId: workspaceId || null,
+      eventTypeResolved: eventType || null,
+      filters: {
+        event_type: eventType || null,
+        moment: moment || null,
+      },
+      fetchDescriptor: {
+        table: 'suggestion_songs',
+        where: ['is_active = true'],
+      },
+    });
+
     if (!workspaceId) {
-      return NextResponse.json({ ok: true, songs: [], workspaceId: null, empty: true });
+      console.warn('[cliente/sugestoes] workspace not resolved from token/event; using global suggestions catalog');
     }
 
     const songs = await fetchClientSuggestionsCatalog(supabase, { workspaceId });
-    return NextResponse.json({ ok: true, songs, workspaceId, empty: songs.length === 0 });
+
+    console.log('[cliente/sugestoes] response', {
+      count: songs.length,
+      workspaceId: workspaceId || null,
+      eventTypeResolved: eventType || null,
+    });
+
+    return NextResponse.json({ ok: true, songs, workspaceId: workspaceId || null, empty: songs.length === 0 });
   } catch (error) {
     console.error('[cliente/sugestoes] erro ao carregar sugestões', {
       message: error?.message || 'unknown error',

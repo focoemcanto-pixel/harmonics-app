@@ -11,26 +11,22 @@ const STEPS = [
   {
     title: 'Crie o primeiro template',
     description: 'Clique em Novo template para abrir o formulário de criação.',
-    selector: 'button, a',
-    texts: ['novo template', 'criar template'],
+    selector: '[data-tour="template-new-button"]',
   },
   {
     title: 'Nomeie o modelo',
     description: 'Use um nome claro, como Contrato padrão casamento.',
-    selector: 'input, textarea, [contenteditable="true"]',
-    texts: ['contrato padrão', 'nome'],
+    selector: '[data-tour="template-name-input"]',
   },
   {
     title: 'Preencha o texto',
     description: 'Cole ou escreva o texto base do contrato no editor.',
-    selector: '[contenteditable="true"], textarea, input',
-    texts: ['texto do contrato', 'cole aqui', 'contrato'],
+    selector: '[data-tour="template-editor"]',
   },
   {
     title: 'Salve e avance',
     description: 'Depois de salvar, vamos vincular o template a um tipo de evento.',
-    selector: 'button, a',
-    texts: ['salvar', 'criar template', 'salvar template'],
+    selector: '[data-tour="template-save-button"]',
   },
 ];
 
@@ -41,14 +37,6 @@ function clearGuideQuery() {
   window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
 }
 
-function normalizedText(value) {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .trim();
-}
-
 function visible(element) {
   if (!element) return false;
   const rect = element.getBoundingClientRect();
@@ -56,23 +44,9 @@ function visible(element) {
   return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
 }
 
-function textOf(element) {
-  return normalizedText([
-    element?.textContent,
-    element?.value,
-    element?.placeholder,
-    element?.getAttribute?.('aria-label'),
-  ].filter(Boolean).join(' '));
-}
-
 function findTarget(step) {
-  const candidates = Array.from(document.querySelectorAll(step.selector || 'button, a, input, textarea, [contenteditable="true"]'));
-  const byText = candidates.find((element) => {
-    if (!visible(element)) return false;
-    const text = textOf(element);
-    return (step.texts || []).some((item) => text.includes(normalizedText(item)));
-  });
-  if (byText) return byText;
+  if (!step?.selector) return null;
+  const candidates = Array.from(document.querySelectorAll(step.selector));
   return candidates.find(visible) || null;
 }
 
@@ -91,14 +65,22 @@ function boxFromElement(element) {
 function popoverPosition(box) {
   const width = typeof window === 'undefined' ? 420 : Math.min(420, window.innerWidth - 32);
   if (typeof window === 'undefined' || !box) return { width, left: 16, top: 24 };
-  if (window.innerWidth < 768) return { width, left: 16, top: 20 };
+  if (window.innerWidth < 768) {
+    const nearTop = box?.top < window.innerHeight * 0.45;
+    return {
+      width,
+      left: 16,
+      top: nearTop ? Math.max(16, (box?.top || 0) + (box?.height || 0) + 12) : 16,
+      bottom: nearTop ? undefined : 16,
+    };
+  }
 
   const gap = 22;
   const rightLeft = box.left + box.width + gap;
   const fitsRight = rightLeft + width < window.innerWidth - 16;
   const left = fitsRight ? rightLeft : Math.max(16, box.left - width - gap);
   const top = Math.min(Math.max(18, box.top), window.innerHeight - 290);
-  return { width, left, top };
+  return { width, left, top, bottom: undefined };
 }
 
 export default function TemplateCreationGuideStable({ enabled = false }) {
@@ -137,8 +119,8 @@ export default function TemplateCreationGuideStable({ enabled = false }) {
         setBox(null);
         return;
       }
-      target.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' });
-      setTimeout(() => setBox(boxFromElement(target)), 160);
+      target.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'auto' });
+      requestAnimationFrame(() => setBox(boxFromElement(target)));
     }
 
     sync();
@@ -165,6 +147,14 @@ export default function TemplateCreationGuideStable({ enabled = false }) {
   }
 
   function next() {
+    if (stepIndex === 0) {
+      const formCard = findTarget({ selector: '[data-tour="template-form-card"]' });
+      if (!formCard) {
+        const newButton = findTarget({ selector: '[data-tour="template-new-button"]' });
+        newButton?.click?.();
+      }
+    }
+
     if (stepIndex >= STEPS.length - 1) {
       clearGuideQuery();
       endOnboardingSession(GUIDE_ID);
@@ -176,16 +166,25 @@ export default function TemplateCreationGuideStable({ enabled = false }) {
 
   return (
     <div className="fixed inset-0 z-[260] pointer-events-none">
-      <div className="absolute inset-0 bg-slate-950/55 backdrop-blur-[2px]" />
+      {box ? (
+        <>
+          <div className="absolute bg-slate-950/55" style={{ left: 0, top: 0, width: '100%', height: box.top }} />
+          <div className="absolute bg-slate-950/55" style={{ left: 0, top: box.top, width: box.left, height: box.height }} />
+          <div className="absolute bg-slate-950/55" style={{ left: box.left + box.width, top: box.top, right: 0, height: box.height }} />
+          <div className="absolute bg-slate-950/55" style={{ left: 0, top: box.top + box.height, width: '100%', bottom: 0 }} />
+        </>
+      ) : (
+        <div className="absolute inset-0 bg-slate-950/55" />
+      )}
       {box ? (
         <div
-          className="absolute rounded-[22px] border-2 border-white bg-transparent shadow-[0_0_0_2px_rgba(124,58,237,0.38),0_18px_70px_rgba(124,58,237,0.45)] ring-4 ring-violet-500/25"
+          className="absolute rounded-[22px] border-2 border-violet-400 bg-transparent shadow-[0_0_0_1px_rgba(255,255,255,0.5),0_20px_70px_rgba(124,58,237,0.38)] ring-4 ring-violet-500/35"
           style={{ left: box.left, top: box.top, width: box.width, height: box.height }}
         />
       ) : null}
       <section
         className="pointer-events-auto absolute rounded-[28px] border border-violet-200 bg-white p-5 shadow-[0_24px_90px_rgba(15,23,42,0.36)]"
-        style={{ width: popover.width, left: popover.left, top: popover.top }}
+        style={{ width: popover.width, left: popover.left, top: popover.top, bottom: popover.bottom }}
       >
         <div className="flex items-center justify-between gap-3">
           <span className="rounded-full bg-violet-100 px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em] text-violet-700">Guia: template</span>

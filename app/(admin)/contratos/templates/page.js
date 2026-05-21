@@ -502,6 +502,7 @@ export default function ContractTemplatesPage() {
             <button
               type="button"
               onClick={iniciarNovo}
+              data-tour="template-new-button"
               className="rounded-2xl bg-violet-600 px-5 py-3 text-sm font-black text-white shadow-[0_14px_28px_rgba(124,58,237,0.35)] transition hover:bg-violet-700"
             >
               Novo template
@@ -611,7 +612,7 @@ export default function ContractTemplatesPage() {
             </section>
           )}
 
-          <section className={`rounded-[28px] border border-[#dbe3ef] bg-white p-5 shadow-[0_12px_28px_rgba(15,23,42,0.05)] ${mobileTab !== 'form' ? 'hidden md:block' : ''}`}>
+          <section data-tour="template-form-card" className={`rounded-[28px] border border-[#dbe3ef] bg-white p-5 shadow-[0_12px_28px_rgba(15,23,42,0.05)] ${mobileTab !== 'form' ? 'hidden md:block' : ''}`}>
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-[22px] font-black tracking-[-0.03em] text-[#0f172a]">
                 {editandoId ? 'Editar template' : 'Novo template'}
@@ -631,6 +632,7 @@ export default function ContractTemplatesPage() {
               <label className="block">
                 <span className="mb-1 block text-xs font-bold uppercase tracking-[0.06em] text-[#64748b]">Nome</span>
                 <input
+                  data-tour="template-name-input"
                   value={form.name}
                   onChange={(event) => handleFormChange('name', event.target.value)}
                   className="w-full rounded-2xl border border-[#dbe3ef] bg-[#f8fafc] px-4 py-2.5 text-sm text-[#0f172a] outline-none transition focus:border-violet-400"
@@ -677,7 +679,7 @@ export default function ContractTemplatesPage() {
                 </div>
 
                 {editorTab === 'texto' ? (
-                  <label className="block">
+                  <label data-tour="template-editor" className="block">
                     <span className="mb-1 block text-xs font-bold uppercase tracking-[0.06em] text-[#64748b]">Texto do contrato</span>
                     <RichContractEditor
                       ref={richEditorRef}

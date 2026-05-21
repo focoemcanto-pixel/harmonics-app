@@ -709,7 +709,7 @@ function markOnboardingFlowState(patch = {}) {
     });
 }
 
-function ClientPanelGuide({ data, activeTab, setActiveTab, setClientPanelGuideReady }) {
+function ClientPanelGuide({ data, activeTab, setActiveTab }) {
   const [stepIndex, setStepIndex] = useState(0);
   const [guideStyle, setGuideStyle] = useState({ top: '50%', left: '50%', transform: 'translate(-50%, -50%)' });
   const targetFoundRef = useRef(false);
@@ -839,11 +839,6 @@ function ClientPanelGuide({ data, activeTab, setActiveTab, setClientPanelGuideRe
     return undefined;
   }, [currentStep, stepReady, steps.length]);
 
-  useEffect(() => {
-    if (!currentStep) {
-      setClientPanelGuideReady(false);
-    }
-  }, [currentStep, setClientPanelGuideReady]);
 
   useEffect(() => {
     console.info('[CLIENT_PANEL_GUIDE_RENDER]', {
@@ -5808,8 +5803,6 @@ function EmptyStateCard({ title, text }) {
 export default function ClienteHome({ data, initialTab = 'inicio', guideQuery = '' }) {
   const [panelData, setPanelData] = useState(data);
   const [activeTab, setActiveTab] = useState('inicio');
-  const [clientPanelGuideEnabled, setClientPanelGuideEnabled] = useState(false);
-  const [clientPanelGuideReady, setClientPanelGuideReady] = useState(false);
   const [selectedSongs, setSelectedSongs] = useState([]);
   const [favoriteSongIds, setFavoriteSongIds] = useState([]);
   const [paymentHistory, setPaymentHistory] = useState(
@@ -5824,11 +5817,14 @@ export default function ClienteHome({ data, initialTab = 'inicio', guideQuery = 
   const resolvedActiveTab =
     isCustomEvent && activeTab === 'sugestoes' ? 'repertorio' : activeTab;
   const loading = !panelData;
-  const isClientPanelOnboarding = useMemo(() => {
-    if (typeof window === 'undefined') return false;
-    const params = new URLSearchParams(window.location.search || '');
-    return params.get('guide') === 'client-panel' || params.get('onboarding') === 'client-panel';
-  }, []);
+  const isClientPanelOnboarding =
+    guideQuery === 'client-panel' ||
+    guideQuery === 'onboarding-client-panel' ||
+    (typeof window !== 'undefined' &&
+      ['client-panel', 'onboarding-client-panel'].includes(
+        new URLSearchParams(window.location.search).get('guide') ||
+          new URLSearchParams(window.location.search).get('onboarding')
+      ));
   useEffect(() => {
     if (initialTab && initialTab !== 'inicio') {
       setActiveTab(initialTab);
@@ -5945,21 +5941,6 @@ export default function ClienteHome({ data, initialTab = 'inicio', guideQuery = 
       panelData?.repertorio?.isLocked
     );
 
-  useEffect(() => {
-    if (isClientPanelOnboarding) {
-      const timer = window.setTimeout(() => setClientPanelGuideEnabled(true), 0);
-      return () => window.clearTimeout(timer);
-    }
-    return undefined;
-  }, [isClientPanelOnboarding]);
-
-  useEffect(() => {
-    if (!loading && clientPanelGuideEnabled) {
-      requestAnimationFrame(() => {
-        setClientPanelGuideReady(true);
-      });
-    }
-  }, [loading, clientPanelGuideEnabled]);
 
   useEffect(() => {
     try {
@@ -5967,10 +5948,15 @@ export default function ClienteHome({ data, initialTab = 'inicio', guideQuery = 
       const hasPrecontract = Boolean(panelData?.eventId || panelData?.clienteNome || panelData?.dataEvento);
       const hasEvent = Boolean(panelData?.eventoTitulo || panelData?.eventId || panelData?.dataEvento);
 
+      console.info('[CLIENT_PANEL_GUIDE_VISIBILITY]', {
+        guideQuery,
+        isClientPanelOnboarding,
+        loading,
+        hasPanelData: Boolean(panelData),
+      });
+
       console.info('[CLIENT_PANEL_RENDER_STATE]', {
         guideQuery,
-        guideEnabled: clientPanelGuideEnabled,
-        guideReady: clientPanelGuideReady,
         loading,
         activeTab: resolvedActiveTab,
         hasEvent,
@@ -5980,7 +5966,7 @@ export default function ClienteHome({ data, initialTab = 'inicio', guideQuery = 
     } catch (error) {
       console.error('[CLIENT_PANEL_RENDER_STATE][LOG_ERROR]', error);
     }
-  }, [activeTab, clientPanelGuideEnabled, clientPanelGuideReady, guideQuery, loading, panelData, resolvedActiveTab]);
+  }, [activeTab, guideQuery, isClientPanelOnboarding, loading, panelData, resolvedActiveTab]);
 
   useEffect(() => {
     if (isClientPanelOnboarding || !shouldShowRepertoire15DaysAlert || !panelData?.token) return;
@@ -6128,12 +6114,11 @@ export default function ClienteHome({ data, initialTab = 'inicio', guideQuery = 
         </div>
       </div>
 
-      {clientPanelGuideEnabled && clientPanelGuideReady ? (
+      {isClientPanelOnboarding && !loading && panelData ? (
         <ClientPanelGuide
           data={panelData}
           activeTab={resolvedActiveTab}
           setActiveTab={setActiveTab}
-          setClientPanelGuideReady={setClientPanelGuideReady}
         />
       ) : null}
 

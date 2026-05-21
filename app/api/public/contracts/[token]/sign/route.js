@@ -7,6 +7,11 @@ import { generateContractDocument } from '@/lib/contracts/generate-contract-docu
 import { signInternalContract } from '@/lib/contracts/sign-internal-contract';
 import { executeAutomationEvent } from '@/lib/automation/execute-automation-event';
 import { getCurrentWorkspace } from '@/lib/workspaces/get-current-workspace';
+import {
+  PRECONTRACT_EXPIRED_MESSAGE,
+  expirePrecontractIfNeeded,
+  isPrecontractExpiredStatus,
+} from '@/lib/contracts/precontract-expiration';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -204,9 +209,15 @@ export async function POST(request, context) {
     const supabase = getSupabaseAdmin();
     const workspaceContext = await getCurrentWorkspace({ supabase });
 
-    const { data: precontract, error: preError } = await supabase.from('precontracts').select('*').eq('public_token', token).maybeSingle();
+    const { data: rawPrecontract, error: preError } = await supabase.from('precontracts').select('*').eq('public_token', token).maybeSingle();
     if (preError) throw preError;
-    if (!precontract?.id) return NextResponse.json({ ok: false, message: 'Contrato não encontrado.' }, { status: 404 });
+    if (!rawPrecontract?.id) return NextResponse.json({ ok: false, message: 'Contrato não encontrado.' }, { status: 404 });
+
+    const expiration = await expirePrecontractIfNeeded({ supabase, precontract: rawPrecontract });
+    const precontract = expiration?.precontract || rawPrecontract;
+    if (isPrecontractExpiredStatus(precontract)) {
+      return NextResponse.json({ ok: false, expired: true, message: PRECONTRACT_EXPIRED_MESSAGE }, { status: 410 });
+    }
 
     const resolvedWorkspaceId = asString(precontract?.workspace_id || workspaceContext.workspaceId) || null;
 

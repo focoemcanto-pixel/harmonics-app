@@ -7,11 +7,9 @@ import { WORKSPACE_EVENT_TYPES } from '@/lib/workspace-events/eventTypes';
 const SELECT_FIELDS = 'id, workspace_id, name, slug, description, is_active, sort_order, color, icon, default_contract_template_id, created_at, updated_at';
 const DEFAULT_WORKSPACE_SLUGS = new Set(['harmonics-producao', 'default', 'harmonics']);
 const LEGACY_HARMONICS_EVENT_TYPES = [
-  { name: 'Casamento', slug: 'casamento', description: 'Cerimônia, recepção ou evento de casamento.', sort_order: 10, color: '#7c3aed', icon: 'rings' },
-  { name: 'Evento corporativo', slug: 'evento-corporativo', description: 'Eventos empresariais, confraternizações e recepções.', sort_order: 20, color: '#2563eb', icon: 'briefcase' },
-  { name: 'Culto / Igreja', slug: 'culto-igreja', description: 'Cultos, celebrações, congressos e eventos ministeriais.', sort_order: 30, color: '#059669', icon: 'church' },
-  { name: 'Aniversário / Social', slug: 'aniversario-social', description: 'Eventos sociais, aniversários e comemorações.', sort_order: 40, color: '#db2777', icon: 'party' },
-  { name: 'Outro evento', slug: 'outro-evento', description: 'Tipo livre para eventos fora do padrão.', sort_order: 90, color: '#64748b', icon: 'calendar' },
+  { name: 'Casamento', slug: 'casamento', description: 'Cerimônia, recepção ou celebração de casamento.', sort_order: 10, color: '#7c3aed', icon: 'rings' },
+  { name: 'Chá', slug: 'cha', description: 'Chá revelação, chá bar ou chá de panela.', sort_order: 20, color: '#2563eb', icon: 'cup-soda' },
+  { name: 'Show', slug: 'show', description: 'Shows, festivais e apresentações ao vivo.', sort_order: 30, color: '#059669', icon: 'music' },
 ];
 
 function normalizeSlug(value) {

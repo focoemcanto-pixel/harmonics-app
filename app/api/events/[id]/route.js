@@ -3,6 +3,19 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { deleteEventCascade } from '@/lib/events/delete-event-cascade';
 import { requireWorkspaceAccess } from '@/lib/api/require-workspace-access';
 
+function isMissingColumnError(error) {
+  const code = String(error?.code || '').toLowerCase();
+  const message = String(error?.message || '').toLowerCase();
+  const details = String(error?.details || '').toLowerCase();
+
+  return (
+    code === '42703' ||
+    message.includes('does not exist') ||
+    message.includes('could not find') ||
+    details.includes('schema cache')
+  );
+}
+
 function isDemoEvent(event) {
   const metadata = event?.metadata && typeof event.metadata === 'object' ? event.metadata : {};
   return Boolean(
@@ -13,15 +26,27 @@ function isDemoEvent(event) {
 }
 
 async function getEventForWorkspace({ supabase, eventId, workspaceId }) {
-  const { data, error } = await supabase
+  const safeSelect = 'id, workspace_id';
+  const richSelect = 'id, workspace_id, metadata, source, is_demo';
+
+  let response = await supabase
     .from('events')
-    .select('id, workspace_id, metadata, source, is_demo')
+    .select(richSelect)
     .eq('id', eventId)
     .eq('workspace_id', workspaceId)
     .maybeSingle();
 
-  if (error) throw error;
-  return data || null;
+  if (response.error && isMissingColumnError(response.error)) {
+    response = await supabase
+      .from('events')
+      .select(safeSelect)
+      .eq('id', eventId)
+      .eq('workspace_id', workspaceId)
+      .maybeSingle();
+  }
+
+  if (response.error) throw response.error;
+  return response.data || null;
 }
 
 async function canCleanupDemoEventNow({ supabase, workspaceId }) {

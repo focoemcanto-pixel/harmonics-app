@@ -1,11 +1,37 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import { getSupabase } from '@/lib/supabase';
 
 export default function FreshWorkspaceStartGuide() {
   const router = useRouter();
 
-  function handleStart() {
+  async function enableOnboardingFlow() {
+    try {
+      const supabase = getSupabase();
+      const { data } = await supabase.auth.getSession();
+      const token = data?.session?.access_token || null;
+
+      await fetch('/api/onboarding/flow-status', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          flowState: {
+            onboarding_enabled: true,
+            workspace_created_for_onboarding: true,
+          },
+        }),
+      }).catch(() => null);
+    } catch {
+      // O guia manual por query string continua funcionando mesmo se o PATCH falhar.
+    }
+  }
+
+  async function handleStart() {
+    await enableOnboardingFlow();
     router.push('/contratos/templates?guide=template');
   }
 

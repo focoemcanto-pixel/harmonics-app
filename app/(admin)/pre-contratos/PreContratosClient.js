@@ -336,6 +336,7 @@ function devLog(message, payload) {
 function ShareLinkModal({
   open,
   onClose,
+  onBeforeOpenClientPanel,
   data,
   onToast,
 }) {
@@ -513,6 +514,10 @@ function ShareLinkModal({
                 target="_blank"
                 rel="noreferrer"
                 className="inline-flex"
+                onClick={() => {
+                  onBeforeOpenClientPanel?.();
+                  onClose?.();
+                }}
               >
                 <Button variant="soft" className="w-full">
                   Abrir painel do cliente
@@ -656,6 +661,19 @@ export default function PreContratosClient() {
   useEffect(() => () => {
     document.body.style.overflow = '';
   }, []);
+
+  const handleBeforeOpenClientPanel = () => {
+    try {
+      const url = new URL(window.location.href);
+      const guide = url.searchParams.get('guide');
+      const onboarding = url.searchParams.get('onboarding');
+      if (guide === 'precontract') url.searchParams.delete('guide');
+      if (onboarding === 'precontract') url.searchParams.delete('onboarding');
+      window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+    } catch (error) {
+      console.warn('[PRECONTRATOS] Não foi possível limpar query de guia.', error);
+    }
+  };
 
   async function carregarWorkspaceAtual() {
     const response = await fetch('/api/workspace/me', { credentials: 'include', cache: 'no-store' });
@@ -2237,6 +2255,7 @@ async function carregarModelosContrato({ force = false } = {}) {
 
       <ShareLinkModal
         open={shareModalOpen}
+        onBeforeOpenClientPanel={handleBeforeOpenClientPanel}
         onClose={() => {
           setShareModalOpen(false);
           setShareData(null);

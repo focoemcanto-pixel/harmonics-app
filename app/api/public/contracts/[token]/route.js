@@ -1,5 +1,10 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import {
+  PRECONTRACT_EXPIRED_MESSAGE,
+  expirePrecontractIfNeeded,
+  isPrecontractExpiredStatus,
+} from '@/lib/contracts/precontract-expiration';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -42,8 +47,6 @@ function pickPrecontract(precontract) {
 
     has_sound: precontract.has_sound === true,
     reception_hours: precontract.reception_hours ?? 0,
-    reception_formation: precontract.reception_formation || null,
-    reception_instruments: precontract.reception_instruments || null,
     has_transport: precontract.has_transport === true,
 
     base_amount: precontract.base_amount ?? null,
@@ -140,8 +143,6 @@ function pickEvent(event) {
     reception_instruments: event.reception_instruments || null,
     has_sound: event.has_sound === true,
     reception_hours: event.reception_hours ?? 0,
-    reception_formation: event.reception_formation || null,
-    reception_instruments: event.reception_instruments || null,
     has_transport: event.has_transport === true,
 
     signal_due_date: event.signal_due_date || null,
@@ -162,7 +163,7 @@ export async function GET(_request, context) {
   try {
     const supabase = getSupabaseAdmin();
 
-    const { data: precontract, error: preError } = await supabase
+    const { data: rawPrecontract, error: preError } = await supabase
       .from('precontracts')
       .select('*')
       .eq('public_token', token)
@@ -170,8 +171,23 @@ export async function GET(_request, context) {
 
     if (preError) throw preError;
 
-    if (!precontract?.id) {
+    if (!rawPrecontract?.id) {
       return NextResponse.json({ ok: false, message: 'Contrato não encontrado.' }, { status: 404 });
+    }
+
+    const expiration = await expirePrecontractIfNeeded({ supabase, precontract: rawPrecontract });
+    const precontract = expiration?.precontract || rawPrecontract;
+
+    if (isPrecontractExpiredStatus(precontract)) {
+      return NextResponse.json(
+        {
+          ok: false,
+          expired: true,
+          message: PRECONTRACT_EXPIRED_MESSAGE,
+          precontract: pickPrecontract(precontract),
+        },
+        { status: 410 }
+      );
     }
 
     const { data: contract, error: contractError } = await supabase

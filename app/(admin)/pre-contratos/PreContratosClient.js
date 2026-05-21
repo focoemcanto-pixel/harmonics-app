@@ -1687,7 +1687,7 @@ async function carregarModelosContrato({ force = false } = {}) {
                         ? 'Carregando tipos...'
                         : eventTypeOptions.length
                           ? 'Selecione'
-                          : 'Sem tipos ativos (fallback legado)'}
+                          : 'Sem tipos ativos'}
                     </option>
                     {eventTypeOptions.map((type) => (
                       <option key={type.id} value={type.id}>

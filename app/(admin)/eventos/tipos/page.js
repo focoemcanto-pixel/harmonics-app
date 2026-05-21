@@ -383,7 +383,7 @@ export default function EventTypesPage() {
               data-tour="event-type-new-button"
               className="rounded-[16px] bg-violet-600 px-5 py-3 text-[13px] font-black text-white shadow-[0_10px_20px_rgba(109,40,217,0.25)]"
             >
-              Novo tipo
+              Novo tipo de evento
             </button>
           )}
         />
@@ -420,10 +420,11 @@ export default function EventTypesPage() {
                 <SmartEmptyState
                   eyebrow="Configuração essencial"
                   title="Você ainda não cadastrou tipos de evento."
-                  description="Os tipos organizam o fluxo comercial e definem qual modelo de contrato será usado em cada situação, como casamento, aniversário, culto ou evento corporativo."
+                  description="Os tipos organizam o fluxo comercial e definem qual modelo de contrato será usado em cada situação, como casamento, chá e show."
                   bullets={['Organiza o pré-contrato', 'Vincula o template padrão', 'Facilita novos contratos', 'Evita configuração manual']}
                   primaryHref="/eventos/tipos"
                   primaryLabel="Criar primeiro tipo"
+                  data-tour="event-type-create"
                   icon="🏷️"
                 />
               )}
@@ -435,7 +436,7 @@ export default function EventTypesPage() {
               {!loading && filteredTypes.map((item) => {
                 const templateName = templateMap.get(String(item.default_contract_template_id || ''));
                 return (
-                  <article key={item.id} className="rounded-[20px] border border-[#e2e8f0] bg-[#fcfdff] p-4 shadow-[0_8px_20px_rgba(15,23,42,0.04)]">
+                  <article key={item.id} data-tour="event-type-create" className="rounded-[20px] border border-[#e2e8f0] bg-[#fcfdff] p-4 shadow-[0_8px_20px_rgba(15,23,42,0.04)]">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
                         <h3 className="text-[17px] font-black text-[#0f172a]">{item.name}</h3>
@@ -454,7 +455,7 @@ export default function EventTypesPage() {
                     <p className="mt-3 text-[14px] text-[#475569]">{item.description || 'Sem descrição.'}</p>
 
                     <div className="mt-3 flex flex-wrap gap-2 text-[12px] font-semibold">
-                      <span className="rounded-full bg-[#eef2ff] px-3 py-1 text-[#3730a3]">
+                      <span data-tour="event-type-template-link" className="rounded-full bg-[#eef2ff] px-3 py-1 text-[#3730a3]">
                         Template: {templateName || 'Sem template padrão'}
                       </span>
                       {item.color ? <span className="rounded-full bg-[#f1f5f9] px-3 py-1 text-[#334155]">Cor: {item.color}</span> : null}

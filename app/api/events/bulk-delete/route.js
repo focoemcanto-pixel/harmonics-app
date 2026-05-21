@@ -35,7 +35,7 @@ export async function POST(request) {
 
     if (!auth.ok) {
       return NextResponse.json(
-        { ok: false, error: auth.error || 'Acesso não autorizado.' },
+        { ok: false, success: false, error: auth.error || 'Acesso não autorizado.' },
         { status: auth.status || 401 }
       );
     }
@@ -51,7 +51,7 @@ export async function POST(request) {
 
     if (requestedEventIds.length === 0) {
       return NextResponse.json(
-        { ok: false, error: 'Selecione ao menos um evento para excluir.' },
+        { ok: false, success: false, error: 'Selecione ao menos um evento para excluir.' },
         { status: 400 }
       );
     }
@@ -64,7 +64,7 @@ export async function POST(request) {
 
     if (eventIds.length === 0) {
       return NextResponse.json(
-        { ok: false, error: 'Nenhum evento válido encontrado neste workspace.' },
+        { ok: false, success: false, error: 'Nenhum evento válido encontrado neste workspace.' },
         { status: 404 }
       );
     }
@@ -75,18 +75,35 @@ export async function POST(request) {
       logPrefix: '[EVENT_BULK_DELETE_API]',
     });
 
+    const deletedItems = Array.isArray(summary?.success) ? summary.success : [];
+    const failedItems = Array.isArray(summary?.failed) ? summary.failed : [];
+    const deletedIds = deletedItems.map((item) => String(item?.eventId || '')).filter(Boolean);
+    const failedIds = failedItems.map((item) => String(item?.eventId || '')).filter(Boolean);
+
     console.info('[EVENT_BULK_DELETE_API][DELETE][RESULT]', {
       requested: summary.requested,
-      success: summary.success.length,
-      failed: summary.failed.length,
+      success: deletedItems.length,
+      failed: failedItems.length,
+      deletedIds,
+      failedIds,
     });
 
     return NextResponse.json({
       ok: true,
-      ...summary,
       success: true,
-      deleted: summary.success.length,
-      failedCount: summary.failed.length,
+      requested: summary.requested,
+      affected: deletedIds.length,
+      deleted: deletedIds.length,
+      failedCount: failedItems.length,
+      ids: deletedIds,
+      deletedIds,
+      failedIds,
+      failed: failedItems,
+      items: deletedItems,
+      message:
+        failedItems.length > 0
+          ? `${deletedIds.length} evento(s) excluído(s). ${failedItems.length} falharam.`
+          : `${deletedIds.length} evento(s) excluído(s) com sucesso.`,
     });
   } catch (error) {
     console.error('[EVENT_BULK_DELETE_API][DELETE][ERROR]', {
@@ -99,6 +116,7 @@ export async function POST(request) {
     return NextResponse.json(
       {
         ok: false,
+        success: false,
         error: error?.message || 'Erro inesperado na exclusão em massa.',
       },
       { status: 500 }

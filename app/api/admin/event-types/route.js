@@ -5,6 +5,14 @@ import { emitWorkspaceEvent } from '@/lib/workspace-events/emitWorkspaceEvent';
 import { WORKSPACE_EVENT_TYPES } from '@/lib/workspace-events/eventTypes';
 
 const SELECT_FIELDS = 'id, workspace_id, name, slug, description, is_active, sort_order, color, icon, default_contract_template_id, created_at, updated_at';
+const DEFAULT_WORKSPACE_SLUGS = new Set(['harmonics-producao', 'default', 'harmonics']);
+const LEGACY_HARMONICS_EVENT_TYPES = [
+  { name: 'Casamento', slug: 'casamento', description: 'Cerimônia, recepção ou evento de casamento.', sort_order: 10, color: '#7c3aed', icon: 'rings' },
+  { name: 'Evento corporativo', slug: 'evento-corporativo', description: 'Eventos empresariais, confraternizações e recepções.', sort_order: 20, color: '#2563eb', icon: 'briefcase' },
+  { name: 'Culto / Igreja', slug: 'culto-igreja', description: 'Cultos, celebrações, congressos e eventos ministeriais.', sort_order: 30, color: '#059669', icon: 'church' },
+  { name: 'Aniversário / Social', slug: 'aniversario-social', description: 'Eventos sociais, aniversários e comemorações.', sort_order: 40, color: '#db2777', icon: 'party' },
+  { name: 'Outro evento', slug: 'outro-evento', description: 'Tipo livre para eventos fora do padrão.', sort_order: 90, color: '#64748b', icon: 'calendar' },
+];
 
 function normalizeSlug(value) {
   return String(value || '')
@@ -15,6 +23,37 @@ function normalizeSlug(value) {
     .toLowerCase()
     .replace(/\s+/g, '-')
     .replace(/-+/g, '-');
+}
+
+function normalizeWorkspaceKey(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function isPrimaryHarmonicsWorkspace(workspace) {
+  const candidates = [workspace?.slug, workspace?.key, workspace?.name]
+    .map(normalizeWorkspaceKey)
+    .filter(Boolean);
+
+  return candidates.some((item) => DEFAULT_WORKSPACE_SLUGS.has(item) || item.includes('harmonics'));
+}
+
+function buildLegacyEventTypes(workspaceId) {
+  const now = new Date().toISOString();
+  return LEGACY_HARMONICS_EVENT_TYPES.map((item, index) => ({
+    id: `legacy-${item.slug}`,
+    workspace_id: workspaceId || null,
+    name: item.name,
+    slug: item.slug,
+    description: item.description,
+    is_active: true,
+    sort_order: item.sort_order ?? index,
+    color: item.color || null,
+    icon: item.icon || null,
+    default_contract_template_id: null,
+    created_at: now,
+    updated_at: now,
+    legacy_fallback: true,
+  }));
 }
 
 function workspaceSlugSuffix(workspaceId) {
@@ -81,13 +120,33 @@ export async function GET(request) {
 
     if (error) throw error;
 
-    return NextResponse.json({ ok: true, eventTypes: data || [], workspaceId: auth.workspaceId });
+    const eventTypes = data || [];
+    if (eventTypes.length === 0 && isPrimaryHarmonicsWorkspace(auth.workspace)) {
+      return NextResponse.json({
+        ok: true,
+        eventTypes: buildLegacyEventTypes(auth.workspaceId),
+        workspaceId: auth.workspaceId,
+        source: 'legacy_harmonics_fallback',
+      });
+    }
+
+    return NextResponse.json({ ok: true, eventTypes, workspaceId: auth.workspaceId });
   } catch (error) {
     console.error('[EVENT_TYPES_API][GET][ERROR]', {
       message: error?.message,
       code: error?.code,
       details: error?.details,
     });
+
+    if (isPrimaryHarmonicsWorkspace(auth.workspace)) {
+      return NextResponse.json({
+        ok: true,
+        eventTypes: buildLegacyEventTypes(auth.workspaceId),
+        workspaceId: auth.workspaceId,
+        source: 'legacy_harmonics_fallback_after_error',
+        warning: error?.message || 'event_types indisponível',
+      });
+    }
 
     return NextResponse.json(
       { ok: false, error: error?.message || 'Erro interno ao listar tipos de evento.' },

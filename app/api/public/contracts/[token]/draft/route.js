@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { normalizeTimeStrict } from '@/lib/time/normalize-time';
-import { getCurrentWorkspace } from '@/lib/workspaces/get-current-workspace';
+import {
+  PRECONTRACT_EXPIRED_MESSAGE,
+  expirePrecontractIfNeeded,
+  isPrecontractExpiredStatus,
+} from '@/lib/contracts/precontract-expiration';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -75,11 +79,22 @@ function buildInitialForm({ precontract, contact, event, clientForm }) {
 }
 
 async function loadContext(token, supabase) {
-  const { data: precontract, error: preError } = await supabase.from('precontracts').select('*').eq('public_token', token).maybeSingle();
+  const { data: rawPrecontract, error: preError } = await supabase
+    .from('precontracts')
+    .select('*')
+    .eq('public_token', token)
+    .maybeSingle();
   if (preError) throw preError;
-  if (!precontract?.id) return { precontract: null, contract: null, contact: null, event: null };
+  if (!rawPrecontract?.id) return { precontract: null, contract: null, contact: null, event: null };
 
-  const { data: contract, error: cError } = await supabase.from('contracts').select('*').eq('precontract_id', precontract.id).maybeSingle();
+  const expiration = await expirePrecontractIfNeeded({ supabase, precontract: rawPrecontract });
+  const precontract = expiration?.precontract || rawPrecontract;
+
+  const { data: contract, error: cError } = await supabase
+    .from('contracts')
+    .select('*')
+    .eq('precontract_id', precontract.id)
+    .maybeSingle();
   if (cError) throw cError;
 
   const contactId = contract?.contact_id || precontract?.contact_id || null;
@@ -93,14 +108,33 @@ async function loadContext(token, supabase) {
   return { precontract, contract: contract || null, contact: contact || null, event: event || null };
 }
 
-async function logWorkspaceContext(supabase, routeName) {
-  const workspaceContext = await getCurrentWorkspace({ supabase });
-  console.info('[WORKSPACE_CONTEXT]', {
-    route: routeName,
-    workspaceId: workspaceContext.workspaceId,
-    source: workspaceContext.source,
-  });
-  return workspaceContext;
+function getWorkspaceIdFromPrecontract(precontract) {
+  return asString(precontract?.workspace_id || process.env.DEFAULT_WORKSPACE_ID || '') || null;
+}
+
+async function createDraftContractSafely({ supabase, precontract, token }) {
+  const payload = {
+    precontract_id: precontract.id,
+    public_token: precontract.public_token || token,
+    status: 'client_filling',
+    contact_id: precontract.contact_id || null,
+    event_id: precontract.event_id || null,
+    workspace_id: getWorkspaceIdFromPrecontract(precontract),
+  };
+
+  const attempts = [
+    payload,
+    { ...payload, status: 'draft' },
+  ];
+
+  let lastError = null;
+  for (const attempt of attempts) {
+    const response = await supabase.from('contracts').insert(attempt).select('*').single();
+    if (!response.error && response.data) return response.data;
+    lastError = response.error;
+  }
+
+  throw lastError || new Error('Não foi possível criar rascunho do contrato.');
 }
 
 export async function GET(_request, context) {
@@ -109,12 +143,25 @@ export async function GET(_request, context) {
   if (!token) return NextResponse.json({ ok: false, message: 'Token inválido.' }, { status: 400 });
   try {
     const supabase = getSupabaseAdmin();
-    await logWorkspaceContext(supabase, 'public_contract_draft_get');
     const { precontract, contract, contact, event } = await loadContext(token, supabase);
     if (!precontract?.id) return NextResponse.json({ ok: false, message: 'Contrato não encontrado.' }, { status: 404 });
+    if (isPrecontractExpiredStatus(precontract)) {
+      return NextResponse.json({ ok: false, expired: true, message: PRECONTRACT_EXPIRED_MESSAGE }, { status: 410 });
+    }
     const clientForm = contract?.raw_payload?.client_form || {};
-    return NextResponse.json({ ok: true, initial_form: buildInitialForm({ precontract, contact, event, clientForm }), contract_status: contract?.status || null });
+    return NextResponse.json({
+      ok: true,
+      initial_form: buildInitialForm({ precontract, contact, event, clientForm }),
+      contract_status: contract?.status || null,
+    });
   } catch (error) {
+    console.error('[PUBLIC_CONTRACT_DRAFT][GET][ERROR]', {
+      token,
+      message: error?.message,
+      code: error?.code,
+      details: error?.details,
+      hint: error?.hint,
+    });
     return NextResponse.json({ ok: false, message: error?.message || 'Erro ao carregar draft.' }, { status: 500 });
   }
 }
@@ -127,25 +174,16 @@ export async function PATCH(request, context) {
     const body = await request.json().catch(() => ({}));
     const input = normalizeDraftInput(body?.form || body || {});
     const supabase = getSupabaseAdmin();
-    const workspaceContext = await logWorkspaceContext(supabase, 'public_contract_draft_patch');
     const { precontract, contract } = await loadContext(token, supabase);
     if (!precontract?.id) return NextResponse.json({ ok: false, message: 'Contrato não encontrado.' }, { status: 404 });
+    if (isPrecontractExpiredStatus(precontract)) {
+      return NextResponse.json({ ok: false, expired: true, message: PRECONTRACT_EXPIRED_MESSAGE }, { status: 410 });
+    }
     if (contract?.status === 'signed') return NextResponse.json({ ok: true, skipped: true });
 
     let current = contract;
     if (!current?.id) {
-      const inserted = await supabase
-        .from('contracts')
-        .insert({
-          precontract_id: precontract.id,
-          public_token: precontract.public_token || token,
-          status: 'client_filling',
-          workspace_id: precontract.workspace_id || workspaceContext.workspaceId,
-        })
-        .select('*')
-        .single();
-      if (inserted.error) throw inserted.error;
-      current = inserted.data;
+      current = await createDraftContractSafely({ supabase, precontract, token });
     }
 
     const mergedClientForm = { ...(current?.raw_payload?.client_form || {}), ...input };
@@ -161,6 +199,13 @@ export async function PATCH(request, context) {
 
     return NextResponse.json({ ok: true, saved_at: rawPayload.client_form_saved_at });
   } catch (error) {
+    console.error('[PUBLIC_CONTRACT_DRAFT][PATCH][ERROR]', {
+      token,
+      message: error?.message,
+      code: error?.code,
+      details: error?.details,
+      hint: error?.hint,
+    });
     return NextResponse.json({ ok: false, message: error?.message || 'Erro ao salvar draft.' }, { status: 500 });
   }
 }

@@ -28,11 +28,9 @@ function pickPrecontract(precontract) {
     public_token: precontract.public_token || null,
     generated_link: precontract.generated_link || null,
     status: precontract.status || null,
-
     client_name: precontract.client_name || null,
     client_email: precontract.client_email || null,
     client_phone: precontract.client_phone || null,
-
     event_type: precontract.event_type || null,
     event_type_id: precontract.event_type_id || null,
     event_date: precontract.event_date || null,
@@ -40,16 +38,13 @@ function pickPrecontract(precontract) {
     duration_min: precontract.duration_min ?? null,
     location_name: precontract.location_name || null,
     location_address: precontract.location_address || null,
-
     formation: precontract.formation || null,
     instruments: precontract.instruments || null,
     reception_formation: precontract.reception_formation || null,
     reception_instruments: precontract.reception_instruments || null,
-
     has_sound: precontract.has_sound === true,
     reception_hours: precontract.reception_hours ?? 0,
     has_transport: precontract.has_transport === true,
-
     base_amount: precontract.base_amount ?? null,
     add_reception: precontract.add_reception ?? null,
     add_sound: precontract.add_sound ?? null,
@@ -63,11 +58,9 @@ function pickPrecontract(precontract) {
     balance_due_date: precontract.balance_due_date || null,
     card_due_date: precontract.card_due_date || null,
     payment_card: precontract.payment_card === true,
-
     notes: precontract.notes || null,
     event_id: precontract.event_id || null,
     contact_id: precontract.contact_id || null,
-
     contract_mode: precontract.contract_mode || null,
     contract_template_id: precontract.contract_template_id || null,
     custom_contract_enabled: precontract.custom_contract_enabled === true,
@@ -120,7 +113,8 @@ function pickContact(contact) {
     cpf_cnpj: contact.cpf_cnpj || null,
     notes: contact.notes || null,
   };
-}\n
+}
+
 function pickEvent(event) {
   if (!event) return null;
 
@@ -130,14 +124,12 @@ function pickEvent(event) {
     contact_id: event.contact_id || null,
     client_contact_id: event.client_contact_id || null,
     client_name: event.client_name || null,
-
     event_type: event.event_type || null,
     event_date: event.event_date || null,
     event_time: event.event_time || null,
     duration_min: event.duration_min ?? null,
     location_name: event.location_name || null,
     location_address: event.location_address || null,
-
     agreed_amount: event.agreed_amount ?? null,
     formation: event.formation || null,
     instruments: event.instruments || null,
@@ -146,7 +138,6 @@ function pickEvent(event) {
     has_sound: event.has_sound === true,
     reception_hours: event.reception_hours ?? 0,
     has_transport: event.has_transport === true,
-
     signal_due_date: event.signal_due_date || null,
     balance_due_date: event.balance_due_date || null,
     card_due_date: event.card_due_date || null,
@@ -205,28 +196,14 @@ export async function GET(_request, context) {
 
     let contact = null;
     if (contactId) {
-      const { data, error } = await supabase
-        .from('contacts')
-        .select('*')
-        .eq('id', contactId)
-        .maybeSingle();
-
-      if (!error) {
-        contact = data || null;
-      }
+      const { data, error } = await supabase.from('contacts').select('*').eq('id', contactId).maybeSingle();
+      if (!error) contact = data || null;
     }
 
     let event = null;
     if (eventId) {
-      const { data, error } = await supabase
-        .from('events')
-        .select('*')
-        .eq('id', eventId)
-        .maybeSingle();
-
-      if (!error) {
-        event = data || null;
-      }
+      const { data, error } = await supabase.from('events').select('*').eq('id', eventId).maybeSingle();
+      if (!error) event = data || null;
     }
 
     const contractState = pickContract(contract);

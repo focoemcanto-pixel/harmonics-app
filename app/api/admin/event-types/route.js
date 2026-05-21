@@ -35,7 +35,7 @@ function isPrimaryHarmonicsWorkspace(workspace) {
   return candidates.some((item) => DEFAULT_WORKSPACE_SLUGS.has(item) || item.includes('harmonics'));
 }
 
-function buildLegacyEventTypes(workspaceId) {
+function buildLegacyEventTypes(workspaceId, templates = []) {
   const now = new Date().toISOString();
   return LEGACY_HARMONICS_EVENT_TYPES.map((item, index) => ({
     id: `legacy-${item.slug}`,
@@ -47,11 +47,67 @@ function buildLegacyEventTypes(workspaceId) {
     sort_order: item.sort_order ?? index,
     color: item.color || null,
     icon: item.icon || null,
-    default_contract_template_id: null,
+    default_contract_template_id: inferTemplateForEventType(item, templates)?.id || null,
     created_at: now,
     updated_at: now,
     legacy_fallback: true,
   }));
+}
+
+
+function normalizeLegacyComparable(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .trim()
+    .toLowerCase();
+}
+
+function inferTemplateForEventType(eventType, templates) {
+  const eventName = normalizeLegacyComparable(eventType?.name || eventType?.slug);
+  if (!eventName) return null;
+
+  const ranked = (templates || []).map((template) => {
+    const name = normalizeLegacyComparable(template?.name);
+    const slug = normalizeLegacyComparable(template?.slug);
+    let score = 0;
+    if (name === eventName || slug === eventName) score += 100;
+    if (name.includes(eventName) || slug.includes(eventName)) score += 40;
+    if (eventName.includes(name) || eventName.includes(slug)) score += 20;
+    if (template?.is_default === true) score += 5;
+    return { template, score };
+  }).filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  return ranked[0]?.template || null;
+}
+
+async function listWorkspaceTemplates(supabaseAdmin, workspaceId) {
+  const scoped = await supabaseAdmin
+    .from('contract_templates')
+    .select('id, workspace_id, name, slug, is_active, is_default')
+    .or(`workspace_id.eq.${workspaceId},workspace_id.is.null`)
+    .eq('is_active', true)
+    .order('is_default', { ascending: false })
+    .order('updated_at', { ascending: false, nullsFirst: false })
+    .order('created_at', { ascending: false });
+
+  if (!scoped.error) return scoped.data || [];
+
+  const message = String(scoped.error?.message || scoped.error?.details || '').toLowerCase();
+  const missingWorkspaceColumn = message.includes('workspace_id') && (message.includes('does not exist') || message.includes('could not find'));
+  if (!missingWorkspaceColumn) throw scoped.error;
+
+  const legacy = await supabaseAdmin
+    .from('contract_templates')
+    .select('id, name, slug, is_active, is_default')
+    .eq('is_active', true)
+    .order('is_default', { ascending: false })
+    .order('updated_at', { ascending: false, nullsFirst: false })
+    .order('created_at', { ascending: false });
+
+  if (legacy.error) throw legacy.error;
+  return legacy.data || [];
 }
 
 function workspaceSlugSuffix(workspaceId) {
@@ -75,7 +131,7 @@ async function assertTemplateBelongsToWorkspace(supabaseAdmin, templateId, works
     .from('contract_templates')
     .select('id')
     .eq('id', id)
-    .eq('workspace_id', workspaceId)
+    .or(`workspace_id.eq.${workspaceId},workspace_id.is.null`)
     .maybeSingle();
 
   if (error) throw error;
@@ -108,7 +164,11 @@ export async function GET(request) {
     return NextResponse.json({ ok: false, error: auth.error }, { status: auth.status || 401 });
   }
 
+  let templates = [];
+
   try {
+    templates = await listWorkspaceTemplates(supabaseAdmin, auth.workspaceId);
+
     const { data, error } = await supabaseAdmin
       .from('event_types')
       .select(SELECT_FIELDS)
@@ -122,7 +182,7 @@ export async function GET(request) {
     if (eventTypes.length === 0 && isPrimaryHarmonicsWorkspace(auth.workspace)) {
       return NextResponse.json({
         ok: true,
-        eventTypes: buildLegacyEventTypes(auth.workspaceId),
+        eventTypes: buildLegacyEventTypes(auth.workspaceId, templates),
         workspaceId: auth.workspaceId,
         source: 'legacy_harmonics_fallback',
       });
@@ -139,7 +199,7 @@ export async function GET(request) {
     if (isPrimaryHarmonicsWorkspace(auth.workspace)) {
       return NextResponse.json({
         ok: true,
-        eventTypes: buildLegacyEventTypes(auth.workspaceId),
+        eventTypes: buildLegacyEventTypes(auth.workspaceId, templates),
         workspaceId: auth.workspaceId,
         source: 'legacy_harmonics_fallback_after_error',
         warning: error?.message || 'event_types indisponível',

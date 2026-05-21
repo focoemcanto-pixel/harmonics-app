@@ -14,6 +14,7 @@ const ITEMS = [
   ['Convites', '/convites'],
   ['Escalas', '/escalas'],
   ['Contratos', '/contratos'],
+  ['Templates de contrato', '/contratos/templates'],
   ['Repertórios', '/repertorios'],
   ['Sugestões', '/sugestoes'],
   ['Automação', '/automacoes'],

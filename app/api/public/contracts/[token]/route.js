@@ -23,6 +23,7 @@ function pickPrecontract(precontract) {
 
   return {
     id: precontract.id,
+    workspace_id: precontract.workspace_id || null,
     created_at: precontract.created_at || null,
     public_token: precontract.public_token || null,
     generated_link: precontract.generated_link || null,
@@ -85,6 +86,7 @@ function pickContract(contract) {
 
   return {
     id: contract.id,
+    workspace_id: contract.workspace_id || null,
     precontract_id: contract.precontract_id || null,
     public_token: contract.public_token || null,
     status: contract.status || null,
@@ -118,13 +120,13 @@ function pickContact(contact) {
     cpf_cnpj: contact.cpf_cnpj || null,
     notes: contact.notes || null,
   };
-}
-
+}\n
 function pickEvent(event) {
   if (!event) return null;
 
   return {
     id: event.id,
+    workspace_id: event.workspace_id || null,
     contact_id: event.contact_id || null,
     client_contact_id: event.client_contact_id || null,
     client_name: event.client_name || null,
@@ -229,9 +231,7 @@ export async function GET(_request, context) {
 
     const contractState = pickContract(contract);
     const precontractState = pickPrecontract(precontract);
-    const isSigned =
-      contractState?.status === 'signed' ||
-      precontractState?.status === 'signed';
+    const isSigned = contractState?.status === 'signed' || precontractState?.status === 'signed';
 
     return NextResponse.json({
       ok: true,
@@ -253,10 +253,7 @@ export async function GET(_request, context) {
     });
   } catch (error) {
     return NextResponse.json(
-      {
-        ok: false,
-        message: error?.message || 'Erro ao buscar contrato público.',
-      },
+      { ok: false, message: error?.message || 'Erro ao buscar contrato público.' },
       { status: 500 }
     );
   }

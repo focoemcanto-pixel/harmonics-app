@@ -6,13 +6,13 @@ import { getSupabase } from '@/lib/supabase';
 export default function FreshWorkspaceStartGuide() {
   const router = useRouter();
 
-  async function enableOnboardingFlow() {
+async function enableOnboardingFlow() {
     try {
       const supabase = getSupabase();
       const { data } = await supabase.auth.getSession();
       const token = data?.session?.access_token || null;
 
-      await fetch('/api/onboarding/flow-status', {
+      const response = await fetch('/api/onboarding/flow-status', {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -25,14 +25,28 @@ export default function FreshWorkspaceStartGuide() {
           },
         }),
       }).catch(() => null);
+
+      if (!response?.ok) return '/contratos/templates?guide=template';
+      const payload = await response.json().catch(() => null);
+      return payload?.nextHref || '/contratos/templates?guide=template';
     } catch {
       // O guia manual por query string continua funcionando mesmo se o PATCH falhar.
+      return '/contratos/templates?guide=template';
     }
   }
 
+  async function skipGuide() {
+    await fetch('/api/onboarding/flow-status', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ flowState: { skipped: true, onboarding_skipped: true }, completed: true }),
+    }).catch(() => null);
+    router.push('/dashboard');
+  }
+
   async function handleStart() {
-    await enableOnboardingFlow();
-    router.push('/contratos/templates?guide=template');
+    const nextHref = await enableOnboardingFlow();
+    router.push(nextHref || '/contratos/templates?guide=template');
   }
 
   return (
@@ -51,6 +65,13 @@ export default function FreshWorkspaceStartGuide() {
         </p>
 
         <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick={skipGuide}
+            className="rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-black text-slate-700 transition hover:bg-slate-100"
+          >
+            Pular guia
+          </button>
           <button
             type="button"
             onClick={handleStart}

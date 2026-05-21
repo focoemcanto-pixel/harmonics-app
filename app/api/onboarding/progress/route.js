@@ -328,15 +328,23 @@ export async function PATCH(request) {
     const body = await request.json().catch(() => ({}));
 
     if (body?.skipOnboarding === true) {
-      await ensureProgressRow({
+      const existing = await ensureProgressRow({
         supabase,
         workspaceId: auth.workspaceId,
       });
+
+      const flowState = existing?.flow_state && typeof existing.flow_state === 'object' ? existing.flow_state : {};
 
       const { data: skipped, error: skipError } = await supabase
         .from('workspace_onboarding_progress')
         .update({
           ...ALL_DONE_PROGRESS,
+          flow_state: {
+            ...flowState,
+            skipped: true,
+            onboarding_skipped: true,
+            onboarding_enabled: false,
+          },
           completed_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })

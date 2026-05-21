@@ -845,8 +845,6 @@ function ClientPanelGuide({ data, activeTab, setActiveTab, setClientPanelGuideRe
     }
   }, [currentStep, setClientPanelGuideReady]);
 
-  if (!currentStep) return null;
-
   useEffect(() => {
     console.info('[CLIENT_PANEL_GUIDE_RENDER]', {
       guideEnabled: true,
@@ -5826,6 +5824,11 @@ export default function ClienteHome({ data, initialTab = 'inicio', guideQuery = 
   const resolvedActiveTab =
     isCustomEvent && activeTab === 'sugestoes' ? 'repertorio' : activeTab;
   const loading = !panelData;
+  const isClientPanelOnboarding = useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    const params = new URLSearchParams(window.location.search || '');
+    return params.get('guide') === 'client-panel' || params.get('onboarding') === 'client-panel';
+  }, []);
   useEffect(() => {
     if (initialTab && initialTab !== 'inicio') {
       setActiveTab(initialTab);
@@ -5933,6 +5936,7 @@ export default function ClienteHome({ data, initialTab = 'inicio', guideQuery = 
   );
 
   const shouldShowRepertoire15DaysAlert =
+    !isClientPanelOnboarding &&
     !dismissedRepertoireAlert &&
     daysToEvent !== null &&
     daysToEvent <= 15 &&
@@ -5942,13 +5946,12 @@ export default function ClienteHome({ data, initialTab = 'inicio', guideQuery = 
     );
 
   useEffect(() => {
-    const guide = new URLSearchParams(window.location.search).get('guide');
-    if (guide === 'client-panel') {
+    if (isClientPanelOnboarding) {
       const timer = window.setTimeout(() => setClientPanelGuideEnabled(true), 0);
       return () => window.clearTimeout(timer);
     }
     return undefined;
-  }, []);
+  }, [isClientPanelOnboarding]);
 
   useEffect(() => {
     if (!loading && clientPanelGuideEnabled) {
@@ -5980,7 +5983,7 @@ export default function ClienteHome({ data, initialTab = 'inicio', guideQuery = 
   }, [activeTab, clientPanelGuideEnabled, clientPanelGuideReady, guideQuery, loading, panelData, resolvedActiveTab]);
 
   useEffect(() => {
-    if (!shouldShowRepertoire15DaysAlert || !panelData?.token) return;
+    if (isClientPanelOnboarding || !shouldShowRepertoire15DaysAlert || !panelData?.token) return;
     if (DISABLE_REPERTOIRE_ALERT_DEBUG) {
       debugClientHome(
         '[CLIENTE HOME][DEBUG] Automação /api/cliente/alertas/repertorio-pendente desabilitada por NEXT_PUBLIC_DISABLE_REPERTOIRE_ALERT_DEBUG=1.'
@@ -5995,7 +5998,7 @@ export default function ClienteHome({ data, initialTab = 'inicio', guideQuery = 
     }).catch((error) => {
       console.error('[CLIENTE HOME] Falha ao disparar automação de alerta de repertório:', error);
     });
-  }, [panelData?.token, shouldShowRepertoire15DaysAlert]);
+  }, [isClientPanelOnboarding, panelData?.token, shouldShowRepertoire15DaysAlert]);
 
   if (!panelData) {
     return <ClienteLoadingScreen />;

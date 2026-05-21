@@ -54,10 +54,7 @@ function normalizeInstruments(value = '') {
     .replace(/\bvocalista\b/g, 'voz')
     .replace(/\bcantor(?:a)?\b/g, 'voz');
 
-  const items = normalized
-    .split(/\s*,\s*|\s+e\s+/i)
-    .map((item) => item.trim())
-    .filter(Boolean);
+  const items = normalized.split(/\s*,\s*|\s+e\s+/i).map((item) => item.trim()).filter(Boolean);
   const unique = Array.from(new Set(items));
   if (unique.length === 0) return '';
   const pretty = unique.map((item) => item.charAt(0).toUpperCase() + item.slice(1));
@@ -66,10 +63,7 @@ function normalizeInstruments(value = '') {
 }
 
 function inferFormationFromInstruments(value = '') {
-  const count = String(value || '')
-    .split(/\s*,\s*|\s+e\s+/i)
-    .map((item) => item.trim())
-    .filter(Boolean).length;
+  const count = String(value || '').split(/\s*,\s*|\s+e\s+/i).map((item) => item.trim()).filter(Boolean).length;
   if (count === 1) return 'Solo';
   if (count === 2) return 'Duo';
   if (count === 3) return 'Trio';
@@ -97,10 +91,7 @@ function splitAddressAndVenue(rawAddress = '') {
   if (!value) return { location_name: '', location_address: '' };
   const parts = value.split(/\s+-\s+/).map((part) => part.trim()).filter(Boolean);
   if (parts.length >= 2) {
-    return {
-      location_address: parts.slice(0, -1).join(' - '),
-      location_name: parts[parts.length - 1],
-    };
+    return { location_address: parts.slice(0, -1).join(' - '), location_name: parts[parts.length - 1] };
   }
   return { location_name: '', location_address: value };
 }
@@ -115,22 +106,14 @@ function regexExtract(text = '') {
   const dateTime = objectBlock.match(/(?:dia\s*)?(\d{2}\/\d{2}\/\d{4})[^\d]{1,40}(?:às|as|hor[aá]rio|hora)?\s*(\d{1,2}:\d{2})/i);
   const addressRaw = findField(objectBlock, /endere[cç]o\s*:?\s*([\s\S]*?)(?:\.\s|mais\s+\d+\s*hrs?|dura[cç][aã]o|som|valor|$)/i);
   const address = splitAddressAndVenue(addressRaw);
-  const instrumentsRaw =
-    findField(objectBlock, /instrumentistas?\s*\((.*?)\)/i) ||
-    findField(objectBlock, /instrumentos?\s*[:\-]\s*([^.;\n]+)/i) ||
-    findField(objectBlock, /forma[cç][aã]o\s*[:\-]\s*([^.;\n]+)/i);
+  const instrumentsRaw = findField(objectBlock, /instrumentistas?\s*\((.*?)\)/i) || findField(objectBlock, /instrumentos?\s*[:\-]\s*([^.;\n]+)/i) || findField(objectBlock, /forma[cç][aã]o\s*[:\-]\s*([^.;\n]+)/i);
   const instruments = normalizeInstruments(instrumentsRaw);
   const formationRaw = findField(lowerObject, /(solo|duo|trio|quarteto|quinteto|sexteto)/i);
   const formation = formationRaw ? formationRaw.charAt(0).toUpperCase() + formationRaw.slice(1) : inferFormationFromInstruments(instruments);
-
-  const eventTypeRaw =
-    findField(objectBlock, /(?:evento|cerim[oô]nia|contrata[cç][aã]o)\s+de\s+([a-zà-úç ]{3,40})/i) ||
-    findField(objectBlock, /em\s+um\s+([a-zà-úç ]{3,40})\s+que\s+ser[aá]/i);
+  const eventTypeRaw = findField(objectBlock, /(?:evento|cerim[oô]nia|contrata[cç][aã]o)\s+de\s+([a-zà-úç ]{3,40})/i) || findField(objectBlock, /em\s+um\s+([a-zà-úç ]{3,40})\s+que\s+ser[aá]/i);
 
   return {
-    client_name:
-      findField(textBeforeContractor, /CONTRATANTE:\s*([^,\n]+)/i) ||
-      findField(textBeforeContractor, /(?:cliente|contratante)\s*[:\-]\s*([^,\n]+)/i),
+    client_name: findField(textBeforeContractor, /CONTRATANTE:\s*([^,\n]+)/i) || findField(textBeforeContractor, /(?:cliente|contratante)\s*[:\-]\s*([^,\n]+)/i),
     whatsapp_phone: findField(rawText, /(?:whatsapp|telefone|celular)\s*[:\-]?\s*([+\d()\s.-]{8,})/i),
     event_type: asString(eventTypeRaw).split(/\s+que\s+/i)[0],
     event_date: toIsoDate(dateTime?.[1] || findField(objectBlock, /(\d{2}\/\d{2}\/\d{4})/i)),
@@ -151,9 +134,7 @@ function regexExtract(text = '') {
 function mergeData(primary = {}, fallback = {}) {
   const merged = { ...fallback, ...primary };
   Object.keys(fallback || {}).forEach((key) => {
-    if (merged[key] === undefined || merged[key] === null || String(merged[key]).trim() === '') {
-      merged[key] = fallback[key];
-    }
+    if (merged[key] === undefined || merged[key] === null || String(merged[key]).trim() === '') merged[key] = fallback[key];
   });
   if (merged.event_date) merged.event_date = toIsoDate(merged.event_date);
   if (merged.instruments) merged.instruments = normalizeInstruments(merged.instruments);
@@ -176,45 +157,22 @@ function validateMinimum(data = {}) {
 }
 
 function getEssentialMissingFields(data = {}) {
-  return ['client_name', 'event_type', 'event_date', 'event_time', 'location_name', 'location_address', 'formation', 'instruments', 'agreed_amount']
-    .filter((field) => !asString(data[field]));
+  return ['client_name', 'event_type', 'event_date', 'event_time', 'location_name', 'location_address', 'formation', 'instruments', 'agreed_amount'].filter((field) => !asString(data[field]));
 }
 
 async function extractPdfTextWithContractService(file) {
-  const contractServiceUrl = String(
-    process.env.CONTRACT_SERVICE_URL ||
-    process.env.NEXT_PUBLIC_CONTRACT_SERVICE_URL ||
-    process.env.CONTRACT_SERVICE_BASE_URL ||
-    ''
-  ).trim();
+  const contractServiceUrl = String(process.env.CONTRACT_SERVICE_URL || process.env.NEXT_PUBLIC_CONTRACT_SERVICE_URL || process.env.CONTRACT_SERVICE_BASE_URL || '').trim();
   const contractServiceApiKey = String(process.env.CONTRACT_SERVICE_API_KEY || '').trim();
-
-  if (!contractServiceUrl) {
-    const error = new Error('Serviço de leitura de PDF não configurado. Preencha manualmente ou configure CONTRACT_SERVICE_URL.');
-    error.status = 200;
-    throw error;
-  }
+  if (!contractServiceUrl) throw new Error('Serviço de leitura de PDF não configurado. Preencha manualmente ou configure CONTRACT_SERVICE_URL.');
 
   const endpoint = `${contractServiceUrl.replace(/\/+$/, '')}/api/contracts/extract-pdf-text`;
   const formData = new FormData();
   formData.append('file', file);
-
   const headers = contractServiceApiKey ? { 'x-api-key': contractServiceApiKey } : undefined;
 
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers,
-    body: formData,
-    cache: 'no-store',
-  });
-
+  const response = await fetch(endpoint, { method: 'POST', headers, body: formData, cache: 'no-store' });
   const payload = await response.json().catch(() => null);
-  if (!response.ok || !payload?.ok || !payload?.text) {
-    const error = new Error(payload?.message || payload?.error || 'Não foi possível ler o texto do PDF.');
-    error.status = response.status || 502;
-    throw error;
-  }
-
+  if (!response.ok || !payload?.ok || !payload?.text) throw new Error(payload?.message || payload?.error || 'Não foi possível ler o texto do PDF.');
   return asString(payload.text);
 }
 
@@ -223,27 +181,11 @@ async function extractDataFromPdf(file) {
   try {
     text = await extractPdfTextWithContractService(file);
   } catch (error) {
-    return {
-      ok: true,
-      extractedData: {},
-      missingFields: validateMinimum({}),
-      extractionConfidence: 0,
-      extractionStatus: 'manual_required',
-      warning: error?.message || 'Não foi possível extrair automaticamente. Preencha manualmente.',
-      extractionMethod: 'manual_fallback',
-    };
+    return { ok: true, extractedData: {}, missingFields: validateMinimum({}), extractionConfidence: 0, extractionStatus: 'manual_required', warning: error?.message || 'Não foi possível extrair automaticamente. Preencha manualmente.', extractionMethod: 'manual_fallback' };
   }
 
   if (!text || text.length < 80) {
-    return {
-      ok: true,
-      extractedData: {},
-      missingFields: validateMinimum({}),
-      extractionConfidence: 0,
-      extractionStatus: 'manual_required',
-      warning: 'Não foi possível identificar texto suficiente no PDF. Preencha manualmente.',
-      extractionMethod: 'manual_fallback',
-    };
+    return { ok: true, extractedData: {}, missingFields: validateMinimum({}), extractionConfidence: 0, extractionStatus: 'manual_required', warning: 'Não foi possível identificar texto suficiente no PDF. Preencha manualmente.', extractionMethod: 'manual_fallback' };
   }
 
   const regexData = regexExtract(text);
@@ -266,26 +208,11 @@ async function extractDataFromPdf(file) {
   const filledCount = Object.values(finalData).filter((value) => typeof value === 'boolean' ? value : asString(value)).length;
   const extractionConfidence = missingFields.length === 0 ? 95 : missingFields.length <= 2 ? 82 : 60;
 
-  return {
-    ok: true,
-    extractedData: finalData,
-    missingFields,
-    extractionConfidence,
-    confidence: extractionConfidence,
-    extractionStatus: filledCount === 0 ? 'manual_required' : missingFields.length <= 2 ? 'auto' : 'partial',
-    extractionMethod: aiUsed ? 'ai_assisted' : 'regex',
-    aiUsed,
-    aiModel,
-    warning: missingFields.length ? 'Revise e complete os campos antes de criar o evento.' : null,
-  };
+  return { ok: true, extractedData: finalData, missingFields, extractionConfidence, confidence: extractionConfidence, extractionStatus: filledCount === 0 ? 'manual_required' : missingFields.length <= 2 ? 'auto' : 'partial', extractionMethod: aiUsed ? 'ai_assisted' : 'regex', aiUsed, aiModel, warning: missingFields.length ? 'Revise e complete os campos antes de criar o evento.' : null };
 }
 
 function parseReviewedData(form) {
-  try {
-    return JSON.parse(String(form.get('reviewedData') || '{}')) || {};
-  } catch {
-    return {};
-  }
+  try { return JSON.parse(String(form.get('reviewedData') || '{}')) || {}; } catch { return {}; }
 }
 
 function buildEventPayload({ normalized, agreedAmount, workspaceId }) {
@@ -316,65 +243,46 @@ function buildEventPayload({ normalized, agreedAmount, workspaceId }) {
 
 export async function POST(request) {
   const supabase = getSupabaseAdmin();
-
   try {
-    const auth = await requireWorkspaceAdmin({
-      supabase,
-      request,
-      logPrefix: '[IMPORT_FROM_CONTRACT_API]',
-    });
-    if (!auth.ok) {
-      return NextResponse.json({ ok: false, error: auth.error }, { status: auth.status || 401 });
+    const auth = await requireWorkspaceAdmin({ supabase, request, logPrefix: '[IMPORT_FROM_CONTRACT_API]' });
+    if (!auth.ok) return NextResponse.json({ ok: false, error: auth.error }, { status: auth.status || 401 });
+
+    const workspaceId = asString(auth.workspaceId);
+    if (!workspaceId) {
+      return NextResponse.json({ ok: false, error: 'Workspace ativo não resolvido. Saia da conta, entre novamente e tente outra vez.' }, { status: 403 });
     }
 
     const form = await request.formData();
     const file = form.get('file');
     const mode = asString(form.get('mode') || 'extract');
 
-    if (!file || typeof file === 'string') {
-      return NextResponse.json({ ok: false, error: 'Arquivo PDF é obrigatório.' }, { status: 400 });
-    }
-    if (file.type !== 'application/pdf') {
-      return NextResponse.json({ ok: false, error: 'Apenas PDF (application/pdf) é aceito.' }, { status: 400 });
-    }
-    if (file.size > MAX_PDF_SIZE_BYTES) {
-      return NextResponse.json({ ok: false, error: 'PDF excede o limite de 15MB.' }, { status: 400 });
-    }
+    if (!file || typeof file === 'string') return NextResponse.json({ ok: false, error: 'Arquivo PDF é obrigatório.' }, { status: 400 });
+    const fileName = asString(file.name).toLowerCase();
+    const fileType = asString(file.type).toLowerCase();
+    const looksLikePdf = fileType === 'application/pdf' || fileName.endsWith('.pdf') || fileType === 'application/octet-stream';
+    if (!looksLikePdf) return NextResponse.json({ ok: false, error: 'Apenas PDF é aceito.' }, { status: 400 });
+    if (file.size > MAX_PDF_SIZE_BYTES) return NextResponse.json({ ok: false, error: 'PDF excede o limite de 15MB.' }, { status: 400 });
 
-    if (mode === 'extract') {
-      const result = await extractDataFromPdf(file);
-      return NextResponse.json(result);
-    }
+    if (mode === 'extract') return NextResponse.json(await extractDataFromPdf(file));
 
     const reviewedData = parseReviewedData(form);
     const normalized = mergeData(reviewedData, {});
     const missing = validateMinimum(normalized);
-    if (missing.length) {
-      return NextResponse.json(
-        { ok: false, error: 'Campos mínimos obrigatórios não confirmados.', missingFields: missing },
-        { status: 400 }
-      );
-    }
+    if (missing.length) return NextResponse.json({ ok: false, error: 'Campos mínimos obrigatórios não confirmados.', missingFields: missing }, { status: 400 });
 
     const agreedAmount = parseMoney(normalized.agreed_amount);
-    const { data: event, error: eventError } = await supabase
-      .from('events')
-      .insert(buildEventPayload({ normalized, agreedAmount, workspaceId: auth.workspaceId }))
-      .select('id, client_contact_id, event_date')
-      .single();
+    const eventPayload = buildEventPayload({ normalized, agreedAmount, workspaceId });
 
+    console.info('[IMPORT_FROM_CONTRACT_API][CREATE_EVENT]', { workspaceId, client: eventPayload.client_name, eventDate: eventPayload.event_date });
+
+    const { data: event, error: eventError } = await supabase.from('events').insert(eventPayload).select('id, client_contact_id, event_date, workspace_id').single();
     if (eventError) throw eventError;
 
-    const paymentScheduleResult = await createDefaultPaymentScheduleForEvent({
-      supabase,
-      eventId: event.id,
-      agreedAmount,
-      eventDate: event.event_date || normalized.event_date || null,
-    });
+    const paymentScheduleResult = await createDefaultPaymentScheduleForEvent({ supabase, eventId: event.id, agreedAmount, eventDate: event.event_date || normalized.event_date || null });
 
     const result = await saveExternalContractForEvent({
       supabase,
-      workspaceId: auth.workspaceId,
+      workspaceId,
       eventId: event.id,
       file,
       contactId: event.client_contact_id,
@@ -389,28 +297,10 @@ export async function POST(request) {
       },
     });
 
-    return NextResponse.json({
-      ok: true,
-      eventId: event.id,
-      contractId: result.contract.id,
-      pdfUrl: result.pdfUrl,
-      contractPdfUrl: result.pdfUrl,
-      clientPanelLink: result.clientPanelLink,
-      externalContract: true,
-      signedOutsideApp: true,
-    });
+    return NextResponse.json({ ok: true, eventId: event.id, contractId: result.contract.id, pdfUrl: result.pdfUrl, contractPdfUrl: result.pdfUrl, clientPanelLink: result.clientPanelLink, externalContract: true, signedOutsideApp: true });
   } catch (error) {
-    console.error('[IMPORT_FROM_CONTRACT_API][ERROR]', {
-      message: error?.message,
-      code: error?.code,
-      details: error?.details,
-      hint: error?.hint,
-      status: error?.status,
-    });
+    console.error('[IMPORT_FROM_CONTRACT_API][ERROR]', { message: error?.message, code: error?.code, details: error?.details, hint: error?.hint, status: error?.status });
     await sendAdminWhatsAppAlert(`🚨 Erro crítico em import-from-contract: ${error?.message || 'erro desconhecido'}`).catch(() => null);
-    return NextResponse.json(
-      { ok: false, error: error?.message || 'Falha no fluxo de importação.' },
-      { status: error?.status && error.status >= 400 ? error.status : 500 }
-    );
+    return NextResponse.json({ ok: false, error: error?.message || 'Falha no fluxo de importação.' }, { status: error?.status && error.status >= 400 ? error.status : 500 });
   }
 }

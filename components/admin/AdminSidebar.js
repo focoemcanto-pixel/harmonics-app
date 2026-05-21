@@ -9,18 +9,26 @@ import useCurrentWorkspace from '@/hooks/useCurrentWorkspace';
 const ITEMS = [
   ['Dashboard', '/dashboard'],
   ['Eventos', '/eventos'],
-  ['Tipos de evento', '/eventos/tipos'],
   ['Contatos', '/contatos'],
   ['Convites', '/convites'],
   ['Escalas', '/escalas'],
   ['Contratos', '/contratos'],
-  ['Templates de contrato', '/contratos/templates'],
   ['Repertórios', '/repertorios'],
   ['Sugestões', '/sugestoes'],
   ['Automação', '/automacoes'],
   ['Avaliações', '/avaliacoes'],
   ['Pagamentos', '/pagamentos'],
   ['Configurações', '/settings'],
+];
+
+const EVENTOS_ITEMS = [
+  ['Visão geral', '/eventos'],
+  ['Tipos de evento', '/eventos/tipos'],
+];
+
+const CONTRATOS_ITEMS = [
+  ['Visão geral', '/contratos'],
+  ['Templates de contrato', '/contratos/templates'],
 ];
 
 const SETTINGS_ITEMS = [
@@ -47,7 +55,29 @@ export default function AdminSidebar({ activeItem = 'dashboard' }) {
     }
   }
 
+  const eventosOpen = pathname === '/eventos' || pathname?.startsWith('/eventos/');
+  const contratosOpen = pathname === '/contratos' || pathname?.startsWith('/contratos/');
   const settingsOpen = pathname?.startsWith('/settings') || pathname?.startsWith('/configuracoes');
+
+  function renderSubItems(items) {
+    return (
+      <div className="ml-6 mt-1 space-y-1 border-l border-violet-400/30 pl-3">
+        {items.map(([subLabel, subHref]) => (
+          <Link
+            key={subHref}
+            href={subHref}
+            className={`block rounded-lg px-3 py-1.5 text-[13px] font-semibold ${
+              pathname === subHref
+                ? 'bg-violet-200/20 text-violet-200'
+                : 'text-[#a5b4fc] hover:text-white'
+            }`}
+          >
+            {subLabel}
+          </Link>
+        ))}
+      </div>
+    );
+  }
 
   return (
     <aside className="sticky top-0 flex min-h-screen w-[280px] shrink-0 flex-col bg-[#020b2c] px-5 py-6 text-white">
@@ -68,7 +98,11 @@ export default function AdminSidebar({ activeItem = 'dashboard' }) {
 
       <nav className="mt-8 space-y-2">
         {ITEMS.map(([label, href]) => {
-          const active = pathname === href || (href === '/settings' && settingsOpen);
+          const active =
+            pathname === href ||
+            (href === '/eventos' && eventosOpen) ||
+            (href === '/contratos' && contratosOpen) ||
+            (href === '/settings' && settingsOpen);
 
           return (
             <div key={href}>
@@ -83,23 +117,9 @@ export default function AdminSidebar({ activeItem = 'dashboard' }) {
                 {label}
               </Link>
 
-              {href === '/settings' && settingsOpen && (
-                <div className="ml-6 mt-1 space-y-1 border-l border-violet-400/30 pl-3">
-                  {SETTINGS_ITEMS.map(([subLabel, subHref]) => (
-                    <Link
-                      key={subHref}
-                      href={subHref}
-                      className={`block rounded-lg px-3 py-1.5 text-[13px] font-semibold ${
-                        pathname === subHref
-                          ? 'bg-violet-200/20 text-violet-200'
-                          : 'text-[#a5b4fc] hover:text-white'
-                      }`}
-                    >
-                      {subLabel}
-                    </Link>
-                  ))}
-                </div>
-              )}
+              {href === '/eventos' && eventosOpen && renderSubItems(EVENTOS_ITEMS)}
+              {href === '/contratos' && contratosOpen && renderSubItems(CONTRATOS_ITEMS)}
+              {href === '/settings' && settingsOpen && renderSubItems(SETTINGS_ITEMS)}
             </div>
           );
         })}

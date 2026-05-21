@@ -7,6 +7,14 @@ export const runtime = 'nodejs';
 
 export async function GET(request) {
   try {
+
+    console.log('[WORKSPACE_CURRENT][AUTH_AUDIT]', {
+      hasAuthorizationHeader: Boolean(request?.headers?.get('authorization')),
+      cookieCount: request?.cookies?.getAll?.()?.length || 0,
+      hasSbAccessTokenCookie: Boolean(request?.cookies?.get?.('sb-access-token')?.value),
+      hasSbRefreshTokenCookie: Boolean(request?.cookies?.get?.('sb-refresh-token')?.value),
+    });
+
     const supabase = getSupabaseAdmin();
     const context = await getCurrentWorkspace({ supabase, request });
 

@@ -47,7 +47,11 @@ const ALLOWED_FLOW_STATE_KEYS = new Set([
   'demo_event_cleanup_completed',
   'onboarding_completed',
   'contract_template_completed',
+  'skipped',
+  'onboarding_skipped',
 ]);
+
+const HARMONICS_PRIMARY_WORKSPACE_ID = 'f36dcd9b-22a9-487a-bf2e-691d17bd6294';
 
 function isMissingColumnError(error) {
   const code = String(error?.code || '').toLowerCase();
@@ -57,6 +61,7 @@ function isMissingColumnError(error) {
 }
 
 function isPrimaryHarmonicsWorkspace(workspace) {
+  if (String(workspace?.id || '').trim() === HARMONICS_PRIMARY_WORKSPACE_ID) return true;
   const key = String(workspace?.key || '').trim().toLowerCase();
   const slug = String(workspace?.slug || '').trim().toLowerCase();
   const name = String(workspace?.name || '').trim().toLowerCase();
@@ -260,10 +265,12 @@ export async function GET(request) {
     const facts = await countFacts({ supabase, workspaceId: auth.workspaceId, progress });
     const primaryWorkspace = isPrimaryHarmonicsWorkspace(auth.workspace);
     const flowState = normalizeFlowState(progress?.flow_state);
+    const skipped = flowState.skipped === true || flowState.onboarding_skipped === true;
+    const completed = Boolean(progress?.completed_at || flowState.onboardingCompleted === true || flowState.onboarding_completed === true);
     const onboardingEnabled = primaryWorkspace
       ? false
       : Boolean(flowState.onboarding_enabled === true || flowState.workspace_created_for_onboarding === true);
-    const flow = buildFallbackFlow({ ...facts, onboardingEnabled });
+    const flow = buildFallbackFlow({ ...facts, onboardingEnabled, isComplete: completed });
 
     return NextResponse.json({
       ok: true,
@@ -272,6 +279,8 @@ export async function GET(request) {
       flow_state: flowState,
       onboardingEnabled,
       primaryWorkspace,
+      skipped: primaryWorkspace ? true : skipped,
+      completed: primaryWorkspace ? true : completed,
       ...facts,
       ...flow,
     });
@@ -313,10 +322,12 @@ export async function PATCH(request) {
     const updated = await updateProgressFlowState({ supabase, workspaceId: auth.workspaceId, progress, flowState: nextFlowState });
     const facts = await countFacts({ supabase, workspaceId: auth.workspaceId, progress: updated });
     const primaryWorkspace = isPrimaryHarmonicsWorkspace(auth.workspace);
+    const skipped = nextFlowState.skipped === true || nextFlowState.onboarding_skipped === true;
+    const completed = Boolean(updated?.completed_at || nextFlowState.onboardingCompleted === true || nextFlowState.onboarding_completed === true);
     const onboardingEnabled = primaryWorkspace ? false : nextFlowState.onboarding_enabled === true || nextFlowState.workspace_created_for_onboarding === true;
-    const flow = buildFallbackFlow({ ...facts, onboardingEnabled });
+    const flow = buildFallbackFlow({ ...facts, onboardingEnabled, isComplete: completed });
 
-    return NextResponse.json({ ok: true, workspaceId: auth.workspaceId, progress: updated, flow_state: nextFlowState, onboardingEnabled, primaryWorkspace, ...facts, ...flow });
+    return NextResponse.json({ ok: true, workspaceId: auth.workspaceId, progress: updated, flow_state: nextFlowState, onboardingEnabled, primaryWorkspace, skipped: primaryWorkspace ? true : skipped, completed: primaryWorkspace ? true : completed, ...facts, ...flow });
   } catch (error) {
     console.error('[ONBOARDING_FLOW_STATUS][PATCH][ERROR]', { message: error?.message, code: error?.code, details: error?.details });
     return NextResponse.json({ ok: false, error: error?.message || 'Erro ao atualizar status do onboarding.' }, { status: 500 });

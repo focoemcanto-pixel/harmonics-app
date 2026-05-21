@@ -10,6 +10,7 @@ const OnboardingFlowContext = createContext({
   loading: false,
   refresh: () => {},
 });
+const HARMONICS_PRIMARY_WORKSPACE_ID = 'f36dcd9b-22a9-487a-bf2e-691d17bd6294';
 
 function getGuideFromSearchParams(searchParams) {
   return normalizeOnboardingGuide(searchParams?.get('guide') || searchParams?.get('onboarding'));
@@ -59,9 +60,16 @@ export function OnboardingFlowProvider({ children }) {
   }, []);
 
   useEffect(() => {
-    if (!guide) return;
     void refresh();
-  }, [guide, pathname, refresh]);
+  }, [pathname, refresh]);
+
+  useEffect(() => {
+    if (guide || !status?.ok) return;
+    if (status.workspaceId === HARMONICS_PRIMARY_WORKSPACE_ID) return;
+    if (status.completed === true || status.skipped === true) return;
+    if (!status.nextHref || hasCompetingOnboarding?.()) return;
+    router.replace(status.nextHref);
+  }, [guide, hasCompetingOnboarding, router, status]);
 
   useEffect(() => {
     if (!guide || !status?.ok) return;

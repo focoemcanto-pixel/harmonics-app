@@ -116,6 +116,71 @@ function convertDateToBr(value) {
   return `${dd}/${mm}/${yyyy}`;
 }
 
+function buildContractPreviewSrcDoc(html) {
+  return `<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+  @page { size: A4; margin: 22mm 24mm; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: #eef2f7;
+    font-family: Arial, sans-serif;
+    color: #111827;
+  }
+  .page {
+    width: 210mm;
+    min-height: 297mm;
+    margin: 24px auto;
+    padding: 22mm 24mm;
+    background: #fff;
+    box-shadow: 0 18px 45px rgba(15,23,42,.18);
+    box-sizing: border-box;
+  }
+  * {
+    box-sizing: border-box;
+    color: #111827 !important;
+    opacity: 1 !important;
+    font-family: Arial, sans-serif !important;
+  }
+  body, p, div, span, li {
+    font-size: 11pt;
+    line-height: 1.35;
+  }
+  p { margin: 0 0 8px; }
+  h1 {
+    font-size: 18pt;
+    line-height: 1.15;
+    margin: 0 0 18px;
+    font-weight: 800;
+    text-transform: uppercase;
+  }
+  h2, h3 {
+    font-size: 12pt;
+    margin: 18px 0 8px;
+    font-weight: 800;
+    text-transform: uppercase;
+  }
+  strong, b { font-weight: 800; }
+  @media (max-width: 768px) {
+    .page {
+      width: calc(100vw - 32px);
+      min-height: auto;
+      margin: 12px auto;
+      padding: 22px;
+      box-shadow: 0 10px 30px rgba(15,23,42,.14);
+    }
+  }
+</style>
+</head>
+<body>
+  <main class="page">${html || ''}</main>
+</body>
+</html>`;
+}
+
 function buildClientAddress(formData) {
   const parts = [
     String(formData?.address_street || '').trim(),
@@ -3727,26 +3792,26 @@ if (contractSignedError) throw contractSignedError;
 
               <div className="relative flex-1 overflow-auto bg-slate-100 p-3 md:p-6">
                 {isInternalMode ? (
-                  <div className="h-full overflow-y-auto rounded-2xl border border-slate-200 bg-white p-6 shadow-inner md:p-10">
-                    <article
-                      className="prose prose-slate max-w-none text-slate-950 [&_*]:!text-slate-950 [&_*]:!opacity-100 [&_p]:text-slate-900 [&_span]:text-slate-900 [&_li]:text-slate-900 [&_strong]:!text-slate-950 [&_h1]:!text-slate-950 [&_h2]:!text-slate-950 [&_h3]:!text-slate-950"
-                      dangerouslySetInnerHTML={{ __html: contratoHtmlResolvido }}
+                  <div className="h-full overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-inner">
+                    <iframe
+                      title="Prévia do contrato"
+                      className="h-full w-full border-0 bg-slate-100"
+                      srcDoc={buildContractPreviewSrcDoc(contratoHtmlResolvido)}
                     />
                   </div>
                 ) : (
                   <div className="h-full max-h-[80vh] overflow-y-auto p-4 md:p-6" onWheel={(e) => e.stopPropagation()} onTouchMove={(e) => e.stopPropagation()}>
-                    <div className="mx-auto w-full max-w-[880px] rounded-[26px] border border-slate-200 bg-white p-6 shadow-[0_20px_40px_rgba(15,23,42,0.08)] md:p-10">
-                      {previewHtml ? (
-                        <article
-                          className="prose prose-slate max-w-none text-[15px] leading-7 text-slate-950 [&_*]:!text-slate-950 [&_*]:!opacity-100 [&_p]:my-3 [&_p]:text-slate-900 [&_span]:text-slate-900 [&_li]:text-slate-900 [&_strong]:font-bold [&_strong]:!text-slate-950 [&_h1]:mb-4 [&_h1]:text-2xl [&_h1]:font-black [&_h1]:!text-slate-950 [&_h2]:mt-7 [&_h2]:text-xl [&_h2]:font-extrabold [&_h2]:!text-slate-950 [&_h3]:mt-6 [&_h3]:text-lg [&_h3]:font-bold [&_h3]:!text-slate-950"
-                          dangerouslySetInnerHTML={{ __html: previewHtml }}
-                        />
-                      ) : (
-                        <p className="text-sm text-slate-500">
-                          {previewLoading ? 'Carregando contrato...' : 'Nenhum conteúdo disponível para visualização.'}
-                        </p>
-                      )}
-                    </div>
+                    {previewHtml ? (
+                      <iframe
+                        title="Prévia do contrato"
+                        className="h-full min-h-[70vh] w-full border-0 bg-slate-100"
+                        srcDoc={buildContractPreviewSrcDoc(previewHtml)}
+                      />
+                    ) : (
+                      <p className="text-sm text-slate-500">
+                        {previewLoading ? 'Carregando contrato...' : 'Nenhum conteúdo disponível para visualização.'}
+                      </p>
+                    )}
                   </div>
                 )}
               </div>

@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { generateAndSaveInternalContractPdf } from '@/lib/contracts/internalPdfFlow';
 import { buildContractTemplateData } from '@/lib/contracts/buildContractTemplateData';
 import { renderContractHtmlWithTemplateData, resolveContractHtmlSource } from '@/lib/contracts/resolveContractHtmlSource';
+import { resolveEventTypeDefaultTemplateId } from '@/lib/contracts/precontract-template';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -28,7 +29,28 @@ function isGenericInternalFallbackHtml(html) {
 }
 
 async function loadLinkedTemplate({ supabase, precontract }) {
-  const templateId = asString(precontract?.contract_template_id);
+  let templateId = asString(precontract?.contract_template_id);
+  if (!templateId && precontract?.event_type_id) {
+    templateId = await resolveEventTypeDefaultTemplateId({
+      supabase,
+      workspaceId: precontract?.workspace_id,
+      eventTypeId: precontract?.event_type_id,
+    });
+
+    if (templateId && precontract?.id) {
+      await supabase
+        .from('precontracts')
+        .update({
+          contract_template_id: templateId,
+          contract_mode: 'internal',
+          custom_contract_enabled: true,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', precontract.id);
+      precontract.contract_template_id = templateId;
+    }
+  }
+
   if (!templateId) return null;
 
   const { data, error } = await supabase

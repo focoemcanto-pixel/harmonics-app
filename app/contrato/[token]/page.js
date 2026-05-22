@@ -1214,6 +1214,13 @@ const mapsLoaded = useGoogleMapsReady();
     precontract?.contract_mode === 'internal';
 
   const savedClientForm = useMemo(() => contract?.raw_payload?.client_form || {}, [contract]);
+  const currentClientForm = useMemo(
+    () => ({
+      ...(savedClientForm || {}),
+      ...(form || {}),
+    }),
+    [savedClientForm, form]
+  );
   const contractViewedAt = useMemo(
     () => viewedAt || contract?.raw_payload?.contract_viewed_at || '',
     [viewedAt, contract]
@@ -1237,15 +1244,23 @@ const mapsLoaded = useGoogleMapsReady();
     }
   }, [contract, isClientContractGuideActive]);
 
-  const contextTemplateData = useMemo(
-    () => buildContractTemplateData({
-      contract,
+  const contextTemplateData = useMemo(() => {
+    const rawPayload = contract?.raw_payload || {};
+    return buildContractTemplateData({
+      contract: contract
+        ? {
+            ...contract,
+            raw_payload: {
+              ...rawPayload,
+              client_form: currentClientForm,
+            },
+          }
+        : contract,
       precontract,
       contact: contactData,
       event: eventData,
-    }),
-    [contract, precontract, contactData, eventData]
-  );
+    });
+  }, [contract, precontract, contactData, eventData, currentClientForm]);
 
   const formTemplateData = useMemo(() => {
     const eventDate = convertDateToBr(form.event_date);
@@ -1322,22 +1337,25 @@ const mapsLoaded = useGoogleMapsReady();
     [contextTemplateData, savedFormTemplateData, formTemplateData]
   );
 
+  const previewTemplateSource = useMemo(() => {
+    const precontractTemplate = resolveContractHtmlSource(precontract || {}).html;
+    const savedTemplateHtml = resolveContractHtmlSource(contract?.raw_payload?.contract_template || {}).html;
+
+    return String(
+      precontractTemplate ||
+      savedTemplateHtml ||
+      previewHtmlRef.current ||
+      contract?.raw_payload?.signed_contract_html ||
+      contract?.raw_payload?.contract_html_snapshot ||
+      contract?.raw_payload?.contract_html ||
+      contract?.raw_payload?.generated_contract?.html ||
+      ''
+    ).trim();
+  }, [precontract, contract]);
+
   function resolveContractHtml() {
-    const candidates = [
-      precontract?.custom_contract_rich_html,
-      precontract?.custom_contract_content,
-      previewHtmlRef.current,
-      contract?.raw_payload?.signed_contract_html,
-      contract?.raw_payload?.contract_html_snapshot,
-      contract?.raw_payload?.contract_html,
-      contract?.raw_payload?.generated_contract?.html,
-    ];
-
-    const resolved = candidates.find((item) => String(item || '').trim().length > 0);
-    const sourceHtml = String(resolved || '').trim();
-    if (!sourceHtml) return '';
-
-    return renderContractHtmlWithData(sourceHtml, previewTemplateData);
+    if (!previewTemplateSource) return '';
+    return renderContractHtmlWithData(previewTemplateSource, previewTemplateData);
   }
 
   async function abrirPreviewContrato() {

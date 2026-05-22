@@ -149,3 +149,56 @@ export async function GET(request) {
     );
   }
 }
+
+export async function POST(request) {
+  const supabase = getSupabaseAdmin();
+
+  try {
+    const auth = await requireWorkspaceAccess({
+      supabase,
+      request,
+      moduleKey: 'eventos',
+      actionKey: 'write',
+      logPrefix: '[EVENTS_API][POST]',
+      allowedRoles: ['owner', 'admin', 'operacional', 'editor'],
+    });
+
+    if (!auth.ok) {
+      return NextResponse.json({ ok: false, message: auth.error || 'Acesso não autorizado.' }, { status: auth.status || 401 });
+    }
+
+    const workspaceId = auth.workspaceId;
+    const body = await request.json().catch(() => ({}));
+    const payload = body?.payload && typeof body.payload === 'object' ? body.payload : body || {};
+
+    const writePayload = {
+      ...payload,
+      workspace_id: workspaceId,
+    };
+
+    const { data, error } = await supabase
+      .from('events')
+      .insert([writePayload])
+      .select('id')
+      .single();
+
+    if (error) throw error;
+
+    return NextResponse.json({ ok: true, data, workspaceId });
+  } catch (error) {
+    console.error('[EVENTS_API][POST][ERROR]', {
+      message: error?.message,
+      details: error?.details,
+      hint: error?.hint,
+      code: error?.code,
+    });
+
+    return NextResponse.json(
+      {
+        ok: false,
+        message: error?.message || 'Erro inesperado ao criar evento.',
+      },
+      { status: 500 }
+    );
+  }
+}

@@ -121,39 +121,26 @@ function buildContractPreviewSrcDoc(html) {
 <html>
 <head>
 <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
 <style>
-  @page {
-    size: A4;
-    margin: 22mm 24mm;
-  }
   html, body {
     margin: 0;
     padding: 0;
     background: #eef2f7;
-    font-family: Arial, sans-serif;
   }
   .page {
-    width: 210mm;
-    min-height: 297mm;
-    margin: 24px auto;
-    padding: 22mm 24mm;
+    width: min(210mm, calc(100vw - 24px));
+    min-height: calc(297mm - 24px);
+    margin: 12px auto;
     background: white;
-    box-shadow: 0 18px 45px rgba(15,23,42,.18);
+    box-shadow: 0 10px 34px rgba(15,23,42,.16);
     box-sizing: border-box;
-    color: #111827;
-  }
-  @media (max-width: 768px) {
-    .page {
-      width: calc(100vw - 32px);
-      min-height: auto;
-      margin: 12px auto;
-      padding: 22px;
-    }
+    overflow: hidden;
   }
 </style>
 </head>
 <body>
-  <main class="page">${html || ''}</main>
+  <div class="page">${html || ''}</div>
 </body>
 </html>`;
 }
@@ -3745,8 +3732,8 @@ if (contractSignedError) throw contractSignedError;
         ) : null}
 
         {previewAberto && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center overflow-auto bg-black/60 p-0 md:p-3">
-            <div className="relative flex h-[100dvh] w-[100vw] flex-col overflow-hidden bg-white shadow-2xl md:h-[92vh] md:max-w-5xl md:rounded-3xl">
+          <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-slate-500/70 p-0 md:p-4">
+            <div className="relative flex h-[100dvh] w-[100vw] flex-col overflow-hidden bg-slate-200 md:h-[92vh] md:max-w-5xl md:rounded-3xl md:border md:border-slate-300">
               <div className="flex items-center justify-end border-b border-slate-200 px-4 py-3">
                 <button
                   onClick={() => {
@@ -3760,21 +3747,21 @@ if (contractSignedError) throw contractSignedError;
                 </button>
               </div>
 
-              <div className="relative flex-1 overflow-auto bg-slate-100 p-3 md:p-6">
+              <div className="relative flex-1 overflow-y-auto bg-slate-300/70 p-3 md:p-6">
                 {isInternalMode ? (
-                  <div className="h-full overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-inner">
+                  <div className="mx-auto w-full max-w-[210mm] min-h-full overflow-hidden rounded-xl bg-white shadow-[0_10px_34px_rgba(15,23,42,0.16)]">
                     <iframe
                       title="Prévia do contrato"
-                      className="h-full w-full border-0 bg-slate-100"
+                      className="h-[calc(100dvh-120px)] min-h-[70vh] w-full border-0 bg-white md:h-[calc(92vh-120px)]"
                       srcDoc={buildContractPreviewSrcDoc(contratoHtmlResolvido)}
                     />
                   </div>
                 ) : (
-                  <div className="h-full max-h-[80vh] overflow-y-auto p-4 md:p-6" onWheel={(e) => e.stopPropagation()} onTouchMove={(e) => e.stopPropagation()}>
+                  <div className="mx-auto w-full max-w-[210mm] overflow-hidden rounded-xl bg-white shadow-[0_10px_34px_rgba(15,23,42,0.16)]" onWheel={(e) => e.stopPropagation()} onTouchMove={(e) => e.stopPropagation()}>
                     {previewHtml ? (
                       <iframe
                         title="Prévia do contrato"
-                        className="h-full min-h-[70vh] w-full border-0 bg-slate-100"
+                        className="h-[calc(100dvh-120px)] min-h-[70vh] w-full border-0 bg-white md:h-[calc(92vh-120px)]"
                         srcDoc={buildContractPreviewSrcDoc(previewHtml)}
                       />
                     ) : (

@@ -616,16 +616,29 @@ function PagamentosPageContent() {
 
     try {
       setProcessingAction('manual-payment');
-      const { error } = await supabase.from('payments').insert([{
-        event_id: eventId,
-        amount,
-        payment_date: manualPaymentForm.payment_date || null,
-        payment_method: manualPaymentForm.payment_method || null,
-        status: manualPaymentForm.status || 'pendente',
-        notes: manualPaymentForm.notes || null,
-        proof_file_url: manualPaymentForm.proof_file_url || null,
-      }]);
-      if (error) throw error;
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+      const response = await fetch('/api/payments', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+        body: JSON.stringify({
+          event_id: eventId,
+          amount,
+          payment_date: manualPaymentForm.payment_date || null,
+          payment_method: manualPaymentForm.payment_method || null,
+          status: manualPaymentForm.status || 'pendente',
+          notes: manualPaymentForm.notes || null,
+          proof_file_url: manualPaymentForm.proof_file_url || null,
+        }),
+      });
+
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result?.ok) {
+        throw new Error(result?.message || 'Não foi possível salvar o pagamento manual.');
+      }
 
       await atualizarResumoEvento(eventId);
       await carregarTudo();

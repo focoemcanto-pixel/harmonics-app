@@ -1414,12 +1414,23 @@ export default function EventosPage() {
 
         if (error) throw error;
       } else {
-        const { error } = await supabase.from('events').insert([{
-          ...payload,
-          costs_source: 'default',
-        }]);
-
-        if (error) throw error;
+        const { data: sessionData } = await supabase.auth.getSession();
+        const accessToken = sessionData?.session?.access_token;
+        const response = await fetch('/api/events', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+          },
+          body: JSON.stringify({
+            ...payload,
+            costs_source: 'default',
+          }),
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result?.ok) {
+          throw new Error(result?.message || 'Erro ao criar evento.');
+        }
       }
 
       cancelarEdicao();

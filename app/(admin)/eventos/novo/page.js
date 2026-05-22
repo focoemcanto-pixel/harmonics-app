@@ -2,44 +2,13 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import ProtectedRoute from '@/components/ProtectedRoute';
 
 function NovoEventoPageContent() {
-  const [nome, setNome] = useState('');
-  const [data, setData] = useState('');
-  const [local, setLocal] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error] = useState('Esta tela legada foi desativada. Use o cadastro na página principal de Eventos.');
   const router = useRouter();
-
-  async function handleSubmit(e) {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-
-    try {
-      const { data: evento, error: insertError } = await supabase
-        .from('eventos')
-        .insert([{ nome, data, local }])
-        .select()
-        .single();
-
-      if (insertError) {
-        console.error('Erro Supabase:', insertError);
-        throw new Error(`Erro ao salvar: ${insertError.message}`);
-      }
-
-      router.push(`/eventos/${evento.id}`);
-    } catch (err) {
-      console.error('Erro ao criar evento:', err);
-      setError(err.message || 'Erro ao criar evento');
-    } finally {
-      setLoading(false);
-    }
-  }
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
@@ -49,70 +18,26 @@ function NovoEventoPageContent() {
       </div>
 
       <Card>
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          {error && (
-            <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-sm text-red-600">{error}</p>
-            </div>
-          )}
-
-          <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-2">
-              Nome do Evento
-            </label>
-            <input
-              type="text"
-              value={nome}
-              onChange={(e) => setNome(e.target.value)}
-              required
-              className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-violet-500"
-              placeholder="Ex: Culto de Celebração"
-            />
+        <div className="p-6 space-y-6">
+          <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+            <p className="text-sm text-amber-700">{error}</p>
           </div>
-
-          <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-2">
-              Data
-            </label>
-            <input
-              type="date"
-              value={data}
-              onChange={(e) => setData(e.target.value)}
-              required
-              className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-violet-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-2">
-              Local
-            </label>
-            <input
-              type="text"
-              value={local}
-              onChange={(e) => setLocal(e.target.value)}
-              required
-              className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-violet-500"
-              placeholder="Ex: Templo Principal"
-            />
-          </div>
-
           <div className="flex gap-3">
+            <Button
+              type="button"
+              onClick={() => router.push('/admin/eventos')}
+            >
+              Ir para Eventos
+            </Button>
             <Button
               type="button"
               variant="ghost"
               onClick={() => router.back()}
             >
-              Cancelar
-            </Button>
-            <Button
-              type="submit"
-              disabled={loading}
-            >
-              {loading ? 'Salvando...' : 'Salvar Evento'}
+              Voltar
             </Button>
           </div>
-        </form>
+        </div>
       </Card>
     </div>
   );

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ExternalLink, UploadCloud, X } from 'lucide-react';
 import { Field, Input } from '../admin/AdminFormPrimitives';
 import AppModal from '../ui/AppModal';
@@ -71,6 +71,7 @@ export default function ExternalContractImportModal({ open, onClose, onImported,
   const [resultData, setResultData] = useState(null);
   const [previewUrl, setPreviewUrl] = useState('');
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const uploadAbortRef = useRef(null);
   const reviewedData = useMemo(() => extractedData || {}, [extractedData]);
   const minimumMissingFields = useMemo(() => {
     const missing = [];
@@ -92,6 +93,11 @@ export default function ExternalContractImportModal({ open, onClose, onImported,
     setPreviewUrl(url);
     return () => URL.revokeObjectURL(url);
   }, [importFile]);
+
+
+  useEffect(() => () => {
+    uploadAbortRef.current?.abort?.();
+  }, []);
 
   function resetImportState() {
     setIsPreviewOpen(false);
@@ -133,6 +139,19 @@ export default function ExternalContractImportModal({ open, onClose, onImported,
     setImportFile(file);
   }
 
+  async function buildSafeUploadPayload(file) {
+    const buffer = await file.arrayBuffer();
+    const fallbackName = file?.name || 'contrato.pdf';
+
+    try {
+      const safeFile = new File([buffer], fallbackName, { type: 'application/pdf' });
+      return { payload: safeFile, payloadName: safeFile.name || fallbackName };
+    } catch (_error) {
+      const safeBlob = new Blob([buffer], { type: 'application/pdf' });
+      return { payload: safeBlob, payloadName: fallbackName };
+    }
+  }
+
   async function runImport(nextMode) {
     if (!importFile) {
       setError('Selecione um arquivo PDF antes de continuar.');
@@ -140,6 +159,7 @@ export default function ExternalContractImportModal({ open, onClose, onImported,
     }
     setError('');
     setLoading(true);
+    let timeoutId = null;
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       const accessToken = sessionData?.session?.access_token;
@@ -147,12 +167,24 @@ export default function ExternalContractImportModal({ open, onClose, onImported,
         throw new Error('Sessão expirada. Saia da conta, entre novamente e tente importar o PDF outra vez.');
       }
 
+      const { payload, payloadName } = await buildSafeUploadPayload(importFile);
+
+      console.info('[EXTERNAL_CONTRACT_UPLOAD]', {
+        name: payloadName,
+        type: payload.type || 'application/pdf',
+        size: payload.size || 0,
+      });
+
       const f = new FormData();
-      f.append('file', importFile, importFile.name || 'contrato.pdf');
+      f.append('file', payload, payloadName);
       f.append('mode', nextMode);
       if (nextMode === 'confirm') {
         f.append('reviewedData', JSON.stringify(reviewedData));
       }
+
+      const controller = new AbortController();
+      uploadAbortRef.current = controller;
+      timeoutId = setTimeout(() => controller.abort(), 60_000);
 
       const resp = await fetch('/api/events/import-from-contract', {
         method: 'POST',
@@ -162,7 +194,11 @@ export default function ExternalContractImportModal({ open, onClose, onImported,
         },
         body: f,
         cache: 'no-store',
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
+      timeoutId = null;
+      uploadAbortRef.current = null;
       const contentType = String(resp.headers.get('content-type') || '');
       const payload = contentType.includes('application/json') ? await resp.json() : { ok: false, error: await resp.text() };
       if (!resp.ok || !payload?.ok) throw new Error(payload?.error || payload?.message || 'Falha na importação.');
@@ -180,10 +216,13 @@ export default function ExternalContractImportModal({ open, onClose, onImported,
         toast?.success?.('Evento criado com contrato externo.');
       }
     } catch (err) {
+      console.error('[EXTERNAL_CONTRACT_UPLOAD_ERROR]', err);
       const msg = normalizeFetchError(err);
       setError(msg);
       toast?.error?.(msg);
     } finally {
+      if (timeoutId) clearTimeout(timeoutId);
+      uploadAbortRef.current = null;
       setLoading(false);
     }
   }
@@ -228,10 +267,10 @@ export default function ExternalContractImportModal({ open, onClose, onImported,
       </label>
       {importFile ? <p className="mt-2 text-sm text-slate-700">Arquivo selecionado: {importFile.name}</p> : null}
       {importFile ? (
-        <div className="mt-3 flex flex-wrap gap-2">
-          <button type="button" className="rounded-[12px] border px-3 py-2 text-sm font-bold" onClick={() => setIsPreviewOpen(true)}>Visualizar contrato</button>
-          <button type="button" disabled={loading} className="rounded-[12px] border px-3 py-2 text-sm font-bold disabled:opacity-50" onClick={() => runImport('extract')}>Extrair dados automaticamente</button>
-          <button type="button" disabled={loading} className="rounded-[12px] border px-3 py-2 text-sm font-bold disabled:opacity-50" onClick={() => {
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+          <button type="button" className="w-full rounded-[14px] border border-slate-300 bg-white/90 px-4 py-3 text-sm font-bold text-slate-900 shadow-sm transition hover:border-violet-400 hover:bg-violet-50 sm:w-auto" onClick={() => setIsPreviewOpen(true)}>Visualizar contrato</button>
+          <button type="button" disabled={loading} className="w-full rounded-[14px] border border-violet-300 bg-violet-600 px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-violet-500 disabled:opacity-50 sm:w-auto" onClick={() => runImport('extract')}>Extrair dados automaticamente</button>
+          <button type="button" disabled={loading} className="w-full rounded-[14px] border border-slate-300 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-900 shadow-sm transition hover:border-violet-300 hover:bg-violet-50 disabled:opacity-50 sm:w-auto" onClick={() => {
             setMode('confirm');
             setMissingFields([]);
             setExtractionStatus('manual');
@@ -242,7 +281,7 @@ export default function ExternalContractImportModal({ open, onClose, onImported,
         </div>
       ) : null}
       {extractionConfidence !== null ? (
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
           <span className={`rounded-full px-3 py-1 text-xs font-semibold ${extractionStatus === 'auto' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{extractedSummaryMessage}</span>
           <span className="rounded-full bg-violet-100 px-3 py-1 text-xs font-semibold text-violet-700">Revise antes de criar o evento</span>
           {missingFields?.length ? <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">Campos para revisar</span> : null}
@@ -291,7 +330,7 @@ export default function ExternalContractImportModal({ open, onClose, onImported,
       {loading ? <p className="mt-3 text-sm text-slate-500">Processando...</p> : null}
 
       {isPreviewOpen && previewUrl ? (
-        <div className="fixed inset-0 z-[220] flex flex-col bg-slate-950/95 text-white" role="dialog" aria-modal="true">
+        <div className="fixed inset-0 z-[220] flex h-[100dvh] flex-col overflow-hidden bg-slate-950/95 text-white" role="dialog" aria-modal="true">
           <div className="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 bg-slate-950 px-4 py-3 pt-[max(12px,env(safe-area-inset-top))]">
             <div className="min-w-0">
               <p className="truncate text-sm font-black">Preview do contrato</p>
@@ -306,8 +345,8 @@ export default function ExternalContractImportModal({ open, onClose, onImported,
               </button>
             </div>
           </div>
-          <div className="min-h-0 flex-1 overflow-hidden bg-slate-900 p-2 sm:p-4">
-            <div className="mx-auto h-full w-full max-w-5xl overflow-hidden rounded-[16px] border border-white/15 bg-white shadow-2xl sm:rounded-[22px]">
+          <div className="min-h-0 flex-1 overflow-hidden bg-slate-900 p-0 sm:p-4">
+            <div className="mx-auto h-full w-full max-w-5xl overflow-hidden rounded-none border-0 bg-white shadow-2xl sm:rounded-[22px] sm:border sm:border-white/15">
               <object title="Preview do contrato em PDF" data={previewUrl} type="application/pdf" className="h-full w-full">
                 <iframe title="Preview do contrato em PDF" src={previewUrl} className="h-full w-full border-0" />
                 <div className="p-6 text-center text-slate-900">

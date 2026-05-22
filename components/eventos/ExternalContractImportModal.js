@@ -94,7 +94,6 @@ export default function ExternalContractImportModal({ open, onClose, onImported,
     return () => URL.revokeObjectURL(url);
   }, [importFile]);
 
-
   useEffect(() => () => {
     uploadAbortRef.current?.abort?.();
   }, []);
@@ -145,10 +144,10 @@ export default function ExternalContractImportModal({ open, onClose, onImported,
 
     try {
       const safeFile = new File([buffer], fallbackName, { type: 'application/pdf' });
-      return { payload: safeFile, payloadName: safeFile.name || fallbackName };
+      return { uploadPayload: safeFile, payloadName: safeFile.name || fallbackName };
     } catch (_error) {
       const safeBlob = new Blob([buffer], { type: 'application/pdf' });
-      return { payload: safeBlob, payloadName: fallbackName };
+      return { uploadPayload: safeBlob, payloadName: fallbackName };
     }
   }
 
@@ -167,16 +166,16 @@ export default function ExternalContractImportModal({ open, onClose, onImported,
         throw new Error('Sessão expirada. Saia da conta, entre novamente e tente importar o PDF outra vez.');
       }
 
-      const { payload, payloadName } = await buildSafeUploadPayload(importFile);
+      const { uploadPayload, payloadName } = await buildSafeUploadPayload(importFile);
 
       console.info('[EXTERNAL_CONTRACT_UPLOAD]', {
         name: payloadName,
-        type: payload.type || 'application/pdf',
-        size: payload.size || 0,
+        type: uploadPayload.type || 'application/pdf',
+        size: uploadPayload.size || 0,
       });
 
       const f = new FormData();
-      f.append('file', payload, payloadName);
+      f.append('file', uploadPayload, payloadName);
       f.append('mode', nextMode);
       if (nextMode === 'confirm') {
         f.append('reviewedData', JSON.stringify(reviewedData));
@@ -200,19 +199,19 @@ export default function ExternalContractImportModal({ open, onClose, onImported,
       timeoutId = null;
       uploadAbortRef.current = null;
       const contentType = String(resp.headers.get('content-type') || '');
-      const payload = contentType.includes('application/json') ? await resp.json() : { ok: false, error: await resp.text() };
-      if (!resp.ok || !payload?.ok) throw new Error(payload?.error || payload?.message || 'Falha na importação.');
+      const responsePayload = contentType.includes('application/json') ? await resp.json() : { ok: false, error: await resp.text() };
+      if (!resp.ok || !responsePayload?.ok) throw new Error(responsePayload?.error || responsePayload?.message || 'Falha na importação.');
 
       if (nextMode === 'extract') {
         setMode('confirm');
-        setExtractedData(payload.extractedData || {});
-        setMissingFields(payload.missingFields || []);
-        setExtractionConfidence(payload.extractionConfidence ?? null);
-        setExtractionStatus(payload.extractionStatus || '');
-        if (payload?.warning) toast?.warning?.(payload.warning);
+        setExtractedData(responsePayload.extractedData || {});
+        setMissingFields(responsePayload.missingFields || []);
+        setExtractionConfidence(responsePayload.extractionConfidence ?? null);
+        setExtractionStatus(responsePayload.extractionStatus || '');
+        if (responsePayload?.warning) toast?.warning?.(responsePayload.warning);
       } else {
-        setResultData(payload);
-        onImported?.(payload);
+        setResultData(responsePayload);
+        onImported?.(responsePayload);
         toast?.success?.('Evento criado com contrato externo.');
       }
     } catch (err) {

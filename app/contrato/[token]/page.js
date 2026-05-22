@@ -1298,15 +1298,14 @@ const mapsLoaded = useGoogleMapsReady();
     return renderContractHtmlWithData(sourceHtml, previewTemplateData);
   }
 
-  function abrirPreviewContrato() {
+  async function abrirPreviewContrato() {
     if (!token) {
       toast.error('Token do contrato não encontrado.');
       return;
     }
 
     const contractHtml = resolveContractHtml();
-    const isInternalTemplateReady = !isInternalMode || !!String(contractHtml || '').trim();
-    const isTemplateStillLoading = carregando || (isInternalMode && !isInternalTemplateReady);
+    const isTemplateStillLoading = carregando;
 
     if (isTemplateStillLoading) {
       console.log('[PUBLIC_CONTRACT] PREVIEW_BLOCKED');
@@ -1321,6 +1320,40 @@ const mapsLoaded = useGoogleMapsReady();
     setPreviewError('');
 
     if (isInternalMode) {
+      const hasInternalHtml = !!String(contractHtml || '').trim();
+
+      if (!hasInternalHtml) {
+        console.log('[PUBLIC_CONTRACT] INTERNAL_TEMPLATE_FETCH_START');
+        setPreviewLoading(true);
+        setPreviewAberto(true);
+        try {
+          const response = await fetch(`/api/contracts/preview-html/${token}`, {
+            method: 'GET',
+            cache: 'no-store',
+          });
+          const html = await response.text();
+          if (!response.ok) {
+            throw new Error(html || 'Não foi possível carregar o contrato.');
+          }
+
+          const normalizedHtml = String(html || '').trim();
+          if (!normalizedHtml) {
+            console.log('[PUBLIC_CONTRACT] INTERNAL_TEMPLATE_FETCH_MISSING');
+            setPreviewError('Contrato interno ainda não disponível.');
+            return;
+          }
+
+          console.log('[PUBLIC_CONTRACT] INTERNAL_TEMPLATE_FETCH_SUCCESS');
+          previewHtmlRef.current = normalizedHtml;
+          setPreviewHtml(normalizedHtml);
+        } catch (error) {
+          setPreviewError(error?.message || 'Erro ao carregar contrato.');
+          return;
+        } finally {
+          setPreviewLoading(false);
+        }
+      }
+
       console.log('[PUBLIC_CONTRACT] PREVIEW_OPEN');
       setPreviewLoading(false);
       setPreviewAberto(true);

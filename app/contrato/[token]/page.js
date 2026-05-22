@@ -3729,7 +3729,7 @@ if (contractSignedError) throw contractSignedError;
                 {isInternalMode ? (
                   <div className="h-full overflow-y-auto rounded-2xl border border-slate-200 bg-white p-6 shadow-inner md:p-10">
                     <article
-                      className="prose prose-slate max-w-none"
+                      className="prose prose-slate max-w-none text-slate-950 [&_*]:!text-slate-950 [&_*]:!opacity-100 [&_p]:text-slate-900 [&_span]:text-slate-900 [&_li]:text-slate-900 [&_strong]:!text-slate-950 [&_h1]:!text-slate-950 [&_h2]:!text-slate-950 [&_h3]:!text-slate-950"
                       dangerouslySetInnerHTML={{ __html: contratoHtmlResolvido }}
                     />
                   </div>
@@ -3738,7 +3738,7 @@ if (contractSignedError) throw contractSignedError;
                     <div className="mx-auto w-full max-w-[880px] rounded-[26px] border border-slate-200 bg-white p-6 shadow-[0_20px_40px_rgba(15,23,42,0.08)] md:p-10">
                       {previewHtml ? (
                         <article
-                          className="prose prose-slate max-w-none text-[15px] leading-7 [&_h1]:mb-4 [&_h1]:text-2xl [&_h1]:font-black [&_h2]:mt-7 [&_h2]:text-xl [&_h2]:font-extrabold [&_h3]:mt-6 [&_h3]:text-lg [&_h3]:font-bold [&_p]:my-3 [&_strong]:font-bold"
+                          className="prose prose-slate max-w-none text-[15px] leading-7 text-slate-950 [&_*]:!text-slate-950 [&_*]:!opacity-100 [&_p]:my-3 [&_p]:text-slate-900 [&_span]:text-slate-900 [&_li]:text-slate-900 [&_strong]:font-bold [&_strong]:!text-slate-950 [&_h1]:mb-4 [&_h1]:text-2xl [&_h1]:font-black [&_h1]:!text-slate-950 [&_h2]:mt-7 [&_h2]:text-xl [&_h2]:font-extrabold [&_h2]:!text-slate-950 [&_h3]:mt-6 [&_h3]:text-lg [&_h3]:font-bold [&_h3]:!text-slate-950"
                           dangerouslySetInnerHTML={{ __html: previewHtml }}
                         />
                       ) : (

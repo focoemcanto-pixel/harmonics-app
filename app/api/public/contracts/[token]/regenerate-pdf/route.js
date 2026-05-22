@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { generateAndSaveInternalContractPdf } from '@/lib/contracts/internalPdfFlow';
+import { buildContractTemplateData } from '@/lib/contracts/templateData';
+import { renderContractHtmlWithTemplateData, resolveContractHtmlSource } from '@/lib/contracts/resolveContractHtmlSource';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -14,19 +16,103 @@ function extractToken(params) {
   return asString(params?.token);
 }
 
-function pickSignedHtml(contract, precontract) {
+function isGenericInternalFallbackHtml(html) {
+  const value = asString(html).toLowerCase();
+  return (
+    value.includes('data-contract-source="internal-fallback"') ||
+    (value.includes('<h1>contrato interno</h1>') &&
+      value.includes('<strong>cliente:</strong>') &&
+      value.includes('<strong>data do evento:</strong>') &&
+      value.includes('<strong>valor:</strong>'))
+  );
+}
+
+async function loadLinkedTemplate({ supabase, precontract }) {
+  const templateId = asString(precontract?.contract_template_id);
+  if (!templateId) return null;
+
+  const { data, error } = await supabase
+    .from('contract_templates')
+    .select('*')
+    .eq('id', templateId)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data || null;
+}
+
+function resolveHtmlFromTemplate({ template, context }) {
+  if (!template) return '';
+  const source = resolveContractHtmlSource(template);
+  const templateData = buildContractTemplateData(context);
+  return renderContractHtmlWithTemplateData(source.html, templateData);
+}
+
+function pickExistingSignedHtml(contract) {
   const raw = contract?.raw_payload || {};
   const candidates = [
     raw.signed_contract_html,
     raw.contract_html_snapshot,
     raw.contract_html,
     raw.generated_contract?.html,
-    precontract?.custom_contract_rich_html,
-    precontract?.custom_contract_content,
-    precontract?.contract_template_text,
   ];
 
   return asString(candidates.find((value) => asString(value).length > 0));
+}
+
+function pickPrecontractEmbeddedHtml(precontract, context) {
+  const source = resolveContractHtmlSource(precontract || {});
+  const templateData = buildContractTemplateData(context);
+  return renderContractHtmlWithTemplateData(source.html, templateData);
+}
+
+async function resolveRealContractHtml({ supabase, contract, precontract }) {
+  const context = {
+    contract,
+    precontract,
+    contact: null,
+    event: null,
+  };
+
+  if (precontract?.contact_id || contract?.contact_id) {
+    const { data } = await supabase
+      .from('contacts')
+      .select('*')
+      .eq('id', contract?.contact_id || precontract?.contact_id)
+      .maybeSingle();
+    context.contact = data || null;
+  }
+
+  if (precontract?.event_id || contract?.event_id) {
+    const { data } = await supabase
+      .from('events')
+      .select('*')
+      .eq('id', contract?.event_id || precontract?.event_id)
+      .maybeSingle();
+    context.event = data || null;
+  }
+
+  const template = await loadLinkedTemplate({ supabase, precontract });
+  const templateHtml = resolveHtmlFromTemplate({ template, context });
+  if (templateHtml && !isGenericInternalFallbackHtml(templateHtml)) {
+    return { html: templateHtml, source: 'contract_templates.contract_template_id', templateId: template?.id || null };
+  }
+
+  const existingSignedHtml = pickExistingSignedHtml(contract);
+  if (existingSignedHtml && !isGenericInternalFallbackHtml(existingSignedHtml)) {
+    return { html: existingSignedHtml, source: 'contract.raw_payload', templateId: null };
+  }
+
+  const embeddedHtml = pickPrecontractEmbeddedHtml(precontract, context);
+  if (embeddedHtml && !isGenericInternalFallbackHtml(embeddedHtml)) {
+    return { html: embeddedHtml, source: 'precontracts.embedded_contract', templateId: null };
+  }
+
+  return {
+    html: '',
+    source: 'missing',
+    templateId: template?.id || null,
+  };
 }
 
 async function updatePrecontractSignedIfNeeded({ supabase, precontractId }) {
@@ -83,33 +169,6 @@ export async function POST(_request, context) {
       );
     }
 
-    const existingPdfUrl = asString(contract.pdf_url);
-    if (existingPdfUrl) {
-      await updatePrecontractSignedIfNeeded({ supabase, precontractId: precontract.id });
-      return NextResponse.json({
-        ok: true,
-        repaired: false,
-        message: 'PDF já estava disponível.',
-        pdfUrl: existingPdfUrl,
-        contractId: contract.id,
-        precontractId: precontract.id,
-      });
-    }
-
-    const html = pickSignedHtml(contract, precontract);
-    if (!html) {
-      return NextResponse.json(
-        {
-          ok: false,
-          message: 'Contrato assinado sem HTML salvo para regenerar PDF.',
-          code: 'MISSING_SIGNED_HTML',
-          contractId: contract.id,
-          precontractId: precontract.id,
-        },
-        { status: 422 }
-      );
-    }
-
     const workspaceId = asString(contract.workspace_id || precontract.workspace_id);
     if (!workspaceId) {
       return NextResponse.json(
@@ -124,12 +183,28 @@ export async function POST(_request, context) {
       );
     }
 
+    const resolved = await resolveRealContractHtml({ supabase, contract, precontract });
+    if (!resolved.html) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: 'Não foi encontrado HTML real do contrato/template para regenerar PDF. A geração foi bloqueada para evitar PDF genérico inválido.',
+          code: 'MISSING_REAL_CONTRACT_HTML',
+          source: resolved.source,
+          templateId: resolved.templateId,
+          contractId: contract.id,
+          precontractId: precontract.id,
+        },
+        { status: 422 }
+      );
+    }
+
     const result = await generateAndSaveInternalContractPdf({
       supabase,
       contractId: contract.id,
       precontractId: precontract.id,
       workspaceId,
-      html,
+      html: resolved.html,
     });
 
     const pdfUrl = asString(result?.pdfUrl);
@@ -151,6 +226,8 @@ export async function POST(_request, context) {
       ok: true,
       repaired: true,
       pdfUrl,
+      source: resolved.source,
+      templateId: resolved.templateId,
       contractId: contract.id,
       precontractId: precontract.id,
       missingColumns: result?.missingColumns || [],

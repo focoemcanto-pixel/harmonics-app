@@ -712,7 +712,19 @@ function markOnboardingFlowState(patch = {}) {
 function ClientPanelGuide({ data, activeTab, setActiveTab }) {
   const [stepIndex, setStepIndex] = useState(0);
   const [guideStyle, setGuideStyle] = useState({ top: '50%', left: '50%', transform: 'translate(-50%, -50%)' });
+  const [isClosed, setIsClosed] = useState(false);
   const targetFoundRef = useRef(false);
+  const mobileGuideStyle = useMemo(() => ({
+    left: '12px',
+    right: '12px',
+    bottom: 'calc(env(safe-area-inset-bottom) + 88px)',
+    top: 'auto',
+    width: 'auto',
+    maxWidth: 'none',
+    maxHeight: '42dvh',
+    overflowY: 'auto',
+    transform: 'none',
+  }), []);
 
   const steps = useMemo(() => ([
     { key: 'open-repertorio', tab: 'inicio', title: 'Abrir repertório', text: 'Clique em Abrir repertório para começar.', target: 'onboarding-open-repertorio', waitFor: 'click' },
@@ -744,20 +756,26 @@ function ClientPanelGuide({ data, activeTab, setActiveTab }) {
   }, []);
 
   useEffect(() => {
+    if (isClosed) return undefined;
+    const isMobileViewport = () => typeof window !== 'undefined' && window.innerWidth < 768;
+    const scheduleGuideStyle = (nextStyle) => {
+      if (typeof window === 'undefined') return;
+      window.requestAnimationFrame(() => setGuideStyle(nextStyle));
+    };
     if (!currentStep?.target || typeof document === 'undefined') {
       targetFoundRef.current = false;
-      setGuideStyle({ top: '50%', left: '50%', transform: 'translate(-50%, -50%)' });
+      scheduleGuideStyle(isMobileViewport() ? mobileGuideStyle : { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' });
       return undefined;
     }
     const getTarget = () => document.querySelector(`[data-onboarding-tour="${currentStep.target}"]`);
     let target = getTarget();
     if (!target) {
       targetFoundRef.current = false;
-      setGuideStyle({ top: '50%', left: '50%', transform: 'translate(-50%, -50%)' });
+      scheduleGuideStyle(isMobileViewport() ? mobileGuideStyle : { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' });
       return undefined;
     }
     targetFoundRef.current = true;
-    const spotlightClass = 'relative z-[9100] rounded-[22px] ring-4 ring-violet-400/80 animate-pulse shadow-[0_0_0_9999px_rgba(15,23,42,0.60),0_20px_60px_rgba(124,58,237,0.30)]';
+    const spotlightClass = 'relative z-[9850] rounded-[22px] ring-4 ring-violet-400/80 animate-pulse shadow-[0_0_0_9999px_rgba(15,23,42,0.60),0_20px_60px_rgba(124,58,237,0.30)]';
     const classes = spotlightClass.split(' ');
     const applyClasses = () => {
       target = getTarget();
@@ -770,7 +788,7 @@ function ClientPanelGuide({ data, activeTab, setActiveTab }) {
       target = getTarget();
       if (!target) {
         targetFoundRef.current = false;
-        setGuideStyle({ top: '50%', left: '50%', transform: 'translate(-50%, -50%)' });
+        setGuideStyle(isMobileViewport() ? mobileGuideStyle : { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' });
         return;
       }
       targetFoundRef.current = true;
@@ -778,13 +796,12 @@ function ClientPanelGuide({ data, activeTab, setActiveTab }) {
       const vw = window.innerWidth;
       const vh = window.innerHeight;
       const margin = 16;
-      const cw = Math.min(420, vw - margin * 2);
-      const ch = vw < 768 ? Math.min(320, vh * 0.45) : 210;
       if (vw < 768) {
-        const top = rect.top > vh * 0.55 ? Math.max(margin, rect.top - ch - 12) : Math.min(vh - ch - margin, rect.bottom + 12);
-        setGuideStyle({ top: `${top}px`, left: `${margin}px`, right: `${margin}px`, bottom: 'auto', maxWidth: '40vw', maxHeight: '45vh', transform: 'none' });
+        setGuideStyle(mobileGuideStyle);
         return;
       }
+      const cw = Math.min(420, vw - margin * 2);
+      const ch = 210;
       const placeRight = { top: Math.max(margin, Math.min(vh - ch - margin, rect.top)), left: Math.min(vw - cw - margin, rect.right + 12) };
       const placeLeft = { top: Math.max(margin, Math.min(vh - ch - margin, rect.top)), left: Math.max(margin, rect.left - cw - 12) };
       const placeTop = { top: Math.max(margin, rect.top - ch - 12), left: Math.max(margin, Math.min(vw - cw - margin, rect.left)) };
@@ -809,7 +826,7 @@ function ClientPanelGuide({ data, activeTab, setActiveTab }) {
       window.removeEventListener('scroll', placeGuide, true);
       observer.disconnect();
     };
-  }, [currentStep]);
+  }, [currentStep, isClosed, mobileGuideStyle]);
 
   useEffect(() => {
     if (!stepReady || !currentStep?.target) return;
@@ -857,6 +874,16 @@ function ClientPanelGuide({ data, activeTab, setActiveTab }) {
     : '';
   const eventId = data?.eventId || (typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('eventId') : '');
 
+  function closeGuide() {
+    if (typeof window !== 'undefined') {
+      const nextUrl = new URL(window.location.href);
+      nextUrl.searchParams.delete('guide');
+      nextUrl.searchParams.delete('onboarding');
+      window.history.replaceState({}, '', `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`);
+    }
+    setIsClosed(true);
+  }
+
   async function handleNext() {
     try {
       if (isFinal) {
@@ -877,26 +904,24 @@ function ClientPanelGuide({ data, activeTab, setActiveTab }) {
 
   return (
     <>
-      <div className="pointer-events-none fixed inset-0 z-[9000] bg-slate-950/25" />
-      <aside style={guideStyle} className="pointer-events-auto fixed z-[9999] mx-auto w-[calc(100vw-2rem)] max-w-md rounded-[28px] border border-violet-200 bg-white/95 p-4 text-[#241a14] shadow-2xl shadow-violet-950/20 backdrop-blur md:w-full">
+      {!isClosed ? <div className="pointer-events-none fixed inset-0 z-[9800] bg-slate-950/25" /> : null}
+      {!isClosed ? <aside style={guideStyle} className="pointer-events-auto fixed z-[9900] mx-auto w-[calc(100vw-2rem)] max-w-md rounded-[28px] border border-violet-200 bg-white/95 p-4 text-[#241a14] shadow-2xl shadow-violet-950/20 backdrop-blur md:w-full">
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.20em] text-violet-600">Tour do painel do cliente</p>
             <h2 className="mt-1 text-xl font-black">{currentStep.title}</h2>
           </div>
-          <button type="button" onClick={() => setStepIndex(steps.length - 1)} className="rounded-full border border-zinc-200 px-2.5 py-1 text-xs font-bold text-zinc-500">×</button>
+          <button type="button" onClick={closeGuide} className="rounded-full border border-zinc-200 px-2.5 py-1 text-xs font-bold text-zinc-500">×</button>
         </div>
         <p className="mt-3 text-sm font-semibold leading-6 text-[#6f5d51]">{currentStep.text}</p>
         <div className="mt-4 flex items-center justify-between text-xs font-black text-zinc-500">
           <span>Etapa {Math.min(stepIndex + 1, steps.length)} de {steps.length}</span>
           <span>{currentStep.target}</span>
         </div>
-        {currentStep.waitFor === 'manual' ? (
-          <button type="button" onClick={handleNext} className="mt-4 w-full rounded-[18px] bg-violet-600 px-4 py-3 text-sm font-black text-white">
+        <button type="button" onClick={handleNext} className="mt-4 w-full rounded-[18px] bg-violet-600 px-4 py-3 text-sm font-black text-white">
             {isFinal ? 'Voltar ao painel admin' : 'Próximo passo'}
           </button>
-        ) : null}
-      </aside>
+      </aside> : null}
     </>
   );
 }
@@ -972,7 +997,7 @@ function FooterNav({ activeTab, setActiveTab, hideSuggestions = false }) {
   );
 }
 
-function RepertorioCard({ data }) {
+function RepertorioCard({ data, isClientPanelOnboarding = false }) {
   const uiState = getRepertorioUiState({
     status: data.repertorio.status,
     eventDate: data.dataEvento,
@@ -992,7 +1017,11 @@ function RepertorioCard({ data }) {
   const lateModalStorageKey = `cliente_repertorio_late_modal_${data.token}`;
   const hasLateModalBeenShown =
     typeof window !== 'undefined' && sessionStorage.getItem(lateModalStorageKey) === '1';
-  const showLateModal = uiState === 'atrasado' && !lateModalDismissed && !hasLateModalBeenShown;
+  const showLateModal =
+    !isClientPanelOnboarding &&
+    uiState === 'atrasado' &&
+    !lateModalDismissed &&
+    !hasLateModalBeenShown;
 
   useEffect(() => {
     if (!showLateModal || typeof window === 'undefined') return;
@@ -1651,7 +1680,9 @@ function RepertorioTab({
   onReviewRequested,
   persistedState,
   onPersistState,
+  isClientPanelOnboarding = false,
 }) {
+  const suppressOperationalModals = isClientPanelOnboarding;
   const { showToast } = useToast();
   const statusNormalizado = String(data.repertorio.status || '').toUpperCase();
   const isWedding =
@@ -1659,6 +1690,7 @@ function RepertorioTab({
     data?.repertorio?.initialState?.mode !== 'custom';
   const isCustomEvent = !isWedding;
   const travado = isRepertorioTravado(statusNormalizado, data.repertorio.isLocked);
+  void suppressOperationalModals;
   const shouldShowFinalState = travado;
   const aguardandoRevisao = statusNormalizado === 'AGUARDANDO_REVISAO';
   const receptivoContratadoHoras = Number(data?.repertorio?.receptivoContratadoHoras || 0);
@@ -6082,6 +6114,7 @@ export default function ClienteHome({ data, initialTab = 'inicio', guideQuery = 
               onReviewRequested={handleReviewRequested}
               persistedState={repertorioDraftState}
               onPersistState={setRepertorioDraftState}
+              isClientPanelOnboarding={isClientPanelOnboarding}
             />
           )}
 

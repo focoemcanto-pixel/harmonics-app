@@ -1105,6 +1105,8 @@ export default function ContratoPublicoPage() {
   const [previewError, setPreviewError] = useState('');
   const [previewHtml, setPreviewHtml] = useState('');
   const [viewedAt, setViewedAt] = useState('');
+  const previewBlockedToastShownRef = useRef(false);
+  const previewHtmlRef = useRef('');
 
   const [precontract, setPrecontract] = useState(null);
   const [contract, setContract] = useState(null);
@@ -1143,6 +1145,12 @@ const eventAddressRef = useRef(null);
 const mapsLoaded = useGoogleMapsReady();
 
   const [fieldErrors, setFieldErrors] = useState({});
+
+  useEffect(() => {
+    if (previewHtml) {
+      previewHtmlRef.current = previewHtml;
+    }
+  }, [previewHtml]);
   const [addressValidation, setAddressValidation] = useState({
     clientAddressConfirmed: false,
     eventAddressConfirmed: false,
@@ -1276,7 +1284,7 @@ const mapsLoaded = useGoogleMapsReady();
     const candidates = [
       precontract?.custom_contract_rich_html,
       precontract?.custom_contract_content,
-      previewHtml,
+      previewHtmlRef.current,
       contract?.raw_payload?.signed_contract_html,
       contract?.raw_payload?.contract_html_snapshot,
       contract?.raw_payload?.contract_html,
@@ -1296,24 +1304,31 @@ const mapsLoaded = useGoogleMapsReady();
       return;
     }
 
-    if (isInternalMode && !resolveContractHtml()) {
-      toast.warning('Contrato interno ainda não disponível para visualização.');
+    const contractHtml = resolveContractHtml();
+    const isInternalTemplateReady = !isInternalMode || !!String(contractHtml || '').trim();
+    const isTemplateStillLoading = carregando || (isInternalMode && !isInternalTemplateReady);
+
+    if (isTemplateStillLoading) {
+      console.log('[PUBLIC_CONTRACT] PREVIEW_BLOCKED');
+      if (!previewBlockedToastShownRef.current) {
+        toast.warning('Aguarde, o contrato ainda está sendo carregado.');
+        previewBlockedToastShownRef.current = true;
+      }
       return;
     }
 
+    previewBlockedToastShownRef.current = false;
     setPreviewError('');
-    const contratoHtmlResolvido = resolveContractHtml();
+
     if (isInternalMode) {
-      if (!contratoHtmlResolvido) {
-        toast.error('Não foi possível gerar a visualização do contrato.');
-        return;
-      }
+      console.log('[PUBLIC_CONTRACT] PREVIEW_OPEN');
       setPreviewLoading(false);
       setPreviewAberto(true);
       markContractViewed().catch(() => null);
       return;
     }
 
+    console.log('[PUBLIC_CONTRACT] TEMPLATE_FETCH_START');
     setPreviewLoading(true);
     setPreviewAberto(true);
     fetch(`/api/contracts/preview-html/${token}`, {
@@ -1325,11 +1340,19 @@ const mapsLoaded = useGoogleMapsReady();
         if (!response.ok) {
           throw new Error(html || 'Não foi possível carregar o contrato.');
         }
-        setPreviewHtml(String(html || '').trim());
-        markContractViewed().catch(() => null);
+        const normalizedHtml = String(html || '').trim();
+        if (normalizedHtml) {
+          console.log('[PUBLIC_CONTRACT] TEMPLATE_FETCH_SUCCESS');
+          console.log('[PUBLIC_CONTRACT] TEMPLATE_HTML_READY');
+          previewHtmlRef.current = normalizedHtml;
+          setPreviewHtml(normalizedHtml);
+          console.log('[PUBLIC_CONTRACT] PREVIEW_OPEN');
+          markContractViewed().catch(() => null);
+          return;
+        }
+        console.log('[PUBLIC_CONTRACT] TEMPLATE_HTML_MISSING');
       })
       .catch((error) => {
-        setPreviewHtml('');
         setPreviewError(error?.message || 'Erro ao carregar contrato.');
       })
       .finally(() => {
@@ -1556,9 +1579,17 @@ const mapsLoaded = useGoogleMapsReady();
           },
           templateData
         );
-        setPreviewHtml(String(internal?.html || '').trim());
+        const internalHtml = String(internal?.html || '').trim();
+        if (internalHtml) {
+          console.log('[PUBLIC_CONTRACT] TEMPLATE_FETCH_SUCCESS');
+          console.log('[PUBLIC_CONTRACT] TEMPLATE_HTML_READY');
+          previewHtmlRef.current = internalHtml;
+          setPreviewHtml(internalHtml);
+        } else {
+          console.log('[PUBLIC_CONTRACT] TEMPLATE_HTML_MISSING');
+        }
       } else {
-        setPreviewHtml('');
+        console.log('[PUBLIC_CONTRACT] TEMPLATE_HTML_MISSING');
       }
 
       if (!safePreData?.id) {
@@ -3550,8 +3581,8 @@ if (contractSignedError) throw contractSignedError;
                   <p className="text-xs font-medium text-slate-500">
                     Status: {contractViewedAt ? `visualizado em ${formatDateTimeBR(contractViewedAt)}` : (previewAberto ? 'em leitura' : 'ainda não visualizado')}
                   </p>
-                  <Button variant="secondary" onClick={abrirPreviewContrato}>
-                    Visualizar contrato
+                  <Button variant="secondary" onClick={abrirPreviewContrato} disabled={previewLoading || carregando}>
+                    {previewLoading || carregando ? 'Carregando contrato...' : 'Visualizar contrato'}
                   </Button>
 
                   {previewError ? (
@@ -3639,8 +3670,8 @@ if (contractSignedError) throw contractSignedError;
         ) : null}
 
         {previewAberto && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-black/60 p-3">
-            <div className="relative flex h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
+          <div className="fixed inset-0 z-50 flex items-center justify-center overflow-auto bg-black/60 p-0 md:p-3">
+            <div className="relative flex h-[100dvh] w-[100vw] flex-col overflow-hidden bg-white shadow-2xl md:h-[92vh] md:max-w-5xl md:rounded-3xl">
               <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
                 <div>
                   <p className="text-sm font-semibold text-slate-900">Prévia do contrato</p>
@@ -3661,7 +3692,7 @@ if (contractSignedError) throw contractSignedError;
                 </button>
               </div>
 
-              <div className="relative flex-1 overflow-hidden bg-slate-100 p-4 md:p-6">
+              <div className="relative flex-1 overflow-auto bg-slate-100 p-3 md:p-6">
                 {isInternalMode ? (
                   <div className="h-full overflow-y-auto rounded-2xl border border-slate-200 bg-white p-6 shadow-inner md:p-10">
                     <article
@@ -3670,36 +3701,21 @@ if (contractSignedError) throw contractSignedError;
                     />
                   </div>
                 ) : (
-                  <>
-                    {previewLoading && (
-                      <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/80">
-                        <p className="text-sm text-slate-600">Gerando prévia do contrato...</p>
-                      </div>
-                    )}
-
-                    <iframe
-                      src={`/api/contracts/preview-html/${token}`}
-                      title="Prévia do contrato"
-                      className="h-full w-full rounded-2xl border border-slate-200 bg-white"
-                      onLoad={() => setPreviewLoading(false)}
-                    />
-                  </>
-                )}
-
-                <div className="h-full max-h-[80vh] overflow-y-auto p-4 md:p-6" onWheel={(e) => e.stopPropagation()} onTouchMove={(e) => e.stopPropagation()}>
-                  <div className="mx-auto w-full max-w-[880px] rounded-[26px] border border-slate-200 bg-white p-6 shadow-[0_20px_40px_rgba(15,23,42,0.08)] md:p-10">
-                    {previewHtml ? (
-                      <article
-                        className="prose prose-slate max-w-none text-[15px] leading-7 [&_h1]:mb-4 [&_h1]:text-2xl [&_h1]:font-black [&_h2]:mt-7 [&_h2]:text-xl [&_h2]:font-extrabold [&_h3]:mt-6 [&_h3]:text-lg [&_h3]:font-bold [&_p]:my-3 [&_strong]:font-bold"
-                        dangerouslySetInnerHTML={{ __html: previewHtml }}
-                      />
-                    ) : (
-                      <p className="text-sm text-slate-500">
-                        {previewLoading ? 'Carregando contrato...' : 'Nenhum conteúdo disponível para visualização.'}
-                      </p>
-                    )}
+                  <div className="h-full max-h-[80vh] overflow-y-auto p-4 md:p-6" onWheel={(e) => e.stopPropagation()} onTouchMove={(e) => e.stopPropagation()}>
+                    <div className="mx-auto w-full max-w-[880px] rounded-[26px] border border-slate-200 bg-white p-6 shadow-[0_20px_40px_rgba(15,23,42,0.08)] md:p-10">
+                      {previewHtml ? (
+                        <article
+                          className="prose prose-slate max-w-none text-[15px] leading-7 [&_h1]:mb-4 [&_h1]:text-2xl [&_h1]:font-black [&_h2]:mt-7 [&_h2]:text-xl [&_h2]:font-extrabold [&_h3]:mt-6 [&_h3]:text-lg [&_h3]:font-bold [&_p]:my-3 [&_strong]:font-bold"
+                          dangerouslySetInnerHTML={{ __html: previewHtml }}
+                        />
+                      ) : (
+                        <p className="text-sm text-slate-500">
+                          {previewLoading ? 'Carregando contrato...' : 'Nenhum conteúdo disponível para visualização.'}
+                        </p>
+                      )}
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             </div>
           </div>

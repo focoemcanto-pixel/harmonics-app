@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { buildContractTemplateData } from '../../../../../lib/contracts/buildContractTemplateData';
-import { buildContractPreviewHtml } from '../../../../../lib/contracts/buildContractPreviewHtml';
+import { renderContractHtmlWithData, resolveContractHtmlSource } from '../../../../../lib/contracts/resolveContractHtmlSource';
 
 function getAdminSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -115,7 +115,24 @@ export async function GET(_request, context) {
       event,
     });
 
-    const html = buildContractPreviewHtml(templateData);
+    let sourceHtml = resolveContractHtmlSource(precontract || {}).html;
+
+    if (!String(sourceHtml || '').trim() && precontract?.contract_template_id) {
+      const { data: templateDataRow } = await supabase
+        .from('contract_templates')
+        .select('content')
+        .eq('id', precontract.contract_template_id)
+        .maybeSingle();
+      sourceHtml = resolveContractHtmlSource(templateDataRow || {}).html;
+    }
+
+    const html = renderContractHtmlWithData(sourceHtml, templateData).trim();
+
+    if (!html) {
+      return new NextResponse('Template de contrato não encontrado para este pré-contrato.', {
+        status: 404,
+      });
+    }
 
     return new NextResponse(html, {
       status: 200,

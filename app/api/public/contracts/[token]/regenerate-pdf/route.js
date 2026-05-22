@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { generateAndSaveInternalContractPdf } from '@/lib/contracts/internalPdfFlow';
-import { buildContractTemplateData } from '@/lib/contracts/templateData';
+import { buildContractTemplateData } from '@/lib/contracts/buildContractTemplateData';
 import { renderContractHtmlWithTemplateData, resolveContractHtmlSource } from '@/lib/contracts/resolveContractHtmlSource';
 
 export const dynamic = 'force-dynamic';

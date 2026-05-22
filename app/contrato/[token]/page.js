@@ -122,55 +122,32 @@ function buildContractPreviewSrcDoc(html) {
 <head>
 <meta charset="utf-8" />
 <style>
-  @page { size: A4; margin: 22mm 24mm; }
+  @page {
+    size: A4;
+    margin: 22mm 24mm;
+  }
   html, body {
     margin: 0;
     padding: 0;
     background: #eef2f7;
     font-family: Arial, sans-serif;
-    color: #111827;
   }
   .page {
     width: 210mm;
     min-height: 297mm;
     margin: 24px auto;
     padding: 22mm 24mm;
-    background: #fff;
+    background: white;
     box-shadow: 0 18px 45px rgba(15,23,42,.18);
     box-sizing: border-box;
+    color: #111827;
   }
-  * {
-    box-sizing: border-box;
-    color: #111827 !important;
-    opacity: 1 !important;
-    font-family: Arial, sans-serif !important;
-  }
-  body, p, div, span, li {
-    font-size: 11pt;
-    line-height: 1.35;
-  }
-  p { margin: 0 0 8px; }
-  h1 {
-    font-size: 18pt;
-    line-height: 1.15;
-    margin: 0 0 18px;
-    font-weight: 800;
-    text-transform: uppercase;
-  }
-  h2, h3 {
-    font-size: 12pt;
-    margin: 18px 0 8px;
-    font-weight: 800;
-    text-transform: uppercase;
-  }
-  strong, b { font-weight: 800; }
   @media (max-width: 768px) {
     .page {
       width: calc(100vw - 32px);
       min-height: auto;
       margin: 12px auto;
       padding: 22px;
-      box-shadow: 0 10px 30px rgba(15,23,42,.14);
     }
   }
 </style>
@@ -3770,14 +3747,7 @@ if (contractSignedError) throw contractSignedError;
         {previewAberto && (
           <div className="fixed inset-0 z-50 flex items-center justify-center overflow-auto bg-black/60 p-0 md:p-3">
             <div className="relative flex h-[100dvh] w-[100vw] flex-col overflow-hidden bg-white shadow-2xl md:h-[92vh] md:max-w-5xl md:rounded-3xl">
-              <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-                <div>
-                  <p className="text-sm font-semibold text-slate-900">Prévia do contrato</p>
-                  <p className="text-xs text-slate-500">
-                    Confira o documento com atenção antes de assinar.
-                  </p>
-                </div>
-
+              <div className="flex items-center justify-end border-b border-slate-200 px-4 py-3">
                 <button
                   onClick={() => {
                     setPreviewAberto(false);

@@ -1,10 +1,12 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { UploadCloud } from 'lucide-react';
+import { ExternalLink, UploadCloud, X } from 'lucide-react';
 import { Field, Input } from '../admin/AdminFormPrimitives';
 import AppModal from '../ui/AppModal';
 import { supabase } from '@/lib/supabase';
+
+const MAX_PDF_SIZE_BYTES = 15 * 1024 * 1024;
 
 const FIELD_LABELS = {
   client_name: 'Nome do cliente',
@@ -31,6 +33,19 @@ const FORM_SECTIONS = [
   { title: 'Financeiro', fields: ['agreed_amount', 'status'] },
   { title: 'Observações', fields: ['observations'] },
 ];
+
+function formatFileSize(bytes = 0) {
+  if (!bytes) return '0 MB';
+  return `${(Number(bytes) / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function normalizeFetchError(error) {
+  const message = String(error?.message || '').trim();
+  if (/failed to fetch|networkerror|load failed|cancelled/i.test(message)) {
+    return 'Não foi possível enviar o PDF. Verifique a internet do celular, confirme que o arquivo é um PDF válido e tente novamente. Se continuar, salve o PDF em Arquivos/Downloads e selecione novamente.';
+  }
+  return message || 'Erro ao importar contrato.';
+}
 
 export default function ExternalContractImportModal({ open, onClose, onImported, initialData, toast }) {
   const toDisplayDateBr = (value) => {
@@ -78,6 +93,46 @@ export default function ExternalContractImportModal({ open, onClose, onImported,
     return () => URL.revokeObjectURL(url);
   }, [importFile]);
 
+  function resetImportState() {
+    setIsPreviewOpen(false);
+    setMode('extract');
+    setExtractionStatus('');
+    setExtractionConfidence(null);
+    setMissingFields([]);
+    setExtractedData({});
+    setResultData(null);
+    setError('');
+  }
+
+  function handleFileChange(file) {
+    resetImportState();
+    if (!file) {
+      setImportFile(null);
+      return;
+    }
+
+    const fileName = String(file.name || '').toLowerCase();
+    const fileType = String(file.type || '').toLowerCase();
+    const isPdf = fileType === 'application/pdf' || fileType === 'application/octet-stream' || fileName.endsWith('.pdf');
+
+    if (!isPdf) {
+      setImportFile(null);
+      setError('Selecione um arquivo PDF válido.');
+      toast?.error?.('Selecione um arquivo PDF válido.');
+      return;
+    }
+
+    if (file.size > MAX_PDF_SIZE_BYTES) {
+      setImportFile(null);
+      const msg = `PDF muito grande (${formatFileSize(file.size)}). O limite é 15 MB.`;
+      setError(msg);
+      toast?.error?.(msg);
+      return;
+    }
+
+    setImportFile(file);
+  }
+
   async function runImport(nextMode) {
     if (!importFile) {
       setError('Selecione um arquivo PDF antes de continuar.');
@@ -88,8 +143,12 @@ export default function ExternalContractImportModal({ open, onClose, onImported,
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       const accessToken = sessionData?.session?.access_token;
+      if (!accessToken) {
+        throw new Error('Sessão expirada. Saia da conta, entre novamente e tente importar o PDF outra vez.');
+      }
+
       const f = new FormData();
-      f.append('file', importFile);
+      f.append('file', importFile, importFile.name || 'contrato.pdf');
       f.append('mode', nextMode);
       if (nextMode === 'confirm') {
         f.append('reviewedData', JSON.stringify(reviewedData));
@@ -97,11 +156,16 @@ export default function ExternalContractImportModal({ open, onClose, onImported,
 
       const resp = await fetch('/api/events/import-from-contract', {
         method: 'POST',
-        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: 'application/json',
+        },
         body: f,
+        cache: 'no-store',
       });
-      const payload = await resp.json();
-      if (!resp.ok || !payload?.ok) throw new Error(payload?.error || 'Falha na importação.');
+      const contentType = String(resp.headers.get('content-type') || '');
+      const payload = contentType.includes('application/json') ? await resp.json() : { ok: false, error: await resp.text() };
+      if (!resp.ok || !payload?.ok) throw new Error(payload?.error || payload?.message || 'Falha na importação.');
 
       if (nextMode === 'extract') {
         setMode('confirm');
@@ -116,7 +180,7 @@ export default function ExternalContractImportModal({ open, onClose, onImported,
         toast?.success?.('Evento criado com contrato externo.');
       }
     } catch (err) {
-      const msg = err?.message || 'Erro ao importar contrato.';
+      const msg = normalizeFetchError(err);
       setError(msg);
       toast?.error?.(msg);
     } finally {
@@ -155,17 +219,7 @@ export default function ExternalContractImportModal({ open, onClose, onImported,
       }
     >
       <label className="block cursor-pointer rounded-[14px] border-2 border-dashed border-violet-200 bg-violet-50/40 p-6 text-center transition hover:border-violet-400 hover:bg-violet-50">
-        <input className="hidden" type="file" accept="application/pdf" onChange={(e) => {
-          setImportFile(e.target.files?.[0] || null);
-          setIsPreviewOpen(false);
-          setMode('extract');
-          setExtractionStatus('');
-          setExtractionConfidence(null);
-          setMissingFields([]);
-          setExtractedData({});
-          setResultData(null);
-          setError('');
-        }} />
+        <input className="hidden" type="file" accept="application/pdf,.pdf" onChange={(e) => handleFileChange(e.target.files?.[0] || null)} />
         <UploadCloud className="mx-auto mb-3 h-8 w-8 text-violet-500" />
         <p className="text-sm font-semibold text-slate-800">Clique para selecionar o contrato em PDF</p>
         <p className="mt-1 text-sm text-slate-500">ou arraste o arquivo aqui</p>
@@ -237,13 +291,31 @@ export default function ExternalContractImportModal({ open, onClose, onImported,
       {loading ? <p className="mt-3 text-sm text-slate-500">Processando...</p> : null}
 
       {isPreviewOpen && previewUrl ? (
-        <div className="fixed inset-0 z-[120] bg-black/50 p-4">
-          <div className="mx-auto flex h-full w-full max-w-5xl flex-col rounded-[14px] bg-white p-3">
-            <div className="mb-2 flex items-center justify-between">
-              <h4 className="text-sm font-bold text-slate-800">Preview do contrato</h4>
-              <button type="button" className="rounded-[10px] border px-3 py-2 text-xs font-bold" onClick={() => setIsPreviewOpen(false)}>Fechar preview</button>
+        <div className="fixed inset-0 z-[220] flex flex-col bg-slate-950/95 text-white" role="dialog" aria-modal="true">
+          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 bg-slate-950 px-4 py-3 pt-[max(12px,env(safe-area-inset-top))]">
+            <div className="min-w-0">
+              <p className="truncate text-sm font-black">Preview do contrato</p>
+              <p className="truncate text-xs text-white/60">{importFile?.name}</p>
             </div>
-            <iframe title="Preview do contrato em PDF" src={previewUrl} className="h-full w-full rounded-[10px] border" />
+            <div className="flex items-center gap-2">
+              <a href={previewUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-full bg-white/10 px-3 py-2 text-xs font-bold text-white">
+                <ExternalLink className="h-4 w-4" /> Abrir PDF
+              </a>
+              <button type="button" className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white text-slate-950" onClick={() => setIsPreviewOpen(false)} aria-label="Fechar preview">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
+          <div className="min-h-0 flex-1 overflow-hidden bg-slate-900 p-2 sm:p-4">
+            <div className="mx-auto h-full w-full max-w-5xl overflow-hidden rounded-[16px] border border-white/15 bg-white shadow-2xl sm:rounded-[22px]">
+              <object title="Preview do contrato em PDF" data={previewUrl} type="application/pdf" className="h-full w-full">
+                <iframe title="Preview do contrato em PDF" src={previewUrl} className="h-full w-full border-0" />
+                <div className="p-6 text-center text-slate-900">
+                  <p className="font-bold">Não foi possível exibir o PDF neste navegador.</p>
+                  <a href={previewUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex rounded-[12px] bg-violet-600 px-4 py-2 text-sm font-bold text-white">Abrir PDF</a>
+                </div>
+              </object>
+            </div>
           </div>
         </div>
       ) : null}

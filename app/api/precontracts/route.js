@@ -9,6 +9,7 @@ import {
 import { createPaymentScheduleForPrecontract } from '@/lib/finance/create-payment-schedule';
 import { emitWorkspaceEvent } from '@/lib/workspace-events/emitWorkspaceEvent';
 import { WORKSPACE_EVENT_TYPES } from '@/lib/workspace-events/eventTypes';
+import { ensureInternalPrecontractTemplate } from '@/lib/contracts/precontract-template';
 
 const DEFAULT_LIST_LIMIT = 120;
 
@@ -263,7 +264,7 @@ export async function POST(request) {
     if (id) {
       const { data, error } = await supabase
         .from('precontracts')
-        .select('id, event_date, workspace_id')
+        .select('id, event_date, workspace_id, event_type_id, contract_template_id')
         .eq('id', id)
         .eq('workspace_id', auth.workspaceId)
         .maybeSingle();
@@ -286,14 +287,21 @@ export async function POST(request) {
       );
     }
 
-    const writePayload = sanitizePrecontractWritePayload(
-      normalizePrecontractFinancialPayload({
-        ...payload,
-        workspace_id: auth.workspaceId,
-        public_token: body?.public_token || null,
-        generated_link: body?.generated_link || null,
-      })
-    );
+    const normalizedPayload = normalizePrecontractFinancialPayload({
+      ...payload,
+      workspace_id: auth.workspaceId,
+      public_token: body?.public_token || null,
+      generated_link: body?.generated_link || null,
+    });
+
+    const payloadWithTemplate = await ensureInternalPrecontractTemplate({
+      supabase,
+      workspaceId: auth.workspaceId,
+      payload: normalizedPayload,
+      existingPrecontract: existingItem,
+    });
+
+    const writePayload = sanitizePrecontractWritePayload(payloadWithTemplate);
 
     let data = null;
     if (id) {

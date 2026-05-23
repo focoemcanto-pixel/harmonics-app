@@ -23,7 +23,6 @@ const GUIDE_KEYS = [
   'event',
   'event-types',
   'precontract',
-  'client-panel',
   'fake-members',
   'formation-template',
   'scale',
@@ -37,6 +36,10 @@ const GUIDE_KEYS = [
   'cleanup-fake-event',
   'scale-with-formation',
 ];
+
+function isClientPublicRoute(pathname = '') {
+  return pathname?.startsWith('/cliente/') || pathname?.startsWith('/contrato/');
+}
 
 export default function DeferredOnboardingMount({
   variant,
@@ -53,10 +56,15 @@ export default function DeferredOnboardingMount({
   const { onboardingSession } = useOnboardingSession();
 
   const requestedGuide = useMemo(() => {
+    if (!isClientPublicRoute(pathname)) {
+      const rawGuide = searchParams?.get('guide');
+      const rawOnboarding = searchParams?.get('onboarding');
+      if (rawGuide === 'client-panel' || rawOnboarding === 'client-panel') return null;
+    }
     const guideQuery = searchParams?.get('guide');
     const onboardingQuery = searchParams?.get('onboarding');
     return guideQuery || onboardingQuery;
-  }, [searchParams]);
+  }, [pathname, searchParams]);
 
   const manualGuideRequested = GUIDE_KEYS.includes(requestedGuide);
   const freshWorkspace = requestedGuide === 'fresh-workspace' || searchParams?.get('tour') === 'workspace-created';

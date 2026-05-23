@@ -34,6 +34,17 @@ function saveWorkspaceProgress(status) {
   }
 }
 
+function isExplicitOnboardingEntry(pathname, searchParams) {
+  const onboarding = normalizeOnboardingGuide(searchParams?.get('onboarding'));
+  const tour = normalizeOnboardingGuide(searchParams?.get('tour'));
+  const guide = normalizeOnboardingGuide(searchParams?.get('guide'));
+
+  if (pathname === '/dashboard' && (onboarding === 'fresh-workspace' || tour === 'workspace-created')) return true;
+  if (guide && guide !== 'client-panel') return true;
+  if (onboarding && onboarding !== 'client-panel') return true;
+  return false;
+}
+
 export function OnboardingFlowProvider({ children }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -42,6 +53,7 @@ export function OnboardingFlowProvider({ children }) {
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(false);
   const guide = getGuideFromSearchParams(searchParams);
+  const explicitOnboardingEntry = isExplicitOnboardingEntry(pathname, searchParams);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -65,11 +77,12 @@ export function OnboardingFlowProvider({ children }) {
 
   useEffect(() => {
     if (guide || !status?.ok) return;
+    if (!explicitOnboardingEntry) return;
     if (status.workspaceId === HARMONICS_PRIMARY_WORKSPACE_ID) return;
     if (status.completed === true || status.skipped === true) return;
     if (!status.nextHref || hasCompetingOnboarding?.()) return;
     router.replace(status.nextHref);
-  }, [guide, hasCompetingOnboarding, router, status]);
+  }, [explicitOnboardingEntry, guide, hasCompetingOnboarding, router, status]);
 
   useEffect(() => {
     if (!guide || !status?.ok) return;

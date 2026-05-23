@@ -2,6 +2,7 @@
 import { useToast } from '../ui/ToastProvider';
 import { supabase } from '../../lib/supabase';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import ReferenceSearchInput from '../repertorio/ReferenceSearchInput';
 import {
   formatDateBR,
@@ -5833,6 +5834,7 @@ function EmptyStateCard({ title, text }) {
 }
 
 export default function ClienteHome({ data, initialTab = 'inicio', guideQuery = '' }) {
+  const router = useRouter();
   const [panelData, setPanelData] = useState(data);
   const [activeTab, setActiveTab] = useState('inicio');
   const [selectedSongs, setSelectedSongs] = useState([]);
@@ -5857,6 +5859,17 @@ export default function ClienteHome({ data, initialTab = 'inicio', guideQuery = 
         new URLSearchParams(window.location.search).get('guide') ||
           new URLSearchParams(window.location.search).get('onboarding')
       ));
+  useEffect(() => {
+    if (typeof window === 'undefined' || !isClientPanelOnboarding) return;
+    const current = new URL(window.location.href);
+    const guide = current.searchParams.get('guide');
+    const onboarding = current.searchParams.get('onboarding');
+    if (guide !== 'client-panel' && onboarding !== 'client-panel') return;
+    current.searchParams.delete('guide');
+    current.searchParams.delete('onboarding');
+    router.replace(`${current.pathname}${current.search}${current.hash}`, { scroll: false });
+  }, [isClientPanelOnboarding, router]);
+
   useEffect(() => {
     if (initialTab && initialTab !== 'inicio') {
       setActiveTab(initialTab);

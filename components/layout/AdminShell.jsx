@@ -152,6 +152,7 @@ export default function AdminShell({ pageTitle, children, mobileActions, activeI
     .map((section) => ({ ...section, items: section.items.filter((item) => allowedModules.has(item.module)) }))
     .filter((section) => section.items.length > 0), [allowedModules]);
   const isOnboardingRoute = ONBOARDING_ROUTE_PREFIXES.some((prefix) => pathname === prefix || pathname?.startsWith(`${prefix}/`));
+  const isClientPublicRoute = pathname?.startsWith('/cliente/') || pathname?.startsWith('/contrato/');
   const forceTemplateGuide = pathname === '/contratos/templates' && (searchParams?.get('guide') === 'template' || searchParams?.get('onboarding') === 'template');
   const forceFreshWorkspaceTour = pathname === '/dashboard' && (
     searchParams?.get('onboarding') === 'fresh-workspace' || searchParams?.get('tour') === 'workspace-created'
@@ -162,6 +163,26 @@ export default function AdminShell({ pageTitle, children, mobileActions, activeI
       redirectToLogin();
     }
   }, [initialized, loading, pathname, user]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || isClientPublicRoute) return;
+    const current = new URL(window.location.href);
+    const guide = current.searchParams.get('guide');
+    const onboarding = current.searchParams.get('onboarding');
+    if (guide !== 'client-panel' && onboarding !== 'client-panel') return;
+    current.searchParams.delete('guide');
+    current.searchParams.delete('onboarding');
+    router.replace(`${current.pathname}${current.search}${current.hash}`, { scroll: false });
+  }, [isClientPublicRoute, router, pathname, searchParams]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || isClientPublicRoute) return;
+    const keys = ['harmonics:onboarding-tour:v1', 'harmonics:client-panel:onboarding'];
+    keys.forEach((key) => {
+      window.localStorage.removeItem(key);
+      window.sessionStorage.removeItem(key);
+    });
+  }, [isClientPublicRoute, pathname]);
 
   useEffect(() => {
     let active = true;
@@ -191,7 +212,7 @@ export default function AdminShell({ pageTitle, children, mobileActions, activeI
       }
     }
 
-    if (isOnboardingRoute || forceTemplateGuide || forceFreshWorkspaceTour) {
+    if (!isClientPublicRoute && (isOnboardingRoute || forceTemplateGuide || forceFreshWorkspaceTour)) {
       loadTourEligibility();
     } else {
       const timer = window.setTimeout(() => setShowTour(false), 0);
@@ -204,7 +225,7 @@ export default function AdminShell({ pageTitle, children, mobileActions, activeI
     return () => {
       active = false;
     };
-  }, [forceFreshWorkspaceTour, forceTemplateGuide, isOnboardingRoute, pathname, supabase]);
+  }, [forceFreshWorkspaceTour, forceTemplateGuide, isClientPublicRoute, isOnboardingRoute, pathname, supabase]);
 
   if (initialized && !loading && !user) {
     return null;

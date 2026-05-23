@@ -26,7 +26,7 @@ const STEPS = [
   {
     title: 'Prepare os campos dinâmicos',
     description: 'Clique em Preparar campos dinâmicos para transformar dados do cliente, evento e valores em variáveis reutilizáveis.',
-    selector: '[data-tour="template-editor"] button',
+    selector: '[data-tour="template-dynamic-fields-button"]',
   },
   {
     title: 'Salve o template',

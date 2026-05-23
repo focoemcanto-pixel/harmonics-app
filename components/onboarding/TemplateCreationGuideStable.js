@@ -20,12 +20,22 @@ const STEPS = [
   },
   {
     title: 'Preencha o texto',
-    description: 'Cole ou escreva o texto base do contrato no editor.',
+    description: 'Cole ou escreva o texto base do contrato no editor, mantendo títulos, negritos e estrutura visual.',
     selector: '[data-tour="template-editor"]',
   },
   {
-    title: 'Salve e avance',
-    description: 'Depois de salvar, vamos vincular o template a um tipo de evento.',
+    title: 'Prepare os campos dinâmicos',
+    description: 'Clique em Preparar campos dinâmicos para transformar dados do cliente, evento e valores em variáveis reutilizáveis.',
+    selector: '[data-tour="template-editor"] button',
+  },
+  {
+    title: 'Salve o template',
+    description: 'Clique em Criar template ou Salvar alterações. O guia só avança depois que o sistema confirmar que o template foi salvo.',
+    selector: '[data-tour="template-save-button"]',
+  },
+  {
+    title: 'Template salvo',
+    description: 'Agora sim: siga para Tipos de evento para vincular este template ao tipo correto.',
     selector: '[data-tour="template-save-button"]',
   },
 ];
@@ -83,6 +93,18 @@ function popoverPosition(box) {
   return { width, left, top, bottom: undefined };
 }
 
+async function markTemplateGuideCompleted() {
+  try {
+    await fetch('/api/onboarding/flow-status', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ guide: GUIDE_ID, flowState: { contract_template_completed: true } }),
+    });
+  } catch (error) {
+    console.warn('[TEMPLATE_GUIDE][MARK_COMPLETED_ERROR]', error?.message || error);
+  }
+}
+
 export default function TemplateCreationGuideStable({ enabled = false }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -91,6 +113,8 @@ export default function TemplateCreationGuideStable({ enabled = false }) {
   const [active, setActive] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
   const [box, setBox] = useState(null);
+  const [templateSaved, setTemplateSaved] = useState(false);
+  const [savingRequested, setSavingRequested] = useState(false);
 
   const forced = searchParams?.get('guide') === GUIDE_ID || searchParams?.get('onboarding') === GUIDE_ID;
   const blocked = Boolean(
@@ -109,6 +133,20 @@ export default function TemplateCreationGuideStable({ enabled = false }) {
       endOnboardingSession(GUIDE_ID);
     };
   }, [enabled, endOnboardingSession, forced, pathname, startOnboardingSession]);
+
+  useEffect(() => {
+    if (!active) return undefined;
+
+    function handleTemplateSaved() {
+      setTemplateSaved(true);
+      setSavingRequested(false);
+      setStepIndex(STEPS.length - 1);
+      void markTemplateGuideCompleted();
+    }
+
+    window.addEventListener('harmonics:contract-template-saved', handleTemplateSaved);
+    return () => window.removeEventListener('harmonics:contract-template-saved', handleTemplateSaved);
+  }, [active]);
 
   useEffect(() => {
     if (!active) return undefined;
@@ -139,6 +177,8 @@ export default function TemplateCreationGuideStable({ enabled = false }) {
 
   const step = STEPS[stepIndex] || STEPS[0];
   const popover = popoverPosition(box);
+  const isSaveStep = stepIndex === STEPS.length - 2;
+  const isDoneStep = stepIndex >= STEPS.length - 1;
 
   function skip() {
     clearGuideQuery();
@@ -155,14 +195,31 @@ export default function TemplateCreationGuideStable({ enabled = false }) {
       }
     }
 
-    if (stepIndex >= STEPS.length - 1) {
+    if (isSaveStep) {
+      const saveButton = findTarget({ selector: '[data-tour="template-save-button"]' });
+      if (saveButton) {
+        setSavingRequested(true);
+        saveButton.click?.();
+        return;
+      }
+    }
+
+    if (isDoneStep) {
+      if (!templateSaved) return;
       clearGuideQuery();
       endOnboardingSession(GUIDE_ID);
       router.push(NEXT_HREF);
       return;
     }
+
     setStepIndex((current) => current + 1);
   }
+
+  const primaryButtonLabel = isSaveStep
+    ? (savingRequested ? 'Salvando template...' : 'Salvar template')
+    : isDoneStep
+      ? 'Ir para tipos de evento'
+      : 'Continuar';
 
   return (
     <div className="fixed inset-0 z-[260] pointer-events-none">
@@ -192,9 +249,16 @@ export default function TemplateCreationGuideStable({ enabled = false }) {
         </div>
         <h2 className="mt-4 text-2xl font-black tracking-[-0.04em] text-slate-950">{step.title}</h2>
         <p className="mt-3 text-sm font-semibold leading-7 text-slate-600">{step.description}</p>
+        {isDoneStep && !templateSaved ? (
+          <p className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-bold text-amber-800">
+            Ainda não detectei o template salvo. Clique em Salvar template antes de avançar.
+          </p>
+        ) : null}
         <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-between">
           <button type="button" onClick={skip} className="rounded-2xl border border-slate-200 px-5 py-3 text-sm font-black text-slate-600">Pular guia</button>
-          <button type="button" onClick={next} className="rounded-2xl bg-violet-600 px-5 py-3 text-sm font-black text-white shadow-[0_16px_36px_rgba(124,58,237,0.28)]">{stepIndex >= STEPS.length - 1 ? 'Ir para tipos de evento' : 'Continuar'}</button>
+          <button type="button" onClick={next} disabled={(isSaveStep && savingRequested) || (isDoneStep && !templateSaved)} className="rounded-2xl bg-violet-600 px-5 py-3 text-sm font-black text-white shadow-[0_16px_36px_rgba(124,58,237,0.28)] disabled:cursor-not-allowed disabled:opacity-55">
+            {primaryButtonLabel}
+          </button>
         </div>
       </section>
     </div>

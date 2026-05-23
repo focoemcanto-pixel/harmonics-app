@@ -19,7 +19,9 @@ const MOBILE_DRAWER_SECTIONS = [
   { key: 'automacao', label: 'AUTOMAÇÃO', items: [{ module: 'automacoes', label: 'Automação', href: '/automacoes', icon: '⚡', helper: 'Fluxos e rotinas' }, { module: 'automacoes', label: 'Templates', href: '/automacoes/templates', icon: '📄', helper: 'Mensagens e ações' }, { module: 'automacoes', label: 'Logs', href: '/automacoes/logs', icon: '🧠', helper: 'Histórico de execução' }] },
   { key: 'sistema', label: 'SISTEMA', items: [{ module: 'eventos', label: 'Tipos de eventos', href: '/eventos/tipos', icon: '🧩', helper: 'Modelos e fluxos' }, { module: 'workspace', label: 'Configurações', href: '/settings', icon: '⚙️', helper: 'Conta e segurança' }, { module: 'workspace', label: 'Workspace', href: '/settings/workspace', icon: '🏢', helper: 'Marca e identidade' }] },
 ];
+
 const ONBOARDING_ROUTE_PREFIXES = ['/dashboard', '/eventos', '/pre-contratos', '/contratos/templates', '/automacoes', '/configuracoes/equipe', '/templates-escala', '/escalas/templates', '/pagamentos', '/repertorios'];
+const CLIENT_PANEL_GUIDE_KEYS = ['harmonics:onboarding-tour:v1', 'harmonics:client-panel:onboarding'];
 
 function getInitials(name) {
   if (!name) return '?';
@@ -37,6 +39,27 @@ function normalizeRoleLabel(role) {
     viewer: '👁️ Visualizador',
   };
   return labels[value] || value || 'Membro';
+}
+
+function stripClientPanelGuideFromHref(href) {
+  if (!href) return href;
+  try {
+    const url = new URL(href, typeof window !== 'undefined' ? window.location.origin : 'https://app.bandaharmonics.com');
+    url.searchParams.delete('guide');
+    url.searchParams.delete('onboarding');
+    url.searchParams.delete('returnTo');
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return href.split('?')[0] || href;
+  }
+}
+
+function clearClientPanelGuideStorage() {
+  if (typeof window === 'undefined') return;
+  CLIENT_PANEL_GUIDE_KEYS.forEach((key) => {
+    window.localStorage.removeItem(key);
+    window.sessionStorage.removeItem(key);
+  });
 }
 
 const MobileMoreSheet = memo(function MobileMoreSheet({ open, onClose, onNavigate, visibleSections, workspaceRole }) {
@@ -83,7 +106,7 @@ const MobileMoreSheet = memo(function MobileMoreSheet({ open, onClose, onNavigat
             </div>
 
             <button type="button" onClick={() => !isLoggingOut && onClose?.()} disabled={isLoggingOut} className="rounded-full border border-white/20 bg-white/10 p-2 text-white"><X size={18} /></button>
-            </div>
+          </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-2.5 [scrollbar-gutter:stable]">
             {visibleSections.map((section) => (
@@ -153,6 +176,7 @@ export default function AdminShell({ pageTitle, children, mobileActions, activeI
     .filter((section) => section.items.length > 0), [allowedModules]);
   const isOnboardingRoute = ONBOARDING_ROUTE_PREFIXES.some((prefix) => pathname === prefix || pathname?.startsWith(`${prefix}/`));
   const isClientPublicRoute = pathname?.startsWith('/cliente/') || pathname?.startsWith('/contrato/');
+  const isClientPanelGuideParam = searchParams?.get('guide') === 'client-panel' || searchParams?.get('onboarding') === 'client-panel';
   const forceTemplateGuide = pathname === '/contratos/templates' && (searchParams?.get('guide') === 'template' || searchParams?.get('onboarding') === 'template');
   const forceFreshWorkspaceTour = pathname === '/dashboard' && (
     searchParams?.get('onboarding') === 'fresh-workspace' || searchParams?.get('tour') === 'workspace-created'
@@ -165,23 +189,24 @@ export default function AdminShell({ pageTitle, children, mobileActions, activeI
   }, [initialized, loading, pathname, user]);
 
   useEffect(() => {
-    if (typeof window === 'undefined' || isClientPublicRoute) return;
+    if (typeof window === 'undefined' || isClientPublicRoute || !isClientPanelGuideParam) return;
+
+    clearClientPanelGuideStorage();
+    setShowTour(false);
+
     const current = new URL(window.location.href);
-    const guide = current.searchParams.get('guide');
-    const onboarding = current.searchParams.get('onboarding');
-    if (guide !== 'client-panel' && onboarding !== 'client-panel') return;
     current.searchParams.delete('guide');
     current.searchParams.delete('onboarding');
-    router.replace(`${current.pathname}${current.search}${current.hash}`, { scroll: false });
-  }, [isClientPublicRoute, router, pathname, searchParams]);
+    current.searchParams.delete('returnTo');
+
+    const cleanUrl = `${current.pathname}${current.search}${current.hash}` || '/dashboard';
+    window.history.replaceState(null, '', cleanUrl);
+    router.replace(cleanUrl, { scroll: false });
+  }, [isClientPanelGuideParam, isClientPublicRoute, router, pathname, searchParams]);
 
   useEffect(() => {
     if (typeof window === 'undefined' || isClientPublicRoute) return;
-    const keys = ['harmonics:onboarding-tour:v1', 'harmonics:client-panel:onboarding'];
-    keys.forEach((key) => {
-      window.localStorage.removeItem(key);
-      window.sessionStorage.removeItem(key);
-    });
+    clearClientPanelGuideStorage();
   }, [isClientPublicRoute, pathname]);
 
   useEffect(() => {
@@ -189,6 +214,11 @@ export default function AdminShell({ pageTitle, children, mobileActions, activeI
 
     async function loadTourEligibility() {
       try {
+        if (isClientPanelGuideParam && !isClientPublicRoute) {
+          setShowTour(false);
+          return;
+        }
+
         if (forceTemplateGuide || forceFreshWorkspaceTour) {
           setShowTour(true);
           return;
@@ -212,7 +242,7 @@ export default function AdminShell({ pageTitle, children, mobileActions, activeI
       }
     }
 
-    if (!isClientPublicRoute && (isOnboardingRoute || forceTemplateGuide || forceFreshWorkspaceTour)) {
+    if (!isClientPublicRoute && !isClientPanelGuideParam && (isOnboardingRoute || forceTemplateGuide || forceFreshWorkspaceTour)) {
       loadTourEligibility();
     } else {
       const timer = window.setTimeout(() => setShowTour(false), 0);
@@ -225,14 +255,20 @@ export default function AdminShell({ pageTitle, children, mobileActions, activeI
     return () => {
       active = false;
     };
-  }, [forceFreshWorkspaceTour, forceTemplateGuide, isClientPublicRoute, isOnboardingRoute, pathname, supabase]);
+  }, [forceFreshWorkspaceTour, forceTemplateGuide, isClientPanelGuideParam, isClientPublicRoute, isOnboardingRoute, pathname, supabase]);
 
   if (initialized && !loading && !user) {
     return null;
   }
 
-  const showDashboardOnboarding = pathname === '/dashboard';
-  const showOperationalRouteOnboarding = (showTour || forceTemplateGuide) && pathname !== '/dashboard';
+  const showDashboardOnboarding = !isClientPanelGuideParam && pathname === '/dashboard';
+  const showOperationalRouteOnboarding = !isClientPanelGuideParam && (showTour || forceTemplateGuide) && pathname !== '/dashboard';
+
+  function handleAdminNavigate(href) {
+    setMoreOpen(false);
+    clearClientPanelGuideStorage();
+    router.push(stripClientPanelGuideFromHref(href));
+  }
 
   return (
     <div className="min-h-screen bg-[#f4f6fa] text-[#111827]">
@@ -269,7 +305,7 @@ export default function AdminShell({ pageTitle, children, mobileActions, activeI
           {children}
         </main>
 
-        <MobileMoreSheet open={moreOpen} onClose={() => setMoreOpen(false)} onNavigate={(href) => { setMoreOpen(false); router.push(href); }} visibleSections={visibleDrawerSections} workspaceRole={role || workspaceMe?.role} />
+        <MobileMoreSheet open={moreOpen} onClose={() => setMoreOpen(false)} onNavigate={handleAdminNavigate} visibleSections={visibleDrawerSections} workspaceRole={role || workspaceMe?.role} />
       </div>
     </div>
   );

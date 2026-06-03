@@ -4,6 +4,7 @@ import { getCurrentAutomationWorkspaceSettings } from '@/lib/automation/get-work
 import { requireAdmin } from '@/lib/api/require-admin';
 
 const DEFAULT_LIMIT = 100;
+const VALID_STATUS_FILTERS = new Set(['sent', 'failed', 'skipped']);
 const AUTOMATION_LOGS_SELECT_FIELDS = [
   'id',
   'workspace_id',
@@ -66,6 +67,29 @@ function isMissingColumnError(error) {
   );
 }
 
+function normalizeRecipientFilter(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+
+  const digits = raw.replace(/\D/g, '');
+  if (digits) return digits.slice(0, 20);
+
+  return raw
+    .replace(/[%,()]/g, '')
+    .replace(/\s+/g, ' ')
+    .slice(0, 80);
+}
+
+function normalizeDateFilter(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return '';
+
+  return raw;
+}
+
 function buildLogsQuery({
   supabaseAdmin,
   workspaceIds,
@@ -124,7 +148,7 @@ function normalizeStatusFilter(rawStatus) {
   if (value === 'success') return 'sent';
   if (value === 'error' || value === 'failure') return 'failed';
   if (value === 'ignored') return 'skipped';
-  return value;
+  return VALID_STATUS_FILTERS.has(value) ? value : '';
 }
 
 async function resolveWorkspaceForLogs({ supabaseAdmin, request }) {
@@ -199,12 +223,12 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
 
     const status = normalizeStatusFilter(searchParams.get('status'));
-    const recipient = searchParams.get('recipient');
-    const ruleId = searchParams.get('rule_id');
-    const dateFrom = searchParams.get('date_from');
-    const dateTo = searchParams.get('date_to');
+    const recipient = normalizeRecipientFilter(searchParams.get('recipient'));
+    const ruleId = asUuidOrNull(searchParams.get('rule_id'));
+    const dateFrom = normalizeDateFilter(searchParams.get('date_from'));
+    const dateTo = normalizeDateFilter(searchParams.get('date_to'));
     const sortParam = searchParams.get('sort');
-    const source = searchParams.get('source');
+    const source = String(searchParams.get('source') || '').trim().slice(0, 120);
 
     const ascending = sortParam === 'asc';
 
@@ -294,7 +318,7 @@ export async function DELETE(request) {
           ...(Array.isArray(body?.ids) ? body.ids : []),
           ...(Array.isArray(body?.logIds) ? body.logIds : []),
         ]
-          .map((id) => String(id || '').trim())
+          .map(asUuidOrNull)
           .filter(Boolean)
       )
     );

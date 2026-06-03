@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { requireAdmin } from '@/lib/api/require-admin';
+import { requireWorkspaceAdmin } from '@/lib/api/require-workspace-access';
 import { diffEscala } from '@/lib/escalas/escalas-sync';
 
 function dedupeByMusician(list = []) {
@@ -58,13 +58,28 @@ export async function POST(request, context) {
   const eventId = String(routeParams?.id || '').trim();
 
   try {
-    const auth = await requireAdmin({ supabase, request, logPrefix: '[EVENT_SCALE_API]' });
+    const auth = await requireWorkspaceAdmin({ supabase, request, logPrefix: '[EVENT_SCALE_API]' });
     if (!auth.ok) {
       return NextResponse.json({ ok: false, error: auth.error }, { status: auth.status || 401 });
     }
 
     if (!isUuid(eventId)) {
       return NextResponse.json({ ok: false, error: 'eventId inválido ou ausente.' }, { status: 400 });
+    }
+
+    const { data: eventRow, error: eventError } = await supabase
+      .from('events')
+      .select('id, workspace_id')
+      .eq('id', eventId)
+      .maybeSingle();
+
+    if (eventError) throw eventError;
+    if (!eventRow?.id) {
+      return NextResponse.json({ ok: false, error: 'Evento não encontrado.' }, { status: 404 });
+    }
+
+    if (String(eventRow.workspace_id || '') !== String(auth.workspaceId || '')) {
+      return NextResponse.json({ ok: false, error: 'Evento não pertence ao workspace ativo.' }, { status: 403 });
     }
 
     const body = await request.json().catch(() => ({}));
@@ -132,6 +147,7 @@ export async function POST(request, context) {
       const { error: dedupeInviteError } = await supabase
         .from('invites')
         .update({ status: 'removed' })
+        .eq('event_id', eventId)
         .in('id', duplicateInviteIds);
       if (dedupeInviteError) throw dedupeInviteError;
     }
@@ -180,6 +196,7 @@ export async function POST(request, context) {
           whatsapp_sent_at: null,
           whatsapp_last_error: null,
         })
+        .eq('event_id', eventId)
         .in('id', existingIds);
       if (reactivateError) throw reactivateError;
 
@@ -221,6 +238,7 @@ export async function POST(request, context) {
     return NextResponse.json({
       ok: true,
       eventId,
+      workspaceId: auth.workspaceId,
       escala: escalaFinal || [],
       stats: {
         total: payload.length,

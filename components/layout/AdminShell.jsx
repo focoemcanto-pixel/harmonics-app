@@ -73,27 +73,45 @@ function clearClientPanelGuideStorage() {
 const MobileMoreSheet = memo(function MobileMoreSheet({ open, onClose, onNavigate, visibleSections = [], workspaceRole }) {
   const { signOut, profile } = useAuth();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isNavigating, setIsNavigating] = useState(false);
+  const isBusy = isLoggingOut || isNavigating;
 
   useEffect(() => {
-    document.body.style.overflow = open ? 'hidden' : '';
-    return () => { document.body.style.overflow = ''; };
+    if (!open || typeof document === 'undefined') return undefined;
+
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousBodyTouchAction = document.body.style.touchAction;
+
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+    document.body.style.touchAction = 'none';
+
+    return () => {
+      document.documentElement.style.overflow = previousHtmlOverflow;
+      document.body.style.overflow = previousBodyOverflow;
+      document.body.style.touchAction = previousBodyTouchAction;
+    };
   }, [open]);
 
   useEffect(() => {
-    if (!open) return undefined;
+    if (!open) {
+      setIsNavigating(false);
+      return undefined;
+    }
 
     function handleEscape(event) {
-      if (event.key === 'Escape' && !isLoggingOut) onClose?.();
+      if (event.key === 'Escape' && !isBusy) onClose?.();
     }
 
     window.addEventListener('keydown', handleEscape);
     return () => window.removeEventListener('keydown', handleEscape);
-  }, [isLoggingOut, open, onClose]);
+  }, [isBusy, open, onClose]);
 
   if (!open) return null;
 
   async function handleLogout() {
-    if (isLoggingOut) return;
+    if (isBusy) return;
     setIsLoggingOut(true);
     try {
       await signOut({ redirect: true });
@@ -103,29 +121,57 @@ const MobileMoreSheet = memo(function MobileMoreSheet({ open, onClose, onNavigat
     }
   }
 
+  function handleNavigate(href) {
+    if (isBusy) return;
+    setIsNavigating(true);
+    onNavigate?.(href);
+  }
+
   return (
-    <div role="dialog" aria-modal="true" className="fixed inset-0 z-[120] bg-black/55 backdrop-blur-md md:hidden" onClick={(e) => e.target === e.currentTarget && !isLoggingOut && onClose?.()}>
-      <div className="flex h-[100dvh] items-stretch justify-start">
-        <div className="flex h-full w-[84vw] max-w-[360px] flex-col overflow-hidden overscroll-contain border-r border-white/10 bg-[linear-gradient(180deg,#0f172a_0%,#111827_100%)] shadow-[30px_0_80px_rgba(15,23,42,0.55)]" onClick={(e) => e.stopPropagation()}>
+    <div
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 z-[190] bg-black/55 backdrop-blur-md md:hidden"
+      onClick={(e) => e.target === e.currentTarget && !isBusy && onClose?.()}
+    >
+      <div className="flex h-[100dvh] items-stretch justify-start pt-[env(safe-area-inset-top,0px)]">
+        <div
+          className="flex h-[calc(100dvh-env(safe-area-inset-top,0px))] w-[86vw] max-w-[370px] flex-col overflow-hidden overscroll-contain border-r border-white/10 bg-[linear-gradient(180deg,#0f172a_0%,#111827_100%)] shadow-[30px_0_80px_rgba(15,23,42,0.55)]"
+          onClick={(e) => e.stopPropagation()}
+        >
           <div className="shrink-0 flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
-            <div>
+            <div className="min-w-0 flex-1">
               <div className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-200">Navegação</div>
-              <div className="mt-1 text-[20px] font-black tracking-[-0.03em] text-white">Workspace operacional</div>
+              <div className="mt-1 truncate text-[20px] font-black tracking-[-0.03em] text-white">Workspace operacional</div>
             </div>
 
-            <button type="button" onClick={() => !isLoggingOut && onClose?.()} disabled={isLoggingOut} className="rounded-full border border-white/20 bg-white/10 p-2 text-white"><X size={18} /></button>
+            <button
+              type="button"
+              aria-label="Fechar menu"
+              onClick={() => !isBusy && onClose?.()}
+              disabled={isBusy}
+              className="flex min-h-11 min-w-11 touch-manipulation items-center justify-center rounded-full border border-white/20 bg-white/10 p-2 text-white transition active:scale-[0.98] disabled:opacity-60"
+            >
+              <X size={18} />
+            </button>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-2.5 [scrollbar-gutter:stable]">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-2.5 [-webkit-overflow-scrolling:touch] [scrollbar-gutter:stable]">
             {visibleSections.map((section) => (
               <section key={section.key} className="mb-3.5">
                 <p className="mb-1.5 text-[11px] font-extrabold uppercase tracking-[0.14em] text-slate-400">{section.label}</p>
                 <div className="space-y-1.5">
                   {section.items.map((item) => (
-                    <button key={item.href} type="button" onClick={() => onNavigate?.(item.href)} className="flex w-full items-center gap-2.5 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left backdrop-blur-sm">
+                    <button
+                      key={item.href}
+                      type="button"
+                      onClick={() => handleNavigate(item.href)}
+                      disabled={isBusy}
+                      className="flex min-h-14 w-full touch-manipulation items-center gap-2.5 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-left backdrop-blur-sm transition active:scale-[0.99] disabled:opacity-60"
+                    >
                       <span className="text-lg">{item.icon}</span>
-                      <span className="min-w-0">
-                        <span className="block text-[13px] font-black text-white">{item.label}</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[13px] font-black text-white">{item.label}</span>
                         <span className="block truncate text-[11px] text-slate-300">{item.helper}</span>
                       </span>
                     </button>
@@ -142,17 +188,22 @@ const MobileMoreSheet = memo(function MobileMoreSheet({ open, onClose, onNavigat
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-violet-100 text-[12px] font-black text-violet-700">
                     {getInitials(profile.name || profile.email)}
                   </div>
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <p className="truncate text-[13px] font-bold text-white">{profile.name || profile.email}</p>
                     <p className="truncate text-[11px] text-slate-300">{profile.email}</p>
-                    <p className="text-[11px] text-violet-200">{normalizeRoleLabel(workspaceRole || profile.role)}</p>
+                    <p className="truncate text-[11px] text-violet-200">{normalizeRoleLabel(workspaceRole || profile.role)}</p>
                   </div>
                 </div>
               </div>
             ) : null}
 
-            <button type="button" onClick={handleLogout} disabled={isLoggingOut} className="mt-2 flex w-full items-center justify-between rounded-xl border border-white/15 bg-white/[0.06] px-3.5 py-2.5 text-[13px] font-semibold text-slate-200 transition hover:border-red-300/50 hover:bg-red-500/15 hover:text-red-100">
-              <span>{isLoggingOut ? 'Encerrando sessão...' : 'Sair da conta'}</span>
+            <button
+              type="button"
+              onClick={handleLogout}
+              disabled={isBusy}
+              className="mt-2 flex min-h-11 w-full touch-manipulation items-center justify-between rounded-xl border border-white/15 bg-white/[0.06] px-3.5 py-2.5 text-[13px] font-semibold text-slate-200 transition active:scale-[0.99] hover:border-red-300/50 hover:bg-red-500/15 hover:text-red-100 disabled:opacity-60"
+            >
+              <span>{isLoggingOut ? 'Encerrando sessão...' : isNavigating ? 'Abrindo...' : 'Sair da conta'}</span>
               <span aria-hidden="true" className="text-base leading-none">↗</span>
             </button>
           </div>

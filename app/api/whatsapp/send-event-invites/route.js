@@ -8,6 +8,10 @@ function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function isUuid(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || '').trim());
+}
+
 function resolveProviderStatus(inviteResult = {}) {
   const data = inviteResult?.data || {};
 
@@ -33,13 +37,12 @@ export async function POST(request) {
       return NextResponse.json({ ok: false, error: auth.error }, { status: auth.status || 401 });
     }
 
-    const body = await request.json();
+    const body = await request.json().catch(() => ({}));
     const eventId = String(body?.eventId || '').trim();
-    console.info('[automation][step] salvar_escala_trigger_received', { eventId, workspaceId: auth.workspaceId });
 
-    if (!eventId) {
+    if (!isUuid(eventId)) {
       return NextResponse.json(
-        { ok: false, error: 'eventId é obrigatório' },
+        { ok: false, error: 'eventId inválido ou ausente' },
         { status: 400 }
       );
     }
@@ -67,26 +70,13 @@ export async function POST(request) {
 
     if (error) throw error;
 
-    const pendentes = (invites || []).filter((invite) => !invite.whatsapp_sent_at);
-    console.info('[automation][step] pending_invites_resolved', {
-      eventId,
-      workspaceId: auth.workspaceId,
-      totalInvites: (invites || []).length,
-      pendingToSend: pendentes.length,
-    });
-
+    const pendentes = (invites || []).filter((invite) => !invite.whatsapp_sent_at && isUuid(invite?.id));
     const results = [];
 
     await processQueue(
       pendentes,
       async (invite) => {
         const sendInvite = async (item, attempt = 1) => {
-          console.info('[batch_send_invites] invite_started', {
-            eventId,
-            inviteId: item.id,
-            attempt,
-          });
-
           const inviteResult = await sendInviteService({
             inviteId: item.id,
             supabaseAdmin,
@@ -96,13 +86,6 @@ export async function POST(request) {
           const isRateLimit = Number(providerStatus) === 429;
 
           if (isRateLimit && attempt === 1) {
-            console.info('[batch_send_invites] retry', {
-              status: 'retry',
-              eventId,
-              inviteId: item.id,
-              providerStatus,
-              waitMs: 7000,
-            });
             await wait(7000);
             return sendInvite(item, attempt + 1);
           }
@@ -114,15 +97,7 @@ export async function POST(request) {
             response: inviteResult.data || null,
           };
 
-          if (inviteResult.ok) {
-            console.info('[batch_send_invites] invite_finished', {
-              status: 'success',
-              eventId,
-              inviteId: item.id,
-              statusCode: inviteResult.status,
-              attempt,
-            });
-          } else {
+          if (!inviteResult.ok) {
             const failureData = inviteResult.data || {};
             resultItem.error = failureData.error || failureData.cause || inviteResult.error || 'Falha ao enviar convite';
             resultItem.cause = failureData.cause || resultItem.error;

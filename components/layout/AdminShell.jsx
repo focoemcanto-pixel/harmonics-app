@@ -20,6 +20,14 @@ const MOBILE_DRAWER_SECTIONS = [
   { key: 'sistema', label: 'SISTEMA', items: [{ module: 'eventos', label: 'Tipos de eventos', href: '/eventos/tipos', icon: '🧩', helper: 'Modelos e fluxos' }, { module: 'workspace', label: 'Configurações', href: '/settings', icon: '⚙️', helper: 'Conta e segurança' }, { module: 'workspace', label: 'Workspace', href: '/settings/workspace', icon: '🏢', helper: 'Marca e identidade' }] },
 ];
 
+const ALL_MOBILE_DRAWER_MODULES = Array.from(
+  new Set(
+    MOBILE_DRAWER_SECTIONS.flatMap((section) =>
+      section.items.map((item) => item.module).filter(Boolean)
+    )
+  )
+);
+
 const ONBOARDING_ROUTE_PREFIXES = ['/dashboard', '/eventos', '/pre-contratos', '/contratos/templates', '/automacoes', '/configuracoes/equipe', '/templates-escala', '/escalas/templates', '/pagamentos', '/repertorios'];
 const CLIENT_PANEL_GUIDE_KEYS = ['harmonics:onboarding-tour:v1', 'harmonics:client-panel:onboarding'];
 
@@ -62,7 +70,7 @@ function clearClientPanelGuideStorage() {
   });
 }
 
-const MobileMoreSheet = memo(function MobileMoreSheet({ open, onClose, onNavigate, visibleSections, workspaceRole }) {
+const MobileMoreSheet = memo(function MobileMoreSheet({ open, onClose, onNavigate, visibleSections = [], workspaceRole }) {
   const { signOut, profile } = useAuth();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
@@ -162,14 +170,24 @@ export default function AdminShell({ pageTitle, children, mobileActions, activeI
   const { user, initialized, loading } = useAuth();
   const [moreOpen, setMoreOpen] = useState(false);
   const [showTour, setShowTour] = useState(false);
-  const { workspaceMe, modules, role } = useWorkspaceMe({ enabled: Boolean(initialized && !loading && user) });
+  const {
+    workspaceMe,
+    modules,
+    role,
+    loading: workspaceLoading,
+  } = useWorkspaceMe({ enabled: Boolean(initialized && !loading && user) });
 
   const allowedModules = useMemo(() => {
+    if (workspaceLoading) {
+      return new Set(ALL_MOBILE_DRAWER_MODULES);
+    }
+
     if (Array.isArray(modules) && modules.length > 0) {
       return new Set([...modules, 'workspace']);
     }
+
     return new Set(['dashboard', 'workspace']);
-  }, [modules]);
+  }, [modules, workspaceLoading]);
 
   const visibleDrawerSections = useMemo(() => MOBILE_DRAWER_SECTIONS
     .map((section) => ({ ...section, items: section.items.filter((item) => allowedModules.has(item.module)) }))

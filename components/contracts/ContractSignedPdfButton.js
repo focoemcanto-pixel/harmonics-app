@@ -48,8 +48,9 @@ export default function ContractSignedPdfButton({
       type="button"
       onClick={handleOpen}
       disabled={disabled}
+      aria-busy={opening ? 'true' : undefined}
       title={!resolvedContractId || !hasPdf ? disabledLabel : ''}
-      className={className || 'rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3 text-[14px] font-black text-[#0f172a] disabled:cursor-not-allowed disabled:opacity-60'}
+      className={className || 'inline-flex min-h-11 touch-manipulation items-center justify-center rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3 text-center text-[14px] font-black text-[#0f172a] transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 disabled:active:scale-100'}
     >
       {opening ? 'Abrindo PDF...' : children}
     </button>

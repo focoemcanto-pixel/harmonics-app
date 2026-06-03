@@ -1,6 +1,19 @@
 'use client';
 
-export default function AdminSegmentTabs({ items = [], active, onChange }) {
+function scrollToPageStart() {
+  if (typeof window === 'undefined') return;
+
+  window.requestAnimationFrame(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+}
+
+export default function AdminSegmentTabs({ items = [], active, onChange, resetScrollOnChange = true }) {
+  function handleTabChange(key) {
+    onChange?.(key);
+    if (resetScrollOnChange) scrollToPageStart();
+  }
+
   return (
     <nav
       aria-label="Abas da seção"
@@ -13,7 +26,7 @@ export default function AdminSegmentTabs({ items = [], active, onChange }) {
             key={item.key}
             type="button"
             aria-pressed={selected}
-            onClick={() => onChange?.(item.key)}
+            onClick={() => handleTabChange(item.key)}
             className={`shrink-0 touch-manipulation whitespace-nowrap rounded-full px-4 py-2.5 text-[12px] font-black transition active:scale-[0.98] ${
               selected
                 ? 'bg-violet-100 text-violet-700 shadow-[0_8px_18px_rgba(124,58,237,0.12)]'

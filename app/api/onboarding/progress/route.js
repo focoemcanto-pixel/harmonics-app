@@ -1,442 +1,240 @@
 import { NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { requireWorkspaceAccess, requireWorkspaceAdmin } from '@/lib/api/require-workspace-access';
-import { ONBOARDING_STEPS, calculateOnboardingProgress } from '@/lib/onboarding/tourRegistry';
+import { ONBOARDING_FLOW_STEPS } from '@/lib/onboarding/onboarding-flow';
+import { calculateOnboardingFlowProgress } from '@/lib/onboarding/getNextOnboardingStep';
 
-const STEP_KEYS = new Set(ONBOARDING_STEPS.map((step) => step.key));
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
-const LEGACY_WORKSPACE_KEYS = new Set(
-  String(process.env.HARMONICS_LEGACY_WORKSPACE_SLUGS || 'harmonics,harmonics-producao,default')
-    .split(',')
-    .map((item) => item.trim().toLowerCase())
-    .filter(Boolean)
-);
+const LEGACY_STEPS = [
+  {
+    key: 'workspace_configured',
+    title: 'Configure o workspace',
+    description: 'Defina a base inicial do workspace.',
+    href: '/dashboard?onboarding=fresh-workspace',
+    cta: 'Configurar workspace',
+  },
+  {
+    key: 'template_created',
+    title: 'Crie o primeiro template de contrato',
+    description: 'Monte o texto base do contrato com tags dinâmicas.',
+    href: '/contratos/templates?guide=template',
+    cta: 'Criar template',
+  },
+  {
+    key: 'event_type_created',
+    title: 'Associe templates aos tipos de evento',
+    description: 'Vincule o tipo de evento ao template correto.',
+    href: '/eventos/tipos?guide=event-types',
+    cta: 'Configurar tipos',
+  },
+  {
+    key: 'precontract_created',
+    title: 'Gere o primeiro pré-contrato',
+    description: 'Gere o link comercial para o cliente preencher e assinar.',
+    href: '/pre-contratos?guide=precontract',
+    cta: 'Criar pré-contrato',
+  },
+  {
+    key: 'contract_signed_test',
+    title: 'Simule a experiência do cliente',
+    description: 'Abra o link externo, assine e valide a experiência.',
+    href: '/pre-contratos?guide=precontract',
+    cta: 'Simular contrato',
+  },
+  {
+    key: 'first_event_created',
+    title: 'Crie uma escala operacional',
+    description: 'Monte a primeira escala do evento demo.',
+    href: '/eventos?guide=scale-with-formation',
+    cta: 'Criar escala',
+  },
+  {
+    key: 'automation_configured',
+    title: 'Configure automações',
+    description: 'Prepare canais, mensagens e logs de envio.',
+    href: '/automacoes?guide=automation-overview',
+    cta: 'Configurar automações',
+  },
+  {
+    key: 'team_configured',
+    title: 'Adicione sua equipe',
+    description: 'Convide membros e defina funções dentro do workspace.',
+    href: '/configuracoes/equipe?guide=fake-members',
+    cta: 'Adicionar equipe',
+  },
+];
 
-const DEFAULT_PROGRESS = {
-  workspace_configured: false,
-  template_created: false,
-  event_type_created: false,
-  precontract_created: false,
-  contract_signed_test: false,
-  first_event_created: false,
-  automation_configured: false,
-  team_configured: false,
+const LEGACY_STEP_TO_GUIDE = {
+  workspace_configured: 'dashboard-demo',
+  template_created: 'template',
+  event_type_created: 'event-types',
+  precontract_created: 'precontract',
+  contract_signed_test: 'client-contract-success',
+  first_event_created: 'scale-with-formation',
+  automation_configured: 'automation-overview',
+  team_configured: 'fake-members',
 };
 
-const ALL_DONE_PROGRESS = Object.fromEntries(
-  Object.keys(DEFAULT_PROGRESS).map((key) => [key, true])
-);
+const LEGACY_STEP_TO_FLOW_STATE = {
+  workspace_configured: 'workspace_created_for_onboarding',
+  template_created: 'contract_template_completed',
+  contract_signed_test: 'client_contract_signed',
+};
 
-const MIN_VALID_TEMPLATE_CONTENT_LENGTH = 20;
-
-async function ensureProgressRow({ supabase, workspaceId }) {
-  const { data: existing, error: existingError } = await supabase
-    .from('workspace_onboarding_progress')
-    .select('*')
-    .eq('workspace_id', workspaceId)
-    .maybeSingle();
-
-  if (existingError) throw existingError;
-  if (existing?.id) return existing;
-
-  const { data: inserted, error: insertError } = await supabase
-    .from('workspace_onboarding_progress')
-    .insert({ workspace_id: workspaceId, ...DEFAULT_PROGRESS })
-    .select('*')
-    .single();
-
-  if (insertError) throw insertError;
-  return inserted;
+function getOrigin(request) {
+  const urlOrigin = new URL(request.url).origin;
+  const forwardedProto = request.headers.get('x-forwarded-proto');
+  const forwardedHost = request.headers.get('x-forwarded-host') || request.headers.get('host');
+  if (forwardedProto && forwardedHost) return `${forwardedProto}://${forwardedHost}`;
+  return urlOrigin;
 }
 
-function hasCount(response) {
-  return Number(response?.count || 0) > 0;
+function forwardHeaders(request) {
+  const headers = new Headers();
+  const authorization = request.headers.get('authorization');
+  const cookie = request.headers.get('cookie');
+  if (authorization) headers.set('authorization', authorization);
+  if (cookie) headers.set('cookie', cookie);
+  headers.set('accept', 'application/json');
+  return headers;
 }
 
-async function safeCount(queryPromise) {
-  try {
-    return await queryPromise;
-  } catch (error) {
-    console.warn('[ONBOARDING_PROGRESS][SAFE_COUNT_ERROR]', error?.message || error);
-    return { count: 0, error };
-  }
+async function callFlowStatus(request, { method = 'GET', body = null } = {}) {
+  const headers = forwardHeaders(request);
+  if (body) headers.set('content-type', 'application/json');
+
+  const response = await fetch(`${getOrigin(request)}/api/onboarding/flow-status`, {
+    method,
+    headers,
+    cache: 'no-store',
+    body: body ? JSON.stringify(body) : undefined,
+  });
+
+  const payload = await response.json().catch(() => null);
+  return { response, payload };
 }
 
-function stripHtml(value) {
-  return String(value || '')
-    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function getTemplateContentLength(template) {
-  return Math.max(
-    stripHtml(template?.content).length,
-    stripHtml(template?.source_text).length,
-    stripHtml(template?.source_rich_html).length
-  );
-}
-
-function isValidContractTemplate(template, workspaceId) {
-  return Boolean(
-    template?.id &&
-    template?.workspace_id &&
-    String(template.workspace_id) === String(workspaceId) &&
-    template?.is_active !== false &&
-    getTemplateContentLength(template) >= MIN_VALID_TEMPLATE_CONTENT_LENGTH
-  );
-}
-
-async function safeList(queryPromise) {
-  try {
-    const response = await queryPromise;
-    if (response?.error) return [];
-    return response?.data || [];
-  } catch (error) {
-    console.warn('[ONBOARDING_PROGRESS][SAFE_LIST_ERROR]', error?.message || error);
-    return [];
-  }
-}
-
-async function hasValidContractTemplate({ supabase, workspaceId }) {
-  const templates = await safeList(
-    supabase
-      .from('contract_templates')
-      .select('id, workspace_id, content, source_text, source_rich_html, is_active')
-      .eq('workspace_id', workspaceId)
-      .eq('is_active', true)
-      .limit(100)
-  );
-
-  return templates.some((template) => isValidContractTemplate(template, workspaceId));
-}
-
-async function getWorkspaceInfo({ supabase, workspaceId }) {
-  const { data, error } = await supabase
-    .from('workspaces')
-    .select('id, slug, key, name')
-    .eq('id', workspaceId)
-    .maybeSingle();
-
-  if (error) {
-    console.warn('[ONBOARDING_PROGRESS][WORKSPACE_INFO_ERROR]', error?.message || error);
-    return { id: workspaceId };
-  }
-
-  return data || { id: workspaceId };
-}
-
-function isLegacyWorkspace(workspace) {
-  const keys = [workspace?.slug, workspace?.key, workspace?.name]
-    .map((item) => String(item || '').trim().toLowerCase())
-    .filter(Boolean);
-
-  return keys.some((key) => LEGACY_WORKSPACE_KEYS.has(key));
-}
-
-async function detectWorkspaceProgress({ supabase, workspaceId }) {
-  const [
-    hasTemplate,
-    eventTypesResp,
-    precontractsResp,
-    signedContractsResp,
-    eventsResp,
-    channelsResp,
-    membersResp,
-  ] = await Promise.all([
-    hasValidContractTemplate({ supabase, workspaceId }),
-    safeCount(
-      supabase
-        .from('event_types')
-        .select('id', { count: 'exact', head: true })
-        .eq('workspace_id', workspaceId)
-    ),
-    safeCount(
-      supabase
-        .from('precontracts')
-        .select('id', { count: 'exact', head: true })
-        .eq('workspace_id', workspaceId)
-    ),
-    safeCount(
-      supabase
-        .from('contracts')
-        .select('id', { count: 'exact', head: true })
-        .eq('workspace_id', workspaceId)
-        .in('status', ['signed', 'assinado', 'ASSINADO'])
-    ),
-    safeCount(
-      supabase
-        .from('events')
-        .select('id', { count: 'exact', head: true })
-        .eq('workspace_id', workspaceId)
-    ),
-    safeCount(
-      supabase
-        .from('whatsapp_channels')
-        .select('id', { count: 'exact', head: true })
-        .eq('workspace_id', workspaceId)
-    ),
-    safeCount(
-      supabase
-        .from('workspace_members')
-        .select('id', { count: 'exact', head: true })
-        .eq('workspace_id', workspaceId)
-    ),
-  ]);
+function buildLegacyProgress(flowPayload = {}) {
+  const flowState = flowPayload.flow_state || flowPayload.progress?.flow_state || {};
+  const completedAt = flowPayload.progress?.completed_at || null;
+  const skipped = flowPayload.skipped === true || flowState.skipped === true || flowState.onboarding_skipped === true;
+  const completed = flowPayload.completed === true || flowState.onboarding_completed === true || flowState.onboardingCompleted === true;
 
   return {
-    workspace_configured: false,
-    template_created: hasTemplate,
-    event_type_created: hasCount(eventTypesResp),
-    precontract_created: hasCount(precontractsResp),
-    contract_signed_test: hasCount(signedContractsResp),
-    first_event_created: hasCount(eventsResp),
-    automation_configured: hasCount(channelsResp),
-    team_configured: Number(membersResp?.count || 0) > 1,
+    ...(flowPayload.progress || {}),
+    workspace_configured: completed || skipped || flowPayload.onboardingEnabled === true || flowPayload.primaryWorkspace === true,
+    template_created: completed || skipped || flowPayload.hasContractTemplate === true,
+    event_type_created: completed || skipped || flowPayload.hasEventType === true,
+    precontract_created: completed || skipped || flowPayload.hasPrecontract === true,
+    contract_signed_test: completed || skipped || flowPayload.hasSignedContract === true,
+    first_event_created: completed || skipped || flowPayload.hasScale === true || Boolean(flowPayload.demoEventId),
+    automation_configured: completed || skipped || flowPayload.hasAutomationsViewed === true,
+    team_configured: completed || skipped || flowPayload.hasFakeMembers === true,
+    completed_at: completed || skipped ? completedAt || new Date().toISOString() : completedAt,
+    flow_state: flowState,
   };
 }
 
-async function syncDetectedProgress({ supabase, workspaceId, progress }) {
-  if (progress?.completed_at) return progress;
+function buildLegacySummary(progress = {}) {
+  const total = LEGACY_STEPS.length;
+  const completed = LEGACY_STEPS.filter((step) => progress?.[step.key] === true).length;
+  return {
+    total,
+    completed,
+    percentage: total > 0 ? Math.round((completed / total) * 100) : 0,
+  };
+}
 
-  const detected = await detectWorkspaceProgress({ supabase, workspaceId });
-  const updatePayload = { updated_at: new Date().toISOString() };
-  let changed = false;
+function toLegacyResponse(flowPayload = {}) {
+  const progress = buildLegacyProgress(flowPayload);
+  const summary = buildLegacySummary(progress);
+  const flowSummary = calculateOnboardingFlowProgress(flowPayload);
+  const flowSteps = ONBOARDING_FLOW_STEPS.filter((step) => step.key !== 'complete');
 
-  for (const [key, value] of Object.entries(detected)) {
-    if (value === true && progress?.[key] !== true) {
-      updatePayload[key] = true;
-      changed = true;
-    }
+  return {
+    ok: flowPayload.ok !== false,
+    workspaceId: flowPayload.workspaceId,
+    showOnboarding: flowPayload.primaryWorkspace === true ? false : flowPayload.completed !== true && flowPayload.skipped !== true,
+    progress,
+    summary,
+    steps: LEGACY_STEPS,
+    flow: {
+      ...flowPayload,
+      summary: flowSummary,
+      steps: flowSteps,
+    },
+  };
+}
+
+function legacyPatchBody(body = {}) {
+  if (body?.skipOnboarding === true) {
+    return {
+      flowState: { skipped: true, onboarding_skipped: true },
+      completed: true,
+    };
   }
 
-  if (!changed) return progress;
+  const stepKey = String(body?.stepKey || '').trim();
+  const completed = body?.completed !== false;
+  const guide = LEGACY_STEP_TO_GUIDE[stepKey] || stepKey;
+  const flowStateKey = completed ? LEGACY_STEP_TO_FLOW_STATE[stepKey] : null;
 
-  const mergedForSummary = { ...progress, ...updatePayload };
-  const summary = calculateOnboardingProgress(mergedForSummary);
-  updatePayload.completed_at = summary.completed === summary.total
-    ? new Date().toISOString()
-    : progress.completed_at || null;
-
-  const { data: updated, error } = await supabase
-    .from('workspace_onboarding_progress')
-    .update(updatePayload)
-    .eq('workspace_id', workspaceId)
-    .select('*')
-    .single();
-
-  if (error) throw error;
-  return updated;
+  return {
+    guide,
+    ...(flowStateKey ? { flowState: { [flowStateKey]: true } } : {}),
+  };
 }
 
 export async function GET(request) {
-  const supabase = getSupabaseAdmin();
-
   try {
-    const auth = await requireWorkspaceAccess({
-      supabase,
-      request,
-      logPrefix: '[ONBOARDING_PROGRESS][GET]',
-    });
-
-    if (!auth.ok) {
-      return NextResponse.json(
-        { ok: false, error: auth.error },
-        { status: auth.status || 401 }
-      );
+    const { response, payload } = await callFlowStatus(request);
+    if (!response.ok || payload?.ok === false) {
+      return NextResponse.json(payload || { ok: false, error: 'Erro ao carregar onboarding.' }, { status: response.status || 500 });
     }
 
-    const workspace = await getWorkspaceInfo({
-      supabase,
-      workspaceId: auth.workspaceId,
-    });
-
-    const row = await ensureProgressRow({
-      supabase,
-      workspaceId: auth.workspaceId,
-    });
-
-    let progress = await syncDetectedProgress({
-      supabase,
-      workspaceId: auth.workspaceId,
-      progress: row,
-    });
-
-    if (isLegacyWorkspace(workspace) && !progress.completed_at) {
-      const { data: hiddenProgress, error } = await supabase
-        .from('workspace_onboarding_progress')
-        .update({
-          ...ALL_DONE_PROGRESS,
-          completed_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .eq('workspace_id', auth.workspaceId)
-        .select('*')
-        .single();
-
-      if (error) throw error;
-      progress = hiddenProgress;
-    }
-
-    const summary = calculateOnboardingProgress(progress);
-
-    return NextResponse.json({
-      ok: true,
-      workspaceId: auth.workspaceId,
-      showOnboarding: summary.percentage < 100,
-      progress,
-      summary,
-      steps: ONBOARDING_STEPS,
-    });
+    return NextResponse.json(toLegacyResponse(payload));
   } catch (error) {
-    console.error('[ONBOARDING_PROGRESS][GET][ERROR]', {
+    console.error('[ONBOARDING_PROGRESS_COMPAT][GET][ERROR]', {
       message: error?.message,
       code: error?.code,
       details: error?.details,
     });
 
     return NextResponse.json(
-      {
-        ok: false,
-        error: error?.message || 'Erro ao carregar progresso do onboarding.',
-      },
+      { ok: false, error: error?.message || 'Erro ao carregar progresso do onboarding.' },
       { status: 500 }
     );
   }
 }
 
 export async function PATCH(request) {
-  const supabase = getSupabaseAdmin();
-
   try {
-    const auth = await requireWorkspaceAdmin({
-      supabase,
-      request,
-      logPrefix: '[ONBOARDING_PROGRESS][PATCH]',
-    });
-
-    if (!auth.ok) {
-      return NextResponse.json(
-        { ok: false, error: auth.error },
-        { status: auth.status || 401 }
-      );
-    }
-
     const body = await request.json().catch(() => ({}));
+    const patchBody = legacyPatchBody(body);
 
-    if (body?.skipOnboarding === true) {
-      const existing = await ensureProgressRow({
-        supabase,
-        workspaceId: auth.workspaceId,
-      });
-
-      const flowState = existing?.flow_state && typeof existing.flow_state === 'object' ? existing.flow_state : {};
-
-      const { data: skipped, error: skipError } = await supabase
-        .from('workspace_onboarding_progress')
-        .update({
-          ...ALL_DONE_PROGRESS,
-          flow_state: {
-            ...flowState,
-            skipped: true,
-            onboarding_skipped: true,
-            onboarding_enabled: false,
-          },
-          completed_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .eq('workspace_id', auth.workspaceId)
-        .select('*')
-        .single();
-
-      if (skipError) throw skipError;
-
-      return NextResponse.json({
-        ok: true,
-        skipped: true,
-        progress: skipped,
-        summary: calculateOnboardingProgress(skipped),
-      });
+    if (!patchBody.guide && !patchBody.completed && !patchBody.flowState) {
+      return NextResponse.json({ ok: false, error: 'Etapa de onboarding inválida.' }, { status: 400 });
     }
 
-    const stepKey = String(body?.stepKey || '').trim();
-    const completed = body?.completed !== false;
-
-    if (!STEP_KEYS.has(stepKey)) {
-      return NextResponse.json(
-        { ok: false, error: 'Etapa de onboarding inválida.' },
-        { status: 400 }
-      );
-    }
-
-    await ensureProgressRow({
-      supabase,
-      workspaceId: auth.workspaceId,
+    const { response, payload } = await callFlowStatus(request, {
+      method: 'PATCH',
+      body: patchBody,
     });
 
-    const updatePayload = {
-      [stepKey]: completed,
-      updated_at: new Date().toISOString(),
-    };
-
-    const { data: updated, error: updateError } = await supabase
-      .from('workspace_onboarding_progress')
-      .update(updatePayload)
-      .eq('workspace_id', auth.workspaceId)
-      .select('*')
-      .single();
-
-    if (updateError) throw updateError;
-
-    const summary = calculateOnboardingProgress(updated);
-
-    const finalPayload = {
-      ...updated,
-      completed_at: summary.completed === summary.total
-        ? new Date().toISOString()
-        : null,
-    };
-
-    if (finalPayload.completed_at !== updated.completed_at) {
-      const { data: finalUpdated, error: finalError } = await supabase
-        .from('workspace_onboarding_progress')
-        .update({
-          completed_at: finalPayload.completed_at,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('workspace_id', auth.workspaceId)
-        .select('*')
-        .single();
-
-      if (finalError) throw finalError;
-
-      return NextResponse.json({
-        ok: true,
-        progress: finalUpdated,
-        summary: calculateOnboardingProgress(finalUpdated),
-      });
+    if (!response.ok || payload?.ok === false) {
+      return NextResponse.json(payload || { ok: false, error: 'Erro ao atualizar onboarding.' }, { status: response.status || 500 });
     }
 
-    return NextResponse.json({
-      ok: true,
-      progress: updated,
-      summary,
-    });
+    return NextResponse.json(toLegacyResponse(payload));
   } catch (error) {
-    console.error('[ONBOARDING_PROGRESS][PATCH][ERROR]', {
+    console.error('[ONBOARDING_PROGRESS_COMPAT][PATCH][ERROR]', {
       message: error?.message,
       code: error?.code,
       details: error?.details,
     });
 
     return NextResponse.json(
-      {
-        ok: false,
-        error: error?.message || 'Erro ao atualizar progresso do onboarding.',
-      },
+      { ok: false, error: error?.message || 'Erro ao atualizar progresso do onboarding.' },
       { status: 500 }
     );
   }

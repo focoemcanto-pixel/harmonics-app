@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef } from 'react';
 
+const RESERVED_TAB_VALUES = new Set(['operacao', 'escala']);
+
 function scrollToPageStart() {
   if (typeof window === 'undefined') return;
 
@@ -17,6 +19,14 @@ function getUrlTab(paramName) {
 
 function writeUrlTab(paramName, key, defaultKey, { replace = false } = {}) {
   if (typeof window === 'undefined') return;
+
+  const currentReservedTab = getUrlTab(paramName);
+  const shouldPreserveReservedTab =
+    RESERVED_TAB_VALUES.has(currentReservedTab) &&
+    key !== currentReservedTab &&
+    key !== defaultKey;
+
+  if (shouldPreserveReservedTab) return;
 
   const url = new URL(window.location.href);
   if (!key || key === defaultKey) {

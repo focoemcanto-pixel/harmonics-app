@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { formatDateBR, formatTimeShort } from '../../lib/membro/membro-invites';
 import { normalizeTimeStrict } from '@/lib/time/normalize-time';
 
@@ -43,16 +43,17 @@ function MonthNavigator({ label, onPrev, onNext }) {
       <button
         type="button"
         onClick={onPrev}
-        className="flex h-[58px] w-[58px] items-center justify-center rounded-[18px] border border-white/10 bg-white/5 text-[24px] font-black text-white shadow-[0_10px_24px_rgba(0,0,0,0.16)] active:scale-[0.98]"
+        aria-label="Mês anterior"
+        className="flex h-[58px] w-[58px] touch-manipulation items-center justify-center rounded-[18px] border border-white/10 bg-white/5 text-[24px] font-black text-white shadow-[0_10px_24px_rgba(0,0,0,0.16)] transition active:scale-[0.98]"
       >
         ‹
       </button>
 
-      <div className="rounded-[24px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.04),rgba(217,70,239,0.10))] px-4 py-4 text-center shadow-[0_10px_26px_rgba(0,0,0,0.18)]">
+      <div className="min-w-0 rounded-[24px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.04),rgba(217,70,239,0.10))] px-4 py-4 text-center shadow-[0_10px_26px_rgba(0,0,0,0.18)]">
         <div className="text-[11px] font-black uppercase tracking-[0.14em] text-white/45">
           Repertórios do mês
         </div>
-        <div className="mt-1 text-[24px] font-black tracking-[-0.04em] text-white sm:text-[28px]">
+        <div className="mt-1 truncate text-[22px] font-black tracking-[-0.04em] text-white sm:text-[28px]">
           {label}
         </div>
       </div>
@@ -60,7 +61,8 @@ function MonthNavigator({ label, onPrev, onNext }) {
       <button
         type="button"
         onClick={onNext}
-        className="flex h-[58px] w-[58px] items-center justify-center rounded-[18px] border border-white/10 bg-white/5 text-[24px] font-black text-white shadow-[0_10px_24px_rgba(0,0,0,0.16)] active:scale-[0.98]"
+        aria-label="Próximo mês"
+        className="flex h-[58px] w-[58px] touch-manipulation items-center justify-center rounded-[18px] border border-white/10 bg-white/5 text-[24px] font-black text-white shadow-[0_10px_24px_rgba(0,0,0,0.16)] transition active:scale-[0.98]"
       >
         ›
       </button>
@@ -77,12 +79,12 @@ function MiniStatCard({ value, label, tone = 'default' }) {
 
   return (
     <div
-      className={`rounded-[18px] border px-4 py-3 shadow-[0_10px_24px_rgba(0,0,0,0.18)] ${tones[tone] || tones.default}`}
+      className={`min-w-0 rounded-[18px] border px-3 py-3 shadow-[0_10px_24px_rgba(0,0,0,0.18)] sm:px-4 ${tones[tone] || tones.default}`}
     >
-      <div className="text-[11px] font-black uppercase tracking-[0.1em] text-white/55">
+      <div className="truncate text-[10px] font-black uppercase tracking-[0.1em] text-white/55 sm:text-[11px]">
         {label}
       </div>
-      <div className="mt-1 text-[28px] font-black tracking-[-0.04em]">
+      <div className="mt-1 truncate text-[26px] font-black tracking-[-0.04em] sm:text-[28px]">
         {value}
       </div>
     </div>
@@ -127,16 +129,16 @@ function RepertoireCard({ item, onOpenRepertoire }) {
     <button
       type="button"
       onClick={() => onOpenRepertoire(item)}
-      className="block w-full text-left"
+      className="block min-h-20 w-full touch-manipulation text-left transition active:scale-[0.995]"
     >
-      <article className="rounded-[16px] border border-white/10 bg-[#1e1535] px-4 py-4 text-white shadow-[0_8px_20px_rgba(0,0,0,0.20)] transition active:scale-[0.995]">
+      <article className="rounded-[16px] border border-white/10 bg-[#1e1535] px-4 py-4 text-white shadow-[0_8px_20px_rgba(0,0,0,0.20)]">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-[13px] font-black text-fuchsia-200">
+            <div className="break-words text-[13px] font-black text-fuchsia-200">
               {formatDateBR(item?.eventDate)} • {formatTimeShort(item?.eventTime)}
             </div>
 
-            <div className="mt-2 truncate text-[18px] font-black tracking-[-0.03em] text-white">
+            <div className="mt-2 break-words text-[18px] font-black tracking-[-0.03em] text-white">
               {item?.clientName || 'Evento'}
             </div>
           </div>
@@ -183,33 +185,6 @@ export default function MembroRepertoriosTab({
     return getMonthLabel(currentMonth);
   }, [currentMonth]);
 
-  useEffect(() => {
-    console.info('[MEMBER_REPERTOIRES][NOW_REFERENCE]', {
-      iso: nowReference.toISOString(),
-      year: nowReference.getFullYear(),
-      month: nowReference.getMonth() + 1,
-      day: nowReference.getDate(),
-    });
-  }, [nowReference]);
-
-  useEffect(() => {
-    console.info('[MEMBER_REPERTOIRES][INITIAL_MONTH_STATE]', {
-      currentMonthIso: currentMonth.toISOString(),
-      source: 'current_local_date',
-    });
-    // Executa apenas na primeira carga para registrar estado inicial.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    console.info('[MEMBER_REPERTOIRES][MONTH_EVENTS_RESULT]', {
-      currentMonthIso: currentMonth.toISOString(),
-      totalEventsInMonth: monthItems.length,
-      availableEvents: disponiveis.length,
-      pendingEvents: pendentes.length,
-    });
-  }, [currentMonth, disponiveis.length, monthItems.length, pendentes.length]);
-
   function goPrevMonth() {
     setCurrentMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
   }
@@ -225,7 +200,7 @@ export default function MembroRepertoriosTab({
           Estudo
         </div>
 
-        <h2 className="mt-2 text-[28px] font-black tracking-[-0.04em] text-white">
+        <h2 className="mt-2 break-words text-[28px] font-black tracking-[-0.04em] text-white">
           Repertórios
         </h2>
       </div>
@@ -236,7 +211,7 @@ export default function MembroRepertoriosTab({
         onNext={goNextMonth}
       />
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-2 sm:gap-3">
         <MiniStatCard value={monthItems.length} label="eventos" />
         <MiniStatCard value={disponiveis.length} label="disponíveis" tone="emerald" />
         <MiniStatCard value={pendentes.length} label="pendentes" tone="amber" />

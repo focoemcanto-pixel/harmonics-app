@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 
 const RESERVED_TAB_VALUES = new Set(['operacao', 'escala']);
+const EVENTOS_LOCAL_TAB_VALUES = ['resumo', 'evento', 'lista', 'precos'];
 
 function scrollToPageStart() {
   if (typeof window === 'undefined') return;
@@ -17,21 +18,30 @@ function getUrlTab(paramName) {
   return new URL(window.location.href).searchParams.get(paramName) || '';
 }
 
+function isEventosLocalTab(paramName, key) {
+  return (
+    typeof window !== 'undefined' &&
+    window.location.pathname === '/eventos' &&
+    paramName === 'tab' &&
+    EVENTOS_LOCAL_TAB_VALUES.includes(key)
+  );
+}
+
+function clearUrlTab(paramName, key) {
+  const url = new URL(window.location.href);
+  url.searchParams.delete(paramName);
+  const nextUrl = `${url.pathname}${url.search}${url.hash}`;
+  const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  if (nextUrl !== currentUrl) {
+    window.history.replaceState({ harmonicsAdminTab: key }, '', nextUrl);
+  }
+}
+
 function writeUrlTab(paramName, key, defaultKey, { replace = false } = {}) {
   if (typeof window === 'undefined') return;
 
-  if (
-    window.location.pathname === '/eventos' &&
-    paramName === 'tab' &&
-    ['resumo', 'evento', 'lista', 'precos'].includes(key)
-  ) {
-    const url = new URL(window.location.href);
-    url.searchParams.delete(paramName);
-    const nextUrl = `${url.pathname}${url.search}${url.hash}`;
-    const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-    if (nextUrl !== currentUrl) {
-      window.history.replaceState({ harmonicsAdminTab: key }, '', nextUrl);
-    }
+  if (isEventosLocalTab(paramName, key)) {
+    clearUrlTab(paramName, key);
     return;
   }
 
@@ -78,6 +88,12 @@ export default function AdminSegmentTabs({
 
     initializedFromUrlRef.current = true;
     const urlTab = getUrlTab(urlParamName);
+
+    if (isEventosLocalTab(urlParamName, urlTab)) {
+      clearUrlTab(urlParamName, urlTab);
+      return;
+    }
+
     if (urlTab && validKeys.includes(urlTab) && urlTab !== active) {
       lastInteractionRef.current = 'url';
       onChange?.(urlTab);
@@ -88,7 +104,14 @@ export default function AdminSegmentTabs({
     if (!syncWithUrl || !validKeys.length) return undefined;
 
     function handlePopState() {
-      const nextTab = getUrlTab(urlParamName) || defaultKey;
+      const urlTab = getUrlTab(urlParamName);
+
+      if (isEventosLocalTab(urlParamName, urlTab)) {
+        clearUrlTab(urlParamName, urlTab);
+        return;
+      }
+
+      const nextTab = urlTab || defaultKey;
       if (nextTab && validKeys.includes(nextTab)) {
         lastInteractionRef.current = 'popstate';
         onChange?.(nextTab);

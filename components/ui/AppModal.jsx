@@ -22,22 +22,38 @@ export default function AppModal({
   useEffect(() => {
     if (!open || typeof document === 'undefined') return undefined;
 
-    const previousOverflow = document.body.style.overflow;
-    const previousTouchAction = document.body.style.touchAction;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousBodyTouchAction = document.body.style.touchAction;
 
+    document.documentElement.style.overflow = 'hidden';
     document.body.style.overflow = 'hidden';
     document.body.style.touchAction = 'none';
 
     return () => {
-      document.body.style.overflow = previousOverflow;
-      document.body.style.touchAction = previousTouchAction;
+      document.documentElement.style.overflow = previousHtmlOverflow;
+      document.body.style.overflow = previousBodyOverflow;
+      document.body.style.touchAction = previousBodyTouchAction;
     };
   }, [open]);
+
+  useEffect(() => {
+    if (!open || typeof window === 'undefined') return undefined;
+
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') {
+        (onClose || onCancel)?.();
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onCancel, onClose, open]);
 
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[160] flex items-end justify-center p-0 sm:items-center sm:p-4" role="dialog" aria-modal="true">
+    <div className="fixed inset-0 z-[170] flex items-end justify-center p-0 sm:items-center sm:p-4" role="dialog" aria-modal="true">
       <div
         className="absolute inset-0 bg-black/45 backdrop-blur-[2px]"
         onClick={closeOnOverlay ? (onClose || onCancel) : undefined}
@@ -49,23 +65,23 @@ export default function AppModal({
       >
         {(title || subtitle) ? (
           <div className="shrink-0 border-b border-slate-200 px-5 pb-4 pt-[calc(env(safe-area-inset-top,0px)+20px)] sm:px-6 sm:py-5">
-            {title ? <h2 className="text-[20px] font-black tracking-[-0.02em] text-slate-900">{title}</h2> : null}
-            {subtitle ? <p className="mt-1 text-[13px] text-slate-500">{subtitle}</p> : null}
+            {title ? <h2 className="break-words text-[20px] font-black tracking-[-0.02em] text-slate-900">{title}</h2> : null}
+            {subtitle ? <p className="mt-1 break-words text-[13px] text-slate-500">{subtitle}</p> : null}
           </div>
         ) : null}
 
-        <div className={`min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5 sm:px-6 ${bodyClassName}`}>
+        <div className={`min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5 [-webkit-overflow-scrolling:touch] sm:px-6 ${bodyClassName}`}>
           {children}
         </div>
 
         {!hideDefaultFooter || footer ? (
           <div className="sticky bottom-0 shrink-0 border-t border-slate-200 bg-white/95 px-5 pb-[calc(env(safe-area-inset-bottom,0px)+16px)] pt-4 backdrop-blur sm:px-6 sm:py-4">
             {footer || (
-              <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+              <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-row sm:justify-end">
                 <button
                   type="button"
                   onClick={onCancel || onClose}
-                  className="rounded-[14px] border border-slate-200 bg-white px-4 py-2 text-[13px] font-black text-slate-700"
+                  className="min-h-11 touch-manipulation rounded-[14px] border border-slate-200 bg-white px-4 py-2 text-[13px] font-black text-slate-700 active:scale-[0.98]"
                 >
                   {cancelLabel}
                 </button>

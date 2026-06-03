@@ -16,6 +16,7 @@ function getRect(selector) {
 export default function OnboardingTourOverlay({
   steps = OPERATIONAL_ONBOARDING_TOUR,
   force = false,
+  storageKey = TOUR_STORAGE_KEY,
   onFinishHref = null,
   finalLabel = 'Concluir',
   onFinish = null,
@@ -26,6 +27,7 @@ export default function OnboardingTourOverlay({
   const [snapshotKey, setSnapshotKey] = useState(0);
   const [popoverSize, setPopoverSize] = useState({ width: 360, height: 260 });
   const popoverRef = useRef(null);
+  const resolvedStorageKey = String(storageKey || TOUR_STORAGE_KEY);
 
   const availableSteps = useMemo(() => {
     if (typeof document === 'undefined') return [];
@@ -36,7 +38,11 @@ export default function OnboardingTourOverlay({
 
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
-    const alreadySeen = window.localStorage.getItem(TOUR_STORAGE_KEY) === 'done';
+    setActive(false);
+    setRect(null);
+    setIndex(0);
+
+    const alreadySeen = window.localStorage.getItem(resolvedStorageKey) === 'done';
     if (alreadySeen && !force) return undefined;
 
     const timer = window.setTimeout(() => {
@@ -45,7 +51,7 @@ export default function OnboardingTourOverlay({
     }, 900);
 
     return () => window.clearTimeout(timer);
-  }, [force]);
+  }, [force, resolvedStorageKey]);
 
   useEffect(() => {
     if (!active) return;
@@ -86,7 +92,7 @@ export default function OnboardingTourOverlay({
 
   function finishTour() {
     if (typeof window !== 'undefined') {
-      window.localStorage.setItem(TOUR_STORAGE_KEY, 'done');
+      window.localStorage.setItem(resolvedStorageKey, 'done');
     }
     if (typeof onFinish === 'function') {
       onFinish();

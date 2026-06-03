@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '../../../../lib/supabase-admin';
+import { requireWorkspaceAdmin } from '../../../../lib/api/require-workspace-access';
 import { processQueue } from '../../../../lib/utils/asyncQueue';
 import { sendInviteService } from '../../../../lib/whatsapp/send-invite-service';
 
@@ -22,15 +23,40 @@ export async function POST(request) {
   const supabaseAdmin = getSupabaseAdmin();
 
   try {
+    const auth = await requireWorkspaceAdmin({
+      supabase: supabaseAdmin,
+      request,
+      logPrefix: '[WHATSAPP_SEND_EVENT_INVITES]',
+    });
+
+    if (!auth.ok) {
+      return NextResponse.json({ ok: false, error: auth.error }, { status: auth.status || 401 });
+    }
+
     const body = await request.json();
-    const eventId = body?.eventId;
-    console.info('[automation][step] salvar_escala_trigger_received', { eventId });
+    const eventId = String(body?.eventId || '').trim();
+    console.info('[automation][step] salvar_escala_trigger_received', { eventId, workspaceId: auth.workspaceId });
 
     if (!eventId) {
       return NextResponse.json(
-        { error: 'eventId é obrigatório' },
+        { ok: false, error: 'eventId é obrigatório' },
         { status: 400 }
       );
+    }
+
+    const { data: eventRow, error: eventError } = await supabaseAdmin
+      .from('events')
+      .select('id, workspace_id')
+      .eq('id', eventId)
+      .maybeSingle();
+
+    if (eventError) throw eventError;
+    if (!eventRow?.id) {
+      return NextResponse.json({ ok: false, error: 'Evento não encontrado.' }, { status: 404 });
+    }
+
+    if (String(eventRow.workspace_id || '') !== String(auth.workspaceId || '')) {
+      return NextResponse.json({ ok: false, error: 'Evento não pertence ao workspace ativo.' }, { status: 403 });
     }
 
     const { data: invites, error } = await supabaseAdmin
@@ -44,6 +70,7 @@ export async function POST(request) {
     const pendentes = (invites || []).filter((invite) => !invite.whatsapp_sent_at);
     console.info('[automation][step] pending_invites_resolved', {
       eventId,
+      workspaceId: auth.workspaceId,
       totalInvites: (invites || []).length,
       pendingToSend: pendentes.length,
     });
@@ -139,6 +166,8 @@ export async function POST(request) {
     return NextResponse.json(
       {
         ok: failedCount === 0,
+        eventId,
+        workspaceId: auth.workspaceId,
         total: pendentes.length,
         successCount,
         failedCount,
@@ -150,7 +179,7 @@ export async function POST(request) {
   } catch (error) {
     console.error('Erro ao enviar convites do evento:', error);
     return NextResponse.json(
-      { error: error?.message || 'Erro interno' },
+      { ok: false, error: error?.message || 'Erro interno' },
       { status: 500 }
     );
   }

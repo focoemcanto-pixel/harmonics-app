@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { getSupabase } from '@/lib/supabase';
 import { useHasActiveGuide } from '@/contexts/OnboardingSessionContext';
+import { getNextOnboardingStep } from '@/lib/onboarding/getNextOnboardingStep';
 
 const OPERATIONAL_SHORTCUTS = [
   {
@@ -15,13 +16,13 @@ const OPERATIONAL_SHORTCUTS = [
   },
   {
     label: 'Gerar pré-contrato',
-    href: '/pre-contratos',
+    href: '/pre-contratos?guide=precontract',
     tourKey: 'create-first-precontract',
     description: 'Envie um link para o cliente preencher e assinar.',
   },
   {
     label: 'Configurar template',
-    href: '/contratos/templates',
+    href: '/contratos/templates?guide=template',
     tourKey: 'contract-template',
     description: 'Monte o modelo usado nos contratos automáticos.',
   },
@@ -46,7 +47,7 @@ export default function DashboardOnboardingBanner() {
       const token = await getToken();
       if (!token) return;
 
-      const response = await fetch('/api/onboarding/progress', {
+      const response = await fetch('/api/onboarding/flow-status', {
         cache: 'no-store',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -66,13 +67,13 @@ export default function DashboardOnboardingBanner() {
       const token = await getToken();
       if (!token) return;
 
-      const response = await fetch('/api/onboarding/progress', {
+      const response = await fetch('/api/onboarding/flow-status', {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ skipOnboarding: true }),
+        body: JSON.stringify({ flowState: { skipped: true, onboarding_skipped: true }, completed: true }),
       });
 
       if (response.ok) setHidden(true);
@@ -104,14 +105,15 @@ export default function DashboardOnboardingBanner() {
   }, [isGuideActive]);
 
   if (isGuideActive || loading || hidden) return null;
-  if (!payload?.showOnboarding) return null;
+  if (!payload?.ok) return null;
+  if (payload.completed === true || payload.skipped === true || payload.primaryWorkspace === true) return null;
 
   const freshWorkspace = searchParams?.get('onboarding') === 'fresh-workspace' || searchParams?.get('tour') === 'workspace-created';
-  const summary = payload.summary || { completed: 0, total: 8, percentage: 0 };
-  const progress = payload.progress || {};
-  const steps = Array.isArray(payload.steps) ? payload.steps : [];
-  const missingSteps = steps.filter((step) => progress?.[step.key] !== true).slice(0, 3);
-  const nextStep = missingSteps[0];
+  const { nextStep, summary } = getNextOnboardingStep(payload);
+  if (!nextStep) return null;
+
+  const nextHref = payload.nextHref || nextStep.href || '/settings/onboarding';
+  const chips = [nextStep, payload.upcomingStep ? { key: payload.upcomingStep, title: 'Próxima etapa' } : null].filter(Boolean);
 
   return (
     <section data-onboarding-tour="dashboard-banner" className="rounded-[30px] border border-violet-200 bg-gradient-to-r from-violet-50 via-white to-fuchsia-50 p-5 shadow-[0_14px_34px_rgba(124,58,237,0.10)] md:p-6">
@@ -127,13 +129,13 @@ export default function DashboardOnboardingBanner() {
 
           <p className="mt-2 text-[14px] font-semibold leading-6 text-[#64748b]">
             {freshWorkspace
-              ? 'Conheça as abas principais do dashboard e siga para o primeiro guia prático: criar o template de contratos.'
-              : `Você concluiu ${summary.completed} de ${summary.total} etapas. Continue o checklist inicial ou use um dos atalhos abaixo para configurar o fluxo principal.`}
+              ? 'Conheça as abas principais do dashboard e siga para o primeiro guia prático do fluxo oficial.'
+              : `Você concluiu ${summary.completed} de ${summary.total} etapas. Continue o onboarding dinâmico para finalizar a configuração real do Harmonics.`}
           </p>
 
-          {missingSteps.length > 0 ? (
+          {chips.length > 0 ? (
             <div className="mt-4 flex flex-wrap gap-2">
-              {missingSteps.map((step) => (
+              {chips.map((step) => (
                 <span key={step.key} className="rounded-full border border-violet-200 bg-white px-3 py-1 text-[12px] font-black text-violet-700">
                   {step.title}
                 </span>
@@ -170,7 +172,7 @@ export default function DashboardOnboardingBanner() {
           </div>
 
           <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-            <Link data-onboarding-tour="onboarding-link" href={freshWorkspace ? '/contratos/templates?guide=template' : nextStep?.href || '/settings/onboarding'} className="rounded-2xl bg-violet-600 px-4 py-3 text-center text-[13px] font-black text-white hover:bg-violet-500">
+            <Link data-onboarding-tour="onboarding-link" href={freshWorkspace ? '/contratos/templates?guide=template' : nextHref} className="rounded-2xl bg-violet-600 px-4 py-3 text-center text-[13px] font-black text-white hover:bg-violet-500">
               Continuar
             </Link>
             <button type="button" onClick={skipOnboarding} disabled={skipping} className="rounded-2xl border border-violet-200 bg-white px-4 py-3 text-center text-[13px] font-black text-violet-700 hover:bg-violet-50 disabled:opacity-60">

@@ -1,5 +1,7 @@
 'use client';
 
+import { useEffect } from 'react';
+
 export default function AppModal({
   open,
   onClose,
@@ -17,32 +19,47 @@ export default function AppModal({
   bodyClassName = '',
   panelClassName = '',
 }) {
+  useEffect(() => {
+    if (!open || typeof document === 'undefined') return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    const previousTouchAction = document.body.style.touchAction;
+
+    document.body.style.overflow = 'hidden';
+    document.body.style.touchAction = 'none';
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.body.style.touchAction = previousTouchAction;
+    };
+  }, [open]);
+
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[140] flex items-end justify-center p-0 sm:items-center sm:p-4" role="dialog" aria-modal="true">
+    <div className="fixed inset-0 z-[160] flex items-end justify-center p-0 sm:items-center sm:p-4" role="dialog" aria-modal="true">
       <div
         className="absolute inset-0 bg-black/45 backdrop-blur-[2px]"
         onClick={closeOnOverlay ? (onClose || onCancel) : undefined}
       />
 
       <div
-        className={`relative z-10 flex h-[92dvh] w-full flex-col overflow-hidden rounded-t-[28px] border border-slate-200 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.25)] sm:h-auto sm:max-h-[92vh] sm:rounded-[28px] ${maxWidthClass} ${panelClassName}`}
+        className={`relative z-10 flex h-[min(92dvh,calc(100dvh-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px)))] w-full flex-col overflow-hidden rounded-t-[28px] border border-slate-200 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.25)] sm:h-auto sm:max-h-[92vh] sm:rounded-[28px] ${maxWidthClass} ${panelClassName}`}
         onClick={(event) => event.stopPropagation()}
       >
         {(title || subtitle) ? (
-          <div className="border-b border-slate-200 px-6 py-5">
+          <div className="shrink-0 border-b border-slate-200 px-5 pb-4 pt-[calc(env(safe-area-inset-top,0px)+20px)] sm:px-6 sm:py-5">
             {title ? <h2 className="text-[20px] font-black tracking-[-0.02em] text-slate-900">{title}</h2> : null}
             {subtitle ? <p className="mt-1 text-[13px] text-slate-500">{subtitle}</p> : null}
           </div>
         ) : null}
 
-        <div className={`min-h-0 flex-1 overflow-y-auto px-6 py-5 ${bodyClassName}`}>
+        <div className={`min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5 sm:px-6 ${bodyClassName}`}>
           {children}
         </div>
 
         {!hideDefaultFooter || footer ? (
-          <div className="sticky bottom-0 border-t border-slate-200 bg-white/95 px-6 py-4 backdrop-blur">
+          <div className="sticky bottom-0 shrink-0 border-t border-slate-200 bg-white/95 px-5 pb-[calc(env(safe-area-inset-bottom,0px)+16px)] pt-4 backdrop-blur sm:px-6 sm:py-4">
             {footer || (
               <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
                 <button

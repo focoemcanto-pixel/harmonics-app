@@ -200,39 +200,81 @@ async function maybeEnableFreshWorkspaceOnboarding({ supabase, request, workspac
   return updateProgressFlowState({ supabase, workspaceId, progress, flowState: nextFlowState });
 }
 
+async function getDemoEvent({ supabase, workspaceId }) {
+  const queries = [
+    () => supabase
+      .from('events')
+      .select('id')
+      .eq('workspace_id', workspaceId)
+      .eq('is_demo', true)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    () => supabase
+      .from('events')
+      .select('id')
+      .eq('workspace_id', workspaceId)
+      .eq('source', 'onboarding_demo')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    () => supabase
+      .from('events')
+      .select('id')
+      .eq('workspace_id', workspaceId)
+      .contains('metadata', { is_onboarding_demo: true })
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ];
+
+  for (const buildQuery of queries) {
+    const row = await safeMaybeSingle(buildQuery(), 'events.demo');
+    if (row?.id) return row;
+  }
+
+  return null;
+}
+
 async function countFacts({ supabase, workspaceId, progress }) {
-  const [eventTypesResp, precontractsResp, signedContractsResp, membersResp, templatesResp] = await Promise.all([
+  const [eventTypesResp, precontractsResp, signedContractsResp, membersResp, templatesResp, formationTemplatesResp] = await Promise.all([
     safeCount(supabase.from('event_types').select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId), 'event_types'),
     safeCount(supabase.from('precontracts').select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId), 'precontracts'),
     safeCount(supabase.from('contracts').select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId).in('status', ['signed', 'assinado', 'ASSINADO']), 'contracts.signed'),
     safeCount(supabase.from('contacts').select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId).in('contact_type', ['musician', 'member', 'team', 'staff']), 'contacts.members'),
     safeCount(supabase.from('contract_templates').select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId).eq('is_active', true), 'contract_templates'),
+    safeCount(supabase.from('scale_templates').select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId).eq('is_active', true), 'scale_templates'),
   ]);
 
   const flowState = normalizeFlowState(progress?.flow_state);
   const memberPanelTourCompleted = flowState.member_panel_tour_completed === true;
   const hasMemberPanelViewed = flowState.hasMemberPanelViewed === true || memberPanelTourCompleted;
+  const demoEvent = await getDemoEvent({ supabase, workspaceId });
+  const demoEventId = demoEvent?.id || flowState.demo_event_id || null;
+  const scaleResp = demoEventId
+    ? await safeCount(supabase.from('event_musicians').select('event_id', { count: 'exact', head: true }).eq('event_id', demoEventId), 'event_musicians.demo_event')
+    : { count: 0 };
 
   return {
     workspaceId,
-    demoEventId: null,
+    demoEventId,
     flow_state: flowState,
-    hasContractTemplate: hasCount(templatesResp),
+    hasContractTemplate: progress?.template_created === true || hasCount(templatesResp) || flowState.contract_template_completed === true,
     hasEventType: progress?.event_type_created === true || hasCount(eventTypesResp),
     hasPrecontract: progress?.precontract_created === true || hasCount(precontractsResp),
-    hasSignedContract: progress?.contract_signed_test === true || hasCount(signedContractsResp),
+    hasSignedContract: progress?.contract_signed_test === true || hasCount(signedContractsResp) || flowState.client_contract_signed === true,
     hasClientRepertoireSubmitted: flowState.client_panel_tour_completed === true,
     hasFakeMembers: progress?.team_configured === true || Number(membersResp?.count || 0) >= 2,
-    hasFormationTemplate: false,
-    formationTemplateCount: 0,
-    hasScale: false,
+    hasFormationTemplate: hasCount(formationTemplatesResp),
+    formationTemplateCount: Number(formationTemplatesResp?.count || 0),
+    hasScale: progress?.first_event_created === true || hasCount(scaleResp),
     hasMemberPanelViewed,
     memberPanelTourCompleted,
     hasAutomationsViewed: flowState.hasAutomationsViewed === true || progress?.automation_configured === true,
     hasFinanceViewed: flowState.hasFinanceViewed === true,
     hasAdminRepertoireViewed: flowState.hasAdminRepertoireViewed === true,
     hasDashboardDemoViewed: flowState.hasDashboardDemoViewed === true,
-    canCleanupDemoEvent: false,
+    canCleanupDemoEvent: Boolean(demoEventId && flowState.demo_event_cleanup_completed !== true),
     isComplete: Boolean(progress?.completed_at || flowState.onboardingCompleted === true || flowState.onboarding_completed === true),
   };
 }

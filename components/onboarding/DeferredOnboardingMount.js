@@ -110,6 +110,7 @@ export default function DeferredOnboardingMount({
             onboardingEnabled: enabled,
             primaryWorkspace: isPrimary,
             requestedGuide: requestedGuide || null,
+            showTour,
             reason: enabled ? 'flow-status-enabled' : 'flow-status-disabled',
             path: pathname || null,
           });
@@ -134,26 +135,26 @@ export default function DeferredOnboardingMount({
     return () => {
       active = false;
     };
-  }, [mounted, pathname, requestedGuide]);
+  }, [mounted, pathname, requestedGuide, showTour]);
 
   if (!mounted || loadingEligibility) return null;
 
   // Do not suppress explicit guide URLs. This is essential for mobile and for "Reabrir etapa".
-  if (primaryWorkspace && !manualGuideRequested && !freshWorkspace) return null;
+  if (primaryWorkspace && !manualGuideRequested && !freshWorkspace && !showTour) return null;
 
-  const canRenderOnboarding = onboardingEnabled || manualGuideRequested || freshWorkspace;
+  const shouldRenderVisualTour = showTour || freshWorkspace;
+  const canRenderOnboarding = onboardingEnabled || manualGuideRequested || freshWorkspace || showTour;
   if (!canRenderOnboarding) return null;
 
   const hasDynamicGuideQuery = manualGuideRequested;
   const isGuideActive = Boolean(onboardingSession.activeGuide) || hasDynamicGuideQuery;
-  const shouldRenderVisualTour = showTour || freshWorkspace;
 
   if (variant === 'dashboard') {
     return (
       <>
         {freshWorkspace && !isGuideActive ? <FreshWorkspaceStartGuide /> : null}
         {shouldRenderVisualTour && !isGuideActive ? (
-          <OnboardingTourOverlay force={freshWorkspace} />
+          <OnboardingTourOverlay force={freshWorkspace || showTour} />
         ) : null}
         {!isGuideActive ? <div className="mb-5"><DashboardOnboardingBanner /></div> : null}
         <div className="mb-5"><WorkspaceInsightCard /></div>
@@ -166,7 +167,7 @@ export default function DeferredOnboardingMount({
   if (variant === 'route') {
     const routeGuides = (
       <>
-        {showTour && !isGuideActive ? <OnboardingTourOverlay /> : null}
+        {showTour && !isGuideActive ? <OnboardingTourOverlay force={showTour} /> : null}
         {!isGuideActive ? <OperationalRouteOnboarding enabled /> : null}
         {!isGuideActive ? <SectionGuidedOnboarding enabled /> : null}
         {pathname === '/contratos/templates' && (!isGuideActive || requestedGuide === 'template' || onboardingSession.activeGuide === 'template') ? <TemplateCreationGuideStable enabled /> : null}
@@ -180,5 +181,5 @@ export default function DeferredOnboardingMount({
     return routeGuides;
   }
 
-  return shouldRenderVisualTour && !isGuideActive ? <OnboardingTourOverlay force={freshWorkspace} /> : null;
+  return shouldRenderVisualTour && !isGuideActive ? <OnboardingTourOverlay force={freshWorkspace || showTour} /> : null;
 }

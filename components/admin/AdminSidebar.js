@@ -80,14 +80,14 @@ export default function AdminSidebar({ activeItem = 'dashboard' }) {
   }
 
   return (
-    <aside className="sticky top-0 flex min-h-screen w-[280px] shrink-0 flex-col bg-[#020b2c] px-5 py-6 text-white">
-      <div className="flex items-center gap-3 px-2">
-        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-black/70 text-lg font-black text-white">
+    <aside className="sticky top-0 flex h-screen min-h-0 w-[280px] shrink-0 flex-col overflow-hidden bg-[#020b2c] px-5 py-6 text-white">
+      <div className="flex shrink-0 items-center gap-3 px-2">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-black/70 text-lg font-black text-white">
           {workspaceLoading ? '…' : workspace?.initials || 'H'}
         </div>
 
-        <div>
-          <div className="text-[15px] font-black text-white">
+        <div className="min-w-0">
+          <div className="truncate text-[15px] font-black text-white">
             {workspaceLoading ? 'Carregando workspace...' : workspace?.displayName || 'Harmonics'}
           </div>
           <div className="text-[12px] text-[#a5b4fc]">
@@ -96,7 +96,7 @@ export default function AdminSidebar({ activeItem = 'dashboard' }) {
         </div>
       </div>
 
-      <nav className="mt-8 space-y-2">
+      <nav className="mt-8 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1 [-webkit-overflow-scrolling:touch] [scrollbar-gutter:stable]">
         {ITEMS.map(([label, href]) => {
           const active =
             pathname === href ||
@@ -108,7 +108,7 @@ export default function AdminSidebar({ activeItem = 'dashboard' }) {
             <div key={href}>
               <Link
                 href={href}
-                className={`flex rounded-2xl px-4 py-3 text-[15px] font-bold transition ${
+                className={`flex min-h-11 items-center rounded-2xl px-4 py-3 text-[15px] font-bold transition ${
                   active
                     ? 'bg-violet-100 text-violet-700'
                     : 'text-[#c7d2fe] hover:bg-white/5 hover:text-white'
@@ -125,7 +125,7 @@ export default function AdminSidebar({ activeItem = 'dashboard' }) {
         })}
       </nav>
 
-      <div className="mt-auto px-2 pt-6">
+      <div className="shrink-0 px-2 pt-5">
         <div className="mb-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
           <div className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#a5b4fc]">
             Usuário atual
@@ -138,7 +138,8 @@ export default function AdminSidebar({ activeItem = 'dashboard' }) {
         <button
           type="button"
           onClick={handleLogout}
-          className="mb-3 w-full rounded-2xl border border-red-400/30 bg-red-950/30 px-4 py-3 text-[14px] font-bold text-red-100"
+          disabled={loading}
+          className="mb-3 min-h-11 w-full rounded-2xl border border-red-400/30 bg-red-950/30 px-4 py-3 text-[14px] font-bold text-red-100 transition active:scale-[0.99] disabled:opacity-60"
         >
           {loading ? 'Encerrando...' : 'Sair da conta'}
         </button>

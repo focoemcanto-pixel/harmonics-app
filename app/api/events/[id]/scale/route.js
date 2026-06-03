@@ -25,6 +25,33 @@ function dedupeByMusician(list = []) {
   return Array.from(map.values());
 }
 
+function isUuid(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || '').trim());
+}
+
+async function updateInviteRoles(supabase, updates = []) {
+  const safeUpdates = (Array.isArray(updates) ? updates : [])
+    .map((item) => ({
+      id: String(item?.id || '').trim(),
+      suggested_role_name: item?.suggested_role_name || null,
+    }))
+    .filter((item) => isUuid(item.id));
+
+  if (safeUpdates.length === 0) return;
+
+  const results = await Promise.all(
+    safeUpdates.map((item) =>
+      supabase
+        .from('invites')
+        .update({ suggested_role_name: item.suggested_role_name })
+        .eq('id', item.id)
+    )
+  );
+
+  const firstError = results.find((result) => result?.error)?.error;
+  if (firstError) throw firstError;
+}
+
 export async function POST(request, context) {
   const supabase = getSupabaseAdmin();
   const routeParams = await context?.params;
@@ -36,8 +63,8 @@ export async function POST(request, context) {
       return NextResponse.json({ ok: false, error: auth.error }, { status: auth.status || 401 });
     }
 
-    if (!eventId) {
-      return NextResponse.json({ ok: false, error: 'eventId é obrigatório.' }, { status: 400 });
+    if (!isUuid(eventId)) {
+      return NextResponse.json({ ok: false, error: 'eventId inválido ou ausente.' }, { status: 400 });
     }
 
     const body = await request.json().catch(() => ({}));
@@ -144,7 +171,7 @@ export async function POST(request, context) {
     }
 
     if (existentesParaReativar.length > 0) {
-      const existingIds = existentesParaReativar.map((item) => item.id);
+      const existingIds = existentesParaReativar.map((item) => item.id).filter(isUuid);
       const { error: reactivateError } = await supabase
         .from('invites')
         .update({
@@ -156,15 +183,10 @@ export async function POST(request, context) {
         .in('id', existingIds);
       if (reactivateError) throw reactivateError;
 
-      for (const invite of existentesParaReativar) {
-        const { error: updateRoleError } = await supabase
-          .from('invites')
-          .update({ suggested_role_name: invite.suggested_role_name })
-          .eq('id', invite.id);
-        if (updateRoleError) throw updateRoleError;
-      }
+      await updateInviteRoles(supabase, existentesParaReativar);
     }
 
+    const roleUpdates = [];
     for (const item of escalaLocalDedupe) {
       const existing = inviteMap.get(String(item.musician_id));
       if (!existing) continue;
@@ -172,12 +194,13 @@ export async function POST(request, context) {
       const shouldRole = item.role || null;
       if (String(existing.suggested_role_name || '') === String(shouldRole || '')) continue;
 
-      const { error: roleError } = await supabase
-        .from('invites')
-        .update({ suggested_role_name: shouldRole })
-        .eq('id', existing.id);
-      if (roleError) throw roleError;
+      roleUpdates.push({
+        id: existing.id,
+        suggested_role_name: shouldRole,
+      });
     }
+
+    await updateInviteRoles(supabase, roleUpdates);
 
     const removidosIds = removidos.map((item) => item.musician_id).filter(Boolean);
     if (removidosIds.length > 0) {

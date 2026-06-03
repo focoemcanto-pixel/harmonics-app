@@ -146,12 +146,15 @@ export default function DeferredOnboardingMount({
 
   const hasDynamicGuideQuery = manualGuideRequested;
   const isGuideActive = Boolean(onboardingSession.activeGuide) || hasDynamicGuideQuery;
+  const shouldRenderVisualTour = showTour || freshWorkspace;
 
   if (variant === 'dashboard') {
     return (
       <>
         {freshWorkspace && !isGuideActive ? <FreshWorkspaceStartGuide /> : null}
-        {showTour && !freshWorkspace && !isGuideActive ? <OnboardingTourOverlay /> : null}
+        {shouldRenderVisualTour && !isGuideActive ? (
+          <OnboardingTourOverlay force={freshWorkspace} />
+        ) : null}
         {!isGuideActive ? <div className="mb-5"><DashboardOnboardingBanner /></div> : null}
         <div className="mb-5"><WorkspaceInsightCard /></div>
         {!isGuideActive ? <div className="mb-5"><WorkspaceRecommendationsFeed limit={recommendationsLimit} /></div> : null}
@@ -177,5 +180,5 @@ export default function DeferredOnboardingMount({
     return routeGuides;
   }
 
-  return showTour && !isGuideActive ? <OnboardingTourOverlay /> : null;
+  return shouldRenderVisualTour && !isGuideActive ? <OnboardingTourOverlay force={freshWorkspace} /> : null;
 }

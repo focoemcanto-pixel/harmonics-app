@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 
 function scrollToPageStart() {
   if (typeof window === 'undefined') return;
@@ -15,7 +15,7 @@ function getUrlTab(paramName) {
   return new URL(window.location.href).searchParams.get(paramName) || '';
 }
 
-function writeUrlTab(paramName, key, defaultKey) {
+function writeUrlTab(paramName, key, defaultKey, { replace = false } = {}) {
   if (typeof window === 'undefined') return;
 
   const url = new URL(window.location.href);
@@ -29,7 +29,9 @@ function writeUrlTab(paramName, key, defaultKey) {
   const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
 
   if (nextUrl !== currentUrl) {
-    window.history.pushState({ harmonicsAdminTab: key }, '', nextUrl);
+    const state = { harmonicsAdminTab: key || defaultKey };
+    if (replace) window.history.replaceState(state, '', nextUrl);
+    else window.history.pushState(state, '', nextUrl);
   }
 }
 
@@ -41,20 +43,29 @@ export default function AdminSegmentTabs({
   syncWithUrl = true,
   urlParamName = 'tab',
 }) {
+  const initializedFromUrlRef = useRef(false);
+  const lastInteractionRef = useRef('external');
   const validKeys = useMemo(() => items.map((item) => item.key).filter(Boolean), [items]);
   const defaultKey = validKeys[0] || '';
 
   useEffect(() => {
-    if (!syncWithUrl || !validKeys.length) return undefined;
+    if (!syncWithUrl || !validKeys.length || initializedFromUrlRef.current) return;
 
+    initializedFromUrlRef.current = true;
     const urlTab = getUrlTab(urlParamName);
     if (urlTab && validKeys.includes(urlTab) && urlTab !== active) {
+      lastInteractionRef.current = 'url';
       onChange?.(urlTab);
     }
+  }, [active, onChange, syncWithUrl, urlParamName, validKeys]);
+
+  useEffect(() => {
+    if (!syncWithUrl || !validKeys.length) return undefined;
 
     function handlePopState() {
       const nextTab = getUrlTab(urlParamName) || defaultKey;
       if (nextTab && validKeys.includes(nextTab)) {
+        lastInteractionRef.current = 'popstate';
         onChange?.(nextTab);
         if (resetScrollOnChange) scrollToPageStart();
       }
@@ -62,9 +73,22 @@ export default function AdminSegmentTabs({
 
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [active, defaultKey, onChange, resetScrollOnChange, syncWithUrl, urlParamName, validKeys]);
+  }, [defaultKey, onChange, resetScrollOnChange, syncWithUrl, urlParamName, validKeys]);
+
+  useEffect(() => {
+    if (!syncWithUrl || !validKeys.length || !active || !validKeys.includes(active)) return;
+    if (!initializedFromUrlRef.current) return;
+
+    const urlTab = getUrlTab(urlParamName) || defaultKey;
+    if (urlTab === active) return;
+
+    const shouldReplace = lastInteractionRef.current === 'url' || lastInteractionRef.current === 'popstate';
+    writeUrlTab(urlParamName, active, defaultKey, { replace: shouldReplace });
+    lastInteractionRef.current = 'external';
+  }, [active, defaultKey, syncWithUrl, urlParamName, validKeys]);
 
   function handleTabChange(key) {
+    lastInteractionRef.current = 'click';
     onChange?.(key);
     if (syncWithUrl) writeUrlTab(urlParamName, key, defaultKey);
     if (resetScrollOnChange) scrollToPageStart();

@@ -11,6 +11,7 @@ function dedupeByMusician(list = []) {
     if (!musicianId) continue;
 
     const merged = {
+      id: item?.id || null,
       event_id: item?.event_id || null,
       musician_id: musicianId,
       role: String(item?.role || item?.contact_tag_text || '').trim() || null,
@@ -27,6 +28,25 @@ function dedupeByMusician(list = []) {
 
 function isUuid(value) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || '').trim());
+}
+
+function buildScalePayload({ eventId, item, existing = null }) {
+  const incomingStatus = String(item?.status || '').trim().toLowerCase();
+  const existingStatus = String(existing?.status || '').trim().toLowerCase();
+  const shouldPreserveConfirmed = existingStatus === 'confirmed' && (!incomingStatus || incomingStatus === 'pending');
+  const status = shouldPreserveConfirmed ? 'confirmed' : incomingStatus || existingStatus || 'pending';
+
+  return {
+    event_id: eventId,
+    musician_id: item.musician_id,
+    role: item.role || null,
+    status,
+    notes: item.notes || null,
+    confirmed_at:
+      status === 'confirmed'
+        ? item.confirmed_at || existing?.confirmed_at || new Date().toISOString()
+        : null,
+  };
 }
 
 async function updateInviteRoles(supabase, updates = []) {
@@ -50,6 +70,49 @@ async function updateInviteRoles(supabase, updates = []) {
 
   const firstError = results.find((result) => result?.error)?.error;
   if (firstError) throw firstError;
+}
+
+async function syncEventMusicians({ supabase, eventId, current = [], next = [] }) {
+  const currentRows = dedupeByMusician(current);
+  const nextRows = dedupeByMusician(next);
+  const currentMap = new Map(currentRows.map((item) => [String(item.musician_id), item]));
+  const { novos, mantidos, alterados, removidos } = diffEscala(currentRows, nextRows);
+
+  const removedIds = removidos.map((item) => item.musician_id).filter(Boolean);
+  if (removedIds.length > 0) {
+    const { error } = await supabase
+      .from('event_musicians')
+      .delete()
+      .eq('event_id', eventId)
+      .in('musician_id', removedIds);
+    if (error) throw error;
+  }
+
+  if (novos.length > 0) {
+    const insertPayload = novos.map((item) => buildScalePayload({ eventId, item }));
+    const { error } = await supabase.from('event_musicians').insert(insertPayload);
+    if (error) throw error;
+  }
+
+  const updateCandidates = [...alterados.map((item) => item.after), ...mantidos.filter((item) => {
+    const previous = currentMap.get(String(item.musician_id));
+    return previous && String(previous.status || '') === 'confirmed' && String(item.status || '') !== 'confirmed';
+  })];
+
+  const dedupedUpdates = dedupeByMusician(updateCandidates);
+  for (const item of dedupedUpdates) {
+    const existing = currentMap.get(String(item.musician_id));
+    if (!existing) continue;
+
+    const { error } = await supabase
+      .from('event_musicians')
+      .update(buildScalePayload({ eventId, item, existing }))
+      .eq('event_id', eventId)
+      .eq('musician_id', item.musician_id);
+    if (error) throw error;
+  }
+
+  return { novos, mantidos, alterados, removidos };
 }
 
 export async function POST(request, context) {
@@ -88,34 +151,17 @@ export async function POST(request, context) {
 
     const { data: escalaAtual, error: escalaAtualError } = await supabase
       .from('event_musicians')
-      .select('event_id, musician_id, role, status, notes, confirmed_at')
+      .select('id, event_id, musician_id, role, status, notes, confirmed_at')
       .eq('event_id', eventId);
 
     if (escalaAtualError) throw escalaAtualError;
 
-    const escalaAtualDedupe = dedupeByMusician(escalaAtual || []);
-    const { removidos } = diffEscala(escalaAtualDedupe, escalaLocalDedupe);
-
-    const payload = escalaLocalDedupe.map((item) => ({
-      event_id: eventId,
-      musician_id: item.musician_id,
-      role: item.role,
-      status: item.status || 'pending',
-      notes: item.notes,
-      confirmed_at:
-        item.status === 'confirmed' ? item.confirmed_at || new Date().toISOString() : null,
-    }));
-
-    const { error: deleteError } = await supabase
-      .from('event_musicians')
-      .delete()
-      .eq('event_id', eventId);
-    if (deleteError) throw deleteError;
-
-    if (payload.length > 0) {
-      const { error: insertError } = await supabase.from('event_musicians').insert(payload);
-      if (insertError) throw insertError;
-    }
+    const { novos, alterados, removidos } = await syncEventMusicians({
+      supabase,
+      eventId,
+      current: escalaAtual || [],
+      next: escalaLocalDedupe,
+    });
 
     const { data: invitesExistentes, error: invitesError } = await supabase
       .from('invites')
@@ -241,7 +287,10 @@ export async function POST(request, context) {
       workspaceId: auth.workspaceId,
       escala: escalaFinal || [],
       stats: {
-        total: payload.length,
+        total: escalaLocalDedupe.length,
+        novos: novos.length,
+        alterados: alterados.length,
+        removidos: removidos.length,
         novosConvites: novosParaCriar.length,
         removidosConvites: removidosIds.length,
       },

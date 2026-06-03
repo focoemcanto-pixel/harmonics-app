@@ -1,10 +1,25 @@
 'use client';
 
+import { useRef } from 'react';
 import useCurrentWorkspace from '@/hooks/useCurrentWorkspace';
 import { Menu } from 'lucide-react';
 
+function useTapGuard(delay = 450) {
+  const lockedRef = useRef(false);
+
+  return function guard(callback) {
+    if (lockedRef.current) return;
+    lockedRef.current = true;
+    callback?.();
+    window.setTimeout(() => {
+      lockedRef.current = false;
+    }, delay);
+  };
+}
+
 export default function AdminMobileTopbar({ title, actions, subtitle, onOpenMenu }) {
   const { workspace, loading: workspaceLoading } = useCurrentWorkspace();
+  const guardTap = useTapGuard();
 
   const brandingName = workspaceLoading ? 'Carregando workspace...' : workspace?.displayName || 'Workspace';
   const primaryColor = workspace?.primaryColor || '#7c3aed';
@@ -36,12 +51,12 @@ export default function AdminMobileTopbar({ title, actions, subtitle, onOpenMenu
             type="button"
             data-onboarding-tour="mobile-more"
             aria-label="Abrir menu"
-            onClick={() => onOpenMenu?.()}
+            onClick={() => guardTap(() => onOpenMenu?.())}
             className="flex h-11 w-11 touch-manipulation items-center justify-center rounded-xl border border-[#e2e8f0] bg-white text-[#0f172a] shadow-[0_8px_20px_rgba(15,23,42,0.06)] active:scale-[0.98]"
           >
             <Menu size={19} />
           </button>
-          {actions ? <div className="ml-1 shrink-0">{actions}</div> : null}
+          {actions ? <div className="ml-1 shrink-0 touch-manipulation">{actions}</div> : null}
         </div>
       </div>
     </header>

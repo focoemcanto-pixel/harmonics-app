@@ -137,22 +137,22 @@ function RepertorioLinha({ row, index, displayNumber }) {
           </div>
 
           <div className="min-w-0 flex-1">
-            <div className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-violet-200/60">
+            <div className="break-words text-[11px] font-extrabold uppercase tracking-[0.08em] text-violet-200/60">
               {orderLabel}
             </div>
 
-            <div className="mt-1 text-[17px] font-black text-white">
+            <div className="mt-1 break-words text-[17px] font-black text-white">
               {title}
             </div>
 
             {showSecondary ? (
-              <div className="mt-1 text-[12px] font-semibold uppercase tracking-[0.08em] text-violet-200/70">
+              <div className="mt-1 break-words text-[12px] font-semibold uppercase tracking-[0.08em] text-violet-200/70">
                 {secondary}
               </div>
             ) : null}
 
             {row?.observacao ? (
-              <div className="mt-2 rounded-[14px] border border-white/10 bg-black/10 px-3 py-3 text-[13px] leading-5 text-white/70">
+              <div className="mt-2 break-words rounded-[14px] border border-white/10 bg-black/10 px-3 py-3 text-[13px] leading-5 text-white/70">
                 <span className="font-black text-white/85">Observação:</span>{' '}
                 {row.observacao}
               </div>
@@ -169,7 +169,7 @@ function ReceptivoBloco({ receptivo }) {
 
   return (
     <div className="rounded-[18px] border border-white/10 bg-[#1e1535] px-4 py-4">
-      <div className="space-y-2 text-[14px] text-white/80">
+      <div className="space-y-2 break-words text-[14px] text-white/80">
         {receptivo?.duracao ? <div><span className="font-black text-white">Duração:</span> {receptivo.duracao}</div> : null}
         {receptivo?.generos ? <div><span className="font-black text-white">Gêneros:</span> {receptivo.generos}</div> : null}
         {receptivo?.artistas ? <div><span className="font-black text-white">Artistas:</span> {receptivo.artistas}</div> : null}
@@ -179,7 +179,7 @@ function ReceptivoBloco({ receptivo }) {
             <div className="font-black text-white">Referências:</div>
             <ul className="mt-1 list-disc space-y-1 pl-5 text-[13px] text-violet-100/85">
               {receptivo.references.map((ref) => (
-                <li key={ref}>{ref}</li>
+                <li className="break-all" key={ref}>{ref}</li>
               ))}
             </ul>
           </div>
@@ -217,7 +217,6 @@ export default function MembroRepertorioResumoModal({
 
   const repertorioData = useMemo(() => {
     const rawInput = extractOrderedRepertorio(item);
-    console.log('[MEMBER_REPERTOIRE][RAW_SOURCE]', rawInput);
     const groupedSections = rawInput.reduce((acc, row) => {
       const section = normalizeSection(row?.section);
       const safeSection = SECTION_ORDER.includes(section) ? section : 'cerimonia';
@@ -252,11 +251,6 @@ export default function MembroRepertorioResumoModal({
       artistas: String(receptivoConfig?.reception_artists || '').trim(),
       observacao: String(receptivoConfig?.reception_notes || '').trim(),
       references: Array.from(new Set(receptivoReferences)),
-    };
-
-    const descriptiveBlocks = {
-      antessala: antessalaBlock,
-      receptivo: receptivoBlock,
     };
 
     const orderedSections = SECTION_ORDER.map((section) => {
@@ -295,10 +289,6 @@ export default function MembroRepertorioResumoModal({
           ) || null,
       })),
     }));
-    console.log('[MEMBER_REPERTOIRE][RENDER_MODEL]', {
-      orderedSections: finalRenderModel,
-      descriptiveBlocks,
-    });
 
     return {
       rawInput,
@@ -316,14 +306,9 @@ export default function MembroRepertorioResumoModal({
       item_order: row?.ordem ?? row?.item_order ?? index + 1,
       url: resolveTrackUrl(row),
     }));
-  console.log('[MEMBER_REPERTOIRE][PLAYABLE_TRACKS]', playableTracks);
 
   const hasPdf = !!item?.repertorioPdfUrl;
   const hasPlayer = playableTracks.length > 0;
-  console.log('[MEMBER_REPERTOIRE][HAS_PLAYABLE_TRACKS]', {
-    hasPlayer,
-    count: playableTracks.length,
-  });
   const hasRepertorio =
     repertorioData.rawInput.length > 0 ||
     Boolean(
@@ -352,16 +337,16 @@ export default function MembroRepertorioResumoModal({
       className="fixed inset-0 z-[180] bg-black/70 backdrop-blur-[4px]"
       onClick={handleBackdropClick}
     >
-      <div className="flex h-[100dvh] items-end justify-center overflow-hidden px-0">
+      <div className="flex h-[100dvh] items-end justify-center overflow-hidden px-0 pt-[env(safe-area-inset-top,0px)]">
         <div
-          className="flex h-[92dvh] w-full max-w-[500px] flex-col overflow-hidden rounded-t-[22px] border border-white/10 bg-[#1a1230] text-white shadow-[0_24px_80px_rgba(0,0,0,0.42)] md:my-6 md:h-auto md:max-h-[88vh] md:rounded-[20px]"
+          className="flex h-[min(92dvh,calc(100dvh-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px)))] w-full max-w-[500px] flex-col overflow-hidden rounded-t-[22px] border border-white/10 bg-[#1a1230] text-white shadow-[0_24px_80px_rgba(0,0,0,0.42)] md:my-6 md:h-auto md:max-h-[88vh] md:rounded-[20px]"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="shrink-0">
             <div className="mx-auto mt-3 h-1 w-9 rounded-full bg-white/15" />
 
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/10 bg-[#1a1230] px-5 py-4">
-              <div className="min-w-0">
+            <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-white/10 bg-[#1a1230] px-5 py-4">
+              <div className="min-w-0 flex-1">
                 <div className="text-[18px] font-black tracking-[-0.03em] text-white">
                   🎼 Repertório
                 </div>
@@ -373,14 +358,15 @@ export default function MembroRepertorioResumoModal({
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-[12px] border border-white/10 bg-[#241b3d] px-3 py-2 text-[13px] font-extrabold text-white transition active:scale-[0.98]"
+                aria-label="Fechar repertório"
+                className="flex min-h-11 min-w-11 touch-manipulation items-center justify-center rounded-[12px] border border-white/10 bg-[#241b3d] px-3 py-2 text-[13px] font-extrabold text-white transition active:scale-[0.98]"
               >
                 ✕
               </button>
             </div>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-[calc(env(safe-area-inset-bottom,0px)+16px)] pt-4 [-webkit-overflow-scrolling:touch]">
             {hasRepertorio ? (
               <div className="space-y-3">
                 {repertorioData.orderedSections.map((section) => {
@@ -408,13 +394,13 @@ export default function MembroRepertorioResumoModal({
 
                   return (
                     <div key={section.key} className="space-y-2">
-                      <div className="px-1 pt-2 text-[13px] font-black uppercase tracking-[0.08em] text-violet-300">
+                      <div className="break-words px-1 pt-2 text-[13px] font-black uppercase tracking-[0.08em] text-violet-300">
                         {section.label}
                       </div>
 
                       {isAntessala && hasAntessalaConfig ? (
                         <div className="rounded-[18px] border border-white/10 bg-[#1e1535] px-4 py-4">
-                          <div className="space-y-2 text-[14px] text-white/80">
+                          <div className="space-y-2 break-words text-[14px] text-white/80">
                             {repertorioData?.antessalaBlock?.estilo ? (
                               <div><span className="font-black text-white">Estilo:</span> {repertorioData.antessalaBlock.estilo}</div>
                             ) : null}
@@ -427,7 +413,7 @@ export default function MembroRepertorioResumoModal({
                                 <div className="font-black text-white">Referências:</div>
                                 <ul className="mt-1 list-disc space-y-1 pl-5 text-[13px] text-violet-100/85">
                                   {repertorioData.antessalaBlock.references.map((ref) => (
-                                    <li key={ref}>{ref}</li>
+                                    <li className="break-all" key={ref}>{ref}</li>
                                   ))}
                                 </ul>
                               </div>
@@ -463,7 +449,7 @@ export default function MembroRepertorioResumoModal({
                 type="button"
                 onClick={() => onOpenPdf(item)}
                 disabled={!hasPdf}
-                className="rounded-[14px] border border-white/10 bg-[#241b3d] px-4 py-3 text-[14px] font-black text-white disabled:cursor-not-allowed disabled:opacity-50"
+                className="min-h-11 touch-manipulation rounded-[14px] border border-white/10 bg-[#241b3d] px-4 py-3 text-[14px] font-black text-white transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100"
               >
                 Baixar PDF
               </button>
@@ -472,7 +458,7 @@ export default function MembroRepertorioResumoModal({
                 type="button"
                 onClick={() => onOpenPlayer(item)}
                 disabled={!hasPlayer}
-                className="rounded-[14px] bg-[linear-gradient(135deg,#7c3aed,#8b5cf6)] px-4 py-3 text-[14px] font-black text-white disabled:cursor-not-allowed disabled:opacity-50"
+                className="min-h-11 touch-manipulation rounded-[14px] bg-[linear-gradient(135deg,#7c3aed,#8b5cf6)] px-4 py-3 text-[14px] font-black text-white transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100"
               >
                 Abrir player
               </button>
@@ -480,7 +466,7 @@ export default function MembroRepertorioResumoModal({
               <button
                 type="button"
                 onClick={onGoToRepertorios}
-                className="rounded-[14px] border border-white/10 bg-[#241b3d] px-4 py-3 text-[14px] font-black text-white"
+                className="min-h-11 touch-manipulation rounded-[14px] border border-white/10 bg-[#241b3d] px-4 py-3 text-[14px] font-black text-white transition active:scale-[0.98]"
               >
                 Ir para repertórios
               </button>

@@ -3,6 +3,9 @@
 import { memo } from 'react';
 import Link from 'next/link';
 
+const ACTION_BASE_CLASS =
+  'inline-flex min-h-11 touch-manipulation items-center justify-center rounded-[16px] px-4 py-3 text-center text-[14px] font-black transition active:scale-[0.98]';
+
 function getToneClasses(tone) {
   switch (tone) {
     case 'emerald':
@@ -218,7 +221,7 @@ function AdminEventCard({
       <div className={flat ? 'space-y-4' : ''}>
         {selectable ? (
           <div className="mb-2 flex items-center justify-end">
-            <label className="inline-flex items-center gap-2 rounded-[12px] border border-[#dbe3ef] bg-white/90 px-3 py-2 text-[12px] font-black text-[#334155]">
+            <label className="inline-flex min-h-11 touch-manipulation items-center gap-2 rounded-[12px] border border-[#dbe3ef] bg-white/90 px-3 py-2 text-[12px] font-black text-[#334155] active:scale-[0.99]">
               <input
                 type="checkbox"
                 checked={selected}
@@ -234,10 +237,10 @@ function AdminEventCard({
         ) : null}
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div className="min-w-0">
-            <div className="text-[20px] font-black tracking-[-0.03em] text-[#0f172a]">
+            <div className="break-words text-[20px] font-black tracking-[-0.03em] text-[#0f172a]">
               {cliente}
             </div>
-            <div className="mt-1 text-[14px] font-semibold text-[#64748b]">
+            <div className="mt-1 break-words text-[14px] font-semibold text-[#64748b]">
               {tipo || 'Evento'}
             </div>
           </div>
@@ -287,26 +290,26 @@ function AdminEventCard({
           }`}
         >
           <div className="space-y-2">
-            <p className="text-[14px] text-slate-700">
+            <p className="break-words text-[14px] text-slate-700">
               <strong>Data:</strong> {data || '-'} &nbsp;•&nbsp;
               <strong>Hora:</strong> {hora || '-'} &nbsp;•&nbsp;
               <strong>Local:</strong> {local || '-'}
             </p>
 
-            <p className="text-[14px] text-slate-700">
+            <p className="break-words text-[14px] text-slate-700">
               <strong>Formação:</strong> {formacao || '-'} &nbsp;•&nbsp;
               <strong>Receptivo:</strong> {receptivo || 'Não'} &nbsp;•&nbsp;
               <strong>Antesala:</strong> {antesala || 'Não'} &nbsp;•&nbsp;
               <strong>Som:</strong> {temSom ? 'Sim' : 'Não'}
             </p>
 
-            <p className="text-[14px] text-slate-500">
+            <p className="break-words text-[14px] text-slate-500">
               <strong>WhatsApp:</strong> {whatsappNome || '-'}{' '}
               {whatsappNumero ? `• ${whatsappNumero}` : ''}
             </p>
 
             {observacoes ? (
-              <p className="text-[14px] text-slate-500">{observacoes}</p>
+              <p className="break-words text-[14px] text-slate-500">{observacoes}</p>
             ) : null}
           </div>
 
@@ -317,33 +320,33 @@ function AdminEventCard({
                 : 'rounded-[22px] border border-slate-200 bg-slate-50 p-4'
             }
           >
-            <p className="text-sm text-slate-500">
+            <p className="break-words text-sm text-slate-500">
               <strong>Acertado:</strong> {valorAcertado || 'R$ 0,00'}
             </p>
-            <p className="mt-1 text-sm text-slate-500">
+            <p className="mt-1 break-words text-sm text-slate-500">
               <strong>Quitado:</strong> {valorPago || 'R$ 0,00'}
             </p>
-            <p className="mt-1 text-sm font-semibold text-amber-600">
+            <p className="mt-1 break-words text-sm font-semibold text-amber-600">
               <strong>Em aberto:</strong> {valorAberto || 'R$ 0,00'}
             </p>
-            <p className="mt-1 text-sm font-semibold text-emerald-600">
+            <p className="mt-1 break-words text-sm font-semibold text-emerald-600">
               <strong>Lucro final:</strong> {lucroFinal || 'R$ 0,00'}
             </p>
           </div>
         </div>
 
-        <div className={`mt-5 flex flex-wrap gap-3 ${flat ? 'mt-4' : ''}`}>
+        <div className={`mt-5 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3 ${flat ? 'mt-4' : ''}`}>
           <button
             type="button"
             onClick={onOpenEscala}
-            className="rounded-[16px] bg-violet-600 px-4 py-3 text-[14px] font-black text-white shadow-[0_10px_24px_rgba(124,58,237,0.25)]"
+            className={`${ACTION_BASE_CLASS} bg-violet-600 text-white shadow-[0_10px_24px_rgba(124,58,237,0.25)]`}
           >
             Escala
           </button>
 
           <Link
             href={`/eventos/${id}`}
-            className="rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3 text-[14px] font-black text-[#0f172a]"
+            className={`${ACTION_BASE_CLASS} border border-[#dbe3ef] bg-white text-[#0f172a]`}
           >
             Ver detalhe
           </Link>
@@ -352,9 +355,9 @@ function AdminEventCard({
             type="button"
             onClick={onOpenContract}
             disabled={gerandoContrato}
-            className={`rounded-[16px] px-4 py-3 text-[14px] font-black transition ${
+            className={`${ACTION_BASE_CLASS} ${
               gerandoContrato
-                ? 'cursor-not-allowed border border-[#e5e7eb] bg-[#f8fafc] text-[#94a3b8]'
+                ? 'cursor-not-allowed border border-[#e5e7eb] bg-[#f8fafc] text-[#94a3b8] opacity-70'
                 : contractLink
                 ? 'border border-[#dbe3ef] bg-white text-[#0f172a] hover:bg-[#f8fafc]'
                 : 'bg-[#0f172a] text-white shadow-[0_10px_24px_rgba(15,23,42,0.20)] hover:bg-[#111827]'
@@ -367,7 +370,7 @@ function AdminEventCard({
             <button
               type="button"
               onClick={onCopyContractLink}
-              className="rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3 text-[14px] font-black text-[#0f172a]"
+              className={`${ACTION_BASE_CLASS} border border-[#dbe3ef] bg-white text-[#0f172a]`}
             >
               Copiar link
             </button>
@@ -378,7 +381,7 @@ function AdminEventCard({
               href={whatsappHref}
               target="_blank"
               rel="noreferrer"
-              className="rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3 text-[14px] font-black text-[#0f172a]"
+              className={`${ACTION_BASE_CLASS} border border-[#dbe3ef] bg-white text-[#0f172a]`}
             >
               WhatsApp
             </a>
@@ -387,7 +390,7 @@ function AdminEventCard({
           <button
             type="button"
             onClick={onEdit}
-            className="rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3 text-[14px] font-black text-[#0f172a]"
+            className={`${ACTION_BASE_CLASS} border border-[#dbe3ef] bg-white text-[#0f172a]`}
           >
             Editar
           </button>
@@ -396,7 +399,7 @@ function AdminEventCard({
             type="button"
             onClick={onDelete}
             disabled={excluindo}
-            className="rounded-[16px] bg-red-600 px-4 py-3 text-[14px] font-black text-white disabled:cursor-not-allowed disabled:opacity-60"
+            className={`${ACTION_BASE_CLASS} bg-red-600 text-white disabled:cursor-not-allowed disabled:opacity-60`}
           >
             {excluindo ? 'Excluindo...' : 'Excluir'}
           </button>

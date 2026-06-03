@@ -21,7 +21,7 @@ function StatusBadge({ status }) {
 
   return (
     <span
-      className={`inline-flex rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] ${
+      className={`inline-flex shrink-0 rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] ${
         tones[normalized] || tones.pending
       }`}
     >
@@ -74,7 +74,7 @@ function MusicianRow({ item }) {
           </div>
 
           {(item?.musician_phone || item?.phone || item?.musician_email || item?.email) ? (
-            <div className="mt-1 truncate text-[12px] text-white/40">
+            <div className="mt-1 break-words text-[12px] leading-5 text-white/40">
               {[item?.musician_phone || item?.phone || '', item?.musician_email || item?.email || '']
                 .filter(Boolean)
                 .join(' • ')}
@@ -134,16 +134,16 @@ export default function MembroEscalaModal({
       className="fixed inset-0 z-[180] bg-black/70 backdrop-blur-[4px]"
       onClick={handleBackdropClick}
     >
-      <div className="flex h-[100dvh] items-end justify-center overflow-hidden px-0">
+      <div className="flex h-[100dvh] items-end justify-center overflow-hidden px-0 pt-[env(safe-area-inset-top,0px)]">
         <div
-          className="flex h-[92dvh] w-full max-w-[500px] flex-col overflow-hidden rounded-t-[22px] border border-white/10 bg-[#1a1230] text-white shadow-[0_24px_80px_rgba(0,0,0,0.42)] md:my-6 md:h-auto md:max-h-[88vh] md:rounded-[20px]"
+          className="flex h-[min(92dvh,calc(100dvh-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px)))] w-full max-w-[500px] flex-col overflow-hidden rounded-t-[22px] border border-white/10 bg-[#1a1230] text-white shadow-[0_24px_80px_rgba(0,0,0,0.42)] md:my-6 md:h-auto md:max-h-[88vh] md:rounded-[20px]"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="shrink-0">
             <div className="mx-auto mt-3 h-1 w-9 rounded-full bg-white/15" />
 
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/10 bg-[#1a1230] px-5 py-4">
-              <div className="min-w-0">
+            <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-white/10 bg-[#1a1230] px-5 py-4">
+              <div className="min-w-0 flex-1">
                 <div className="text-[18px] font-black tracking-[-0.03em] text-white">
                   👥 Escala
                 </div>
@@ -154,15 +154,16 @@ export default function MembroEscalaModal({
 
               <button
                 type="button"
+                aria-label="Fechar escala"
                 onClick={onClose}
-                className="rounded-[12px] border border-white/10 bg-[#241b3d] px-3 py-2 text-[13px] font-extrabold text-white transition active:scale-[0.98]"
+                className="flex min-h-11 min-w-11 touch-manipulation items-center justify-center rounded-[12px] border border-white/10 bg-[#241b3d] px-3 py-2 text-[13px] font-extrabold text-white transition active:scale-[0.98]"
               >
                 ✕
               </button>
             </div>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-[calc(env(safe-area-inset-bottom,0px)+16px)] pt-4 [-webkit-overflow-scrolling:touch]">
             {!hasScale ? (
               <div className="rounded-[16px] border border-dashed border-white/10 bg-white/5 px-4 py-5 text-center">
                 <div className="text-[14px] font-semibold text-white/70">

@@ -24,18 +24,19 @@ export default function ConfirmModal({
       maxWidthClass="max-w-lg"
     >
       <div className="space-y-4">
-        <p className="text-sm text-slate-500">
+        <p className="break-words text-sm leading-6 text-slate-500">
           {description}
         </p>
 
-        <div className="flex justify-end gap-3 pt-4">
-          <Button variant="ghost" onClick={onClose}>
+        <div className="grid grid-cols-1 gap-2 pt-4 sm:flex sm:justify-end sm:gap-3">
+          <Button variant="ghost" onClick={onClose} className="min-h-11 w-full sm:w-auto">
             {cancelText}
           </Button>
 
           <Button
             variant={variant === 'danger' ? 'danger' : 'primary'}
             onClick={onConfirm}
+            className="min-h-11 w-full sm:w-auto"
           >
             {confirmText}
           </Button>

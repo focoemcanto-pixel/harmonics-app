@@ -12,6 +12,14 @@ function normalizeRole(value) {
     .toLowerCase();
 }
 
+function normalizeStatus(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function isBlockedEventStatus(value) {
+  return ['deleted', 'cancelled', 'canceled', 'arquivado', 'archived'].includes(normalizeStatus(value));
+}
+
 function extractInviteId(params) {
   if (Array.isArray(params?.inviteId)) return String(params.inviteId[0] || '').trim();
   return String(params?.inviteId || '').trim();
@@ -192,6 +200,32 @@ export async function POST(request, context) {
       return NextResponse.json({ ok: false, error: 'Convite não encontrado.' }, { status: 404 });
     }
 
+    const currentInviteStatus = normalizeStatus(invite.status);
+    if (currentInviteStatus === 'removed') {
+      return NextResponse.json(
+        { ok: false, error: 'Este convite foi removido da escala e não pode mais ser respondido.' },
+        { status: 409 }
+      );
+    }
+
+    const { data: eventRow, error: eventError } = await supabase
+      .from('events')
+      .select('id, status')
+      .eq('id', invite.event_id)
+      .maybeSingle();
+
+    if (eventError) throw eventError;
+    if (!eventRow?.id) {
+      return NextResponse.json({ ok: false, error: 'Evento do convite não encontrado.' }, { status: 404 });
+    }
+
+    if (isBlockedEventStatus(eventRow.status)) {
+      return NextResponse.json(
+        { ok: false, error: 'Este evento não está mais ativo para confirmação.' },
+        { status: 409 }
+      );
+    }
+
     if (!isAdmin && String(invite.contact_id) !== String(contact.id)) {
       return NextResponse.json({ ok: false, error: 'Sem permissão para responder este convite.' }, { status: 403 });
     }
@@ -206,11 +240,19 @@ export async function POST(request, context) {
         responded_at: respondedAt,
       })
       .eq('id', invite.id)
+      .neq('status', 'removed')
       .select('*')
       .maybeSingle();
 
     if (updateInviteError) {
       throw updateInviteError;
+    }
+
+    if (!updatedInvite?.id) {
+      return NextResponse.json(
+        { ok: false, error: 'Este convite não está mais disponível para resposta.' },
+        { status: 409 }
+      );
     }
 
     console.info('[MEMBER_INVITE_RESPOND][INVITE_UPDATED]', {

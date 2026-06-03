@@ -5,6 +5,7 @@ import { requireAdmin } from '@/lib/api/require-admin';
 
 const SUPPORTED_EVENT_TYPES = [
   'invite_member',
+  'contract_signed_admin',
   'contract_signed_client',
   'contract_review_released_client',
   'repertoire_review_released_client',
@@ -14,6 +15,12 @@ const SUPPORTED_EVENT_TYPES = [
   'post_event_review_request_client',
   'schedule_pending_15_days_admin',
 ];
+
+const SUPPORTED_EVENT_TYPE_SET = new Set(SUPPORTED_EVENT_TYPES);
+
+function isUuid(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || '').trim());
+}
 
 function isAuthorizedInternalRequest(request) {
   const internalSecret = process.env.INTERNAL_API_SECRET;
@@ -49,19 +56,35 @@ export async function POST(request) {
   }
 
   try {
-    const body = await request.json();
-    const { eventType, entityId, workspaceId } = body;
+    const body = await request.json().catch(() => ({}));
+    const eventType = String(body?.eventType || '').trim();
+    const entityId = String(body?.entityId || '').trim();
+    const workspaceId = String(body?.workspaceId || '').trim() || undefined;
 
     if (!eventType || !entityId) {
       return NextResponse.json(
-        { error: 'Campos obrigatórios: eventType, entityId' },
+        { ok: false, error: 'Campos obrigatórios: eventType, entityId' },
         { status: 400 }
       );
     }
 
-    if (!SUPPORTED_EVENT_TYPES.includes(eventType)) {
+    if (!SUPPORTED_EVENT_TYPE_SET.has(eventType)) {
       return NextResponse.json(
-        { error: 'Event type not supported yet', supported: SUPPORTED_EVENT_TYPES },
+        { ok: false, error: 'Event type not supported yet', supported: SUPPORTED_EVENT_TYPES },
+        { status: 400 }
+      );
+    }
+
+    if (!isUuid(entityId)) {
+      return NextResponse.json(
+        { ok: false, error: 'entityId inválido' },
+        { status: 400 }
+      );
+    }
+
+    if (workspaceId && !isUuid(workspaceId)) {
+      return NextResponse.json(
+        { ok: false, error: 'workspaceId inválido' },
         { status: 400 }
       );
     }
@@ -72,7 +95,7 @@ export async function POST(request) {
   } catch (error) {
     console.error('[POST /api/automation/send] Erro:', error);
     return NextResponse.json(
-      { error: error?.message || 'Erro interno' },
+      { ok: false, error: error?.message || 'Erro interno' },
       { status: 500 }
     );
   }

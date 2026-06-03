@@ -28,11 +28,6 @@ export function useAppToast() {
   const showToast = context.showToast || (() => {});
 
   const notify = (message, type = 'default') => {
-    if (type === 'error') {
-      console.info('[UI][ACTION_ERROR_TOAST]', { message });
-    } else {
-      console.info('[UI][ACTION_SUCCESS_TOAST]', { message, type });
-    }
     showToast(message, type);
   };
 
@@ -78,7 +73,7 @@ export function ToastProvider({ children }) {
 
       {portalTarget
         ? createPortal(
-            <div className="pointer-events-none fixed bottom-[100px] left-0 right-0 z-[999] flex flex-col items-center gap-2 px-4">
+            <div className="pointer-events-none fixed bottom-[calc(env(safe-area-inset-bottom,0px)+100px)] left-0 right-0 z-[999] flex flex-col items-center gap-2 px-4 md:bottom-6">
               {toasts.map((toast) => (
                 <ToastItem key={toast.id} toast={toast} />
               ))}
@@ -101,6 +96,8 @@ function ToastItem({ toast }) {
 
   return (
     <div
+      role="status"
+      aria-live="polite"
       className={cx(
         'pointer-events-auto w-full max-w-[420px] rounded-[18px] px-4 py-3 text-[14px] font-bold shadow-[0_14px_32px_rgba(0,0,0,0.18)]',
         toneMap[toast.type] || toneMap.default

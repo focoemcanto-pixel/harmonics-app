@@ -19,6 +19,8 @@ function isSettledPaymentStatus(status) {
   return ['pago', 'paid', 'quitado', 'confirmado', 'confirmed'].includes(value);
 }
 
+const ACTION_BUTTON_CLASS = 'min-h-11 touch-manipulation rounded-full px-3.5 py-2.5 text-[12px] font-black active:scale-[0.98]';
+
 export default function EventosOperacaoTab({
   eventosOperacionais,
   eventosOperacionaisFiltrados,
@@ -130,7 +132,7 @@ export default function EventosOperacaoTab({
                 setOperacaoFiltro(primaryAction.filtro);
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
-              className="rounded-[16px] bg-white/90 px-4 py-3 text-[14px] font-black text-[#0f172a] shadow-[0_8px_20px_rgba(15,23,42,0.06)] hover:bg-white"
+              className="min-h-11 touch-manipulation rounded-[16px] bg-white/90 px-4 py-3 text-[14px] font-black text-[#0f172a] shadow-[0_8px_20px_rgba(15,23,42,0.06)] active:scale-[0.98] hover:bg-white"
             >
               {primaryAction.label}
             </button>
@@ -141,7 +143,7 @@ export default function EventosOperacaoTab({
                 setOperacaoFiltro('todos');
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
-              className="rounded-[16px] border border-white/60 bg-transparent px-4 py-3 text-[14px] font-black"
+              className="min-h-11 touch-manipulation rounded-[16px] border border-white/60 bg-transparent px-4 py-3 text-[14px] font-black active:scale-[0.98]"
             >
               Ver tudo
             </button>
@@ -205,7 +207,7 @@ export default function EventosOperacaoTab({
         </div>
       </div>
 
-      <div className="mb-5 flex flex-wrap gap-2">
+      <div className="mb-5 -mx-1 flex gap-2 overflow-x-auto overscroll-x-contain px-1 pb-2 [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:flex-wrap md:overflow-visible md:pb-0">
         {operacaoTabs.map((tab) => {
           const active = operacaoFiltro === tab.key;
 
@@ -214,7 +216,7 @@ export default function EventosOperacaoTab({
               key={tab.key}
               type="button"
               onClick={() => setOperacaoFiltro(tab.key)}
-              className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-[13px] font-black transition ${
+              className={`inline-flex min-h-10 shrink-0 touch-manipulation items-center gap-2 rounded-full px-4 py-2 text-[13px] font-black transition active:scale-[0.98] ${
                 active
                   ? 'bg-violet-600 text-white shadow-[0_10px_24px_rgba(124,58,237,0.18)]'
                   : 'bg-[#f8fafc] text-[#475569] hover:bg-[#eef2ff]'
@@ -265,16 +267,16 @@ export default function EventosOperacaoTab({
                 <div className={`h-1.5 w-full ${eventoConcluido ? 'bg-emerald-500' : posEventoPendente ? 'bg-amber-500' : alerta.stripeClass}`} />
 
                 <div className="px-4 pb-4 pt-3 md:px-5">
-                  <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                    <span className="inline-flex items-center rounded-full border border-white/70 bg-white/85 px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-[#334155] backdrop-blur">
+                  <div className="mb-3 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <span className="inline-flex w-fit items-center rounded-full border border-white/70 bg-white/85 px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-[#334155] backdrop-blur">
                       {eventoConcluido ? 'Concluído' : posEventoPendente ? 'Pós-evento pendente' : alerta.label}
                     </span>
 
-                    <div className="flex flex-wrap gap-2">
+                    <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
                       <button
                         type="button"
                         onClick={() => iniciarEdicao(ev)}
-                        className="rounded-full border border-[#dbe3ef] bg-white px-3 py-2 text-[12px] font-black text-[#0f172a] hover:bg-[#f8fafc]"
+                        className={`${ACTION_BUTTON_CLASS} border border-[#dbe3ef] bg-white text-[#0f172a] hover:bg-[#f8fafc]`}
                       >
                         Editar
                       </button>
@@ -285,7 +287,8 @@ export default function EventosOperacaoTab({
                           setPagamentoAbertoId(null);
                           setContratoAbertoId((prev) => (prev === ev.id ? null : ev.id));
                         }}
-                        className={`rounded-full border px-3 py-2 text-[12px] font-black ${
+                        disabled={gerandoContrato}
+                        className={`${ACTION_BUTTON_CLASS} border disabled:cursor-not-allowed disabled:opacity-70 ${
                           gerandoContrato
                             ? 'border-slate-200 bg-slate-100 text-[#94a3b8]'
                             : contractStatus.action === 'create'
@@ -305,7 +308,7 @@ export default function EventosOperacaoTab({
                         <button
                           type="button"
                           onClick={() => confirmarRapido(ev)}
-                          className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-[12px] font-black text-emerald-700 hover:bg-emerald-100"
+                          className={`${ACTION_BUTTON_CLASS} border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100`}
                         >
                           Confirmar
                         </button>
@@ -319,7 +322,7 @@ export default function EventosOperacaoTab({
                             setContratoAbertoId(null);
                             setPagamentoAbertoId((prev) => (prev === ev.id ? null : ev.id));
                           }}
-                          className="rounded-full border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] font-black text-amber-700 hover:bg-amber-100"
+                          className={`${ACTION_BUTTON_CLASS} border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100`}
                         >
                           Pagamento
                         </button>
@@ -357,7 +360,7 @@ export default function EventosOperacaoTab({
                       <div className="mt-3">
                         <Link
                           href={`/eventos/${ev.id}`}
-                          className="inline-flex rounded-full border border-amber-300 bg-white px-3 py-2 text-[12px] font-black text-amber-800 hover:bg-amber-100"
+                          className="inline-flex min-h-11 touch-manipulation items-center rounded-full border border-amber-300 bg-white px-3 py-2 text-[12px] font-black text-amber-800 active:scale-[0.98] hover:bg-amber-100"
                         >
                           Abrir evento
                         </Link>
@@ -455,18 +458,19 @@ export default function EventosOperacaoTab({
 
                       <input
                         type="number"
+                        inputMode="decimal"
                         placeholder="Valor"
                         value={valorPagamento}
                         onChange={(e) => setValorPagamento(e.target.value)}
-                        className="mb-3 w-full rounded-[12px] border border-[#dbe3ef] px-3 py-2 text-sm"
+                        className="mb-3 min-h-11 w-full rounded-[12px] border border-[#dbe3ef] px-3 py-2 text-sm"
                       />
 
-                      <div className="flex flex-wrap gap-2">
+                      <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
                         <button
                           type="button"
                           onClick={() => salvarPagamento(ev, 'total')}
                           disabled={salvandoPagamentoId === ev.id}
-                          className="rounded-[12px] bg-emerald-600 px-4 py-2 text-sm font-black text-white disabled:opacity-60"
+                          className="min-h-11 touch-manipulation rounded-[12px] bg-emerald-600 px-4 py-2 text-sm font-black text-white active:scale-[0.98] disabled:opacity-60"
                         >
                           {salvandoPagamentoId === ev.id
                             ? 'Salvando...'
@@ -477,7 +481,7 @@ export default function EventosOperacaoTab({
                           type="button"
                           onClick={() => salvarPagamento(ev, 'parcial')}
                           disabled={salvandoPagamentoId === ev.id}
-                          className="rounded-[12px] bg-amber-500 px-4 py-2 text-sm font-black text-white disabled:opacity-60"
+                          className="min-h-11 touch-manipulation rounded-[12px] bg-amber-500 px-4 py-2 text-sm font-black text-white active:scale-[0.98] disabled:opacity-60"
                         >
                           {salvandoPagamentoId === ev.id
                             ? 'Salvando...'
@@ -491,7 +495,7 @@ export default function EventosOperacaoTab({
                             setValorPagamento('');
                           }}
                           disabled={salvandoPagamentoId === ev.id}
-                          className="rounded-[12px] border border-[#dbe3ef] px-4 py-2 text-sm font-black disabled:opacity-60"
+                          className="min-h-11 touch-manipulation rounded-[12px] border border-[#dbe3ef] px-4 py-2 text-sm font-black active:scale-[0.98] disabled:opacity-60"
                         >
                           Cancelar
                         </button>

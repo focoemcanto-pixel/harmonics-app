@@ -20,13 +20,17 @@ function getUrlTab(paramName) {
 function writeUrlTab(paramName, key, defaultKey, { replace = false } = {}) {
   if (typeof window === 'undefined') return;
 
-  if (window.location.pathname === '/eventos' && paramName === 'tab' && key === 'evento') {
+  if (
+    window.location.pathname === '/eventos' &&
+    paramName === 'tab' &&
+    ['resumo', 'evento', 'lista', 'precos'].includes(key)
+  ) {
     const url = new URL(window.location.href);
     url.searchParams.delete(paramName);
     const nextUrl = `${url.pathname}${url.search}${url.hash}`;
     const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
     if (nextUrl !== currentUrl) {
-      window.history.replaceState({ harmonicsAdminTab: 'evento' }, '', nextUrl);
+      window.history.replaceState({ harmonicsAdminTab: key }, '', nextUrl);
     }
     return;
   }

@@ -4,10 +4,10 @@ import { forwardRef } from 'react';
 
 export function Field({ label, children, helper }) {
   return (
-    <div className="space-y-2">
-      <label className="text-[12px] font-bold text-[#64748b]">{label}</label>
+    <div className="min-w-0 space-y-2">
+      <label className="block text-[12px] font-bold text-[#64748b]">{label}</label>
       {children}
-      {helper && <p className="text-[11px] text-[#94a3b8]">{helper}</p>}
+      {helper && <p className="break-words text-[11px] text-[#94a3b8]">{helper}</p>}
     </div>
   );
 }
@@ -28,7 +28,7 @@ export const Input = forwardRef(function Input(
       disabled={disabled}
       step={step}
       {...props}
-      className="w-full rounded-[18px] border border-[#dbe3ef] bg-white px-4 py-4 text-[15px] font-semibold text-[#0f172a] outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100 disabled:bg-slate-50 disabled:text-slate-400"
+      className="min-h-12 w-full touch-manipulation rounded-[18px] border border-[#dbe3ef] bg-white px-4 py-3.5 text-[16px] font-semibold text-[#0f172a] outline-none transition focus:border-violet-400 focus:ring-2 focus:ring-violet-100 disabled:bg-slate-50 disabled:text-slate-400"
     />
   );
 });
@@ -40,7 +40,7 @@ export function Select({ value, onChange, children, disabled = false, ...props }
       onChange={onChange}
       disabled={disabled}
       {...props}
-      className="w-full rounded-[18px] border border-[#dbe3ef] bg-white px-4 py-4 text-[15px] font-semibold text-[#0f172a] outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100 disabled:bg-slate-50 disabled:text-slate-400"
+      className="min-h-12 w-full touch-manipulation rounded-[18px] border border-[#dbe3ef] bg-white px-4 py-3.5 text-[16px] font-semibold text-[#0f172a] outline-none transition focus:border-violet-400 focus:ring-2 focus:ring-violet-100 disabled:bg-slate-50 disabled:text-slate-400"
     >
       {children}
     </select>
@@ -55,21 +55,21 @@ export function Textarea({ value, onChange, placeholder = '', rows = 3, disabled
       placeholder={placeholder}
       rows={rows}
       disabled={disabled}
-      className="w-full rounded-[18px] border border-[#dbe3ef] bg-white px-4 py-4 text-[15px] font-semibold text-[#0f172a] outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100 disabled:bg-slate-50 disabled:text-slate-400"
+      className="min-h-[120px] w-full touch-manipulation resize-y rounded-[18px] border border-[#dbe3ef] bg-white px-4 py-3.5 text-[16px] font-semibold leading-6 text-[#0f172a] outline-none transition focus:border-violet-400 focus:ring-2 focus:ring-violet-100 disabled:bg-slate-50 disabled:text-slate-400"
     />
   );
 }
 
 export function Checkbox({ checked, onChange, label }) {
   return (
-    <label className="flex items-center gap-2 cursor-pointer">
+    <label className="flex min-h-11 cursor-pointer touch-manipulation items-center gap-3 rounded-[14px] px-1 py-2 active:scale-[0.99]">
       <input
         type="checkbox"
         checked={checked}
         onChange={onChange}
         className="h-5 w-5 rounded border-[#dbe3ef] text-violet-600 focus:ring-2 focus:ring-violet-100"
       />
-      <span className="text-[14px] font-semibold text-[#0f172a]">{label}</span>
+      <span className="min-w-0 break-words text-[14px] font-semibold text-[#0f172a]">{label}</span>
     </label>
   );
 }

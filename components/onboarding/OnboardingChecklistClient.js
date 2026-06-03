@@ -3,22 +3,59 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
-import { ONBOARDING_STEPS } from '@/lib/onboarding/tourRegistry';
+import { ONBOARDING_FLOW_STEPS } from '@/lib/onboarding/onboarding-flow';
 import { restartOnboardingStep } from '@/lib/onboarding/restartOnboardingStep';
 
+const visibleFlowSteps = ONBOARDING_FLOW_STEPS.filter((step) => step.key !== 'complete');
+
 const fallbackSummary = {
-  total: ONBOARDING_STEPS.length,
+  total: visibleFlowSteps.length,
   completed: 0,
   percentage: 0,
 };
 
+function isStepDone(step, status) {
+  if (!status) return false;
+  if (status.completed === true || status.skipped === true) return true;
+  if (step.key === 'dashboard') return status.onboardingEnabled === true || status.primaryWorkspace === true;
+  if (!step.flag) return false;
+  return status?.[step.flag] === true;
+}
+
+function buildSummary(status) {
+  if (!status?.ok) return fallbackSummary;
+
+  const total = visibleFlowSteps.length;
+  const completed = visibleFlowSteps.filter((step) => isStepDone(step, status)).length;
+
+  return {
+    total,
+    completed,
+    percentage: total > 0 ? Math.round((completed / total) * 100) : 0,
+  };
+}
+
+function getStepHref(step, done, status) {
+  const href = step?.href || '/settings/onboarding';
+  if (done) return restartOnboardingStep(step.key, href);
+  if (status?.currentStep === step.key && status?.nextHref) return status.nextHref;
+  return href;
+}
+
+function getStepCta(step, done, isCurrent) {
+  if (done) return 'Reabrir etapa';
+  if (isCurrent) return 'Continuar agora';
+  if (step.key === 'dashboard') return 'Ver boas-vindas';
+  return 'Abrir etapa';
+}
+
 export default function OnboardingChecklistClient() {
   const supabase = useMemo(() => getSupabase(), []);
   const [loading, setLoading] = useState(true);
-  const [savingKey, setSavingKey] = useState('');
-  const [progress, setProgress] = useState(null);
+  const [status, setStatus] = useState(null);
   const [summary, setSummary] = useState(fallbackSummary);
   const [error, setError] = useState('');
+  const [skipping, setSkipping] = useState(false);
 
   async function getToken() {
     const { data } = await supabase.auth.getSession();
@@ -33,7 +70,7 @@ export default function OnboardingChecklistClient() {
       const token = await getToken();
       if (!token) throw new Error('Sessão expirada. Faça login novamente.');
 
-      const response = await fetch('/api/onboarding/progress', {
+      const response = await fetch('/api/onboarding/flow-status', {
         cache: 'no-store',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -45,43 +82,45 @@ export default function OnboardingChecklistClient() {
         throw new Error(payload?.error || 'Não foi possível carregar o onboarding.');
       }
 
-      setProgress(payload.progress || {});
-      setSummary(payload.summary || fallbackSummary);
+      setStatus(payload);
+      setSummary(buildSummary(payload));
     } catch (err) {
       setError(err?.message || 'Erro ao carregar onboarding.');
+      setStatus(null);
+      setSummary(fallbackSummary);
     } finally {
       setLoading(false);
     }
   }
 
-  async function toggleStep(stepKey, completed) {
-    setSavingKey(stepKey);
+  async function skipOnboarding() {
+    setSkipping(true);
     setError('');
 
     try {
       const token = await getToken();
       if (!token) throw new Error('Sessão expirada. Faça login novamente.');
 
-      const response = await fetch('/api/onboarding/progress', {
+      const response = await fetch('/api/onboarding/flow-status', {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ stepKey, completed }),
+        body: JSON.stringify({ flowState: { skipped: true, onboarding_skipped: true }, completed: true }),
       });
 
       const payload = await response.json().catch(() => null);
       if (!response.ok || !payload?.ok) {
-        throw new Error(payload?.error || 'Não foi possível atualizar a etapa.');
+        throw new Error(payload?.error || 'Não foi possível pular o onboarding.');
       }
 
-      setProgress(payload.progress || {});
-      setSummary(payload.summary || fallbackSummary);
+      setStatus(payload);
+      setSummary(buildSummary(payload));
     } catch (err) {
-      setError(err?.message || 'Erro ao atualizar etapa.');
+      setError(err?.message || 'Erro ao pular onboarding.');
     } finally {
-      setSavingKey('');
+      setSkipping(false);
     }
   }
 
@@ -89,7 +128,8 @@ export default function OnboardingChecklistClient() {
     loadProgress();
   }, []);
 
-  const nextStep = ONBOARDING_STEPS.find((step) => progress?.[step.key] !== true) || null;
+  const nextStep = visibleFlowSteps.find((step) => !isStepDone(step, status)) || null;
+  const nextHref = status?.nextHref || nextStep?.href || '/dashboard';
 
   if (loading) {
     return (
@@ -119,16 +159,19 @@ export default function OnboardingChecklistClient() {
             </h1>
 
             <p className="mt-5 max-w-2xl text-[16px] font-semibold leading-8 text-[#64748b]">
-              Este guia acompanha o estado real do workspace e orienta a primeira configuração: identidade, modelo, tipos, pré-contrato, evento, automações e equipe.
+              Este guia agora acompanha o fluxo real do Harmonics: template, tipo de evento, pré-contrato, assinatura, painel do cliente, repertório, equipe, escala, membro, automações, financeiro e limpeza do evento demo.
             </p>
 
             {nextStep ? (
               <div className="mt-6 flex flex-wrap gap-3">
-                <Link href={nextStep.href} className="rounded-2xl bg-violet-600 px-5 py-3 text-sm font-black text-white shadow-[0_14px_30px_rgba(124,58,237,0.24)] transition hover:bg-violet-500">
-                  Continuar: {nextStep.cta}
+                <Link href={nextHref} className="rounded-2xl bg-violet-600 px-5 py-3 text-sm font-black text-white shadow-[0_14px_30px_rgba(124,58,237,0.24)] transition hover:bg-violet-500">
+                  Continuar: {nextStep.title}
                 </Link>
                 <button type="button" onClick={loadProgress} className="rounded-2xl border border-[#dbe3ef] bg-white px-5 py-3 text-sm font-black text-[#0f172a] transition hover:bg-slate-50">
                   Atualizar progresso
+                </button>
+                <button type="button" disabled={skipping} onClick={skipOnboarding} className="rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-black text-slate-600 transition hover:bg-slate-50 disabled:opacity-60">
+                  {skipping ? 'Pulando...' : 'Pular guia'}
                 </button>
               </div>
             ) : (
@@ -154,47 +197,41 @@ export default function OnboardingChecklistClient() {
               <div className="h-full rounded-full bg-violet-600 transition-all" style={{ width: `${summary.percentage || 0}%` }} />
             </div>
             <p className="mt-5 text-[13px] font-semibold leading-6 text-violet-800">
-              As etapas podem ser marcadas manualmente agora. Na próxima camada, o Harmonics marcará automaticamente quando detectar ações reais no sistema.
+              A régua desta tela usa o mesmo status do tour dinâmico. Assim, checklist, redirecionamento e guias passam a apontar para o mesmo fluxo.
             </p>
           </div>
         </div>
       </section>
 
       <section className="grid gap-4 lg:grid-cols-2">
-        {ONBOARDING_STEPS.map((step, index) => {
-          const done = progress?.[step.key] === true;
-          const saving = savingKey === step.key;
+        {visibleFlowSteps.map((step, index) => {
+          const done = isStepDone(step, status);
+          const isCurrent = status?.currentStep === step.key;
+          const href = getStepHref(step, done, status);
 
           return (
-            <article key={step.key} className={`rounded-[28px] border bg-white p-5 shadow-[0_12px_28px_rgba(15,23,42,0.04)] transition ${done ? 'border-emerald-200 bg-emerald-50/40' : 'border-[#dbe3ef]'}`}>
+            <article key={step.key} className={`rounded-[28px] border bg-white p-5 shadow-[0_12px_28px_rgba(15,23,42,0.04)] transition ${done ? 'border-emerald-200 bg-emerald-50/40' : isCurrent ? 'border-violet-300 bg-violet-50/40' : 'border-[#dbe3ef]'}`}>
               <div className="flex items-start gap-4">
-                <button
-                  type="button"
-                  disabled={saving}
-                  onClick={() => toggleStep(step.key, !done)}
-                  className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-black transition ${done ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-500 hover:bg-violet-100 hover:text-violet-700'}`}
-                  aria-label={done ? 'Marcar como pendente' : 'Marcar como concluída'}
-                >
-                  {saving ? '...' : done ? '✓' : index + 1}
-                </button>
+                <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-black transition ${done ? 'bg-emerald-500 text-white' : isCurrent ? 'bg-violet-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                  {done ? '✓' : index + 1}
+                </div>
 
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="text-[18px] font-black tracking-[-0.03em] text-[#0f172a]">{step.title}</h2>
-                    <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.08em] ${done ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                      {done ? 'Concluído' : 'Pendente'}
+                    <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.08em] ${done ? 'bg-emerald-100 text-emerald-700' : isCurrent ? 'bg-violet-100 text-violet-700' : 'bg-slate-100 text-slate-500'}`}>
+                      {done ? 'Concluído' : isCurrent ? 'Atual' : 'Pendente'}
                     </span>
                   </div>
 
-                  <p className="mt-2 text-[14px] font-semibold leading-6 text-[#64748b]">{step.description}</p>
+                  <p className="mt-2 text-[14px] font-semibold leading-6 text-[#64748b]">
+                    {step.flag ? `Validação: ${step.flag}` : 'Etapa introdutória do guia.'}
+                  </p>
 
                   <div className="mt-4 flex flex-wrap gap-3">
-                    <Link href={done ? restartOnboardingStep(step.key, step.href) : step.href} className="rounded-2xl bg-white px-4 py-2 text-[13px] font-black text-violet-700 ring-1 ring-violet-200 transition hover:bg-violet-50">
-                      {done ? 'Reabrir etapa' : step.cta}
+                    <Link href={href} className="rounded-2xl bg-white px-4 py-2 text-[13px] font-black text-violet-700 ring-1 ring-violet-200 transition hover:bg-violet-50">
+                      {getStepCta(step, done, isCurrent)}
                     </Link>
-                    <button type="button" disabled={saving} onClick={() => toggleStep(step.key, !done)} className="rounded-2xl border border-[#dbe3ef] bg-white px-4 py-2 text-[13px] font-black text-[#475569] transition hover:bg-slate-50 disabled:opacity-60">
-                      {done ? 'Marcar como pendente' : 'Marcar como feito'}
-                    </button>
                   </div>
                 </div>
               </div>

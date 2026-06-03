@@ -18,9 +18,9 @@ export default function OperacaoContractInline({
       : 'Abrir link';
 
   return (
-    <div className="mt-4 rounded-[18px] border border-violet-200 bg-violet-50 p-4">
-      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-        <div>
+    <div className="mt-4 overflow-hidden rounded-[18px] border border-violet-200 bg-violet-50 p-4">
+      <div className="flex min-w-0 flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div className="min-w-0 flex-1">
           <div className="text-[13px] font-bold text-violet-800">
             Contrato do evento
           </div>
@@ -37,7 +37,7 @@ export default function OperacaoContractInline({
             )}
           </div>
 
-          <div className="mt-3 text-[13px] text-violet-900/80">
+          <div className="mt-3 text-[13px] leading-5 text-violet-900/80">
             {contractStatus.action === 'create' &&
               'Este evento ainda não possui contrato gerado. Abra o evento para preencher e iniciar o fluxo.'}
 
@@ -49,18 +49,18 @@ export default function OperacaoContractInline({
           </div>
 
           {hasLink ? (
-            <div className="mt-3 rounded-[14px] border border-violet-100 bg-white/70 px-3 py-2 text-[12px] font-semibold text-violet-700 break-all">
-              {contractInfo.link}
+            <div className="mt-3 max-w-full overflow-x-auto overscroll-x-contain rounded-[14px] border border-violet-100 bg-white/70 px-3 py-2 text-[12px] font-semibold text-violet-700 [-webkit-overflow-scrolling:touch]">
+              <span className="block min-w-0 break-all">{contractInfo.link}</span>
             </div>
           ) : null}
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap md:justify-end">
           {hasLink ? (
             <button
               type="button"
               onClick={onOpenLink}
-              className="rounded-[14px] border border-violet-200 bg-white px-4 py-2 text-[13px] font-black text-violet-700"
+              className="min-h-11 touch-manipulation rounded-[14px] border border-violet-200 bg-white px-4 py-2 text-[13px] font-black text-violet-700 active:scale-[0.98]"
             >
               {linkLabel}
             </button>
@@ -69,7 +69,7 @@ export default function OperacaoContractInline({
           <button
             type="button"
             onClick={onCreateOrEdit}
-            className={`rounded-[14px] px-4 py-2 text-[13px] font-black ${
+            className={`min-h-11 touch-manipulation rounded-[14px] px-4 py-2 text-[13px] font-black active:scale-[0.98] ${
               contractStatus.action === 'view'
                 ? 'border border-[#dbe3ef] bg-white text-[#0f172a]'
                 : 'bg-violet-600 text-white'

@@ -10,10 +10,16 @@ function getPublicContractToken() {
   return parts[contratoIndex + 1] || '';
 }
 
-function getPreviewPdfUrl() {
+function getPreviewPdfUrl({ cacheBust = false } = {}) {
   const token = getPublicContractToken();
   if (!token) return '';
-  return `/api/contracts/preview/${encodeURIComponent(token)}`;
+  const baseUrl = `/api/contracts/preview/${encodeURIComponent(token)}`;
+  return cacheBust ? `${baseUrl}?t=${Date.now()}` : baseUrl;
+}
+
+function isMobileViewport() {
+  if (typeof window === 'undefined') return false;
+  return window.matchMedia?.('(max-width: 767px)').matches || window.innerWidth < 768;
 }
 
 function findButtonByText(textFragment) {
@@ -98,17 +104,25 @@ function ensureInlinePreviewPanel() {
 }
 
 function openInlinePdfPreview() {
-  const pdfUrl = getPreviewPdfUrl();
+  const pdfUrl = getPreviewPdfUrl({ cacheBust: true });
+  if (!pdfUrl) return;
+
+  setContractReadStatus(getContractViewerCard());
+
+  if (isMobileViewport()) {
+    window.open(pdfUrl, '_blank', 'noopener,noreferrer');
+    return;
+  }
+
   const panel = ensureInlinePreviewPanel();
-  if (!pdfUrl || !panel) return;
+  if (!panel) return;
 
   const iframe = panel.querySelector('[data-inline-contract-pdf-frame="true"]');
-  if (iframe && iframe.getAttribute('src') !== pdfUrl) {
+  if (iframe) {
     iframe.setAttribute('src', pdfUrl);
   }
 
   panel.style.display = 'block';
-  setContractReadStatus(getContractViewerCard());
 
   window.setTimeout(() => {
     panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -116,7 +130,7 @@ function openInlinePdfPreview() {
 }
 
 function openPdfInNewTab() {
-  const pdfUrl = getPreviewPdfUrl();
+  const pdfUrl = getPreviewPdfUrl({ cacheBust: true });
   if (!pdfUrl) return;
   window.open(pdfUrl, '_blank', 'noopener,noreferrer');
 }

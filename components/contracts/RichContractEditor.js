@@ -67,16 +67,26 @@ const RichContractEditor = forwardRef(function RichContractEditor(
     onChangeHtml?.(normalized);
   }
 
-  function handleInput() {
+  function commitCurrentEditorHtml() {
     const nextHtml = editorRef.current?.innerHTML || '';
     commitHtml(nextHtml);
+    return nextHtml;
+  }
+
+  function scheduleCommitCurrentEditorHtml() {
+    window.setTimeout(() => commitCurrentEditorHtml(), 0);
+    window.setTimeout(() => commitCurrentEditorHtml(), 80);
+  }
+
+  function handleInput() {
+    commitCurrentEditorHtml();
   }
 
   function insertHtmlAtCursor(html) {
     if (readOnly || !editorRef.current) return;
     editorRef.current.focus();
     document.execCommand('insertHTML', false, html);
-    commitHtml(editorRef.current.innerHTML || '');
+    commitCurrentEditorHtml();
   }
 
   function insertTextAtCursor(text) {
@@ -95,7 +105,8 @@ const RichContractEditor = forwardRef(function RichContractEditor(
     if (readOnly || !editorRef.current) return;
     editorRef.current.focus();
     document.execCommand(command, false, value);
-    commitHtml(editorRef.current.innerHTML || '');
+    commitCurrentEditorHtml();
+    scheduleCommitCurrentEditorHtml();
   }
 
   function handlePaste(event) {
@@ -112,17 +123,13 @@ const RichContractEditor = forwardRef(function RichContractEditor(
       document.execCommand('insertHTML', false, plainTextToEditorHtml(text));
     }
 
-    const nextHtml = editorRef.current?.innerHTML || '';
-    commitHtml(nextHtml);
+    commitCurrentEditorHtml();
+    scheduleCommitCurrentEditorHtml();
   }
 
   useImperativeHandle(ref, () => ({
     flush: () => {
-      const html = String(editorRef.current?.innerHTML || '');
-      latestHtmlRef.current = html;
-      contractEditor?.setHtml?.(html);
-      onChangeHtml?.(html);
-      return html;
+      return commitCurrentEditorHtml();
     },
     getHtml: () => String(editorRef.current?.innerHTML || latestHtmlRef.current || ''),
     setHtml: (nextHtml) => {
@@ -165,6 +172,9 @@ const RichContractEditor = forwardRef(function RichContractEditor(
         onInput={handleInput}
         onBlur={handleInput}
         onPaste={handlePaste}
+        onKeyUp={handleInput}
+        onMouseUp={handleInput}
+        onCut={scheduleCommitCurrentEditorHtml}
         className={`prose prose-slate max-w-none overflow-y-auto rounded-2xl border border-[#dbe3ef] bg-white px-4 py-3 text-sm text-[#0f172a] outline-none transition focus:border-violet-400 ${minHeightClass}`}
       />
     </div>

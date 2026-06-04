@@ -78,14 +78,42 @@ function getDocumentHeight(doc) {
   );
 }
 
+function patchPreviewModalWrappers(iframe) {
+  let current = iframe?.parentElement;
+  let depth = 0;
+
+  while (current && depth < 8) {
+    const className = String(current.className || '');
+    const isPreviewShell =
+      className.includes('overflow-hidden') ||
+      className.includes('h-[100dvh]') ||
+      className.includes('h-[92vh]') ||
+      className.includes('max-w-[210mm]') ||
+      className.includes('flex-1');
+
+    if (isPreviewShell) {
+      current.style.overflow = 'visible';
+      current.style.maxHeight = 'none';
+    }
+
+    if (className.includes('flex-1')) {
+      current.style.overflowY = 'auto';
+    }
+
+    current = current.parentElement;
+    depth += 1;
+  }
+}
+
 function resizePreviewIframe(iframe, doc) {
   const height = getDocumentHeight(doc);
   iframe.setAttribute('scrolling', 'no');
   iframe.style.width = '100%';
   iframe.style.maxWidth = '100%';
-  iframe.style.height = `${height + 48}px`;
-  iframe.style.minHeight = `${Math.min(height + 48, 900)}px`;
+  iframe.style.height = `${height + 80}px`;
+  iframe.style.minHeight = `${Math.min(height + 80, 900)}px`;
   iframe.style.overflow = 'visible';
+  patchPreviewModalWrappers(iframe);
 }
 
 function syncContractScale(iframe) {

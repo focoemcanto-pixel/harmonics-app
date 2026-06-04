@@ -3,99 +3,83 @@
 import { useEffect } from 'react';
 
 const PREVIEW_IFRAME_SELECTOR = 'iframe[title="Prévia do contrato"]';
-const STYLE_ID = 'harmonics-contract-preview-mobile-fix';
+const STYLE_ID = 'harmonics-contract-preview-scale-fix';
 
-const RESPONSIVE_PREVIEW_CSS = `
+const SCALE_ONLY_CSS = `
   html,
   body {
-    width: 100% !important;
-    max-width: 100% !important;
-    min-width: 0 !important;
     margin: 0 !important;
     padding: 0 !important;
-    overflow-x: hidden !important;
-    -webkit-text-size-adjust: 100% !important;
     background: #eef2f7 !important;
+    overflow-x: hidden !important;
   }
 
   body {
-    box-sizing: border-box !important;
+    min-width: 0 !important;
+  }
+
+  .harmonics-preview-scale-stage {
+    width: 100% !important;
+    min-width: 0 !important;
+    overflow-x: hidden !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: flex-start !important;
   }
 
   .page {
-    width: 100% !important;
-    max-width: min(210mm, 100%) !important;
-    min-width: 0 !important;
-    min-height: auto !important;
-    margin: 0 auto !important;
-    padding: clamp(16px, 4vw, 32px) !important;
-    box-sizing: border-box !important;
-    overflow: visible !important;
-    background: #ffffff !important;
-  }
-
-  .page,
-  .page * {
-    box-sizing: border-box !important;
-    max-width: 100% !important;
-    overflow-wrap: anywhere !important;
-    word-break: normal !important;
-    white-space: normal !important;
-  }
-
-  .page img,
-  .page svg,
-  .page canvas,
-  .page video {
-    max-width: 100% !important;
-    height: auto !important;
-  }
-
-  .page table {
-    width: 100% !important;
-    max-width: 100% !important;
-    table-layout: auto !important;
-    border-collapse: collapse !important;
-    display: block !important;
-    overflow-x: auto !important;
-  }
-
-  .page td,
-  .page th {
-    max-width: 100% !important;
-    white-space: normal !important;
-  }
-
-  @media (max-width: 640px) {
-    .page {
-      width: 100% !important;
-      margin: 0 !important;
-      border-radius: 0 !important;
-      box-shadow: none !important;
-    }
-
-    .page h1,
-    .page h2,
-    .page h3 {
-      line-height: 1.15 !important;
-      overflow-wrap: anywhere !important;
-    }
+    transform-origin: top center !important;
+    will-change: transform !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
   }
 `;
 
-function injectResponsiveStyles(iframe) {
+function ensureScaleStage(doc) {
+  const page = doc?.querySelector?.('.page');
+  if (!page || page.parentElement?.classList?.contains('harmonics-preview-scale-stage')) {
+    return page;
+  }
+
+  const stage = doc.createElement('div');
+  stage.className = 'harmonics-preview-scale-stage';
+  page.parentNode.insertBefore(stage, page);
+  stage.appendChild(page);
+  return page;
+}
+
+function syncContractScale(iframe) {
   try {
     const doc = iframe?.contentDocument;
-    if (!doc?.head) return;
+    if (!doc?.head || !doc?.body) return;
 
-    const existing = doc.getElementById(STYLE_ID);
-    if (existing) {
-      existing.textContent = RESPONSIVE_PREVIEW_CSS;
-    } else {
-      const style = doc.createElement('style');
+    let style = doc.getElementById(STYLE_ID);
+    if (!style) {
+      style = doc.createElement('style');
       style.id = STYLE_ID;
-      style.textContent = RESPONSIVE_PREVIEW_CSS;
       doc.head.appendChild(style);
+    }
+    style.textContent = SCALE_ONLY_CSS;
+
+    const page = ensureScaleStage(doc);
+    if (!page) return;
+
+    page.style.transform = 'none';
+    page.style.maxWidth = '';
+    page.style.overflow = '';
+
+    const viewportWidth = Math.max(280, iframe.clientWidth || window.innerWidth || 360);
+    const pageWidth = Math.max(page.scrollWidth, page.getBoundingClientRect().width, 1);
+    const availableWidth = Math.max(260, viewportWidth - 24);
+    const scale = Math.min(1, availableWidth / pageWidth);
+
+    page.style.transform = `scale(${scale})`;
+    page.style.marginTop = '12px';
+    page.style.marginBottom = `${Math.max(12, Math.round((page.scrollHeight * scale) - page.scrollHeight + 12))}px`;
+
+    const stage = page.parentElement;
+    if (stage?.classList?.contains('harmonics-preview-scale-stage')) {
+      stage.style.height = `${Math.ceil(page.scrollHeight * scale) + 24}px`;
     }
 
     iframe.setAttribute('scrolling', 'yes');
@@ -103,7 +87,7 @@ function injectResponsiveStyles(iframe) {
     iframe.style.maxWidth = '100%';
     iframe.style.overflow = 'auto';
   } catch {
-    // srcDoc iframes are same-origin, but this remains best-effort for safety.
+    // Same-origin srcDoc is expected, but keep this best-effort.
   }
 }
 
@@ -111,11 +95,14 @@ function patchContractPreviewIframes() {
   if (typeof document === 'undefined') return;
 
   document.querySelectorAll(PREVIEW_IFRAME_SELECTOR).forEach((iframe) => {
-    injectResponsiveStyles(iframe);
-    if (iframe.dataset.contractPreviewMobileFix === 'true') return;
+    syncContractScale(iframe);
+    if (iframe.dataset.contractPreviewScaleFix === 'true') return;
 
-    iframe.dataset.contractPreviewMobileFix = 'true';
-    iframe.addEventListener('load', () => injectResponsiveStyles(iframe));
+    iframe.dataset.contractPreviewScaleFix = 'true';
+    iframe.addEventListener('load', () => {
+      window.setTimeout(() => syncContractScale(iframe), 50);
+      window.setTimeout(() => syncContractScale(iframe), 300);
+    });
   });
 }
 
@@ -127,12 +114,20 @@ export default function ContractPreviewMobileFix() {
       patchContractPreviewIframes();
     });
 
+    const handleResize = () => patchContractPreviewIframes();
+
     observer.observe(document.body, {
       childList: true,
       subtree: true,
     });
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleResize);
 
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleResize);
+    };
   }, []);
 
   return null;

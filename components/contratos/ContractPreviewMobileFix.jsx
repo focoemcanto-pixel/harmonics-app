@@ -23,10 +23,24 @@ function findButtonByText(textFragment) {
   });
 }
 
+function getPreviewButton() {
+  return (
+    document.querySelector('button[data-inline-pdf-preview-patched="true"]') ||
+    findButtonByText('visualizar contrato') ||
+    findButtonByText('ver prévia aqui')
+  );
+}
+
 function getContractViewerCard() {
-  const previewButton = findButtonByText('visualizar contrato');
+  const previewButton = getPreviewButton();
   if (!previewButton) return null;
-  return previewButton.closest('[class*="rounded"]') || previewButton.parentElement;
+
+  return (
+    previewButton.closest('[data-onboarding-tour="contract-viewer"]') ||
+    previewButton.closest('.space-y-3') ||
+    previewButton.closest('[class*="rounded"]') ||
+    previewButton.parentElement
+  );
 }
 
 function setContractReadStatus(card) {
@@ -108,7 +122,7 @@ function openPdfInNewTab() {
 }
 
 function ensureOpenFullButton() {
-  const previewButton = findButtonByText('visualizar contrato');
+  const previewButton = getPreviewButton();
   if (!previewButton) return;
 
   const parent = previewButton.parentElement;
@@ -151,7 +165,7 @@ function removeReactPreviewModalIfOpened() {
 }
 
 function patchPreviewButtonBehavior() {
-  const previewButton = findButtonByText('visualizar contrato');
+  const previewButton = getPreviewButton();
   if (!previewButton || previewButton.dataset.inlinePdfPreviewPatched === 'true') return;
 
   previewButton.dataset.inlinePdfPreviewPatched = 'true';

@@ -25,7 +25,7 @@ function includesCertificacaoText(value) {
 }
 
 function buildPatchPayload(body = {}) {
-  return ALLOWED_PATCH_FIELDS.reduce((acc, field) => {
+  const payload = ALLOWED_PATCH_FIELDS.reduce((acc, field) => {
     if (!Object.prototype.hasOwnProperty.call(body, field)) return acc;
 
     if (['name', 'slug', 'description', 'content', 'source_text', 'source_rich_html'].includes(field)) {
@@ -39,6 +39,12 @@ function buildPatchPayload(body = {}) {
 
     return acc;
   }, {});
+
+  if (Object.keys(payload).length > 0) {
+    payload.updated_at = new Date().toISOString();
+  }
+
+  return payload;
 }
 
 export async function PATCH(request, context) {
@@ -79,12 +85,13 @@ export async function PATCH(request, context) {
       content_len: String(payload.content || '').length,
       is_active: payload.is_active,
       is_default: payload.is_default,
+      updated_at: payload.updated_at,
     });
 
     if (payload.is_default === true) {
       const { error: clearBeforeError } = await supabaseAdmin
         .from('contract_templates')
-        .update({ is_default: false })
+        .update({ is_default: false, updated_at: new Date().toISOString() })
         .neq('id', id);
 
       if (clearBeforeError) throw clearBeforeError;

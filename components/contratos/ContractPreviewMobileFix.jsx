@@ -13,6 +13,10 @@ const PREVIEW_CSS = `
     background: #fff !important;
     overflow-y: auto !important;
   }
+
+  body {
+    box-sizing: border-box !important;
+  }
 `;
 
 function unwrapArtificialPage(doc) {
@@ -30,13 +34,18 @@ function unwrapArtificialPage(doc) {
 function removeArtificialPreviewStyles(doc) {
   doc?.querySelectorAll?.('style').forEach((style) => {
     const text = style.textContent || '';
-    if (text.includes('.page') && text.includes('box-shadow') && text.includes('210mm')) {
+    const isArtificialA4PreviewStyle =
+      text.includes('.page') &&
+      text.includes('210mm') &&
+      text.includes('box-shadow');
+
+    if (isArtificialA4PreviewStyle) {
       style.remove();
     }
   });
 }
 
-function patchIframeDocument(iframe) {
+function normalizePreviewDocument(iframe) {
   const doc = iframe?.contentDocument;
   if (!doc?.head || !doc?.body) return;
 
@@ -57,22 +66,12 @@ function patchIframeDocument(iframe) {
   doc.body.style.overflowY = 'auto';
 }
 
-function patchIframeElement(iframe) {
-  iframe.setAttribute('scrolling', 'yes');
-  iframe.style.width = '100%';
-  iframe.style.maxWidth = '100%';
-  iframe.style.height = 'calc(100dvh - 120px)';
-  iframe.style.minHeight = '70vh';
-  iframe.style.overflowY = 'auto';
-  iframe.style.display = 'block';
-}
-
 function syncContractPreview(iframe) {
   try {
-    patchIframeElement(iframe);
-    patchIframeDocument(iframe);
+    iframe.setAttribute('scrolling', 'yes');
+    normalizePreviewDocument(iframe);
   } catch {
-    // The preview uses same-origin srcDoc, but keep this best-effort.
+    // srcDoc preview is same-origin; keep defensive.
   }
 }
 
@@ -88,7 +87,6 @@ function patchContractPreviewIframes() {
     iframe.addEventListener('load', () => {
       window.setTimeout(() => syncContractPreview(iframe), 50);
       window.setTimeout(() => syncContractPreview(iframe), 300);
-      window.setTimeout(() => syncContractPreview(iframe), 900);
     });
   });
 }
@@ -106,11 +104,8 @@ export default function ContractPreviewMobileFix() {
       subtree: true,
     });
 
-    window.addEventListener('resize', patchContractPreviewIframes);
-
     return () => {
       observer.disconnect();
-      window.removeEventListener('resize', patchContractPreviewIframes);
     };
   }, []);
 

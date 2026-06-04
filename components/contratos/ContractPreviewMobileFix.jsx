@@ -4,6 +4,8 @@ import { useEffect } from 'react';
 
 const PREVIEW_IFRAME_SELECTOR = 'iframe[title="Prévia do contrato"]';
 const STYLE_ID = 'harmonics-contract-preview-scale-fix';
+const INNER_SCALE_CLASS = 'harmonics-preview-inner-scale';
+const PAGE_SPACER_CLASS = 'harmonics-preview-page-spacer';
 
 const SCALE_ONLY_CSS = `
   html,
@@ -14,38 +16,55 @@ const SCALE_ONLY_CSS = `
     overflow-x: hidden !important;
   }
 
-  body {
-    min-width: 0 !important;
-  }
-
-  .harmonics-preview-scale-stage {
-    width: 100% !important;
-    min-width: 0 !important;
-    overflow-x: hidden !important;
-    display: flex !important;
-    justify-content: center !important;
-    align-items: flex-start !important;
-  }
-
   .page {
-    transform-origin: top center !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: 0 !important;
+    margin: 0 auto !important;
+    padding: 12px !important;
+    overflow: visible !important;
+    box-sizing: border-box !important;
+    background: #ffffff !important;
+  }
+
+  .${INNER_SCALE_CLASS} {
+    display: block !important;
+    transform-origin: top left !important;
     will-change: transform !important;
-    margin-left: auto !important;
-    margin-right: auto !important;
+  }
+
+  .${PAGE_SPACER_CLASS} {
+    display: block !important;
+    width: 1px !important;
+    pointer-events: none !important;
   }
 `;
 
-function ensureScaleStage(doc) {
+function ensureInnerScaleWrapper(doc) {
   const page = doc?.querySelector?.('.page');
-  if (!page || page.parentElement?.classList?.contains('harmonics-preview-scale-stage')) {
-    return page;
+  if (!page) return null;
+
+  let wrapper = page.querySelector(`:scope > .${INNER_SCALE_CLASS}`);
+  if (wrapper) return { page, wrapper };
+
+  wrapper = doc.createElement('div');
+  wrapper.className = INNER_SCALE_CLASS;
+
+  const nodes = Array.from(page.childNodes).filter((node) => {
+    return !(node.nodeType === 1 && node.classList?.contains(PAGE_SPACER_CLASS));
+  });
+
+  nodes.forEach((node) => wrapper.appendChild(node));
+  page.appendChild(wrapper);
+
+  let spacer = page.querySelector(`:scope > .${PAGE_SPACER_CLASS}`);
+  if (!spacer) {
+    spacer = doc.createElement('div');
+    spacer.className = PAGE_SPACER_CLASS;
+    page.appendChild(spacer);
   }
 
-  const stage = doc.createElement('div');
-  stage.className = 'harmonics-preview-scale-stage';
-  page.parentNode.insertBefore(stage, page);
-  stage.appendChild(page);
-  return page;
+  return { page, wrapper };
 }
 
 function syncContractScale(iframe) {
@@ -61,25 +80,34 @@ function syncContractScale(iframe) {
     }
     style.textContent = SCALE_ONLY_CSS;
 
-    const page = ensureScaleStage(doc);
-    if (!page) return;
+    const result = ensureInnerScaleWrapper(doc);
+    if (!result?.page || !result?.wrapper) return;
 
-    page.style.transform = 'none';
-    page.style.maxWidth = '';
-    page.style.overflow = '';
+    const { page, wrapper } = result;
+    const spacer = page.querySelector(`:scope > .${PAGE_SPACER_CLASS}`);
+
+    wrapper.style.transform = 'none';
+    wrapper.style.width = 'max-content';
+    wrapper.style.maxWidth = 'none';
 
     const viewportWidth = Math.max(280, iframe.clientWidth || window.innerWidth || 360);
-    const pageWidth = Math.max(page.scrollWidth, page.getBoundingClientRect().width, 1);
-    const availableWidth = Math.max(260, viewportWidth - 24);
-    const scale = Math.min(1, availableWidth / pageWidth);
+    const availableWidth = Math.max(240, viewportWidth - 24);
+    const contentWidth = Math.max(
+      wrapper.scrollWidth,
+      wrapper.getBoundingClientRect().width,
+      1
+    );
+    const contentHeight = Math.max(
+      wrapper.scrollHeight,
+      wrapper.getBoundingClientRect().height,
+      1
+    );
+    const scale = Math.min(1, availableWidth / contentWidth);
 
-    page.style.transform = `scale(${scale})`;
-    page.style.marginTop = '12px';
-    page.style.marginBottom = `${Math.max(12, Math.round((page.scrollHeight * scale) - page.scrollHeight + 12))}px`;
+    wrapper.style.transform = `scale(${scale})`;
 
-    const stage = page.parentElement;
-    if (stage?.classList?.contains('harmonics-preview-scale-stage')) {
-      stage.style.height = `${Math.ceil(page.scrollHeight * scale) + 24}px`;
+    if (spacer) {
+      spacer.style.height = `${Math.ceil(contentHeight * scale) + 24}px`;
     }
 
     iframe.setAttribute('scrolling', 'yes');
@@ -102,6 +130,7 @@ function patchContractPreviewIframes() {
     iframe.addEventListener('load', () => {
       window.setTimeout(() => syncContractScale(iframe), 50);
       window.setTimeout(() => syncContractScale(iframe), 300);
+      window.setTimeout(() => syncContractScale(iframe), 900);
     });
   });
 }

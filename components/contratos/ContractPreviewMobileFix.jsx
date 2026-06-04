@@ -50,10 +50,11 @@ function patchIframeElement(iframe) {
   iframe.setAttribute('scrolling', 'yes');
   iframe.style.width = '100%';
   iframe.style.maxWidth = '100%';
-  iframe.style.height = '';
-  iframe.style.minHeight = '';
+  iframe.style.height = 'calc(100dvh - 120px)';
+  iframe.style.minHeight = '70vh';
   iframe.style.overflow = 'auto';
   iframe.style.overflowY = 'auto';
+  iframe.style.display = 'block';
 }
 
 function patchModalShell(iframe) {
@@ -63,32 +64,8 @@ function patchModalShell(iframe) {
   while (current && depth < 8) {
     const className = String(current.className || '');
 
-    if (className.includes('fixed') && className.includes('inset-0')) {
-      current.style.alignItems = '';
-      current.style.justifyContent = '';
-      current.style.overflow = '';
-      current.style.overflowY = '';
-      current.style.paddingTop = '';
-      current.style.paddingBottom = '';
-    }
-
-    if (className.includes('h-[100dvh]') || className.includes('h-[92vh]')) {
-      current.style.height = '';
-      current.style.minHeight = '';
-      current.style.maxHeight = '';
-      current.style.overflow = '';
-    }
-
-    if (className.includes('flex-1')) {
-      current.style.height = '';
-      current.style.maxHeight = '';
-      current.style.overflow = '';
-      current.style.overflowY = '';
-    }
-
-    if (className.includes('max-w-[210mm]') || className.includes('overflow-hidden')) {
-      current.style.overflow = '';
-      current.style.maxHeight = '';
+    if (className.includes('max-w-[210mm]')) {
+      current.style.overflow = 'hidden';
     }
 
     current = current.parentElement;
@@ -96,11 +73,31 @@ function patchModalShell(iframe) {
   }
 }
 
+function bindWheelToIframe(iframe) {
+  if (iframe.dataset.contractPreviewWheelFix === 'true') return;
+  iframe.dataset.contractPreviewWheelFix = 'true';
+
+  iframe.addEventListener(
+    'wheel',
+    (event) => {
+      try {
+        const win = iframe.contentWindow;
+        if (!win) return;
+        win.scrollBy({ top: event.deltaY, left: event.deltaX, behavior: 'auto' });
+      } catch {
+        // Ignore cross-context failures.
+      }
+    },
+    { passive: true }
+  );
+}
+
 function syncContractPreview(iframe) {
   try {
     patchModalShell(iframe);
     patchIframeElement(iframe);
     patchIframeDocument(iframe);
+    bindWheelToIframe(iframe);
   } catch {
     // The preview uses same-origin srcDoc, but keep this best-effort.
   }

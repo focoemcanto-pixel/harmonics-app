@@ -82,22 +82,40 @@ function patchPreviewModalWrappers(iframe) {
   let current = iframe?.parentElement;
   let depth = 0;
 
-  while (current && depth < 8) {
+  while (current && depth < 12) {
     const className = String(current.className || '');
-    const isPreviewShell =
-      className.includes('overflow-hidden') ||
-      className.includes('h-[100dvh]') ||
-      className.includes('h-[92vh]') ||
-      className.includes('max-w-[210mm]') ||
-      className.includes('flex-1');
+    const isFixedOverlay = className.includes('fixed') && className.includes('inset-0');
+    const isViewportShell = className.includes('h-[100dvh]') || className.includes('h-[92vh]');
+    const isScrollArea = className.includes('flex-1');
+    const isA4Wrapper = className.includes('max-w-[210mm]');
+    const hasHiddenOverflow = className.includes('overflow-hidden');
 
-    if (isPreviewShell) {
-      current.style.overflow = 'visible';
-      current.style.maxHeight = 'none';
+    if (isFixedOverlay) {
+      current.style.alignItems = 'flex-start';
+      current.style.justifyContent = 'center';
+      current.style.overflow = 'auto';
+      current.style.overflowY = 'auto';
+      current.style.paddingTop = '24px';
+      current.style.paddingBottom = '24px';
     }
 
-    if (className.includes('flex-1')) {
-      current.style.overflowY = 'auto';
+    if (isViewportShell) {
+      current.style.height = 'auto';
+      current.style.minHeight = '92vh';
+      current.style.maxHeight = 'none';
+      current.style.overflow = 'visible';
+    }
+
+    if (isScrollArea) {
+      current.style.height = 'auto';
+      current.style.maxHeight = 'none';
+      current.style.overflow = 'visible';
+      current.style.overflowY = 'visible';
+    }
+
+    if (isA4Wrapper || hasHiddenOverflow) {
+      current.style.overflow = 'visible';
+      current.style.maxHeight = 'none';
     }
 
     current = current.parentElement;

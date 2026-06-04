@@ -3,32 +3,45 @@
 import { useEffect } from 'react';
 
 const PREVIEW_IFRAME_SELECTOR = 'iframe[title="Prévia do contrato"]';
-const STYLE_ID = 'harmonics-contract-preview-scroll-fix';
+const STYLE_ID = 'harmonics-contract-preview-normalize';
 
 const PREVIEW_CSS = `
   html,
   body {
     margin: 0 !important;
     padding: 0 !important;
-    height: auto !important;
-    min-height: 100% !important;
-    background: #eef2f7 !important;
-    overflow: auto !important;
+    background: #fff !important;
     overflow-y: auto !important;
   }
-
-  .page,
-  .contract-page,
-  [class*="page"] {
-    height: auto !important;
-    max-height: none !important;
-    overflow: visible !important;
-  }
 `;
+
+function unwrapArtificialPage(doc) {
+  const body = doc?.body;
+  const page = body?.querySelector(':scope > .page');
+  if (!body || !page) return;
+
+  while (page.firstChild) {
+    body.insertBefore(page.firstChild, page);
+  }
+
+  page.remove();
+}
+
+function removeArtificialPreviewStyles(doc) {
+  doc?.querySelectorAll?.('style').forEach((style) => {
+    const text = style.textContent || '';
+    if (text.includes('.page') && text.includes('box-shadow') && text.includes('210mm')) {
+      style.remove();
+    }
+  });
+}
 
 function patchIframeDocument(iframe) {
   const doc = iframe?.contentDocument;
   if (!doc?.head || !doc?.body) return;
+
+  unwrapArtificialPage(doc);
+  removeArtificialPreviewStyles(doc);
 
   let style = doc.getElementById(STYLE_ID);
   if (!style) {
@@ -38,11 +51,9 @@ function patchIframeDocument(iframe) {
   }
 
   style.textContent = PREVIEW_CSS;
-  doc.documentElement.style.height = 'auto';
-  doc.documentElement.style.overflow = 'auto';
+  doc.documentElement.style.background = '#fff';
   doc.documentElement.style.overflowY = 'auto';
-  doc.body.style.height = 'auto';
-  doc.body.style.overflow = 'auto';
+  doc.body.style.background = '#fff';
   doc.body.style.overflowY = 'auto';
 }
 
@@ -52,52 +63,14 @@ function patchIframeElement(iframe) {
   iframe.style.maxWidth = '100%';
   iframe.style.height = 'calc(100dvh - 120px)';
   iframe.style.minHeight = '70vh';
-  iframe.style.overflow = 'auto';
   iframe.style.overflowY = 'auto';
   iframe.style.display = 'block';
 }
 
-function patchModalShell(iframe) {
-  let current = iframe?.parentElement;
-  let depth = 0;
-
-  while (current && depth < 8) {
-    const className = String(current.className || '');
-
-    if (className.includes('max-w-[210mm]')) {
-      current.style.overflow = 'hidden';
-    }
-
-    current = current.parentElement;
-    depth += 1;
-  }
-}
-
-function bindWheelToIframe(iframe) {
-  if (iframe.dataset.contractPreviewWheelFix === 'true') return;
-  iframe.dataset.contractPreviewWheelFix = 'true';
-
-  iframe.addEventListener(
-    'wheel',
-    (event) => {
-      try {
-        const win = iframe.contentWindow;
-        if (!win) return;
-        win.scrollBy({ top: event.deltaY, left: event.deltaX, behavior: 'auto' });
-      } catch {
-        // Ignore cross-context failures.
-      }
-    },
-    { passive: true }
-  );
-}
-
 function syncContractPreview(iframe) {
   try {
-    patchModalShell(iframe);
     patchIframeElement(iframe);
     patchIframeDocument(iframe);
-    bindWheelToIframe(iframe);
   } catch {
     // The preview uses same-origin srcDoc, but keep this best-effort.
   }
@@ -109,8 +82,8 @@ function patchContractPreviewIframes() {
   document.querySelectorAll(PREVIEW_IFRAME_SELECTOR).forEach((iframe) => {
     syncContractPreview(iframe);
 
-    if (iframe.dataset.contractPreviewScrollFix === 'true') return;
-    iframe.dataset.contractPreviewScrollFix = 'true';
+    if (iframe.dataset.contractPreviewNormalize === 'true') return;
+    iframe.dataset.contractPreviewNormalize = 'true';
 
     iframe.addEventListener('load', () => {
       window.setTimeout(() => syncContractPreview(iframe), 50);

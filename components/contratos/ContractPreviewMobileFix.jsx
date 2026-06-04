@@ -12,11 +12,17 @@ const SCALE_ONLY_CSS = `
   body {
     margin: 0 !important;
     padding: 0 !important;
+    height: auto !important;
+    min-height: 100% !important;
     background: #eef2f7 !important;
-    overflow: auto !important;
+    overflow: visible !important;
   }
 
-  .page {
+  .page,
+  .contract-page,
+  [class*="page"] {
+    height: auto !important;
+    max-height: none !important;
     overflow: visible !important;
   }
 
@@ -56,6 +62,32 @@ function ensureInnerScaleWrapper(doc) {
   return { page, wrapper };
 }
 
+function getDocumentHeight(doc) {
+  const body = doc?.body;
+  const html = doc?.documentElement;
+  const page = doc?.querySelector?.('.page');
+
+  return Math.max(
+    body?.scrollHeight || 0,
+    body?.offsetHeight || 0,
+    html?.scrollHeight || 0,
+    html?.offsetHeight || 0,
+    page?.scrollHeight || 0,
+    page?.offsetHeight || 0,
+    700
+  );
+}
+
+function resizePreviewIframe(iframe, doc) {
+  const height = getDocumentHeight(doc);
+  iframe.setAttribute('scrolling', 'no');
+  iframe.style.width = '100%';
+  iframe.style.maxWidth = '100%';
+  iframe.style.height = `${height + 48}px`;
+  iframe.style.minHeight = `${Math.min(height + 48, 900)}px`;
+  iframe.style.overflow = 'visible';
+}
+
 function syncContractScale(iframe) {
   try {
     const doc = iframe?.contentDocument;
@@ -70,17 +102,13 @@ function syncContractScale(iframe) {
     style.textContent = SCALE_ONLY_CSS;
 
     const result = ensureInnerScaleWrapper(doc);
-    if (!result?.page || !result?.wrapper) return;
+    if (result?.wrapper) {
+      result.wrapper.style.transform = 'none';
+      result.wrapper.style.width = '';
+      result.wrapper.style.maxWidth = '';
+    }
 
-    const { wrapper } = result;
-    wrapper.style.transform = 'none';
-    wrapper.style.width = '';
-    wrapper.style.maxWidth = '';
-
-    iframe.setAttribute('scrolling', 'yes');
-    iframe.style.width = '100%';
-    iframe.style.maxWidth = '100%';
-    iframe.style.overflow = 'auto';
+    window.requestAnimationFrame(() => resizePreviewIframe(iframe, doc));
   } catch {
     // Same-origin srcDoc is expected, but keep this best-effort.
   }
@@ -97,6 +125,7 @@ function patchContractPreviewIframes() {
     iframe.addEventListener('load', () => {
       window.setTimeout(() => syncContractScale(iframe), 50);
       window.setTimeout(() => syncContractScale(iframe), 300);
+      window.setTimeout(() => syncContractScale(iframe), 900);
     });
   });
 }
@@ -114,8 +143,11 @@ export default function ContractPreviewMobileFix() {
       subtree: true,
     });
 
+    window.addEventListener('resize', patchContractPreviewIframes);
+
     return () => {
       observer.disconnect();
+      window.removeEventListener('resize', patchContractPreviewIframes);
     };
   }, []);
 

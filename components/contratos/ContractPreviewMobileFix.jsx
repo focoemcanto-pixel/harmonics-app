@@ -3,11 +3,9 @@
 import { useEffect } from 'react';
 
 const PREVIEW_IFRAME_SELECTOR = 'iframe[title="Prévia do contrato"]';
-const STYLE_ID = 'harmonics-contract-preview-scale-fix';
-const INNER_SCALE_CLASS = 'harmonics-preview-inner-scale';
-const PAGE_SPACER_CLASS = 'harmonics-preview-page-spacer';
+const STYLE_ID = 'harmonics-contract-preview-scroll-fix';
 
-const SCALE_ONLY_CSS = `
+const PREVIEW_CSS = `
   html,
   body {
     margin: 0 !important;
@@ -15,7 +13,8 @@ const SCALE_ONLY_CSS = `
     height: auto !important;
     min-height: 100% !important;
     background: #eef2f7 !important;
-    overflow: visible !important;
+    overflow: auto !important;
+    overflow-y: auto !important;
   }
 
   .page,
@@ -25,97 +24,71 @@ const SCALE_ONLY_CSS = `
     max-height: none !important;
     overflow: visible !important;
   }
-
-  .${INNER_SCALE_CLASS} {
-    display: block !important;
-  }
-
-  .${PAGE_SPACER_CLASS} {
-    display: none !important;
-  }
 `;
 
-function ensureInnerScaleWrapper(doc) {
-  const page = doc?.querySelector?.('.page');
-  if (!page) return null;
+function patchIframeDocument(iframe) {
+  const doc = iframe?.contentDocument;
+  if (!doc?.head || !doc?.body) return;
 
-  let wrapper = page.querySelector(`:scope > .${INNER_SCALE_CLASS}`);
-  if (wrapper) return { page, wrapper };
-
-  wrapper = doc.createElement('div');
-  wrapper.className = INNER_SCALE_CLASS;
-
-  const nodes = Array.from(page.childNodes).filter((node) => {
-    return !(node.nodeType === 1 && node.classList?.contains(PAGE_SPACER_CLASS));
-  });
-
-  nodes.forEach((node) => wrapper.appendChild(node));
-  page.appendChild(wrapper);
-
-  let spacer = page.querySelector(`:scope > .${PAGE_SPACER_CLASS}`);
-  if (!spacer) {
-    spacer = doc.createElement('div');
-    spacer.className = PAGE_SPACER_CLASS;
-    page.appendChild(spacer);
+  let style = doc.getElementById(STYLE_ID);
+  if (!style) {
+    style = doc.createElement('style');
+    style.id = STYLE_ID;
+    doc.head.appendChild(style);
   }
 
-  return { page, wrapper };
+  style.textContent = PREVIEW_CSS;
+  doc.documentElement.style.height = 'auto';
+  doc.documentElement.style.overflow = 'auto';
+  doc.documentElement.style.overflowY = 'auto';
+  doc.body.style.height = 'auto';
+  doc.body.style.overflow = 'auto';
+  doc.body.style.overflowY = 'auto';
 }
 
-function getDocumentHeight(doc) {
-  const body = doc?.body;
-  const html = doc?.documentElement;
-  const page = doc?.querySelector?.('.page');
-
-  return Math.max(
-    body?.scrollHeight || 0,
-    body?.offsetHeight || 0,
-    html?.scrollHeight || 0,
-    html?.offsetHeight || 0,
-    page?.scrollHeight || 0,
-    page?.offsetHeight || 0,
-    700
-  );
+function patchIframeElement(iframe) {
+  iframe.setAttribute('scrolling', 'yes');
+  iframe.style.width = '100%';
+  iframe.style.maxWidth = '100%';
+  iframe.style.height = '';
+  iframe.style.minHeight = '';
+  iframe.style.overflow = 'auto';
+  iframe.style.overflowY = 'auto';
 }
 
-function patchPreviewModalWrappers(iframe) {
+function patchModalShell(iframe) {
   let current = iframe?.parentElement;
   let depth = 0;
 
-  while (current && depth < 12) {
+  while (current && depth < 8) {
     const className = String(current.className || '');
-    const isFixedOverlay = className.includes('fixed') && className.includes('inset-0');
-    const isViewportShell = className.includes('h-[100dvh]') || className.includes('h-[92vh]');
-    const isScrollArea = className.includes('flex-1');
-    const isA4Wrapper = className.includes('max-w-[210mm]');
-    const hasHiddenOverflow = className.includes('overflow-hidden');
 
-    if (isFixedOverlay) {
-      current.style.alignItems = 'flex-start';
-      current.style.justifyContent = 'center';
-      current.style.overflow = 'auto';
-      current.style.overflowY = 'auto';
-      current.style.paddingTop = '24px';
-      current.style.paddingBottom = '24px';
+    if (className.includes('fixed') && className.includes('inset-0')) {
+      current.style.alignItems = '';
+      current.style.justifyContent = '';
+      current.style.overflow = '';
+      current.style.overflowY = '';
+      current.style.paddingTop = '';
+      current.style.paddingBottom = '';
     }
 
-    if (isViewportShell) {
-      current.style.height = 'auto';
-      current.style.minHeight = '92vh';
-      current.style.maxHeight = 'none';
-      current.style.overflow = 'visible';
+    if (className.includes('h-[100dvh]') || className.includes('h-[92vh]')) {
+      current.style.height = '';
+      current.style.minHeight = '';
+      current.style.maxHeight = '';
+      current.style.overflow = '';
     }
 
-    if (isScrollArea) {
-      current.style.height = 'auto';
-      current.style.maxHeight = 'none';
-      current.style.overflow = 'visible';
-      current.style.overflowY = 'visible';
+    if (className.includes('flex-1')) {
+      current.style.height = '';
+      current.style.maxHeight = '';
+      current.style.overflow = '';
+      current.style.overflowY = '';
     }
 
-    if (isA4Wrapper || hasHiddenOverflow) {
-      current.style.overflow = 'visible';
-      current.style.maxHeight = 'none';
+    if (className.includes('max-w-[210mm]') || className.includes('overflow-hidden')) {
+      current.style.overflow = '';
+      current.style.maxHeight = '';
     }
 
     current = current.parentElement;
@@ -123,40 +96,13 @@ function patchPreviewModalWrappers(iframe) {
   }
 }
 
-function resizePreviewIframe(iframe, doc) {
-  const height = getDocumentHeight(doc);
-  iframe.setAttribute('scrolling', 'no');
-  iframe.style.width = '100%';
-  iframe.style.maxWidth = '100%';
-  iframe.style.height = `${height + 80}px`;
-  iframe.style.minHeight = `${Math.min(height + 80, 900)}px`;
-  iframe.style.overflow = 'visible';
-  patchPreviewModalWrappers(iframe);
-}
-
-function syncContractScale(iframe) {
+function syncContractPreview(iframe) {
   try {
-    const doc = iframe?.contentDocument;
-    if (!doc?.head || !doc?.body) return;
-
-    let style = doc.getElementById(STYLE_ID);
-    if (!style) {
-      style = doc.createElement('style');
-      style.id = STYLE_ID;
-      doc.head.appendChild(style);
-    }
-    style.textContent = SCALE_ONLY_CSS;
-
-    const result = ensureInnerScaleWrapper(doc);
-    if (result?.wrapper) {
-      result.wrapper.style.transform = 'none';
-      result.wrapper.style.width = '';
-      result.wrapper.style.maxWidth = '';
-    }
-
-    window.requestAnimationFrame(() => resizePreviewIframe(iframe, doc));
+    patchModalShell(iframe);
+    patchIframeElement(iframe);
+    patchIframeDocument(iframe);
   } catch {
-    // Same-origin srcDoc is expected, but keep this best-effort.
+    // The preview uses same-origin srcDoc, but keep this best-effort.
   }
 }
 
@@ -164,14 +110,15 @@ function patchContractPreviewIframes() {
   if (typeof document === 'undefined') return;
 
   document.querySelectorAll(PREVIEW_IFRAME_SELECTOR).forEach((iframe) => {
-    syncContractScale(iframe);
-    if (iframe.dataset.contractPreviewScaleFix === 'true') return;
+    syncContractPreview(iframe);
 
-    iframe.dataset.contractPreviewScaleFix = 'true';
+    if (iframe.dataset.contractPreviewScrollFix === 'true') return;
+    iframe.dataset.contractPreviewScrollFix = 'true';
+
     iframe.addEventListener('load', () => {
-      window.setTimeout(() => syncContractScale(iframe), 50);
-      window.setTimeout(() => syncContractScale(iframe), 300);
-      window.setTimeout(() => syncContractScale(iframe), 900);
+      window.setTimeout(() => syncContractPreview(iframe), 50);
+      window.setTimeout(() => syncContractPreview(iframe), 300);
+      window.setTimeout(() => syncContractPreview(iframe), 900);
     });
   });
 }

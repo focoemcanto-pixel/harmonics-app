@@ -18,7 +18,7 @@ function escapeHtml(value) {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
-    .replace(/\"/g, '&quot;')
+    .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 }
 
@@ -58,7 +58,7 @@ const RichContractEditor = forwardRef(function RichContractEditor(
     }
     contractEditor?.setHtml?.(nextHtml);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editSessionId, sessionKey, canHydrate]);
+  }, [initialHtml, editSessionId, sessionKey, canHydrate]);
 
   function commitHtml(nextHtml) {
     const normalized = String(nextHtml || '');

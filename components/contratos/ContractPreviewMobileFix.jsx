@@ -10,11 +10,19 @@ function getPublicContractToken() {
   return parts[contratoIndex + 1] || '';
 }
 
-function getPreviewPdfUrl({ cacheBust = false } = {}) {
+function buildTokenUrl(path, { cacheBust = false } = {}) {
   const token = getPublicContractToken();
   if (!token) return '';
-  const baseUrl = `/api/contracts/preview/${encodeURIComponent(token)}`;
+  const baseUrl = `${path}/${encodeURIComponent(token)}`;
   return cacheBust ? `${baseUrl}?t=${Date.now()}` : baseUrl;
+}
+
+function getPreviewHtmlUrl({ cacheBust = false } = {}) {
+  return buildTokenUrl('/api/contracts/preview-html', { cacheBust });
+}
+
+function getPreviewPdfUrl({ cacheBust = false } = {}) {
+  return buildTokenUrl('/api/contracts/preview', { cacheBust });
 }
 
 function findButtonByText(textFragment) {
@@ -57,13 +65,13 @@ function setContractReadStatus(card) {
 function getInlinePreviewHeight() {
   if (typeof window === 'undefined') return '72vh';
   const isMobile = window.matchMedia?.('(max-width: 767px)').matches || window.innerWidth < 768;
-  return isMobile ? '165vh' : '72vh';
+  return isMobile ? '90vh' : '72vh';
 }
 
 function ensureInlinePreviewPanel() {
   const card = getContractViewerCard();
-  const pdfUrl = getPreviewPdfUrl();
-  if (!card || !pdfUrl) return null;
+  const previewUrl = getPreviewHtmlUrl();
+  if (!card || !previewUrl) return null;
 
   let panel = card.querySelector('[data-inline-contract-pdf-preview="true"]');
   if (panel) {
@@ -83,7 +91,7 @@ function ensureInlinePreviewPanel() {
   panel.style.boxShadow = '0 10px 26px rgba(15,23,42,.10)';
 
   const head = document.createElement('div');
-  head.textContent = 'Prévia do PDF';
+  head.textContent = 'Prévia do contrato';
   head.style.padding = '12px 14px';
   head.style.borderBottom = '1px solid #e2e8f0';
   head.style.fontSize = '13px';
@@ -92,7 +100,7 @@ function ensureInlinePreviewPanel() {
   head.style.background = '#faf5ff';
 
   const iframe = document.createElement('iframe');
-  iframe.setAttribute('title', 'Prévia do PDF do contrato');
+  iframe.setAttribute('title', 'Prévia responsiva do contrato');
   iframe.setAttribute('data-inline-contract-pdf-frame', 'true');
   iframe.setAttribute('loading', 'lazy');
   iframe.style.width = '100%';
@@ -109,14 +117,14 @@ function ensureInlinePreviewPanel() {
 }
 
 function openInlinePdfPreview() {
-  const pdfUrl = getPreviewPdfUrl({ cacheBust: true });
+  const previewUrl = getPreviewHtmlUrl({ cacheBust: true });
   const panel = ensureInlinePreviewPanel();
-  if (!pdfUrl || !panel) return;
+  if (!previewUrl || !panel) return;
 
   const iframe = panel.querySelector('[data-inline-contract-pdf-frame="true"]');
   if (iframe) {
     iframe.style.height = getInlinePreviewHeight();
-    iframe.setAttribute('src', pdfUrl);
+    iframe.setAttribute('src', previewUrl);
   }
 
   panel.style.display = 'block';

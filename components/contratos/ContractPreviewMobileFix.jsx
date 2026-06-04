@@ -17,11 +17,6 @@ function getPreviewPdfUrl({ cacheBust = false } = {}) {
   return cacheBust ? `${baseUrl}?t=${Date.now()}` : baseUrl;
 }
 
-function isMobileViewport() {
-  if (typeof window === 'undefined') return false;
-  return window.matchMedia?.('(max-width: 767px)').matches || window.innerWidth < 768;
-}
-
 function findButtonByText(textFragment) {
   const normalizedFragment = String(textFragment || '').toLowerCase();
   return Array.from(document.querySelectorAll('button')).find((button) => {
@@ -105,17 +100,8 @@ function ensureInlinePreviewPanel() {
 
 function openInlinePdfPreview() {
   const pdfUrl = getPreviewPdfUrl({ cacheBust: true });
-  if (!pdfUrl) return;
-
-  setContractReadStatus(getContractViewerCard());
-
-  if (isMobileViewport()) {
-    window.open(pdfUrl, '_blank', 'noopener,noreferrer');
-    return;
-  }
-
   const panel = ensureInlinePreviewPanel();
-  if (!panel) return;
+  if (!pdfUrl || !panel) return;
 
   const iframe = panel.querySelector('[data-inline-contract-pdf-frame="true"]');
   if (iframe) {
@@ -123,6 +109,7 @@ function openInlinePdfPreview() {
   }
 
   panel.style.display = 'block';
+  setContractReadStatus(getContractViewerCard());
 
   window.setTimeout(() => {
     panel.scrollIntoView({ behavior: 'smooth', block: 'start' });

@@ -72,12 +72,8 @@ export default function DeferredOnboardingMount({
   useEffect(() => {
     // On mobile Safari/Instagram webview, requestIdleCallback can delay the guide long enough
     // to make onboarding look broken. Manual guide URLs must mount immediately.
-    if (manualGuideRequested || freshWorkspace) {
-      setMounted(true);
-      return undefined;
-    }
-
-    const timer = window.setTimeout(() => setMounted(true), 80);
+    const delay = manualGuideRequested || freshWorkspace ? 0 : 80;
+    const timer = window.setTimeout(() => setMounted(true), delay);
     return () => window.clearTimeout(timer);
   }, [manualGuideRequested, freshWorkspace]);
 

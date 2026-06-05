@@ -38,19 +38,27 @@ export default function OnboardingTourOverlay({
 
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
-    setActive(false);
-    setRect(null);
-    setIndex(0);
+
+    const resetTimer = window.setTimeout(() => {
+      setActive(false);
+      setRect(null);
+      setIndex(0);
+    }, 0);
 
     const alreadySeen = window.localStorage.getItem(resolvedStorageKey) === 'done';
-    if (alreadySeen && !force) return undefined;
+    if (alreadySeen && !force) {
+      return () => window.clearTimeout(resetTimer);
+    }
 
     const timer = window.setTimeout(() => {
       setSnapshotKey((value) => value + 1);
       setActive(true);
     }, 900);
 
-    return () => window.clearTimeout(timer);
+    return () => {
+      window.clearTimeout(resetTimer);
+      window.clearTimeout(timer);
+    };
   }, [force, resolvedStorageKey]);
 
   useEffect(() => {

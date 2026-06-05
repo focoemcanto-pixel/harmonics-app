@@ -1,15 +1,40 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useEffect, useMemo, useState, useTransition } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import AdminShell from '@/components/admin/AdminShell';
 import AdminSegmentTabs from '@/components/admin/AdminSegmentTabs';
-import EventoEscalaTab from '@/components/eventos/EventoEscalaTab';
 import ContractSignedPdfButton from '@/components/contracts/ContractSignedPdfButton';
 import { useAppToast } from '@/components/ui/ToastProvider';
 import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
+
+function EscalaTabSkeleton() {
+  return (
+    <section className="space-y-4 rounded-[24px] border border-[#dbe3ef] bg-white p-4 text-[#64748b] md:p-5">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <div className="h-3 w-24 animate-pulse rounded-full bg-slate-200" />
+          <div className="mt-2 h-5 w-44 animate-pulse rounded-full bg-slate-100" />
+        </div>
+        <div className="h-9 w-24 animate-pulse rounded-xl bg-slate-100" />
+      </div>
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        {[0, 1, 2].map((item) => (
+          <div key={item} className="h-28 animate-pulse rounded-2xl bg-slate-100" />
+        ))}
+      </div>
+      <p className="text-center text-sm font-semibold">Carregando escala...</p>
+    </section>
+  );
+}
+
+const EventoEscalaTab = dynamic(() => import('@/components/eventos/EventoEscalaTab'), {
+  ssr: false,
+  loading: () => <EscalaTabSkeleton />,
+});
 
 function formatDateBR(value) {
   if (!value) return '-';
@@ -210,7 +235,7 @@ export default function EventoDetalhePage() {
     return () => {
       cancelled = true;
     };
-  }, [eventId]);
+  }, [eventId, toast]);
 
   const backHref = useMemo(() => {
     const params = new URLSearchParams();

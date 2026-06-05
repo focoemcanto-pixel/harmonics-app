@@ -52,9 +52,12 @@ export default function useAdminMobileTabs({
   });
 
   useEffect(() => {
-    if (!syncWithUrl || !allowedTabs.length) return;
+    if (!syncWithUrl || !allowedTabs.length) return undefined;
     const nextTab = readTabFromLocation(urlParamName, allowedTabs, fallback);
-    setActiveTabState((current) => (current === nextTab ? current : nextTab));
+    const timer = window.setTimeout(() => {
+      setActiveTabState((current) => (current === nextTab ? current : nextTab));
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [allowedTabs, fallback, searchParams, syncWithUrl, urlParamName]);
 
   useEffect(() => {

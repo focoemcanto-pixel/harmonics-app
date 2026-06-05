@@ -261,7 +261,7 @@ export default function AdminShell({ pageTitle, children, mobileActions, activeI
     if (typeof window === 'undefined' || isClientPublicRoute || !isClientPanelGuideParam) return;
 
     clearClientPanelGuideStorage();
-    setShowTour(false);
+    const hideTourTimer = window.setTimeout(() => setShowTour(false), 0);
 
     const current = new URL(window.location.href);
     current.searchParams.delete('guide');
@@ -271,6 +271,8 @@ export default function AdminShell({ pageTitle, children, mobileActions, activeI
     const cleanUrl = `${current.pathname}${current.search}${current.hash}` || '/dashboard';
     window.history.replaceState(null, '', cleanUrl);
     router.replace(cleanUrl, { scroll: false });
+
+    return () => window.clearTimeout(hideTourTimer);
   }, [isClientPanelGuideParam, isClientPublicRoute, router, pathname, searchParams]);
 
   useEffect(() => {

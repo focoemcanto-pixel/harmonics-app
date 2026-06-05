@@ -5871,9 +5871,9 @@ export default function ClienteHome({ data, initialTab = 'inicio', guideQuery = 
   }, [isClientPanelOnboarding, router]);
 
   useEffect(() => {
-    if (initialTab && initialTab !== 'inicio') {
-      setActiveTab(initialTab);
-    }
+    if (!initialTab || initialTab === 'inicio') return undefined;
+    const timer = window.setTimeout(() => setActiveTab(initialTab), 0);
+    return () => window.clearTimeout(timer);
   }, [initialTab]);
 
 

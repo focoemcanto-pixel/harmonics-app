@@ -289,25 +289,33 @@ export default function TemplateCreationGuide({ enabled = false }) {
 
   useEffect(() => {
     if (!enabled || !isTemplateRoute || typeof window === 'undefined') {
-      setActive(false);
-      return;
+      const timer = typeof window !== 'undefined' ? window.setTimeout(() => setActive(false), 0) : null;
+      return () => {
+        if (timer) window.clearTimeout(timer);
+      };
     }
 
     const skippedThisSession = window.sessionStorage.getItem(sessionKey) === 'skipped';
 
-    if (skippedThisSession && !forceGuide) return;
+    if (skippedThisSession && !forceGuide) return undefined;
 
+    let resetTimer = null;
     if (forceGuide) {
       window.sessionStorage.removeItem(sessionKey);
-      setStepIndex(0);
-      autoActionExecutedRef.current = false;
-      scrolledStepRef.current = null;
-      focusedStepRef.current = null;
+      resetTimer = window.setTimeout(() => {
+        setStepIndex(0);
+        autoActionExecutedRef.current = false;
+        scrolledStepRef.current = null;
+        focusedStepRef.current = null;
+      }, 0);
     }
 
     const timer = window.setTimeout(() => setActive(true), 550);
 
-    return () => window.clearTimeout(timer);
+    return () => {
+      if (resetTimer) window.clearTimeout(resetTimer);
+      window.clearTimeout(timer);
+    };
   }, [enabled, forceGuide, isTemplateRoute, sessionKey]);
 
   useEffect(() => {

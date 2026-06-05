@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 
+export const dynamic = 'force-dynamic';
+
 export default async function AssinaturaPage() {
   const supabase = createClient();
   const { data: sub } = await supabase.from('workspace_subscriptions').select('*, plan:workspace_plans(*)').order('created_at', { ascending: false }).limit(1).maybeSingle();

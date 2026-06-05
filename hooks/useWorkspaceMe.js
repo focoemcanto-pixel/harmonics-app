@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-const CACHE_TTL_MS = 30 * 1000;
+const CACHE_TTL_MS = 5 * 60 * 1000;
 export const WORKSPACE_ME_INVALIDATED_EVENT = 'harmonics:workspace-me-invalidated';
 
 let workspaceMeCache = {

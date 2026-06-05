@@ -154,9 +154,12 @@ export default function EventoDetalhePage() {
   const authReady = Boolean(authInitialized && !authLoading && user);
   const eventIdReady = Boolean(id);
 
+  const tabParam = searchParams?.get('tab') || '';
+
   useEffect(() => {
-    setActiveTab(normalizeTabParam(searchParams?.get('tab')));
-  }, [searchParams]);
+    const nextTab = normalizeTabParam(tabParam);
+    setActiveTab((current) => (current === nextTab ? current : nextTab));
+  }, [tabParam]);
 
   const backHref = useMemo(() => {
     const params = new URLSearchParams();
@@ -175,29 +178,43 @@ export default function EventoDetalhePage() {
   }, [searchParams]);
 
   useEffect(() => {
-    let active = true;
+    let cancelled = false;
 
     async function carregarEvento() {
       if (!eventIdReady) {
-        setCarregando(false);
+        if (!currentEventIdRef.current) setCarregando(false);
+        return;
+      }
+
+      if (currentEventIdRef.current && currentEventIdRef.current !== id) {
+        currentEventIdRef.current = '';
+        loadedEventIdRef.current = '';
         setEvento(null);
+        setExternalContract(null);
+      }
+
+      const isCurrentRenderedEvent = currentEventIdRef.current === id;
+
+      if (loadedEventIdRef.current === id) {
+        setCarregando(false);
         return;
       }
 
       if (!authReady) {
-        setCarregando(true);
+        if (!isCurrentRenderedEvent) setCarregando(true);
         return;
       }
 
       if (!supabase) {
-        setCarregando(false);
-        setEvento(null);
+        if (!isCurrentRenderedEvent) setCarregando(false);
         toast.error('Cliente Supabase indisponível para carregar o evento.');
         return;
       }
 
+      const shouldShowInitialSkeleton = !isCurrentRenderedEvent;
+      if (shouldShowInitialSkeleton) setCarregando(true);
+
       try {
-        setCarregando(true);
         const [eventResp, teamResp, contractResp, repertoireResp] = await Promise.all([
           supabase.from('events').select('*').eq('id', id).single(),
           supabase.from('event_musicians').select('id, status').eq('event_id', id),
@@ -220,8 +237,11 @@ export default function EventoDetalhePage() {
         if (contractResp.error) throw contractResp.error;
         if (repertoireResp.error) throw repertoireResp.error;
 
-        if (!active) return;
-        setEvento(eventResp.data || null);
+        if (cancelled) return;
+        const nextEvento = eventResp.data || null;
+        currentEventIdRef.current = nextEvento?.id || '';
+        loadedEventIdRef.current = id;
+        setEvento(nextEvento);
         setExternalContract(contractResp.data || null);
         setRepertoireStatus(String(repertoireResp?.data?.status || ''));
         const musicians = teamResp.data || [];
@@ -231,18 +251,18 @@ export default function EventoDetalhePage() {
         });
       } catch (error) {
         console.error('Erro ao carregar detalhe do evento:', error);
-        if (active) {
+        if (!cancelled) {
           toast.error('Não foi possível carregar o evento. Tente novamente.');
         }
       } finally {
-        if (active) setCarregando(false);
+        if (!cancelled) setCarregando(false);
       }
     }
 
     carregarEvento();
 
     return () => {
-      active = false;
+      cancelled = true;
     };
   }, [authReady, eventIdReady, id, toast]);
 

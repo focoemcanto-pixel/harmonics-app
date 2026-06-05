@@ -70,7 +70,7 @@ function clearClientPanelGuideStorage() {
   });
 }
 
-const MobileMoreSheet = memo(function MobileMoreSheet({ open, onClose, onNavigate, visibleSections = [], workspaceRole }) {
+const MobileMoreSheet = memo(function MobileMoreSheet({ open, onClose, onNavigate, onPrefetch, visibleSections = [], workspaceRole }) {
   const { signOut, profile } = useAuth();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false);
@@ -108,6 +108,17 @@ const MobileMoreSheet = memo(function MobileMoreSheet({ open, onClose, onNavigat
     return () => window.removeEventListener('keydown', handleEscape);
   }, [isBusy, open, onClose]);
 
+  useEffect(() => {
+    if (!open || typeof window === 'undefined') return undefined;
+
+    const hrefs = visibleSections.flatMap((section) => section.items.map((item) => item.href)).filter(Boolean);
+    const timer = window.setTimeout(() => {
+      hrefs.forEach((href) => onPrefetch?.(href));
+    }, 120);
+
+    return () => window.clearTimeout(timer);
+  }, [open, onPrefetch, visibleSections]);
+
   if (!open) return null;
 
   async function handleLogout() {
@@ -123,6 +134,7 @@ const MobileMoreSheet = memo(function MobileMoreSheet({ open, onClose, onNavigat
 
   function handleNavigate(href) {
     if (isBusy) return;
+    onPrefetch?.(href);
     setIsNavigating(true);
     onNavigate?.(href);
   }
@@ -166,6 +178,8 @@ const MobileMoreSheet = memo(function MobileMoreSheet({ open, onClose, onNavigat
                       key={item.href}
                       type="button"
                       onClick={() => handleNavigate(item.href)}
+                      onPointerEnter={() => onPrefetch?.(item.href)}
+                      onFocus={() => onPrefetch?.(item.href)}
                       disabled={isBusy}
                       className="flex min-h-14 w-full touch-manipulation items-center gap-2.5 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-left backdrop-blur-sm transition active:scale-[0.99] disabled:opacity-60"
                     >
@@ -243,6 +257,9 @@ export default function AdminShell({ pageTitle, children, mobileActions, activeI
   const visibleDrawerSections = useMemo(() => MOBILE_DRAWER_SECTIONS
     .map((section) => ({ ...section, items: section.items.filter((item) => allowedModules.has(item.module)) }))
     .filter((section) => section.items.length > 0), [allowedModules]);
+  const prefetchableAdminHrefs = useMemo(() => Array.from(new Set(
+    visibleDrawerSections.flatMap((section) => section.items.map((item) => stripClientPanelGuideFromHref(item.href))).filter(Boolean)
+  )), [visibleDrawerSections]);
   const isOnboardingRoute = ONBOARDING_ROUTE_PREFIXES.some((prefix) => pathname === prefix || pathname?.startsWith(`${prefix}/`));
   const isClientPublicRoute = pathname?.startsWith('/cliente/') || pathname?.startsWith('/contrato/');
   const isClientPanelGuideParam = searchParams?.get('guide') === 'client-panel' || searchParams?.get('onboarding') === 'client-panel';
@@ -256,6 +273,22 @@ export default function AdminShell({ pageTitle, children, mobileActions, activeI
       redirectToLogin();
     }
   }, [initialized, loading, pathname, user]);
+
+  useEffect(() => {
+    if (!initialized || loading || !user || isClientPublicRoute || typeof window === 'undefined') return undefined;
+
+    const timer = window.setTimeout(() => {
+      prefetchableAdminHrefs.slice(0, 12).forEach((href) => {
+        try {
+          router.prefetch(href);
+        } catch {
+          // Prefetch é uma melhoria progressiva; falhas não devem impactar a navegação.
+        }
+      });
+    }, 450);
+
+    return () => window.clearTimeout(timer);
+  }, [initialized, isClientPublicRoute, loading, prefetchableAdminHrefs, router, user]);
 
   useEffect(() => {
     if (typeof window === 'undefined' || isClientPublicRoute || !isClientPanelGuideParam) return;
@@ -340,10 +373,22 @@ export default function AdminShell({ pageTitle, children, mobileActions, activeI
   const showDashboardOnboarding = !isClientPanelGuideParam && pathname === '/dashboard';
   const showOperationalRouteOnboarding = !isClientPanelGuideParam && (showTour || forceTemplateGuide) && pathname !== '/dashboard';
 
+  function handleAdminPrefetch(href) {
+    if (!href) return;
+
+    try {
+      router.prefetch(stripClientPanelGuideFromHref(href));
+    } catch {
+      // Prefetch é apenas otimização de navegação.
+    }
+  }
+
   function handleAdminNavigate(href) {
     setMoreOpen(false);
     clearClientPanelGuideStorage();
-    router.push(stripClientPanelGuideFromHref(href));
+    const cleanHref = stripClientPanelGuideFromHref(href);
+    handleAdminPrefetch(cleanHref);
+    router.push(cleanHref);
   }
 
   return (
@@ -381,7 +426,7 @@ export default function AdminShell({ pageTitle, children, mobileActions, activeI
           {children}
         </main>
 
-        <MobileMoreSheet open={moreOpen} onClose={() => setMoreOpen(false)} onNavigate={handleAdminNavigate} visibleSections={visibleDrawerSections} workspaceRole={role || workspaceMe?.role} />
+        <MobileMoreSheet open={moreOpen} onClose={() => setMoreOpen(false)} onNavigate={handleAdminNavigate} onPrefetch={handleAdminPrefetch} visibleSections={visibleDrawerSections} workspaceRole={role || workspaceMe?.role} />
       </div>
     </div>
   );

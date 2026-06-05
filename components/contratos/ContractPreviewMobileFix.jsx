@@ -221,22 +221,32 @@ function patchPublicContractPreview() {
 
 export default function ContractPreviewMobileFix() {
   useEffect(() => {
-    patchPublicContractPreview();
+    let scheduled = false;
+    let frameId = null;
 
-    const observer = new MutationObserver(() => {
-      patchPublicContractPreview();
-    });
+    const schedulePatch = () => {
+      if (scheduled) return;
+      scheduled = true;
+      frameId = window.requestAnimationFrame(() => {
+        scheduled = false;
+        patchPublicContractPreview();
+      });
+    };
 
+    schedulePatch();
+
+    const observer = new MutationObserver(schedulePatch);
     observer.observe(document.body, {
       childList: true,
       subtree: true,
     });
 
-    window.addEventListener('resize', patchPublicContractPreview);
+    window.addEventListener('resize', schedulePatch);
 
     return () => {
       observer.disconnect();
-      window.removeEventListener('resize', patchPublicContractPreview);
+      window.removeEventListener('resize', schedulePatch);
+      if (frameId) window.cancelAnimationFrame(frameId);
     };
   }, []);
 

@@ -16,10 +16,28 @@
   }
 }
 
+html,
+body {
+  max-width: 100%;
+  overflow-x: clip;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  text-rendering: optimizeLegibility;
+}
+
+#__next,
+main {
+  min-width: 0;
+}
+
+button,
+a {
+  touch-action: manipulation;
 }
 
 .scrollbar-hide {
@@ -39,4 +57,9 @@ body {
 
 .contract-preview-modal-fix {
   overflow-y: auto !important;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
 }

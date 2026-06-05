@@ -2128,11 +2128,14 @@ useEffect(() => {
 useEffect(() => {
   if (!previewAberto) return undefined;
 
-  const originalOverflow = document.body.style.overflow;
+  const originalBodyOverflow = document.body.style.overflow;
+  const originalHtmlOverflow = document.documentElement.style.overflow;
   document.body.style.overflow = 'hidden';
+  document.documentElement.style.overflow = 'hidden';
 
   return () => {
-    document.body.style.overflow = originalOverflow;
+    document.body.style.overflow = originalBodyOverflow;
+    document.documentElement.style.overflow = originalHtmlOverflow;
   };
 }, [previewAberto]);
 
@@ -3750,9 +3753,9 @@ if (contractSignedError) throw contractSignedError;
         ) : null}
 
         {previewAberto && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-slate-500/70 p-0 md:p-4">
-            <div className="relative flex h-[100dvh] w-[100vw] flex-col overflow-hidden bg-slate-200 md:h-[92vh] md:max-w-5xl md:rounded-3xl md:border md:border-slate-300">
-              <div className="flex items-center justify-end border-b border-slate-200 px-4 py-3">
+          <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-slate-500/70 p-0 pt-[env(safe-area-inset-top,0px)] md:p-4">
+            <div className="relative flex h-[calc(100dvh-env(safe-area-inset-top,0px))] w-full max-w-full flex-col overflow-hidden bg-slate-200 md:h-[92vh] md:max-w-5xl md:rounded-3xl md:border md:border-slate-300">
+              <div className="flex shrink-0 items-center justify-end border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur">
                 <button
                   onClick={() => {
                     setPreviewAberto(false);
@@ -3765,7 +3768,7 @@ if (contractSignedError) throw contractSignedError;
                 </button>
               </div>
 
-              <div className="relative flex-1 overflow-y-auto bg-slate-300/70 p-3 md:p-6">
+              <div className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden bg-slate-300/70 p-3 pb-[calc(env(safe-area-inset-bottom,0px)+12px)] md:p-6">
                 {isInternalMode ? (
                   <div className="mx-auto w-full max-w-[210mm] min-h-full overflow-hidden rounded-xl bg-white shadow-[0_10px_34px_rgba(15,23,42,0.16)]">
                     <iframe

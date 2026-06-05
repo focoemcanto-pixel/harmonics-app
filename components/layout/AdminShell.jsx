@@ -295,6 +295,11 @@ export default function AdminShell({ pageTitle, children, mobileActions, activeI
           return;
         }
 
+        if (!supabase?.auth) {
+          if (active) window.setTimeout(() => setShowTour(false), 0);
+          return;
+        }
+
         const { data } = await supabase.auth.getSession();
         const token = data?.session?.access_token;
         if (!token) return;
@@ -364,7 +369,7 @@ export default function AdminShell({ pageTitle, children, mobileActions, activeI
       <div className="md:hidden">
         <AdminMobileTopbar title={pageTitle} subtitle={mobileSubtitle} actions={mobileActions} onOpenMenu={() => setMoreOpen(true)} />
 
-        <main className="px-4 pb-6 pt-4">
+        <main className="overflow-x-clip px-4 pb-[calc(env(safe-area-inset-bottom,0px)+24px)] pt-4">
           {showDashboardOnboarding ? (
             <DeferredOnboardingMount variant="dashboard" showTour={showTour} dashboardTimelineLimit={4} recommendationsLimit={2} />
           ) : null}

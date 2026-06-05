@@ -244,7 +244,7 @@ export function GlobalPlayerProvider({ children }) {
       ? Math.max(0, Math.min(Number(options.startIndex), Math.max(normalizedPlaylist.length - 1, 0)))
       : 0;
     const initialTrack = normalizedPlaylist[nextIndex] || null;
-    const shouldAutoPlay = options.autoplay === true && normalizedPlaylist.length > 0;
+    const shouldAutoPlay = normalizedPlaylist.length > 0;
 
     setPlaylist(normalizedPlaylist);
     setCurrentTrackIndex(nextIndex);
@@ -252,6 +252,8 @@ export function GlobalPlayerProvider({ children }) {
     console.log('[AUDIO_PLAYER][GLOBAL_INSTANCE]', {
       playlistSize: normalizedPlaylist.length,
       startIndex: nextIndex,
+      requestedAutoplay: options.autoplay,
+      effectiveAutoplay: shouldAutoPlay,
     });
 
     if (!shouldAutoPlay) {

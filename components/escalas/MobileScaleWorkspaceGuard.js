@@ -7,21 +7,63 @@ function isMobileViewport() {
   return window.matchMedia('(max-width: 767px)').matches;
 }
 
+function normalizeText(value) {
+  return String(value || '').replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+function isScaleActionButton(button) {
+  const label = normalizeText(button?.textContent);
+  return label === 'escala' || label === 'montar escala' || label.includes('montar escala');
+}
+
+function findNearestEventHref(button) {
+  if (!button) return '';
+
+  const knownAnchor = button.closest('a[href^="/eventos/"]');
+  if (knownAnchor?.getAttribute) return knownAnchor.getAttribute('href') || '';
+
+  const candidateContainers = [
+    button.closest('article'),
+    button.closest('[data-event-id]'),
+    button.closest('[class*="rounded"]'),
+    button.parentElement?.parentElement,
+    button.parentElement?.parentElement?.parentElement,
+  ].filter(Boolean);
+
+  for (const container of candidateContainers) {
+    const directScaleAnchor = container.querySelector?.('a[href^="/eventos/"][href*="tab=escala"]');
+    if (directScaleAnchor?.getAttribute) return directScaleAnchor.getAttribute('href') || '';
+
+    const eventAnchor = container.querySelector?.('a[href^="/eventos/"]');
+    const href = eventAnchor?.getAttribute?.('href') || '';
+    if (href && !href.includes('/novo')) {
+      const [path] = href.split('?');
+      return `${path}?tab=escala`;
+    }
+  }
+
+  const eventId = button.dataset?.eventId || button.closest('[data-event-id]')?.dataset?.eventId || '';
+  if (eventId) return `/eventos/${encodeURIComponent(eventId)}?tab=escala`;
+
+  return '';
+}
+
 function findScaleEventHref(target) {
   const clicked = target instanceof Element ? target : null;
   if (!clicked) return '';
 
-  const button = clicked.closest('button');
-  if (!button) return '';
+  const button = clicked.closest('button, a');
+  if (!button || !isScaleActionButton(button)) return '';
 
-  const label = String(button.textContent || '').trim().toLowerCase();
-  if (label !== 'montar escala') return '';
+  if (button.tagName === 'A') {
+    const href = button.getAttribute('href') || '';
+    if (href.startsWith('/eventos/')) {
+      const [path] = href.split('?');
+      return `${path}?tab=escala`;
+    }
+  }
 
-  const card = button.closest('.rounded-\[26px\]') || button.parentElement?.parentElement;
-  const anchor = card?.querySelector?.('a[href^="/eventos/"][href*="tab=escala"]');
-  const href = anchor?.getAttribute?.('href') || '';
-
-  return href;
+  return findNearestEventHref(button);
 }
 
 export default function MobileScaleWorkspaceGuard() {

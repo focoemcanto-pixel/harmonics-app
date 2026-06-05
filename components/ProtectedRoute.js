@@ -49,11 +49,17 @@ export default function ProtectedRoute({ children, requiredRole = null }) {
 
   const workspaceRole = String(workspaceRoleRaw || '').toLowerCase();
   const isWorkspaceAdmin = ['owner', 'admin'].includes(workspaceRole);
+  const workspaceReady = Boolean(!workspaceLoading && workspaceMe?.ok);
 
   const workspaceAllowsModule = useMemo(() => {
     if (!moduleKey) return true;
+
+    // Enquanto o workspace ainda está validando, liberamos a renderização otimista.
+    // Se a permissão negar depois, o efeito abaixo redireciona para acesso negado.
+    if (!workspaceReady) return true;
+
     return Array.isArray(modules) && modules.includes(moduleKey);
-  }, [moduleKey, modules]);
+  }, [moduleKey, modules, workspaceReady]);
 
   useEffect(() => {
     if (!initialized || loading || redirectingRef.current) return;
@@ -86,10 +92,19 @@ export default function ProtectedRoute({ children, requiredRole = null }) {
     }
 
     if (workspaceLoading) {
-      console.info('[ProtectedRoute] aguardando permissões do workspace', {
+      console.info('[ProtectedRoute] validando permissões do workspace em background', {
         pathname,
         requiredRole,
         moduleKey,
+      });
+      return;
+    }
+
+    if (workspaceError) {
+      console.warn('[ProtectedRoute] permissões do workspace indisponíveis', {
+        pathname,
+        message: workspaceError?.message,
+        status: workspaceError?.status,
       });
       return;
     }
@@ -155,7 +170,9 @@ export default function ProtectedRoute({ children, requiredRole = null }) {
     }
   }, [loading, workspaceLoading]);
 
-  if (!initialized || loading || workspaceLoading || (requiredRole && user && !profileResolved)) {
+  // Bloqueia somente o mínimo necessário: sessão e perfil obrigatório.
+  // Permissões do workspace são validadas em background para evitar tela inteira de espera.
+  if (!initialized || loading || (requiredRole && user && !profileResolved)) {
     return <LoadingAccess />;
   }
 
@@ -172,7 +189,7 @@ export default function ProtectedRoute({ children, requiredRole = null }) {
     );
   }
 
-  if (workspaceError) {
+  if (workspaceError && workspaceError?.status !== 401) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
         <div className="max-w-lg rounded-2xl border border-red-200 bg-red-50 p-5 text-red-700">
@@ -189,7 +206,7 @@ export default function ProtectedRoute({ children, requiredRole = null }) {
     ? (isWorkspaceAdmin || workspaceAllowsModule)
     : workspaceAllowsModule;
 
-  if (!user || !workspaceMe?.ok || (requiredRole && !globalRoleAllows && !workspaceAllows) || !workspaceAllowsModule) {
+  if (!user || (workspaceReady && !workspaceMe?.ok) || (workspaceReady && requiredRole && !globalRoleAllows && !workspaceAllows) || (workspaceReady && !workspaceAllowsModule)) {
     return null;
   }
 

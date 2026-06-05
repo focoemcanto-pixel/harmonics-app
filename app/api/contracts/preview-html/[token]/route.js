@@ -23,13 +23,17 @@ function addPreviewSafetyCss(html) {
   body {
     min-height: 100% !important;
     height: auto !important;
-    overflow-x: hidden !important;
+    overflow-x: auto !important;
     overflow-y: visible !important;
     background: #ffffff !important;
+    -webkit-overflow-scrolling: touch !important;
   }
 
   body {
     margin: 0 !important;
+    padding: 18px !important;
+    min-width: 720px !important;
+    width: max-content !important;
   }
 
   .page,
@@ -47,14 +51,18 @@ function addPreviewSafetyCss(html) {
   li,
   td,
   th {
-    max-width: 100% !important;
-    overflow-wrap: anywhere !important;
+    max-width: none !important;
+    overflow-wrap: normal !important;
     word-break: normal !important;
   }
 
+  p,
+  li {
+    white-space: normal !important;
+  }
+
   table {
-    max-width: 100% !important;
-    width: 100% !important;
+    max-width: none !important;
     table-layout: auto !important;
   }
 
@@ -63,6 +71,37 @@ function addPreviewSafetyCss(html) {
   canvas {
     max-width: 100% !important;
     height: auto !important;
+  }
+
+  h1,
+  h2,
+  h3 {
+    max-width: 680px !important;
+  }
+
+  p,
+  li,
+  div {
+    max-width: 680px;
+  }
+
+  @media (min-width: 768px) {
+    body {
+      min-width: 0 !important;
+      width: auto !important;
+      padding: 24px !important;
+    }
+
+    body,
+    p,
+    div,
+    span,
+    li,
+    td,
+    th {
+      max-width: 100% !important;
+      overflow-wrap: anywhere !important;
+    }
   }
 </style>
 ${html || ''}`;

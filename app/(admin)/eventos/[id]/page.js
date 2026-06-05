@@ -10,7 +10,6 @@ import EventoEscalaTab from '@/components/eventos/EventoEscalaTab';
 import ContractSignedPdfButton from '@/components/contracts/ContractSignedPdfButton';
 import { useAppToast } from '@/components/ui/ToastProvider';
 import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
-import { useAuth } from '@/contexts/AuthContext';
 
 function formatDateBR(value) {
   if (!value) return '-';
@@ -24,6 +23,22 @@ function formatMoney(value) {
     style: 'currency',
     currency: 'BRL',
   }).format(Number(value || 0));
+}
+
+function normalizeTabParam(tab) {
+  const value = String(tab || '').trim().toLowerCase();
+  if (value === 'detalhes' || value === 'financeiro' || value === 'escala') return value;
+  return 'resumo';
+}
+
+function resolvePaymentStatusFromTotals({ agreedAmount, paidAmount }) {
+  const agreed = Number(agreedAmount || 0);
+  const paid = Number(paidAmount || 0);
+  const open = Math.max(0, agreed - paid);
+
+  if (open <= 0) return 'Pago';
+  if (paid > 0) return 'Parcial';
+  return 'Pendente';
 }
 
 function normalizeAntesalaStatus(status) {
@@ -42,21 +57,27 @@ function getAntesalaStatusLabel(status) {
   return 'Aguardando validação';
 }
 
-function resolvePaymentStatusFromTotals({ agreedAmount, paidAmount }) {
-  const agreed = Number(agreedAmount || 0);
-  const paid = Number(paidAmount || 0);
-  const open = Math.max(0, agreed - paid);
+function getRepertoireStatusLabel(status) {
+  const value = String(status || '').trim().toLowerCase();
+  if (!value || value === 'pending') return 'Aguardando envio';
+  if (value === 'in_review') return 'Em revisão';
+  if (value === 'approved') return 'Aprovado';
+  if (value === 'rejected') return 'Precisa de ajustes';
+  return 'Aguardando envio';
+}
 
-  if (open <= 0) return 'Pago';
-  if (paid > 0) return 'Parcial';
-  return 'Pendente';
+function formatTeamSummary(team) {
+  const total = Number(team?.total || 0);
+  const confirmed = Number(team?.confirmed || 0);
+  const pending = Math.max(0, total - confirmed);
+  return { total, confirmed, pending };
 }
 
 function InfoItem({ label, value, full = false }) {
   return (
-    <div className={full ? 'md:col-span-2 min-w-0' : 'min-w-0'}>
+    <div className={full ? 'min-w-0 md:col-span-2' : 'min-w-0'}>
       <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
-      <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 break-words">
+      <div className="break-words rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800">
         {value || '-'}
       </div>
     </div>
@@ -75,27 +96,9 @@ function MetricCard({ label, value, tone = 'default' }) {
   return (
     <div className={`rounded-3xl border p-4 md:p-5 ${toneClasses[tone] || toneClasses.default}`}>
       <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
-      <p className="mt-2 text-2xl font-bold break-words">{value}</p>
+      <p className="mt-2 break-words text-2xl font-bold">{value}</p>
     </div>
   );
-}
-
-function formatTeamSummary(team) {
-  const total = Number(team?.total || 0);
-  const confirmed = Number(team?.confirmed || 0);
-  const pending = Math.max(0, total - confirmed);
-  return {
-    total,
-    confirmed,
-    pending,
-  };
-}
-
-
-function normalizeTabParam(tab) {
-  const value = String(tab || '').trim().toLowerCase();
-  if (value === 'detalhes' || value === 'financeiro' || value === 'escala') return value;
-  return 'resumo';
 }
 
 function EventoDetalheSkeleton({ message = 'Carregando evento...' }) {
@@ -114,45 +117,32 @@ function EventoDetalheSkeleton({ message = 'Carregando evento...' }) {
 
 function TabPanel({ active, children, className = '' }) {
   return (
-    <section
-      aria-hidden={!active}
-      className={`${active ? 'block animate-[fadeIn_160ms_ease-out]' : 'hidden'} ${className}`}
-    >
+    <section aria-hidden={!active} className={`${active ? 'block animate-[fadeIn_160ms_ease-out]' : 'hidden'} ${className}`}>
       {children}
     </section>
   );
-}
-
-function getRepertoireStatusLabel(status) {
-  const value = String(status || '').trim().toLowerCase();
-  if (!value || value === 'pending') return 'Aguardando envio';
-  if (value === 'in_review') return 'Em revisão';
-  if (value === 'approved') return 'Aprovado';
-  if (value === 'rejected') return 'Precisa de ajustes';
-  return 'Aguardando envio';
 }
 
 export default function EventoDetalhePage() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const id = typeof params?.id === 'string' ? params.id : '';
+  const eventId = typeof params?.id === 'string' ? params.id : '';
 
   const [evento, setEvento] = useState(null);
-  const [repertoireStatus, setRepertoireStatus] = useState('');
-  const [teamMetrics, setTeamMetrics] = useState({ total: 0, confirmed: 0 });
+  const [erro, setErro] = useState('');
   const [carregando, setCarregando] = useState(true);
   const [excluindo, setExcluindo] = useState(false);
   const [processandoAntesala, setProcessandoAntesala] = useState('');
-  const [activeTab, setActiveTab] = useState(() => normalizeTabParam(searchParams?.get('tab')));
+  const [repertoireStatus, setRepertoireStatus] = useState('');
+  const [teamMetrics, setTeamMetrics] = useState({ total: 0, confirmed: 0 });
   const [externalContract, setExternalContract] = useState(null);
   const [uploadingExternalContract, setUploadingExternalContract] = useState(false);
+  const [activeTab, setActiveTab] = useState(() => normalizeTabParam(searchParams?.get('tab')));
   const [isPendingTab, startTabTransition] = useTransition();
+
   const toast = useAppToast();
   const confirm = useConfirm();
-  const { initialized: authInitialized, loading: authLoading, user } = useAuth();
-  const authReady = Boolean(authInitialized && !authLoading && user);
-  const eventIdReady = Boolean(id);
 
   const tabParam = searchParams?.get('tab') || '';
 
@@ -160,6 +150,67 @@ export default function EventoDetalhePage() {
     const nextTab = normalizeTabParam(tabParam);
     setActiveTab((current) => (current === nextTab ? current : nextTab));
   }, [tabParam]);
+
+  useEffect(() => {
+    if (!eventId) {
+      setEvento(null);
+      setErro('Evento inválido.');
+      setCarregando(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function carregarEvento() {
+      setCarregando(true);
+      setErro('');
+
+      try {
+        const [eventResp, teamResp, contractResp, repertoireResp] = await Promise.all([
+          supabase.from('events').select('*').eq('id', eventId).single(),
+          supabase.from('event_musicians').select('id, status').eq('event_id', eventId),
+          supabase
+            .from('contracts')
+            .select('id, status, signed_at, pdf_url, public_token, raw_payload')
+            .eq('event_id', eventId)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+          supabase.from('repertoire_config').select('status').eq('event_id', eventId).maybeSingle(),
+        ]);
+
+        if (cancelled) return;
+        if (eventResp.error) throw eventResp.error;
+        if (teamResp.error) throw teamResp.error;
+        if (contractResp.error) throw contractResp.error;
+        if (repertoireResp.error) throw repertoireResp.error;
+
+        const musicians = Array.isArray(teamResp.data) ? teamResp.data : [];
+        setEvento(eventResp.data || null);
+        setExternalContract(contractResp.data || null);
+        setRepertoireStatus(String(repertoireResp?.data?.status || ''));
+        setTeamMetrics({
+          total: musicians.length,
+          confirmed: musicians.filter((item) => String(item?.status || '').toLowerCase() === 'confirmed').length,
+        });
+      } catch (error) {
+        console.error('Erro ao carregar detalhe do evento:', error);
+        if (!cancelled) {
+          setEvento(null);
+          setErro(error?.message || 'Não foi possível carregar o evento.');
+          toast.error('Não foi possível carregar o evento. Tente novamente.');
+        }
+      } finally {
+        if (!cancelled) setCarregando(false);
+      }
+    }
+
+    carregarEvento();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [eventId]);
 
   const backHref = useMemo(() => {
     const params = new URLSearchParams();
@@ -177,101 +228,52 @@ export default function EventoDetalhePage() {
     return query ? `/eventos?${query}` : '/eventos';
   }, [searchParams]);
 
-  useEffect(() => {
-    let cancelled = false;
+  const teamSummary = useMemo(() => formatTeamSummary(teamMetrics), [teamMetrics]);
 
-    async function carregarEvento() {
-      if (!eventIdReady) {
-        if (!currentEventIdRef.current) setCarregando(false);
-        return;
-      }
-
-      if (currentEventIdRef.current && currentEventIdRef.current !== id) {
-        currentEventIdRef.current = '';
-        loadedEventIdRef.current = '';
-        setEvento(null);
-        setExternalContract(null);
-      }
-
-      const isCurrentRenderedEvent = currentEventIdRef.current === id;
-
-      if (loadedEventIdRef.current === id) {
-        setCarregando(false);
-        return;
-      }
-
-      if (!authReady) {
-        if (!isCurrentRenderedEvent) setCarregando(true);
-        return;
-      }
-
-      if (!supabase) {
-        if (!isCurrentRenderedEvent) setCarregando(false);
-        toast.error('Cliente Supabase indisponível para carregar o evento.');
-        return;
-      }
-
-      const shouldShowInitialSkeleton = !isCurrentRenderedEvent;
-      if (shouldShowInitialSkeleton) setCarregando(true);
-
-      try {
-        const [eventResp, teamResp, contractResp, repertoireResp] = await Promise.all([
-          supabase.from('events').select('*').eq('id', id).single(),
-          supabase.from('event_musicians').select('id, status').eq('event_id', id),
-          supabase
-            .from('contracts')
-            .select('id, status, signed_at, pdf_url, public_token, raw_payload')
-            .eq('event_id', id)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle(),
-          supabase
-            .from('repertoire_config')
-            .select('status')
-            .eq('event_id', id)
-            .maybeSingle(),
-        ]);
-
-        if (eventResp.error) throw eventResp.error;
-        if (teamResp.error) throw teamResp.error;
-        if (contractResp.error) throw contractResp.error;
-        if (repertoireResp.error) throw repertoireResp.error;
-
-        if (cancelled) return;
-        const nextEvento = eventResp.data || null;
-        currentEventIdRef.current = nextEvento?.id || '';
-        loadedEventIdRef.current = id;
-        setEvento(nextEvento);
-        setExternalContract(contractResp.data || null);
-        setRepertoireStatus(String(repertoireResp?.data?.status || ''));
-        const musicians = teamResp.data || [];
-        setTeamMetrics({
-          total: musicians.length,
-          confirmed: musicians.filter((item) => String(item?.status || '').toLowerCase() === 'confirmed').length,
-        });
-      } catch (error) {
-        console.error('Erro ao carregar detalhe do evento:', error);
-        if (!cancelled) {
-          toast.error('Não foi possível carregar o evento. Tente novamente.');
-        }
-      } finally {
-        if (!cancelled) setCarregando(false);
-      }
-    }
-
-    carregarEvento();
-
-    return () => {
-      cancelled = true;
+  const resumoFinanceiro = useMemo(() => {
+    if (!evento) return null;
+    return {
+      agreed: Number(evento.agreed_amount || 0),
+      paid: Number(evento.paid_amount || 0),
+      open: Number(evento.open_amount || 0),
+      profit: Number(evento.profit_amount || 0),
     };
-  }, [authReady, eventIdReady, id, toast]);
+  }, [evento]);
+
+  const attentionItems = useMemo(() => {
+    if (!evento) return [];
+    const items = [];
+    if (teamSummary.total === 0) items.push('Definir escala');
+    if (String(repertoireStatus || '').toLowerCase() !== 'approved') items.push('Cliente ainda não enviou repertório');
+    if (Number(evento?.open_amount || 0) > 0) items.push('Pagamento pendente');
+    return items;
+  }, [evento, repertoireStatus, teamSummary.total]);
+
+  const suggestionTitle = useMemo(() => {
+    if (!evento) return '-';
+    const formation = String(evento.formation || '').trim();
+    const instruments = String(evento.instruments || '').trim();
+    if (formation && instruments) return `${formation} — ${instruments}`;
+    if (formation) return formation;
+    if (instruments) return instruments;
+    return 'Defina a formação ideal';
+  }, [evento]);
+
+  const otherOptions = useMemo(() => {
+    const formation = String(evento?.formation || '').trim().toLowerCase();
+    if (formation.includes('duo')) return ['Trio — formação mais completa', 'Quarteto — experiência mais rica'];
+    if (formation.includes('trio')) return ['Duo — opção mais enxuta', 'Quarteto — experiência mais rica'];
+    if (formation.includes('quarteto')) return ['Trio — formação mais objetiva', 'Duo — opção mais enxuta'];
+    return ['Trio — formação mais completa', 'Quarteto — experiência mais rica'];
+  }, [evento?.formation]);
+
+  function handleTabChange(nextTab) {
+    startTabTransition(() => setActiveTab(nextTab));
+  }
 
   async function excluirEvento() {
     if (!evento?.id) return;
-    console.info('[UI][NATIVE_CONFIRM_FOUND]', {
-      context: 'admin-evento-detalhe.excluirEvento',
-      message: 'Tem certeza que deseja excluir este evento?',
-    });
+
     const confirmedByDialog = await confirm?.({
       title: 'Excluir evento',
       description: 'Essa ação remove o evento permanentemente.',
@@ -295,9 +297,7 @@ export default function EventoDetalhePage() {
         },
       });
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok || !payload?.ok) {
-        throw new Error(payload?.error || 'Erro ao excluir evento.');
-      }
+      if (!response.ok || !payload?.ok) throw new Error(payload?.error || 'Erro ao excluir evento.');
       toast.success('Evento excluído com sucesso.');
       router.push('/eventos');
     } catch (error) {
@@ -313,40 +313,35 @@ export default function EventoDetalhePage() {
 
     try {
       setProcessandoAntesala(nextStatus);
-
-      const payload =
-        nextStatus === 'approved'
-          ? (() => {
-              const currentAgreedAmount = Number(evento?.agreed_amount || 0);
-              const currentPaidAmount = Number(evento?.paid_amount || 0);
-              const increment = Number(evento?.antesala_price_increment || 0) || 0;
-              const shouldApplyIncrement = !Boolean(evento?.has_antesala) && increment > 0;
-              const nextAgreedAmount = shouldApplyIncrement
-                ? currentAgreedAmount + increment
-                : currentAgreedAmount;
-              const nextOpenAmount = Math.max(0, nextAgreedAmount - currentPaidAmount);
-
-              return {
-                antesala_request_status: 'approved',
-                antesala_requested_by_client: false,
-                has_antesala: true,
-                antesala_enabled: true,
-                antesala_duration_minutes: Number(evento?.antesala_duration_minutes || 0) || null,
-                antesala_price_increment: increment,
-                agreed_amount: nextAgreedAmount,
-                open_amount: nextOpenAmount,
-                payment_status: resolvePaymentStatusFromTotals({
-                  agreedAmount: nextAgreedAmount,
-                  paidAmount: currentPaidAmount,
-                }),
-              };
-            })()
-          : {
-              antesala_request_status: 'rejected',
+      const payload = nextStatus === 'approved'
+        ? (() => {
+            const currentAgreedAmount = Number(evento?.agreed_amount || 0);
+            const currentPaidAmount = Number(evento?.paid_amount || 0);
+            const increment = Number(evento?.antesala_price_increment || 0) || 0;
+            const shouldApplyIncrement = !Boolean(evento?.has_antesala) && increment > 0;
+            const nextAgreedAmount = shouldApplyIncrement ? currentAgreedAmount + increment : currentAgreedAmount;
+            const nextOpenAmount = Math.max(0, nextAgreedAmount - currentPaidAmount);
+            return {
+              antesala_request_status: 'approved',
               antesala_requested_by_client: false,
-              has_antesala: false,
-              antesala_enabled: false,
+              has_antesala: true,
+              antesala_enabled: true,
+              antesala_duration_minutes: Number(evento?.antesala_duration_minutes || 0) || null,
+              antesala_price_increment: increment,
+              agreed_amount: nextAgreedAmount,
+              open_amount: nextOpenAmount,
+              payment_status: resolvePaymentStatusFromTotals({
+                agreedAmount: nextAgreedAmount,
+                paidAmount: currentPaidAmount,
+              }),
             };
+          })()
+        : {
+            antesala_request_status: 'rejected',
+            antesala_requested_by_client: false,
+            has_antesala: false,
+            antesala_enabled: false,
+          };
 
       const { data, error } = await supabase
         .from('events')
@@ -364,7 +359,6 @@ export default function EventoDetalhePage() {
       setProcessandoAntesala('');
     }
   }
-
 
   async function handleUploadExternalContract(file, shouldReplace = false) {
     if (!evento?.id || !file) return;
@@ -390,59 +384,6 @@ export default function EventoDetalhePage() {
     } finally {
       setUploadingExternalContract(false);
     }
-  }
-
-  const resumoFinanceiro = useMemo(() => {
-    if (!evento) return null;
-    return {
-      agreed: Number(evento.agreed_amount || 0),
-      paid: Number(evento.paid_amount || 0),
-      open: Number(evento.open_amount || 0),
-      profit: Number(evento.profit_amount || 0),
-    };
-  }, [evento]);
-
-  const teamSummary = useMemo(() => formatTeamSummary(teamMetrics), [teamMetrics]);
-
-  const attentionItems = useMemo(() => {
-    if (!evento) return [];
-    const items = [];
-
-    if (teamSummary.total === 0) items.push('Definir escala');
-    if (String(repertoireStatus || '').toLowerCase() !== 'approved') {
-      items.push('Cliente ainda não enviou repertório');
-    }
-    if (Number(evento?.open_amount || 0) > 0) items.push('Pagamento pendente');
-
-    return items;
-  }, [evento, repertoireStatus, teamSummary.total]);
-
-  const suggestionTitle = useMemo(() => {
-    if (!evento) return '-';
-    const formation = String(evento.formation || '').trim();
-    const instruments = String(evento.instruments || '').trim();
-    if (formation && instruments) return `${formation} — ${instruments}`;
-    if (formation) return formation;
-    if (instruments) return instruments;
-    return 'Defina a formação ideal';
-  }, [evento]);
-
-  const otherOptions = useMemo(() => {
-    const formation = String(evento?.formation || '').trim().toLowerCase();
-    if (formation.includes('duo')) {
-      return ['Trio — formação mais completa', 'Quarteto — experiência mais rica'];
-    }
-    if (formation.includes('trio')) {
-      return ['Duo — opção mais enxuta', 'Quarteto — experiência mais rica'];
-    }
-    if (formation.includes('quarteto')) {
-      return ['Trio — formação mais objetiva', 'Duo — opção mais enxuta'];
-    }
-    return ['Trio — formação mais completa', 'Quarteto — experiência mais rica'];
-  }, [evento?.formation]);
-
-  function handleTabChange(nextTab) {
-    startTabTransition(() => setActiveTab(nextTab));
   }
 
   const tabs = [
@@ -473,9 +414,7 @@ export default function EventoDetalhePage() {
               {evento?.client_name || (carregando ? 'Carregando...' : 'Evento não encontrado')}
             </h1>
             <p className="text-sm text-slate-600">
-              {evento
-                ? `${formatDateBR(evento.event_date)} • ${String(evento.event_time || '--:--').slice(0, 5)}`
-                : '-'}
+              {evento ? `${formatDateBR(evento.event_date)} • ${String(evento.event_time || '--:--').slice(0, 5)}` : '-'}
             </p>
             <p className="text-sm text-slate-600">{evento?.location_name || '-'}</p>
           </div>
@@ -485,177 +424,155 @@ export default function EventoDetalhePage() {
           <AdminSegmentTabs items={tabs} active={activeTab} onChange={handleTabChange} />
         </div>
 
-        {isPendingTab ? (
-          <p className="-mt-2 text-xs font-bold text-violet-600">Abrindo aba...</p>
-        ) : null}
+        {isPendingTab ? <p className="-mt-2 text-xs font-bold text-violet-600">Abrindo aba...</p> : null}
 
-        {carregando || !authReady || !eventIdReady ? (
-          <EventoDetalheSkeleton message={!eventIdReady ? 'Preparando evento...' : 'Carregando evento...'} />
+        {carregando ? (
+          <EventoDetalheSkeleton />
+        ) : erro ? (
+          <section className="rounded-[24px] border border-red-200 bg-red-50 p-6 text-center text-red-700">
+            <p className="font-bold">Não foi possível carregar o evento.</p>
+            <p className="mt-2 text-sm">{erro}</p>
+            <button type="button" onClick={() => window.location.reload()} className="mt-4 rounded-xl bg-red-600 px-4 py-2 text-sm font-bold text-white">
+              Tentar novamente
+            </button>
+          </section>
         ) : !evento ? (
           <section className="rounded-[24px] border border-[#dbe3ef] bg-white p-6 text-center text-[#64748b]">Evento não encontrado.</section>
         ) : (
           <>
             <TabPanel active={activeTab === 'resumo'} className="space-y-4">
-                <section className="rounded-2xl border border-[#e2e8f0] bg-white px-4 py-4">
-                  <h3 className="text-sm font-black text-slate-900">Atenção necessária</h3>
-                  {attentionItems.length ? (
-                    <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700">
-                      {attentionItems.map((item) => (
-                        <li key={item}>{item}</li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="mt-2 text-sm text-emerald-700">Tudo certo para este evento.</p>
-                  )}
-                </section>
+              <section className="rounded-2xl border border-[#e2e8f0] bg-white px-4 py-4">
+                <h3 className="text-sm font-black text-slate-900">Atenção necessária</h3>
+                {attentionItems.length ? (
+                  <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700">
+                    {attentionItems.map((item) => <li key={item}>{item}</li>)}
+                  </ul>
+                ) : (
+                  <p className="mt-2 text-sm text-emerald-700">Tudo certo para este evento.</p>
+                )}
+              </section>
 
-                <section className="rounded-2xl border border-[#dbeafe] bg-[#f8fbff] px-4 py-4">
-                  <h3 className="text-base font-black text-slate-900">Sugestão de formação</h3>
-                  <p className="mt-1 text-sm font-semibold text-slate-800">{suggestionTitle}</p>
-                  <p className="mt-1 text-xs text-slate-500">Recomendado para este evento</p>
-                  <button
-                    type="button"
-                    onClick={() => handleTabChange('escala')}
-                    className="mt-3 rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white"
+              <section className="rounded-2xl border border-[#dbeafe] bg-[#f8fbff] px-4 py-4">
+                <h3 className="text-base font-black text-slate-900">Sugestão de formação</h3>
+                <p className="mt-1 text-sm font-semibold text-slate-800">{suggestionTitle}</p>
+                <p className="mt-1 text-xs text-slate-500">Recomendado para este evento</p>
+                <button type="button" onClick={() => handleTabChange('escala')} className="mt-3 rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white">
+                  Ajustar escala
+                </button>
+              </section>
+
+              <section className="space-y-3 rounded-2xl border border-[#e2e8f0] bg-white px-4 py-4">
+                <div className="flex items-center justify-between text-sm">
+                  <p className="font-black text-slate-900">Equipe</p>
+                  <p className="text-slate-700">{teamSummary.total} músicos</p>
+                </div>
+                <p className="text-sm text-slate-600">{teamSummary.confirmed} confirmados / {teamSummary.pending} pendentes</p>
+              </section>
+
+              <section className="space-y-3 rounded-2xl border border-[#e2e8f0] bg-white px-4 py-4">
+                <div className="flex items-center justify-between text-sm">
+                  <p className="font-black text-slate-900">Financeiro</p>
+                  <p className="font-semibold text-amber-700">{formatMoney(evento?.open_amount || 0)} pendente</p>
+                </div>
+                <button type="button" onClick={() => handleTabChange('financeiro')} className="rounded-xl border border-[#dbe3ef] bg-white px-3 py-2 text-sm font-bold text-slate-900">
+                  Ver pagamentos
+                </button>
+              </section>
+
+              <section className="space-y-3 rounded-2xl border border-[#e2e8f0] bg-white px-4 py-4">
+                <div className="flex items-center justify-between text-sm">
+                  <p className="font-black text-slate-900">Contrato externo/manual</p>
+                  <p className="text-slate-700">{externalContract?.id ? 'Contrato externo anexado' : 'Não anexado'}</p>
+                </div>
+                {externalContract?.pdf_url ? (
+                  <ContractSignedPdfButton
+                    contractId={externalContract.id}
+                    hasPdf={!!externalContract.pdf_url}
+                    className="text-xs font-semibold text-blue-700 underline"
+                    onError={(error) => toast.error(error?.message || 'Não foi possível abrir o PDF anexado.')}
                   >
-                    Ajustar escala
-                  </button>
-                </section>
-
-                <section className="space-y-3 rounded-2xl border border-[#e2e8f0] bg-white px-4 py-4">
-                  <div className="flex items-center justify-between text-sm">
-                    <p className="font-black text-slate-900">Equipe</p>
-                    <p className="text-slate-700">{teamSummary.total} músicos</p>
+                    Abrir PDF anexado
+                  </ContractSignedPdfButton>
+                ) : null}
+                {externalContract?.public_token ? (
+                  <div className="flex flex-wrap gap-2">
+                    <a href={`/cliente/${externalContract.public_token}`} target="_blank" rel="noreferrer" className="rounded-xl border border-[#dbe3ef] bg-white px-3 py-2 text-xs font-bold text-slate-900">Abrir painel do cliente</a>
+                    <button type="button" className="rounded-xl border border-[#dbe3ef] bg-white px-3 py-2 text-xs font-bold text-slate-900" onClick={async () => { await navigator.clipboard.writeText(`${window.location.origin}/cliente/${externalContract.public_token}`); toast.success('Link do painel copiado.'); }}>
+                      Copiar link do painel do cliente
+                    </button>
                   </div>
-                  <p className="text-sm text-slate-600">
-                    {teamSummary.confirmed} confirmados / {teamSummary.pending} pendentes
+                ) : null}
+                <label className="inline-flex cursor-pointer rounded-xl bg-slate-900 px-3 py-2 text-xs font-bold text-white">
+                  {uploadingExternalContract ? 'Enviando...' : externalContract?.id ? 'Substituir PDF externo' : 'Anexar contrato externo'}
+                  <input type="file" accept="application/pdf" className="hidden" disabled={uploadingExternalContract} onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    const shouldReplace = !!externalContract?.id;
+                    if (shouldReplace && !window.confirm('Já existe contrato assinado. Confirmar substituição do PDF?')) return;
+                    await handleUploadExternalContract(file, shouldReplace);
+                    e.target.value = '';
+                  }} />
+                </label>
+              </section>
+
+              <section className="space-y-3 rounded-2xl border border-[#e2e8f0] bg-white px-4 py-4">
+                <div className="flex items-center justify-between text-sm">
+                  <p className="font-black text-slate-900">Repertório</p>
+                  <p className="text-slate-700">{getRepertoireStatusLabel(repertoireStatus)}</p>
+                </div>
+                <Link href="/repertorios" className="inline-flex rounded-xl border border-[#dbe3ef] bg-white px-3 py-2 text-sm font-bold text-slate-900">
+                  Ver repertório
+                </Link>
+              </section>
+
+              <section className="rounded-2xl border border-[#e2e8f0] bg-white px-4 py-4">
+                <h3 className="text-sm font-black text-slate-900">Outras opções</h3>
+                <ul className="mt-2 space-y-1 text-sm text-slate-700">
+                  {otherOptions.map((option) => <li key={option}>• {option}</li>)}
+                </ul>
+              </section>
+
+              {evento?.antesala_requested_by_client ? (
+                <section className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4">
+                  <p className="text-sm font-semibold text-amber-700">
+                    Solicitação do cliente: {getAntesalaStatusLabel(evento?.antesala_request_status)}
                   </p>
-                </section>
-
-                <section className="space-y-3 rounded-2xl border border-[#e2e8f0] bg-white px-4 py-4">
-                  <div className="flex items-center justify-between text-sm">
-                    <p className="font-black text-slate-900">Financeiro</p>
-                    <p className="font-semibold text-amber-700">{formatMoney(evento?.open_amount || 0)} pendente</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleTabChange('financeiro')}
-                    className="rounded-xl border border-[#dbe3ef] bg-white px-3 py-2 text-sm font-bold text-slate-900"
-                  >
-                    Ver pagamentos
-                  </button>
-                </section>
-
-
-                <section className="space-y-3 rounded-2xl border border-[#e2e8f0] bg-white px-4 py-4">
-                  <div className="flex items-center justify-between text-sm">
-                    <p className="font-black text-slate-900">Contrato externo/manual</p>
-                    <p className="text-slate-700">{externalContract?.id ? 'Contrato externo anexado' : 'Não anexado'}</p>
-                  </div>
-                  {externalContract?.pdf_url ? (
-                    <ContractSignedPdfButton
-                      contractId={externalContract.id}
-                      hasPdf={!!externalContract.pdf_url}
-                      className="text-xs font-semibold text-blue-700 underline"
-                      onError={(error) => toast.error(error?.message || 'Não foi possível abrir o PDF anexado.')}
-                    >
-                      Abrir PDF anexado
-                    </ContractSignedPdfButton>
-                  ) : null}
-                  {externalContract?.public_token ? (
-                    <div className="flex flex-wrap gap-2">
-                      <a href={`/cliente/${externalContract.public_token}`} target="_blank" rel="noreferrer" className="rounded-xl border border-[#dbe3ef] bg-white px-3 py-2 text-xs font-bold text-slate-900">Abrir painel do cliente</a>
-                      <button type="button" className="rounded-xl border border-[#dbe3ef] bg-white px-3 py-2 text-xs font-bold text-slate-900" onClick={async () => { await navigator.clipboard.writeText(`${window.location.origin}/cliente/${externalContract.public_token}`); toast.success('Link do painel copiado.'); }}>
-                        Copiar link do painel do cliente
+                  {normalizeAntesalaStatus(evento?.antesala_request_status) === 'pending' ? (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button type="button" onClick={() => responderSolicitacaoAntesala('approved')} disabled={processandoAntesala !== ''} className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-black text-white disabled:opacity-60">
+                        {processandoAntesala === 'approved' ? 'Aprovando...' : 'Aprovar'}
+                      </button>
+                      <button type="button" onClick={() => responderSolicitacaoAntesala('rejected')} disabled={processandoAntesala !== ''} className="rounded-xl border border-red-300 bg-white px-3 py-2 text-xs font-black text-red-700 disabled:opacity-60">
+                        {processandoAntesala === 'rejected' ? 'Rejeitando...' : 'Rejeitar'}
                       </button>
                     </div>
                   ) : null}
-                  <label className="inline-flex cursor-pointer rounded-xl bg-slate-900 px-3 py-2 text-xs font-bold text-white">
-                    {uploadingExternalContract ? 'Enviando...' : externalContract?.id ? 'Substituir PDF externo' : 'Anexar contrato externo'}
-                    <input type="file" accept="application/pdf" className="hidden" disabled={uploadingExternalContract} onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      const replace = !!externalContract?.id && !window.confirm('Já existe contrato assinado. Confirmar substituição do PDF?');
-                      if (replace) return;
-                      await handleUploadExternalContract(file, !!externalContract?.id);
-                      e.target.value = '';
-                    }} />
-                  </label>
                 </section>
-
-                <section className="space-y-3 rounded-2xl border border-[#e2e8f0] bg-white px-4 py-4">
-                  <div className="flex items-center justify-between text-sm">
-                    <p className="font-black text-slate-900">Repertório</p>
-                    <p className="text-slate-700">{getRepertoireStatusLabel(repertoireStatus)}</p>
-                  </div>
-                  <Link
-                    href="/repertorios"
-                    className="inline-flex rounded-xl border border-[#dbe3ef] bg-white px-3 py-2 text-sm font-bold text-slate-900"
-                  >
-                    Ver repertório
-                  </Link>
-                </section>
-
-                <section className="rounded-2xl border border-[#e2e8f0] bg-white px-4 py-4">
-                  <h3 className="text-sm font-black text-slate-900">Outras opções</h3>
-                  <ul className="mt-2 space-y-1 text-sm text-slate-700">
-                    {otherOptions.map((option) => (
-                      <li key={option}>• {option}</li>
-                    ))}
-                  </ul>
-                </section>
-
-                {evento?.antesala_requested_by_client ? (
-                  <section className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4">
-                    <p className="text-sm font-semibold text-amber-700">
-                      Solicitação do cliente: {getAntesalaStatusLabel(evento?.antesala_request_status)}
-                    </p>
-                    {normalizeAntesalaStatus(evento?.antesala_request_status) === 'pending' ? (
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={() => responderSolicitacaoAntesala('approved')}
-                          disabled={processandoAntesala !== ''}
-                          className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-black text-white disabled:opacity-60"
-                        >
-                          {processandoAntesala === 'approved' ? 'Aprovando...' : 'Aprovar'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => responderSolicitacaoAntesala('rejected')}
-                          disabled={processandoAntesala !== ''}
-                          className="rounded-xl border border-red-300 bg-white px-3 py-2 text-xs font-black text-red-700 disabled:opacity-60"
-                        >
-                          {processandoAntesala === 'rejected' ? 'Rejeitando...' : 'Rejeitar'}
-                        </button>
-                      </div>
-                    ) : null}
-                  </section>
-                ) : null}
-              </TabPanel>
+              ) : null}
+            </TabPanel>
 
             <TabPanel active={activeTab === 'detalhes'} className="rounded-[28px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_26px_rgba(17,24,39,0.04)] md:p-6">
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <InfoItem label="Contratante / Cliente" value={evento.client_name} />
-                  <InfoItem label="Tipo do evento" value={evento.event_type} />
-                  <InfoItem label="Data" value={formatDateBR(evento.event_date)} />
-                  <InfoItem label="Hora" value={String(evento.event_time || '').slice(0, 5)} />
-                  <InfoItem label="Local" value={evento.location_name} />
-                  <InfoItem label="Formação" value={evento.formation} />
-                  <InfoItem label="Instrumentos" value={evento.instruments} />
-                  <InfoItem label="WhatsApp" value={evento.whatsapp_phone} />
-                  <InfoItem label="Observações" value={evento.observations} full />
-                </div>
-              </TabPanel>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <InfoItem label="Contratante / Cliente" value={evento.client_name} />
+                <InfoItem label="Tipo do evento" value={evento.event_type} />
+                <InfoItem label="Data" value={formatDateBR(evento.event_date)} />
+                <InfoItem label="Hora" value={String(evento.event_time || '').slice(0, 5)} />
+                <InfoItem label="Local" value={evento.location_name} />
+                <InfoItem label="Formação" value={evento.formation} />
+                <InfoItem label="Instrumentos" value={evento.instruments} />
+                <InfoItem label="WhatsApp" value={evento.whatsapp_phone} />
+                <InfoItem label="Observações" value={evento.observations} full />
+              </div>
+            </TabPanel>
 
             <TabPanel active={activeTab === 'financeiro'} className="space-y-4">
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-                  <MetricCard label="Valor acertado" value={formatMoney(resumoFinanceiro?.agreed)} tone="blue" />
-                  <MetricCard label="Valor quitado" value={formatMoney(resumoFinanceiro?.paid)} tone="emerald" />
-                  <MetricCard label="Saldo em aberto" value={formatMoney(resumoFinanceiro?.open)} tone={resumoFinanceiro?.open > 0 ? 'amber' : 'default'} />
-                  <MetricCard label="Lucro estimado" value={formatMoney(resumoFinanceiro?.profit)} tone={resumoFinanceiro?.profit > 0 ? 'default' : 'red'} />
-                </div>
-              </TabPanel>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <MetricCard label="Valor acertado" value={formatMoney(resumoFinanceiro?.agreed)} tone="blue" />
+                <MetricCard label="Valor quitado" value={formatMoney(resumoFinanceiro?.paid)} tone="emerald" />
+                <MetricCard label="Saldo em aberto" value={formatMoney(resumoFinanceiro?.open)} tone={resumoFinanceiro?.open > 0 ? 'amber' : 'default'} />
+                <MetricCard label="Lucro estimado" value={formatMoney(resumoFinanceiro?.profit)} tone={resumoFinanceiro?.profit > 0 ? 'default' : 'red'} />
+              </div>
+            </TabPanel>
 
             <TabPanel active={activeTab === 'escala'} className="space-y-4 rounded-[24px] border border-[#dbe3ef] bg-white p-4 md:p-5">
               <div id="escala-section" />

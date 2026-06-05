@@ -436,14 +436,14 @@ function SearchResultCard({ contact, onAdd }) {
     <button
       type="button"
       onClick={() => onAdd(contact)}
-      className="flex w-full items-start justify-between gap-3 rounded-[18px] border border-[#e7edf5] bg-white px-4 py-4 text-left transition hover:border-violet-200 hover:bg-[#fcfbff]"
+      className="flex w-full min-w-0 items-start justify-between gap-3 rounded-[18px] border border-[#e7edf5] bg-white px-4 py-4 text-left transition hover:border-violet-200 hover:bg-[#fcfbff]"
     >
       <div className="min-w-0">
-        <div className="text-[16px] font-black text-[#0f172a]">
+        <div className="break-words text-[16px] font-black text-[#0f172a]">
           {contact.name || 'Sem nome'}
         </div>
 
-        <div className="mt-1 text-[14px] font-semibold leading-6 text-[#64748b]">
+        <div className="mt-1 break-words text-[14px] font-semibold leading-6 text-[#64748b]">
           {[getContactTagText(contact), contact.phone, contact.email]
             .filter(Boolean)
             .join(' — ')}
@@ -1211,7 +1211,7 @@ async function salvarEEnviarConvites() {
   }
 
   return (
-    <div className="space-y-4 px-4 md:space-y-5 md:px-0">
+    <div className="w-full max-w-full space-y-4 overflow-hidden px-0 md:space-y-5">
       <section className="space-y-3 rounded-[24px] border border-[#dbe3ef] bg-white p-4 shadow-[0_10px_26px_rgba(17,24,39,0.04)] md:p-5">
         <div>
           <h3 className="text-[22px] font-black tracking-[-0.03em] text-[#0f172a]">{evento?.client_name || 'Evento'}</h3>
@@ -1433,7 +1433,7 @@ async function salvarEEnviarConvites() {
           try {
             return (
         <>
-          <div className="grid max-w-full gap-5 xl:grid-cols-[0.95fr_1.05fr]">
+          <div className="grid min-w-0 max-w-full gap-5 xl:grid-cols-[0.95fr_1.05fr]">
             <SectionCard
               eyebrow="Montagem da equipe"
               title="Adicionar músicos"
@@ -1536,7 +1536,7 @@ async function salvarEEnviarConvites() {
             </SectionCard>
           </div>
 
-          <div className="sticky bottom-[calc(80px+env(safe-area-inset-bottom))] z-10 -mx-4 border-t border-[#e6ebf2] bg-white/95 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-4 backdrop-blur md:bottom-0 md:-mx-6 md:px-6 md:pb-4">
+          <div className="static mt-5 rounded-[24px] border border-[#e6ebf2] bg-white px-4 py-4 md:sticky md:bottom-0 md:z-10 md:-mx-6 md:rounded-none md:border-x-0 md:border-b-0 md:bg-white/95 md:px-6 md:pb-4 md:backdrop-blur">
             <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
               <div className="flex flex-wrap gap-2">
                 <SummaryChip>{diffResumo.total} músico(s)</SummaryChip>
@@ -1554,7 +1554,7 @@ async function salvarEEnviarConvites() {
                 ) : null}
               </div>
 
-             <div className="grid grid-cols-1 gap-3 md:grid-cols-3 xl:w-auto">
+             <div className="grid min-w-0 grid-cols-1 gap-3 md:grid-cols-3 xl:w-auto">
                 <button
   type="button"
   onClick={cancelarEdicao}

@@ -12,6 +12,20 @@ import {
   getRoleInstrumentTagsFromEvent,
 } from '../../lib/escalas/team-contacts';
 
+const escalaTabCache = new Map();
+
+function getCachedScale(eventId) {
+  return escalaTabCache.get(String(eventId || '')) || null;
+}
+
+function setCachedScale(eventId, snapshot) {
+  if (!eventId || !snapshot) return;
+  escalaTabCache.set(String(eventId), {
+    ...snapshot,
+    cachedAt: Date.now(),
+  });
+}
+
 function formatDateBR(value) {
   if (!value) return '-';
   const [y, m, d] = String(value).split('-');
@@ -479,6 +493,17 @@ export default function EventoEscalaTab({ eventId }) {
   const buscaRef = useRef(null);
   const isMountedRef = useRef(false);
 
+  function applyScaleSnapshot(snapshot) {
+    if (!snapshot || !isMountedRef.current) return;
+    setEvento(snapshot.evento || null);
+    setContatos(Array.isArray(snapshot.contatos) ? snapshot.contatos : []);
+    setEscalaSalva(Array.isArray(snapshot.escalaSalva) ? snapshot.escalaSalva : []);
+    setEscalaLocal(Array.isArray(snapshot.escalaLocal) ? snapshot.escalaLocal : []);
+    setTemplateSugerido(snapshot.templateSugerido || null);
+    setOutrasSugestoes(Array.isArray(snapshot.outrasSugestoes) ? snapshot.outrasSugestoes : []);
+    setRepertorioStatus(String(snapshot.repertorioStatus || ''));
+  }
+
   useEffect(() => {
     isMountedRef.current = true;
     return () => {
@@ -491,6 +516,21 @@ export default function EventoEscalaTab({ eventId }) {
       if (!isMountedRef.current) return;
       setCarregando(false);
       setErro('Evento inválido para carregar a escala.');
+      return;
+    }
+
+    const cached = getCachedScale(eventId);
+    if (cached) {
+      applyScaleSnapshot(cached);
+      setCarregando(false);
+      setErro('');
+      return;
+    }
+
+    if (!supabase) {
+      if (!isMountedRef.current) return;
+      setCarregando(false);
+      setErro('Cliente Supabase indisponível para carregar a escala.');
       return;
     }
 
@@ -573,7 +613,8 @@ export default function EventoEscalaTab({ eventId }) {
 
       let escalaInicial = escalaData;
       let templateSugeridoAtual = null;
-      setRepertorioStatus(String(repertorioResp?.data?.status || ''));
+      let outrasSugestoesAtuais = [];
+      const repertorioStatusAtual = String(repertorioResp?.data?.status || '');
 
       if (escalaData.length === 0 && eventoData) {
         const suggestion = matchTemplatesForEvent(
@@ -603,18 +644,23 @@ export default function EventoEscalaTab({ eventId }) {
           items: templateItemsByTemplateId.get(String(item?.template?.id)) || [],
         }));
 
-        setOutrasSugestoes(bestTemplate
+        outrasSugestoesAtuais = bestTemplate
           ? suggestions.filter((item) => String(item.id) !== String(bestTemplate.id)).slice(0, 3)
-          : suggestions.slice(0, 3));
+          : suggestions.slice(0, 3);
       }
 
       if (!isMountedRef.current) return;
-      setEvento(eventoData);
-      setContatos(contatosData);
-      setEscalaSalva(escalaData);
-      setEscalaLocal(escalaInicial);
-      setTemplateSugerido(templateSugeridoAtual);
-      if (escalaData.length > 0) setOutrasSugestoes([]);
+      const snapshot = {
+        evento: eventoData,
+        contatos: contatosData,
+        escalaSalva: escalaData,
+        escalaLocal: escalaInicial,
+        templateSugerido: templateSugeridoAtual,
+        outrasSugestoes: escalaData.length > 0 ? [] : outrasSugestoesAtuais,
+        repertorioStatus: repertorioStatusAtual,
+      };
+      setCachedScale(eventId, snapshot);
+      applyScaleSnapshot(snapshot);
     } catch (e) {
       console.error('Erro ao carregar escala do evento:', e);
       if (!isMountedRef.current) return;
@@ -1033,6 +1079,15 @@ async function persistirEscala() {
     setEditando(false);
     setSucesso('Escala salva com sucesso.');
     setTemplateSugerido(null);
+    setCachedScale(eventId, {
+      evento,
+      contatos: safeContatos,
+      escalaSalva: escalaVisual,
+      escalaLocal: escalaVisual,
+      templateSugerido: null,
+      outrasSugestoes: safeOutrasSugestoes,
+      repertorioStatus,
+    });
   }
 
   return {
@@ -1196,8 +1251,13 @@ async function salvarEEnviarConvites() {
 
   if (carregando) {
     return (
-      <div className="rounded-[24px] border border-[#dbe3ef] bg-[#f8fafc] px-5 py-6 text-[15px] font-semibold text-[#64748b]">
-        Carregando escala...
+      <div className="space-y-4 rounded-[24px] border border-[#dbe3ef] bg-[#f8fafc] px-5 py-6 text-[15px] font-semibold text-[#64748b]">
+        <div className="h-5 w-48 animate-pulse rounded-full bg-slate-200" />
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <div className="h-32 animate-pulse rounded-[22px] bg-white" />
+          <div className="h-32 animate-pulse rounded-[22px] bg-white" />
+        </div>
+        <p>Carregando escala...</p>
       </div>
     );
   }

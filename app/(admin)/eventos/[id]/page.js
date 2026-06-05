@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import AdminShell from '@/components/admin/AdminShell';
@@ -100,8 +100,25 @@ function normalizeTabParam(tab) {
 
 function EventoDetalheSkeleton({ message = 'Carregando evento...' }) {
   return (
-    <section className="rounded-[24px] border border-[#dbe3ef] bg-white p-6 text-center text-[#64748b]">
-      {message}
+    <section className="space-y-4 rounded-[24px] border border-[#dbe3ef] bg-white p-5 text-[#64748b]">
+      <div className="h-4 w-44 animate-pulse rounded-full bg-slate-200" />
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        {[0, 1, 2].map((item) => (
+          <div key={item} className="h-24 animate-pulse rounded-2xl bg-slate-100" />
+        ))}
+      </div>
+      <p className="text-center text-sm font-semibold">{message}</p>
+    </section>
+  );
+}
+
+function TabPanel({ active, children, className = '' }) {
+  return (
+    <section
+      aria-hidden={!active}
+      className={`${active ? 'block animate-[fadeIn_160ms_ease-out]' : 'hidden'} ${className}`}
+    >
+      {children}
     </section>
   );
 }
@@ -130,6 +147,7 @@ export default function EventoDetalhePage() {
   const [activeTab, setActiveTab] = useState(() => normalizeTabParam(searchParams?.get('tab')));
   const [externalContract, setExternalContract] = useState(null);
   const [uploadingExternalContract, setUploadingExternalContract] = useState(false);
+  const [isPendingTab, startTabTransition] = useTransition();
   const toast = useAppToast();
   const confirm = useConfirm();
   const { initialized: authInitialized, loading: authLoading, user } = useAuth();
@@ -403,6 +421,10 @@ export default function EventoDetalhePage() {
     return ['Trio — formação mais completa', 'Quarteto — experiência mais rica'];
   }, [evento?.formation]);
 
+  function handleTabChange(nextTab) {
+    startTabTransition(() => setActiveTab(nextTab));
+  }
+
   const tabs = [
     { key: 'resumo', label: 'Resumo' },
     { key: 'detalhes', label: 'Detalhes' },
@@ -415,7 +437,7 @@ export default function EventoDetalhePage() {
       <div className="space-y-5">
         <header className="space-y-3">
           <div className="flex flex-wrap gap-2">
-            <a href={backHref} className="rounded-xl border border-[#dbe3ef] bg-white px-3 py-2 text-xs font-bold text-[#0f172a]">Voltar</a>
+            <Link href={backHref} className="rounded-xl border border-[#dbe3ef] bg-white px-3 py-2 text-xs font-bold text-[#0f172a] active:scale-[0.98]">Voltar</Link>
             {evento?.id ? (
               <Link href={`/eventos?edit=${evento.id}`} className="rounded-xl border border-[#dbe3ef] bg-white px-3 py-2 text-xs font-bold text-[#0f172a]">Editar</Link>
             ) : null}
@@ -440,8 +462,12 @@ export default function EventoDetalhePage() {
         </header>
 
         <div className="rounded-[24px] border border-[#dbe3ef] bg-white p-2 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
-          <AdminSegmentTabs items={tabs} active={activeTab} onChange={setActiveTab} />
+          <AdminSegmentTabs items={tabs} active={activeTab} onChange={handleTabChange} />
         </div>
+
+        {isPendingTab ? (
+          <p className="-mt-2 text-xs font-bold text-violet-600">Abrindo aba...</p>
+        ) : null}
 
         {carregando || !authReady || !eventIdReady ? (
           <EventoDetalheSkeleton message={!eventIdReady ? 'Preparando evento...' : 'Carregando evento...'} />
@@ -449,8 +475,7 @@ export default function EventoDetalhePage() {
           <section className="rounded-[24px] border border-[#dbe3ef] bg-white p-6 text-center text-[#64748b]">Evento não encontrado.</section>
         ) : (
           <>
-            {activeTab === 'resumo' && (
-              <section className="space-y-4">
+            <TabPanel active={activeTab === 'resumo'} className="space-y-4">
                 <section className="rounded-2xl border border-[#e2e8f0] bg-white px-4 py-4">
                   <h3 className="text-sm font-black text-slate-900">Atenção necessária</h3>
                   {attentionItems.length ? (
@@ -470,7 +495,7 @@ export default function EventoDetalhePage() {
                   <p className="mt-1 text-xs text-slate-500">Recomendado para este evento</p>
                   <button
                     type="button"
-                    onClick={() => setActiveTab('escala')}
+                    onClick={() => handleTabChange('escala')}
                     className="mt-3 rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white"
                   >
                     Ajustar escala
@@ -494,7 +519,7 @@ export default function EventoDetalhePage() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => setActiveTab('financeiro')}
+                    onClick={() => handleTabChange('financeiro')}
                     className="rounded-xl border border-[#dbe3ef] bg-white px-3 py-2 text-sm font-bold text-slate-900"
                   >
                     Ver pagamentos
@@ -587,11 +612,9 @@ export default function EventoDetalhePage() {
                     ) : null}
                   </section>
                 ) : null}
-              </section>
-            )}
+              </TabPanel>
 
-            {activeTab === 'detalhes' && (
-              <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_26px_rgba(17,24,39,0.04)] md:p-6">
+            <TabPanel active={activeTab === 'detalhes'} className="rounded-[28px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_26px_rgba(17,24,39,0.04)] md:p-6">
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <InfoItem label="Contratante / Cliente" value={evento.client_name} />
                   <InfoItem label="Tipo do evento" value={evento.event_type} />
@@ -603,25 +626,21 @@ export default function EventoDetalhePage() {
                   <InfoItem label="WhatsApp" value={evento.whatsapp_phone} />
                   <InfoItem label="Observações" value={evento.observations} full />
                 </div>
-              </section>
-            )}
+              </TabPanel>
 
-            {activeTab === 'financeiro' && (
-              <section className="space-y-4">
+            <TabPanel active={activeTab === 'financeiro'} className="space-y-4">
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
                   <MetricCard label="Valor acertado" value={formatMoney(resumoFinanceiro?.agreed)} tone="blue" />
                   <MetricCard label="Valor quitado" value={formatMoney(resumoFinanceiro?.paid)} tone="emerald" />
                   <MetricCard label="Saldo em aberto" value={formatMoney(resumoFinanceiro?.open)} tone={resumoFinanceiro?.open > 0 ? 'amber' : 'default'} />
                   <MetricCard label="Lucro estimado" value={formatMoney(resumoFinanceiro?.profit)} tone={resumoFinanceiro?.profit > 0 ? 'default' : 'red'} />
                 </div>
-              </section>
-            )}
+              </TabPanel>
 
-            {activeTab === 'escala' && (
-              <section id="escala-section" className="space-y-4 rounded-[24px] border border-[#dbe3ef] bg-white p-4 md:p-5">
-                <EventoEscalaTab eventId={evento.id} />
-              </section>
-            )}
+            <TabPanel active={activeTab === 'escala'} className="space-y-4 rounded-[24px] border border-[#dbe3ef] bg-white p-4 md:p-5">
+              <div id="escala-section" />
+              <EventoEscalaTab eventId={evento.id} />
+            </TabPanel>
           </>
         )}
       </div>

@@ -89,7 +89,7 @@ export default function GlobalPlayerHost() {
   const schedulePlayRetries = useCallback((targetPlayer, reason) => {
     if (!targetPlayer) return;
     clearPlayRetries();
-    [0, 120, 320, 700].forEach((delay, attempt) => {
+    [0, 80, 180, 360, 700].forEach((delay, attempt) => {
       const timeoutId = setTimeout(() => {
         if (desiredPlaybackState !== 'playing') return;
         if (isPlayerPlaying(targetPlayer)) {
@@ -108,6 +108,15 @@ export default function GlobalPlayerHost() {
     targetPlayer?.playVideo?.();
     schedulePlayRetries(targetPlayer, reason);
   }, [schedulePlayRetries]);
+
+  const loadAndPlayVideo = useCallback((targetPlayer, nextVideoId, reason) => {
+    if (!targetPlayer || !nextVideoId) return;
+
+    clearPlayRetries();
+    targetPlayer?.loadVideoById?.(nextVideoId);
+    targetPlayer?.playVideo?.();
+    schedulePlayRetries(targetPlayer, reason);
+  }, [clearPlayRetries, schedulePlayRetries]);
 
   const requestPlayIfDesired = useCallback((targetPlayer, reason) => {
     if (!targetPlayer) return;
@@ -167,6 +176,7 @@ export default function GlobalPlayerHost() {
             controls: 0,
             rel: 0,
             modestbranding: 1,
+            playsinline: 1,
           },
           events: {
             onReady: (event) => {
@@ -179,12 +189,14 @@ export default function GlobalPlayerHost() {
 
               if (videoId) {
                 currentVideoIdRef.current = videoId;
-                event?.target?.cueVideoById?.(videoId);
                 if (desiredPlaybackState === 'playing' || pendingManualPlay) {
-                  requestPlayIfDesired(
+                  loadAndPlayVideo(
                     event?.target,
+                    videoId,
                     pendingManualPlay ? 'on_ready_pending_manual' : 'on_ready_desired_playing'
                   );
+                } else {
+                  event?.target?.cueVideoById?.(videoId);
                 }
               }
             },
@@ -288,7 +300,7 @@ export default function GlobalPlayerHost() {
     setIsTrackTransitioning,
     setHasUserUnlockedPlayback,
     desiredPlaybackState,
-    requestPlayIfDesired,
+    loadAndPlayVideo,
     forcePlay,
   ]);
 
@@ -321,9 +333,9 @@ export default function GlobalPlayerHost() {
       setIsTrackTransitioning(shouldContinuePlaying);
 
       if (shouldContinuePlaying) {
-        playerRef.loadVideoById?.(videoId);
-        forcePlay(playerRef, 'video_change_while_playing');
+        loadAndPlayVideo(playerRef, videoId, 'video_change_while_playing');
       } else {
+        clearPlayRetries();
         playerRef.cueVideoById?.(videoId);
       }
 
@@ -352,13 +364,12 @@ export default function GlobalPlayerHost() {
     isPlaying,
     playerRef,
     currentTrackIndex,
-    schedulePlayRetries,
     clearPlayRetries,
     desiredPlaybackState,
     requestPlayIfDesired,
     pendingManualPlay,
     setIsTrackTransitioning,
-    forcePlay,
+    loadAndPlayVideo,
   ]);
 
   useEffect(() => {

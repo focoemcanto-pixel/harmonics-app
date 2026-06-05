@@ -5,6 +5,10 @@ import { extractYoutubeId } from '@/lib/membro/membro-invites';
 
 const GlobalPlayerContext = createContext(null);
 
+function resolveTrackVideoId(track = {}) {
+  return String(track?.videoId || '').trim() || extractYoutubeId(track?.url || '');
+}
+
 export function GlobalPlayerProvider({ children }) {
   const [playlist, setPlaylist] = useState([]);
   const [currentTrackIndex, setCurrentTrackIndex] = useState(0);
@@ -18,7 +22,7 @@ export function GlobalPlayerProvider({ children }) {
   const [isTrackTransitioning, setIsTrackTransitioning] = useState(false);
 
   const currentTrack = playlist[currentTrackIndex] || null;
-  const videoId = String(currentTrack?.videoId || '').trim() || extractYoutubeId(currentTrack?.url || '');
+  const videoId = resolveTrackVideoId(currentTrack);
 
   const schedulePlayVideo = useCallback(() => {
     setTimeout(() => {
@@ -26,10 +30,28 @@ export function GlobalPlayerProvider({ children }) {
     }, 0);
   }, [playerRef]);
 
+  const loadTrackForImmediatePlayback = useCallback((track) => {
+    const nextVideoId = resolveTrackVideoId(track);
+    if (!playerRef || !nextVideoId) return false;
+
+    playerRef.loadVideoById?.(nextVideoId);
+    return true;
+  }, [playerRef]);
+
+  const cueTrack = useCallback((track) => {
+    const nextVideoId = resolveTrackVideoId(track);
+    if (!playerRef || !nextVideoId) return false;
+
+    playerRef.cueVideoById?.(nextVideoId);
+    return true;
+  }, [playerRef]);
+
   const setTrack = useCallback((index, options = {}) => {
     const shouldContinuePlaying = options.forcePlay === true
       ? true
       : desiredPlaybackState === 'playing';
+    let selectedTrack = null;
+
     console.log('[PLAYER][TRACK_BEFORE_CHANGE]', {
       source: 'setTrack',
       isPlaying,
@@ -43,6 +65,7 @@ export function GlobalPlayerProvider({ children }) {
       if (!Array.isArray(playlist) || playlist.length === 0) return 0;
       if (!Number.isFinite(index)) return prev;
       const safeIndex = Math.max(0, Math.min(Number(index), playlist.length - 1));
+      selectedTrack = playlist[safeIndex] || null;
       console.log('[PLAYER][TRACK_AFTER_CHANGE]', {
         source: 'setTrack',
         previousIndex: prev,
@@ -58,6 +81,12 @@ export function GlobalPlayerProvider({ children }) {
         setPendingManualPlay(true);
       }
       setIsPlaying(true);
+
+      if (selectedTrack && loadTrackForImmediatePlayback(selectedTrack)) {
+        schedulePlayVideo();
+        return;
+      }
+
       schedulePlayVideo();
     } else {
       setIsTrackTransitioning(false);
@@ -69,12 +98,15 @@ export function GlobalPlayerProvider({ children }) {
     schedulePlayVideo,
     desiredPlaybackState,
     hasUserUnlockedPlayback,
+    loadTrackForImmediatePlayback,
   ]);
 
   const next = useCallback((options = {}) => {
     const shouldContinuePlaying = options.forcePlay === true
       ? true
       : desiredPlaybackState === 'playing';
+    let selectedTrack = null;
+
     console.log('[PLAYER][NEXT_CLICK]', {
       isPlaying,
       currentTrackIndex,
@@ -85,6 +117,7 @@ export function GlobalPlayerProvider({ children }) {
     setCurrentTrackIndex((prev) => {
       if (!playlist.length) return 0;
       const nextIndex = (prev + 1) % playlist.length;
+      selectedTrack = playlist[nextIndex] || null;
       console.log('[PLAYER][TRACK_AFTER_CHANGE]', {
         source: 'next',
         previousIndex: prev,
@@ -100,23 +133,32 @@ export function GlobalPlayerProvider({ children }) {
         setPendingManualPlay(true);
       }
       setIsPlaying(true);
+
+      if (selectedTrack && loadTrackForImmediatePlayback(selectedTrack)) {
+        schedulePlayVideo();
+        return;
+      }
+
       schedulePlayVideo();
     } else {
       setIsTrackTransitioning(false);
     }
   }, [
-    playlist.length,
+    playlist,
     isPlaying,
     currentTrackIndex,
     schedulePlayVideo,
     desiredPlaybackState,
     hasUserUnlockedPlayback,
+    loadTrackForImmediatePlayback,
   ]);
 
   const prev = useCallback((options = {}) => {
     const shouldContinuePlaying = options.forcePlay === true
       ? true
       : desiredPlaybackState === 'playing';
+    let selectedTrack = null;
+
     console.log('[PLAYER][PREV_CLICK]', {
       isPlaying,
       currentTrackIndex,
@@ -127,6 +169,7 @@ export function GlobalPlayerProvider({ children }) {
     setCurrentTrackIndex((prevIndex) => {
       if (!playlist.length) return 0;
       const nextIndex = (prevIndex - 1 + playlist.length) % playlist.length;
+      selectedTrack = playlist[nextIndex] || null;
       console.log('[PLAYER][TRACK_AFTER_CHANGE]', {
         source: 'prev',
         previousIndex: prevIndex,
@@ -142,25 +185,43 @@ export function GlobalPlayerProvider({ children }) {
         setPendingManualPlay(true);
       }
       setIsPlaying(true);
+
+      if (selectedTrack && loadTrackForImmediatePlayback(selectedTrack)) {
+        schedulePlayVideo();
+        return;
+      }
+
       schedulePlayVideo();
     } else {
       setIsTrackTransitioning(false);
     }
   }, [
-    playlist.length,
+    playlist,
     isPlaying,
     currentTrackIndex,
     schedulePlayVideo,
     desiredPlaybackState,
     hasUserUnlockedPlayback,
+    loadTrackForImmediatePlayback,
   ]);
 
   const play = useCallback(() => {
     setDesiredPlaybackState('playing');
     setPendingManualPlay(true);
-    playerRef?.playVideo?.();
-    console.log('[AUDIO_PLAYER][PLAY_REQUESTED]', { hasPlayer: Boolean(playerRef) });
-  }, [playerRef]);
+    setIsPlaying(true);
+
+    if (!playerRef) {
+      console.log('[AUDIO_PLAYER][PLAY_REQUESTED]', { hasPlayer: false });
+      return;
+    }
+
+    if (videoId) {
+      playerRef.loadVideoById?.(videoId);
+    }
+
+    playerRef.playVideo?.();
+    console.log('[AUDIO_PLAYER][PLAY_REQUESTED]', { hasPlayer: true, videoId });
+  }, [playerRef, videoId]);
 
   const pause = useCallback(() => {
     setDesiredPlaybackState('paused');
@@ -182,6 +243,8 @@ export function GlobalPlayerProvider({ children }) {
     const nextIndex = Number.isFinite(options.startIndex)
       ? Math.max(0, Math.min(Number(options.startIndex), Math.max(normalizedPlaylist.length - 1, 0)))
       : 0;
+    const initialTrack = normalizedPlaylist[nextIndex] || null;
+    const shouldAutoPlay = options.autoplay === true && normalizedPlaylist.length > 0;
 
     setPlaylist(normalizedPlaylist);
     setCurrentTrackIndex(nextIndex);
@@ -191,8 +254,6 @@ export function GlobalPlayerProvider({ children }) {
       startIndex: nextIndex,
     });
 
-    const shouldAutoPlay = options.autoplay === true && normalizedPlaylist.length > 0;
-
     if (!shouldAutoPlay) {
       setIsPlaying(false);
       setDesiredPlaybackState('paused');
@@ -201,12 +262,7 @@ export function GlobalPlayerProvider({ children }) {
       setHasUserUnlockedPlayback(false);
       console.log('[AUDIO_PLAYER][IS_PLAYING]', false);
       playerRef?.pauseVideo?.();
-
-      const initialTrack = normalizedPlaylist[nextIndex] || null;
-      const initialVideoId = String(initialTrack?.videoId || '').trim() || extractYoutubeId(initialTrack?.url || '');
-      if (initialVideoId) {
-        playerRef?.cueVideoById?.(initialVideoId);
-      }
+      cueTrack(initialTrack);
       return;
     }
 
@@ -215,8 +271,20 @@ export function GlobalPlayerProvider({ children }) {
     setIsTrackTransitioning(true);
     setPendingManualPlay(!hasUserUnlockedPlayback);
     console.log('[AUDIO_PLAYER][IS_PLAYING]', true);
+
+    if (loadTrackForImmediatePlayback(initialTrack)) {
+      schedulePlayVideo();
+      return;
+    }
+
     schedulePlayVideo();
-  }, [playerRef, schedulePlayVideo, hasUserUnlockedPlayback]);
+  }, [
+    playerRef,
+    schedulePlayVideo,
+    hasUserUnlockedPlayback,
+    cueTrack,
+    loadTrackForImmediatePlayback,
+  ]);
 
   const closeSession = useCallback(() => {
     setPlaylist([]);

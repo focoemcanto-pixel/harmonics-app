@@ -10,6 +10,7 @@ import EventoEscalaTab from '@/components/eventos/EventoEscalaTab';
 import ContractSignedPdfButton from '@/components/contracts/ContractSignedPdfButton';
 import { useAppToast } from '@/components/ui/ToastProvider';
 import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
+import { useAuth } from '@/contexts/AuthContext';
 
 function formatDateBR(value) {
   if (!value) return '-';
@@ -90,6 +91,21 @@ function formatTeamSummary(team) {
   };
 }
 
+
+function normalizeTabParam(tab) {
+  const value = String(tab || '').trim().toLowerCase();
+  if (value === 'detalhes' || value === 'financeiro' || value === 'escala') return value;
+  return 'resumo';
+}
+
+function EventoDetalheSkeleton({ message = 'Carregando evento...' }) {
+  return (
+    <section className="rounded-[24px] border border-[#dbe3ef] bg-white p-6 text-center text-[#64748b]">
+      {message}
+    </section>
+  );
+}
+
 function getRepertoireStatusLabel(status) {
   const value = String(status || '').trim().toLowerCase();
   if (!value || value === 'pending') return 'Aguardando envio';
@@ -103,7 +119,7 @@ export default function EventoDetalhePage() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const id = params?.id;
+  const id = typeof params?.id === 'string' ? params.id : '';
 
   const [evento, setEvento] = useState(null);
   const [repertoireStatus, setRepertoireStatus] = useState('');
@@ -111,23 +127,17 @@ export default function EventoDetalhePage() {
   const [carregando, setCarregando] = useState(true);
   const [excluindo, setExcluindo] = useState(false);
   const [processandoAntesala, setProcessandoAntesala] = useState('');
-  const [activeTab, setActiveTab] = useState('resumo');
+  const [activeTab, setActiveTab] = useState(() => normalizeTabParam(searchParams?.get('tab')));
   const [externalContract, setExternalContract] = useState(null);
   const [uploadingExternalContract, setUploadingExternalContract] = useState(false);
   const toast = useAppToast();
   const confirm = useConfirm();
+  const { initialized: authInitialized, loading: authLoading, user } = useAuth();
+  const authReady = Boolean(authInitialized && !authLoading && user);
+  const eventIdReady = Boolean(id);
 
   useEffect(() => {
-    const tab = searchParams.get('tab');
-    if (tab === 'escala') {
-      setActiveTab('escala');
-      return;
-    }
-    if (tab === 'financeiro') {
-      setActiveTab('financeiro');
-      return;
-    }
-    setActiveTab('resumo');
+    setActiveTab(normalizeTabParam(searchParams?.get('tab')));
   }, [searchParams]);
 
   const backHref = useMemo(() => {
@@ -147,8 +157,26 @@ export default function EventoDetalhePage() {
   }, [searchParams]);
 
   useEffect(() => {
+    let active = true;
+
     async function carregarEvento() {
-      if (!id) return;
+      if (!eventIdReady) {
+        setCarregando(false);
+        setEvento(null);
+        return;
+      }
+
+      if (!authReady) {
+        setCarregando(true);
+        return;
+      }
+
+      if (!supabase) {
+        setCarregando(false);
+        setEvento(null);
+        toast.error('Cliente Supabase indisponível para carregar o evento.');
+        return;
+      }
 
       try {
         setCarregando(true);
@@ -174,6 +202,7 @@ export default function EventoDetalhePage() {
         if (contractResp.error) throw contractResp.error;
         if (repertoireResp.error) throw repertoireResp.error;
 
+        if (!active) return;
         setEvento(eventResp.data || null);
         setExternalContract(contractResp.data || null);
         setRepertoireStatus(String(repertoireResp?.data?.status || ''));
@@ -184,13 +213,20 @@ export default function EventoDetalhePage() {
         });
       } catch (error) {
         console.error('Erro ao carregar detalhe do evento:', error);
+        if (active) {
+          toast.error('Não foi possível carregar o evento. Tente novamente.');
+        }
       } finally {
-        setCarregando(false);
+        if (active) setCarregando(false);
       }
     }
 
     carregarEvento();
-  }, [id]);
+
+    return () => {
+      active = false;
+    };
+  }, [authReady, eventIdReady, id, toast]);
 
   async function excluirEvento() {
     if (!evento?.id) return;
@@ -407,8 +443,8 @@ export default function EventoDetalhePage() {
           <AdminSegmentTabs items={tabs} active={activeTab} onChange={setActiveTab} />
         </div>
 
-        {carregando ? (
-          <section className="rounded-[24px] border border-[#dbe3ef] bg-white p-6 text-center text-[#64748b]">Carregando evento...</section>
+        {carregando || !authReady || !eventIdReady ? (
+          <EventoDetalheSkeleton message={!eventIdReady ? 'Preparando evento...' : 'Carregando evento...'} />
         ) : !evento ? (
           <section className="rounded-[24px] border border-[#dbe3ef] bg-white p-6 text-center text-[#64748b]">Evento não encontrado.</section>
         ) : (

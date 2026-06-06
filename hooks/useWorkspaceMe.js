@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
+const STALE_CACHE_TTL_MS = 30 * 60 * 1000;
 export const WORKSPACE_ME_INVALIDATED_EVENT = 'harmonics:workspace-me-invalidated';
 
 let workspaceMeCache = {
@@ -11,8 +12,16 @@ let workspaceMeCache = {
   promise: null,
 };
 
+function getCacheAge() {
+  return workspaceMeCache.value ? Date.now() - workspaceMeCache.fetchedAt : Infinity;
+}
+
 function isCacheFresh() {
-  return workspaceMeCache.value && Date.now() - workspaceMeCache.fetchedAt < CACHE_TTL_MS;
+  return workspaceMeCache.value && getCacheAge() < CACHE_TTL_MS;
+}
+
+function isCacheUsable() {
+  return workspaceMeCache.value && getCacheAge() < STALE_CACHE_TTL_MS;
 }
 
 async function fetchWorkspaceMe({ force = false } = {}) {
@@ -66,14 +75,15 @@ export function invalidateWorkspaceMeCache({ broadcast = true } = {}) {
 
 export default function useWorkspaceMe({ enabled = true } = {}) {
   const mountedRef = useRef(false);
-  const [data, setData] = useState(() => (isCacheFresh() ? workspaceMeCache.value : null));
-  const [loading, setLoading] = useState(enabled && !isCacheFresh());
+  const hasUsableCache = isCacheUsable();
+  const [data, setData] = useState(() => (hasUsableCache ? workspaceMeCache.value : null));
+  const [loading, setLoading] = useState(enabled && !hasUsableCache);
   const [error, setError] = useState(null);
 
-  const reload = useCallback(async ({ force = true } = {}) => {
+  const reload = useCallback(async ({ force = true, silent = false } = {}) => {
     if (!enabled) return null;
 
-    setLoading(true);
+    if (!silent) setLoading(true);
     setError(null);
 
     try {
@@ -85,11 +95,11 @@ export default function useWorkspaceMe({ enabled = true } = {}) {
     } catch (err) {
       if (mountedRef.current) {
         setError(err);
-        setData(null);
+        if (!isCacheUsable()) setData(null);
       }
       return null;
     } finally {
-      if (mountedRef.current) {
+      if (mountedRef.current && !silent) {
         setLoading(false);
       }
     }
@@ -108,6 +118,10 @@ export default function useWorkspaceMe({ enabled = true } = {}) {
     if (isCacheFresh()) {
       setData(workspaceMeCache.value);
       setLoading(false);
+    } else if (isCacheUsable()) {
+      setData(workspaceMeCache.value);
+      setLoading(false);
+      reload({ force: false, silent: true });
     } else {
       reload({ force: false });
     }

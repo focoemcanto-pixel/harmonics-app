@@ -41,6 +41,11 @@ function isClientPublicRoute(pathname = '') {
   return pathname?.startsWith('/cliente/') || pathname?.startsWith('/contrato/');
 }
 
+function isMobileViewport() {
+  if (typeof window === 'undefined') return false;
+  return window.matchMedia('(max-width: 767px)').matches;
+}
+
 export default function DeferredOnboardingMount({
   variant,
   showTour = false,
@@ -82,6 +87,18 @@ export default function DeferredOnboardingMount({
 
     async function loadEligibility() {
       try {
+        const shouldSkipNormalMobileEligibility =
+          isMobileViewport() && !manualGuideRequested && !freshWorkspace && !showTour;
+
+        if (shouldSkipNormalMobileEligibility) {
+          if (active) {
+            setOnboardingEnabled(false);
+            setPrimaryWorkspace(true);
+            setLoadingEligibility(false);
+          }
+          return;
+        }
+
         const response = await fetch('/api/onboarding/flow-status', {
           credentials: 'include',
           cache: 'no-store',
@@ -131,7 +148,7 @@ export default function DeferredOnboardingMount({
     return () => {
       active = false;
     };
-  }, [mounted, pathname, requestedGuide, showTour]);
+  }, [freshWorkspace, manualGuideRequested, mounted, pathname, requestedGuide, showTour]);
 
   if (!mounted || loadingEligibility) return null;
 

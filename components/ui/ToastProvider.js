@@ -5,6 +5,7 @@ import {
   useContext,
   useState,
   useCallback,
+  useMemo,
   useSyncExternalStore,
 } from 'react';
 import { createPortal } from 'react-dom';
@@ -27,18 +28,18 @@ export function useAppToast() {
   const context = useToast() || {};
   const showToast = context.showToast || (() => {});
 
-  const notify = (message, type = 'default') => {
+  const notify = useCallback((message, type = 'default') => {
     showToast(message, type);
-  };
+  }, [showToast]);
 
-  return {
+  return useMemo(() => ({
     showToast,
     notify,
     success: (message) => notify(message, 'success'),
     error: (message) => notify(message, 'error'),
     warning: (message) => notify(message, 'warning'),
     info: (message) => notify(message, 'info'),
-  };
+  }), [notify, showToast]);
 }
 
 export function ToastProvider({ children }) {
@@ -67,8 +68,10 @@ export function ToastProvider({ children }) {
     [removeToast]
   );
 
+  const contextValue = useMemo(() => ({ showToast }), [showToast]);
+
   return (
-    <ToastContext.Provider value={{ showToast }}>
+    <ToastContext.Provider value={contextValue}>
       {children}
 
       {portalTarget

@@ -31,6 +31,11 @@ const ALL_MOBILE_DRAWER_MODULES = Array.from(
 const ONBOARDING_ROUTE_PREFIXES = ['/dashboard', '/eventos', '/pre-contratos', '/contratos/templates', '/automacoes', '/configuracoes/equipe', '/templates-escala', '/escalas/templates', '/pagamentos', '/repertorios'];
 const CLIENT_PANEL_GUIDE_KEYS = ['harmonics:onboarding-tour:v1', 'harmonics:client-panel:onboarding'];
 
+function isMobileViewport() {
+  if (typeof window === 'undefined') return false;
+  return window.matchMedia('(max-width: 767px)').matches;
+}
+
 function getInitials(name) {
   if (!name) return '?';
   return name.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase();
@@ -276,6 +281,7 @@ export default function AdminShell({ pageTitle, children, mobileActions, activeI
 
   useEffect(() => {
     if (!initialized || loading || !user || isClientPublicRoute || typeof window === 'undefined') return undefined;
+    if (isMobileViewport()) return undefined;
 
     const timer = window.setTimeout(() => {
       prefetchableAdminHrefs.slice(0, 12).forEach((href) => {

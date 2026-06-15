@@ -84,6 +84,7 @@ export default function DeferredOnboardingMount({
 
   useEffect(() => {
     let active = true;
+    if (process.env.NODE_ENV !== 'production') console.debug('[ONBOARDING][MOUNT]', { pathname, requestedGuide: requestedGuide || null, freshWorkspace, showTour });
 
     async function loadEligibility() {
       try {
@@ -99,12 +100,23 @@ export default function DeferredOnboardingMount({
           return;
         }
 
+        if (!manualGuideRequested && !freshWorkspace && !showTour) {
+          if (active) {
+            setOnboardingEnabled(false);
+            setPrimaryWorkspace(false);
+            setLoadingEligibility(false);
+          }
+          return;
+        }
+
+        if (process.env.NODE_ENV !== 'production') console.debug('[ONBOARDING][FETCH_STATUS_START]', { pathname, requestedGuide: requestedGuide || null });
         const response = await fetch('/api/onboarding/flow-status', {
           credentials: 'include',
           cache: 'no-store',
         });
 
         if (!response.ok) {
+          if (process.env.NODE_ENV !== 'production') console.debug('[ONBOARDING][FETCH_STATUS_ERROR]', { status: response.status });
           if (active) {
             setOnboardingEnabled(false);
             setPrimaryWorkspace(false);
@@ -118,7 +130,7 @@ export default function DeferredOnboardingMount({
         const isPrimary = data?.primaryWorkspace === true;
 
         if (process.env.NODE_ENV !== 'production') {
-          console.debug('[ONBOARDING][DeferredOnboardingMount]', {
+          console.debug('[ONBOARDING][FETCH_STATUS_SUCCESS]', {
             workspaceId: data?.workspaceId || null,
             onboardingEnabled: enabled,
             primaryWorkspace: isPrimary,
@@ -129,12 +141,15 @@ export default function DeferredOnboardingMount({
           });
         }
 
+        if (isPrimary && process.env.NODE_ENV !== 'production') console.debug('[ONBOARDING][SKIP_PRIMARY_WORKSPACE]', { workspaceId: data?.workspaceId || null });
+
         if (active) {
-          setOnboardingEnabled(enabled);
+          setOnboardingEnabled(isPrimary ? false : enabled);
           setPrimaryWorkspace(isPrimary);
           setLoadingEligibility(false);
         }
-      } catch {
+      } catch (error) {
+        if (process.env.NODE_ENV !== 'production') console.debug('[ONBOARDING][FETCH_STATUS_ERROR]', { message: error?.message || String(error) });
         if (active) {
           setOnboardingEnabled(false);
           setPrimaryWorkspace(false);

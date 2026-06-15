@@ -698,6 +698,7 @@ export default function ContractTemplatesPage() {
                     {!!String(richContentHtml || form.source_text || '').trim() && (
                       <button
                         type="button"
+                        data-tour="template-dynamic-fields-button"
                         onClick={abrirPreparadorCampos}
                         className="mt-3 rounded-2xl border border-violet-200 bg-violet-50 px-4 py-2.5 text-xs font-black text-violet-700 transition hover:bg-violet-100"
                       >

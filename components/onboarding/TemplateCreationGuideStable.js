@@ -54,6 +54,10 @@ function visible(element) {
   return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
 }
 
+function devLog(label, payload) {
+  if (process.env.NODE_ENV !== 'production') console.debug(label, payload || {});
+}
+
 function findTarget(step) {
   if (!step?.selector) return null;
   const candidates = Array.from(document.querySelectorAll(step.selector));
@@ -138,6 +142,7 @@ export default function TemplateCreationGuideStable({ enabled = false }) {
     if (!active) return undefined;
 
     function handleTemplateSaved() {
+      devLog('[ONBOARDING][TEMPLATE_SAVED]');
       setTemplateSaved(true);
       setSavingRequested(false);
       setStepIndex(STEPS.length - 1);
@@ -154,9 +159,11 @@ export default function TemplateCreationGuideStable({ enabled = false }) {
     function sync() {
       const target = findTarget(STEPS[stepIndex]);
       if (!target) {
+        if (STEPS[stepIndex]?.selector === '[data-tour="template-dynamic-fields-button"]') devLog('[ONBOARDING][DYNAMIC_FIELDS_STEP_TARGET_MISSING]');
         setBox(null);
         return;
       }
+      if (STEPS[stepIndex]?.selector === '[data-tour="template-dynamic-fields-button"]') devLog('[ONBOARDING][DYNAMIC_FIELDS_STEP_TARGET_FOUND]');
       target.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'auto' });
       requestAnimationFrame(() => setBox(boxFromElement(target)));
     }

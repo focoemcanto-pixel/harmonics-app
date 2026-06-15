@@ -9,7 +9,6 @@ import DeferredOnboardingMount from '@/components/onboarding/DeferredOnboardingM
 import { useAuth } from '@/contexts/AuthContext';
 import { redirectToLogin } from '@/lib/auth/logoutRedirect';
 import useWorkspaceMe from '@/hooks/useWorkspaceMe';
-import { getSupabase } from '@/lib/supabase';
 
 const MOBILE_DRAWER_SECTIONS = [
   { key: 'operacional', label: 'OPERACIONAL', items: [{ module: 'dashboard', label: 'Dashboard', href: '/dashboard', icon: '🏠', helper: 'Visão executiva' }, { module: 'eventos', label: 'Eventos', href: '/eventos', icon: '📅', helper: 'Próximas entregas' }, { module: 'escalas', label: 'Escalas', href: '/escalas', icon: '🎼', helper: 'Operação musical' }, { module: 'convites', label: 'Convites', href: '/convites', icon: '✉️', helper: 'Chamadas e respostas' }] },
@@ -28,7 +27,6 @@ const ALL_MOBILE_DRAWER_MODULES = Array.from(
   )
 );
 
-const ONBOARDING_ROUTE_PREFIXES = ['/dashboard', '/eventos', '/pre-contratos', '/contratos/templates', '/automacoes', '/configuracoes/equipe', '/templates-escala', '/escalas/templates', '/pagamentos', '/repertorios'];
 const CLIENT_PANEL_GUIDE_KEYS = ['harmonics:onboarding-tour:v1', 'harmonics:client-panel:onboarding'];
 
 function isMobileViewport() {
@@ -236,7 +234,6 @@ export default function AdminShell({ pageTitle, children, mobileActions, activeI
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const supabase = useMemo(() => getSupabase(), []);
   const { user, initialized, loading } = useAuth();
   const [moreOpen, setMoreOpen] = useState(false);
   const [showTour, setShowTour] = useState(false);
@@ -265,7 +262,6 @@ export default function AdminShell({ pageTitle, children, mobileActions, activeI
   const prefetchableAdminHrefs = useMemo(() => Array.from(new Set(
     visibleDrawerSections.flatMap((section) => section.items.map((item) => stripClientPanelGuideFromHref(item.href))).filter(Boolean)
   )), [visibleDrawerSections]);
-  const isOnboardingRoute = ONBOARDING_ROUTE_PREFIXES.some((prefix) => pathname === prefix || pathname?.startsWith(`${prefix}/`));
   const isClientPublicRoute = pathname?.startsWith('/cliente/') || pathname?.startsWith('/contrato/');
   const isClientPanelGuideParam = searchParams?.get('guide') === 'client-panel' || searchParams?.get('onboarding') === 'client-panel';
   const forceTemplateGuide = pathname === '/contratos/templates' && (searchParams?.get('guide') === 'template' || searchParams?.get('onboarding') === 'template');
@@ -309,6 +305,7 @@ export default function AdminShell({ pageTitle, children, mobileActions, activeI
 
     const cleanUrl = `${current.pathname}${current.search}${current.hash}` || '/dashboard';
     window.history.replaceState(null, '', cleanUrl);
+    if (process.env.NODE_ENV !== 'production') console.debug('[ONBOARDING][GUIDE_PARAM_STRIPPED]', { cleanUrl });
     router.replace(cleanUrl, { scroll: false });
 
     return () => window.clearTimeout(hideTourTimer);
@@ -334,30 +331,15 @@ export default function AdminShell({ pageTitle, children, mobileActions, activeI
           return;
         }
 
-        if (!supabase?.auth) {
-          if (active) window.setTimeout(() => setShowTour(false), 0);
-          return;
-        }
+        setShowTour(false);
+        return;
 
-        const { data } = await supabase.auth.getSession();
-        const token = data?.session?.access_token;
-        if (!token) return;
-
-        const response = await fetch('/api/onboarding/progress', {
-          cache: 'no-store',
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        const payload = await response.json().catch(() => null);
-        if (!active) return;
-
-        setShowTour(Boolean(response.ok && payload?.showOnboarding));
       } catch {
         if (active) window.setTimeout(() => setShowTour(false), 0);
       }
     }
 
-    if (!isClientPublicRoute && !isClientPanelGuideParam && (isOnboardingRoute || forceTemplateGuide || forceFreshWorkspaceTour)) {
+    if (!isClientPublicRoute && !isClientPanelGuideParam && (forceTemplateGuide || forceFreshWorkspaceTour)) {
       loadTourEligibility();
     } else {
       const timer = window.setTimeout(() => setShowTour(false), 0);
@@ -370,7 +352,7 @@ export default function AdminShell({ pageTitle, children, mobileActions, activeI
     return () => {
       active = false;
     };
-  }, [forceFreshWorkspaceTour, forceTemplateGuide, isClientPanelGuideParam, isClientPublicRoute, isOnboardingRoute, pathname, supabase]);
+  }, [forceFreshWorkspaceTour, forceTemplateGuide, isClientPanelGuideParam, isClientPublicRoute, pathname]);
 
   if (initialized && !loading && !user) {
     return null;

@@ -132,15 +132,18 @@ export async function POST(request) {
 
     const existingMembership = await userAlreadyHasWorkspace({ supabase, userId: user.id });
     if (existingMembership?.workspace_id) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: 'Este usuário já pertence a um workspace ativo.',
-          code: 'USER_ALREADY_HAS_WORKSPACE',
-          workspaceId: existingMembership.workspace_id,
+      return NextResponse.json({
+        ok: true,
+        alreadyBootstrapped: true,
+        code: 'USER_ALREADY_HAS_WORKSPACE',
+        user: {
+          id: user.id,
+          email: user.email,
         },
-        { status: 409 }
-      );
+        membership: existingMembership,
+        workspaceId: existingMembership.workspace_id,
+        next: '/eventos',
+      });
     }
 
     const profile = await ensureProfileSafe({ supabase, user, fullName });

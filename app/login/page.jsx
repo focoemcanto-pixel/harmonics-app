@@ -81,37 +81,8 @@ function LoginPageContent() {
 
       if (loginError) throw loginError;
 
-      const pendingRaw = typeof window !== 'undefined' ? window.localStorage.getItem('harmonics_pending_signup_bootstrap') : null;
-      if (pendingRaw) {
-        try {
-          const pending = JSON.parse(pendingRaw);
-          const accessToken = data?.session?.access_token;
-
-          if (accessToken && pending?.workspaceName) {
-            const response = await fetch('/api/public/signup/bootstrap', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${accessToken}`,
-              },
-              body: JSON.stringify(pending),
-            });
-
-            const payload = await response.json().catch(() => null);
-            if (!response.ok || !payload?.ok) {
-              throw new Error(payload?.error || 'Não foi possível finalizar seu workspace.');
-            }
-
-            window.localStorage.removeItem('harmonics_pending_signup_bootstrap');
-            router.push(payload?.next || '/onboarding');
-            router.refresh();
-            return;
-          }
-        } catch (bootstrapError) {
-          console.error('[LOGIN][PENDING_BOOTSTRAP_ERROR]', bootstrapError);
-          setError(bootstrapError?.message || 'Login realizado, mas não foi possível finalizar o workspace.');
-          return;
-        }
+      if (typeof window !== 'undefined') {
+        window.localStorage.removeItem('harmonics_pending_signup_bootstrap');
       }
 
       const accessToken = data?.session?.access_token || null;

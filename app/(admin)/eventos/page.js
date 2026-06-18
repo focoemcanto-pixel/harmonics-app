@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { generatePrecontractFromEvent } from '@/lib/contracts/generate-precontract-from-event';
@@ -116,6 +116,75 @@ const SORT_MODE_TO_QUERY = {
   'Data do evento': 'data_evento',
   'Data de adição': 'data_adicao',
 };
+
+const EVENTOS_ALLOWED_QUERY_PARAMS = new Set([
+  'status',
+  'ordem',
+  'data',
+  'busca',
+  'tab',
+  'guide',
+  'onboarding',
+  'eventId',
+]);
+const EVENTOS_SCALE_OPERATIONAL_QUERY_PARAMS = new Set([
+  'retorno',
+  'filaEscala',
+  'lista',
+  'from',
+  'back',
+  'scale',
+  'escalaEventId',
+]);
+const EVENTOS_MOBILE_TAB_BY_DESKTOP_TAB = {
+  visao: 'resumo',
+  operacao: 'lista',
+  evento: 'evento',
+  precos: 'precos',
+};
+
+function logEventosUrlSync(action, payload = {}) {
+  if (process.env.NODE_ENV !== 'production') {
+    console.info(`[EVENTOS_URL_SYNC][${action}]`, payload);
+  }
+}
+
+function normalizeEventosListParams(value) {
+  const sourceParams = new URLSearchParams(value || '');
+  const normalizedParams = new URLSearchParams();
+  const strippedScaleParams = [];
+  const strippedUnknownParams = [];
+  let normalizedScaleTab = false;
+
+  sourceParams.forEach((paramValue, key) => {
+    if (EVENTOS_SCALE_OPERATIONAL_QUERY_PARAMS.has(key)) {
+      strippedScaleParams.push(key);
+      return;
+    }
+
+    if (!EVENTOS_ALLOWED_QUERY_PARAMS.has(key)) {
+      strippedUnknownParams.push(key);
+      return;
+    }
+
+    if (key === 'tab' && paramValue === 'escala') {
+      normalizedParams.set('tab', 'operacao');
+      normalizedScaleTab = true;
+      return;
+    }
+
+    normalizedParams.set(key, paramValue);
+  });
+
+  return {
+    params: normalizedParams,
+    value: normalizedParams.toString(),
+    strippedScaleParams,
+    strippedUnknownParams,
+    normalizedScaleTab,
+  };
+}
+
 const PRICING_FIELDS_TO_CONFIRM = [
   'price_solo',
   'price_duo',
@@ -493,6 +562,9 @@ export default function EventosPage() {
     ? mobileTab
     : 'lista';
   const currentParamsValue = searchParams.toString();
+  const currentParamsValueRef = useRef(currentParamsValue);
+  const didHydrateFromUrlRef = useRef(false);
+  const lastWrittenParamsRef = useRef('');
   const cleanupGuideEventId = searchParams.get('eventId') || '';
   const guideQuery = String(searchParams.get('guide') || '').trim();
   const onboardingResume = String(searchParams.get('onboarding') || '').trim() === 'resume';
@@ -539,16 +611,51 @@ export default function EventosPage() {
   }, [busca]);
 
   useEffect(() => {
-    const params = new URLSearchParams(currentParamsValue);
+    currentParamsValueRef.current = currentParamsValue;
+  }, [currentParamsValue]);
+
+  useEffect(() => {
+    if (lastWrittenParamsRef.current === currentParamsValue && didHydrateFromUrlRef.current) {
+      logEventosUrlSync('SKIP_SAME', { reason: 'last_written_navigation', value: currentParamsValue });
+      return;
+    }
+
+    const normalized = normalizeEventosListParams(currentParamsValue);
+    const params = normalized.params;
+
+    if (normalized.strippedScaleParams.length > 0) {
+      logEventosUrlSync('STRIP_SCALE_PARAMS', {
+        removed: normalized.strippedScaleParams,
+        from: currentParamsValue,
+        to: normalized.value,
+      });
+    }
+    if (normalized.normalizedScaleTab) {
+      logEventosUrlSync('NORMALIZE_SCALE_TAB', {
+        from: currentParamsValue,
+        to: normalized.value,
+      });
+    }
+    logEventosUrlSync('READ', {
+      from: currentParamsValue,
+      normalized: normalized.value,
+      strippedUnknownParams: normalized.strippedUnknownParams,
+    });
+
+    if (normalized.value !== currentParamsValue) {
+      lastWrittenParamsRef.current = normalized.value;
+      currentParamsValueRef.current = normalized.value;
+      router.replace(normalized.value ? `/eventos?${normalized.value}` : '/eventos', { scroll: false });
+    }
+
     const queryViewMode = VIEW_MODE_BY_QUERY[params.get('status')];
     const queryMonth = params.get('data');
     const queryBusca = params.get('busca');
     const querySortMode = SORT_MODE_BY_QUERY[params.get('ordem')];
     const requestedTab = params.get('tab');
-    const normalizedTab =
-      requestedTab === 'escala' || requestedTab === 'operacao'
-        ? 'operacao'
-        : requestedTab || 'visao';
+    const normalizedTab = DESKTOP_TABS.some((tab) => tab.key === requestedTab)
+      ? requestedTab
+      : 'visao';
 
     setViewMode((current) => {
       const resolvedViewMode =
@@ -560,10 +667,11 @@ export default function EventosPage() {
     setSortMode((current) =>
       querySortMode && querySortMode !== current ? querySortMode : current
     );
-    if (normalizedTab === 'operacao') {
-      setDesktopTab((current) => (current !== 'operacao' ? 'operacao' : current));
-      setMobileTab((current) => (current !== 'lista' ? 'lista' : current));
-    }
+    setDesktopTab((current) => (normalizedTab !== current ? normalizedTab : current));
+    setMobileTab((current) => {
+      const next = EVENTOS_MOBILE_TAB_BY_DESKTOP_TAB[normalizedTab] || 'resumo';
+      return next !== current ? next : current;
+    });
 
     setMonthFilter((current) => {
       const next = queryMonth || 'all';
@@ -573,25 +681,26 @@ export default function EventosPage() {
       const next = queryBusca || '';
       return next !== current ? next : current;
     });
-  }, [currentParamsValue]);
+    didHydrateFromUrlRef.current = true;
+  }, [currentParamsValue, router]);
 
   useEffect(() => {
-    const nextParams = new URLSearchParams(currentParamsValue);
+    if (!didHydrateFromUrlRef.current) return;
+
+    const currentValue = currentParamsValueRef.current;
+    const { params: nextParams } = normalizeEventosListParams(currentValue);
     const statusQuery = VIEW_MODE_TO_QUERY[viewMode];
     const sortQuery = SORT_MODE_TO_QUERY[sortMode];
-    const requestedTab = nextParams.get('tab');
-    const shouldUseOperacaoTab =
-      requestedTab === 'escala' ||
-      requestedTab === 'operacao' ||
-      desktopTab === 'operacao';
 
     if (statusQuery) nextParams.set('status', statusQuery);
+    else nextParams.delete('status');
     if (sortQuery) nextParams.set('ordem', sortQuery);
+    else nextParams.delete('ordem');
     if (monthFilter && monthFilter !== 'all') nextParams.set('data', monthFilter);
     else nextParams.delete('data');
     if (debouncedBusca) nextParams.set('busca', debouncedBusca);
     else nextParams.delete('busca');
-    if (shouldUseOperacaoTab) {
+    if (desktopTab === 'operacao') {
       nextParams.set('tab', 'operacao');
     } else if (desktopTab && desktopTab !== 'visao') {
       nextParams.set('tab', desktopTab);
@@ -600,11 +709,20 @@ export default function EventosPage() {
     }
 
     const nextValue = nextParams.toString();
-    const currentValue = currentParamsValue;
-    if (nextValue !== currentValue) {
-      router.replace(nextValue ? `/eventos?${nextValue}` : '/eventos', { scroll: false });
+    if (nextValue === currentValue || nextValue === lastWrittenParamsRef.current) {
+      logEventosUrlSync('SKIP_SAME', {
+        current: currentValue,
+        next: nextValue,
+        lastWritten: lastWrittenParamsRef.current,
+      });
+      return;
     }
-  }, [viewMode, sortMode, monthFilter, debouncedBusca, router, desktopTab, currentParamsValue]);
+
+    logEventosUrlSync('WRITE', { from: currentValue, to: nextValue });
+    lastWrittenParamsRef.current = nextValue;
+    currentParamsValueRef.current = nextValue;
+    router.replace(nextValue ? `/eventos?${nextValue}` : '/eventos', { scroll: false });
+  }, [viewMode, sortMode, monthFilter, debouncedBusca, router, desktopTab]);
 
   useEffect(() => {
     console.info('[EVENTOS][TITLE_SOURCE]', {

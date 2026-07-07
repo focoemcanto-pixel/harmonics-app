@@ -5,6 +5,7 @@ import ConfirmDialogProvider from "@/components/ui/ConfirmDialogProvider";
 import GoogleMapsScriptClient from "@/components/GoogleMapsScriptClient";
 import GlobalPlayerRoot from "@/components/player/GlobalPlayerRoot";
 import ContractPreviewMobileFix from "@/components/contratos/ContractPreviewMobileFix";
+import ClientRepertoireHotfixes from "@/components/cliente/ClientRepertoireHotfixes";
 
 export const metadata: Metadata = {
   title: "Harmonics",
@@ -40,6 +41,7 @@ export default function RootLayout({
             <ConfirmDialogProvider>{children}</ConfirmDialogProvider>
           </GlobalPlayerRoot>
         </ToastProvider>
+        <ClientRepertoireHotfixes />
         <ContractPreviewMobileFix />
         <GoogleMapsScriptClient apiKey={GOOGLE_MAPS_KEY} />
       </body>

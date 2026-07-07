@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 function StatusBadge({ status }) {
   const normalized = String(status || 'pending').toLowerCase();
@@ -94,7 +94,24 @@ export default function MembroEscalaModal({
   musicians = [],
   onClose,
 }) {
-  const hasScale = Array.isArray(musicians) && musicians.length > 0;
+  const [fallbackMusicians, setFallbackMusicians] = useState([]);
+  const [fallbackLoading, setFallbackLoading] = useState(false);
+  const [fallbackError, setFallbackError] = useState('');
+
+  const displayedMusicians = useMemo(() => {
+    if (Array.isArray(musicians) && musicians.length > 0) return musicians;
+    return fallbackMusicians;
+  }, [musicians, fallbackMusicians]);
+
+  const hasScale = displayedMusicians.length > 0;
+
+  useEffect(() => {
+    if (!open) {
+      setFallbackMusicians([]);
+      setFallbackError('');
+      setFallbackLoading(false);
+    }
+  }, [open]);
 
   useEffect(() => {
     if (!open || typeof document === 'undefined') return;
@@ -115,11 +132,56 @@ export default function MembroEscalaModal({
   }, [open]);
 
   useEffect(() => {
-    if (!open || hasScale) return;
+    if (!open) return undefined;
+    if (Array.isArray(musicians) && musicians.length > 0) return undefined;
+
+    const clientName = String(eventTitle || '').trim();
+    if (!clientName || clientName === 'Escala' || clientName === 'Evento') return undefined;
+
+    let cancelled = false;
+
+    async function loadFallbackScale() {
+      try {
+        setFallbackLoading(true);
+        setFallbackError('');
+
+        const response = await fetch(`/api/membro/escala/by-client?clientName=${encodeURIComponent(clientName)}`, {
+          method: 'GET',
+          cache: 'no-store',
+        });
+        const result = await response.json().catch(() => null);
+
+        if (!response.ok || !result?.ok) {
+          throw new Error(result?.error || 'Não foi possível carregar a escala salva.');
+        }
+
+        if (!cancelled) {
+          setFallbackMusicians(Array.isArray(result?.musicians) ? result.musicians : []);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setFallbackError(error?.message || 'Não foi possível carregar a escala salva.');
+          setFallbackMusicians([]);
+        }
+      } finally {
+        if (!cancelled) setFallbackLoading(false);
+      }
+    }
+
+    loadFallbackScale();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, eventTitle, musicians]);
+
+  useEffect(() => {
+    if (!open || hasScale || fallbackLoading) return;
     console.info('[MEMBER_SCALE][EMPTY_STATE_RENDER]', {
       eventTitle: eventTitle || null,
+      fallbackError: fallbackError || null,
     });
-  }, [open, hasScale, eventTitle]);
+  }, [open, hasScale, eventTitle, fallbackLoading, fallbackError]);
 
   if (!open) return null;
 
@@ -164,18 +226,27 @@ export default function MembroEscalaModal({
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-[calc(env(safe-area-inset-bottom,0px)+16px)] pt-4 [-webkit-overflow-scrolling:touch]">
-            {!hasScale ? (
+            {fallbackLoading ? (
+              <div className="rounded-[16px] border border-white/10 bg-white/5 px-4 py-5 text-center">
+                <div className="text-[14px] font-semibold text-white/70">
+                  Carregando escala salva...
+                </div>
+                <div className="mt-1 text-[12px] font-medium text-white/50">
+                  Buscando músicos confirmados deste evento.
+                </div>
+              </div>
+            ) : !hasScale ? (
               <div className="rounded-[16px] border border-dashed border-white/10 bg-white/5 px-4 py-5 text-center">
                 <div className="text-[14px] font-semibold text-white/70">
                   Sem escala montada até o momento.
                 </div>
                 <div className="mt-1 text-[12px] font-medium text-white/50">
-                  A escala deste evento ainda não foi definida pela administração.
+                  {fallbackError || 'A escala deste evento ainda não foi definida pela administração.'}
                 </div>
               </div>
             ) : (
               <div className="space-y-2">
-                {musicians.map((item, index) => (
+                {displayedMusicians.map((item, index) => (
                   <MusicianRow
                     key={`${item?.id || item?.musician_id || index}`}
                     item={item}

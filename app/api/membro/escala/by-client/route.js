@@ -24,14 +24,16 @@ function normalize(value) {
 }
 
 function mapRowToMusician(row = {}, contact = null) {
+  const contactName = contact?.name || row?.snapshot_name || row?.musician_name || '';
+
   return {
     id: row?.id,
     musician_id: row?.musician_id || row?.contact_id || contact?.id || null,
     role: row?.role || row?.suggested_role_name || contact?.tag || '',
     status: row?.status || 'pending',
-    full_name: contact?.full_name || contact?.name || row?.snapshot_name || row?.musician_name || '',
-    name: contact?.name || contact?.full_name || row?.snapshot_name || row?.musician_name || '',
-    musician_name: row?.musician_name || row?.snapshot_name || contact?.name || contact?.full_name || '',
+    full_name: contactName,
+    name: contactName,
+    musician_name: row?.musician_name || row?.snapshot_name || contact?.name || '',
     snapshot_name: row?.snapshot_name || '',
     contact,
     notes: row?.notes || row?.message || '',
@@ -47,7 +49,7 @@ async function fetchContactsByIds(supabase, ids = []) {
 
   const { data, error } = await supabase
     .from('contacts')
-    .select('id, full_name, name, email, phone, tag')
+    .select('id, name, email, phone, tag')
     .in('id', safeIds);
 
   if (error) throw error;
@@ -81,7 +83,7 @@ async function resolveEvent(supabase, clientName) {
     return !Number.isNaN(date.getTime()) && date >= today;
   });
 
-  return (upcoming[0] || matches[matches.length - 1] || null);
+  return upcoming[0] || matches[matches.length - 1] || null;
 }
 
 export async function GET(request) {

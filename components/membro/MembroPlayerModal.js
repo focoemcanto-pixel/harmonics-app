@@ -6,59 +6,37 @@ import { extractYoutubeId } from '../../lib/membro/membro-invites';
 const CONTROL_BUTTON_CLASS = 'min-h-12 min-w-0 touch-manipulation rounded-[18px] px-3 py-4 text-[13px] font-black text-white transition active:scale-[0.98]';
 const TRACK_BUTTON_BASE_CLASS = 'block min-h-16 w-full touch-manipulation rounded-[22px] border px-4 py-4 text-left transition active:scale-[0.99]';
 
-function YoutubePlaybackFrame({ videoId, title, isPlaying, thumbnailUrl }) {
-  const embedSrc = useMemo(() => {
-    if (!videoId || !isPlaying) return '';
-    const params = new URLSearchParams({
-      autoplay: '1',
-      playsinline: '1',
-      rel: '0',
-      modestbranding: '1',
-      controls: '1',
-      enablejsapi: '1',
-    });
-    return `https://www.youtube.com/embed/${encodeURIComponent(videoId)}?${params.toString()}`;
-  }, [videoId, isPlaying]);
-
+function YoutubePlaybackFrame({ title, isPlaying, thumbnailUrl, onTogglePlay }) {
   return (
-    <div className="w-full overflow-hidden rounded-[18px] border border-white/10 bg-black/45">
+    <button
+      type="button"
+      onClick={onTogglePlay}
+      className="w-full overflow-hidden rounded-[18px] border border-white/10 bg-black/45 text-left active:scale-[0.99]"
+    >
       <div className="relative aspect-video w-full">
-        {embedSrc ? (
-          <iframe
-            key={`${videoId}-playing`}
-            src={embedSrc}
-            title={title || 'Player do repertório'}
-            className="absolute inset-0 h-full w-full"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-            allowFullScreen
+        {thumbnailUrl ? (
+          <img
+            src={thumbnailUrl}
+            alt={title || 'Thumbnail da faixa'}
+            className="absolute inset-0 h-full w-full object-cover"
           />
-        ) : (
-          <>
-            {thumbnailUrl ? (
-              <img
-                src={thumbnailUrl}
-                alt={title || 'Thumbnail da faixa'}
-                className="absolute inset-0 h-full w-full object-cover"
-              />
-            ) : null}
+        ) : null}
 
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(124,58,237,0.28),rgba(6,8,16,0.92))]" />
-            <div className="absolute inset-0 flex items-center justify-center px-4 text-center">
-              <div className="rounded-full border border-white/20 bg-black/45 px-4 py-2 text-[11px] font-black uppercase tracking-[0.08em] text-white/85">
-                Toque em Play para iniciar o áudio
-              </div>
-            </div>
-          </>
-        )}
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(124,58,237,0.20),rgba(6,8,16,0.82))]" />
+        <div className="absolute inset-0 flex items-center justify-center px-4 text-center">
+          <div className="flex h-20 w-20 items-center justify-center rounded-full border border-white/20 bg-black/55 text-[32px] font-black text-white shadow-[0_18px_50px_rgba(0,0,0,0.45)]">
+            {isPlaying ? '⏸' : '▶'}
+          </div>
+        </div>
       </div>
-    </div>
+    </button>
   );
 }
 
 function PlayerStatusBadge({ isPlaying }) {
   return (
     <div className="inline-flex w-fit rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-white/70">
-      {isPlaying ? 'Player do YouTube ativo' : 'Player pausado'}
+      {isPlaying ? 'Referência tocando' : 'Referência pausada'}
     </div>
   );
 }
@@ -248,12 +226,12 @@ export default function MembroPlayerModal({
             <div className="flex min-w-0 flex-col gap-5">
               <PlayerStatusBadge isPlaying={isPlaying} />
               <NowPlayingCard currentTrack={currentTrack} />
-              <YoutubePlaybackFrame videoId={videoId} title={currentTrack?.title} isPlaying={isPlaying} thumbnailUrl={thumbnailUrl} />
+              <YoutubePlaybackFrame title={currentTrack?.title} isPlaying={isPlaying} thumbnailUrl={thumbnailUrl} onTogglePlay={onTogglePlay} />
               <PlayerControls isPlaying={isPlaying} currentTrack={currentTrack} onPrev={onPrev} onNext={onNext} onTogglePlay={onTogglePlay} />
               <div className="rounded-[18px] border border-white/10 bg-white/5 px-4 py-4">
                 <div className="text-[11px] font-black uppercase tracking-[0.08em] text-white/45">Como funciona</div>
                 <div className="mt-2 text-[14px] leading-6 text-white/65">
-                  O áudio agora usa o player visível do YouTube para funcionar melhor em iPhone e navegador interno do Instagram.
+                  Os controles usam um player global do YouTube. Depois do primeiro play, próxima/anterior tentam continuar automaticamente.
                 </div>
               </div>
               <TrackList playlist={playlist} currentIndex={currentIndex} onSelectTrack={onSelectTrack} />
@@ -265,12 +243,12 @@ export default function MembroPlayerModal({
               <div className="flex min-h-0 flex-col gap-5">
                 <PlayerStatusBadge isPlaying={isPlaying} />
                 <NowPlayingCard currentTrack={currentTrack} />
-                <YoutubePlaybackFrame videoId={videoId} title={currentTrack?.title} isPlaying={isPlaying} thumbnailUrl={thumbnailUrl} />
+                <YoutubePlaybackFrame title={currentTrack?.title} isPlaying={isPlaying} thumbnailUrl={thumbnailUrl} onTogglePlay={onTogglePlay} />
                 <PlayerControls desktop isPlaying={isPlaying} currentTrack={currentTrack} onPrev={onPrev} onNext={onNext} onTogglePlay={onTogglePlay} />
                 <div className="rounded-[18px] border border-white/10 bg-white/5 px-4 py-4">
                   <div className="text-[11px] font-black uppercase tracking-[0.08em] text-white/45">Como funciona</div>
                   <div className="mt-2 text-[14px] leading-6 text-white/65">
-                    Player visível do YouTube com controles e fallback seguro para reprodução com som.
+                    Player global persistente com controles externos e playlist de referências.
                   </div>
                 </div>
               </div>

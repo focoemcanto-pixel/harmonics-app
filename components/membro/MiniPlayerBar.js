@@ -19,10 +19,6 @@ export default function MiniPlayerBar({
     if (!videoId) return '';
     return `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
   }, [videoId]);
-  const miniEmbedUrl = useMemo(() => {
-    if (!videoId || !isPlaying) return '';
-    return `https://www.youtube.com/embed/${encodeURIComponent(videoId)}?autoplay=1&playsinline=1&controls=0&rel=0&modestbranding=1`;
-  }, [videoId, isPlaying]);
 
   if (!currentTrack || !isMiniPlayerVisible) return null;
 
@@ -40,15 +36,7 @@ export default function MiniPlayerBar({
             className="relative h-14 w-14 shrink-0 touch-manipulation overflow-hidden rounded-[16px] border border-white/10 bg-black/20 active:scale-[0.98]"
             aria-label="Abrir player"
           >
-            {miniEmbedUrl ? (
-              <iframe
-                key={`${videoId}-mini`}
-                src={miniEmbedUrl}
-                title={currentTrack?.title || 'Mini player'}
-                className="absolute inset-0 h-full w-full scale-[1.85]"
-                allow="autoplay; encrypted-media; picture-in-picture"
-              />
-            ) : thumbnailUrl ? (
+            {thumbnailUrl ? (
               <img
                 src={thumbnailUrl}
                 alt={currentTrack?.title || 'Thumbnail'}
@@ -59,7 +47,7 @@ export default function MiniPlayerBar({
                 {isPlaying ? '♫' : '▶'}
               </div>
             )}
-            <div className="pointer-events-none absolute inset-0 bg-black/25" />
+            <div className="pointer-events-none absolute inset-0 bg-black/30" />
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-[18px] font-black text-white">
               {isPlaying ? '♫' : '▶'}
             </div>

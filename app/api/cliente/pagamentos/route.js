@@ -161,11 +161,35 @@ export async function POST(request) {
 
     if (precontractError) throw precontractError;
 
+    let contract = null;
     if (!precontract?.event_id) {
+      const { data: contractRow, error: contractError } = await supabase
+        .from('contracts')
+        .select('event_id, public_token')
+        .eq('public_token', token)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (contractError) throw contractError;
+      contract = contractRow || null;
+    }
+
+    const eventId = precontract?.event_id || contract?.event_id || null;
+    const tokenResolution = precontract?.event_id
+      ? 'precontract_token'
+      : contract?.event_id
+        ? 'contract_token'
+        : 'none';
+
+    if (!eventId) {
       return NextResponse.json({ ok: false, error: 'Token inválido.' }, { status: 404 });
     }
 
-    const eventId = precontract.event_id;
+    console.log('[PAYMENT_PROOF][TOKEN_RESOLVED]', {
+      eventId,
+      tokenResolution,
+    });
 
     const { data: eventRow, error: eventError } = await supabase
       .from('events')
@@ -178,7 +202,7 @@ export async function POST(request) {
       return NextResponse.json({ ok: false, error: 'Evento não encontrado.' }, { status: 404 });
     }
 
-    const workspaceId = String(eventRow.workspace_id || precontract.workspace_id || '').trim();
+    const workspaceId = String(eventRow.workspace_id || precontract?.workspace_id || '').trim();
 
     if (!workspaceId) {
       return NextResponse.json(
@@ -187,7 +211,7 @@ export async function POST(request) {
       );
     }
 
-    if (precontract.workspace_id && String(precontract.workspace_id) !== workspaceId) {
+    if (precontract?.workspace_id && String(precontract.workspace_id) !== workspaceId) {
       return NextResponse.json(
         { ok: false, error: 'Token incompatível com o workspace do evento.' },
         { status: 409 }
@@ -320,12 +344,8 @@ export async function POST(request) {
     });
   } catch (error) {
     console.error('[API CLIENTE PAGAMENTOS] Erro:', error);
-
     return NextResponse.json(
-      {
-        ok: false,
-        error: error?.message || 'Não foi possível registrar o pagamento.',
-      },
+      { ok: false, error: error?.message || 'Não foi possível informar o pagamento.' },
       { status: 500 }
     );
   }

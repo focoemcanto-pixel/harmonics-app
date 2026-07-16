@@ -79,13 +79,22 @@ export default function MembroEscalaModal({ open, eventTitle, musicians = [], on
   const [refreshKey, setRefreshKey] = useState(0);
   const [hasRefreshedScale, setHasRefreshedScale] = useState(false);
 
-  const displayedMusicians = useMemo(() => {
-    if (hasRefreshedScale) return fallbackMusicians;
-    if (Array.isArray(musicians) && musicians.length > 0) return musicians;
-    return fallbackMusicians;
-  }, [musicians, fallbackMusicians, hasRefreshedScale]);
+  const originalMusicians = Array.isArray(musicians) ? musicians : [];
+  const safeFallbackMusicians = Array.isArray(fallbackMusicians) ? fallbackMusicians : [];
 
-  const hasScale = displayedMusicians.length > 0;
+  const displayedMusicians = useMemo(() => {
+    if (hasRefreshedScale) return safeFallbackMusicians;
+    if (originalMusicians.length > 0) return originalMusicians;
+    return safeFallbackMusicians;
+  }, [originalMusicians, safeFallbackMusicians, hasRefreshedScale]);
+
+  const hasScale = originalMusicians.length > 0 || safeFallbackMusicians.length > 0 || displayedMusicians.length > 0;
+  const resolvedEventId = useMemo(() => {
+    if (resolvedEvent?.id) return resolvedEvent.id;
+    const row = [...displayedMusicians, ...originalMusicians, ...safeFallbackMusicians]
+      .find((item) => item?.event_id || item?.eventId || item?.events?.id);
+    return row?.event_id || row?.eventId || row?.events?.id || null;
+  }, [resolvedEvent, displayedMusicians, originalMusicians, safeFallbackMusicians]);
 
   useEffect(() => {
     if (!open) {
@@ -113,7 +122,9 @@ export default function MembroEscalaModal({ open, eventTitle, musicians = [], on
           .select('role')
           .eq('id', session.user.id)
           .maybeSingle();
-        if (!cancelled) setIsAdmin(['admin', 'owner'].includes(String(profile?.role || '').toLowerCase()));
+        if (!cancelled) {
+          setIsAdmin(['admin', 'owner'].includes(String(profile?.role || '').toLowerCase()));
+        }
       } finally {
         if (!cancelled) setAdminChecked(true);
       }
@@ -124,7 +135,7 @@ export default function MembroEscalaModal({ open, eventTitle, musicians = [], on
   }, [open]);
 
   useEffect(() => {
-    if (!open || typeof document === 'undefined') return;
+    if (!open || typeof document === 'undefined') return undefined;
     const previousHtmlOverflow = document.documentElement.style.overflow;
     const previousBodyOverflow = document.body.style.overflow;
     const previousBodyTouchAction = document.body.style.touchAction;
@@ -142,7 +153,7 @@ export default function MembroEscalaModal({ open, eventTitle, musicians = [], on
     if (!open) return undefined;
     const clientName = String(eventTitle || '').trim();
     if (!clientName || clientName === 'Escala' || clientName === 'Evento') return undefined;
-    if (!isAdmin && Array.isArray(musicians) && musicians.length > 0 && refreshKey === 0) return undefined;
+    if (!isAdmin && originalMusicians.length > 0 && refreshKey === 0) return undefined;
 
     let cancelled = false;
     async function loadScale() {
@@ -172,15 +183,7 @@ export default function MembroEscalaModal({ open, eventTitle, musicians = [], on
 
     loadScale();
     return () => { cancelled = true; };
-  }, [open, eventTitle, musicians, isAdmin, refreshKey]);
-
-  useEffect(() => {
-    if (!open || hasScale || fallbackLoading) return;
-    console.info('[MEMBER_SCALE][EMPTY_STATE_RENDER]', {
-      eventTitle: eventTitle || null,
-      fallbackError: fallbackError || null,
-    });
-  }, [open, hasScale, eventTitle, fallbackLoading, fallbackError]);
+  }, [open, eventTitle, isAdmin, refreshKey, originalMusicians.length]);
 
   if (!open) return null;
 
@@ -206,7 +209,7 @@ export default function MembroEscalaModal({ open, eventTitle, musicians = [], on
                   <div className="mt-1 truncate text-[12px] font-semibold text-white/55">{eventTitle || 'Evento'}</div>
                 </div>
                 <div className="flex items-center gap-2">
-                  {adminChecked && isAdmin && resolvedEvent?.id ? (
+                  {adminChecked && isAdmin && resolvedEventId ? (
                     <button
                       type="button"
                       onClick={() => setBuilderOpen(true)}
@@ -243,18 +246,18 @@ export default function MembroEscalaModal({ open, eventTitle, musicians = [], on
         </div>
       </div>
 
-      {builderOpen && resolvedEvent?.id ? (
+      {builderOpen && resolvedEventId ? (
         <div className="fixed inset-0 z-[220] bg-[#080411]/95 backdrop-blur-md">
           <div className="flex h-[100dvh] flex-col overflow-hidden">
             <div className="flex shrink-0 items-center justify-between border-b border-white/10 bg-[#120a22] px-4 py-3 text-white">
               <div className="min-w-0">
-                <div className="text-[15px] font-black">Montar escala</div>
+                <div className="text-[15px] font-black">{hasScale ? 'Editar escala' : 'Montar escala'}</div>
                 <div className="truncate text-[11px] font-semibold text-white/50">{eventTitle || 'Evento'}</div>
               </div>
               <button type="button" onClick={closeBuilderAndRefresh} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[12px] font-black">Concluir</button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto bg-[#f7f4fb] px-2 py-3 md:px-5">
-              <EventoEscalaTab eventId={resolvedEvent.id} />
+              <EventoEscalaTab eventId={resolvedEventId} />
             </div>
           </div>
         </div>

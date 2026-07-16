@@ -23,6 +23,13 @@ function resolveProviderStatus(inviteResult = {}) {
   );
 }
 
+function resolveActualDispatchSuccess(inviteResult = {}) {
+  const data = inviteResult?.data || {};
+  const sent = Number(data?.sent || 0);
+  const skipped = data?.skipped === true;
+  return inviteResult?.ok === true && (sent > 0 || skipped);
+}
+
 export async function POST(request) {
   const supabaseAdmin = getSupabaseAdmin();
 
@@ -90,16 +97,22 @@ export async function POST(request) {
             return sendInvite(item, attempt + 1);
           }
 
+          const actualOk = resolveActualDispatchSuccess(inviteResult);
           const resultItem = {
             inviteId: item.id,
-            ok: inviteResult.ok,
-            status: inviteResult.status,
+            ok: actualOk,
+            status: actualOk ? inviteResult.status : inviteResult.status || 500,
             response: inviteResult.data || null,
           };
 
-          if (!inviteResult.ok) {
+          if (!actualOk) {
             const failureData = inviteResult.data || {};
-            resultItem.error = failureData.error || failureData.cause || inviteResult.error || 'Falha ao enviar convite';
+            resultItem.error =
+              failureData.error ||
+              failureData.cause ||
+              failureData.warning ||
+              inviteResult.error ||
+              'O provedor não confirmou o envio do convite';
             resultItem.cause = failureData.cause || resultItem.error;
             resultItem.providerStatus = failureData.providerStatus ?? failureData.providerError?.status ?? providerStatus ?? null;
             resultItem.providerEndpoint = failureData.providerEndpoint ?? failureData.providerError?.endpoint ?? null;

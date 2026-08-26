@@ -4,9 +4,13 @@ function patchFile(path, replacements) {
   let source = fs.readFileSync(path, 'utf8');
   let changed = false;
 
-  for (const { oldText, newText, marker } of replacements) {
+  for (const { oldText, newText, marker, optional = false } of replacements) {
     if (marker && source.includes(marker)) continue;
     if (!source.includes(oldText)) {
+      if (optional) {
+        console.log(`[member schedule permissions] ${path}: trecho legado ausente, ignorado`);
+        continue;
+      }
       throw new Error(`[member schedule permissions] Trecho esperado não encontrado em ${path}: ${oldText.slice(0, 120)}`);
     }
     source = source.replace(oldText, newText);
@@ -94,31 +98,39 @@ patchFile('app/membro/page.js', [
   },
 ]);
 
+// Este arquivo já recebeu versões posteriores do modal. As substituições abaixo
+// são compatibilidade com a versão antiga e não devem derrubar o build se o
+// trecho legado já tiver sido removido por outro patch.
 patchFile('components/membro/MembroEscalaModal.js', [
   {
     oldText: 'export default function MembroEscalaModal({ open, eventTitle, musicians = [], onClose }) {',
     newText: 'export default function MembroEscalaModal({ open, eventTitle, musicians = [], canManageSchedule = false, onClose }) {',
     marker: 'canManageSchedule = false',
+    optional: true,
   },
   {
     oldText: '  const hasScale = displayedMusicians.length > 0;',
     newText: '  const hasScale = displayedMusicians.length > 0;\n  const canEditScale = isAdmin || canManageSchedule;',
     marker: 'const canEditScale = isAdmin || canManageSchedule;',
+    optional: true,
   },
   {
     oldText: '    if (!isAdmin && Array.isArray(musicians) && musicians.length > 0 && refreshKey === 0) return undefined;',
     newText: '    if (!canEditScale && Array.isArray(musicians) && musicians.length > 0 && refreshKey === 0) return undefined;',
     marker: '!canEditScale && Array.isArray(musicians)',
+    optional: true,
   },
   {
     oldText: '  }, [open, eventTitle, musicians, isAdmin, refreshKey]);',
     newText: '  }, [open, eventTitle, musicians, canEditScale, refreshKey]);',
     marker: '[open, eventTitle, musicians, canEditScale, refreshKey]',
+    optional: true,
   },
   {
     oldText: '                  {adminChecked && isAdmin && resolvedEvent?.id ? (',
     newText: '                  {adminChecked && canEditScale && resolvedEvent?.id ? (',
     marker: 'adminChecked && canEditScale && resolvedEvent?.id',
+    optional: true,
   },
 ]);
 

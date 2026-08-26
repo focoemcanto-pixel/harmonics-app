@@ -32,12 +32,30 @@ patch('app/membro/page.js', (source) => {
     'window.__harmonicsMemberScaleCache.set(eventKey, musicians);'
   );
 
-  source = replaceOnce(
-    source,
-    "        eventTitle={scaleModalEvent?.clientName || 'Escala'}\n        eventId={scaleModalEvent?.eventId || null}\n        musicians={scaleModalMusicians}",
-    "        eventTitle={scaleModalEvent?.clientName || 'Escala'}\n        eventId={scaleModalEvent?.eventId || null}\n        musicians={scaleModalMusicians}\n        canManageSchedule={Boolean(member?.isAdmin || member?.canManageSchedules)}",
-    'musicians={scaleModalMusicians}\n        canManageSchedule={Boolean(member?.isAdmin || member?.canManageSchedules)}'
-  );
+  // contacts uses `name`; asking for legacy `full_name` makes the whole relation
+  // fail and the modal falls back to the generic label "Membro".
+  source = source.replace(/\n\s*full_name,\n\s*name,/g, '\n            name,');
+  source = source.replace("          full_name: contact?.full_name || '',\n", '');
+
+  // Always pass delegated permission to the modal. Support both the normalized
+  // camelCase member object and the raw database field as a defensive fallback.
+  const permissionExpr = "Boolean(member?.isAdmin || member?.canManageSchedules || member?.can_manage_schedules)";
+  if (source.includes('canManageSchedule={Boolean(member?.isAdmin || member?.canManageSchedules)}')) {
+    source = source.replaceAll(
+      'canManageSchedule={Boolean(member?.isAdmin || member?.canManageSchedules)}',
+      `canManageSchedule={${permissionExpr}}`
+    );
+  }
+  if (!source.includes('canManageSchedule={Boolean(member?.isAdmin || member?.canManageSchedules || member?.can_manage_schedules)}')) {
+    source = source.replace(
+      "        eventId={scaleModalEvent?.eventId || null}\n        musicians={scaleModalMusicians}",
+      "        eventId={scaleModalEvent?.eventId || null}\n        musicians={scaleModalMusicians}\n        canManageSchedule={Boolean(member?.isAdmin || member?.canManageSchedules || member?.can_manage_schedules)}"
+    );
+    source = source.replace(
+      "        eventTitle={scaleModalEvent?.clientName || 'Escala'}\n        musicians={scaleModalMusicians}",
+      "        eventTitle={scaleModalEvent?.clientName || 'Escala'}\n        eventId={scaleModalEvent?.eventId || null}\n        musicians={scaleModalMusicians}\n        canManageSchedule={Boolean(member?.isAdmin || member?.canManageSchedules || member?.can_manage_schedules)}"
+    );
+  }
 
   return source;
 });
@@ -57,7 +75,13 @@ patch('components/membro/MembroEscalaModal.js', (source) => {
     'const scaleCacheKey = String(eventId || eventTitle || \'\').trim();'
   );
 
-  // Earlier prebuild patches may already define these. Add only what is absent.
+  // Resolve every identity shape used by old/new scale endpoints. Never use a
+  // generic label if the contact name is present under another known key.
+  source = source.replace(
+    "  return member?.contact?.full_name || member?.contact?.name || member?.full_name || member?.name || member?.musician_name || member?.snapshot_name || member?.notes || 'Membro';",
+    "  return member?.contact?.name || member?.contact?.full_name || member?.contact_name || member?.member_name || member?.invitee_name || member?.name || member?.full_name || member?.musician_name || member?.snapshot_name || 'Membro';"
+  );
+
   if (!source.includes('const canEditScale = isAdmin || canManageSchedule;')) {
     source = source.replace(
       '  const hasScale = displayedMusicians.length > 0;',
@@ -82,7 +106,10 @@ patch('components/membro/MembroEscalaModal.js', (source) => {
   source = source.replaceAll('scaleCache.set(clientName, {', 'scaleCache.set(String(eventId || clientName), {');
   source = source.replaceAll("scaleCache.delete(String(eventTitle || '').trim())", "scaleCache.delete(String(eventId || eventTitle || '').trim())");
 
-  source = source.replace(/\{adminChecked && (?:isAdmin|canEditScale) && [^?]+\? <button/g, '{canEditScale && immediateEventId ? <button');
+  // Final authority for the action button: delegated permission comes from the
+  // already authenticated parent panel and must not wait for the admin lookup.
+  source = source.replace(/\{adminChecked\s*&&\s*(?:isAdmin|canEditScale)\s*&&\s*(?:resolvedEvent\?\.id|immediateEventId)\s*\?/g, '{canEditScale && immediateEventId ?');
+  source = source.replace(/\{(?:isAdmin|canEditScale)\s*&&\s*(?:resolvedEvent\?\.id|immediateEventId)\s*\?/g, '{canEditScale && immediateEventId ?');
   source = source.replace('{canEditScale ? <button', '{canEditScale && immediateEventId ? <button');
   source = source.replace('{builderOpen && resolvedEvent?.id ? <div', '{builderOpen && immediateEventId ? <div');
   source = source.replaceAll('eventId={resolvedEvent.id}', 'eventId={immediateEventId}');

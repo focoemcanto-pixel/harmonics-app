@@ -19,19 +19,19 @@ function patchFile(path, replacements) {
 
 patchFile('app/api/events/[id]/scale/route.js', [
   {
-    oldText: `      const invitesPayload = novosParaCriar.map((item) => ({\n        event_id: eventId,\n        contact_id: item.musician_id,\n        suggested_role_name: item.role || null,\n        status: 'pending',\n        invite_token:`,
-    newText: `      const invitesPayload = novosParaCriar.map((item) => {\n        const scaleStatus = String(item?.status || '').trim().toLowerCase();\n        const isPreconfirmed = scaleStatus === 'confirmed';\n        return {\n        event_id: eventId,\n        contact_id: item.musician_id,\n        suggested_role_name: item.role || null,\n        status: isPreconfirmed ? 'confirmed' : 'pending',\n        responded_at: isPreconfirmed ? item?.confirmed_at || new Date().toISOString() : null,\n        invite_token:`,
+    oldText: `        existentesParaReativar.push({\n          id: existing.id,\n          suggested_role_name: item.role || null,\n        });`,
+    newText: `        existentesParaReativar.push({\n          id: existing.id,\n          musician_id: item.musician_id,\n          status: item.status || 'pending',\n          confirmed_at: item.confirmed_at || null,\n          suggested_role_name: item.role || null,\n        });`,
+    marker: 'confirmed_at: item.confirmed_at || null,',
+  },
+  {
+    oldText: `      const invitesPayload = novosParaCriar.map((item) => ({\n        event_id: eventId,\n        contact_id: item.musician_id,\n        suggested_role_name: item.role || null,\n        status: 'pending',\n        invite_token:\n          typeof crypto !== 'undefined' && crypto.randomUUID\n            ? crypto.randomUUID()\n            : \`${Date.now()}-\${item.musician_id}\`,\n      }));`,
+    newText: `      const invitesPayload = novosParaCriar.map((item) => {\n        const scaleStatus = String(item?.status || '').trim().toLowerCase();\n        const isPreconfirmed = scaleStatus === 'confirmed';\n        return {\n          event_id: eventId,\n          contact_id: item.musician_id,\n          suggested_role_name: item.role || null,\n          status: isPreconfirmed ? 'confirmed' : 'pending',\n          responded_at: isPreconfirmed ? item?.confirmed_at || new Date().toISOString() : null,\n          invite_token:\n            typeof crypto !== 'undefined' && crypto.randomUUID\n              ? crypto.randomUUID()\n              : \`${Date.now()}-\${item.musician_id}\`,\n        };\n      });`,
     marker: "status: isPreconfirmed ? 'confirmed' : 'pending'",
   },
   {
-    oldText: `            : \`${Date.now()}-\${item.musician_id}\`,\n      }));`,
-    newText: `            : \`${Date.now()}-\${item.musician_id}\`,\n        };\n      });`,
-    marker: 'responded_at: isPreconfirmed',
-  },
-  {
     oldText: `    if (existentesParaReativar.length > 0) {\n      const existingIds = existentesParaReativar.map((item) => item.id).filter(isUuid);\n      const { error: reactivateError } = await supabase\n        .from('invites')\n        .update({\n          status: 'pending',\n          responded_at: null,\n          whatsapp_sent_at: null,\n          whatsapp_last_error: null,\n        })\n        .eq('event_id', eventId)\n        .in('id', existingIds);\n      if (reactivateError) throw reactivateError;\n\n      await updateInviteRoles(supabase, existentesParaReativar);\n    }`,
-    newText: `    if (existentesParaReativar.length > 0) {\n      for (const reactivated of existentesParaReativar) {\n        const scaleItem = escalaLocalDedupe.find((item) => String(item?.musician_id) === String(inviteMap.get(String(item?.musician_id))?.contact_id) && inviteMap.get(String(item?.musician_id))?.id === reactivated.id) ||\n          escalaLocalDedupe.find((item) => inviteMap.get(String(item?.musician_id))?.id === reactivated.id);\n        const isPreconfirmed = String(scaleItem?.status || '').trim().toLowerCase() === 'confirmed';\n        const { error: reactivateError } = await supabase\n          .from('invites')\n          .update({\n            status: isPreconfirmed ? 'confirmed' : 'pending',\n            responded_at: isPreconfirmed ? scaleItem?.confirmed_at || new Date().toISOString() : null,\n            whatsapp_sent_at: null,\n            whatsapp_last_error: null,\n          })\n          .eq('event_id', eventId)\n          .eq('id', reactivated.id);\n        if (reactivateError) throw reactivateError;\n      }\n\n      await updateInviteRoles(supabase, existentesParaReativar);\n    }`,
-    marker: 'const isPreconfirmed = String(scaleItem?.status',
+    newText: `    if (existentesParaReativar.length > 0) {\n      for (const reactivated of existentesParaReativar) {\n        const isPreconfirmed = String(reactivated?.status || '').trim().toLowerCase() === 'confirmed';\n        const { error: reactivateError } = await supabase\n          .from('invites')\n          .update({\n            status: isPreconfirmed ? 'confirmed' : 'pending',\n            responded_at: isPreconfirmed ? reactivated?.confirmed_at || new Date().toISOString() : null,\n            whatsapp_sent_at: null,\n            whatsapp_last_error: null,\n          })\n          .eq('event_id', eventId)\n          .eq('id', reactivated.id);\n        if (reactivateError) throw reactivateError;\n      }\n\n      await updateInviteRoles(supabase, existentesParaReativar);\n    }`,
+    marker: "String(reactivated?.status || '').trim().toLowerCase() === 'confirmed'",
   },
   {
     oldText: `    await updateInviteRoles(supabase, roleUpdates);\n\n    const removidosIds = removidos.map((item) => item.musician_id).filter(Boolean);`,
@@ -47,9 +47,14 @@ patchFile('app/api/events/[id]/scale/route.js', [
 
 patchFile('app/api/membro/global-dashboard/route.js', [
   {
+    oldText: `.select('id, event_id, musician_id, musician_name, snapshot_name, role, status, notes')`,
+    newText: `.select('id, event_id, musician_id, musician_name, snapshot_name, role, status, notes, confirmed_at')`,
+    marker: "role, status, notes, confirmed_at')",
+  },
+  {
     oldText: `      const personalInvite = personalInviteByEventId.get(eventId);\n      if (personalInvite) {\n        return {\n          ...personalInvite,`,
-    newText: `      const personalInvite = personalInviteByEventId.get(eventId);\n      if (personalInvite) {\n        const ownScale = scales.find((row) =>\n          String(row?.event_id || '') === eventId &&\n          String(row?.musician_id || '') === String(auth.contact?.id || auth.userId)\n        );\n        const scaleStatus = String(ownScale?.status || '').trim().toLowerCase();\n        const effectiveInvite = scaleStatus === 'confirmed' && String(personalInvite?.status || '').trim().toLowerCase() !== 'confirmed'\n          ? { ...personalInvite, status: 'confirmed', responded_at: ownScale?.confirmed_at || personalInvite?.responded_at || null }\n          : personalInvite;\n        return {\n          ...effectiveInvite,`,
-    marker: 'const effectiveInvite = scaleStatus ===',
+    newText: `      const personalInvite = personalInviteByEventId.get(eventId);\n      if (personalInvite) {\n        const ownScale = scales.find((row) =>\n          String(row?.event_id || '') === eventId &&\n          String(row?.musician_id || '') === String(auth.contact?.id || auth.userId)\n        );\n        const scaleStatus = String(ownScale?.status || '').trim().toLowerCase();\n        const effectiveInvite =\n          scaleStatus === 'confirmed' &&\n          String(personalInvite?.status || '').trim().toLowerCase() !== 'confirmed'\n            ? {\n                ...personalInvite,\n                status: 'confirmed',\n                responded_at: ownScale?.confirmed_at || personalInvite?.responded_at || null,\n              }\n            : personalInvite;\n        return {\n          ...effectiveInvite,`,
+    marker: 'const effectiveInvite =',
   },
 ]);
 

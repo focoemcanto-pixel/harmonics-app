@@ -34,7 +34,7 @@ export async function GET(request, context) {
     const [contactsRes, scaleRes, templatesRes, templateItemsRes, repertoireRes] = await Promise.all([
       supabase
         .from('contacts')
-        .select('id, workspace_id, name, email, phone, tag, tags, role, instrument, instruments, category, notes, contact_type, is_active')
+        .select('id, workspace_id, name, email, phone, tag, notes, contact_type, is_active')
         .eq('workspace_id', auth.workspaceId)
         .neq('contact_type', 'client')
         .eq('is_active', true)

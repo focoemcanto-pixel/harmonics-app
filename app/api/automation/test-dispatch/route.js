@@ -30,8 +30,6 @@ export async function POST(request) {
     const auth = await requireWorkspaceAccess({
       supabase,
       request,
-      moduleKey: 'automacoes',
-      actionKey: 'write',
       logPrefix: '[AUTOMATION_TEST_DISPATCH_API]',
     });
 
@@ -42,7 +40,7 @@ export async function POST(request) {
     const body = await request.json().catch(() => ({}));
     const eventType = asString(body?.eventType || body?.event_type);
     const entityId = asString(body?.entityId || body?.entity_id);
-    const workspaceId = asString(body?.workspaceId || body?.workspace_id || auth.workspaceId);
+    const workspaceId = asString(auth.workspaceId);
 
     if (!eventType || !ALLOWED_EVENT_TYPES.has(eventType)) {
       return NextResponse.json(
@@ -65,11 +63,17 @@ export async function POST(request) {
       );
     }
 
+    if (!workspaceId) {
+      return NextResponse.json(
+        { ok: false, message: 'Workspace autenticado não resolvido para o teste.' },
+        { status: 422 }
+      );
+    }
+
     console.info('[AUTOMATION_TEST_DISPATCH_API][START]', {
       eventType,
       entityId,
       workspaceId,
-      authWorkspaceId: auth.workspaceId,
       userId: auth.userId || null,
     });
 

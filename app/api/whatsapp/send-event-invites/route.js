@@ -155,7 +155,9 @@ export async function POST(request) {
 
         await sendInvite(invite);
       },
-      5500
+      // O primeiro convite sai imediatamente. Entre os próximos mantemos apenas
+      // um espaçamento curto; 429 continua tendo retry dedicado de 7s acima.
+      1200
     );
 
     const successCount = results.filter((result) => result.ok === true).length;

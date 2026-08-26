@@ -50,18 +50,16 @@ patchSource('components/membro/MembroEscalaModal.js', (source) => {
     source = source.replace('  }, [resolvedEvent, musicians]);', '  }, [eventId, resolvedEvent, musicians]);');
   }
 
-  source = replaceIfPresent(
-    source,
-    '                  {adminChecked && canEditScale && resolvedEvent?.id ? (',
-    '                  {canEditScale && immediateEventId ? (',
-    'canEditScale && immediateEventId ? ('
-  );
-  source = replaceIfPresent(
-    source,
-    '                  {canEditScale && resolvedEvent?.id ? (',
-    '                  {canEditScale && immediateEventId ? (',
-    'canEditScale && immediateEventId ? ('
-  );
+  // Delegated members already arrive with canManageSchedule resolved by the parent panel.
+  // Do not wait for adminChecked/resolvedEvent/immediateEventId just to paint the action.
+  for (const condition of [
+    'adminChecked && canEditScale && resolvedEvent?.id',
+    'canEditScale && resolvedEvent?.id',
+    'canEditScale && immediateEventId',
+  ]) {
+    source = source.replace(`                  {${condition} ? (`, '                  {canEditScale ? (');
+  }
+
   source = replaceIfPresent(
     source,
     '      {builderOpen && resolvedEvent?.id ? (',

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { executeAutomationEvent } from '@/lib/automation/execute-automation-event';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { requireAdmin } from '@/lib/api/require-admin';
+import { requireWorkspaceAdmin } from '@/lib/api/require-workspace-access';
 
 const SUPPORTED_EVENT_TYPES = [
   'invite_member',
@@ -30,36 +30,88 @@ function isAuthorizedInternalRequest(request) {
   return headerSecret === internalSecret;
 }
 
-async function requireAutomationSendAccess(request) {
-  if (isAuthorizedInternalRequest(request)) {
-    return { ok: true, source: 'internal' };
+async function resolveEntityWorkspaceId({ supabase, eventType, entityId }) {
+  if (!entityId) return null;
+
+  if (eventType === 'invite_member') {
+    const { data, error } = await supabase
+      .from('invites')
+      .select('event:events(workspace_id)')
+      .eq('id', entityId)
+      .maybeSingle();
+    if (error) throw error;
+    return String(data?.event?.workspace_id || '').trim() || null;
   }
 
-  const supabaseAdmin = getSupabaseAdmin();
-  const auth = await requireAdmin({
-    supabase: supabaseAdmin,
-    request,
-    logPrefix: '[AUTOMATION_SEND]',
-  });
+  if (
+    eventType === 'event_day_confirmation_client' ||
+    eventType === 'repertoire_pending_15_days_client' ||
+    eventType === 'payment_pending_2_days_client' ||
+    eventType === 'post_event_review_request_client' ||
+    eventType === 'schedule_pending_15_days_admin'
+  ) {
+    const { data, error } = await supabase
+      .from('events')
+      .select('workspace_id')
+      .eq('id', entityId)
+      .maybeSingle();
+    if (error) throw error;
+    return String(data?.workspace_id || '').trim() || null;
+  }
 
-  return auth;
+  const { data: contract, error: contractError } = await supabase
+    .from('contracts')
+    .select('event:events(workspace_id)')
+    .eq('id', entityId)
+    .maybeSingle();
+  if (contractError) throw contractError;
+  if (contract?.event?.workspace_id) return String(contract.event.workspace_id).trim();
+
+  const { data: precontract, error: precontractError } = await supabase
+    .from('precontracts')
+    .select('event_id, workspace_id')
+    .eq('id', entityId)
+    .maybeSingle();
+  if (precontractError && precontractError.code !== '42703') throw precontractError;
+  if (precontract?.workspace_id) return String(precontract.workspace_id).trim();
+  if (precontract?.event_id) {
+    const { data: event, error: eventError } = await supabase
+      .from('events')
+      .select('workspace_id')
+      .eq('id', precontract.event_id)
+      .maybeSingle();
+    if (eventError) throw eventError;
+    return String(event?.workspace_id || '').trim() || null;
+  }
+
+  return null;
 }
 
 export async function POST(request) {
-  const auth = await requireAutomationSendAccess(request);
+  const supabaseAdmin = getSupabaseAdmin();
+  const internal = isAuthorizedInternalRequest(request);
 
-  if (!auth.ok) {
-    return NextResponse.json(
-      { ok: false, error: auth.error || 'Unauthorized' },
-      { status: auth.status || 401 }
-    );
+  let auth = null;
+  if (!internal) {
+    auth = await requireWorkspaceAdmin({
+      supabase: supabaseAdmin,
+      request,
+      logPrefix: '[AUTOMATION_SEND]',
+    });
+
+    if (!auth.ok) {
+      return NextResponse.json(
+        { ok: false, error: auth.error || 'Unauthorized' },
+        { status: auth.status || 401 }
+      );
+    }
   }
 
   try {
     const body = await request.json().catch(() => ({}));
     const eventType = String(body?.eventType || '').trim();
     const entityId = String(body?.entityId || '').trim();
-    const workspaceId = String(body?.workspaceId || '').trim() || undefined;
+    const requestedWorkspaceId = String(body?.workspaceId || '').trim() || null;
 
     if (!eventType || !entityId) {
       return NextResponse.json(
@@ -82,12 +134,46 @@ export async function POST(request) {
       );
     }
 
-    if (workspaceId && !isUuid(workspaceId)) {
+    if (requestedWorkspaceId && !isUuid(requestedWorkspaceId)) {
       return NextResponse.json(
         { ok: false, error: 'workspaceId inválido' },
         { status: 400 }
       );
     }
+
+    const entityWorkspaceId = await resolveEntityWorkspaceId({
+      supabase: supabaseAdmin,
+      eventType,
+      entityId,
+    });
+
+    // Para requisições feitas pelo painel, o workspace autenticado é a fonte de verdade.
+    // Não confiamos em workspaceId enviado pelo navegador.
+    const workspaceId = internal
+      ? requestedWorkspaceId || entityWorkspaceId
+      : String(auth?.workspaceId || '').trim() || null;
+
+    if (!workspaceId) {
+      return NextResponse.json(
+        { ok: false, error: 'Workspace real da automação não resolvido.' },
+        { status: 422 }
+      );
+    }
+
+    if (entityWorkspaceId && entityWorkspaceId !== workspaceId) {
+      return NextResponse.json(
+        { ok: false, error: 'A entidade selecionada pertence a outro workspace.' },
+        { status: 403 }
+      );
+    }
+
+    console.info('[AUTOMATION_SEND][WORKSPACE_RESOLVED]', {
+      eventType,
+      entityId,
+      workspaceId,
+      entityWorkspaceId,
+      source: internal ? 'internal' : 'authenticated_workspace',
+    });
 
     const result = await executeAutomationEvent({ eventType, entityId, workspaceId });
 

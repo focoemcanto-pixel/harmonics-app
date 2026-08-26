@@ -72,4 +72,12 @@ patchFile('components/admin/AdminEventCard.js', [
   },
 ]);
 
+patchFile('app/(admin)/eventos/page.js', [
+  {
+    oldText: `cost_breakdown, costs_source, is_demo, source, metadata';`,
+    newText: `cost_breakdown, costs_source, band_notes, band_notes_updated_at, band_notes_updated_by, is_demo, source, metadata';`,
+    marker: 'band_notes, band_notes_updated_at, band_notes_updated_by',
+  },
+]);
+
 console.log('[band notes patch] concluído');

@@ -28,7 +28,11 @@ export async function POST(request) {
 
     const body = await request.json().catch(() => ({}));
     const eventId = String(body?.eventId || '').trim();
-    const forcePending = body?.forcePending === true;
+    // A rota é chamada pelas ações de envio da tela de escala. Se o músico ainda
+    // está PENDENTE, um whatsapp_sent_at antigo não pode transformar o clique em 0/0.
+    // false fica disponível apenas para consumidores que explicitamente queiram
+    // enviar somente convites nunca disparados.
+    const forcePending = body?.forcePending !== false;
     if (!isUuid(eventId)) return NextResponse.json({ ok: false, error: 'eventId inválido ou ausente' }, { status: 400 });
 
     const { data: eventRow, error: eventError } = await supabaseAdmin.from('events').select('id, workspace_id').eq('id', eventId).maybeSingle();
@@ -44,8 +48,6 @@ export async function POST(request) {
 
     await processQueue(pendentes, async (invite) => {
       const sendInvite = async (item, attempt = 1) => {
-        // A ação explícita "Salvar e enviar convites" significa reenviar os convites
-        // que continuam pendentes, mesmo que já tenham um whatsapp_sent_at antigo.
         if (forcePending && item.whatsapp_sent_at) {
           const { error: resetError } = await supabaseAdmin.from('invites').update({ whatsapp_sent_at: null, whatsapp_last_error: null }).eq('id', item.id).eq('event_id', eventId).eq('status', 'pending');
           if (resetError) throw resetError;

@@ -123,6 +123,7 @@ export async function GET(request) {
 
     const [
       scalesResp,
+      memberInvitesResp,
       precontractsResp,
       contractsResp,
       repertoireConfigsResp,
@@ -132,6 +133,24 @@ export async function GET(request) {
         .from('event_musicians')
         .select('id, event_id, musician_id, musician_name, snapshot_name, role, status, notes')
         .in('event_id', eventIds),
+      supabase
+        .from('invites')
+        .select(`
+          id,
+          event_id,
+          contact_id,
+          suggested_role_name,
+          message,
+          status,
+          sent_at,
+          responded_at,
+          created_at,
+          events (*)
+        `)
+        .eq('contact_id', auth.contact?.id || auth.userId)
+        .neq('status', 'removed')
+        .in('event_id', eventIds)
+        .order('created_at', { ascending: false }),
       supabase
         .from('precontracts')
         .select('id, event_id, public_token, reception_hours, has_sound, has_transport')
@@ -153,6 +172,7 @@ export async function GET(request) {
 
     const firstError = [
       scalesResp.error,
+      memberInvitesResp.error,
       precontractsResp.error,
       contractsResp.error,
       repertoireConfigsResp.error,
@@ -161,12 +181,27 @@ export async function GET(request) {
     if (firstError) throw firstError;
 
     const scales = asArray(scalesResp.data);
+    const personalInvites = asArray(memberInvitesResp.data);
+    const personalInviteByEventId = new Map();
+    for (const invite of personalInvites) {
+      const eventId = String(invite?.event_id || '').trim();
+      if (eventId && !personalInviteByEventId.has(eventId)) {
+        personalInviteByEventId.set(eventId, invite);
+      }
+    }
     const scaleByEventId = new Map(
       scales.map((row) => [String(row?.event_id || '').trim(), row])
     );
 
+    // Global agenda must not erase the member's original requests/history.
+    // For events where the member has a real invite, preserve that invite and its status.
+    // Only synthesize a confirmed row for events unrelated to the member's personal invite history.
     const invites = events.map((event) => {
-      const scaleRow = scaleByEventId.get(String(event?.id || '').trim()) || null;
+      const eventId = String(event?.id || '').trim();
+      const personalInvite = personalInviteByEventId.get(eventId);
+      if (personalInvite) return personalInvite;
+
+      const scaleRow = scaleByEventId.get(eventId) || null;
       return {
         id: `global-event-${event.id}`,
         event_id: event.id,

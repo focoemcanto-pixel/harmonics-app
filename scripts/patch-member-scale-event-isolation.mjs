@@ -39,28 +39,13 @@ patch('app/membro/page.js', (source) => {
     'musicians={scaleModalMusicians}\n        canManageSchedule={Boolean(member?.isAdmin || member?.canManageSchedules)}'
   );
 
-  source = replaceOnce(
-    source,
-    "        eventTitle={scaleModalEvent?.clientName || 'Escala'}\n        musicians={scaleModalMusicians}",
-    "        eventTitle={scaleModalEvent?.clientName || 'Escala'}\n        eventId={scaleModalEvent?.eventId || null}\n        musicians={scaleModalMusicians}\n        canManageSchedule={Boolean(member?.isAdmin || member?.canManageSchedules)}",
-    'canManageSchedule={Boolean(member?.isAdmin || member?.canManageSchedules)}'
-  );
-
   return source;
 });
 
 patch('components/membro/MembroEscalaModal.js', (source) => {
-  // By the time this runs, the permission and instant-action patches should have
-  // introduced eventId/canManageSchedule. Keep a fallback for direct source states.
   source = replaceOnce(
     source,
     'export default function MembroEscalaModal({ open, eventTitle, musicians = [], onClose }) {',
-    'export default function MembroEscalaModal({ open, eventTitle, eventId = null, musicians = [], canManageSchedule = false, onClose }) {',
-    'eventId = null, musicians = []'
-  );
-  source = replaceOnce(
-    source,
-    'export default function MembroEscalaModal({ open, eventTitle, musicians = [], canManageSchedule = false, onClose }) {',
     'export default function MembroEscalaModal({ open, eventTitle, eventId = null, musicians = [], canManageSchedule = false, onClose }) {',
     'eventId = null, musicians = []'
   );
@@ -72,15 +57,20 @@ patch('components/membro/MembroEscalaModal.js', (source) => {
     'const scaleCacheKey = String(eventId || eventTitle || \'\').trim();'
   );
 
-  source = replaceOnce(
-    source,
-    "  const hasScale = displayedMusicians.length > 0;",
-    "  const hasScale = displayedMusicians.length > 0;\n  const canEditScale = isAdmin || canManageSchedule;\n  const immediateEventId = eventId || resolvedEvent?.id || null;",
-    'const immediateEventId = eventId || resolvedEvent?.id || null;'
-  );
+  // Earlier prebuild patches may already define these. Add only what is absent.
+  if (!source.includes('const canEditScale = isAdmin || canManageSchedule;')) {
+    source = source.replace(
+      '  const hasScale = displayedMusicians.length > 0;',
+      '  const hasScale = displayedMusicians.length > 0;\n  const canEditScale = isAdmin || canManageSchedule;'
+    );
+  }
+  if (!source.includes('const immediateEventId =')) {
+    source = source.replace(
+      '  const canEditScale = isAdmin || canManageSchedule;',
+      '  const canEditScale = isAdmin || canManageSchedule;\n  const immediateEventId = eventId || resolvedEvent?.id || null;'
+    );
+  }
 
-  // Reset transient rows every time a different event opens. This prevents the
-  // previous event's musicians from flashing while the new event is loading.
   source = replaceOnce(
     source,
     "  useEffect(() => {\n    if (!open) {\n      setFallbackError('');",
@@ -92,25 +82,10 @@ patch('components/membro/MembroEscalaModal.js', (source) => {
   source = source.replaceAll('scaleCache.set(clientName, {', 'scaleCache.set(String(eventId || clientName), {');
   source = source.replaceAll("scaleCache.delete(String(eventTitle || '').trim())", "scaleCache.delete(String(eventId || eventTitle || '').trim())");
 
-  // Whenever the parent returns fresh musicians, cache them by event ID rather
-  // than client name. This makes reopening the same event instant and prevents
-  // collisions between different events/clients.
-  source = replaceOnce(
-    source,
-    "    const clientName = String(eventTitle || '').trim();\n    if (!clientName) return;\n    const previous = scaleCache.get(String(eventId || clientName)) || {};\n    scaleCache.set(String(eventId || clientName), { ...previous, musicians, cachedAt: Date.now() });\n  }, [open, eventTitle, musicians]);",
-    "    const clientName = String(eventTitle || '').trim();\n    const cacheKey = String(eventId || clientName).trim();\n    if (!cacheKey) return;\n    const previous = scaleCache.get(cacheKey) || {};\n    scaleCache.set(cacheKey, { ...previous, event: eventId ? { id: eventId } : previous?.event || null, musicians, cachedAt: Date.now() });\n    setFallbackMusicians(musicians);\n    if (eventId) setResolvedEvent({ id: eventId });\n  }, [open, eventId, eventTitle, musicians]);",
-    'setFallbackMusicians(musicians);\n    if (eventId) setResolvedEvent({ id: eventId });'
-  );
-
-  // The delegated permission is already resolved by /membro. Do not wait for a
-  // second admin lookup before painting the action button.
   source = source.replace(/\{adminChecked && (?:isAdmin|canEditScale) && [^?]+\? <button/g, '{canEditScale && immediateEventId ? <button');
   source = source.replace('{canEditScale ? <button', '{canEditScale && immediateEventId ? <button');
   source = source.replace('{builderOpen && resolvedEvent?.id ? <div', '{builderOpen && immediateEventId ? <div');
   source = source.replaceAll('eventId={resolvedEvent.id}', 'eventId={immediateEventId}');
-
-  // Make the by-client fallback event-aware. Parent data remains the primary,
-  // fast path; the fallback only fills gaps without contaminating another event.
   source = source.replace('  }, [open, eventTitle, refreshKey]);', '  }, [open, eventId, eventTitle, refreshKey]);');
 
   return source;

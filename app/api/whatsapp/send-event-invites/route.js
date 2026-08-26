@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '../../../../lib/supabase-admin';
-import { requireWorkspaceAdmin } from '../../../../lib/api/require-workspace-access';
+import { requireScheduleManagerAccess } from '../../../../lib/api/require-schedule-manager-access';
 import { processQueue } from '../../../../lib/utils/asyncQueue';
 import { sendInviteService } from '../../../../lib/whatsapp/send-invite-service';
 
@@ -30,11 +30,26 @@ function resolveActualDispatchSuccess(inviteResult = {}) {
   return inviteResult?.ok === true && (sent > 0 || skipped);
 }
 
+function resolveInviteError(inviteResult = {}, providerStatus = null) {
+  const data = inviteResult?.data || {};
+  const failedExecution = data?.executions?.find?.((execution) => execution?.status === 'failed');
+
+  return (
+    data?.error ||
+    data?.cause ||
+    data?.warning ||
+    failedExecution?.error ||
+    inviteResult?.error ||
+    (providerStatus ? `Provider WhatsApp retornou status ${providerStatus}.` : null) ||
+    'O provedor não confirmou o envio do convite.'
+  );
+}
+
 export async function POST(request) {
   const supabaseAdmin = getSupabaseAdmin();
 
   try {
-    const auth = await requireWorkspaceAdmin({
+    const auth = await requireScheduleManagerAccess({
       supabase: supabaseAdmin,
       request,
       logPrefix: '[WHATSAPP_SEND_EVENT_INVITES]',
@@ -71,13 +86,15 @@ export async function POST(request) {
 
     const { data: invites, error } = await supabaseAdmin
       .from('invites')
-      .select('id, status, whatsapp_sent_at')
+      .select('id, status, whatsapp_sent_at, whatsapp_last_error')
       .eq('event_id', eventId)
-      .neq('status', 'removed');
+      .eq('status', 'pending');
 
     if (error) throw error;
 
-    const pendentes = (invites || []).filter((invite) => !invite.whatsapp_sent_at && isUuid(invite?.id));
+    const pendentes = (invites || []).filter(
+      (invite) => !invite.whatsapp_sent_at && isUuid(invite?.id)
+    );
     const results = [];
 
     await processQueue(
@@ -106,23 +123,29 @@ export async function POST(request) {
           };
 
           if (!actualOk) {
-            const failureData = inviteResult.data || {};
-            resultItem.error =
-              failureData.error ||
-              failureData.cause ||
-              failureData.warning ||
-              inviteResult.error ||
-              'O provedor não confirmou o envio do convite';
-            resultItem.cause = failureData.cause || resultItem.error;
-            resultItem.providerStatus = failureData.providerStatus ?? failureData.providerError?.status ?? providerStatus ?? null;
-            resultItem.providerEndpoint = failureData.providerEndpoint ?? failureData.providerError?.endpoint ?? null;
-            resultItem.providerResponse = failureData.providerResponse ?? failureData.providerError?.response ?? null;
+            resultItem.error = resolveInviteError(inviteResult, providerStatus);
+            resultItem.cause = inviteResult?.data?.cause || resultItem.error;
+            resultItem.providerStatus =
+              inviteResult?.data?.providerStatus ??
+              inviteResult?.data?.providerError?.status ??
+              providerStatus ??
+              null;
+            resultItem.providerEndpoint =
+              inviteResult?.data?.providerEndpoint ??
+              inviteResult?.data?.providerError?.endpoint ??
+              null;
+            resultItem.providerResponse =
+              inviteResult?.data?.providerResponse ??
+              inviteResult?.data?.providerError?.response ??
+              null;
+
             console.error('[batch_send_invites] invite_failed', {
               status: 'failed',
               eventId,
               inviteId: item.id,
               statusCode: inviteResult.status,
               error: resultItem.error,
+              providerStatus: resultItem.providerStatus,
               attempt,
             });
           }
@@ -151,6 +174,15 @@ export async function POST(request) {
       (firstFailed ? `Falha no invite ${firstFailed.inviteId} (status ${firstFailed.status})` : null);
     const status = hasFailures ? (successCount > 0 ? 207 : 500) : 200;
 
+    const message =
+      pendentes.length === 0
+        ? 'Nenhum convite pendente para envio.'
+        : hasFailures
+          ? successCount > 0
+            ? `Envio parcial: ${successCount} enviado(s) e ${failedCount} falha(s).`
+            : `Nenhum convite foi enviado. ${firstError || 'Falha desconhecida no disparo.'}`
+          : `${successCount} convite(s) enviado(s) com sucesso.`;
+
     return NextResponse.json(
       {
         ok: failedCount === 0,
@@ -161,13 +193,19 @@ export async function POST(request) {
         failedCount,
         results,
         firstError,
+        error: hasFailures ? firstError || 'Falha no envio dos convites.' : null,
+        message,
       },
       { status }
     );
   } catch (error) {
     console.error('Erro ao enviar convites do evento:', error);
     return NextResponse.json(
-      { ok: false, error: error?.message || 'Erro interno' },
+      {
+        ok: false,
+        error: error?.message || 'Erro interno',
+        firstError: error?.message || 'Erro interno',
+      },
       { status: 500 }
     );
   }

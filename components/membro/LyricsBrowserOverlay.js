@@ -8,14 +8,33 @@ function buildSearchUrl(title) {
   return `https://www.google.com/search?igu=1&q=${query}`;
 }
 
+function buildExternalSearchUrl(title) {
+  const query = encodeURIComponent(`${String(title || '').trim()} letra`);
+  return `https://www.google.com/search?q=${query}`;
+}
+
 export default function LyricsBrowserOverlay({ open, items = [], index = 0, onIndexChange, onClose }) {
   const current = items[index] || null;
   const [loading, setLoading] = useState(true);
   const url = useMemo(() => buildSearchUrl(current?.title || ''), [current?.title]);
+  const externalUrl = useMemo(() => buildExternalSearchUrl(current?.title || ''), [current?.title]);
 
   useEffect(() => {
     if (open) setLoading(true);
   }, [open, index]);
+
+  // Guarda a posição atual antes de sair para um navegador externo. Em iOS/PWA o
+  // sistema pode suspender a WebView enquanto o Safari/SFSafariViewController está
+  // aberto; quando o usuário volta, o Harmonics continua exatamente na mesma letra.
+  useEffect(() => {
+    if (!open || typeof window === 'undefined') return;
+    try {
+      window.sessionStorage.setItem(
+        'harmonics:lyrics-overlay',
+        JSON.stringify({ open: true, index, title: current?.title || '', savedAt: Date.now() })
+      );
+    } catch {}
+  }, [open, index, current?.title]);
 
   if (!open || !current) return null;
 
@@ -28,8 +47,28 @@ export default function LyricsBrowserOverlay({ open, items = [], index = 0, onIn
   }
 
   function openExternal() {
-    if (typeof window === 'undefined') return;
-    window.open(url.replace('igu=1&', ''), '_blank', 'noopener,noreferrer');
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
+
+    try {
+      window.sessionStorage.setItem(
+        'harmonics:lyrics-overlay',
+        JSON.stringify({ open: true, index, title: current?.title || '', savedAt: Date.now() })
+      );
+    } catch {}
+
+    // No iPhone/PWA, window.open() pode reutilizar a própria WebView e substituir o
+    // estado visual do app. Um link real com target=_blank faz o iOS entregar a URL
+    // ao navegador externo, mantendo o Harmonics aberto por baixo.
+    const anchor = document.createElement('a');
+    anchor.href = externalUrl;
+    anchor.target = '_blank';
+    anchor.rel = 'noopener noreferrer external';
+    anchor.setAttribute('aria-hidden', 'true');
+    anchor.style.position = 'fixed';
+    anchor.style.left = '-9999px';
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
   }
 
   return (
@@ -42,7 +81,7 @@ export default function LyricsBrowserOverlay({ open, items = [], index = 0, onIn
             <div className="mt-0.5 truncate text-[14px] font-black text-white">{current.title}</div>
             {current.subtitle ? <div className="mt-0.5 truncate text-[11px] font-semibold text-white/45">{current.subtitle}</div> : null}
           </div>
-          <button type="button" onClick={openExternal} aria-label="Abrir no navegador" title="Abrir no navegador" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[13px] border border-white/10 bg-white/5 text-[16px] active:scale-95">↗</button>
+          <button type="button" onClick={openExternal} aria-label="Abrir no navegador sem sair do Harmonics" title="Abrir no navegador" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[13px] border border-white/10 bg-white/5 text-[16px] active:scale-95">↗</button>
         </div>
 
         <div className="mt-3 grid grid-cols-2 gap-2">
@@ -69,7 +108,7 @@ export default function LyricsBrowserOverlay({ open, items = [], index = 0, onIn
       </div>
 
       <div className="shrink-0 border-t border-white/10 bg-[#140d26] px-4 pb-[calc(env(safe-area-inset-bottom,0px)+8px)] pt-2 text-center text-[10px] font-semibold leading-4 text-white/40">
-        A busca abre dentro do Harmonics. Alguns sites podem impedir exibição incorporada; nesse caso use ↗ sem perder a posição no repertório.
+        A busca abre dentro do Harmonics. Se um site bloquear a exibição, use ↗; ele abre fora e mantém esta letra aberta no app.
       </div>
     </div>
   );

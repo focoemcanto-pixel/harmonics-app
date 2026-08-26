@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { NotebookPen, Save, X } from 'lucide-react';
 
 function formatDateTime(value) {
@@ -11,6 +12,7 @@ function formatDateTime(value) {
 }
 
 export default function BandNotesButton({ eventId, eventName, eventDate, eventTime, initialNotes = '', initialUpdatedAt = '', initialUpdatedBy = '', canEdit = false, workspaceId = '', dark = true, compact = false, onSaved }) {
+  const [mounted, setMounted] = useState(false);
   const [open, setOpen] = useState(false);
   const [notes, setNotes] = useState(initialNotes || '');
   const [draft, setDraft] = useState(initialNotes || '');
@@ -21,6 +23,7 @@ export default function BandNotesButton({ eventId, eventName, eventDate, eventTi
   const [dragY, setDragY] = useState(0);
   const touchStart = useRef(null);
 
+  useEffect(() => setMounted(true), []);
   useEffect(() => { setNotes(initialNotes || ''); setDraft(initialNotes || ''); setUpdatedAt(initialUpdatedAt || ''); setUpdatedBy(initialUpdatedBy || ''); }, [initialNotes, initialUpdatedAt, initialUpdatedBy]);
   useEffect(() => {
     if (!open) return;
@@ -66,15 +69,10 @@ export default function BandNotesButton({ eventId, eventName, eventDate, eventTi
     ? `relative flex ${compact ? 'h-11 w-11' : 'h-12 w-12'} items-center justify-center rounded-2xl border border-violet-300/20 bg-violet-500/12 text-violet-100 shadow-[0_12px_30px_rgba(124,58,237,.18)] backdrop-blur transition active:scale-95`
     : `relative flex ${compact ? 'h-11 w-11' : 'h-12 w-12'} items-center justify-center rounded-2xl border border-violet-200 bg-violet-50 text-violet-700 shadow-sm transition hover:bg-violet-100 active:scale-95`;
 
-  return <>
-    <button type="button" onClick={(e) => { e.stopPropagation(); setDraft(notes || ''); setError(''); setOpen(true); }} className={buttonClass} aria-label={hasNotes ? 'Abrir instruções da banda' : 'Adicionar instruções da banda'} title="Nota da banda">
-      <NotebookPen size={compact ? 19 : 21} strokeWidth={2.2} />
-      {hasNotes ? <span className="absolute -right-1 -top-1 h-3 w-3 rounded-full border-2 border-current bg-emerald-400" /> : null}
-    </button>
-
-    {open ? <div className="fixed inset-0 z-[9999] bg-black/55 backdrop-blur-sm md:flex md:items-center md:justify-center md:p-6" onClick={(e) => { if (e.target === e.currentTarget) closeSheet(); }}>
+  const sheet = open && mounted ? createPortal(
+    <div className="fixed inset-0 z-[2147483000] bg-black/60 backdrop-blur-sm md:flex md:items-center md:justify-center md:p-6" onClick={(e) => { if (e.target === e.currentTarget) closeSheet(); }}>
       <section
-        className="absolute inset-x-0 bottom-0 flex h-[94dvh] w-full flex-col overflow-hidden rounded-t-[30px] bg-[#fffaf0] text-[#2f2518] shadow-[0_-25px_80px_rgba(0,0,0,.5)] transition-transform duration-200 ease-out md:static md:h-auto md:max-h-[90dvh] md:max-w-2xl md:rounded-[30px]"
+        className="fixed inset-x-0 bottom-0 flex h-[94dvh] w-screen flex-col overflow-hidden rounded-t-[30px] bg-[#fffaf0] text-[#2f2518] shadow-[0_-25px_80px_rgba(0,0,0,.5)] transition-transform duration-200 ease-out md:static md:h-auto md:max-h-[90dvh] md:max-w-2xl md:rounded-[30px]"
         style={{ transform: `translateY(${dragY}px)` }}
       >
         <div className="shrink-0 bg-[linear-gradient(135deg,#fff7d6,#fffaf0)] px-5 pb-5 pt-2 md:px-7 md:pt-5">
@@ -106,6 +104,15 @@ export default function BandNotesButton({ eventId, eventName, eventDate, eventTi
           {canEdit ? <div className="grid grid-cols-2 gap-3"><button type="button" onClick={closeSheet} className="rounded-[16px] border border-amber-200 bg-white px-4 py-3 text-[14px] font-black text-[#66543d]">Fechar</button><button type="button" onClick={saveNotes} disabled={saving} className="flex items-center justify-center gap-2 rounded-[16px] bg-[#2f2518] px-4 py-3 text-[14px] font-black text-white disabled:opacity-60"><Save size={17}/>{saving ? 'Salvando...' : 'Salvar nota'}</button></div> : <button type="button" onClick={closeSheet} className="w-full rounded-[16px] bg-[#2f2518] px-4 py-3 text-[14px] font-black text-white">Voltar para agenda</button>}
         </div>
       </section>
-    </div> : null}
+    </div>,
+    document.body
+  ) : null;
+
+  return <>
+    <button type="button" onClick={(e) => { e.stopPropagation(); setDraft(notes || ''); setError(''); setOpen(true); }} className={buttonClass} aria-label={hasNotes ? 'Abrir instruções da banda' : 'Adicionar instruções da banda'} title="Nota da banda">
+      <NotebookPen size={compact ? 19 : 21} strokeWidth={2.2} />
+      {hasNotes ? <span className="absolute -right-1 -top-1 h-3 w-3 rounded-full border-2 border-current bg-emerald-400" /> : null}
+    </button>
+    {sheet}
   </>;
 }

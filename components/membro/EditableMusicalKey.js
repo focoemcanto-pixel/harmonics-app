@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 
+const musicalKeyCache = new Map();
+
 function normalizeValue(value) {
   return String(value || '')
     .trim()
@@ -13,8 +15,11 @@ function normalizeValue(value) {
 export default function EditableMusicalKey({ row }) {
   const itemId = String(row?.id || row?.repertoire_item_id || '').trim();
   const sourceValue = normalizeValue(row?.musicalKey ?? row?.musical_key ?? row?.tom ?? '');
-  const [value, setValue] = useState(sourceValue);
-  const [draft, setDraft] = useState(sourceValue);
+  const cachedValue = itemId && musicalKeyCache.has(itemId) ? musicalKeyCache.get(itemId) : null;
+  const effectiveInitialValue = cachedValue != null ? normalizeValue(cachedValue) : sourceValue;
+
+  const [value, setValue] = useState(effectiveInitialValue);
+  const [draft, setDraft] = useState(effectiveInitialValue);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -22,10 +27,6 @@ export default function EditableMusicalKey({ row }) {
   const lastItemIdRef = useRef(itemId);
   const lastSourceValueRef = useRef(sourceValue);
 
-  // Sincroniza somente quando o registro ou o valor vindo do servidor realmente muda.
-  // Não depende de `editing`: ao fechar o input depois de salvar, o row pai ainda pode
-  // carregar o valor antigo por alguns instantes. Antes isso sobrescrevia imediatamente
-  // o valor salvo e fazia o tom parecer que "apagou".
   useEffect(() => {
     const itemChanged = lastItemIdRef.current !== itemId;
     const sourceChanged = lastSourceValueRef.current !== sourceValue;
@@ -34,8 +35,19 @@ export default function EditableMusicalKey({ row }) {
 
     lastItemIdRef.current = itemId;
     lastSourceValueRef.current = sourceValue;
-    setValue(sourceValue);
-    setDraft(sourceValue);
+
+    const cached = itemId && musicalKeyCache.has(itemId)
+      ? normalizeValue(musicalKeyCache.get(itemId))
+      : null;
+
+    // Se o servidor já devolveu o mesmo valor salvo localmente, a fonte passa a ser
+    // autoritativa e o cache continua alinhado. Se o row pai ainda estiver antigo,
+    // preservamos o valor que o próprio backend acabou de confirmar.
+    const nextValue = cached != null && cached !== sourceValue ? cached : sourceValue;
+    if (cached != null && cached === sourceValue) musicalKeyCache.set(itemId, sourceValue);
+
+    setValue(nextValue);
+    setDraft(nextValue);
     setEditing(false);
     setError('');
   }, [itemId, sourceValue]);
@@ -61,6 +73,7 @@ export default function EditableMusicalKey({ row }) {
       const response = await fetch('/api/membro/repertoire-key', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
         body: JSON.stringify({ itemId, musicalKey: next }),
       });
       const payload = await response.json().catch(() => ({}));
@@ -69,14 +82,19 @@ export default function EditableMusicalKey({ row }) {
       }
 
       const saved = normalizeValue(payload?.musicalKey ?? next);
+      musicalKeyCache.set(itemId, saved);
       setValue(saved);
       setDraft(saved);
       setEditing(false);
 
-      // Mantém a referência local alinhada ao valor confirmado pelo backend para que
-      // um row pai ainda desatualizado não reverta visualmente o tom salvo.
       lastItemIdRef.current = itemId;
-      lastSourceValueRef.current = saved;
+      lastSourceValueRef.current = sourceValue;
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('harmonics:repertoire-key-updated', {
+          detail: { itemId, musicalKey: saved },
+        }));
+      }
     } catch (saveError) {
       setError(saveError?.message || 'Erro ao salvar');
     } finally {

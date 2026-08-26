@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { requireAdmin } from '@/lib/api/require-admin';
+import { requireWorkspaceAdmin } from '@/lib/api/require-workspace-access';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -26,7 +26,7 @@ function clean(value) {
 export async function GET(request) {
   const supabase = getSupabaseAdmin();
   try {
-    const auth = await requireAdmin({ supabase, request, logPrefix: '[AUTOMATION_ENTITY_OPTIONS]' });
+    const auth = await requireWorkspaceAdmin({ supabase, request, logPrefix: '[AUTOMATION_ENTITY_OPTIONS]' });
     if (!auth.ok) {
       return NextResponse.json({ ok: false, error: auth.error || 'Unauthorized' }, { status: auth.status || 401 });
     }
@@ -37,11 +37,11 @@ export async function GET(request) {
       return NextResponse.json({ ok: false, error: 'eventType é obrigatório' }, { status: 400 });
     }
 
-    const workspaceId = clean(auth.workspaceId || auth.workspace?.id || '');
+    const workspaceId = clean(auth.workspaceId);
     const options = [];
 
     if (INVITE_TYPES.has(eventType)) {
-      let query = supabase
+      const { data, error } = await supabase
         .from('invites')
         .select(`
           id, status, created_at, event_id, contact_id,
@@ -51,10 +51,9 @@ export async function GET(request) {
         .neq('status', 'removed')
         .order('created_at', { ascending: false })
         .limit(120);
-      const { data, error } = await query;
       if (error) throw error;
       for (const row of data || []) {
-        if (workspaceId && clean(row?.event?.workspace_id) !== workspaceId) continue;
+        if (clean(row?.event?.workspace_id) !== workspaceId) continue;
         const memberName = row?.contact?.name || 'Membro';
         const eventName = row?.event?.client_name || 'Evento';
         options.push({
@@ -76,7 +75,7 @@ export async function GET(request) {
         .limit(120);
       if (error) throw error;
       for (const row of data || []) {
-        if (workspaceId && clean(row?.event?.workspace_id) !== workspaceId) continue;
+        if (clean(row?.event?.workspace_id) !== workspaceId) continue;
         const eventName = row?.event?.client_name || row?.precontract?.client_name || 'Cliente';
         const date = row?.event?.event_date || row?.precontract?.event_date;
         let entityId = row.id;
@@ -109,7 +108,7 @@ export async function GET(request) {
       }
     }
 
-    return NextResponse.json({ ok: true, eventType, options });
+    return NextResponse.json({ ok: true, eventType, workspaceId, options });
   } catch (error) {
     console.error('[AUTOMATION_ENTITY_OPTIONS][ERROR]', error);
     return NextResponse.json({ ok: false, error: error?.message || 'Falha ao listar entidades para teste.' }, { status: 500 });

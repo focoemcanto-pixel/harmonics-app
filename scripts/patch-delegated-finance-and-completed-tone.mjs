@@ -39,32 +39,38 @@ function write(path, content) {
     '<EventoEscalaTab eventId={resolvedEvent.id} />',
     '<EventoEscalaTab eventId={resolvedEvent.id} hideFinancial />'
   );
+  src = src.replace(
+    '<EventoEscalaTab eventId={immediateEventId} />',
+    '<EventoEscalaTab eventId={immediateEventId} hideFinancial />'
+  );
   write(path, src);
 }
 
-// 3) Evento concluído = grafite. Verde fica reservado para "Minha escala • Confirmado".
+// 3) Evento concluído = grafite, independentemente de ser escala pessoal ou agenda global.
+//    Este patch roda DEPOIS do patch de status visual da agenda; portanto o concluído
+//    precisa ter prioridade dentro de getAgendaVisualMeta().
 {
   const path = 'components/membro/MembroEscalasTab.js';
   let src = read(path);
 
+  const graphiteMarker = "label: 'CONCLUÍDO',\n      badgeClass: 'border-slate-300/25 bg-slate-500/15 text-slate-200'";
+  if (src.includes('function getAgendaVisualMeta(item) {') && !src.includes(graphiteMarker)) {
+    src = src.replace(
+      'function getAgendaVisualMeta(item) {\n  const isGlobalAgenda =',
+      `function getAgendaVisualMeta(item) {\n  const isCompleted = isEventDone(item);\n  if (isCompleted) {\n    return {\n      label: 'CONCLUÍDO',\n      badgeClass: 'border-slate-300/25 bg-slate-500/15 text-slate-200',\n      cardClass: 'border-slate-400/20 bg-[linear-gradient(135deg,rgba(100,116,139,.12),#17151d)]',\n      railClass: 'bg-slate-500',\n    };\n  }\n\n  const isGlobalAgenda =`
+    );
+  }
+
+  // Compatibilidade com a versão antiga do card, caso o patch visual global não esteja presente.
   src = src.replaceAll(
     "bg-emerald-500/12 text-emerald-300 border-emerald-400/20",
     "bg-slate-500/15 text-slate-300 border-slate-400/20"
   );
-
   src = src.replace(
     "done\n          ? 'border-emerald-400/25 bg-[linear-gradient(135deg,rgba(34,197,94,.06),#1e1535)]'\n          : 'border-[#352a55] bg-[#1e1535]'",
-    "done\n          ? 'border-slate-400/20 bg-[linear-gradient(135deg,rgba(100,116,139,.10),#17151d)]'\n          : 'border-[#352a55] bg-[#1e1535]'"
+    "done\n          ? 'border-slate-400/20 bg-[linear-gradient(135deg,rgba(100,116,139,.12),#17151d)]'\n          : 'border-[#352a55] bg-[#1e1535]'"
   );
-
-  src = src.replace(
-    "done ? 'bg-emerald-500' : 'bg-violet-500'",
-    "done ? 'bg-slate-500' : 'bg-violet-500'"
-  );
-
-  // Patches anteriores podem ter introduzido a mesma semântica com pequenas variações.
-  src = src.replaceAll("done ? 'bg-emerald-400' :", "done ? 'bg-slate-400' :");
-  src = src.replaceAll("done ? 'bg-emerald-500' :", "done ? 'bg-slate-500' :");
+  src = src.replace("done ? 'bg-emerald-500' : 'bg-violet-500'", "done ? 'bg-slate-500' : 'bg-violet-500'");
 
   write(path, src);
 }

@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "prebuild": "node scripts/patch-repertoire-contract-token-fallback.mjs && node scripts/patch-member-schedule-permissions.mjs && node scripts/patch-member-global-dashboard.mjs && node scripts/patch-member-global-agenda-regression.mjs && node scripts/patch-member-global-view-and-scale-builder.mjs && node scripts/patch-member-global-agenda-visual-status.mjs && node scripts/patch-automation-invite-dispatch-and-test-picker.mjs",
+    "prebuild": "node scripts/patch-repertoire-contract-token-fallback.mjs && node scripts/patch-member-schedule-permissions.mjs && node scripts/patch-member-global-dashboard.mjs && node scripts/patch-member-global-agenda-regression.mjs && node scripts/patch-member-global-view-and-scale-builder.mjs && node scripts/patch-member-global-agenda-visual-status.mjs && node scripts/patch-automation-invite-dispatch-and-test-picker.mjs && node scripts/patch-confirmed-scale-invite-status.mjs",
     "build": "next build",
     "build:worker": "next build && open-next build",
     "deploy": "npm run build:worker && wrangler deploy",

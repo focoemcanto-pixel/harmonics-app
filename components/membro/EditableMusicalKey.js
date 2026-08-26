@@ -12,19 +12,33 @@ function normalizeValue(value) {
 
 export default function EditableMusicalKey({ row }) {
   const itemId = String(row?.id || row?.repertoire_item_id || '').trim();
-  const initial = normalizeValue(row?.musicalKey ?? row?.musical_key ?? row?.tom ?? '');
-  const [value, setValue] = useState(initial);
-  const [draft, setDraft] = useState(initial);
+  const sourceValue = normalizeValue(row?.musicalKey ?? row?.musical_key ?? row?.tom ?? '');
+  const [value, setValue] = useState(sourceValue);
+  const [draft, setDraft] = useState(sourceValue);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const inputRef = useRef(null);
+  const lastItemIdRef = useRef(itemId);
+  const lastSourceValueRef = useRef(sourceValue);
 
+  // Sincroniza somente quando o registro ou o valor vindo do servidor realmente muda.
+  // Não depende de `editing`: ao fechar o input depois de salvar, o row pai ainda pode
+  // carregar o valor antigo por alguns instantes. Antes isso sobrescrevia imediatamente
+  // o valor salvo e fazia o tom parecer que "apagou".
   useEffect(() => {
-    const next = normalizeValue(row?.musicalKey ?? row?.musical_key ?? row?.tom ?? '');
-    setValue(next);
-    if (!editing) setDraft(next);
-  }, [row?.id, row?.musicalKey, row?.musical_key, row?.tom, editing]);
+    const itemChanged = lastItemIdRef.current !== itemId;
+    const sourceChanged = lastSourceValueRef.current !== sourceValue;
+
+    if (!itemChanged && !sourceChanged) return;
+
+    lastItemIdRef.current = itemId;
+    lastSourceValueRef.current = sourceValue;
+    setValue(sourceValue);
+    setDraft(sourceValue);
+    setEditing(false);
+    setError('');
+  }, [itemId, sourceValue]);
 
   useEffect(() => {
     if (!editing) return;
@@ -53,10 +67,16 @@ export default function EditableMusicalKey({ row }) {
       if (!response.ok || payload?.ok === false) {
         throw new Error(payload?.error || 'Não foi possível salvar o tom.');
       }
+
       const saved = normalizeValue(payload?.musicalKey ?? next);
       setValue(saved);
       setDraft(saved);
       setEditing(false);
+
+      // Mantém a referência local alinhada ao valor confirmado pelo backend para que
+      // um row pai ainda desatualizado não reverta visualmente o tom salvo.
+      lastItemIdRef.current = itemId;
+      lastSourceValueRef.current = saved;
     } catch (saveError) {
       setError(saveError?.message || 'Erro ao salvar');
     } finally {

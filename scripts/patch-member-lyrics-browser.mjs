@@ -31,10 +31,32 @@ if (source.includes(componentMarker) && !source.includes('const [lyricsIndex, se
 
 const hasPdfMarker = '  const hasPdf = Boolean(item?.repertorioPdfUrl);';
 if (source.includes(hasPdfMarker) && !source.includes('const lyricsItems = useMemo')) {
-  source = source.replace(
+  const injected = [
+    '  const lyricsItems = useMemo(() => {',
+    '    const result = [];',
+    '    (repertorioData?.orderedSections || []).forEach((section) => {',
+    '      (section?.items || []).forEach(({ row, displayNumber }, index) => {',
+    '        result.push({',
+    "          id: String(row?.id || row?.repertoire_item_id || (section.key + '-' + (displayNumber || index))),",
+    '          row,',
+    '          title: getMainTitle(row, index),',
+    "          subtitle: getSecondaryText(row) || section?.label || '',",
+    '        });',
+    '      });',
+    '    });',
+    '    return result;',
+    '  }, [repertorioData]);',
+    '',
+    '  function handleOpenLyrics(targetRow) {',
+    "    const targetId = String(targetRow?.id || targetRow?.repertoire_item_id || '');",
+    "    let nextIndex = lyricsItems.findIndex((entry) => targetId && String(entry?.id || '') === targetId);",
+    '    if (nextIndex < 0) nextIndex = lyricsItems.findIndex((entry) => entry?.row === targetRow);',
+    '    if (nextIndex >= 0) setLyricsIndex(nextIndex);',
+    '  }',
+    '',
     hasPdfMarker,
-    `  const lyricsItems = useMemo(() => {\n    const result = [];\n    (repertorioData?.orderedSections || []).forEach((section) => {\n      (section?.items || []).forEach(({ row, displayNumber }, index) => {\n        result.push({\n          id: String(row?.id || row?.repertoire_item_id || \\`${'${section.key}-${displayNumber || index}'}\\`),\n          row,\n          title: getMainTitle(row, index),\n          subtitle: getSecondaryText(row) || section?.label || '',\n        });\n      });\n    });\n    return result;\n  }, [repertorioData]);\n\n  function handleOpenLyrics(targetRow) {\n    const targetId = String(targetRow?.id || targetRow?.repertoire_item_id || '');\n    let nextIndex = lyricsItems.findIndex((entry) => targetId && String(entry?.id || '') === targetId);\n    if (nextIndex < 0) nextIndex = lyricsItems.findIndex((entry) => entry?.row === targetRow);\n    if (nextIndex >= 0) setLyricsIndex(nextIndex);\n  }\n\n${hasPdfMarker}`
-  );
+  ].join('\n');
+  source = source.replace(hasPdfMarker, injected);
 }
 
 source = source.replace(

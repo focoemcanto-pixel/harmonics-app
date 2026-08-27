@@ -89,3 +89,7 @@ if (!source.includes('<LyricsBrowserOverlay') || !source.includes('onOpenLyrics=
 
 if (source !== before) fs.writeFileSync(path, source);
 console.log(`[member lyrics browser] ${source !== before ? 'aplicado' : 'já aplicado'}`);
+
+// O ajuste do player precisa rodar depois da integração de letras, pois ambos
+// alteram o mesmo modal de repertório.
+await import('./patch-member-player-order-and-playback.mjs');

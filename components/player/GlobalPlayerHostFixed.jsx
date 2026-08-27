@@ -42,6 +42,19 @@ function sameRect(a, b) {
   return Math.abs(a.left - b.left) < 1 && Math.abs(a.top - b.top) < 1 && Math.abs(a.width - b.width) < 1 && Math.abs(a.height - b.height) < 1;
 }
 
+function enableNativePipCapabilities(player) {
+  try {
+    const iframe = player?.getIframe?.();
+    if (!iframe) return;
+    iframe.setAttribute('allow', 'autoplay; encrypted-media; picture-in-picture; fullscreen');
+    iframe.setAttribute('allowfullscreen', '');
+    iframe.setAttribute('webkitallowfullscreen', '');
+    iframe.setAttribute('allowpictureinpicture', '');
+  } catch {
+    // YouTube/iOS decide a disponibilidade final do PiP; não interromper o player.
+  }
+}
+
 export default function GlobalPlayerHostFixed() {
   const {
     state: {
@@ -131,6 +144,7 @@ export default function GlobalPlayerHostFixed() {
         playerVars: {
           autoplay: 0,
           controls: 1,
+          fs: 1,
           rel: 0,
           modestbranding: 1,
           playsinline: 1,
@@ -142,6 +156,7 @@ export default function GlobalPlayerHostFixed() {
             const target = event?.target || null;
             initializingRef.current = false;
             if (!target) return;
+            enableNativePipCapabilities(target);
             setPlayerRef(target);
             window.__harmonicsGlobalPlayerInstance = target;
             currentVideoIdRef.current = videoId;
@@ -158,6 +173,7 @@ export default function GlobalPlayerHostFixed() {
             const target = event?.target;
 
             if (state === window.YT?.PlayerState?.PLAYING) {
+              enableNativePipCapabilities(target);
               setIsTrackTransitioning(false);
               setHasUserUnlockedPlayback(true);
               setPendingManualPlay(false);

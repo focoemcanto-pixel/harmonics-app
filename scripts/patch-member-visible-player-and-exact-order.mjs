@@ -37,7 +37,7 @@ patch('components/player/GlobalPlayerHostFixed.jsx', (source) => {
     );
 
     const marker = "  useEffect(() => () => {\n    clearRetries();\n  }, [clearRetries]);";
-    const injected = `${marker}\n\n  useEffect(() => {\n    let raf = 0;\n    let stopped = false;\n\n    const syncRect = () => {\n      if (stopped) return;\n      const target = document.getElementById('harmonics-visible-player-host');\n      if (target) {\n        const rect = target.getBoundingClientRect();\n        if (rect.width > 20 && rect.height > 20) {\n          setVisibleRect((previous) => {\n            if (previous && Math.abs(previous.left - rect.left) < 1 && Math.abs(previous.top - rect.top) < 1 && Math.abs(previous.width - rect.width) < 1 && Math.abs(previous.height - rect.height) < 1) return previous;\n            return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };\n          });\n        } else {\n          setVisibleRect(null);\n        }\n      } else {\n        setVisibleRect(null);\n      }\n      raf = window.requestAnimationFrame(syncRect);\n    };\n\n    raf = window.requestAnimationFrame(syncRect);\n    return () => {\n      stopped = true;\n      window.cancelAnimationFrame(raf);\n    };\n  }, []);`;
+    const injected = `${marker}\n\n  useEffect(() => {\n    if (typeof window === 'undefined') return undefined;\n\n    let frame = 0;\n    let observer = null;\n    let observedTarget = null;\n\n    const measure = () => {\n      frame = 0;\n      const target = document.getElementById('harmonics-visible-player-host');\n\n      if (target !== observedTarget) {\n        observer?.disconnect?.();\n        observer = null;\n        observedTarget = target || null;\n        if (target && typeof ResizeObserver !== 'undefined') {\n          observer = new ResizeObserver(() => scheduleMeasure());\n          observer.observe(target);\n        }\n      }\n\n      if (!target) {\n        setVisibleRect((previous) => (previous === null ? previous : null));\n        return;\n      }\n\n      const rect = target.getBoundingClientRect();\n      if (rect.width <= 20 || rect.height <= 20) {\n        setVisibleRect((previous) => (previous === null ? previous : null));\n        return;\n      }\n\n      const next = {\n        left: Math.round(rect.left * 2) / 2,\n        top: Math.round(rect.top * 2) / 2,\n        width: Math.round(rect.width),\n        height: Math.round(rect.height),\n      };\n\n      setVisibleRect((previous) => {\n        if (previous && previous.left === next.left && previous.top === next.top && previous.width === next.width && previous.height === next.height) return previous;\n        return next;\n      });\n    };\n\n    const scheduleMeasure = () => {\n      if (frame) return;\n      frame = window.requestAnimationFrame(measure);\n    };\n\n    scheduleMeasure();\n    window.addEventListener('resize', scheduleMeasure, { passive: true });\n    window.addEventListener('orientationchange', scheduleMeasure, { passive: true });\n    document.addEventListener('scroll', scheduleMeasure, true);\n\n    const mutationObserver = new MutationObserver(scheduleMeasure);\n    mutationObserver.observe(document.body, { childList: true, subtree: true });\n\n    return () => {\n      if (frame) window.cancelAnimationFrame(frame);\n      observer?.disconnect?.();\n      mutationObserver.disconnect();\n      window.removeEventListener('resize', scheduleMeasure);\n      window.removeEventListener('orientationchange', scheduleMeasure);\n      document.removeEventListener('scroll', scheduleMeasure, true);\n    };\n  }, []);`;
     if (!source.includes(marker)) throw new Error('[member visible player] marker de cleanup não encontrado');
     source = source.replace(marker, injected);
   }
@@ -80,14 +80,18 @@ patch('components/player/GlobalPlayerHostFixed.jsx', (source) => {
 
   source = source.slice(0, actualReturnStart) + nextReturn + source.slice(returnEnd + '\n  );'.length);
 
-  if (!source.includes('playerRef?.setSize?.(visibleRect.width, visibleRect.height)')) {
-    const effectMarker = "  useEffect(() => {\n    if (!playerRef || desiredPlaybackState !== 'playing') return undefined;";
-    const resizeEffect = `  useEffect(() => {\n    if (!playerRef || !visibleRect) return;\n    playerRef?.setSize?.(visibleRect.width, visibleRect.height);\n  }, [playerRef, visibleRect]);\n\n${effectMarker}`;
-    if (!source.includes(effectMarker)) throw new Error('[member visible player] marker resize não encontrado');
-    source = source.replace(effectMarker, resizeEffect);
+  // IMPORTANTE: não chama YT.Player#setSize continuamente enquanto o modal está
+  // aberto. No Safari/iPhone isso reinicializa internamente o iframe e produz o
+  // loop 0:00/0:00. O wrapper muda de tamanho por CSS e o iframe ocupa 100% dele.
+  const resizeEffectStart = source.indexOf("  useEffect(() => {\n    if (!playerRef || !visibleRect) return;\n    playerRef?.setSize?.(visibleRect.width, visibleRect.height);");
+  if (resizeEffectStart !== -1) {
+    const resizeEffectEnd = source.indexOf('\n\n  useEffect(() => {', resizeEffectStart + 10);
+    if (resizeEffectEnd !== -1) {
+      source = source.slice(0, resizeEffectStart) + source.slice(resizeEffectEnd + 2);
+    }
   }
 
   return source;
 });
 
-console.log('[member visible player] ordem do repertório + iframe YouTube visível/safari-safe aplicados');
+console.log('[member visible player] ordem do repertório + iframe YouTube visível estável/iPhone-safe aplicados');

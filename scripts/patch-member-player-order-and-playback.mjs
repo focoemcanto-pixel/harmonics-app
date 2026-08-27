@@ -11,22 +11,16 @@ function patch(path, mutate) {
 patch('app/membro/page.js', (source) => {
   const start = source.indexOf('  function buildPlaylistFromRow(item) {');
   const end = source.indexOf('\n\n  function openRepertoire(item, options = {}) {', start);
-  if (start === -1 || end === -1) {
-    throw new Error('[member player final] buildPlaylistFromRow/openRepertoire não encontrados');
-  }
+  if (start === -1 || end === -1) throw new Error('[member player final] buildPlaylistFromRow/openRepertoire não encontrados');
 
-  const buildPlaylist = `  function buildPlaylistFromRow(item) {\n    if (!Array.isArray(item?.repertorioItems)) return [];\n\n    // A ordem do player precisa ser exatamente a ordem salva pelo cliente/admin.\n    // Não reinterpretamos padrinhos/noiva/pais, porque isso alterava a sequência real.\n    const orderedRows = item.repertorioItems\n      .map((row, originalIndex) => ({\n        row,\n        originalIndex,\n        savedOrder: Number(row?.item_order ?? row?.ordem ?? originalIndex + 1),\n      }))\n      .filter(({ row }) => Boolean(resolveTrackUrl(row)))\n      .sort((a, b) => {\n        if (a.savedOrder !== b.savedOrder) return a.savedOrder - b.savedOrder;\n        return a.originalIndex - b.originalIndex;\n      });\n\n    return orderedRows.map((entry, index) => {\n      const row = entry.row;\n      const sectionKey = resolveSectionFromItem(row);\n      return {\n        itemId: row?.id || null,\n        title: row?.musica || row?.song_name || \`Faixa \${index + 1}\`,\n        subtitle: getDisplayLabel(row, sectionKey),\n        notes: row?.observacao || row?.notes || '',\n        videoId: String(row?.reference_video_id || '').trim(),\n        url: resolveTrackUrl(row),\n        order: entry.savedOrder,\n        sectionKey,\n      };\n    });\n  }`;
-
+  const buildPlaylist = `  function buildPlaylistFromRow(item) {\n    if (!Array.isArray(item?.repertorioItems)) return [];\n\n    const orderedRows = item.repertorioItems\n      .map((row, originalIndex) => ({\n        row,\n        originalIndex,\n        savedOrder: Number(row?.item_order ?? row?.ordem ?? originalIndex + 1),\n      }))\n      .filter(({ row }) => Boolean(resolveTrackUrl(row)))\n      .sort((a, b) => {\n        if (a.savedOrder !== b.savedOrder) return a.savedOrder - b.savedOrder;\n        return a.originalIndex - b.originalIndex;\n      });\n\n    return orderedRows.map((entry, index) => {\n      const row = entry.row;\n      const sectionKey = resolveSectionFromItem(row);\n      return {\n        itemId: row?.id || null,\n        title: row?.musica || row?.song_name || \`Faixa \${index + 1}\`,\n        subtitle: getDisplayLabel(row, sectionKey),\n        notes: row?.observacao || row?.notes || '',\n        videoId: String(row?.reference_video_id || '').trim(),\n        url: resolveTrackUrl(row),\n        order: entry.savedOrder,\n        sectionKey,\n      };\n    });\n  }`;
   source = source.slice(0, start) + buildPlaylist + source.slice(end);
 
   const openStart = source.indexOf('  function openRepertoire(item, options = {}) {');
   const openEnd = source.indexOf('\n\n  function handleMinimizePlayer()', openStart);
-  if (openStart === -1 || openEnd === -1) {
-    throw new Error('[member player final] openRepertoire/handleMinimizePlayer não encontrados');
-  }
+  if (openStart === -1 || openEnd === -1) throw new Error('[member player final] openRepertoire/handleMinimizePlayer não encontrados');
 
-  const openRepertoire = `  function openRepertoire(item, options = {}) {\n    if (!item) return;\n\n    const playlist = buildPlaylistFromRow(item);\n    if (!playlist.length) {\n      toast.info('Este repertório não possui faixas com referência de áudio.');\n      return;\n    }\n\n    let startIndex = Number.isFinite(options.startIndex) ? Number(options.startIndex) : 0;\n    if (options.startItemId) {\n      const byId = playlist.findIndex((track) => String(track?.itemId || '') === String(options.startItemId));\n      if (byId >= 0) startIndex = byId;\n    } else if (options.startOrder != null) {\n      const byOrder = playlist.findIndex((track) => Number(track?.order) === Number(options.startOrder));\n      if (byOrder >= 0) startIndex = byOrder;\n    }\n\n    startIndex = Math.max(0, Math.min(startIndex, playlist.length - 1));\n    const shouldAutoplay = options.autoplay === true;\n\n    replacePlaylist(playlist, { autoplay: shouldAutoplay, startIndex });\n    setPlayerEventTitle(item?.clientName || 'Repertório');\n    setIsPlayerModalOpen(options.openModal !== false);\n    setIsMiniPlayerVisible(false);\n  }`;
-
+  const openRepertoire = `  function openRepertoire(item, options = {}) {\n    if (!item) return;\n\n    const playlist = buildPlaylistFromRow(item);\n    if (!playlist.length) {\n      toast.info('Este repertório não possui faixas com referência de áudio.');\n      return;\n    }\n\n    let startIndex = Number.isFinite(options.startIndex) ? Number(options.startIndex) : 0;\n    if (options.startItemId) {\n      const byId = playlist.findIndex((track) => String(track?.itemId || '') === String(options.startItemId));\n      if (byId >= 0) startIndex = byId;\n    } else if (options.startOrder != null) {\n      const byOrder = playlist.findIndex((track) => Number(track?.order) === Number(options.startOrder));\n      if (byOrder >= 0) startIndex = byOrder;\n    }\n\n    startIndex = Math.max(0, Math.min(startIndex, playlist.length - 1));\n    const shouldAutoplay = options.autoplay === true;\n    replacePlaylist(playlist, { autoplay: shouldAutoplay, startIndex });\n    setPlayerEventTitle(item?.clientName || 'Repertório');\n    setIsPlayerModalOpen(options.openModal !== false);\n    setIsMiniPlayerVisible(false);\n  }`;
   source = source.slice(0, openStart) + openRepertoire + source.slice(openEnd);
 
   if (!source.includes('onOpenTrack={(item, row) => {')) {
@@ -35,11 +29,14 @@ patch('app/membro/page.js', (source) => {
     if (!source.includes(marker)) throw new Error('[member player final] onOpenPlayer do resumo não encontrado');
     source = source.replace(marker, replacement);
   }
-
   return source;
 });
 
 patch('components/membro/MembroRepertorioResumoModal.js', (source) => {
+  source = source.replace(
+    'function RepertorioLinha({ row, index, displayNumber, onOpenLyrics }) {',
+    'function RepertorioLinha({ row, index, displayNumber, onOpenLyrics, onOpenTrack }) {'
+  );
   source = source.replace(
     'function RepertorioLinha({ row, index, displayNumber }) {',
     'function RepertorioLinha({ row, index, displayNumber, onOpenTrack }) {'
@@ -53,20 +50,34 @@ patch('components/membro/MembroRepertorioResumoModal.js', (source) => {
     'export default function MembroRepertorioResumoModal({ open, item, onClose, onOpenPdf, onOpenPlayer, onGoToRepertorios }) {',
     'export default function MembroRepertorioResumoModal({ open, item, onClose, onOpenPdf, onOpenPlayer, onOpenTrack, onGoToRepertorios }) {'
   );
-
   source = source.replace(
-    'row={row} index={index} displayNumber={displayNumber} />',
-    'row={row} index={index} displayNumber={displayNumber} onOpenTrack={(selectedRow) => onOpenTrack?.(item, selectedRow)} />'
+    'export default function MembroRepertorioResumoModal({ open, item, onClose, onOpenPdf, onOpenPlayer, onOpenTrack, onGoToRepertorios }) {',
+    'export default function MembroRepertorioResumoModal({ open, item, onClose, onOpenPdf, onOpenPlayer, onOpenTrack, onGoToRepertorios }) {'
   );
 
+  source = source.replace(
+    'displayNumber={displayNumber} onOpenLyrics={handleOpenLyrics} />',
+    'displayNumber={displayNumber} onOpenLyrics={handleOpenLyrics} onOpenTrack={(selectedRow) => onOpenTrack?.(item, selectedRow)} />'
+  );
+  source = source.replace(
+    'displayNumber={displayNumber} />',
+    'displayNumber={displayNumber} onOpenTrack={(selectedRow) => onOpenTrack?.(item, selectedRow)} />'
+  );
+
+  if (!source.includes('onOpenTrack={(selectedRow) => onOpenTrack?.(item, selectedRow)}')) {
+    throw new Error('[member player final] onOpenTrack não foi ligado às linhas do repertório');
+  }
   return source;
 });
 
 patch('components/player/GlobalPlayerHost.jsx', (source) => {
-  // YouTube iframe dentro de display:none fica com dimensão zero e em Safari/iOS\n  // pode aceitar o clique no controle mas nunca iniciar o vídeo. Mantemos o host\n  // fora da tela, porém renderizado com dimensão válida para a IFrame API.\n  source = source.replace(
+  source = source.replace(
     `  return (\n    <div className="hidden" aria-hidden="true">\n      <div ref={mountNodeRef} />\n    </div>\n  );`,
     `  return (\n    <div\n      className="pointer-events-none fixed left-[-10000px] top-0 h-[180px] w-[240px] overflow-hidden opacity-[0.01]"\n      aria-hidden="true"\n    >\n      <div ref={mountNodeRef} className="h-[180px] w-[240px]" />\n    </div>\n  );`
   );
+  if (source.includes('className="hidden" aria-hidden="true"')) {
+    throw new Error('[member player final] host do YouTube continua em display:none');
+  }
   return source;
 });
 

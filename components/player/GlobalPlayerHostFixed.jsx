@@ -1,16 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useRef } from 'react';
+// HARMONICS_STABLE_HOST_V3
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useGlobalPlayer } from '@/components/player/GlobalPlayerProvider';
 
 function ensureYouTubeAPI() {
   return new Promise((resolve) => {
     if (typeof window === 'undefined') return resolve(null);
-
-    if (window.YT?.Player) {
-      resolve(window.YT);
-      return;
-    }
+    if (window.YT?.Player) return resolve(window.YT);
 
     const existing = document.querySelector('script[data-youtube-iframe-api="true"]');
     if (!existing) {
@@ -27,18 +24,22 @@ function ensureYouTubeAPI() {
       resolve(window.YT || null);
     };
 
+    const startedAt = Date.now();
     const interval = window.setInterval(() => {
       if (window.YT?.Player) {
         window.clearInterval(interval);
         resolve(window.YT);
+      } else if (Date.now() - startedAt > 10000) {
+        window.clearInterval(interval);
+        resolve(window.YT || null);
       }
     }, 120);
-
-    window.setTimeout(() => {
-      window.clearInterval(interval);
-      resolve(window.YT || null);
-    }, 10000);
   });
+}
+
+function sameRect(a, b) {
+  if (!a || !b) return false;
+  return Math.abs(a.left - b.left) < 1 && Math.abs(a.top - b.top) < 1 && Math.abs(a.width - b.width) < 1 && Math.abs(a.height - b.height) < 1;
 }
 
 export default function GlobalPlayerHostFixed() {
@@ -46,11 +47,9 @@ export default function GlobalPlayerHostFixed() {
     state: {
       videoId,
       playerRef,
-      currentTrackIndex,
-      currentTrack,
       desiredPlaybackState,
       pendingManualPlay,
-      isTrackTransitioning,
+      currentTrack,
     },
     actions: {
       setPlayerRef,
@@ -65,72 +64,73 @@ export default function GlobalPlayerHostFixed() {
 
   const mountNodeRef = useRef(null);
   const currentVideoIdRef = useRef('');
-  const retryTimeoutsRef = useRef([]);
+  const desiredRef = useRef(desiredPlaybackState);
+  const pendingRef = useRef(pendingManualPlay);
+  const initializingRef = useRef(false);
+  const [visibleRect, setVisibleRect] = useState(null);
 
-  const clearRetries = useCallback(() => {
-    retryTimeoutsRef.current.forEach((id) => window.clearTimeout(id));
-    retryTimeoutsRef.current = [];
+  useEffect(() => { desiredRef.current = desiredPlaybackState; }, [desiredPlaybackState]);
+  useEffect(() => { pendingRef.current = pendingManualPlay; }, [pendingManualPlay]);
+
+  const syncVisibleRect = useCallback(() => {
+    if (typeof document === 'undefined') return;
+    const target = document.getElementById('harmonics-visible-player-host');
+    if (!target) {
+      setVisibleRect((previous) => previous ? null : previous);
+      return;
+    }
+    const rect = target.getBoundingClientRect();
+    if (rect.width < 20 || rect.height < 20) {
+      setVisibleRect((previous) => previous ? null : previous);
+      return;
+    }
+    const nextRect = { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
+    setVisibleRect((previous) => sameRect(previous, nextRect) ? previous : nextRect);
   }, []);
 
-  const isActuallyPlaying = useCallback((targetPlayer) => {
-    if (!targetPlayer || typeof window === 'undefined') return false;
-    return targetPlayer.getPlayerState?.() === window.YT?.PlayerState?.PLAYING;
-  }, []);
+  useEffect(() => {
+    syncVisibleRect();
+    const onLayout = () => window.requestAnimationFrame(syncVisibleRect);
+    window.addEventListener('resize', onLayout, { passive: true });
+    window.addEventListener('orientationchange', onLayout, { passive: true });
+    window.addEventListener('scroll', onLayout, { passive: true, capture: true });
 
-  const retryPlay = useCallback((targetPlayer, reason = 'retry') => {
-    if (!targetPlayer) return;
-    clearRetries();
+    const observer = new MutationObserver(onLayout);
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style'] });
 
-    [0, 120, 300, 700, 1200].forEach((delay, attempt) => {
-      const id = window.setTimeout(() => {
-        if (desiredPlaybackState !== 'playing') return;
-        if (isActuallyPlaying(targetPlayer)) {
-          clearRetries();
-          return;
-        }
-
-        console.log('[PLAYER][PLAY_RETRY_VISIBLE_HOST]', { reason, delay, attempt });
-        targetPlayer.playVideo?.();
-      }, delay);
-
-      retryTimeoutsRef.current.push(id);
-    });
-  }, [clearRetries, desiredPlaybackState, isActuallyPlaying]);
-
-  const loadAndPlay = useCallback((targetPlayer, nextVideoId, reason = 'load_and_play') => {
-    if (!targetPlayer || !nextVideoId) return;
-    currentVideoIdRef.current = nextVideoId;
-    setIsTrackTransitioning(true);
-    targetPlayer.loadVideoById?.(nextVideoId);
-    targetPlayer.playVideo?.();
-    retryPlay(targetPlayer, reason);
-  }, [retryPlay, setIsTrackTransitioning]);
+    return () => {
+      window.removeEventListener('resize', onLayout);
+      window.removeEventListener('orientationchange', onLayout);
+      window.removeEventListener('scroll', onLayout, true);
+      observer.disconnect();
+    };
+  }, [syncVisibleRect]);
 
   useEffect(() => {
     let cancelled = false;
 
     async function initPlayer() {
+      if (playerRef || initializingRef.current || !visibleRect || !videoId || !mountNodeRef.current) return;
+      initializingRef.current = true;
       const YT = await ensureYouTubeAPI();
-      if (!YT?.Player || cancelled || !mountNodeRef.current || playerRef) return;
+      if (cancelled || !YT?.Player || !mountNodeRef.current) {
+        initializingRef.current = false;
+        return;
+      }
 
-      const existing = window.__harmonicsGlobalPlayerInstance;
-      if (existing) {
-        try {
-          existing.stopVideo?.();
-          existing.destroy?.();
-        } catch {
-          // no-op
-        }
+      const old = window.__harmonicsGlobalPlayerInstance;
+      if (old) {
+        try { old.destroy?.(); } catch {}
         window.__harmonicsGlobalPlayerInstance = null;
       }
 
       const instance = new YT.Player(mountNodeRef.current, {
-        width: '220',
-        height: '124',
-        videoId: videoId || undefined,
+        width: String(Math.max(220, Math.round(visibleRect.width))),
+        height: String(Math.max(124, Math.round(visibleRect.height))),
+        videoId,
         playerVars: {
           autoplay: 0,
-          controls: 0,
+          controls: 1,
           rel: 0,
           modestbranding: 1,
           playsinline: 1,
@@ -140,14 +140,15 @@ export default function GlobalPlayerHostFixed() {
         events: {
           onReady: (event) => {
             const target = event?.target || null;
+            initializingRef.current = false;
+            if (!target) return;
             setPlayerRef(target);
             window.__harmonicsGlobalPlayerInstance = target;
-
-            if (!target || !videoId) return;
             currentVideoIdRef.current = videoId;
 
-            if (desiredPlaybackState === 'playing' || pendingManualPlay) {
-              loadAndPlay(target, videoId, pendingManualPlay ? 'ready_pending_manual' : 'ready_desired_playing');
+            if (desiredRef.current === 'playing' || pendingRef.current) {
+              target.loadVideoById?.(videoId);
+              target.playVideo?.();
             } else {
               target.cueVideoById?.(videoId);
             }
@@ -156,48 +157,37 @@ export default function GlobalPlayerHostFixed() {
             const state = event?.data;
             const target = event?.target;
 
-            if (state === window.YT.PlayerState.PLAYING) {
-              clearRetries();
+            if (state === window.YT?.PlayerState?.PLAYING) {
               setIsTrackTransitioning(false);
               setHasUserUnlockedPlayback(true);
               setPendingManualPlay(false);
               setIsPlaying(true);
-              console.log('[AUDIO_PLAYER][IS_PLAYING]', true);
               return;
             }
 
-            if (state === window.YT.PlayerState.PAUSED) {
-              if (desiredPlaybackState === 'playing' || pendingManualPlay || isTrackTransitioning) {
-                retryPlay(target, 'paused_while_desired_playing');
-                setIsPlaying(true);
-                return;
-              }
-
+            if (state === window.YT?.PlayerState?.PAUSED) {
+              setIsTrackTransitioning(false);
               setIsPlaying(false);
-              console.log('[AUDIO_PLAYER][IS_PLAYING]', false);
               return;
             }
 
-            if (state === window.YT.PlayerState.CUED) {
-              if (desiredPlaybackState === 'playing' || pendingManualPlay || isTrackTransitioning) {
+            if (state === window.YT?.PlayerState?.CUED) {
+              setIsTrackTransitioning(false);
+              setIsPlaying(false);
+              if (desiredRef.current === 'playing' || pendingRef.current) {
                 target?.playVideo?.();
-                retryPlay(target, 'cued_while_desired_playing');
-                setIsPlaying(true);
-                return;
               }
-
-              setIsPlaying(false);
               return;
             }
 
-            if (state === window.YT.PlayerState.ENDED) {
+            if (state === window.YT?.PlayerState?.ENDED) {
               next({ reason: 'track_ended', forcePlay: true });
             }
           },
           onError: (event) => {
             console.warn('[PLAYER][YOUTUBE_ERROR]', {
               code: event?.data,
-              videoId,
+              videoId: currentVideoIdRef.current,
               title: currentTrack?.title || '',
             });
             setIsPlaying(false);
@@ -206,51 +196,23 @@ export default function GlobalPlayerHostFixed() {
         },
       });
 
-      setPlayerRef(instance);
       window.__harmonicsGlobalPlayerInstance = instance;
     }
 
     initPlayer();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    playerRef,
-    setPlayerRef,
-    setIsPlaying,
-    setPendingManualPlay,
-    setHasUserUnlockedPlayback,
-    setIsTrackTransitioning,
-    next,
-    videoId,
-    desiredPlaybackState,
-    pendingManualPlay,
-    isTrackTransitioning,
-    currentTrack?.title,
-    clearRetries,
-    loadAndPlay,
-    retryPlay,
-  ]);
+    return () => { cancelled = true; };
+  }, [playerRef, visibleRect, videoId, setPlayerRef, setIsPlaying, setPendingManualPlay, setHasUserUnlockedPlayback, setIsTrackTransitioning, next, currentTrack?.title]);
 
   useEffect(() => {
-    if (!playerRef) return;
-
-    if (!videoId) {
-      clearRetries();
-      playerRef.stopVideo?.();
-      currentVideoIdRef.current = '';
-      setIsPlaying(false);
-      setIsTrackTransitioning(false);
-      return;
-    }
+    if (!playerRef || !videoId) return;
 
     if (currentVideoIdRef.current !== videoId) {
+      currentVideoIdRef.current = videoId;
+      setIsTrackTransitioning(true);
       if (desiredPlaybackState === 'playing') {
-        loadAndPlay(playerRef, videoId, 'video_id_changed');
+        playerRef.loadVideoById?.(videoId);
+        playerRef.playVideo?.();
       } else {
-        clearRetries();
-        currentVideoIdRef.current = videoId;
         playerRef.cueVideoById?.(videoId);
         setIsPlaying(false);
         setIsTrackTransitioning(false);
@@ -259,58 +221,45 @@ export default function GlobalPlayerHostFixed() {
     }
 
     if (desiredPlaybackState === 'playing') {
-      playerRef.playVideo?.();
-      retryPlay(playerRef, pendingManualPlay ? 'pending_manual_effect' : 'desired_playing_effect');
-      setIsPlaying(true);
+      const state = playerRef.getPlayerState?.();
+      if (state !== window.YT?.PlayerState?.PLAYING && state !== window.YT?.PlayerState?.BUFFERING) {
+        playerRef.playVideo?.();
+      }
     } else {
-      clearRetries();
-      playerRef.pauseVideo?.();
-      setIsPlaying(false);
-      setIsTrackTransitioning(false);
+      const state = playerRef.getPlayerState?.();
+      if (state === window.YT?.PlayerState?.PLAYING || state === window.YT?.PlayerState?.BUFFERING) {
+        playerRef.pauseVideo?.();
+      }
     }
-  }, [
-    videoId,
-    playerRef,
-    currentTrackIndex,
-    desiredPlaybackState,
-    pendingManualPlay,
-    clearRetries,
-    loadAndPlay,
-    retryPlay,
-    setIsPlaying,
-    setIsTrackTransitioning,
-  ]);
+  }, [videoId, playerRef, desiredPlaybackState, setIsPlaying, setIsTrackTransitioning]);
 
   useEffect(() => {
     if (!playerRef || desiredPlaybackState !== 'playing') return undefined;
-
     const timer = window.setInterval(() => {
-      setCurrentTime(playerRef.getCurrentTime?.() || 0);
-    }, 500);
-
+      const nextTime = Number(playerRef.getCurrentTime?.() || 0);
+      if (Number.isFinite(nextTime)) setCurrentTime(nextTime);
+    }, 750);
     return () => window.clearInterval(timer);
   }, [playerRef, desiredPlaybackState, setCurrentTime]);
 
-  useEffect(() => () => {
-    clearRetries();
-  }, [clearRetries]);
-
   return (
     <div
-      aria-hidden="true"
+      aria-hidden={visibleRect ? undefined : 'true'}
       style={{
         position: 'fixed',
-        left: 0,
-        bottom: 0,
-        width: 220,
-        height: 124,
-        opacity: 0.01,
-        pointerEvents: 'none',
+        left: visibleRect ? visibleRect.left : -10000,
+        top: visibleRect ? visibleRect.top : 0,
+        width: visibleRect ? visibleRect.width : 220,
+        height: visibleRect ? visibleRect.height : 124,
+        opacity: visibleRect ? 1 : 0.01,
+        pointerEvents: visibleRect ? 'auto' : 'none',
         overflow: 'hidden',
-        zIndex: 0,
+        zIndex: visibleRect ? 190 : 0,
+        borderRadius: visibleRect ? 18 : 0,
+        background: '#000',
       }}
     >
-      <div ref={mountNodeRef} />
+      <div ref={mountNodeRef} style={{ width: '100%', height: '100%' }} />
     </div>
   );
 }

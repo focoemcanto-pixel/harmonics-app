@@ -1,6 +1,6 @@
 'use client';
 
-import ContatoPill from '../admin/AdminPill';
+import AdminPill from '../admin/AdminPill';
 import { formatPhoneDisplay, formatInitials, getWhatsAppLink } from '../../lib/contatos/contatos-format';
 import { getTagTone, getInitialsClasses } from '../../lib/contatos/contatos-ui';
 
@@ -29,8 +29,8 @@ export default function ContatoCard({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="text-[17px] font-black text-[#0f172a]">{name || 'Sem nome'}</h3>
-            {!isActive && <ContatoPill tone="red">Inativo</ContatoPill>}
-            {tag && <ContatoPill tone={tone}>{tag}</ContatoPill>}
+            {!isActive && <AdminPill tone="red">Inativo</AdminPill>}
+            {tag && <AdminPill tone={tone}>{tag}</AdminPill>}
           </div>
 
           <div className="mt-2 space-y-1 text-[14px] text-[#64748b]">

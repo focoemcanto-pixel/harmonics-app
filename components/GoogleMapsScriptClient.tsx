@@ -2,6 +2,13 @@
 
 import Script from 'next/script';
 
+declare global {
+  interface Window {
+    __GOOGLE_MAPS_LOADED__?: boolean;
+    __GOOGLE_MAPS_ERROR__?: boolean;
+  }
+}
+
 type Props = {
   apiKey: string;
 };

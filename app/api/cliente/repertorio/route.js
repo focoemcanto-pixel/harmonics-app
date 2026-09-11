@@ -599,13 +599,45 @@ export async function POST(request) {
 
     const { data: existingConfig, error: existingConfigError } = await supabase
       .from('repertoire_config')
-      .select('client_public_token, is_locked, status')
+      .select('client_public_token, is_locked, status, submitted_at')
       .eq('event_id', eventId)
       .maybeSingle();
 
     if (existingConfigError) throw existingConfigError;
 
-    if (existingConfig?.is_locked) {
+    const { data: existingItems, error: existingItemsError } = await supabase
+      .from('repertoire_items')
+      .select(
+        'section, item_order, who_enters, moment, song_name, reference_link, reference_title, reference_channel, reference_thumbnail, reference_video_id, notes, type, group_name, label, genres, artists, suggestion_song_id'
+      )
+      .eq('event_id', eventId);
+
+    if (existingItemsError) throw existingItemsError;
+
+    const existingUsefulItemsCount = (existingItems || []).filter((item) =>
+      hasUsefulSectionContent(item)
+    ).length;
+    const incomingUsefulItemsCount = effectiveIncomingItems.filter((item) =>
+      hasUsefulSectionContent(item)
+    ).length;
+    const isInterruptedFinalizationRetry = Boolean(
+      existingConfig?.is_locked &&
+        mode === 'final' &&
+        existingUsefulItemsCount <= 1 &&
+        incomingUsefulItemsCount >= 2 &&
+        incomingUsefulItemsCount > existingUsefulItemsCount
+    );
+
+    if (isInterruptedFinalizationRetry) {
+      logWarn('CLIENTE_REPERTORIO', 'INTERRUPTED_FINALIZATION_RETRY_ALLOWED', {
+        eventId,
+        existingStatus: existingConfig?.status || null,
+        existingUsefulItemsCount,
+        incomingUsefulItemsCount,
+      });
+    }
+
+    if (existingConfig?.is_locked && !isInterruptedFinalizationRetry) {
       return NextResponse.json(
         {
           ok: false,
@@ -713,51 +745,6 @@ export async function POST(request) {
       ante_room_style: configPayload?.ante_room_style ?? '',
       ante_room_notes: configPayload?.ante_room_notes ?? '',
     });
-
-    const { removedColumns } = await upsertRepertoireConfigWithFallback(
-      supabase,
-      configPayload
-    );
-    logInfo('CLIENTE_REPERTORIO', 'CONFIG_UPSERT_OK', {
-      eventId,
-      mode,
-      status,
-      locked: isLocked,
-      removedColumns,
-    });
-
-    if (mode === 'final') {
-      const [{ data: persistedConfig, error: persistedConfigError }, { data: contractRow, error: contractError }] =
-        await Promise.all([
-          supabase
-            .from('repertoire_config')
-            .select('event_id, repertoire_pdf_url')
-            .eq('event_id', eventId)
-            .maybeSingle(),
-          supabase
-            .from('contracts')
-            .select('event_id, pdf_url')
-            .eq('event_id', eventId)
-            .maybeSingle(),
-        ]);
-
-      if (persistedConfigError) throw persistedConfigError;
-      if (contractError) throw contractError;
-
-      logRepertorioDetail('FINAL_PDF_URLS', {
-        hasContractPdfUrl: Boolean(contractRow?.pdf_url),
-        hasRepertoirePdfUrl: Boolean(persistedConfig?.repertoire_pdf_url),
-      });
-    }
-
-    const { data: existingItems, error: existingItemsError } = await supabase
-      .from('repertoire_items')
-      .select(
-        'section, item_order, who_enters, moment, song_name, reference_link, reference_title, reference_channel, reference_thumbnail, reference_video_id, notes, type, group_name, label, genres, artists, suggestion_song_id'
-      )
-      .eq('event_id', eventId);
-
-    if (existingItemsError) throw existingItemsError;
 
     const existingBySection = countItemsBySection(existingItems || []);
     const incomingSections = new Set(
@@ -904,6 +891,45 @@ export async function POST(request) {
       logInfo('CLIENTE_REPERTORIO', 'CUSTOM_ITEMS_INSERTED', {
         eventId,
         insertedCustomCount: 0,
+      });
+    }
+
+    // O bloqueio precisa ser a ultima etapa da persistencia principal. Antes,
+    // uma falha ao validar/inserir os itens deixava a configuracao como ENVIADO
+    // e is_locked=true mesmo sem o repertorio ter sido salvo por completo.
+    const { removedColumns } = await upsertRepertoireConfigWithFallback(
+      supabase,
+      configPayload
+    );
+    logInfo('CLIENTE_REPERTORIO', 'CONFIG_UPSERT_OK', {
+      eventId,
+      mode,
+      status,
+      locked: isLocked,
+      removedColumns,
+    });
+
+    if (mode === 'final') {
+      const [{ data: persistedConfig, error: persistedConfigError }, { data: contractRow, error: contractError }] =
+        await Promise.all([
+          supabase
+            .from('repertoire_config')
+            .select('event_id, repertoire_pdf_url')
+            .eq('event_id', eventId)
+            .maybeSingle(),
+          supabase
+            .from('contracts')
+            .select('event_id, pdf_url')
+            .eq('event_id', eventId)
+            .maybeSingle(),
+        ]);
+
+      if (persistedConfigError) throw persistedConfigError;
+      if (contractError) throw contractError;
+
+      logRepertorioDetail('FINAL_PDF_URLS', {
+        hasContractPdfUrl: Boolean(contractRow?.pdf_url),
+        hasRepertoirePdfUrl: Boolean(persistedConfig?.repertoire_pdf_url),
       });
     }
 

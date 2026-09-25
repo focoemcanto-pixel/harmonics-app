@@ -5,6 +5,7 @@ import { requireWorkspaceAdmin } from '@/lib/api/require-workspace-access';
 const ORIGIN = process.env.HARMONICS_LOGISTICS_ORIGIN || 'Salvador, BA, Brasil';
 
 function money(v){ return Math.round((Number(v)||0)*100)/100; }
+function musicianCount(f){ return ({solo:1,duo:2,trio:3,quarteto:4,quinteto:5,sexteto:6,septeto:7})[f]||0; }
 function slug(v){ return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase(); }
 function validRule(r,date){ return r.valid_from<=date && (!r.valid_until || r.valid_until>=date); }
 
@@ -39,8 +40,13 @@ export async function POST(request){
   let logistics={suggestedSurcharge:0,overnightLikely:false,reasons:[]}, location=null, routing=null;
   const mapsKey=String(process.env.GOOGLE_MAPS_KEY||'').trim();
   if(body.location && mapsKey){ location=await geocode(body.location,mapsKey); if(location){ routing=await route(ORIGIN,location.address,mapsKey); if(routing)logistics=logisticsImpact({...routing,receptionHours,eventTime:body.eventTime}); } }
-  const suggested=money(base+reception+sound+logistics.suggestedSurcharge);
+  const estimatedMusicianCost=money(musicianCount(formation)*350);
+  const estimatedCost=money(estimatedMusicianCost+logistics.suggestedSurcharge);
+  const tableTotal=money(base+reception+sound+logistics.suggestedSurcharge);
+  const healthyFloor=money(Math.max(estimatedCost*1.45,tableTotal*0.88));
+  const commercial=money(Math.max(healthyFloor,tableTotal*0.94));
+  const suggested=money(Math.max(commercial,tableTotal));
   const analysis=[routing?`${routing.distanceText} / ${routing.durationText} por trecho a partir da base logística.`:'Logística ainda sem rota confirmada.', logistics.reasons.length?`Atenções: ${logistics.reasons.join(', ')}.`:'Sem agravantes logísticos automáticos identificados.'].join(' ');
-  return NextResponse.json({ok:true,pricing:{base,reception,sound,logistics:logistics.suggestedSurcharge,suggested},location,routing,logistics,analysis,origin:ORIGIN});
+  return NextResponse.json({ok:true,pricing:{base,reception,sound,logistics:logistics.suggestedSurcharge,tableTotal,healthyFloor,commercial,suggested},costs:{musicianCost:estimatedMusicianCost,estimatedCost,estimatedProfit:money(suggested-estimatedCost)},location,routing,logistics,analysis,origin:ORIGIN});
  }catch(error){console.error('[QUOTES_ANALYZE][ERROR]',error);return NextResponse.json({ok:false,message:error?.message||'Falha ao analisar orçamento.'},{status:500});}
 }

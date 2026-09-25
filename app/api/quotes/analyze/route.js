@@ -40,13 +40,24 @@ export async function POST(request){
   let logistics={suggestedSurcharge:0,overnightLikely:false,reasons:[]}, location=null, routing=null;
   const mapsKey=String(process.env.GOOGLE_MAPS_KEY||'').trim();
   if(body.location && mapsKey){ location=await geocode(body.location,mapsKey); if(location){ routing=await route(ORIGIN,location.address,mapsKey); if(routing)logistics=logisticsImpact({...routing,receptionHours,eventTime:body.eventTime}); } }
-  const estimatedMusicianCost=money(musicianCount(formation)*350);
-  const estimatedCost=money(estimatedMusicianCost+logistics.suggestedSurcharge);
+  const localCeremonyFee=pick('musician_fee','ceremony_local')||350;
+  const localReceptionFee=pick('musician_fee','reception_local')||400;
+  const outsideFee=pick('musician_fee','outside_base')||400;
+  const standardTrip=pick('transport','standard_trip')||200;
+  const isOutside=Boolean(routing && routing.distanceKm>35);
+  const longCommitment=Boolean(receptionHours>=3 || (routing && routing.travelMinutes>=150));
+  let unitFee=isOutside?outsideFee:localCeremonyFee;
+  if(receptionHours>0) unitFee=Math.max(unitFee,localReceptionFee);
+  if(longCommitment && routing?.travelMinutes>=180) unitFee=Math.max(unitFee,600);
+  if(logistics.overnightLikely) unitFee=Math.max(unitFee,800);
+  const estimatedMusicianCost=money(musicianCount(formation)*unitFee);
+  const transportOperationalCost=money(logistics.suggestedSurcharge>0?Math.max(standardTrip,logistics.suggestedSurcharge):0);
+  const estimatedCost=money(estimatedMusicianCost+transportOperationalCost);
   const tableTotal=money(base+reception+sound+logistics.suggestedSurcharge);
   const healthyFloor=money(Math.max(estimatedCost*1.45,tableTotal*0.88));
   const commercial=money(Math.max(healthyFloor,tableTotal*0.94));
   const suggested=money(Math.max(commercial,tableTotal));
   const analysis=[routing?`${routing.distanceText} / ${routing.durationText} por trecho a partir da base logística.`:'Logística ainda sem rota confirmada.', logistics.reasons.length?`Atenções: ${logistics.reasons.join(', ')}.`:'Sem agravantes logísticos automáticos identificados.'].join(' ');
-  return NextResponse.json({ok:true,pricing:{base,reception,sound,logistics:logistics.suggestedSurcharge,tableTotal,healthyFloor,commercial,suggested},costs:{musicianCost:estimatedMusicianCost,estimatedCost,estimatedProfit:money(suggested-estimatedCost)},location,routing,logistics,analysis,origin:ORIGIN});
+  return NextResponse.json({ok:true,pricing:{base,reception,sound,logistics:logistics.suggestedSurcharge,tableTotal,healthyFloor,commercial,suggested},costs:{musicianUnit:unitFee,musicianCost:estimatedMusicianCost,transportCost:transportOperationalCost,estimatedCost,estimatedProfit:money(suggested-estimatedCost),longCommitment},location,routing,logistics,analysis,origin:ORIGIN});
  }catch(error){console.error('[QUOTES_ANALYZE][ERROR]',error);return NextResponse.json({ok:false,message:error?.message||'Falha ao analisar orçamento.'},{status:500});}
 }

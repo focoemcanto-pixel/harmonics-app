@@ -9,6 +9,7 @@ import useCurrentWorkspace from '@/hooks/useCurrentWorkspace';
 const ITEMS = [
   ['Dashboard', '/dashboard'],
   ['Eventos', '/eventos'],
+  ['Orçamentos', '/orcamentos'],
   ['Contatos', '/contatos'],
   ['Convites', '/convites'],
   ['Escalas', '/escalas'],

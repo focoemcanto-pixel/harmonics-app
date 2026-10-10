@@ -1,3 +1,4 @@
+import { isAntesalaAuthorized } from '@/lib/cliente/antesala-authorization';
 import { redirect } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
 import ClienteHome from '../../../components/cliente/ClienteHome';
@@ -385,7 +386,7 @@ function resolveAntesalaRequestFromEvent(event) {
     .trim()
     .toLowerCase();
 
-  if (status === 'pending') {
+  if (status === 'pending' && event?.antesala_requested_by_client === true) {
     return {
       requestedByClient: true,
       status: 'pending',
@@ -401,7 +402,7 @@ function resolveAntesalaRequestFromEvent(event) {
 
   return {
     requestedByClient: Boolean(event?.antesala_requested_by_client),
-    status: String(event?.antesala_request_status || ''),
+    status: status === 'pending' ? '' : String(event?.antesala_request_status || ''),
   };
 }
 
@@ -1898,12 +1899,7 @@ export default async function ClienteTokenPage({ params, searchParams }) {
       linkVisualizacao: `/cliente/${clientToken}/repertorio`,
       podeSolicitarCorrecao:
         String(config?.status || '').toUpperCase() !== 'AGUARDANDO_REVISAO',
-      temAntessala: Boolean(
-        config?.has_ante_room ??
-          event?.has_antesala ??
-          event?.antesala_enabled ??
-          false
-      ),
+      temAntessala: isAntesalaAuthorized(event),
       antesalaDurationMinutes:
         Number(event?.antesala_duration_minutes ?? 0) || null,
       antesalaRequestedByClient: antesalaRequest.requestedByClient,
@@ -1921,7 +1917,7 @@ export default async function ClienteTokenPage({ params, searchParams }) {
         selected_styles: initialLists.customEvent?.selected_styles || [],
         preferred_artists: initialLists.customEvent?.preferred_artists || '',
         custom_songs: initialLists.customEvent?.custom_songs || [],
-        querAntessala: config?.has_ante_room ?? null,
+        querAntessala: isAntesalaAuthorized(event),
         antessala: {
           ...initialLists.antessala,
           estilo: config?.ante_room_style || initialLists.antessala?.estilo || '',

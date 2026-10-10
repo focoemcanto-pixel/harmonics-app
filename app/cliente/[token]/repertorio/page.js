@@ -1,3 +1,4 @@
+import { isAntesalaAuthorized } from '@/lib/cliente/antesala-authorization';
 import { notFound, redirect } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
 import ClienteHome from '../../../../components/cliente/ClienteHome';
@@ -299,12 +300,12 @@ function normalizeRepertoireSection(section) {
     .replace(/[\u0300-\u036f]/g, '');
 }
 
-function resolveAntesalaRequestFromEvent(resolvedEventSource) {
+function resolveAntesalaRequestFromEvent(event) {
   const status = String(event?.antesala_request_status || '')
     .trim()
     .toLowerCase();
 
-  if (status === 'pending') {
+  if (status === 'pending' && event?.antesala_requested_by_client === true) {
     return {
       requestedByClient: true,
       status: 'pending',
@@ -320,7 +321,7 @@ function resolveAntesalaRequestFromEvent(resolvedEventSource) {
 
   return {
     requestedByClient: Boolean(event?.antesala_requested_by_client),
-    status: String(event?.antesala_request_status || ''),
+    status: status === 'pending' ? '' : String(event?.antesala_request_status || ''),
   };
 }
 
@@ -858,12 +859,7 @@ export default async function ClienteRepertorioPage({ params }) {
       linkVisualizacao: `/cliente/${clientToken}/repertorio`,
       podeSolicitarCorrecao:
         String(config?.status || '').toUpperCase() !== 'AGUARDANDO_REVISAO',
-      temAntessala: Boolean(
-        config?.has_ante_room ??
-          event?.has_antesala ??
-          event?.antesala_enabled ??
-          false
-      ),
+      temAntessala: isAntesalaAuthorized(event),
       antesalaDurationMinutes:
         Number(event?.antesala_duration_minutes ?? 0) || null,
       antesalaRequestedByClient: antesalaRequest.requestedByClient,
@@ -878,7 +874,7 @@ export default async function ClienteRepertorioPage({ params }) {
 
       initialState: {
         mode: isWedding ? 'wedding' : 'custom',
-        querAntessala: config?.has_ante_room ?? null,
+        querAntessala: isAntesalaAuthorized(event),
         antessala: {
           ...initialLists.antessala,
           estilo: config?.ante_room_style || initialLists.antessala?.estilo || '',

@@ -351,7 +351,7 @@ export default function EventoDetalhePage() {
               antesala_requested_by_client: false,
               has_antesala: true,
               antesala_enabled: true,
-              antesala_duration_minutes: Number(evento?.antesala_duration_minutes || 0) || null,
+              antesala_duration_minutes: Number(evento?.antesala_duration_minutes || 30),
               antesala_price_increment: increment,
               agreed_amount: nextAgreedAmount,
               open_amount: nextOpenAmount,
@@ -565,10 +565,10 @@ export default function EventoDetalhePage() {
                   {normalizeAntesalaStatus(evento?.antesala_request_status) === 'pending' ? (
                     <div className="mt-3 flex flex-wrap gap-2">
                       <button type="button" onClick={() => responderSolicitacaoAntesala('approved')} disabled={processandoAntesala !== ''} className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-black text-white disabled:opacity-60">
-                        {processandoAntesala === 'approved' ? 'Aprovando...' : 'Aprovar'}
+                        {processandoAntesala === 'approved' ? 'Liberando...' : 'Liberar antessala'}
                       </button>
                       <button type="button" onClick={() => responderSolicitacaoAntesala('rejected')} disabled={processandoAntesala !== ''} className="rounded-xl border border-red-300 bg-white px-3 py-2 text-xs font-black text-red-700 disabled:opacity-60">
-                        {processandoAntesala === 'rejected' ? 'Rejeitando...' : 'Rejeitar'}
+                        {processandoAntesala === 'rejected' ? 'Recusando...' : 'Recusar e seguir sem antessala'}
                       </button>
                     </div>
                   ) : null}

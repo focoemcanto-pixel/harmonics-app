@@ -1699,7 +1699,7 @@ function RepertorioTab({
   const receptivoDuracaoLabel = `${receptivoContratadoHoras || 1}h`;
   const antesalaSupportWhatsAppUrl = buildWhatsAppUrl(
     data?.suporteWhatsapp,
-    'Olá! Gostaria de solicitar a inclusão de antesala no meu evento.'
+    'Olá! Gostaria de contratar a antessala para o meu evento.'
   );
   const hasAntesalaSupportWhatsApp = antesalaSupportWhatsAppUrl !== '#';
   
@@ -1851,10 +1851,29 @@ const [customSongs, setCustomSongs] = useState(
     : []
 );
 
-  const isAntesalaApproved = querAntessala === true;
-  const isAntesalaPending =
-    !isAntesalaApproved &&
-    (Boolean(antessala?.requestedByClient) || hasFilledField(antessala?.requestStatus));
+  const isAntesalaApproved = data?.repertorio?.temAntessala === true;
+  const isAntesalaPending = !isAntesalaApproved && Boolean(antessala?.requestedByClient || data?.repertorio?.antesalaRequestedByClient) && String(antessala?.requestStatus || data?.repertorio?.antesalaRequestStatus || '').toLowerCase() === 'pending';
+  const [requestingAntesala, setRequestingAntesala] = useState(false);
+  const isAntesalaRejected = String(antessala?.requestStatus || data?.repertorio?.antesalaRequestStatus || '').toLowerCase() === 'rejected';
+
+  async function requestAntesalaRelease() {
+    if (requestingAntesala || isAntesalaPending || isAntesalaApproved) return;
+    setRequestingAntesala(true);
+    try {
+      const response = await fetch('/api/cliente/antesala/request', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: data.repertorio?.repertoireToken || data.token }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.ok) throw new Error(result.error || 'Não foi possível enviar a solicitação.');
+      if (result.status === 'approved') { window.location.reload(); return; }
+      setQuerAntessala(false);
+      setAntessala((prev) => ({ ...prev, requestedByClient: true, requestStatus: 'pending' }));
+      showToast('Solicitação enviada. Aguarde a liberação da banda.');
+    } catch (error) {
+      showToast(error.message, 'error');
+    } finally { setRequestingAntesala(false); }
+  }
 
   const [showLocalDraftBanner, setShowLocalDraftBanner] = useState(false);
   const [savingMode, setSavingMode] = useState('');
@@ -2537,7 +2556,7 @@ function buildItemsPayload() {
   const cerimoniaItems = repertorioItems.filter((item) => item.section === 'cerimonia');
   const saidaItem = repertorioItems.find((item) => item.section === 'saida') || null;
 
-  if (querAntessala === true) {
+  if (isAntesalaApproved) {
     items.push({
       section: 'antessala',
       item_order: 0,
@@ -2698,7 +2717,7 @@ function buildConfigPayload() {
   }
 
   const exitReferenceFields = normalizeReferenceFields(saida);
-  const antesalaIncluded = querAntessala === true;
+  const antesalaIncluded = isAntesalaApproved;
   const mergedGenres =
     antessala.generos ||
     (Array.isArray(antessala.styleTags) ? antessala.styleTags.join(', ') : '');
@@ -2755,7 +2774,7 @@ async function saveRepertorio(mode = 'draft') {
       config: configPayload,
       items: builtItemsPayload,
       antesalaFlow: {
-        included: querAntessala === true,
+        included: isAntesalaApproved,
         durationMinutes: Number(antessala.durationMinutes || 0) || null,
         requestedByClient: false,
         requestStatus: null,
@@ -2770,7 +2789,7 @@ async function saveRepertorio(mode = 'draft') {
         durationMinutes: Number(antessala?.durationMinutes || 0) || null,
         quoteMinutes: null,
         quotePriceIncrement: 0,
-        included: querAntessala === true,
+        included: isAntesalaApproved,
         priceIncrement: 0,
       });
       debugClientHome('[ANTESALA][POST_BODY]', {
@@ -3424,43 +3443,26 @@ async function handleRequestReview() {
       <SectionCard>
         <div className="text-[22px] font-black text-[#241a14]">Antesala 🎶</div>
         <div className="mt-2 text-[14px] leading-6 text-[#6f5d51]">
-          Seu contrato possui antesala?
+          {isAntesalaApproved ? 'Antessala liberada pela banda. Preencha suas preferências.' : 'Antessala bloqueada. O preenchimento depende da contratação e da liberação pela banda.'}
         </div>
+        {!isAntesalaApproved ? (
+          <div className="mt-4 space-y-3">
+            <div className="rounded-[18px] border border-amber-200 bg-amber-50 px-4 py-4 text-[14px] leading-6 text-amber-800">
+              {isAntesalaPending ? 'Solicitação enviada. Aguardando a liberação da banda.' : isAntesalaRejected ? 'A banda recusou a liberação. Você pode seguir com o repertório sem antessala.' : 'Você pode seguir com o repertório sem antessala. Solicitar a liberação não contrata nem inclui esse serviço.'}
+            </div>
+            <button type="button" onClick={requestAntesalaRelease} disabled={requestingAntesala || isAntesalaPending} className="w-full rounded-[16px] bg-violet-600 px-4 py-3 text-[14px] font-black text-white disabled:opacity-50">
+              {requestingAntesala ? 'Solicitando...' : isAntesalaPending ? 'Aguardando liberação' : 'Solicitar liberação'}
+            </button>
+            <a href={antesalaSupportWhatsAppUrl} target={hasAntesalaSupportWhatsApp ? '_blank' : undefined} rel="noreferrer" aria-disabled={!hasAntesalaSupportWhatsApp} onClick={(event) => { if (!hasAntesalaSupportWhatsApp) event.preventDefault(); }} className="block w-full rounded-[16px] border border-violet-200 px-4 py-3 text-center text-[14px] font-black text-violet-700">
+              Contratar antessala
+            </a>
+          </div>
+        ) : null}
 
-        <div className="mt-4 flex gap-3">
-          <button
-            type="button"
-            onClick={() => {
-              setQuerAntessala(true);
-              setAntessalaWithLog((prev) => ({ ...prev, requestedByClient: false }), 'disableAntesalaRequest');
-            }}
-            className={classNames(
-              'flex-1 rounded-[18px] border px-4 py-4 text-[15px] font-black transition',
-              querAntessala === true
-                ? 'border-violet-200 bg-violet-50 text-violet-700'
-                : 'border-[#eadfd6] bg-white text-[#241a14]'
-            )}
-          >
-            Sim
-          </button>
-          <button
-            type="button"
-            onClick={() => setQuerAntessala(false)}
-            className={classNames(
-              'flex-1 rounded-[18px] border px-4 py-4 text-[15px] font-black transition',
-              querAntessala === false
-                ? 'border-zinc-200 bg-zinc-50 text-zinc-700'
-                : 'border-[#eadfd6] bg-white text-[#241a14]'
-            )}
-          >
-            Não
-          </button>
-        </div>
-
-        {querAntessala === true ? (
+        {isAntesalaApproved ? (
           <div className="mt-5 space-y-4">
             <div className="rounded-[18px] border border-[#eadfd6] bg-[#faf7f3] px-4 py-3 text-[13px] leading-5 text-[#6f5d51]">
-              Essa opção adiciona um acréscimo ao valor acertado. Se esse ajuste já tiver sido combinado com nossa equipe, pode prosseguir normalmente.
+              A antessala foi liberada pela banda conforme o combinado para seu evento.
             </div>
             <div>
               <div className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#9b8576]">Tempo da antesala</div>
@@ -3591,31 +3593,6 @@ async function handleRequestReview() {
                 ) : null}
               </div>
             ) : null}
-          </div>
-        ) : null}
-
-        {querAntessala === false ? (
-          <div className="mt-5 space-y-3">
-            <div className="rounded-[18px] border border-[#eadfd6] bg-white px-4 py-4 text-[14px] leading-6 text-[#7a6a5e]">
-              Você pode seguir normalmente com o repertório sem antesala.
-            </div>
-            <a
-              href={antesalaSupportWhatsAppUrl}
-              target={hasAntesalaSupportWhatsApp ? '_blank' : undefined}
-              rel={hasAntesalaSupportWhatsApp ? 'noreferrer' : undefined}
-              aria-disabled={!hasAntesalaSupportWhatsApp}
-              onClick={(event) => {
-                if (!hasAntesalaSupportWhatsApp) event.preventDefault();
-              }}
-              className={classNames(
-                'block w-full rounded-[16px] border px-4 py-3 text-center text-[14px] font-black transition',
-                hasAntesalaSupportWhatsApp
-                  ? 'border-[#d9c8f7] bg-[#fcfbff] text-violet-700 hover:bg-violet-50'
-                  : 'cursor-not-allowed border-[#eadfd6] bg-zinc-100 text-zinc-400'
-              )}
-            >
-              Solicitar à equipe
-            </a>
           </div>
         ) : null}
 

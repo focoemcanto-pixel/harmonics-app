@@ -1,3 +1,4 @@
+import { isAntesalaAuthorized } from '@/lib/cliente/antesala-authorization';
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { sendAdminWhatsAppAlert } from '@/lib/whatsapp/send-admin-alert';
@@ -40,12 +41,8 @@ function isMissingColumnError(error) {
 
 async function updateEventAntesalaRequest(supabase, eventId) {
   const basePayload = {
-    has_antesala: false,
-    antesala_enabled: false,
     antesala_requested_by_client: true,
     antesala_request_status: 'pending',
-    antesala_price_increment: 0,
-    antesala_duration_minutes: null,
   };
 
   let payload = { ...basePayload };
@@ -56,6 +53,8 @@ async function updateEventAntesalaRequest(supabase, eventId) {
       .from('events')
       .update(payload)
       .eq('id', eventId)
+      .or('has_antesala.is.null,has_antesala.eq.false')
+      .or('antesala_enabled.is.null,antesala_enabled.eq.false')
       .select('id, client_name, event_date, location_name')
       .maybeSingle();
 
@@ -78,14 +77,19 @@ async function updateEventAntesalaRequest(supabase, eventId) {
 async function resolveEventFromToken(supabase, token) {
   const { data: repertoireToken, error: repertoireError } = await supabase
     .from('repertoire_tokens')
-    .select('event_id, token')
+    .select('event_id, token, status, expires_at')
     .eq('token', token)
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
 
   if (repertoireError) throw repertoireError;
-  if (repertoireToken?.event_id) return { eventId: repertoireToken.event_id, source: 'repertoire_token' };
+  if (repertoireToken?.event_id) {
+    if (repertoireToken.status !== 'open' || (repertoireToken.expires_at && new Date(repertoireToken.expires_at).getTime() < Date.now())) {
+      return { eventId: null, source: 'unavailable' };
+    }
+    return { eventId: repertoireToken.event_id, source: 'repertoire_token' };
+  }
 
   const { data: precontract, error: precontractError } = await supabase
     .from('precontracts')
@@ -127,7 +131,15 @@ export async function POST(request) {
       return NextResponse.json({ ok: false, error: 'Repertório não encontrado.' }, { status: 404 });
     }
 
+    const { data: currentEvent, error: currentEventError } = await supabase.from('events')
+      .select('has_antesala, antesala_enabled, antesala_request_status, antesala_requested_by_client').eq('id', resolved.eventId).single();
+    if (currentEventError) throw currentEventError;
+    if (isAntesalaAuthorized(currentEvent)) return NextResponse.json({ ok: true, status: 'approved' });
+    if (currentEvent.antesala_request_status === 'pending' && currentEvent.antesala_requested_by_client === true) return NextResponse.json({ ok: true, status: 'pending' });
+
     const { data: eventRow, removedColumns } = await updateEventAntesalaRequest(supabase, resolved.eventId);
+
+    if (!eventRow) return NextResponse.json({ ok: true, status: 'approved' });
 
     const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_BASE_URL || 'https://app.bandaharmonics.com';
     const adminUrl = `${appBaseUrl}/eventos/${resolved.eventId}`;

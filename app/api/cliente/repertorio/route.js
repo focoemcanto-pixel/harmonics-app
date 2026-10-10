@@ -1,3 +1,4 @@
+import { isAntesalaAuthorized, isAntesalaSection } from '@/lib/cliente/antesala-authorization';
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getYoutubeVideoId } from '../../../../lib/youtube/getYoutubeVideoId';
@@ -209,28 +210,6 @@ function pickTraceSectionItem(items = [], section = '') {
     notes: String(item?.notes || '').trim(),
     reference_video_id: String(item?.reference_video_id || '').trim(),
   };
-}
-
-function buildEventAntesalaUpdatePayload({
-  antesalaIncluded,
-  antesalaDurationMinutes,
-  antesalaRequestedByClient,
-  antesalaRequestStatus,
-  antesalaPriceIncrement,
-}) {
-  return {
-    has_antesala: antesalaIncluded,
-    antesala_enabled: antesalaIncluded,
-    antesala_requested_by_client: antesalaRequestedByClient,
-    antesala_request_status: antesalaRequestStatus,
-    antesala_price_increment: antesalaPriceIncrement,
-    antesala_duration_minutes: antesalaDurationMinutes,
-  };
-}
-
-function resolveAntesalaRequestStatus({ antesalaIncluded }) {
-  if (antesalaIncluded) return 'approved';
-  return null;
 }
 
 async function findSuggestionSongIdForItem(supabase, item) {
@@ -515,15 +494,31 @@ export async function POST(request) {
 
       if (precontractError) throw precontractError;
 
-      if (!precontract?.event_id) {
-        return NextResponse.json(
-          { ok: false, error: 'Token de repertório inválido.' },
-          { status: 404 }
-        );
+      if (precontract?.event_id) {
+        eventId = precontract.event_id;
+        tokenResolution = 'precontract_client_token';
+      } else {
+        const { data: contract, error: contractError } = await supabase
+          .from('contracts')
+          .select('id, public_token, event_id')
+          .eq('public_token', clientToken)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (contractError) throw contractError;
+
+        if (!contract?.event_id) {
+          return NextResponse.json(
+            { ok: false, error: 'Token de repertório inválido.' },
+            { status: 404 }
+          );
+        }
+
+        eventId = contract.event_id;
+        tokenResolution = 'contract_client_token';
       }
 
-      eventId = precontract.event_id;
-      tokenResolution = 'client_token';
       const ensured = await ensureOpenRepertoireToken(supabase, eventId);
       tokenRow = ensured.tokenRow;
       createdToken = ensured.created;
@@ -537,7 +532,14 @@ export async function POST(request) {
       status: tokenRow?.status || null,
     });
 
-    const incomingItems = normalizeItems(rawItems);
+    const { data: authorizedEvent, error: authorizedEventError } = await supabase
+      .from('events')
+      .select('has_antesala, antesala_enabled, antesala_request_status, antesala_duration_minutes')
+      .eq('id', eventId).single();
+    if (authorizedEventError) throw authorizedEventError;
+    const antesalaAuthorized = isAntesalaAuthorized(authorizedEvent);
+
+    const incomingItems = normalizeItems(rawItems).filter((item) => antesalaAuthorized || !isAntesalaSection(item));
     const rawCustomSongs = parseArraySafe(config.custom_songs);
     const parsedCustomSongs = parseCustomSongs(config.custom_songs);
     const customSongItems = parsedCustomSongs.map((song, index) => ({
@@ -665,9 +667,9 @@ export async function POST(request) {
       event_id: eventId,
       repertoire_token_id: tokenRow.id,
       client_public_token: resolvedClientPublicToken,
-      has_ante_room: normalizeBool(config.has_ante_room),
-      ante_room_style: normalizeText(config.ante_room_style),
-      ante_room_notes: normalizeText(config.ante_room_notes),
+      has_ante_room: antesalaAuthorized,
+      ante_room_style: antesalaAuthorized ? normalizeText(config.ante_room_style) : null,
+      ante_room_notes: antesalaAuthorized ? normalizeText(config.ante_room_notes) : null,
       has_reception: normalizeBool(config.has_reception),
       reception_duration: normalizeText(config.reception_duration),
       reception_genres: normalizeText(config.reception_genres),
@@ -699,52 +701,7 @@ export async function POST(request) {
       configPayload.repertoire_pdf_url = fallbackRouteUrl;
     }
 
-    const antesalaIncludedFromPayload = normalizeBool(antesalaFlow.included);
-    const antesalaIncluded = antesalaIncludedFromPayload;
-    const durationFromPayload = Number(antesalaFlow.durationMinutes || 0) || null;
-    const antesalaRequestedByClient = false;
-    const antesalaDurationMinutes = antesalaIncluded ? durationFromPayload : null;
-    const antesalaPriceIncrement = 0;
-    const antesalaRequestStatus = resolveAntesalaRequestStatus({
-      antesalaIncluded,
-    });
-
-    const primaryEventPayload = buildEventAntesalaUpdatePayload({
-      antesalaIncluded,
-      antesalaDurationMinutes,
-      antesalaRequestedByClient,
-      antesalaRequestStatus,
-      antesalaPriceIncrement,
-    });
-    logRepertorioDetail('ANTESALA_EVENT_UPDATE_PAYLOAD', {
-      eventId,
-      ...primaryEventPayload,
-    });
-
-    const { data: updatedEvent, error: updateEventError } = await supabase
-      .from('events')
-      .update(primaryEventPayload)
-      .eq('id', eventId)
-      .select(
-        [
-          'id',
-          'has_antesala',
-          'antesala_enabled',
-          'antesala_requested_by_client',
-          'antesala_request_status',
-          'antesala_duration_minutes',
-          'antesala_price_increment',
-        ].join(', ')
-      )
-      .maybeSingle();
-
-    if (updateEventError) throw updateEventError;
-    logRepertorioDetail('ANTESALA_EVENT_UPDATE_RESULT', {
-      ...(updatedEvent || {}),
-      has_ante_room: configPayload?.has_ante_room ?? null,
-      ante_room_style: configPayload?.ante_room_style ?? '',
-      ante_room_notes: configPayload?.ante_room_notes ?? '',
-    });
+    // Client repertoire saves never change contract entitlement, pricing or admin decisions.
 
     const existingBySection = countItemsBySection(existingItems || []);
     const incomingSections = new Set(
@@ -783,6 +740,8 @@ export async function POST(request) {
         { status: 409 }
       );
     }
+
+    itemsToPersist = itemsToPersist.filter((item) => antesalaAuthorized || !isAntesalaSection(item));
 
     const protectedSections = ['cortejo', 'cerimonia'];
     const sectionsPreservedByInvalidPayload = [];

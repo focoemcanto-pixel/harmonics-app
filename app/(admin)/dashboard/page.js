@@ -17,7 +17,7 @@ const DashboardOperationsRadar = dynamic(() => import('@/components/dashboard/Da
 const DashboardUpcomingEvents = dynamic(() => import('@/components/dashboard/DashboardUpcomingEvents'));
 
 const DASHBOARD_EVENTS_SELECT =
-  'id, created_at, event_date, status, client_name, agreed_amount, paid_amount, open_amount, profit_amount';
+  'id, created_at, event_date, status, client_name, agreed_amount, paid_amount, open_amount, profit_amount, antesala_requested_by_client, antesala_request_status';
 const DASHBOARD_PRECONTRACTS_SELECT =
   'id, created_at, event_id, event_date, status, client_name, notes, public_token';
 const DASHBOARD_CONTRACTS_SELECT =
@@ -637,6 +637,7 @@ function QuickActionCard({ action, className = '' }) {
 
 export default function DashboardPage() {
   const [events, setEvents] = useState([]);
+  const [antesalaRequests, setAntesalaRequests] = useState([]);
   const [contracts, setContracts] = useState([]);
   const [precontracts, setPrecontracts] = useState([]);
   const [repertoireConfigs, setRepertoireConfigs] = useState([]);
@@ -765,6 +766,13 @@ export default function DashboardPage() {
       const paymentsData = Array.isArray(paymentsRes.data) ? paymentsRes.data : [];
 
       setEvents(eventsData);
+      const antesalaRequestsResult = await supabase.from('events')
+        .select('id, client_name, event_date')
+        .eq('antesala_request_status', 'pending').eq('antesala_requested_by_client', true)
+        .order('event_date', { ascending: true });
+      if (!antesalaRequestsResult.error) setAntesalaRequests(antesalaRequestsResult.data || []);
+      else logWarn('dashboard', 'Solicitações de antessala indisponíveis', antesalaRequestsResult.error);
+
       setContracts(contractsData);
       setPrecontracts(precontractsData);
       setSecondaryReady(true);
@@ -1329,6 +1337,13 @@ export default function DashboardPage() {
           </div>
 
           <div className="space-y-3">
+            {antesalaRequests.map((event) => (
+              <Link key={`antesala-${event.id}`} href={`/eventos/${event.id}`} className="block rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                <div className="text-sm font-black text-amber-900">Liberar antessala</div>
+                <div className="mt-1 text-sm text-amber-800">{event.client_name} • {formatEventDate(event.event_date)}</div>
+                <div className="mt-2 text-xs font-bold text-amber-900">Revisar solicitação e liberar ou recusar</div>
+              </Link>
+            ))}
             {summary?.revisoesSolicitadas > 0 ? (
               <ReviewRequestsAlertCard
                 total={summary.revisoesSolicitadas}

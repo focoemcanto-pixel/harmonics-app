@@ -95,7 +95,6 @@ const PRECONTRACTS_SELECT_FIELDS =
 const CONTRACTS_SELECT_FIELDS =
   'id, created_at, precontract_id, event_id, status, signed_at, pdf_url, doc_url, public_token';
 const PRICING_SELECT_FIELDS = '*';
-const EVENTOS_CACHE_TTL_MS = 60 * 1000;
 const EVENTOS_LIST_TITLE = 'Eventos';
 const EVENTOS_LIST_SUBTITLE = 'Pesquise, filtre e acompanhe sua operação.';
 const VIEW_MODE_BY_QUERY = {
@@ -734,7 +733,7 @@ export default function EventosPage() {
 
   async function carregarEventos() {
   try {
-    const response = await fetch(`/api/events?scope=events&limit=${ADMIN_LIST_LIMIT}`);
+    const response = await fetch(`/api/events?scope=events&limit=${ADMIN_LIST_LIMIT}`, { cache: 'no-store' });
     const json = await response.json();
 
     if (!response.ok || !json?.ok) {
@@ -912,31 +911,32 @@ export default function EventosPage() {
   }
 
   useEffect(() => {
-    async function carregar() {
-      carregarFinanceCostDefaults();
-      const hasFreshCache =
-        (eventosAdminCache.eventos || []).length > 0 &&
-        Date.now() - Number(eventosAdminCache.updatedAt || 0) < EVENTOS_CACHE_TTL_MS;
+    let refreshing = false;
+    async function carregar(refreshExtras = true) {
+      if (refreshing) return;
+      refreshing = true;
+      // Show cached rows immediately, but always revalidate after returning.
+      if (!(eventosAdminCache.eventos || []).length) setCarregando(true);
+      try {
+        await Promise.allSettled([
+          carregarEventos(),
+          carregarPrecontracts(),
+          carregarContracts(),
+        ]);
+        setCarregando(false);
 
-      if (!hasFreshCache) {
-        setCarregando(true);
-        try {
-          await Promise.allSettled([
-            carregarEventos(),
-            carregarPrecontracts(),
-            carregarContracts(),
-          ]);
-          setCarregando(false);
-
+        if (refreshExtras) {
           Promise.allSettled([
             carregarPricing(),
             carregarContatos(),
             carregarFinanceCostDefaults(),
           ]);
-        } catch (error) {
-          console.error('[EVENTOS] Falha inesperada ao carregar dados iniciais:', error);
-          setCarregando(false);
         }
+      } catch (error) {
+        console.error('[EVENTOS] Falha inesperada ao carregar dados iniciais:', error);
+        setCarregando(false);
+      } finally {
+        refreshing = false;
       }
     }
 
@@ -956,7 +956,16 @@ export default function EventosPage() {
       setCarregando(false);
     }
 
+    const refreshVisible = () => {
+      if (document.visibilityState === 'visible') carregar(false);
+    };
+    window.addEventListener('focus', refreshVisible);
+    document.addEventListener('visibilitychange', refreshVisible);
     carregar();
+    return () => {
+      window.removeEventListener('focus', refreshVisible);
+      document.removeEventListener('visibilitychange', refreshVisible);
+    };
   }, []);
 
   useEffect(() => {

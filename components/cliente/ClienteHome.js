@@ -1852,9 +1852,11 @@ const [customSongs, setCustomSongs] = useState(
 );
 
   const isAntesalaApproved = data?.repertorio?.temAntessala === true;
-  const isAntesalaPending = !isAntesalaApproved && Boolean(antessala?.requestedByClient || data?.repertorio?.antesalaRequestedByClient) && String(antessala?.requestStatus || data?.repertorio?.antesalaRequestStatus || '').toLowerCase() === 'pending';
+  const [antesalaRequestSent, setAntesalaRequestSent] = useState(false);
+  const serverAntesalaStatus = String(data?.repertorio?.antesalaRequestStatus || '').toLowerCase();
+  const isAntesalaPending = !isAntesalaApproved && (antesalaRequestSent || (data?.repertorio?.antesalaRequestedByClient === true && serverAntesalaStatus === 'pending'));
   const [requestingAntesala, setRequestingAntesala] = useState(false);
-  const isAntesalaRejected = String(antessala?.requestStatus || data?.repertorio?.antesalaRequestStatus || '').toLowerCase() === 'rejected';
+  const isAntesalaRejected = !antesalaRequestSent && serverAntesalaStatus === 'rejected';
 
   async function requestAntesalaRelease() {
     if (requestingAntesala || isAntesalaPending || isAntesalaApproved) return;
@@ -1867,6 +1869,7 @@ const [customSongs, setCustomSongs] = useState(
       const result = await response.json();
       if (!response.ok || !result.ok) throw new Error(result.error || 'Não foi possível enviar a solicitação.');
       if (result.status === 'approved') { window.location.reload(); return; }
+      setAntesalaRequestSent(true);
       setQuerAntessala(false);
       setAntessala((prev) => ({ ...prev, requestedByClient: true, requestStatus: 'pending' }));
       showToast('Solicitação enviada. Aguarde a liberação da banda.');

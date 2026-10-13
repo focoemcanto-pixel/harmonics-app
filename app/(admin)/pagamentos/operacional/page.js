@@ -9,6 +9,8 @@ import {
   dashboard,
   monthlyCommitments,
   eventSummary,
+  excludeCost,
+  restoreCost,
   describeReception,
   suggestedCosts,
   money,
@@ -1099,6 +1101,7 @@ function Finance() {
               alterações posteriores da escala precisam ser revisadas.
             </p>
             {draft.costs.map((c, i) => {
+              if (c.excluded) return null;
               const calculated = current.costs.find((x) => x.id === c.id);
               return (
                 <div
@@ -1210,7 +1213,9 @@ function Finance() {
                       onClick={() =>
                         setDraft((d) => ({
                           ...d,
-                          costs: d.costs.filter((x) => x.id !== c.id),
+                          costs: d.costs.map((x) =>
+                            x.id === c.id ? excludeCost(x) : x,
+                          ),
                         }))
                       }
                     >
@@ -1220,6 +1225,41 @@ function Finance() {
                 </div>
               );
             })}
+            {draft.costs.some((c) => c.excluded) && (
+              <details className={`${box} text-sm`}>
+                <summary className="cursor-pointer font-semibold">
+                  Custos removidos deste evento (
+                  {draft.costs.filter((c) => c.excluded).length})
+                </summary>
+                <p className="mt-2 text-slate-600">
+                  Não entram nos custos nem são recriados automaticamente. A
+                  alteração fica registrada ao salvar.
+                </p>
+                {draft.costs
+                  .filter((c) => c.excluded)
+                  .map((c) => (
+                    <div
+                      key={c.id}
+                      className="mt-2 flex flex-wrap items-center justify-between gap-2"
+                    >
+                      <span>{c.description}</span>
+                      <button
+                        className="font-semibold text-violet-700"
+                        onClick={() =>
+                          setDraft((d) => ({
+                            ...d,
+                            costs: d.costs.map((x) =>
+                              x.id === c.id ? restoreCost(x) : x,
+                            ),
+                          }))
+                        }
+                      >
+                        Restaurar custo
+                      </button>
+                    </div>
+                  ))}
+              </details>
+            )}
             <datalist id="categories">
               {[
                 "musician",

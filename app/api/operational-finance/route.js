@@ -61,7 +61,7 @@ export async function GET(request) {
         rows(
           db,
           "events",
-          "id,client_name,event_date,location_name,formation,agreed_amount,status",
+          "id,client_name,event_date,location_name,formation,agreed_amount,status,has_sound,has_transport",
           w,
         ),
         rows(db, "op_finance_events", "*", w),

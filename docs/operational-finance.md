@@ -81,3 +81,9 @@ Comprovante opcional é um link HTTPS; upload direto de arquivo não está imple
 9. Repetir e revisar Caixa & Compromissos e Músicos a pagar.
 
 Para recebimentos posteriores: buscar nome/data, informar valor e salvar. A origem padrão é WhatsApp e a forma padrão é Pix. Não é exigido comprovante.
+
+## Ajuste solicitado: custos pré-preenchidos (13/10/2026)
+
+Por autorização explícita do usuário, os padrões cadastrados de R$ 350/músico, R$ 300/som e R$ 200/transporte foram copiados uma única vez para os padrões independentes do workspace Harmonics, com registro na auditoria operacional. Nenhum recebimento, custo individual de evento ou agregado financeiro legado foi importado. Padrões operacionais já existentes não são sobrescritos.
+
+A prioridade do cachê sugerido é músico → função → cachê geral. Sonorização e transporte entram como previstos somente quando o serviço está marcado no cadastro do evento. Todos os valores são editáveis. Acordos já salvos, inclusive valores zero, permanecem intactos. Os padrões gerais podem ser ajustados em Configurações. Seis testes adicionais cobrem prioridades, zero explícito, serviços contratados, não sobrescrever acordos e não duplicar custos: 32 testes aprovados no total.

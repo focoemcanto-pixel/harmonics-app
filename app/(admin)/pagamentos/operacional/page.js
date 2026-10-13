@@ -7,6 +7,7 @@ import {
   activeEntries,
   cents,
   dashboard,
+  monthlyCommitments,
   eventSummary,
   describeReception,
   suggestedCosts,
@@ -140,6 +141,7 @@ export default function Page() {
   );
 }
 function Finance() {
+  const [month, setMonth] = useState(today().slice(0, 7));
   const [data, setData] = useState(null),
     [tab, setTab] = useState("cash"),
     [error, setError] = useState(""),
@@ -202,6 +204,31 @@ function Finance() {
         : null,
     [data],
   );
+  const planning = useMemo(
+    () =>
+      data ? monthlyCommitments(data.events, data.sheets, data.ledger) : null,
+    [data],
+  );
+  const monthLabel = (value) =>
+    new Intl.DateTimeFormat("pt-BR", {
+      month: "long",
+      year: "numeric",
+      timeZone: "UTC",
+    }).format(new Date(`${value}-01T12:00:00Z`));
+  const period = planning?.months.find((row) => row.month === month) || {
+    month,
+    musician: 0,
+    other: 0,
+    total: 0,
+    unchecked: 0,
+    items: [],
+  };
+  const requiredByMonth = planning
+    ? planning.arrearsTotal +
+      planning.months
+        .filter((row) => row.month <= month)
+        .reduce((n, row) => n + row.total, 0)
+    : 0;
   const relevant = useMemo(
     () =>
       data
@@ -652,13 +679,164 @@ function Finance() {
               conferidas; a posição é parcial enquanto a conferência não
               terminar. Movimentos reais já registrados sempre afetam o caixa.
             </p>
+            <section className={`${box} space-y-4`}>
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-bold">
+                    Quanto preciso reservar por mês?
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Músicos e custos organizados pela data de pagamento. A data
+                    do evento é usada enquanto você não definir outra.
+                  </p>
+                </div>
+                <Field label="Mês de referência">
+                  <input
+                    type="month"
+                    min={today().slice(0, 7)}
+                    className={input}
+                    value={month}
+                    onChange={(e) => {
+                      if (e.target.value) setMonth(e.target.value);
+                    }}
+                  />
+                </Field>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                <Metric
+                  label={`Músicos a pagar em ${monthLabel(month)}`}
+                  value={period.musician}
+                />
+                <Metric label="Outros custos no mês" value={period.other} />
+                <Metric
+                  label="Total a pagar no mês"
+                  value={period.total}
+                  strong
+                />
+                <Metric
+                  label="Caixa mínimo até o fim deste mês (inclui anteriores)"
+                  value={requiredByMonth}
+                />
+                <Metric label="Caixa atual" value={stats.cash} />
+                <Metric
+                  label="Saldo atual após reservar até este mês"
+                  value={stats.cash - requiredByMonth}
+                  strong
+                />
+              </div>
+              <p className="rounded-xl bg-slate-50 p-3 text-sm">
+                {stats.cash >= requiredByMonth
+                  ? `O caixa atual cobre os compromissos até o fim de ${monthLabel(month)}.`
+                  : `Com o caixa atual, falta ${money(requiredByMonth - stats.cash)} para os pagamentos até o fim de ${monthLabel(month)}.`}{" "}
+                Recebimentos que ainda não entraram podem cobrir a diferença,
+                mas não são tratados como caixa disponível.{" "}
+                {period.unchecked > 0
+                  ? `${period.unchecked} eventos deste mês ainda aguardam conferência.`
+                  : ""}
+              </p>
+              {planning.arrearsTotal > 0 && (
+                <p className="text-sm font-semibold text-red-700">
+                  Compromissos de meses anteriores ainda em aberto:{" "}
+                  {money(planning.arrearsTotal)}. Incluídos na necessidade
+                  acumulada.
+                </p>
+              )}
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="p-2">Mês</th>
+                      <th className="p-2">Músicos</th>
+                      <th className="p-2">Outros custos</th>
+                      <th className="p-2">Reserva do mês</th>
+                      <th className="p-2">Necessidade até o mês</th>
+                      <th className="p-2">Eventos a conferir</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {planning.months.map((row) => (
+                      <tr
+                        key={row.month}
+                        className={`border-b ${row.month === month ? "bg-violet-50" : ""}`}
+                      >
+                        <td className="p-2">
+                          <button
+                            className="font-semibold text-violet-700"
+                            onClick={() => setMonth(row.month)}
+                          >
+                            {monthLabel(row.month)}
+                          </button>
+                        </td>
+                        <td className="p-2 whitespace-nowrap">
+                          {money(row.musician)}
+                        </td>
+                        <td className="p-2 whitespace-nowrap">
+                          {money(row.other)}
+                        </td>
+                        <td className="p-2 whitespace-nowrap font-semibold">
+                          {money(row.total)}
+                        </td>
+                        <td className="p-2 whitespace-nowrap">
+                          {money(row.cumulative)}
+                        </td>
+                        <td className="p-2">{row.unchecked || "Conferidos"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <h3 className="font-semibold">
+                Obrigações por data em {monthLabel(month)}
+              </h3>
+              {period.items.length === 0 && (
+                <p className="text-sm text-slate-600">
+                  Nenhum custo pendente de ficha conferida neste mês.
+                </p>
+              )}
+              {[...planning.arrears, ...period.items].map((item) => (
+                <button
+                  key={`${item.event_id}:${item.cost_id}`}
+                  className="flex w-full flex-wrap justify-between gap-2 rounded-xl border p-3 text-left"
+                  onClick={() => {
+                    const event = data.events.find(
+                      (e) => e.id === item.event_id,
+                    );
+                    if (event) openEvent(event);
+                  }}
+                >
+                  <div>
+                    <strong>
+                      {item.due_on.split("-").reverse().join("/")} •{" "}
+                      {item.event_name}
+                    </strong>
+                    <p className="text-sm text-slate-600">
+                      {item.description} •{" "}
+                      {item.date_source === "manual"
+                        ? "Data definida por você"
+                        : item.date_source === "event"
+                          ? "Data do evento — ajustável"
+                          : "Data a definir"}
+                      {item.overdue ? " • Em atraso" : ""}
+                    </p>
+                  </div>
+                  <strong>{money(item.amount)}</strong>
+                </button>
+              ))}
+            </section>
+            <h2 className="text-xl font-bold">
+              Reserva para todos os eventos conferidos
+            </h2>
+            <p className="text-sm text-slate-600">
+              Esta visão considera todos os meses. O planejamento acima mostra
+              quando cada obrigação precisa ser paga.
+            </p>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {[
                 ["Caixa atual", stats.cash],
-                ["Compromissos com músicos", stats.musician],
-                ["Outros compromissos", stats.other],
-                ["Total comprometido", stats.committed],
-                ["Caixa livre", stats.free, true],
+                ["Músicos — todos os meses", stats.musician],
+                ["Outros custos — todos os meses", stats.other],
+                ["Reserva total — todos os meses", stats.committed],
+                ["Saldo após reservar todos os eventos", stats.free, true],
                 ["A receber (contratos conferidos)", stats.receivable],
                 ["Margem dos contratos futuros conferidos", stats.margin],
                 [
@@ -673,9 +851,9 @@ function Finance() {
             <p className={box}>
               {stats.free < 0
                 ? stats.projected >= 0
-                  ? `Hoje faltam ${money(-stats.free)} para cobrir os compromissos. Os recebimentos conferidos cobrem esse déficit, sem garantia de prazo.`
+                  ? `Para reservar todos os eventos, faltam ${money(-stats.free)} no caixa atual. Os recebimentos conferidos cobrem esse déficit, sem garantia de prazo.`
                   : `Mesmo com os recebimentos conferidos, falta ${money(-stats.projected)}.`
-                : `Caixa livre atual: ${money(stats.free)}.`}{" "}
+                : `Saldo após reservar todos os eventos: ${money(stats.free)}.`}{" "}
               A margem futura é informativa e não é somada novamente à posição
               projetada.
             </p>
@@ -834,6 +1012,16 @@ function Finance() {
                       key={`${c.id}:${draft.revision}`}
                       value={c.amount_cents}
                       onValue={(n) => costEdit(i, { amount_cents: n })}
+                    />
+                  </Field>
+                  <Field label="Pagar até (padrão: data do evento)">
+                    <input
+                      type="date"
+                      className={input}
+                      value={c.due_on || draft.event.event_date || ""}
+                      onChange={(e) =>
+                        costEdit(i, { due_on: e.target.value || null })
+                      }
                     />
                   </Field>
                   <Field label="Status do acordo">

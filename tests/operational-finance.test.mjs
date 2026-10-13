@@ -6,6 +6,7 @@ import {
   eventSummary,
   describeReception,
   dashboard,
+  monthlyCommitments,
   activeEntries,
   suggestedCosts,
 } from "../lib/operational-finance/model.mjs";
@@ -326,4 +327,102 @@ test("sem duração nem receptivo não inventa serviço", () => {
     "Não",
   );
   assert.equal(describeReception({ reception_hours: null }), "Não informado");
+});
+
+test("mensal: custos seguem mês do evento sem misturar outubro e novembro", () => {
+  const nov = { ...e, id: "nov", event_date: "2026-11-15" },
+    oct = { ...e, event_date: "2026-10-17" };
+  const s = monthlyCommitments(
+    [oct, nov],
+    [sheet, { ...sheet, event_id: "nov" }],
+    [],
+    "2026-10-13",
+  );
+  assert.equal(s.months[0].month, "2026-10");
+  assert.equal(s.months[0].total, 265000);
+  assert.equal(s.months[1].total, 265000);
+  assert.equal(s.months[1].cumulative, 530000);
+});
+test("mensal: data manual do cachê pode antecipar novembro para outubro", () => {
+  const costs = [
+    {
+      id: "c",
+      category: "musician",
+      description: "Cachê",
+      amount_cents: 50000,
+      due_on: "2026-10-30",
+    },
+  ];
+  const p = monthlyCommitments([e], [{ ...sheet, costs }], [], "2026-10-13");
+  assert.equal(p.months[0].musician, 50000);
+  assert.equal(p.months[0].items[0].date_source, "manual");
+});
+test("mensal: pagamento parcial reduz só o saldo a reservar", () => {
+  const p = monthlyCommitments(
+    [e],
+    [sheet],
+    [entry({ kind: "payment", cost_id: "c", amount_cents: 50000 })],
+    "2026-10-13",
+  );
+  assert.equal(p.months.find((x) => x.month === "2026-11").musician, 80000);
+  assert.equal(p.months.find((x) => x.month === "2026-11").total, 215000);
+});
+test("mensal: recebimento futuro não abate obrigação de músico", () => {
+  const p = monthlyCommitments(
+    [e],
+    [sheet],
+    [entry({ amount_cents: 470000 })],
+    "2026-10-13",
+  );
+  assert.equal(p.months.find((x) => x.month === "2026-11").total, 265000);
+});
+test("mensal: pagamentos quitados não entram em reservas", () => {
+  const costs = [{ id: "c", category: "musician", amount_cents: 50000 }];
+  const p = monthlyCommitments(
+    [e],
+    [{ ...sheet, costs }],
+    [entry({ kind: "payment", cost_id: "c", amount_cents: 50000 })],
+    "2026-10-13",
+  );
+  assert.equal(p.months[0].total, 0);
+  assert.equal(p.months[0].items.length, 0);
+});
+test("mensal: anteriores em aberto entram na necessidade acumulada", () => {
+  const past = { ...e, event_date: "2026-09-20" };
+  const p = monthlyCommitments([past], [sheet], [], "2026-10-13");
+  assert.equal(p.arrearsTotal, 265000);
+  assert.equal(p.months[0].cumulative, 265000);
+  assert.equal(p.months[0].total, 0);
+});
+test("mensal: fichas não conferidas mostram incompletude sem custo fictício", () => {
+  const p = monthlyCommitments(
+    [e],
+    [{ ...sheet, status: "draft" }],
+    [],
+    "2026-10-13",
+  );
+  const nov = p.months.find((x) => x.month === "2026-11");
+  assert.equal(nov.unchecked, 1);
+  assert.equal(nov.total, 0);
+});
+test("mensal: obrigações ordenadas por data de pagamento", () => {
+  const costs = [
+    {
+      id: "a",
+      category: "musician",
+      amount_cents: 20000,
+      due_on: "2026-10-30",
+    },
+    {
+      id: "b",
+      category: "transporte",
+      amount_cents: 10000,
+      due_on: "2026-10-20",
+    },
+  ];
+  const p = monthlyCommitments([e], [{ ...sheet, costs }], [], "2026-10-13");
+  assert.deepEqual(
+    p.months[0].items.map((x) => x.cost_id),
+    ["b", "a"],
+  );
 });

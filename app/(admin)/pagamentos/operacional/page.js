@@ -8,6 +8,7 @@ import {
   cents,
   dashboard,
   eventSummary,
+  suggestedCosts,
   money,
   today,
 } from "@/lib/operational-finance/model.mjs";
@@ -161,25 +162,13 @@ function Finance() {
   });
   function openEvent(e, source = data) {
     const saved = source.sheets.find((s) => s.event_id === e.id);
-    const costs = structuredClone(saved?.costs || []);
-    for (const m of source.musicians.filter((m) => m.event_id === e.id)) {
-      if (costs.some((c) => c.scale_id === m.id)) continue;
-      const key = `musician:${m.musician_id}`;
-      const def =
-        source.defaults.find((d) => d.key === key) ||
-        source.defaults.find((d) => d.key === `role:${m.role}`);
-      costs.push({
-        id: crypto.randomUUID(),
-        scale_id: m.id,
-        musician_id: m.musician_id,
-        description: `${m.name} — ${m.role || "Músico"}`,
-        category: "musician",
-        status: "predicted",
-        amount_cents: def?.amount_cents || 0,
-        notes: "",
-        default_cents: def?.amount_cents || 0,
-      });
-    }
+    const costs = suggestedCosts(
+      e,
+      saved?.costs,
+      source.musicians,
+      source.defaults,
+      () => crypto.randomUUID(),
+    );
     setDraft({
       event: e,
       revision: saved?.revision || 0,
@@ -967,7 +956,7 @@ function Finance() {
                 }
               }}
             >
-              <Field label="Músico ou função">
+              <Field label="Músico, função ou custo padrão">
                 <select
                   required
                   className={input}
@@ -977,6 +966,14 @@ function Finance() {
                   }
                 >
                   <option value="">Selecione</option>
+                  <option value="general:musician">
+                    Cachê geral por músico
+                  </option>
+                  <option value="cost:sonorização">Sonorização</option>
+                  <option value="cost:transporte">
+                    Transporte / deslocamento
+                  </option>
+                  <option value="cost:operacional">Operacional</option>
                   {[
                     ...new Map(
                       data.musicians.map((m) => [
@@ -1005,7 +1002,7 @@ function Finance() {
                   ))}
                 </select>
               </Field>
-              <Field label="Cachê padrão (R$)">
+              <Field label="Valor padrão (R$)">
                 <input
                   required
                   inputMode="decimal"
@@ -1027,7 +1024,11 @@ function Finance() {
                     ? data.musicians.find(
                         (m) => `musician:${m.musician_id}` === d.key,
                       )?.name || d.key
-                    : d.key.replace("role:", "Função: ")}
+                    : d.key === "general:musician"
+                      ? "Cachê geral por músico"
+                      : d.key
+                          .replace("role:", "Função: ")
+                          .replace("cost:", "Custo: ")}
                   : {money(d.amount_cents)}
                 </li>
               ))}

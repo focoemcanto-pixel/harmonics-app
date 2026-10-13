@@ -6,6 +6,7 @@ import {
   eventSummary,
   dashboard,
   activeEntries,
+  suggestedCosts,
 } from "../lib/operational-finance/model.mjs";
 const e = {
   id: "e",
@@ -197,9 +198,8 @@ test("legado não contamina dashboard", () => {
   assert.deepEqual(calc(undefined, [], [changed]), calc());
 });
 test("regressão: cálculo de pagamentos legado preservado", async () => {
-  const { calculateEventFinance } = await import(
-    "../lib/finance/event-finance.js"
-  );
+  const { calculateEventFinance } =
+    await import("../lib/finance/event-finance.js");
   assert.deepEqual(
     calculateEventFinance({
       agreedAmount: 4700,
@@ -214,5 +214,83 @@ test("regressão: cálculo de pagamentos legado preservado", async () => {
       openAmount: 3700,
       paymentStatus: "partial",
     },
+  );
+});
+
+const musician = {
+  id: "scale1",
+  event_id: "e",
+  musician_id: "m",
+  role: "Tecladista",
+  name: "Heber",
+};
+const standards = [
+  { key: "general:musician", amount_cents: 35000 },
+  { key: "cost:sonorização", amount_cents: 30000 },
+  { key: "cost:transporte", amount_cents: 20000 },
+];
+test("prefill: cachê geral, som e transporte contratados", () => {
+  const c = suggestedCosts(
+    { ...e, has_sound: true, has_transport: true },
+    [],
+    [musician],
+    standards,
+    () => "id",
+  );
+  assert.deepEqual(
+    c.map((x) => x.amount_cents),
+    [35000, 30000, 20000],
+  );
+  assert.ok(c.every((x) => x.status === "predicted"));
+});
+test("prefill: função sobrescreve geral e músico sobrescreve função", () => {
+  const ds = [
+    ...standards,
+    { key: "role:Tecladista", amount_cents: 40000 },
+    { key: "musician:m", amount_cents: 50000 },
+  ];
+  assert.equal(
+    suggestedCosts(e, [], [musician], ds, () => "id")[0].amount_cents,
+    50000,
+  );
+  assert.equal(
+    suggestedCosts(e, [], [musician], ds.slice(0, -1), () => "id")[0]
+      .amount_cents,
+    40000,
+  );
+});
+test("prefill: padrão zero específico não herda valor geral", () =>
+  assert.equal(
+    suggestedCosts(
+      e,
+      [],
+      [musician],
+      [...standards, { key: "musician:m", amount_cents: 0 }],
+      () => "id",
+    )[0].amount_cents,
+    0,
+  ));
+test("prefill: acordo salvo não é sobrescrito nem duplicado", () => {
+  const saved = [
+    { id: "c", scale_id: "scale1", category: "musician", amount_cents: 45000 },
+  ];
+  const c = suggestedCosts(e, saved, [musician], standards, () => "id");
+  assert.equal(c.length, 1);
+  assert.equal(c[0].amount_cents, 45000);
+  assert.deepEqual(saved, [
+    { id: "c", scale_id: "scale1", category: "musician", amount_cents: 45000 },
+  ]);
+});
+test("prefill: não adiciona serviços que não foram contratados", () =>
+  assert.equal(
+    suggestedCosts(e, [], [musician], standards, () => "id").length,
+    1,
+  ));
+test("prefill: reabrir a ficha não duplica os custos padrão", () => {
+  const event = { ...e, has_sound: true, has_transport: true };
+  const c = suggestedCosts(event, [], [musician], standards, () => "id");
+  assert.equal(
+    suggestedCosts(event, c, [musician], standards, () => "id").length,
+    3,
   );
 });

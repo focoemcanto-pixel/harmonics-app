@@ -40,6 +40,89 @@ function MoneyInput({ value, onValue }) {
     />
   );
 }
+function EventServices({ event, compact = false }) {
+  const yesNo = (value) =>
+    value === true ? "Sim" : value === false ? "Não" : "Não informado";
+  const request = String(event.antesala_request_status || "").toLowerCase();
+  const hasAntesala =
+    event.has_antesala === true ||
+    event.antesala_enabled === true ||
+    event.antesala_included === true;
+  const antesala =
+    request === "pending"
+      ? "Solicitada — pendente de aprovação"
+      : request === "rejected"
+        ? "Não aprovada"
+        : hasAntesala
+          ? "Incluída"
+          : [
+                event.has_antesala,
+                event.antesala_enabled,
+                event.antesala_included,
+              ].some((v) => v === false)
+            ? "Não incluída"
+            : "Não informado";
+  const rows = [
+    [
+      "Formação",
+      [event.formation, event.instruments].filter(Boolean).join(" • ") ||
+        "Não informada",
+    ],
+    [
+      "Antessala",
+      [
+        antesala,
+        (hasAntesala || request === "pending") &&
+        event.antesala_duration_minutes
+          ? `${event.antesala_duration_minutes} min`
+          : null,
+        hasAntesala || request === "pending" ? event.antesala_package : null,
+      ]
+        .filter(Boolean)
+        .join(" • "),
+    ],
+    ["Sonorização", yesNo(event.has_sound)],
+    [
+      "Receptivo",
+      event.has_reception === true
+        ? [
+            "Sim",
+            event.reception_hours
+              ? `${event.reception_hours}h`
+              : "Duração não informada",
+            event.reception_formation,
+            event.reception_instruments,
+          ]
+            .filter(Boolean)
+            .join(" • ")
+        : yesNo(event.has_reception),
+    ],
+    ["Transporte", yesNo(event.has_transport)],
+  ];
+  return (
+    <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+      {!compact && (
+        <h3 className="mb-2 font-semibold">Definições cadastradas do evento</h3>
+      )}
+      <dl
+        className={`grid gap-2 ${compact ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}
+      >
+        {rows.map(([label, value]) => (
+          <div key={label} className="min-w-0 text-sm">
+            <dt className="text-slate-500">{label}</dt>
+            <dd className="break-words font-semibold">{value}</dd>
+          </div>
+        ))}
+      </dl>
+      {!compact && (
+        <p className="mt-2 text-xs text-slate-600">
+          Confira essas definições ao ajustar o contrato e os cachês. Serviços e
+          acréscimos não são somados novamente ao valor contratado.
+        </p>
+      )}
+    </div>
+  );
+}
 function Field({ label, children }) {
   return (
     <label className="block space-y-1 text-sm font-semibold">
@@ -662,6 +745,7 @@ function Finance() {
                     <p className="text-sm text-slate-500">
                       {e.location_name} • {e.formation}
                     </p>
+                    <EventServices event={e} compact />
                     <div className="mt-3 grid gap-2 sm:grid-cols-5">
                       {[
                         ["Contrato", s.contract],
@@ -693,9 +777,16 @@ function Finance() {
             <div className={box}>
               <h2 className="text-2xl font-bold">{draft.event.client_name}</h2>
               <p>
-                {draft.event.event_date} • {draft.event.formation} •{" "}
-                {draft.event.location_name}
+                {draft.event.event_date.split("-").reverse().join("/")} •{" "}
+                {draft.event.formation} • {draft.event.location_name}
               </p>
+              <EventServices event={draft.event} />
+              <Link
+                className="my-3 inline-block text-sm font-semibold text-violet-700"
+                href={`/eventos/${draft.event.id}`}
+              >
+                Abrir cadastro completo do evento
+              </Link>
               <Field label="Valor contratado confirmado por você (R$)">
                 <MoneyInput
                   key={`${draft.event.id}:${draft.revision}`}

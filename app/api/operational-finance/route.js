@@ -148,6 +148,11 @@ export async function POST(request) {
       throw new Error("Padrão inválido.");
     if (b.action === "event") {
       if (
+        b.expected_receipt_on != null &&
+        !/^\d{4}-\d{2}-\d{2}$/.test(b.expected_receipt_on)
+      )
+        throw new Error("Data prevista de recebimento inválida.");
+      if (
         !b.event_id ||
         !integer(b.contract_cents) ||
         !["draft", "checked"].includes(b.status) ||

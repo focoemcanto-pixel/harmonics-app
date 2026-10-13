@@ -220,6 +220,8 @@ function Finance() {
     musician: 0,
     other: 0,
     total: 0,
+    receivable: 0,
+    receipts: [],
     unchecked: 0,
     items: [],
   };
@@ -228,6 +230,14 @@ function Finance() {
       planning.months
         .filter((row) => row.month <= month)
         .reduce((n, row) => n + row.total, 0)
+    : 0;
+  const receiptsByMonth = planning
+    ? planning.months
+        .filter((row) => row.month <= month)
+        .reduce((n, row) => n + row.receivable, 0)
+    : 0;
+  const projectedByMonth = stats
+    ? stats.cash + receiptsByMonth - requiredByMonth
     : 0;
   const relevant = useMemo(
     () =>
@@ -272,6 +282,7 @@ function Finance() {
       contract_cents:
         saved?.contract_cents ?? Math.round(Number(e.agreed_amount || 0) * 100),
       costs,
+      expected_receipt_on: saved?.expected_receipt_on || null,
       status: saved?.status || "draft",
     });
     setTab("events");
@@ -283,6 +294,7 @@ function Finance() {
       revision: draft.revision,
       contract_cents: draft.contract_cents,
       costs: draft.costs,
+      expected_receipt_on: draft.expected_receipt_on,
       status: checked ? "checked" : "draft",
     });
     if (!d) return;
@@ -683,11 +695,11 @@ function Finance() {
               <div className="flex flex-wrap items-end justify-between gap-3">
                 <div>
                   <h2 className="text-xl font-bold">
-                    Quanto preciso reservar por mês?
+                    Entradas e pagamentos por mês
                   </h2>
                   <p className="mt-1 text-sm text-slate-600">
-                    Músicos e custos organizados pela data de pagamento. A data
-                    do evento é usada enquanto você não definir outra.
+                    Entradas e pagamentos pela data prevista. A data do evento é
+                    usada enquanto você não definir outra.
                   </p>
                 </div>
                 <Field label="Mês de referência">
@@ -703,33 +715,43 @@ function Finance() {
                 </Field>
               </div>
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                <Metric label="Caixa atual" value={stats.cash} />
+                <Metric
+                  label="Entradas previstas até o fim deste mês"
+                  value={receiptsByMonth}
+                />
+                <Metric
+                  label="Saldo projetado ao fim do mês"
+                  value={projectedByMonth}
+                  strong
+                />
                 <Metric
                   label={`Músicos a pagar em ${monthLabel(month)}`}
                   value={period.musician}
                 />
                 <Metric label="Outros custos no mês" value={period.other} />
+                <Metric label="Total a pagar no mês" value={period.total} />
                 <Metric
-                  label="Total a pagar no mês"
-                  value={period.total}
-                  strong
+                  label="Previsto a receber neste mês"
+                  value={period.receivable}
                 />
                 <Metric
-                  label="Caixa mínimo até o fim deste mês (inclui anteriores)"
+                  label="Pagamentos até o fim deste mês (inclui anteriores)"
                   value={requiredByMonth}
                 />
-                <Metric label="Caixa atual" value={stats.cash} />
                 <Metric
-                  label="Saldo atual após reservar até este mês"
+                  label="Saldo até o mês sem novas entradas"
                   value={stats.cash - requiredByMonth}
-                  strong
                 />
               </div>
               <p className="rounded-xl bg-slate-50 p-3 text-sm">
-                {stats.cash >= requiredByMonth
-                  ? `O caixa atual cobre os compromissos até o fim de ${monthLabel(month)}.`
-                  : `Com o caixa atual, falta ${money(requiredByMonth - stats.cash)} para os pagamentos até o fim de ${monthLabel(month)}.`}{" "}
-                Recebimentos que ainda não entraram podem cobrir a diferença,
-                mas não são tratados como caixa disponível.{" "}
+                {projectedByMonth >= 0
+                  ? `Considerando os recebimentos previstos, o saldo projetado ao fim de ${monthLabel(month)} é ${money(projectedByMonth)}.`
+                  : `Mesmo com os recebimentos previstos, faltam ${money(-projectedByMonth)} ao fim de ${monthLabel(month)}.`}{" "}
+                A projeção soma o caixa atual e as entradas pendentes até o mês,
+                descontando os pagamentos pendentes até o mesmo período. Depende
+                das datas previstas e não transforma previsão em dinheiro
+                disponível hoje.{" "}
                 {period.unchecked > 0
                   ? `${period.unchecked} eventos deste mês ainda aguardam conferência.`
                   : ""}
@@ -748,8 +770,9 @@ function Finance() {
                       <th className="p-2">Mês</th>
                       <th className="p-2">Músicos</th>
                       <th className="p-2">Outros custos</th>
-                      <th className="p-2">Reserva do mês</th>
-                      <th className="p-2">Necessidade até o mês</th>
+                      <th className="p-2">A receber no mês</th>
+                      <th className="p-2">A pagar no mês</th>
+                      <th className="p-2">Saldo projetado no fim do mês</th>
                       <th className="p-2">Eventos a conferir</th>
                     </tr>
                   </thead>
@@ -773,11 +796,22 @@ function Finance() {
                         <td className="p-2 whitespace-nowrap">
                           {money(row.other)}
                         </td>
+                        <td className="p-2 whitespace-nowrap">
+                          {money(row.receivable)}
+                        </td>
                         <td className="p-2 whitespace-nowrap font-semibold">
                           {money(row.total)}
                         </td>
                         <td className="p-2 whitespace-nowrap">
-                          {money(row.cumulative)}
+                          <span
+                            className={
+                              stats.cash + row.projectedChange < 0
+                                ? "text-red-700"
+                                : "text-emerald-700"
+                            }
+                          >
+                            {money(stats.cash + row.projectedChange)}
+                          </span>
                         </td>
                         <td className="p-2">{row.unchecked || "Conferidos"}</td>
                       </tr>
@@ -785,6 +819,72 @@ function Finance() {
                   </tbody>
                 </table>
               </div>
+              <h3 className="font-semibold">
+                Recebimentos previstos em {monthLabel(month)}
+              </h3>
+              <p className="text-sm text-slate-600">
+                Saldos ainda em aberto das fichas conferidas. Sem data manual, a
+                previsão usa a data do evento.
+              </p>
+              {period.receipts.length === 0 && (
+                <p className="text-sm text-slate-600">
+                  Nenhum recebimento pendente previsto neste mês.
+                </p>
+              )}
+              {period.receipts.map((item) => (
+                <button
+                  key={item.event_id}
+                  className="flex w-full flex-wrap justify-between gap-2 rounded-xl border p-3 text-left"
+                  onClick={() => {
+                    const event = data.events.find(
+                      (e) => e.id === item.event_id,
+                    );
+                    if (event) openEvent(event);
+                  }}
+                >
+                  <div>
+                    <strong>
+                      {item.due_on.split("-").reverse().join("/")} •{" "}
+                      {item.event_name}
+                    </strong>
+                    <p className="text-sm text-slate-600">
+                      {item.date_source === "manual"
+                        ? "Previsão definida por você"
+                        : "Data do evento — ajuste se o pagamento chegar antes"}
+                      {item.overdue ? " • Data prevista já passou" : ""}
+                    </p>
+                  </div>
+                  <strong className="text-emerald-700">
+                    {money(item.amount)}
+                  </strong>
+                </button>
+              ))}
+              {planning.overdueReceipts.length > 0 && (
+                <div className="rounded-xl bg-amber-50 p-3 text-sm">
+                  <strong>
+                    Recebimentos anteriores ou sem data: reprogramar previsão
+                  </strong>
+                  <p>
+                    Estes saldos permanecem a receber, mas não entram
+                    automaticamente na projeção de um mês futuro.
+                  </p>
+                  {planning.overdueReceipts.map((item) => (
+                    <button
+                      key={item.event_id}
+                      className="mt-2 block text-violet-700"
+                      onClick={() => {
+                        const event = data.events.find(
+                          (e) => e.id === item.event_id,
+                        );
+                        if (event) openEvent(event);
+                      }}
+                    >
+                      {item.event_name} • {money(item.amount)} • Ajustar data
+                      prevista
+                    </button>
+                  ))}
+                </div>
+              )}
               <h3 className="font-semibold">
                 Obrigações por data em {monthLabel(month)}
               </h3>
@@ -961,6 +1061,25 @@ function Finance() {
                   }
                 />
               </Field>
+              <Field label="Data prevista para receber o saldo em aberto">
+                <input
+                  type="date"
+                  className={input}
+                  value={
+                    draft.expected_receipt_on || draft.event.event_date || ""
+                  }
+                  onChange={(e) =>
+                    setDraft((d) => ({
+                      ...d,
+                      expected_receipt_on: e.target.value || null,
+                    }))
+                  }
+                />
+              </Field>
+              <p className="mt-1 text-xs text-slate-600">
+                Usada somente na projeção mensal. Sem ajuste manual, vale a data
+                do evento. Salve a ficha para atualizar a previsão.
+              </p>
               <p className="mt-3">
                 Recebido: {money(current.received)} • A receber:{" "}
                 {money(current.open)} • Custos: {money(current.total)} • Margem

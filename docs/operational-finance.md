@@ -97,3 +97,11 @@ Cada custo aceita `due_on` (Pagar até), opcional, armazenado no JSON da ficha o
 A visão de todos os contratos permanece, com o rótulo “Saldo após reservar todos os eventos”, para não apresentar a reserva de meses futuros como uma necessidade imediata. Meses com eventos não conferidos são sinalizados como incompletos. O planejamento mostra o caixa necessário para compromissos; não projeta datas de recebimentos ainda não cadastradas.
 
 Validação: 44 testes de modelo/regressão aprovados, incluindo meses separados, antecipação manual da data do cachê, pagamentos parciais/totais, obrigações anteriores, incompletude, ordenação por data e recebimentos sem reduzir artificialmente dívidas.
+
+## Entradas previstas na projeção mensal
+
+O planejamento mensal cruza caixa atual + saldos a receber até o mês − compromissos pendentes até o mês. A tabela mostra entradas, pagamentos e saldo projetado de cada mês, acumulando o saldo sem somar novamente recebimentos já realizados.
+
+A migration `20261013143434_operational_receivable_forecast_date.sql` acrescenta `expected_receipt_on` opcional à ficha. Sem previsão manual, usa e identifica a data do evento como hipótese. A ficha permite ajustar a data esperada para receber o saldo em aberto. Previsões são apenas o saldo contratual conferido menos recebimentos operacionais ativos; não criam dinheiro em caixa ou novos lançamentos. Contratos quitados saem da previsão. Recebimentos anteriores ao mês atual ou sem data ficam destacados para reprogramação, sem presumir que chegarão em um mês futuro.
+
+Foi salvo um snapshot privado das fichas antes da alteração. A RPC mantém as mesmas validações, auditoria, idempotência e revisão; clientes antigos que não enviam o campo não apagam uma previsão já salva. Validação: 50 testes de cálculo/regressão aprovados e teste SQL com rollback aprovado para persistência da previsão, compatibilidade com clientes antigos e preservação do contrato/custos.

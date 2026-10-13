@@ -426,3 +426,75 @@ test("mensal: obrigações ordenadas por data de pagamento", () => {
     ["b", "a"],
   );
 });
+
+test("projeção mensal: entrada pendente entra no mês do evento", () => {
+  const p = monthlyCommitments([e], [sheet], [], "2026-10-13");
+  const nov = p.months.find((x) => x.month === "2026-11");
+  assert.equal(nov.receivable, 470000);
+  assert.equal(nov.projectedChange, 205000);
+  assert.equal(nov.receipts[0].date_source, "event");
+});
+test("projeção mensal: previsão manual antecipa recebimento sem antecipar custo", () => {
+  const p = monthlyCommitments(
+    [e],
+    [{ ...sheet, expected_receipt_on: "2026-10-20" }],
+    [],
+    "2026-10-13",
+  );
+  assert.equal(p.months[0].receivable, 470000);
+  assert.equal(p.months[0].total, 0);
+  assert.equal(p.months.find((x) => x.month === "2026-11").receivable, 0);
+  assert.equal(
+    p.months.find((x) => x.month === "2026-11").projectedChange,
+    205000,
+  );
+});
+test("projeção mensal: saldo transportado acumula entradas e pagamentos uma vez", () => {
+  const oct = { ...e, id: "oct", event_date: "2026-10-17" },
+    nov = { ...e, id: "nov", event_date: "2026-11-15" };
+  const p = monthlyCommitments(
+    [oct, nov],
+    [
+      { ...sheet, event_id: "oct" },
+      { ...sheet, event_id: "nov" },
+    ],
+    [],
+    "2026-10-13",
+  );
+  assert.equal(p.months[0].projectedChange, 205000);
+  assert.equal(p.months[1].projectedChange, 410000);
+});
+test("projeção mensal: recebimento realizado sai da previsão e entra no caixa sem duplicar", () => {
+  const before = monthlyCommitments([e], [sheet], [], "2026-10-13");
+  const after = monthlyCommitments([e], [sheet], [entry()], "2026-10-13");
+  const cashBefore = calc().cash,
+    cashAfter = calc(undefined, [entry()]).cash;
+  assert.equal(
+    cashBefore + before.months.at(-1).projectedChange,
+    cashAfter + after.months.at(-1).projectedChange,
+  );
+  assert.equal(after.months.at(-1).receivable, 370000);
+});
+test("projeção mensal: contrato quitado não aparece como entrada futura", () => {
+  const p = monthlyCommitments(
+    [e],
+    [sheet],
+    [entry({ amount_cents: 470000 })],
+    "2026-10-13",
+  );
+  assert.equal(p.months.at(-1).receivable, 0);
+  assert.equal(p.months.at(-1).receipts.length, 0);
+});
+test("projeção mensal: recebimentos de meses anteriores exigem reprogramação", () => {
+  const p = monthlyCommitments(
+    [e],
+    [{ ...sheet, expected_receipt_on: "2026-09-20" }],
+    [],
+    "2026-10-13",
+  );
+  assert.equal(p.overdueReceipts.length, 1);
+  assert.equal(
+    p.months.reduce((n, m) => n + m.receivable, 0),
+    0,
+  );
+});

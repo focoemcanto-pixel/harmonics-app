@@ -105,3 +105,9 @@ O planejamento mensal cruza caixa atual + saldos a receber até o mês − compr
 A migration `20261013143434_operational_receivable_forecast_date.sql` acrescenta `expected_receipt_on` opcional à ficha. Sem previsão manual, usa e identifica a data do evento como hipótese. A ficha permite ajustar a data esperada para receber o saldo em aberto. Previsões são apenas o saldo contratual conferido menos recebimentos operacionais ativos; não criam dinheiro em caixa ou novos lançamentos. Contratos quitados saem da previsão. Recebimentos anteriores ao mês atual ou sem data ficam destacados para reprogramação, sem presumir que chegarão em um mês futuro.
 
 Foi salvo um snapshot privado das fichas antes da alteração. A RPC mantém as mesmas validações, auditoria, idempotência e revisão; clientes antigos que não enviam o campo não apagam uma previsão já salva. Validação: 50 testes de cálculo/regressão aprovados e teste SQL com rollback aprovado para persistência da previsão, compatibilidade com clientes antigos e preservação do contrato/custos.
+
+## Remoção de custos preservada
+
+Padrões de sonorização, transporte e operacional passam a preencher somente fichas ainda não salvas. Uma ausência em ficha já salva é preservada como decisão manual, inclusive em fichas antigas que removeram sonorização antes desta correção.
+
+Novas remoções mantêm um marcador `excluded` no custo, com seu valor anterior guardado, e valor ativo zero. A ficha oculta o item da lista ativa; cálculos de margem, compromisso e projeção ignoram exclusões. O marcador impede também que a escala recrie cachês removidos. A auditoria da ficha preserva a alteração. Uma seção de custos removidos permite restaurar explicitamente o valor específico do evento. Custos já pagos continuam protegidos contra remoção pela interface e pela validação transacional existente.

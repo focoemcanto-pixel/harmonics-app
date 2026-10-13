@@ -4,6 +4,8 @@ import {
   cents,
   today,
   eventSummary,
+  excludeCost,
+  restoreCost,
   describeReception,
   dashboard,
   monthlyCommitments,
@@ -234,7 +236,7 @@ const standards = [
 test("prefill: cachê geral, som e transporte contratados", () => {
   const c = suggestedCosts(
     { ...e, has_sound: true, has_transport: true },
-    [],
+    undefined,
     [musician],
     standards,
     () => "id",
@@ -252,11 +254,11 @@ test("prefill: função sobrescreve geral e músico sobrescreve função", () =>
     { key: "musician:m", amount_cents: 50000 },
   ];
   assert.equal(
-    suggestedCosts(e, [], [musician], ds, () => "id")[0].amount_cents,
+    suggestedCosts(e, undefined, [musician], ds, () => "id")[0].amount_cents,
     50000,
   );
   assert.equal(
-    suggestedCosts(e, [], [musician], ds.slice(0, -1), () => "id")[0]
+    suggestedCosts(e, undefined, [musician], ds.slice(0, -1), () => "id")[0]
       .amount_cents,
     40000,
   );
@@ -265,7 +267,7 @@ test("prefill: padrão zero específico não herda valor geral", () =>
   assert.equal(
     suggestedCosts(
       e,
-      [],
+      undefined,
       [musician],
       [...standards, { key: "musician:m", amount_cents: 0 }],
       () => "id",
@@ -285,12 +287,12 @@ test("prefill: acordo salvo não é sobrescrito nem duplicado", () => {
 });
 test("prefill: não adiciona serviços que não foram contratados", () =>
   assert.equal(
-    suggestedCosts(e, [], [musician], standards, () => "id").length,
+    suggestedCosts(e, undefined, [musician], standards, () => "id").length,
     1,
   ));
 test("prefill: reabrir a ficha não duplica os custos padrão", () => {
   const event = { ...e, has_sound: true, has_transport: true };
-  const c = suggestedCosts(event, [], [musician], standards, () => "id");
+  const c = suggestedCosts(event, undefined, [musician], standards, () => "id");
   assert.equal(
     suggestedCosts(event, c, [musician], standards, () => "id").length,
     3,
@@ -497,4 +499,79 @@ test("projeção mensal: recebimentos de meses anteriores exigem reprogramação
     p.months.reduce((n, m) => n + m.receivable, 0),
     0,
   );
+});
+
+test("remoção: sonorização não volta ao reabrir ficha salva", () => {
+  const event = { ...e, has_sound: true };
+  const initial = suggestedCosts(event, undefined, [musician], standards, () =>
+    crypto.randomUUID(),
+  );
+  const saved = initial.filter((c) => c.category !== "sonorização");
+  const reopened = suggestedCosts(event, saved, [musician], standards, () =>
+    crypto.randomUUID(),
+  );
+  assert.ok(!reopened.some((c) => c.category === "sonorização"));
+});
+test("remoção: ficha salva vazia não recria custos de som ou transporte", () =>
+  assert.equal(
+    suggestedCosts(
+      { ...e, has_sound: true, has_transport: true },
+      [],
+      [],
+      standards,
+      () => crypto.randomUUID(),
+    ).length,
+    0,
+  ));
+test("remoção: custo excluído persiste e fica fora da margem e compromissos", () => {
+  const sound = {
+    id: "s",
+    category: "sonorização",
+    amount_cents: 30000,
+    default_key: "cost:sonorização",
+    description: "Som",
+    status: "predicted",
+  };
+  const removed = excludeCost(sound);
+  const saved = { ...sheet, costs: [removed] };
+  assert.equal(eventSummary(e, saved, []).total, 0);
+  assert.equal(
+    dashboard([e], [saved], [], settings, "2026-10-13").committed,
+    0,
+  );
+  assert.equal(
+    monthlyCommitments([e], [saved], [], "2026-10-13").months.at(-1).total,
+    0,
+  );
+  assert.equal(removed.excluded_amount_cents, 30000);
+  assert.equal(sound.amount_cents, 30000);
+});
+test("remoção: cachê removido não é recriado pela escala", () => {
+  const cost = {
+    id: "c",
+    scale_id: musician.id,
+    category: "musician",
+    amount_cents: 45000,
+  };
+  const reopened = suggestedCosts(
+    e,
+    [excludeCost(cost)],
+    [musician],
+    standards,
+    () => crypto.randomUUID(),
+  );
+  assert.equal(reopened.length, 1);
+  assert.equal(reopened[0].excluded, true);
+});
+test("remoção: restaurar custo depende de ação explícita e recupera valor do evento", () => {
+  const cost = {
+    id: "s",
+    category: "sonorização",
+    amount_cents: 45000,
+    default_cents: 30000,
+  };
+  const removed = excludeCost(cost);
+  assert.deepEqual(excludeCost(removed), removed);
+  assert.equal(restoreCost(removed).amount_cents, 45000);
+  assert.equal(restoreCost(removed).excluded, undefined);
 });

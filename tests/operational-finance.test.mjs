@@ -4,6 +4,7 @@ import {
   cents,
   today,
   eventSummary,
+  describeReception,
   dashboard,
   activeEntries,
   suggestedCosts,
@@ -293,4 +294,36 @@ test("prefill: reabrir a ficha não duplica os custos padrão", () => {
     suggestedCosts(event, c, [musician], standards, () => "id").length,
     3,
   );
+});
+
+test("Joseane: receptivo de 3h aparece mesmo com flag legado false", () =>
+  assert.equal(
+    describeReception({
+      has_reception: false,
+      reception_hours: 3,
+      reception_formation: "Trio",
+    }),
+    "Sim • 3h • Trio",
+  ));
+test("receptivo com duração textual positiva e instrumentos", () =>
+  assert.equal(
+    describeReception({
+      has_reception: false,
+      reception_hours: "3",
+      reception_formation: "Trio",
+      reception_instruments: "Voz, piano e violino",
+    }),
+    "Sim • 3h • Trio • Voz, piano e violino",
+  ));
+test("receptivo explícito sem duração exige conferência", () =>
+  assert.equal(
+    describeReception({ has_reception: true, reception_hours: 0 }),
+    "Sim • Duração não informada",
+  ));
+test("sem duração nem receptivo não inventa serviço", () => {
+  assert.equal(
+    describeReception({ has_reception: false, reception_hours: 0 }),
+    "Não",
+  );
+  assert.equal(describeReception({ reception_hours: null }), "Não informado");
 });

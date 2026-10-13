@@ -8,6 +8,7 @@ import {
   cents,
   dashboard,
   eventSummary,
+  describeReception,
   suggestedCosts,
   money,
   today,
@@ -82,21 +83,7 @@ function EventServices({ event, compact = false }) {
         .join(" • "),
     ],
     ["Sonorização", yesNo(event.has_sound)],
-    [
-      "Receptivo",
-      event.has_reception === true
-        ? [
-            "Sim",
-            event.reception_hours
-              ? `${event.reception_hours}h`
-              : "Duração não informada",
-            event.reception_formation,
-            event.reception_instruments,
-          ]
-            .filter(Boolean)
-            .join(" • ")
-        : yesNo(event.has_reception),
-    ],
+    ["Receptivo", describeReception(event)],
     ["Transporte", yesNo(event.has_transport)],
   ];
   return (

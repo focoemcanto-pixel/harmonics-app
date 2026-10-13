@@ -1203,6 +1203,7 @@ function PagamentosPageContent() {
   if (carregando) {
     return (
       <AdminShell pageTitle="Pagamentos" activeItem="pagamentos">
+      <nav className="mb-5 flex flex-wrap gap-3"><span className="rounded-xl border px-4 py-2 font-semibold">Pagamentos / Legado</span><Link href="/pagamentos/operacional" className="rounded-xl bg-violet-700 px-4 py-2 font-semibold text-white">Caixa &amp; Compromissos — novo financeiro</Link></nav>
         <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-6 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
           <div className="animate-pulse space-y-4">
             <div className="h-5 w-52 rounded bg-slate-200" />
@@ -1219,6 +1220,7 @@ function PagamentosPageContent() {
 
   return (
     <AdminShell pageTitle="Pagamentos" activeItem="pagamentos">
+      <nav className="mb-5 flex flex-wrap gap-3"><span className="rounded-xl border px-4 py-2 font-semibold">Pagamentos / Legado</span><Link href="/pagamentos/operacional" className="rounded-xl bg-violet-700 px-4 py-2 font-semibold text-white">Caixa &amp; Compromissos — novo financeiro</Link></nav>
       <div className="space-y-5">
         <AdminPageHero
           badge="Harmonics Admin"

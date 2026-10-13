@@ -18,7 +18,7 @@ const ITEMS = [
   ['Sugestões', '/sugestoes'],
   ['Automação', '/automacoes'],
   ['Avaliações', '/avaliacoes'],
-  ['Pagamentos', '/pagamentos'],
+  ['Financeiro', '/pagamentos'],
   ['Configurações', '/settings'],
 ];
 

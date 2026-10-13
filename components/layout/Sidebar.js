@@ -10,7 +10,7 @@ const itens = [
   { label: 'Escalas', href: '/escalas' },
   { label: 'Contratos', href: '/contratos' },
   { label: 'Repertórios', href: '/repertorios' },
-  { label: 'Pagamentos', href: '/pagamentos' },
+  { label: 'Financeiro', href: '/pagamentos' },
 ];
 
 export default function Sidebar() {

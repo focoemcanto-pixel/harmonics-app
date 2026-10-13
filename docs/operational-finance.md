@@ -87,3 +87,13 @@ Para recebimentos posteriores: buscar nome/data, informar valor e salvar. A orig
 Por autorização explícita do usuário, os padrões cadastrados de R$ 350/músico, R$ 300/som e R$ 200/transporte foram copiados uma única vez para os padrões independentes do workspace Harmonics, com registro na auditoria operacional. Nenhum recebimento, custo individual de evento ou agregado financeiro legado foi importado. Padrões operacionais já existentes não são sobrescritos.
 
 A prioridade do cachê sugerido é músico → função → cachê geral. Sonorização e transporte entram como previstos somente quando o serviço está marcado no cadastro do evento. Todos os valores são editáveis. Acordos já salvos, inclusive valores zero, permanecem intactos. Os padrões gerais podem ser ajustados em Configurações. Seis testes adicionais cobrem prioridades, zero explícito, serviços contratados, não sobrescrever acordos e não duplicar custos: 32 testes aprovados no total.
+
+## Planejamento mensal de compromissos
+
+Caixa & Compromissos passa a priorizar o mês selecionado, com músicos, outros custos, total do mês, necessidade acumulada até o fim do mês e saldo do caixa atual após essa reserva. Recebimentos pendentes não reduzem a obrigação nem são tratados como caixa disponível.
+
+Cada custo aceita `due_on` (Pagar até), opcional, armazenado no JSON da ficha operacional e preservado pela auditoria existente. Sem data manual, usa a data do evento e informa essa hipótese na interface. Não foi necessária migration; valores e registros salvos não foram alterados. Obrigações de meses anteriores são destacadas e incluídas na necessidade acumulada. A lista de obrigações é ordenada pela data de pagamento e abre a ficha correspondente.
+
+A visão de todos os contratos permanece, com o rótulo “Saldo após reservar todos os eventos”, para não apresentar a reserva de meses futuros como uma necessidade imediata. Meses com eventos não conferidos são sinalizados como incompletos. O planejamento mostra o caixa necessário para compromissos; não projeta datas de recebimentos ainda não cadastradas.
+
+Validação: 44 testes de modelo/regressão aprovados, incluindo meses separados, antecipação manual da data do cachê, pagamentos parciais/totais, obrigações anteriores, incompletude, ordenação por data e recebimentos sem reduzir artificialmente dívidas.

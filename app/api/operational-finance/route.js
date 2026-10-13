@@ -161,7 +161,8 @@ export async function POST(request) {
           !integer(c.amount_cents) ||
           !c.description?.trim() ||
           !["predicted", "confirmed"].includes(c.status) ||
-          typeof c.category !== "string"
+          typeof c.category !== "string" ||
+          (c.due_on != null && !/^\d{4}-\d{2}-\d{2}$/.test(c.due_on))
         )
           throw new Error("Custo inválido.");
     }

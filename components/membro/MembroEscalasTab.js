@@ -63,7 +63,7 @@ function getCountdown(item) {
   if (done) {
     return {
       label: 'Concluído',
-      className: 'bg-emerald-500/12 text-emerald-300 border-emerald-400/20',
+      className: 'bg-slate-500/15 text-slate-300 border-slate-400/20',
     };
   }
 
@@ -84,7 +84,7 @@ function getCountdown(item) {
   if (typeof days === 'number' && days < 0) {
     return {
       label: 'Concluído',
-      className: 'bg-emerald-500/12 text-emerald-300 border-emerald-400/20',
+      className: 'bg-slate-500/15 text-slate-300 border-slate-400/20',
     };
   }
 
@@ -311,6 +311,16 @@ function SectionDivider({ label }) {
 }
 
 function getAgendaVisualMeta(item) {
+  const isCompleted = isEventDone(item);
+  if (isCompleted) {
+    return {
+      label: 'CONCLUÍDO',
+      badgeClass: 'border-slate-300/25 bg-slate-500/15 text-slate-200',
+      cardClass: 'border-slate-400/20 bg-[linear-gradient(135deg,rgba(100,116,139,.12),#17151d)]',
+      railClass: 'bg-slate-500',
+    };
+  }
+
   const isGlobalAgenda = item?.isGlobalAgenda === true || item?.sourceFlags?.globalAgenda === true;
   const isPersonalInvite = item?.isPersonalInvite === true || item?.sourceFlags?.personalInvite === true || !isGlobalAgenda;
   const status = String(item?.inviteStatus || '').trim().toLowerCase();

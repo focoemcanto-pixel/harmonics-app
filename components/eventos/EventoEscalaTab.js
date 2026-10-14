@@ -471,7 +471,7 @@ function SearchResultCard({ contact, onAdd }) {
   );
 }
 
-export default function EventoEscalaTab({ eventId }) {
+export default function EventoEscalaTab({ eventId, hideFinancial = false }) {
   const [evento, setEvento] = useState(null);
   const [contatos, setContatos] = useState([]);
   const [escalaSalva, setEscalaSalva] = useState([]);
@@ -1322,6 +1322,7 @@ async function salvarEEnviarConvites() {
         ) : null}
 
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+{!hideFinancial ? (
           <div className="rounded-2xl border border-[#e2e8f0] bg-white px-3 py-3">
             <div className="text-[11px] font-black uppercase tracking-[0.08em] text-[#64748b]">Financeiro</div>
             <div className="mt-1 text-[14px] font-black text-[#0f172a]">{formatMoney(evento?.open_amount)} pendente</div>
@@ -1329,6 +1330,7 @@ async function salvarEEnviarConvites() {
               Ver pagamentos
             </Link>
           </div>
+          ) : null}
           <div className="rounded-2xl border border-[#e2e8f0] bg-white px-3 py-3">
             <div className="text-[11px] font-black uppercase tracking-[0.08em] text-[#64748b]">Repertório</div>
             <div className="mt-1 text-[14px] font-black text-[#0f172a]">{repertorioLabel}</div>

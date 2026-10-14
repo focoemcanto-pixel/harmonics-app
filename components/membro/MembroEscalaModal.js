@@ -210,7 +210,7 @@ export default function MembroEscalaModal({ open, eventTitle, musicians = [], ca
           </div>
         </div>
       </div>
-      {builderOpen && resolvedEvent?.id ? <div className="fixed inset-0 z-[220] bg-[#080411]/95 backdrop-blur-md"><div className="flex h-[100dvh] flex-col overflow-hidden"><div className="flex shrink-0 items-center justify-between border-b border-white/10 bg-[#120a22] px-4 py-3 text-white"><div className="min-w-0"><div className="text-[15px] font-black">Montar escala</div><div className="truncate text-[11px] font-semibold text-white/50">{eventTitle || 'Evento'}</div></div><button type="button" onClick={closeBuilderAndRefresh} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[12px] font-black">Concluir</button></div><div className="min-h-0 flex-1 overflow-y-auto bg-[#f7f4fb] px-2 py-3 md:px-5"><EventoEscalaTab eventId={resolvedEvent.id} /></div></div></div> : null}
+      {builderOpen && resolvedEvent?.id ? <div className="fixed inset-0 z-[220] bg-[#080411]/95 backdrop-blur-md"><div className="flex h-[100dvh] flex-col overflow-hidden"><div className="flex shrink-0 items-center justify-between border-b border-white/10 bg-[#120a22] px-4 py-3 text-white"><div className="min-w-0"><div className="text-[15px] font-black">Montar escala</div><div className="truncate text-[11px] font-semibold text-white/50">{eventTitle || 'Evento'}</div></div><button type="button" onClick={closeBuilderAndRefresh} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[12px] font-black">Concluir</button></div><div className="min-h-0 flex-1 overflow-y-auto bg-[#f7f4fb] px-2 py-3 md:px-5"><EventoEscalaTab eventId={resolvedEvent.id} hideFinancial /></div></div></div> : null}
     </>
   );
 }

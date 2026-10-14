@@ -28,3 +28,9 @@ Legenda: ✅ concluído · 🟡 parcial · ⛔ bloqueio externo · ⏳ pendente
 - 🟡 Decisão de produto pendente (D-1): `finance_cost_defaults` está com RLS sem política desde antes desta fase, então o browser **nunca** leu/gravou os custos padrão salvos (as telas usam valores de fallback). Habilitar mudaria os números exibidos à Harmonics — mantido como está até decisão.
 - ⏳ Ainda globais por desenho: catálogo de sugestões (`suggestion_*`), `event_types` legível por qualquer autenticado (RLS `true`), `contract_templates` com políticas de admin global (a API já usa admin do workspace).
 - ⏳ Achado (privacidade intra-tenant): músicos escalados conseguem ler `payments`/`contracts` dos eventos em que tocam (política pré-existente `*_member_select_*`). Não alterado: o portal do membro pode depender disso — validar antes de restringir.
+
+## Fase 2 — Normalização do build
+- ✅ 22 scripts de prebuild incorporados ao source, **um commit por script**, cada um provado idempotente (2ª execução sem diff).
+- ✅ Equivalência: prebuild original aplicado sobre `origin/main` numa cópia e comparado com esta branch → idêntico, exceto as edições intencionais desta finalização e 1 defeito corrigido (token de convite de fallback era uma constante gerada no build).
+- ✅ `npm run build` sem prebuild → `git status` limpo após o build.
+- ✅ Scripts incorporados removidos; 2 scripts que nunca estiveram no prebuild ficaram documentados (`scripts/README-unapplied-patches.md`).

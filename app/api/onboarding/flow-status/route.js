@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requireWorkspaceAccess, requireWorkspaceAdmin } from '@/lib/api/require-workspace-access';
-import { buildOnboardingFlowStatus } from '@/lib/onboarding/onboarding-flow';
+import { buildOnboardingFlowStatus, ONBOARDING_FLOW_STEPS } from '@/lib/onboarding/onboarding-flow';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -47,6 +47,7 @@ const ALLOWED_FLOW_STATE_KEYS = new Set([
   'demo_event_cleanup_completed',
   'onboarding_completed',
   'contract_template_completed',
+  'essentials_completed',
   'skipped',
   'onboarding_skipped',
 ]);
@@ -146,8 +147,11 @@ async function getProgressRow({ supabase, workspaceId }) {
 
 async function updateProgressFlowState({ supabase, workspaceId, progress, flowState }) {
   const now = new Date().toISOString();
+  // completed_at nunca volta a nulo (antes era zerado a cada PATCH e o onboarding "reiniciava").
+  const finished = flowState?.onboarding_completed === true || flowState?.skipped === true;
+  const completedPatch = finished && !progress?.completed_at ? { completed_at: now } : {};
   const payloads = [
-    { flow_state: flowState, completed_at: null, updated_at: now },
+    { flow_state: flowState, ...completedPatch, updated_at: now },
     { flow_state: flowState, updated_at: now },
     { flow_state: flowState },
   ];
@@ -237,13 +241,14 @@ async function getDemoEvent({ supabase, workspaceId }) {
 }
 
 async function countFacts({ supabase, workspaceId, progress }) {
-  const [eventTypesResp, precontractsResp, signedContractsResp, membersResp, templatesResp, formationTemplatesResp] = await Promise.all([
+  const [eventTypesResp, precontractsResp, signedContractsResp, membersResp, templatesResp, formationTemplatesResp, eventsResp] = await Promise.all([
     safeCount(supabase.from('event_types').select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId), 'event_types'),
     safeCount(supabase.from('precontracts').select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId), 'precontracts'),
     safeCount(supabase.from('contracts').select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId).in('status', ['signed', 'assinado', 'ASSINADO']), 'contracts.signed'),
     safeCount(supabase.from('contacts').select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId).in('contact_type', ['musician', 'member', 'team', 'staff']), 'contacts.members'),
     safeCount(supabase.from('contract_templates').select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId).eq('is_active', true), 'contract_templates'),
     safeCount(supabase.from('scale_templates').select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId).eq('is_active', true), 'scale_templates'),
+    safeCount(supabase.from('events').select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId), 'events'),
   ]);
 
   const flowState = normalizeFlowState(progress?.flow_state);
@@ -276,7 +281,20 @@ async function countFacts({ supabase, workspaceId, progress }) {
     hasDashboardDemoViewed: flowState.hasDashboardDemoViewed === true,
     canCleanupDemoEvent: Boolean(demoEventId && flowState.demo_event_cleanup_completed !== true),
     isComplete: Boolean(progress?.completed_at || flowState.onboardingCompleted === true || flowState.onboarding_completed === true),
+    essentialsCompleted: flowState.essentials_completed === true || Boolean(progress?.workspace_configured) || Boolean(progress?.completed_at),
+    hasMusician: Number(membersResp?.count || 0) >= 1,
+    hasEvent: hasCount(eventsResp),
   };
+}
+
+function buildChecklist(facts) {
+  return ONBOARDING_FLOW_STEPS.filter((step) => step.key !== 'complete').map((step) => ({
+    key: step.key,
+    title: step.title,
+    description: step.description || '',
+    href: step.href,
+    done: facts?.[step.flag] === true,
+  }));
 }
 
 function buildFallbackFlow(facts) {
@@ -305,10 +323,14 @@ export async function GET(request) {
     });
 
     const facts = await countFacts({ supabase, workspaceId: auth.workspaceId, progress });
-    const primaryWorkspace = isPrimaryHarmonicsWorkspace(auth.workspace);
+    // Workspaces que já concluíram (ex.: operação original) ficam concluídos por DADO
+    // (completed_at), não por ID/nome fixo no código.
+    const primaryWorkspace = Boolean(progress?.completed_at) || isPrimaryHarmonicsWorkspace(auth.workspace);
     const flowState = normalizeFlowState(progress?.flow_state);
     const skipped = flowState.skipped === true || flowState.onboarding_skipped === true;
-    const completed = Boolean(progress?.completed_at || flowState.onboardingCompleted === true || flowState.onboarding_completed === true);
+    const checklist = buildChecklist(facts);
+    const allDone = checklist.every((item) => item.done);
+    const completed = allDone || Boolean(progress?.completed_at || flowState.onboardingCompleted === true || flowState.onboarding_completed === true);
     const onboardingEnabled = primaryWorkspace
       ? false
       : Boolean(flowState.onboarding_enabled === true || flowState.workspace_created_for_onboarding === true);
@@ -323,6 +345,7 @@ export async function GET(request) {
       primaryWorkspace,
       skipped: primaryWorkspace ? true : skipped,
       completed: primaryWorkspace ? true : completed,
+      checklist,
       ...facts,
       ...flow,
     });
@@ -345,6 +368,25 @@ export async function PATCH(request) {
     const requestedFlowState = body?.flowState && typeof body.flowState === 'object' ? body.flowState : {};
     const sanitizedFlowState = Object.fromEntries(Object.entries(requestedFlowState).filter(([key, value]) => ALLOWED_FLOW_STATE_KEYS.has(key) && value === true));
 
+    if (body?.reopen === true) {
+      // Reexibe o checklist no painel (o progresso real continua derivado dos dados).
+      const current = await getProgressRow({ supabase, workspaceId: auth.workspaceId });
+      const reopenedFlowState = {
+        ...normalizeFlowState(current?.flow_state),
+        skipped: false,
+        onboarding_skipped: false,
+        onboarding_completed: false,
+        onboardingCompleted: false,
+        onboarding_enabled: true,
+        updatedAt: new Date().toISOString(),
+      };
+      await supabase
+        .from('workspace_onboarding_progress')
+        .update({ flow_state: reopenedFlowState, completed_at: null, updated_at: new Date().toISOString() })
+        .eq('workspace_id', auth.workspaceId);
+      return NextResponse.json({ ok: true, reopened: true });
+    }
+
     if (!markKey && body?.completed !== true && Object.keys(sanitizedFlowState).length === 0) {
       return NextResponse.json({ ok: false, error: 'Guia de onboarding inválido.' }, { status: 400 });
     }
@@ -363,13 +405,14 @@ export async function PATCH(request) {
 
     const updated = await updateProgressFlowState({ supabase, workspaceId: auth.workspaceId, progress, flowState: nextFlowState });
     const facts = await countFacts({ supabase, workspaceId: auth.workspaceId, progress: updated });
-    const primaryWorkspace = isPrimaryHarmonicsWorkspace(auth.workspace);
+    const primaryWorkspace = Boolean(progress?.completed_at) || isPrimaryHarmonicsWorkspace(auth.workspace);
+    const checklist = buildChecklist(facts);
     const skipped = nextFlowState.skipped === true || nextFlowState.onboarding_skipped === true;
     const completed = Boolean(updated?.completed_at || nextFlowState.onboardingCompleted === true || nextFlowState.onboarding_completed === true);
     const onboardingEnabled = primaryWorkspace ? false : nextFlowState.onboarding_enabled === true || nextFlowState.workspace_created_for_onboarding === true;
     const flow = buildFallbackFlow({ ...facts, onboardingEnabled, isComplete: completed });
 
-    return NextResponse.json({ ok: true, workspaceId: auth.workspaceId, progress: updated, flow_state: nextFlowState, onboardingEnabled, primaryWorkspace, skipped: primaryWorkspace ? true : skipped, completed: primaryWorkspace ? true : completed, ...facts, ...flow });
+    return NextResponse.json({ ok: true, workspaceId: auth.workspaceId, progress: updated, flow_state: nextFlowState, onboardingEnabled, primaryWorkspace, skipped: primaryWorkspace ? true : skipped, completed: primaryWorkspace ? true : completed, checklist, ...facts, ...flow });
   } catch (error) {
     console.error('[ONBOARDING_FLOW_STATUS][PATCH][ERROR]', { message: error?.message, code: error?.code, details: error?.details });
     return NextResponse.json({ ok: false, error: error?.message || 'Erro ao atualizar status do onboarding.' }, { status: 500 });

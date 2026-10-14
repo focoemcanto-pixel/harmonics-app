@@ -17,8 +17,10 @@ function normalizePhone(value) {
 
 function normalizeColor(value) {
   const color = String(value || '').trim();
-  return /^#[0-9a-fA-F]{6}$/.test(color) ? color : '#10b981';
+  return /^#[0-9a-fA-F]{6}$/.test(color) ? color : null;
 }
+
+const BUSINESS_TYPES = new Set(['banda', 'orquestra', 'grupo_vocal', 'dj', 'musico_solo', 'ministerio', 'produtora', 'outro']);
 
 function mergeSettings(existingSettings, patch) {
   const current = existingSettings && typeof existingSettings === 'object' ? existingSettings : {};
@@ -28,12 +30,19 @@ function mergeSettings(existingSettings, patch) {
     onboarding: {
       ...(current.onboarding || {}),
       completed: true,
+      essentials_completed: true,
       completed_at: new Date().toISOString(),
       source: 'onboarding_complete_api',
     },
+    profile: {
+      ...(current.profile || {}),
+      ...(patch.responsibleName ? { responsible_name: patch.responsibleName } : {}),
+      ...(patch.city ? { city: patch.city } : {}),
+      ...(patch.businessType ? { business_type: patch.businessType } : {}),
+    },
     branding: {
       ...(current.branding || {}),
-      primary_color: patch.primaryColor,
+      ...(patch.primaryColor ? { primary_color: patch.primaryColor } : {}),
     },
   };
 }
@@ -57,7 +66,7 @@ async function getOrCreateWorkspaceSettings({ supabase, workspaceId, workspace, 
         company_name: payload.publicName,
         support_whatsapp: payload.supportWhatsapp,
         admin_whatsapp: payload.supportWhatsapp,
-        primary_color: payload.primaryColor,
+        ...(payload.primaryColor ? { primary_color: payload.primaryColor } : {}),
         settings: merged,
         updated_at: new Date().toISOString(),
       })
@@ -114,6 +123,10 @@ export async function POST(request) {
     const publicName = normalizeText(body?.publicName || body?.companyName || body?.name || auth.workspace?.name);
     const supportWhatsapp = normalizePhone(body?.supportWhatsapp || body?.whatsapp || body?.phone);
     const primaryColor = normalizeColor(body?.primaryColor);
+    const responsibleName = normalizeText(body?.responsibleName || body?.ownerName);
+    const city = normalizeText(body?.city);
+    const businessTypeRaw = String(body?.businessType || '').trim().toLowerCase();
+    const businessType = BUSINESS_TYPES.has(businessTypeRaw) ? businessTypeRaw : null;
 
     if (!publicName) {
       return NextResponse.json({ ok: false, error: 'Nome público é obrigatório.' }, { status: 400 });
@@ -127,6 +140,9 @@ export async function POST(request) {
         publicName,
         supportWhatsapp,
         primaryColor,
+        responsibleName,
+        city,
+        businessType,
       },
     });
 
@@ -145,13 +161,15 @@ export async function POST(request) {
       .upsert({
         workspace_id: auth.workspaceId,
         workspace_configured: true,
+        // Passo essencial concluído; o checklist contextual continua (completed_at só quando
+        // o checklist termina ou o usuário o oculta).
         flow_state: {
           ...previousFlowState,
-          onboarding_enabled: false,
-          onboarding_completed: true,
+          onboarding_enabled: true,
+          essentials_completed: true,
+          profile: { responsible_name: responsibleName, city, business_type: businessType },
           updatedAt: completionTimestamp,
         },
-        completed_at: completionTimestamp,
         updated_at: completionTimestamp,
       }, { onConflict: 'workspace_id' })
       .then?.(() => null);
@@ -167,7 +185,7 @@ export async function POST(request) {
       ok: true,
       workspaceId: auth.workspaceId,
       settings,
-      next: '/eventos',
+      next: '/dashboard?onboarding=ready',
     });
   } catch (error) {
     console.error('[ONBOARDING_COMPLETE_API][ERROR]', {

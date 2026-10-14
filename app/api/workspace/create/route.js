@@ -278,7 +278,7 @@ export async function POST(request) {
       settings: bootstrap.settings,
       subscription: bootstrap.subscription,
       onboardingMarked,
-      next: '/dashboard?onboarding=fresh-workspace',
+      next: '/onboarding',
     });
 
     const cookieOptions = {

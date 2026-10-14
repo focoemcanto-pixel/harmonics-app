@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import { ONBOARDING_FLOW_STEPS } from '@/lib/onboarding/onboarding-flow';
-import { restartOnboardingStep } from '@/lib/onboarding/restartOnboardingStep';
 
 const visibleFlowSteps = ONBOARDING_FLOW_STEPS.filter((step) => step.key !== 'complete');
 
@@ -16,6 +15,9 @@ const fallbackSummary = {
 
 function isStepDone(step, status) {
   if (!status) return false;
+  // Estado real de cada item (derivado de dados do workspace), mesmo com o checklist oculto.
+  const item = Array.isArray(status.checklist) ? status.checklist.find((entry) => entry.key === step.key) : null;
+  if (item) return item.done === true;
   if (status.completed === true || status.skipped === true) return true;
   if (step.key === 'dashboard') return status.onboardingEnabled === true || status.primaryWorkspace === true;
   if (!step.flag) return false;
@@ -37,13 +39,13 @@ function buildSummary(status) {
 
 function getStepHref(step, done, status) {
   const href = step?.href || '/settings/onboarding';
-  if (done) return restartOnboardingStep(step.key, href);
+  if (done) return href;
   if (status?.currentStep === step.key && status?.nextHref) return status.nextHref;
   return href;
 }
 
 function getStepCta(step, done, isCurrent) {
-  if (done) return 'Reabrir etapa';
+  if (done) return 'Revisar';
   if (isCurrent) return 'Continuar agora';
   if (step.key === 'dashboard') return 'Ver boas-vindas';
   return 'Abrir etapa';
@@ -90,6 +92,23 @@ export default function OnboardingChecklistClient() {
       setSummary(fallbackSummary);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function reopenChecklist() {
+    setError('');
+    try {
+      const token = await getToken();
+      if (!token) throw new Error('Sessão expirada. Faça login novamente.');
+      const response = await fetch('/api/onboarding/flow-status', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ reopen: true }),
+      });
+      if (!response.ok) throw new Error('Não foi possível reabrir o checklist.');
+      await loadProgress();
+    } catch (err) {
+      setError(err?.message || 'Erro ao reabrir o checklist.');
     }
   }
 
@@ -173,6 +192,11 @@ export default function OnboardingChecklistClient() {
                 <button type="button" disabled={skipping} onClick={skipOnboarding} className="rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-black text-slate-600 transition hover:bg-slate-50 disabled:opacity-60">
                   {skipping ? 'Pulando...' : 'Pular guia'}
                 </button>
+                {status?.completed === true || status?.skipped === true ? (
+                  <button type="button" onClick={reopenChecklist} className="rounded-2xl border border-violet-200 bg-white px-5 py-3 text-sm font-black text-violet-700 transition hover:bg-violet-50">
+                    Mostrar no painel novamente
+                  </button>
+                ) : null}
               </div>
             ) : (
               <div className="mt-6 rounded-[24px] border border-emerald-200 bg-emerald-50 p-5 text-sm font-bold text-emerald-800">

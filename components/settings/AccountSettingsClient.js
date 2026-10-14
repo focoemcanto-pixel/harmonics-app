@@ -71,7 +71,7 @@ export default function AccountSettingsClient() {
       const email = profile?.email;
       if (!email) throw new Error('E-mail não encontrado.');
 
-      const redirectTo = `${window.location.origin}/login?reset=done`;
+      const redirectTo = `${window.location.origin}/auth/reset-password`;
 
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo,

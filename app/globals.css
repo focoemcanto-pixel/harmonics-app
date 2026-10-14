@@ -63,3 +63,13 @@ a {
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* iOS Safari dá zoom ao focar campos com fonte < 16px. Em telas pequenas, todo campo de
+   formulário usa no mínimo 16px (desktop mantém o tamanho definido por cada tela). */
+@media (max-width: 767px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+  select,
+  textarea {
+    font-size: max(16px, 1em) !important;
+  }
+}

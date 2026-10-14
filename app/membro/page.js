@@ -1420,8 +1420,12 @@ export default function MembroPage() {
   }
 
   async function handleOpenScale(item) {
+    const eventKey = String(item?.eventId || '');
+    window.__harmonicsScaleRequestSeq = Number(window.__harmonicsScaleRequestSeq || 0) + 1;
+    const requestSeq = window.__harmonicsScaleRequestSeq;
+    const cachedScale = window.__harmonicsMemberScaleCache?.get?.(eventKey) || [];
     setScaleModalEvent(item || null);
-    setScaleModalMusicians([]);
+    setScaleModalMusicians(Array.isArray(cachedScale) ? cachedScale : []);
     setScaleModalOpen(true);
 
     try {
@@ -1442,7 +1446,6 @@ export default function MembroPage() {
           notes,
           contacts (
             id,
-            full_name,
             name,
             email,
             phone,
@@ -1462,7 +1465,6 @@ export default function MembroPage() {
           musician_id: row?.musician_id,
           role: row?.role || contact?.tag || '',
           status: row?.status || 'pending',
-          full_name: contact?.full_name || '',
           name: contact?.name || '',
           musician_name: row?.musician_name || '',
           snapshot_name: row?.snapshot_name || '',
@@ -1474,6 +1476,9 @@ export default function MembroPage() {
         };
       });
 
+      if (requestSeq !== window.__harmonicsScaleRequestSeq) return;
+      if (!window.__harmonicsMemberScaleCache) window.__harmonicsMemberScaleCache = new Map();
+      window.__harmonicsMemberScaleCache.set(eventKey, musicians);
       setScaleModalEvent(item || null);
       setScaleModalMusicians(musicians);
     } catch (e) {
@@ -1771,7 +1776,7 @@ export default function MembroPage() {
         eventTitle={scaleModalEvent?.clientName || 'Escala'}
         eventId={scaleModalEvent?.eventId || null}
         musicians={scaleModalMusicians}
-        canManageSchedule={Boolean(member?.isAdmin || member?.canManageSchedules)}
+        canManageSchedule={Boolean(member?.isAdmin || member?.canManageSchedules || member?.can_manage_schedules)}
         onClose={() => {
           setScaleModalOpen(false);
           setScaleModalEvent(null);

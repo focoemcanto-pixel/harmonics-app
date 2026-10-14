@@ -234,7 +234,7 @@ export async function POST(request, context) {
           invite_token:
             typeof crypto !== 'undefined' && crypto.randomUUID
               ? crypto.randomUUID()
-              : `1791968844128-${item.musician_id}`,
+              : `${Date.now()}-${Math.random().toString(36).slice(2)}-${item.musician_id}`,
         };
       });
 

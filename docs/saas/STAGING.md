@@ -43,7 +43,7 @@ Asaas sandbox: webhook → `https://<preview>/api/webhooks/asaas` com o token do
 ## 3. Roteiro Cliente Zero (executar em staging)
 1. `/signup` → e-mail de confirmação → login → `/onboarding` (5 campos) → "Seu espaço está pronto" → dashboard com checklist.
 2. Dashboard vazio, `/eventos`, `/contatos`, `/contratos`, `/pagamentos`, `/repertorios`: estados vazios com ação.
-3. Cadastrar cliente e músico; criar evento; gerar pré-contrato; abrir link público; assinar; PDF via `/api/public/files/contract/<token>`.
+3. Cadastrar cliente e músico; criar evento; gerar pré-contrato; abrir link público; assinar; abrir PDF (e testar `/api/public/files/contract/<token>` antes de migrar consumidores).
 4. Agenda (`/membro` com o músico), financeiro básico.
 5. `/settings/billing` → assinar Starter (CPF de teste do sandbox) → pagar no sandbox → webhook → plano ativo; mudar para Pro; cancelar; reassinar.
 6. Limite: no Free, criar o 11º evento do mês pela API → **402 PLAN_LIMIT_REACHED**.

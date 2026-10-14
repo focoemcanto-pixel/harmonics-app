@@ -1,5 +1,4 @@
 import { isAntesalaAuthorized } from '@/lib/cliente/antesala-authorization';
-import { buildPublicContractFileUrl } from '@/lib/contracts/public-file-url';
 import { redirect } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
 import { loadWorkspacePricing } from '@/lib/settings/workspace-pricing';
@@ -1870,12 +1869,7 @@ export default async function ClienteTokenPage({ params, searchParams }) {
       '',
     receptivoResumo,
     statusContrato: contract?.signed_at ? 'Contrato assinado' : 'Contrato pendente',
-    // PDF via app (token + URL assinada); URL do storage só como fallback sem token.
-    contratoPdfUrl: contract?.pdf_url
-      ? (precontract?.public_token || contract?.public_token
-        ? buildPublicContractFileUrl(precontract?.public_token || contract?.public_token, '')
-        : contract.pdf_url)
-      : '',
+    contratoPdfUrl: contract?.pdf_url || '',
     contratoDocUrl: contract?.doc_url || '',
     contratoAssinadoEm: contract?.signed_at || null,
     statusEvento: resolvedEventSource.status || 'Confirmado',

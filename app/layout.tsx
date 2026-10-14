@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { ToastProvider } from "@/components/ui/ToastProvider";
 import ConfirmDialogProvider from "@/components/ui/ConfirmDialogProvider";
+import GoogleMapsScriptClient from "@/components/GoogleMapsScriptClient";
 import GlobalPlayerRoot from "@/components/player/GlobalPlayerRoot";
 import RouteScopedEnhancements from "@/components/RouteScopedEnhancements";
 import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration";
@@ -14,7 +15,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     title: "Harmonics",
-    statusBarStyle: "black-translucent",
+    statusBarStyle: "default",
   },
   openGraph: {
     title: "Harmonics",
@@ -29,10 +30,11 @@ export const metadata: Metadata = {
   },
 };
 
+const GOOGLE_MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
+
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  viewportFit: "cover",
   themeColor: "#0f172a",
 };
 
@@ -54,6 +56,7 @@ export default function RootLayout({
         </ToastProvider>
         <RouteScopedEnhancements />
         <ServiceWorkerRegistration />
+        <GoogleMapsScriptClient apiKey={GOOGLE_MAPS_KEY} />
       </body>
     </html>
   );

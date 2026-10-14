@@ -64,3 +64,15 @@ test('viewer não passa em requireWorkspaceAdmin; owner passa', async () => {
   assert.equal((await requireWorkspaceAdmin({ supabase: world(), request: req('tok-b') })).status, 403);
   assert.equal((await requireWorkspaceAdmin({ supabase: world(), request: req('tok-a') })).ok, true);
 });
+
+test('NO_WORKSPACE só quando o usuário não tem nenhuma membership; membership não resolvida não redireciona', async () => {
+  const none = await requireWorkspaceAccess({ supabase: world(), request: req('tok-x') });
+  assert.equal(none.ok, false);
+  assert.equal(none.code, 'NO_WORKSPACE');
+
+  const supabase = world();
+  await supabase.from('workspace_members').insert({ id: 'm-x', workspace_id: 'ws-a', user_id: 'user-x', role: 'admin', status: 'invited' });
+  const unresolved = await requireWorkspaceAccess({ supabase, request: req('tok-x') });
+  assert.equal(unresolved.ok, false);
+  assert.equal(unresolved.code, 'WORKSPACE_UNRESOLVED');
+});

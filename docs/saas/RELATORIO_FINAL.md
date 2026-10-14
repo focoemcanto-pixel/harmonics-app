@@ -36,7 +36,7 @@ As migrations de banco abaixo **já estão aplicadas** em produção (todas adit
 - RLS + revoke em tabelas server-only (`google_oauth_credentials`, `workspace_settings`, `users`, `roles`, `suggestion_*`, backups etc.); catálogos legíveis por autenticados e graváveis só por admin da plataforma.
 - `EXECUTE` de funções SECURITY DEFINER revogado de `anon`.
 - APIs: automação, envio WhatsApp, contratos (archive/pdf/html-to-pdf), OAuth force-reauth, test-automation, convite de escala e `debug/*` agora exigem autenticação/admin do workspace ou `INTERNAL_API_KEY`; `channels/ping` com allowlist de host (anti-SSRF); `onboarding/progress` não usa mais host vindo do cliente.
-- Storage: PDF de contrato passa por `/api/public/files/contract/<token>` (URL assinada de 10 min). Buckets ainda públicos até migrar os consumidores restantes (BE-2).
+- Storage: endpoint `/api/public/files/contract/<token>` (URL assinada de 10 min; Drive e URLs externas redirecionam para o link original) pronto, **ainda sem consumidores** — revisão pré-merge manteve portal, verify e automações no `pdf_url` original. Migração dos consumidores + buckets privados juntos (BE-2).
 
 ## 4. Multi-tenancy
 - Guards centrais: `guardWorkspaceMember/Admin`, `guardPlatformAdmin`, `assertRowInWorkspace` (404 para ID de outro tenant).
@@ -52,14 +52,14 @@ Um único fluxo: `/signup` → `/onboarding` (5 campos) → "Seu espaço está p
 ## 6. Billing
 - Catálogo único `workspace_plans` (front e backend). Estados: active, trialing, past_due (carência 7 dias), canceled, cancelamento no fim do período.
 - Webhook `/api/webhooks/asaas`: token `asaas-access-token`, idempotência por `UNIQUE(provider, event_id)` em `billing_events`, eventos fora de ordem ignorados, checkout pendente não troca o plano antes do pagamento.
-- Limites no backend: eventos/mês e equipe → HTTP 402. Workspace `internal` (Harmonics) ilimitado. Interruptor `ENFORCE_WORKSPACE_PLANS=false`. Em erro de leitura de plano, libera (não derruba operação).
+- Limites no backend: eventos/mês e equipe → HTTP 402 **somente com `ENFORCE_WORKSPACE_PLANS=true`** (mesma semântica já usada em produção); sem a variável o limite é só registrado (`[PLAN_LIMIT][SOFT]`). Workspace `internal` (Harmonics) ilimitado. Em erro de leitura de plano, libera (fail-open).
 - Tela `/settings/billing`; `/assinar` e `/assinatura` redirecionam.
 
 ## 7. Performance antes/depois
 | Item | Antes | Depois |
 |---|---|---|
 | Resolução de usuário/workspace por request | 2 chamadas Auth + 6 queries sequenciais | 1 Auth + 4 queries em 3 ondas paralelas |
-| Google Maps | script carregado em todas as páginas | carregado sob demanda onde há mapa |
+| Google Maps | script carregado em todas as páginas | mantido como estava (revisão pré-merge: a chave é lida no servidor como hoje) |
 | Hotfixes de DOM | rodavam em todas as rotas | só nas rotas que os usam |
 | Dashboard | queries em série | em paralelo; cache vinculado ao dono |
 | Carregamento | tela "Verificando sessão" | skeleton do app + `loading.js`/`error.js` |

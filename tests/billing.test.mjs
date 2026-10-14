@@ -125,7 +125,7 @@ function limitWorld({ planKey = 'free', planSlug = 'free', eventsThisMonth = 10 
 }
 
 test('limite no backend: Free com 10 eventos no mês bloqueia o 11º (402)', async () => {
-  delete process.env.ENFORCE_WORKSPACE_PLANS;
+  process.env.ENFORCE_WORKSPACE_PLANS = 'true';
   const blocked = await checkPlanLimit({ supabase: limitWorld({ eventsThisMonth: 10 }), workspaceId: 'ws-a', limitKey: 'events_per_month' });
   assert.equal(blocked.ok, false);
   assert.equal(blocked.status, 402);
@@ -138,6 +138,30 @@ test('limite de membros e planos ilimitados/internos', async () => {
   assert.equal((await checkPlanLimit({ supabase: limitWorld(), workspaceId: 'ws-a', limitKey: 'members' })).ok, false);
   assert.equal((await checkPlanLimit({ supabase: limitWorld({ planSlug: 'enterprise', eventsThisMonth: 500 }), workspaceId: 'ws-a', limitKey: 'events_per_month' })).ok, true);
   assert.equal((await checkPlanLimit({ supabase: limitWorld({ planKey: 'internal', eventsThisMonth: 500 }), workspaceId: 'ws-a', limitKey: 'events_per_month' })).ok, true);
+});
+
+test('sem ENFORCE_WORKSPACE_PLANS=true o limite só é registrado (mesma semântica de produção)', async () => {
+  delete process.env.ENFORCE_WORKSPACE_PLANS;
+  const soft = await checkPlanLimit({ supabase: limitWorld({ eventsThisMonth: 10 }), workspaceId: 'ws-a', limitKey: 'events_per_month' });
+  assert.equal(soft.ok, true);
+  assert.equal(soft.soft, true);
+  process.env.ENFORCE_WORKSPACE_PLANS = 'true';
+});
+
+test('erro ao ler o workspace não rebaixa para Free: libera (fail-open)', async () => {
+  const failing = {
+    from(table) {
+      const result = table === 'workspaces' ? { data: null, error: { message: 'timeout' } } : { data: null, error: null };
+      const query = {
+        select: () => query, eq: () => query, in: () => query, order: () => query, limit: () => query, gte: () => query,
+        maybeSingle: async () => result,
+      };
+      return query;
+    },
+  };
+  const result = await checkPlanLimit({ supabase: failing, workspaceId: 'ws-a', limitKey: 'events_per_month' });
+  assert.equal(result.ok, true);
+  assert.equal(result.checkFailed, true);
 });
 
 test('webhook: workspace cancelado reassina — pagamento do novo checkout reativa a mesma linha', async () => {

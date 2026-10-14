@@ -1,6 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  receiptDeadline,
+  expectedReceiptDate,
   cents,
   today,
   eventSummary,
@@ -574,4 +576,24 @@ test("remoção: restaurar custo depende de ação explícita e recupera valor d
   assert.deepEqual(excludeCost(removed), removed);
   assert.equal(restoreCost(removed).amount_cents, 45000);
   assert.equal(restoreCost(removed).excluded, undefined);
+});
+
+test("prazo de recebimento: dois dias corridos, inclusive virada de mês e ano", () => {
+  assert.equal(receiptDeadline("2026-12-13"), "2026-12-11");
+  assert.equal(receiptDeadline("2026-11-01"), "2026-10-30");
+  assert.equal(receiptDeadline("2027-01-01"), "2026-12-30");
+  assert.equal(receiptDeadline("2028-03-01"), "2028-02-28");
+  assert.equal(receiptDeadline(null), null);
+});
+test("previsão aceita antecipação e limita datas posteriores ao prazo", () => {
+  assert.equal(expectedReceiptDate(e, {}), "2026-11-13");
+  assert.equal(expectedReceiptDate(e, {expected_receipt_on:"2026-11-01"}), "2026-11-01");
+  assert.equal(expectedReceiptDate(e, {expected_receipt_on:"2026-11-15"}), "2026-11-13");
+});
+test("saldo muda de mês pelo prazo sem alterar data do recebimento real", () => {
+  const event={...e,event_date:"2026-11-01"};
+  const ledger=[{id:"receipt",kind:"receipt",event_id:"e",amount_cents:100000,occurred_on:"2026-10-13"}];
+  const result=monthlyCommitments([event],[sheet],ledger,"2026-10-13");
+  assert.equal(result.months.find(m=>m.month==="2026-10").receivable,370000);
+  assert.equal(ledger[0].occurred_on,"2026-10-13");
 });

@@ -539,37 +539,30 @@ export default function EventoEscalaTab({ eventId }) {
       setCarregando(true);
       setErro('');
 
-      const [eventoResp, contatosResp, escalaResp, templatesResp, templateItemsResp, repertorioResp] =
-        await Promise.all([
-          supabase
-            .from('events')
-            .select('id, workspace_id, client_name, event_date, event_time, location_name, formation, instruments, status, open_amount, payment_status')
-            .eq('id', eventId)
-            .single(),
-          supabase
-            .from('contacts')
-            .select('*')
-            .order('name', { ascending: true }),
-          supabase
-            .from('event_musicians')
-            .select('id, event_id, musician_id, role, status, notes, confirmed_at, created_at, updated_at')
-            .eq('event_id', eventId)
-            .order('created_at', { ascending: true }),
-          supabase
-            .from('scale_templates')
-            .select('*')
-            .eq('is_active', true),
-          supabase
-            .from('scale_template_items')
-            .select('*')
-            .order('sort_order', { ascending: true }),
-          supabase
-            .from('repertoire_config')
-            .select('status, updated_at')
-            .eq('event_id', eventId)
-            .order('updated_at', { ascending: false })
-            .limit(1),
-        ]);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 12000);
+      let bootstrap;
+      try {
+        const response = await fetch(`/api/events/${eventId}/scale-data`, {
+          method: 'GET',
+          cache: 'no-store',
+          signal: controller.signal,
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || !payload?.ok) {
+          throw new Error(payload?.error || 'Não foi possível carregar a montagem da escala.');
+        }
+        bootstrap = payload;
+      } finally {
+        clearTimeout(timeout);
+      }
+
+      const eventoResp = { data: bootstrap?.event || null, error: null };
+      const contatosResp = { data: Array.isArray(bootstrap?.contacts) ? bootstrap.contacts : [], error: null };
+      const escalaResp = { data: Array.isArray(bootstrap?.scale) ? bootstrap.scale : [], error: null };
+      const templatesResp = { data: Array.isArray(bootstrap?.templates) ? bootstrap.templates : [], error: null };
+      const templateItemsResp = { data: Array.isArray(bootstrap?.templateItems) ? bootstrap.templateItems : [], error: null };
+      const repertorioResp = { data: bootstrap?.repertoire || null, error: null };
 
       if (!isMountedRef.current) return;
       if (eventoResp.error) throw eventoResp.error;

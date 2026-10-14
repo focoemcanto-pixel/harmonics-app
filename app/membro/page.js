@@ -747,12 +747,36 @@ export default function MembroPage() {
       return;
     }
 
-    setMember({
+    let resolvedMember = {
       ...data,
       isAdmin: false,
       canViewAllEvents: data.can_view_all_events === true || data.can_manage_schedules === true,
       canManageSchedules: data.can_manage_schedules === true,
-    });
+    };
+
+    // Server-authoritative delegated agenda probe. This intentionally works for
+    // staff and musician/member contacts alike and uses the authenticated session.
+    if (!resolvedMember.canViewAllEvents) {
+      try {
+        const agendaProbe = await fetch('/api/membro/global-dashboard', {
+          method: 'GET',
+          cache: 'no-store',
+          headers: resolvedMember.workspace_id
+            ? { 'x-workspace-id': String(resolvedMember.workspace_id) }
+            : undefined,
+        });
+        if (agendaProbe.ok) {
+          resolvedMember = {
+            ...resolvedMember,
+            canViewAllEvents: true,
+          };
+        }
+      } catch (agendaProbeError) {
+        console.warn('[MEMBRO][AGENDA_PERMISSION_PROBE]', agendaProbeError);
+      }
+    }
+
+    setMember(resolvedMember);
   } catch (e) {
     console.error('Erro ao resolver membro:', e);
     setMember(null);

@@ -4,6 +4,8 @@ import Link from "next/link";
 import AdminShell from "@/components/admin/AdminShell";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import {
+  receiptDeadline,
+  expectedReceiptDate,
   activeEntries,
   cents,
   dashboard,
@@ -284,7 +286,7 @@ function Finance() {
       contract_cents:
         saved?.contract_cents ?? Math.round(Number(e.agreed_amount || 0) * 100),
       costs,
-      expected_receipt_on: saved?.expected_receipt_on || null,
+      expected_receipt_on: expectedReceiptDate(e, saved),
       status: saved?.status || "draft",
     });
     setTab("events");
@@ -852,7 +854,7 @@ function Finance() {
                     <p className="text-sm text-slate-600">
                       {item.date_source === "manual"
                         ? "Previsão definida por você"
-                        : "Data do evento — ajuste se o pagamento chegar antes"}
+                        : "Dois dias antes do evento"}
                       {item.overdue ? " • Data prevista já passou" : ""}
                     </p>
                   </div>
@@ -1066,9 +1068,10 @@ function Finance() {
               <Field label="Data prevista para receber o saldo em aberto">
                 <input
                   type="date"
+                  max={receiptDeadline(draft.event.event_date) || undefined}
                   className={input}
                   value={
-                    draft.expected_receipt_on || draft.event.event_date || ""
+                    draft.expected_receipt_on || receiptDeadline(draft.event.event_date) || ""
                   }
                   onChange={(e) =>
                     setDraft((d) => ({
@@ -1079,14 +1082,28 @@ function Finance() {
                 />
               </Field>
               <p className="mt-1 text-xs text-slate-600">
-                Usada somente na projeção mensal. Sem ajuste manual, vale a data
-                do evento. Salve a ficha para atualizar a previsão.
+                Prazo padrão: dois dias antes do evento. Você pode antecipar essa
+                previsão. As datas dos recebimentos realizados ficam preservadas.
               </p>
               <p className="mt-3">
                 Recebido: {money(current.received)} • A receber:{" "}
                 {money(current.open)} • Custos: {money(current.total)} • Margem
                 prevista: <strong>{money(current.margin)}</strong>
               </p>
+              <div className="mt-4 space-y-2 rounded-xl border p-3">
+                <h3 className="font-semibold">Recebimentos deste evento</h3>
+                <p className="text-sm">Para corrigir um valor, estorne o lançamento e registre o correto. Para duplicatas, estorne apenas a cópia.</p>
+                {history.filter((l) => l.kind === "receipt").map((l) => (
+                  <div key={l.id} className="flex flex-wrap items-center justify-between gap-2 border-t py-2">
+                    <span>{money(l.amount_cents)} • {l.occurred_on.split("-").reverse().join("/")} • {l.method} {activeIds.has(l.id) ? "" : "• ESTORNADO"}</span>
+                    {activeIds.has(l.id) && <button disabled={busy} className="text-red-700 font-semibold" onClick={() => {
+                      const notes = window.prompt(`Estornar o recebimento de ${money(l.amount_cents)}? Informe o motivo:`, "Recebimento lançado em duplicidade");
+                      if (notes?.trim()) run({action: "reverse", entry_id: l.id, notes});
+                    }}>Estornar / corrigir recebimento</button>}
+                  </div>
+                ))}
+                {!history.some((l) => l.kind === "receipt") && <p className="text-sm">Nenhum recebimento registrado.</p>}
+              </div>
               {current.overpayment > 0 && (
                 <p className="text-red-700">
                   Recebido acima do contrato: {money(current.overpayment)}.

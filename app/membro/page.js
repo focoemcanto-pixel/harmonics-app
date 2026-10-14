@@ -951,9 +951,10 @@ export default function MembroPage() {
     });
   }, [invites, contracts, precontracts, repertoireConfigs, repertoireItems]);
 
-  const { confirmados, pendentes, proximosConfirmados, resumo } = useMemo(() => ({
+  const { confirmados, pendentes, recusados, proximosConfirmados, resumo } = useMemo(() => ({
     confirmados: Array.isArray(dashboard?.confirmados) ? dashboard.confirmados : [],
     pendentes: Array.isArray(dashboard?.pendentes) ? dashboard.pendentes : [],
+    recusados: Array.isArray(dashboard?.recusados) ? dashboard.recusados : [],
     proximosConfirmados: Array.isArray(dashboard?.proximosConfirmados)
       ? dashboard.proximosConfirmados
       : [],
@@ -963,6 +964,20 @@ export default function MembroPage() {
       repertorios: 0,
     },
   }), [dashboard]);
+
+  const agendaItems = useMemo(() => {
+    if (!(member?.isAdmin || member?.canViewAllEvents)) return confirmados;
+
+    const byEventId = new Map();
+    [...confirmados, ...pendentes, ...recusados].forEach((item) => {
+      const key = String(item?.eventId || item?.id || '').trim();
+      if (!key) return;
+      const previous = byEventId.get(key);
+      if (!previous || item?.isPersonalInvite === true) byEventId.set(key, item);
+    });
+
+    return Array.from(byEventId.values());
+  }, [member?.isAdmin, member?.canViewAllEvents, confirmados, pendentes, recusados]);
 
   const repertorios = useMemo(() => {
     return confirmados.filter(
@@ -1670,7 +1685,7 @@ export default function MembroPage() {
               {!loadingData && activeTab === 'escalas' ? (
                 <MembroEscalasTab
   member={member}
-  confirmados={confirmados}
+  confirmados={agendaItems}
   onOpenRepertoire={handleOpenRepertoireSummary}
   onOpenMaps={openMaps}
   onOpenScale={handleOpenScale}

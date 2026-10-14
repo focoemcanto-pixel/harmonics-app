@@ -199,7 +199,17 @@ export async function GET(request) {
     const invites = events.map((event) => {
       const eventId = String(event?.id || '').trim();
       const personalInvite = personalInviteByEventId.get(eventId);
-      if (personalInvite) return personalInvite;
+      if (personalInvite) {
+        return {
+          ...personalInvite,
+          source_flags: {
+            globalAgenda: true,
+            personalInvite: true,
+            adminPreview: auth.canAdminWorkspace === true,
+            delegatedAgendaViewer: auth.delegatedAgendaViewer === true,
+          },
+        };
+      }
 
       const scaleRow = scaleByEventId.get(eventId) || null;
       return {
@@ -216,6 +226,7 @@ export async function GET(request) {
         events: event,
         source_flags: {
           globalAgenda: true,
+          personalInvite: false,
           adminPreview: auth.canAdminWorkspace === true,
           delegatedAgendaViewer: auth.delegatedAgendaViewer === true,
         },

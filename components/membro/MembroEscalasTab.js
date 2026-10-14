@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { normalizeTimeStrict } from '@/lib/time/normalize-time';
+import BandNotesButton from '@/components/events/BandNotesButton';
 import {
   addHoursToTime,
   formatDateBR,
@@ -351,6 +352,7 @@ function getAgendaVisualMeta(item) {
 
 function EventCard({
   item,
+  member,
   onOpenScale,
   onOpenRepertoire,
   onOpenMaps,
@@ -361,6 +363,8 @@ function EventCard({
   const arrivalTime = addHoursToTime(item?.eventTime, -2);
   const formationTone = getFormationTone(item?.formation);
   const agendaVisual = getAgendaVisualMeta(item);
+  const canEditBandNotes = member?.isAdmin === true || member?.canManageSchedules === true;
+  const workspaceId = member?.workspaceId || member?.workspace_id || '';
 
   return (
     <article
@@ -441,6 +445,21 @@ function EventCard({
       >
         🎼 {item?.formation || '-'}
       </span>
+
+      <div className="absolute right-[18px] top-[46%] z-10 -translate-y-1/2">
+        <BandNotesButton
+          eventId={item?.eventId}
+          eventName={item?.clientName}
+          eventDate={item?.eventDate}
+          eventTime={item?.eventTime}
+          initialNotes={item?.bandNotes}
+          initialUpdatedAt={item?.bandNotesUpdatedAt}
+          initialUpdatedBy={item?.bandNotesUpdatedBy}
+          canEdit={canEditBandNotes}
+          workspaceId={workspaceId}
+          dark
+        />
+      </div>
 
       <div className="mt-[14px] flex flex-wrap gap-2">
         <EventActionButton onClick={() => onOpenScale(item)}>
@@ -628,6 +647,7 @@ export default function MembroEscalasTab({
             <EventCard
               key={item.id}
               item={item}
+              member={member}
               onOpenScale={onOpenScale}
               onOpenRepertoire={onOpenRepertoire}
               onOpenMaps={onOpenMaps}
@@ -640,6 +660,7 @@ export default function MembroEscalasTab({
             <EventCard
               key={item.id}
               item={item}
+              member={member}
               onOpenScale={onOpenScale}
               onOpenRepertoire={onOpenRepertoire}
               onOpenMaps={onOpenMaps}
@@ -652,6 +673,7 @@ export default function MembroEscalasTab({
             <EventCard
               key={item.id}
               item={item}
+              member={member}
               onOpenScale={onOpenScale}
               onOpenRepertoire={onOpenRepertoire}
               onOpenMaps={onOpenMaps}

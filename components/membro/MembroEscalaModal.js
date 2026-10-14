@@ -81,7 +81,7 @@ function MusicianRow({ item, eventTitle }) {
   );
 }
 
-export default function MembroEscalaModal({ open, eventTitle, musicians = [], onClose }) {
+export default function MembroEscalaModal({ open, eventTitle, musicians = [], canManageSchedule = false, onClose }) {
   const cached = scaleCache.get(String(eventTitle || '').trim()) || null;
   const [fallbackMusicians, setFallbackMusicians] = useState(() => cached?.musicians || []);
   const [fallbackLoading, setFallbackLoading] = useState(false);
@@ -99,6 +99,7 @@ export default function MembroEscalaModal({ open, eventTitle, musicians = [], on
     return fallbackMusicians;
   }, [musicians, fallbackMusicians, hasRefreshedScale]);
   const hasScale = displayedMusicians.length > 0;
+  const canEditScale = isAdmin || canManageSchedule;
 
   useEffect(() => {
     if (!open) {

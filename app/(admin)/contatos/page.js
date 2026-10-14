@@ -31,6 +31,8 @@ function getInitialForm() {
     notes: '',
     contact_type: 'musician',
     is_active: true,
+    can_view_all_events: false,
+    can_manage_schedules: false,
   };
 }
 
@@ -39,7 +41,7 @@ const DESKTOP_TABS = [
   { key: 'novo', label: 'Novo / Editar' },
 ];
 const CONTACTS_SELECT_FIELDS =
-  'id, created_at, name, email, phone, tag, notes, contact_type, is_active';
+  'id, created_at, name, email, phone, tag, notes, contact_type, is_active, can_view_all_events, can_manage_schedules';
 let contatosCache = [];
 
 export default function ContatosPage() {
@@ -173,6 +175,8 @@ export default function ContatosPage() {
       notes: contato.notes || '',
       contact_type: resolveContactType(contato),
       is_active: contato.is_active !== false,
+      can_view_all_events: contato.can_view_all_events === true,
+      can_manage_schedules: contato.can_manage_schedules === true,
     });
 
     setDesktopTab('novo');
@@ -205,6 +209,9 @@ export default function ContatosPage() {
       notes: form.notes.trim() || null,
       contact_type: form.contact_type,
       is_active: !!form.is_active,
+      can_view_all_events:
+        form.contact_type !== 'client' && (!!form.can_view_all_events || !!form.can_manage_schedules),
+      can_manage_schedules: form.contact_type !== 'client' && !!form.can_manage_schedules,
     };
 
     const response = await fetch('/api/contacts', {

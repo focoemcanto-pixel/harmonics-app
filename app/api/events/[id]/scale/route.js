@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { requireWorkspaceAdmin } from '@/lib/api/require-workspace-access';
+import { requireScheduleManagerAccess } from '@/lib/api/require-schedule-manager-access';
 import { diffEscala } from '@/lib/escalas/escalas-sync';
 
 function dedupeByMusician(list = []) {
@@ -121,7 +121,7 @@ export async function POST(request, context) {
   const eventId = String(routeParams?.id || '').trim();
 
   try {
-    const auth = await requireWorkspaceAdmin({ supabase, request, logPrefix: '[EVENT_SCALE_API]' });
+    const auth = await requireScheduleManagerAccess({ supabase, request, logPrefix: '[EVENT_SCALE_API]' });
     if (!auth.ok) {
       return NextResponse.json({ ok: false, error: auth.error }, { status: auth.status || 401 });
     }

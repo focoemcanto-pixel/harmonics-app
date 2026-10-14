@@ -680,7 +680,7 @@ export default function MembroPage() {
     // ✅ Se não é admin, continuar com validação normal em contacts
     const { data, error: memberError } = await supabase
       .from('contacts')
-      .select('id, name, email, phone, tag, is_active')
+      .select('id, name, email, phone, tag, is_active, can_view_all_events, can_manage_schedules')
       .eq('email', sessionEmail)
       .maybeSingle();
 
@@ -702,7 +702,12 @@ export default function MembroPage() {
       return;
     }
 
-    setMember(data);
+    setMember({
+      ...data,
+      isAdmin: false,
+      canViewAllEvents: data.can_view_all_events === true || data.can_manage_schedules === true,
+      canManageSchedules: data.can_manage_schedules === true,
+    });
   } catch (e) {
     console.error('Erro ao resolver membro:', e);
     setMember(null);
@@ -721,7 +726,7 @@ export default function MembroPage() {
       setError('');
 
       // ✅ SE FOR ADMIN: Buscar TODOS os dados (sem filtro)
-      if (currentMember.isAdmin) {
+      if (currentMember.isAdmin || currentMember.canViewAllEvents) {
         const [
           scalesResp,
           invitesResp,
@@ -1617,7 +1622,11 @@ export default function MembroPage() {
                   {member?.name || 'Membro'}
                 </h1>
                 <p className="mt-1 text-[13px] text-white/45">
-                  {member?.isAdmin ? '🔑 Visão administrativa' : 'Painel premium do músico'}
+                  {member?.isAdmin
+                    ? '🔑 Visão administrativa'
+                    : member?.canViewAllEvents
+                      ? '🗓️ Agenda global liberada'
+                      : 'Painel premium do músico'}
                 </p>
               </div>
             </div>
@@ -1814,6 +1823,7 @@ export default function MembroPage() {
         open={scaleModalOpen}
         eventTitle={scaleModalEvent?.clientName || 'Escala'}
         musicians={scaleModalMusicians}
+        canManageSchedule={Boolean(member?.isAdmin || member?.canManageSchedules)}
         onClose={() => {
           setScaleModalOpen(false);
           setScaleModalEvent(null);

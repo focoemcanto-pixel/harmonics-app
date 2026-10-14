@@ -1,1 +1,0 @@
-member server agenda guard created in scripts/patch-member-server-agenda-source.mjs

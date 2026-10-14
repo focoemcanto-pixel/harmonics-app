@@ -1,15 +1,21 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { ToastProvider } from "@/components/ui/ToastProvider";
 import ConfirmDialogProvider from "@/components/ui/ConfirmDialogProvider";
-import GoogleMapsScriptClient from "@/components/GoogleMapsScriptClient";
 import GlobalPlayerRoot from "@/components/player/GlobalPlayerRoot";
-import ContractPreviewMobileFix from "@/components/contratos/ContractPreviewMobileFix";
-import ClientRepertoireHotfixes from "@/components/cliente/ClientRepertoireHotfixes";
+import RouteScopedEnhancements from "@/components/RouteScopedEnhancements";
+import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration";
 
 export const metadata: Metadata = {
   title: "Harmonics",
   description: "Gestão profissional de eventos musicais",
+  applicationName: "Harmonics",
+  manifest: "/site.webmanifest",
+  appleWebApp: {
+    capable: true,
+    title: "Harmonics",
+    statusBarStyle: "black-translucent",
+  },
   openGraph: {
     title: "Harmonics",
     description: "Gestão profissional de eventos musicais",
@@ -23,7 +29,12 @@ export const metadata: Metadata = {
   },
 };
 
-const GOOGLE_MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#0f172a",
+};
 
 export default function RootLayout({
   children,
@@ -32,7 +43,7 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="en"
+      lang="pt-BR"
       className="h-full antialiased"
     >
       <body className="min-h-full flex flex-col">
@@ -41,9 +52,8 @@ export default function RootLayout({
             <ConfirmDialogProvider>{children}</ConfirmDialogProvider>
           </GlobalPlayerRoot>
         </ToastProvider>
-        <ClientRepertoireHotfixes />
-        <ContractPreviewMobileFix />
-        <GoogleMapsScriptClient apiKey={GOOGLE_MAPS_KEY} />
+        <RouteScopedEnhancements />
+        <ServiceWorkerRegistration />
       </body>
     </html>
   );

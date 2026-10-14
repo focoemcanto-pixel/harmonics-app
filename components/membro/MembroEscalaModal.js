@@ -81,7 +81,7 @@ function MusicianRow({ item, eventTitle }) {
   );
 }
 
-export default function MembroEscalaModal({ open, eventTitle, musicians = [], canManageSchedule = false, onClose }) {
+export default function MembroEscalaModal({ open, eventTitle, eventId = null, musicians = [], canManageSchedule = false, onClose }) {
   const cached = scaleCache.get(String(eventTitle || '').trim()) || null;
   const [fallbackMusicians, setFallbackMusicians] = useState(() => cached?.musicians || []);
   const [fallbackLoading, setFallbackLoading] = useState(false);
@@ -100,6 +100,14 @@ export default function MembroEscalaModal({ open, eventTitle, musicians = [], ca
   }, [musicians, fallbackMusicians, hasRefreshedScale]);
   const hasScale = displayedMusicians.length > 0;
   const canEditScale = isAdmin || canManageSchedule;
+  const immediateEventId = useMemo(() => {
+    if (eventId) return eventId;
+    const fromResolved = resolvedEvent?.id;
+    if (fromResolved) return fromResolved;
+    const sourceRows = Array.isArray(musicians) ? musicians : [];
+    const row = sourceRows.find((item) => item?.event_id || item?.event?.id);
+    return row?.event_id || row?.event?.id || null;
+  }, [eventId, resolvedEvent, musicians]);
 
   useEffect(() => {
     if (!open) {

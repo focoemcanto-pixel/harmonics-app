@@ -1727,6 +1727,7 @@ export default function MembroPage() {
       <MembroEscalaModal
         open={scaleModalOpen}
         eventTitle={scaleModalEvent?.clientName || 'Escala'}
+        eventId={scaleModalEvent?.eventId || null}
         musicians={scaleModalMusicians}
         canManageSchedule={Boolean(member?.isAdmin || member?.canManageSchedules)}
         onClose={() => {

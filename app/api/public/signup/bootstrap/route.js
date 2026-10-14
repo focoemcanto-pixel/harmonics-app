@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { withApiObservability } from '@/lib/observability/api-observability';
 import { createServerClient } from '@supabase/ssr';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { bootstrapWorkspaceForUser } from '@/lib/workspaces/bootstrap-workspace';
@@ -105,7 +106,7 @@ async function ensureProfileSafe({ supabase, user, fullName }) {
   }
 }
 
-export async function POST(request) {
+async function handlePOST(request) {
   try {
     const supabase = getSupabaseAdmin();
     const { user, error: userError } = await resolveUserFromRequest(request);
@@ -182,3 +183,5 @@ export async function POST(request) {
     );
   }
 }
+
+export const POST = withApiObservability(handlePOST, { route: '/api/public/signup/bootstrap' });

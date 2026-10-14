@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { withApiObservability } from '@/lib/observability/api-observability';
 import { createClient } from '@supabase/supabase-js';
 import { requireRequiredEnv } from '@/lib/config/validate-env';
 import { generateContractDocument } from '@/lib/contracts/generate-contract-document';
@@ -50,11 +51,11 @@ async function notifyAdminContractGenerationIssue({ context, reason, error }) {
   }
 }
 
-export async function GET() {
+async function handleGET() {
   return NextResponse.json({ ok: true, message: 'Use POST para gerar preview ou contrato final.' });
 }
 
-export async function POST(request) {
+async function handlePOST(request) {
   try {
     requireRequiredEnv('contracts/generate');
     logInfo('CONTRACT_GENERATE', 'START');
@@ -143,3 +144,7 @@ export async function POST(request) {
     return NextResponse.json({ ok: false, error: getReadableErrorMessage(error), errorType: error?.name || 'UnknownError' }, { status: 500 });
   }
 }
+
+export const GET = withApiObservability(handleGET, { route: '/api/contracts/generate' });
+
+export const POST = withApiObservability(handlePOST, { route: '/api/contracts/generate' });

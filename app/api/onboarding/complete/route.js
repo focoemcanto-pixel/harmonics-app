@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { withApiObservability } from '@/lib/observability/api-observability';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requireWorkspaceAccess } from '@/lib/api/require-workspace-access';
 
@@ -101,7 +102,7 @@ async function getOrCreateWorkspaceSettings({ supabase, workspaceId, workspace, 
   return data;
 }
 
-export async function POST(request) {
+async function handlePOST(request) {
   const supabase = getSupabaseAdmin();
 
   try {
@@ -200,3 +201,5 @@ export async function POST(request) {
     );
   }
 }
+
+export const POST = withApiObservability(handlePOST, { route: '/api/onboarding/complete' });

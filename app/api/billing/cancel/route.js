@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { withApiObservability } from '@/lib/observability/api-observability';
 import { guardWorkspaceAdmin } from '@/lib/api/route-guards';
 import { loadWorkspaceBilling } from '@/lib/billing/plan-limits';
 import { cancelSubscription } from '@/lib/billing/asaas-client';
@@ -6,7 +7,7 @@ import { cancelSubscription } from '@/lib/billing/asaas-client';
 export const dynamic = 'force-dynamic';
 
 // Cancela no fim do período já pago (o acesso pago continua até current_period_end).
-export async function POST(request) {
+async function handlePOST(request) {
   const guard = await guardWorkspaceAdmin(request, { logPrefix: '[POST /api/billing/cancel]' });
   if (!guard.ok) return guard.response;
 
@@ -44,3 +45,5 @@ export async function POST(request) {
     return NextResponse.json({ ok: false, error: 'Não foi possível cancelar agora. Tente novamente.' }, { status: error?.statusCode || 500 });
   }
 }
+
+export const POST = withApiObservability(handlePOST, { route: '/api/billing/cancel' });

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { withApiObservability } from '@/lib/observability/api-observability';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { validateRequiredEnv } from '@/lib/config/validate-env';
 import { getAutomaticCosts } from '@/lib/eventos/eventos-finance';
@@ -200,7 +201,7 @@ async function upsertEventFromSignature({ supabase, precontract, contactId, form
   return finalEventId;
 }
 
-export async function POST(request, context) {
+async function handlePOST(request, context) {
   const params = await context?.params;
   const token = extractToken(params);
   validateRequiredEnv('public/contracts-sign');
@@ -527,3 +528,5 @@ export async function POST(request, context) {
     return NextResponse.json({ ok: false, message: err?.message || 'Erro ao assinar contrato.', fallbackAllowed: true }, { status: 500 });
   }
 }
+
+export const POST = withApiObservability(handlePOST, { route: '/api/public/contracts/[token]/sign' });

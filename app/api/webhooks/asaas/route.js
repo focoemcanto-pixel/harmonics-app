@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { withApiObservability } from '@/lib/observability/api-observability';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { authenticateAsaasWebhook, processAsaasWebhook } from '@/lib/billing/process-asaas-webhook';
 
@@ -6,7 +7,7 @@ export const dynamic = 'force-dynamic';
 
 // Webhook Asaas: autenticado (asaas-access-token), idempotente (UNIQUE provider+event_id),
 // auditável (billing_events) e resistente a eventos fora de ordem (dateCreated).
-export async function POST(request) {
+async function handlePOST(request) {
   const auth = authenticateAsaasWebhook(request.headers);
   if (!auth.ok) {
     console.warn('[BILLING][WEBHOOK][REJECTED]', { status: auth.status });
@@ -27,3 +28,5 @@ export async function POST(request) {
   });
   return NextResponse.json(result.body, { status: result.httpStatus });
 }
+
+export const POST = withApiObservability(handlePOST, { route: '/api/webhooks/asaas' });

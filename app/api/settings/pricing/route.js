@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { withApiObservability } from '@/lib/observability/api-observability';
 import { guardWorkspaceAdmin, guardWorkspaceMember } from '@/lib/api/route-guards';
 import { loadWorkspacePricing, workspaceSettingsSlug } from '@/lib/settings/workspace-pricing';
 
@@ -7,7 +8,7 @@ export const dynamic = 'force-dynamic';
 // Campos que o cliente nunca controla: identidade e escopo vêm da sessão.
 const PROTECTED_FIELDS = new Set(['id', 'slug', 'workspace_id', 'created_at', 'updated_at']);
 
-export async function GET(request) {
+async function handleGET(request) {
   const guard = await guardWorkspaceMember(request, { logPrefix: '[GET /api/settings/pricing]' });
   if (!guard.ok) return guard.response;
 
@@ -20,7 +21,7 @@ export async function GET(request) {
   return NextResponse.json({ ok: true, pricing: data || null });
 }
 
-export async function PUT(request) {
+async function handlePUT(request) {
   const guard = await guardWorkspaceAdmin(request, { logPrefix: '[PUT /api/settings/pricing]' });
   if (!guard.ok) return guard.response;
 
@@ -55,3 +56,7 @@ export async function PUT(request) {
 
   return NextResponse.json({ ok: true, pricing: response.data });
 }
+
+export const GET = withApiObservability(handleGET, { route: '/api/settings/pricing' });
+
+export const PUT = withApiObservability(handlePUT, { route: '/api/settings/pricing' });

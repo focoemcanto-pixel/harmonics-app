@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { withApiObservability } from '@/lib/observability/api-observability';
 import { guardWorkspaceAdmin } from '@/lib/api/route-guards';
 import { loadWorkspaceBilling } from '@/lib/billing/plan-limits';
 import { createCustomer, createSubscription, listSubscriptionPayments, updateSubscription } from '@/lib/billing/asaas-client';
@@ -15,7 +16,7 @@ function fail(status, error, code = null) {
   return NextResponse.json({ ok: false, error, code }, { status });
 }
 
-export async function POST(request) {
+async function handlePOST(request) {
   const guard = await guardWorkspaceAdmin(request, { logPrefix: '[POST /api/billing/subscribe]' });
   if (!guard.ok) return guard.response;
 
@@ -121,3 +122,5 @@ export async function POST(request) {
     return fail(error?.statusCode || 500, error?.code === 'ASAAS_NOT_CONFIGURED' ? error.message : 'Não foi possível iniciar a assinatura.', error?.code || null);
   }
 }
+
+export const POST = withApiObservability(handlePOST, { route: '/api/billing/subscribe' });

@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
+import { withApiObservability } from '@/lib/observability/api-observability';
 import { guardWorkspaceMember } from '@/lib/api/route-guards';
 import { loadWorkspaceBilling } from '@/lib/billing/plan-limits';
 import { isAsaasConfigured } from '@/lib/billing/asaas-client';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(request) {
+async function handleGET(request) {
   const guard = await guardWorkspaceMember(request, { logPrefix: '[GET /api/billing/summary]' });
   if (!guard.ok) return guard.response;
 
@@ -53,3 +54,5 @@ export async function GET(request) {
     history: history || [],
   });
 }
+
+export const GET = withApiObservability(handleGET, { route: '/api/billing/summary' });

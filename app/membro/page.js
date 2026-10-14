@@ -1275,32 +1275,23 @@ export default function MembroPage() {
   function buildPlaylistFromRow(item) {
     if (!Array.isArray(item?.repertorioItems)) return [];
 
-    const orderedRows = item.repertorioItems
-      .map((row, originalIndex) => ({
-        row,
-        originalIndex,
-        savedOrder: Number(row?.item_order ?? row?.ordem ?? originalIndex + 1),
-      }))
+    // Usa exatamente a sequência que já chega no repertório do membro.
+    return item.repertorioItems
+      .map((row, originalIndex) => ({ row, originalIndex }))
       .filter(({ row }) => Boolean(resolveTrackUrl(row)))
-      .sort((a, b) => {
-        if (a.savedOrder !== b.savedOrder) return a.savedOrder - b.savedOrder;
-        return a.originalIndex - b.originalIndex;
+      .map(({ row, originalIndex }, index) => {
+        const sectionKey = resolveSectionFromItem(row);
+        return {
+          itemId: row?.id || null,
+          title: row?.musica || row?.song_name || `Faixa ${index + 1}`,
+          subtitle: getDisplayLabel(row, sectionKey),
+          notes: row?.observacao || row?.notes || '',
+          videoId: String(row?.reference_video_id || '').trim(),
+          url: resolveTrackUrl(row),
+          order: row?.item_order ?? row?.ordem ?? originalIndex + 1,
+          sectionKey,
+        };
       });
-
-    return orderedRows.map((entry, index) => {
-      const row = entry.row;
-      const sectionKey = resolveSectionFromItem(row);
-      return {
-        itemId: row?.id || null,
-        title: row?.musica || row?.song_name || `Faixa ${index + 1}`,
-        subtitle: getDisplayLabel(row, sectionKey),
-        notes: row?.observacao || row?.notes || '',
-        videoId: String(row?.reference_video_id || '').trim(),
-        url: resolveTrackUrl(row),
-        order: entry.savedOrder,
-        sectionKey,
-      };
-    });
   }
 
   function openRepertoire(item, options = {}) {

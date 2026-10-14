@@ -229,19 +229,12 @@ function Finance() {
     unchecked: 0,
     items: [],
   };
-  const requiredByMonth = planning
-    ? planning.arrearsTotal +
-      planning.months
-        .filter((row) => row.month <= month)
-        .reduce((n, row) => n + row.total, 0)
+  const monthlyResult = period.receivable - period.total;
+  const accumulatedResult = planning
+    ? planning.months.reduce((sum, row) => sum + row.receivable - row.total, 0)
     : 0;
-  const receiptsByMonth = planning
-    ? planning.months
-        .filter((row) => row.month <= month)
-        .reduce((n, row) => n + row.receivable, 0)
-    : 0;
-  const projectedByMonth = stats
-    ? stats.cash + receiptsByMonth - requiredByMonth
+  const accumulatedCash = stats
+    ? stats.cash + accumulatedResult - (planning?.arrearsTotal || 0)
     : 0;
   const relevant = useMemo(
     () =>
@@ -702,8 +695,8 @@ function Finance() {
                     Entradas e pagamentos por mês
                   </h2>
                   <p className="mt-1 text-sm text-slate-600">
-                    Entradas e pagamentos pela data prevista. A data do evento é
-                    usada enquanto você não definir outra.
+                    Cada mês mostra suas próprias entradas e pagamentos previstos.
+                    O saldo dos meses anteriores aparece somente no total final.
                   </p>
                 </div>
                 <Field label="Mês de referência">
@@ -720,42 +713,19 @@ function Finance() {
               </div>
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                 <Metric label="Caixa atual" value={stats.cash} />
-                <Metric
-                  label="Entradas previstas até o fim deste mês"
-                  value={receiptsByMonth}
-                />
-                <Metric
-                  label="Saldo projetado ao fim do mês"
-                  value={projectedByMonth}
-                  strong
-                />
+                <Metric label="Entradas previstas neste mês" value={period.receivable} />
+                <Metric label="Resultado previsto deste mês" value={monthlyResult} strong />
                 <Metric
                   label={`Músicos a pagar em ${monthLabel(month)}`}
                   value={period.musician}
                 />
                 <Metric label="Outros custos no mês" value={period.other} />
                 <Metric label="Total a pagar no mês" value={period.total} />
-                <Metric
-                  label="Previsto a receber neste mês"
-                  value={period.receivable}
-                />
-                <Metric
-                  label="Pagamentos até o fim deste mês (inclui anteriores)"
-                  value={requiredByMonth}
-                />
-                <Metric
-                  label="Saldo até o mês sem novas entradas"
-                  value={stats.cash - requiredByMonth}
-                />
               </div>
               <p className="rounded-xl bg-slate-50 p-3 text-sm">
-                {projectedByMonth >= 0
-                  ? `Considerando os recebimentos previstos, o saldo projetado ao fim de ${monthLabel(month)} é ${money(projectedByMonth)}.`
-                  : `Mesmo com os recebimentos previstos, faltam ${money(-projectedByMonth)} ao fim de ${monthLabel(month)}.`}{" "}
-                A projeção soma o caixa atual e as entradas pendentes até o mês,
-                descontando os pagamentos pendentes até o mesmo período. Depende
-                das datas previstas e não transforma previsão em dinheiro
-                disponível hoje.{" "}
+                Em {monthLabel(month)}, as entradas previstas menos os pagamentos previstos resultam em {money(monthlyResult)}.
+                Esse resultado considera apenas este mês, sem somar o caixa atual nem os meses anteriores.
+                É uma projeção do fluxo de caixa pendente, não o lucro total dos contratos.{" "}
                 {period.unchecked > 0
                   ? `${period.unchecked} eventos deste mês ainda aguardam conferência.`
                   : ""}
@@ -776,7 +746,7 @@ function Finance() {
                       <th className="p-2">Outros custos</th>
                       <th className="p-2">A receber no mês</th>
                       <th className="p-2">A pagar no mês</th>
-                      <th className="p-2">Saldo projetado no fim do mês</th>
+                      <th className="p-2">Resultado previsto do mês</th>
                       <th className="p-2">Eventos a conferir</th>
                     </tr>
                   </thead>
@@ -809,26 +779,37 @@ function Finance() {
                         <td className="p-2 whitespace-nowrap">
                           <span
                             className={
-                              stats.cash + row.projectedChange < 0
+                              row.receivable - row.total < 0
                                 ? "text-red-700"
                                 : "text-emerald-700"
                             }
                           >
-                            {money(stats.cash + row.projectedChange)}
+                            {money(row.receivable - row.total)}
                           </span>
                         </td>
                         <td className="p-2">{row.unchecked || "Conferidos"}</td>
                       </tr>
                     ))}
                   </tbody>
+                  <tfoot>
+                    <tr className="border-t-2 bg-slate-50 font-semibold">
+                      <td colSpan={5} className="p-3">Resultado acumulado dos meses exibidos</td>
+                      <td className="p-3 whitespace-nowrap">{money(accumulatedResult)}</td>
+                      <td />
+                    </tr>
+                  </tfoot>
                 </table>
               </div>
+              <p className="rounded-xl bg-slate-50 p-3 text-sm">
+                <strong>Saldo de caixa projetado ao final de todos os meses: {money(accumulatedCash)}.</strong>{" "}
+                Caixa atual + resultado acumulado − compromissos de meses anteriores ainda em aberto.
+              </p>
               <h3 className="font-semibold">
                 Recebimentos previstos em {monthLabel(month)}
               </h3>
               <p className="text-sm text-slate-600">
                 Saldos ainda em aberto das fichas conferidas. Sem data manual, a
-                previsão usa a data do evento.
+                previsão usa dois dias antes do evento.
               </p>
               {period.receipts.length === 0 && (
                 <p className="text-sm text-slate-600">

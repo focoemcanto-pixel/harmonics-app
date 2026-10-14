@@ -211,40 +211,50 @@ export async function POST(request, context) {
       if (String(existing.status || '').toLowerCase() === 'removed') {
         existentesParaReativar.push({
           id: existing.id,
+          musician_id: item.musician_id,
+          status: item.status || 'pending',
+          confirmed_at: item.confirmed_at || null,
           suggested_role_name: item.role || null,
         });
       }
     }
 
     if (novosParaCriar.length > 0) {
-      const invitesPayload = novosParaCriar.map((item) => ({
-        event_id: eventId,
-        contact_id: item.musician_id,
-        suggested_role_name: item.role || null,
-        status: 'pending',
-        invite_token:
-          typeof crypto !== 'undefined' && crypto.randomUUID
-            ? crypto.randomUUID()
-            : `${Date.now()}-${item.musician_id}`,
-      }));
+      const invitesPayload = novosParaCriar.map((item) => {
+        const scaleStatus = String(item?.status || '').trim().toLowerCase();
+        const isPreconfirmed = scaleStatus === 'confirmed';
+        return {
+          event_id: eventId,
+          contact_id: item.musician_id,
+          suggested_role_name: item.role || null,
+          status: isPreconfirmed ? 'confirmed' : 'pending',
+          responded_at: isPreconfirmed ? item?.confirmed_at || new Date().toISOString() : null,
+          invite_token:
+            typeof crypto !== 'undefined' && crypto.randomUUID
+              ? crypto.randomUUID()
+              : `1791968844128-${item.musician_id}`,
+        };
+      });
 
       const { error: insertInviteError } = await supabase.from('invites').insert(invitesPayload);
       if (insertInviteError) throw insertInviteError;
     }
 
     if (existentesParaReativar.length > 0) {
-      const existingIds = existentesParaReativar.map((item) => item.id).filter(isUuid);
-      const { error: reactivateError } = await supabase
-        .from('invites')
-        .update({
-          status: 'pending',
-          responded_at: null,
-          whatsapp_sent_at: null,
-          whatsapp_last_error: null,
-        })
-        .eq('event_id', eventId)
-        .in('id', existingIds);
-      if (reactivateError) throw reactivateError;
+      for (const reactivated of existentesParaReativar) {
+        const isPreconfirmed = String(reactivated?.status || '').trim().toLowerCase() === 'confirmed';
+        const { error: reactivateError } = await supabase
+          .from('invites')
+          .update({
+            status: isPreconfirmed ? 'confirmed' : 'pending',
+            responded_at: isPreconfirmed ? reactivated?.confirmed_at || new Date().toISOString() : null,
+            whatsapp_sent_at: null,
+            whatsapp_last_error: null,
+          })
+          .eq('event_id', eventId)
+          .eq('id', reactivated.id);
+        if (reactivateError) throw reactivateError;
+      }
 
       await updateInviteRoles(supabase, existentesParaReativar);
     }
@@ -264,6 +274,24 @@ export async function POST(request, context) {
     }
 
     await updateInviteRoles(supabase, roleUpdates);
+
+    // A escala é a fonte de verdade para membros pré-confirmados pelo administrador.
+    // Se o músico já foi salvo como confirmed na escala, seu invite não pode continuar pending.
+    for (const item of escalaLocalDedupe) {
+      if (String(item?.status || '').trim().toLowerCase() !== 'confirmed') continue;
+      const existingInvite = inviteMap.get(String(item.musician_id));
+      if (!existingInvite?.id || String(existingInvite.status || '').toLowerCase() === 'confirmed') continue;
+
+      const { error: confirmInviteError } = await supabase
+        .from('invites')
+        .update({
+          status: 'confirmed',
+          responded_at: item?.confirmed_at || new Date().toISOString(),
+        })
+        .eq('event_id', eventId)
+        .eq('id', existingInvite.id);
+      if (confirmInviteError) throw confirmInviteError;
+    }
 
     const removidosIds = removidos.map((item) => item.musician_id).filter(Boolean);
     if (removidosIds.length > 0) {

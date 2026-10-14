@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { getCurrentAutomationWorkspaceSettings } from '@/lib/automation/get-workspace';
-import { requireAdmin } from '@/lib/api/require-admin';
+import { requireWorkspaceAdmin as requireAdmin } from '@/lib/api/require-workspace-access';
 
 const DEFAULT_LIMIT = 100;
 const VALID_STATUS_FILTERS = new Set(['sent', 'failed', 'skipped']);
@@ -50,7 +50,8 @@ function uniqueWorkspaceIds(...values) {
 
 function scopeWorkspace(query, workspaceIds) {
   const ids = Array.isArray(workspaceIds) ? workspaceIds : uniqueWorkspaceIds(workspaceIds);
-  if (ids.length === 0) return query;
+  // Sem workspace resolvido: fail-closed (nenhuma linha).
+  if (ids.length === 0) return query.eq('workspace_id', '00000000-0000-0000-0000-000000000000');
   return ids.length === 1 ? query.eq('workspace_id', ids[0]) : query.in('workspace_id', ids);
 }
 

@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server';
+import { guardPlatformAdmin } from '@/lib/api/route-guards';
 import { getDefaultWorkspaceSettings } from '@/lib/automation/get-workspace';
 import { safeLogDispatch } from '@/lib/automation/log-dispatch';
 
 export async function POST(request) {
+  const guard = await guardPlatformAdmin(request, { logPrefix: '[POST /api/test-automation]' });
+  if (!guard.ok) return guard.response;
+
   try {
     const body = await request.json().catch(() => ({}));
     const workspace = await getDefaultWorkspaceSettings();

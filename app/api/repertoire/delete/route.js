@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { requireAdmin } from '@/lib/api/require-admin';
+import { requireWorkspaceAdmin as requireAdmin } from '@/lib/api/require-workspace-access';
+import { assertEventInWorkspace } from '@/lib/api/route-guards';
 import { deleteRepertoiresCascade } from '@/lib/repertorio/delete-repertoires-cascade';
 
 export async function POST(request) {
@@ -21,6 +22,9 @@ export async function POST(request) {
         { status: 400 }
       );
     }
+
+    const ownership = await assertEventInWorkspace({ supabase, eventId, workspaceId: auth.workspaceId });
+    if (!ownership.ok) return ownership.response;
 
     const result = await deleteRepertoiresCascade({ supabase, eventIds: [eventId] });
     console.log('[REPERTOIRE_DELETE][RESULT]', result);

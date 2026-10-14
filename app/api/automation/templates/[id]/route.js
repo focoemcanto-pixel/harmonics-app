@@ -1,18 +1,23 @@
 import { NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { guardWorkspaceAdmin } from '@/lib/api/route-guards';
 
 export async function PATCH(request, context) {
+  const guard = await guardWorkspaceAdmin(request, { logPrefix: '[PATCH /api/automation/templates/[id]]' });
+  if (!guard.ok) return guard.response;
+
   try {
     const routeParams = await context?.params;
     const { id } = routeParams || {};
     const body = await request.json();
 
-    const supabaseAdmin = getSupabaseAdmin();
+    const supabaseAdmin = guard.supabase;
+    const workspaceId = guard.auth.workspaceId;
 
     const { data: existing, error: findError } = await supabaseAdmin
       .from('message_templates')
       .select('id')
       .eq('id', id)
+      .eq('workspace_id', workspaceId)
       .maybeSingle();
 
     if (findError) throw findError;
@@ -38,6 +43,7 @@ export async function PATCH(request, context) {
       .from('message_templates')
       .update(updates)
       .eq('id', id)
+      .eq('workspace_id', workspaceId)
       .select()
       .single();
 

@@ -1,3 +1,4 @@
+import { guardDebugRoute } from '@/lib/api/route-guards';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
@@ -19,6 +20,9 @@ function resolveContractToken(contract) {
 }
 
 export async function GET(request, context) {
+  const guard = await guardDebugRoute(request);
+  if (!guard.ok) return guard.response;
+
   const resolvedParams = await context?.params;
   const token = asString(Array.isArray(resolvedParams?.token) ? resolvedParams.token[0] : resolvedParams?.token);
 

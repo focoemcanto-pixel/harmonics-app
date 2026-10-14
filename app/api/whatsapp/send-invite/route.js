@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server';
+import { guardWorkspaceAdmin } from '@/lib/api/route-guards';
 import { sendInviteService } from '../../../../lib/whatsapp/send-invite-service';
 
 export async function POST(request) {
+  const guard = await guardWorkspaceAdmin(request, { logPrefix: '[POST /api/whatsapp/send-invite]' });
+  if (!guard.ok) return guard.response;
+
   const body = await request.json().catch(() => ({}));
 
   const inviteId = String(body?.inviteId || '').trim();
@@ -13,6 +17,20 @@ export async function POST(request) {
       },
       { status: 400 }
     );
+  }
+
+  const { data: inviteScope, error: inviteScopeError } = await guard.supabase
+    .from('invites')
+    .select('id, event:events(workspace_id)')
+    .eq('id', inviteId)
+    .maybeSingle();
+
+  if (inviteScopeError) {
+    return NextResponse.json({ error: 'Falha ao validar convite.' }, { status: 500 });
+  }
+
+  if (!inviteScope?.id || String(inviteScope?.event?.workspace_id || '') !== String(guard.auth.workspaceId)) {
+    return NextResponse.json({ error: 'Convite não encontrado.' }, { status: 404 });
   }
 
   console.info('[automation][step] send_invite_started', { inviteId });

@@ -81,12 +81,18 @@ const LEGACY_STEP_TO_FLOW_STATE = {
   contract_signed_test: 'client_contract_signed',
 };
 
+// Este proxy repassa cookies/Authorization: o destino nunca pode vir de headers do cliente
+// (x-forwarded-host/host), senão a sessão poderia ser enviada para outro domínio.
 function getOrigin(request) {
-  const urlOrigin = new URL(request.url).origin;
-  const forwardedProto = request.headers.get('x-forwarded-proto');
-  const forwardedHost = request.headers.get('x-forwarded-host') || request.headers.get('host');
-  if (forwardedProto && forwardedHost) return `${forwardedProto}://${forwardedHost}`;
-  return urlOrigin;
+  const configured = String(process.env.APP_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || '').trim();
+  if (configured) {
+    try {
+      return new URL(configured).origin;
+    } catch {
+      // cai para a origem da própria requisição
+    }
+  }
+  return new URL(request.url).origin;
 }
 
 function forwardHeaders(request) {

@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { sendWhatsAppMessage } from '@/lib/whatsapp/send-whatsapp-message';
 import { validateChannelConfig } from '@/lib/whatsapp/channel-config';
-import { getDefaultWorkspaceSettings } from '@/lib/automation/get-workspace';
+import { guardWorkspaceAdmin } from '@/lib/api/route-guards';
 
 export async function POST(request) {
+  const guard = await guardWorkspaceAdmin(request, { logPrefix: '[POST /api/automation/test-channel]' });
+  if (!guard.ok) return guard.response;
+
   try {
     const body = await request.json();
     const { channelId, phone } = body;
@@ -16,8 +18,8 @@ export async function POST(request) {
       );
     }
 
-    const supabaseAdmin = getSupabaseAdmin();
-    const workspace = await getDefaultWorkspaceSettings();
+    const supabaseAdmin = guard.supabase;
+    const workspace = { id: guard.auth.workspaceId };
 
     // Buscar canal do banco respeitando workspace atual
     const { data: channel, error: channelError } = await supabaseAdmin

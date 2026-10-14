@@ -1,3 +1,4 @@
+import { guardDebugRoute } from '@/lib/api/route-guards';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
@@ -70,6 +71,9 @@ async function resolveDebugContract({ supabase, token }) {
 }
 
 export async function GET(request, context) {
+  const guard = await guardDebugRoute(request);
+  if (!guard.ok) return guard.response;
+
   const resolvedParams = await context?.params;
   const token = String(resolvedParams?.token || '').trim();
 
@@ -123,6 +127,9 @@ export async function GET(request, context) {
 }
 
 export async function POST(request, context) {
+  const guard = await guardDebugRoute(request);
+  if (!guard.ok) return guard.response;
+
   const resolvedParams = await context?.params;
   const token = String(resolvedParams?.token || '').trim();
 

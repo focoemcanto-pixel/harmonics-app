@@ -1,10 +1,14 @@
 import { NextResponse } from 'next/server';
+import { guardInternalOrWorkspaceAdmin } from '@/lib/api/route-guards';
 import { generatePdfBufferFromHtml } from '@/lib/contracts/htmlToPdfService';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 export async function POST(request) {
+  const guard = await guardInternalOrWorkspaceAdmin(request, { logPrefix: '[POST /api/contracts/html-to-pdf]' });
+  if (!guard.ok) return guard.response;
+
   try {
     const body = await request.json().catch(() => null);
     const html = String(body?.html || '').trim();

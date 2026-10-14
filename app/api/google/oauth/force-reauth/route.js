@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { guardPlatformAdmin } from '@/lib/api/route-guards';
 import { NextResponse } from 'next/server';
 import { google } from 'googleapis';
 import {
@@ -18,6 +19,9 @@ function buildOAuthClient() {
 }
 
 export async function POST(request) {
+  const guard = await guardPlatformAdmin(request, { logPrefix: '[POST /api/google/oauth/force-reauth]' });
+  if (!guard.ok) return guard.response;
+
   try {
     const body = await request.json().catch(() => ({}));
     const userId = String(body?.userId || body?.user_id || '').trim();

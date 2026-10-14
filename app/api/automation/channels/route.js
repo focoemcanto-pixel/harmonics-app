@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { getCurrentAutomationWorkspaceSettings } from '@/lib/automation/get-workspace';
 import { validateChannelConfig } from '@/lib/whatsapp/channel-config';
-import { requireAdmin } from '@/lib/api/require-admin';
+import { requireWorkspaceAdmin as requireAdmin } from '@/lib/api/require-workspace-access';
 import { emitWorkspaceEvent } from '@/lib/workspace-events/emitWorkspaceEvent';
 import { WORKSPACE_EVENT_TYPES } from '@/lib/workspace-events/eventTypes';
 
@@ -16,7 +16,8 @@ function asUuidOrNull(value) {
 }
 
 function scopeWorkspace(query, workspaceId) {
-  return workspaceId ? query.eq('workspace_id', workspaceId) : query;
+  // Sem workspace resolvido não há escopo seguro: não retorna nada (fail-closed).
+  return query.eq('workspace_id', workspaceId || '00000000-0000-0000-0000-000000000000');
 }
 
 function normalizeAdminPhone(value) {

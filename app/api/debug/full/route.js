@@ -1,9 +1,13 @@
 // app/api/debug/full/route.js
 import { cookies } from 'next/headers';
+import { guardDebugRoute } from '@/lib/api/route-guards';
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
 export async function GET(request) {
+  const guard = await guardDebugRoute(request);
+  if (!guard.ok) return guard.response;
+
   try {
     const cookieStore = cookies();
     const allCookies = cookieStore.getAll();

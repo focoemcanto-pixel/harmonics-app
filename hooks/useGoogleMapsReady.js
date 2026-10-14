@@ -1,5 +1,26 @@
 import { useEffect, useState } from "react";
 
+const GOOGLE_MAPS_SCRIPT_ID = "google-maps-places";
+
+function ensureGoogleMapsScript() {
+  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
+  if (!apiKey || window.google?.maps?.places || document.getElementById(GOOGLE_MAPS_SCRIPT_ID)) return;
+
+  const script = document.createElement("script");
+  script.id = GOOGLE_MAPS_SCRIPT_ID;
+  script.async = true;
+  script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&libraries=places&loading=async`;
+  script.onload = () => {
+    window.__GOOGLE_MAPS_LOADED__ = true;
+    window.dispatchEvent(new Event("google-maps-loaded"));
+  };
+  script.onerror = () => {
+    window.__GOOGLE_MAPS_ERROR__ = true;
+    window.dispatchEvent(new Event("google-maps-error"));
+  };
+  document.head.appendChild(script);
+}
+
 export function useGoogleMapsReady() {
   const [ready, setReady] = useState(false);
 
@@ -29,6 +50,9 @@ export function useGoogleMapsReady() {
         clearInterval(intervalId);
       }
     }
+
+    // Carregamento sob demanda: o script só entra nas páginas que usam Maps (antes era global).
+    ensureGoogleMapsScript();
 
     // checagem imediata
     checkReady();

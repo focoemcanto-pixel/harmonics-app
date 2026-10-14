@@ -695,9 +695,14 @@ export default function DashboardPage() {
       setSecondaryReady(false);
       setHeavyReady(false);
 
-      // Cache curto para navegação interna: melhora TTI sem alterar comportamento.
+      // Cache curto para navegação interna, válido só para a mesma sessão/usuário
+      // (logout + login de outra conta na mesma aba não reaproveita dados).
+      const { data: cacheSession } = await supabase.auth.getSession();
+      const cacheOwnerId = cacheSession?.session?.user?.id || null;
       if (
         dashboardMemoryCache &&
+        cacheOwnerId &&
+        dashboardMemoryCache.ownerId === cacheOwnerId &&
         Date.now() - dashboardMemoryCache.updatedAt < DASHBOARD_CACHE_TTL_MS
       ) {
         setEvents(dashboardMemoryCache.events);
@@ -709,6 +714,30 @@ export default function DashboardPage() {
         setHeavyReady(true);
         setCarregando(false);
       }
+
+      // Consultas independentes começam juntas; o processamento continua em etapas para
+      // priorizar o conteúdo principal (antes eram 3 ondas sequenciais de rede).
+      const antesalaRequestsPromise = supabase.from('events')
+        .select('id, client_name, event_date')
+        .eq('antesala_request_status', 'pending').eq('antesala_requested_by_client', true)
+        .order('event_date', { ascending: true });
+      const heavyResultsPromise = Promise.allSettled([
+        supabase
+          .from('event_musicians')
+          .select(DASHBOARD_EVENT_MUSICIANS_SELECT)
+          .order('created_at', { ascending: false })
+          .limit(DASHBOARD_HEAVY_FETCH_LIMIT),
+        supabase
+          .from('repertoire_config')
+          .select(DASHBOARD_REPERTOIRE_CONFIG_SELECT)
+          .order('created_at', { ascending: false })
+          .limit(DASHBOARD_HEAVY_FETCH_LIMIT),
+        supabase
+          .from('contract_adjustment_requests')
+          .select(DASHBOARD_ADJUSTMENT_REQUESTS_SELECT)
+          .order('created_at', { ascending: false })
+          .limit(DASHBOARD_HEAVY_FETCH_LIMIT),
+      ]);
 
       const primaryResults = await Promise.allSettled([
         supabase
@@ -766,10 +795,7 @@ export default function DashboardPage() {
       const paymentsData = Array.isArray(paymentsRes.data) ? paymentsRes.data : [];
 
       setEvents(eventsData);
-      const antesalaRequestsResult = await supabase.from('events')
-        .select('id, client_name, event_date')
-        .eq('antesala_request_status', 'pending').eq('antesala_requested_by_client', true)
-        .order('event_date', { ascending: true });
+      const antesalaRequestsResult = await antesalaRequestsPromise;
       if (!antesalaRequestsResult.error) setAntesalaRequests(antesalaRequestsResult.data || []);
       else logWarn('dashboard', 'Solicitações de antessala indisponíveis', antesalaRequestsResult.error);
 
@@ -797,23 +823,7 @@ export default function DashboardPage() {
         urgentEventId: urgentEvent?.id || '',
       });
 
-      const heavyResults = await Promise.allSettled([
-        supabase
-          .from('event_musicians')
-          .select(DASHBOARD_EVENT_MUSICIANS_SELECT)
-          .order('created_at', { ascending: false })
-          .limit(DASHBOARD_HEAVY_FETCH_LIMIT),
-        supabase
-          .from('repertoire_config')
-          .select(DASHBOARD_REPERTOIRE_CONFIG_SELECT)
-          .order('created_at', { ascending: false })
-          .limit(DASHBOARD_HEAVY_FETCH_LIMIT),
-        supabase
-          .from('contract_adjustment_requests')
-          .select(DASHBOARD_ADJUSTMENT_REQUESTS_SELECT)
-          .order('created_at', { ascending: false })
-          .limit(DASHBOARD_HEAVY_FETCH_LIMIT),
-      ]);
+      const heavyResults = await heavyResultsPromise;
       const eventMusiciansRes =
         heavyResults[0].status === 'fulfilled' ? heavyResults[0].value : { data: [], error: null };
       const repertoireConfigsRes =
@@ -874,6 +884,7 @@ export default function DashboardPage() {
       );
       setSummary(nextSummary);
       dashboardMemoryCache = {
+        ownerId: cacheOwnerId,
         updatedAt: Date.now(),
         events: eventsData,
         contracts: contractsData,

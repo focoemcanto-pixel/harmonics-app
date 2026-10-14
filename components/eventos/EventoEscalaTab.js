@@ -612,7 +612,8 @@ export default function EventoEscalaTab({ eventId, hideFinancial = false }) {
       let escalaInicial = escalaData;
       let templateSugeridoAtual = null;
       let outrasSugestoesAtuais = [];
-      const repertorioStatusAtual = String(repertorioResp?.data?.[0]?.status || '');
+      const repertorioRow = Array.isArray(repertorioResp?.data) ? repertorioResp.data[0] : repertorioResp?.data;
+      const repertorioStatusAtual = String(repertorioRow?.status || '');
 
       if (escalaData.length === 0 && eventoData) {
         const suggestion = matchTemplatesForEvent(

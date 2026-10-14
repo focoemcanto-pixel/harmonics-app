@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { withApiObservability } from '@/lib/observability/api-observability';
 import { guardWorkspaceAdmin } from '@/lib/api/route-guards';
-import { loadWorkspaceBilling } from '@/lib/billing/plan-limits';
+import { loadLatestSubscriptionRow, loadWorkspaceBilling } from '@/lib/billing/plan-limits';
+import { normalizeStatus } from '@/lib/billing/subscription-state';
 import { createCustomer, createSubscription, listSubscriptionPayments, updateSubscription } from '@/lib/billing/asaas-client';
 
 export const dynamic = 'force-dynamic';
@@ -39,7 +40,8 @@ async function handlePOST(request) {
     const billing = await loadWorkspaceBilling({ supabase, workspaceId });
     if (billing.effectiveReason === 'internal_workspace') return fail(409, 'Este workspace usa um plano interno.');
 
-    const subscription = billing.subscription;
+    // Sem assinatura ativa (ex.: cancelada antes): reaproveita a linha mais recente para reassinar.
+    const subscription = billing.subscription || (await loadLatestSubscriptionRow({ supabase, workspaceId }));
     if (!subscription?.id) return fail(409, 'Assinatura do workspace não encontrada.');
 
     const pending = subscription.metadata?.pending_checkout;
@@ -49,7 +51,7 @@ async function handlePOST(request) {
       return NextResponse.json({ ok: true, reused: true, checkoutUrl: pending.invoice_url });
     }
 
-    const hasPaidSubscription = Boolean(subscription.provider_subscription_id) && !subscription.cancel_at_period_end && subscription.status !== 'canceled';
+    const hasPaidSubscription = Boolean(subscription.provider_subscription_id) && !subscription.cancel_at_period_end && normalizeStatus(subscription.status) !== 'canceled';
     if (hasPaidSubscription) {
       if (subscription.plan_id === plan.id) return fail(409, 'Você já está neste plano.');
       // Troca de plano: ajusta o valor da assinatura existente; vale a partir de agora.

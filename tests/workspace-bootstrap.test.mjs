@@ -41,3 +41,19 @@ test('usuários diferentes recebem workspaces diferentes', async () => {
   assert.notEqual(a.workspace.id, b.workspace.id);
   assert.notEqual(a.workspace.slug, b.workspace.slug);
 });
+
+test('ser membro (não dono) do workspace de outra pessoa não conta como workspace existente', async () => {
+  const supabase = db();
+  const other = await bootstrapWorkspaceForUser({ supabase, userId: 'owner-x', workspaceName: 'Banda X' });
+  await supabase.from('workspace_members').insert({ id: 'm-viewer', workspace_id: other.workspace.id, user_id: 'u9', role: 'viewer', status: 'active' });
+  assert.equal(await findExistingWorkspaceForUser({ supabase, userId: 'u9' }), null);
+  const own = await bootstrapWorkspaceForUser({ supabase, userId: 'u9', workspaceName: 'Minha Banda' });
+  assert.notEqual(own.workspace.id, other.workspace.id);
+});
+
+test('workspace antigo sem owner_user_id é encontrado pela membership owner', async () => {
+  const supabase = db();
+  await supabase.from('workspaces').insert({ id: 'ws-old', name: 'Antigo', slug: 'antigo', owner_user_id: null });
+  await supabase.from('workspace_members').insert({ id: 'm-old', workspace_id: 'ws-old', user_id: 'u7', role: 'owner', status: 'active' });
+  assert.equal((await findExistingWorkspaceForUser({ supabase, userId: 'u7' })).workspace.id, 'ws-old');
+});

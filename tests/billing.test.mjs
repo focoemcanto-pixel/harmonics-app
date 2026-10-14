@@ -139,3 +139,30 @@ test('limite de membros e planos ilimitados/internos', async () => {
   assert.equal((await checkPlanLimit({ supabase: limitWorld({ planSlug: 'enterprise', eventsThisMonth: 500 }), workspaceId: 'ws-a', limitKey: 'events_per_month' })).ok, true);
   assert.equal((await checkPlanLimit({ supabase: limitWorld({ planKey: 'internal', eventsThisMonth: 500 }), workspaceId: 'ws-a', limitKey: 'events_per_month' })).ok, true);
 });
+
+test('webhook: workspace cancelado reassina — pagamento do novo checkout reativa a mesma linha', async () => {
+  const canceled = { ...freeSubscriptionWithPendingCheckout(), status: 'cancelled', provider_subscription_id: 'asaas-old' };
+  const supabase = createFakeSupabase({
+    tables: { billing_events: [], workspace_subscriptions: [canceled] },
+    unique: { billing_events: ['event_id'] },
+  });
+  const result = await processAsaasWebhook({ supabase, payload: evt('evt-re', 'PAYMENT_CONFIRMED', '2026-10-14 10:00:00') });
+  assert.equal(result.body.applied, 'PAYMENT_CONFIRMED');
+  const [row] = (await supabase.from('workspace_subscriptions').select('*').eq('id', 'sub-1')).data;
+  assert.equal(row.status, 'active');
+  assert.equal(row.plan_id, PRO.id);
+  assert.equal(row.provider_subscription_id, 'asaas-sub-1');
+});
+
+test('loadLatestSubscriptionRow encontra assinatura cancelada (base da reassinatura)', async () => {
+  const { loadLatestSubscriptionRow, loadWorkspaceBilling } = await import('../lib/billing/plan-limits.js');
+  const supabase = createFakeSupabase({
+    tables: {
+      workspaces: [{ id: 'ws-a', plan_key: 'free' }],
+      workspace_plans: [{ id: 'plan-free', slug: 'free' }],
+      workspace_subscriptions: [{ id: 'sub-c', workspace_id: 'ws-a', status: 'cancelled' }],
+    },
+  });
+  assert.equal((await loadWorkspaceBilling({ supabase, workspaceId: 'ws-a' })).subscription, null);
+  assert.equal((await loadLatestSubscriptionRow({ supabase, workspaceId: 'ws-a' })).id, 'sub-c');
+});

@@ -18,6 +18,7 @@ const WORKSPACE_STORAGE_PREFIXES = [
 const WORKSPACE_STORAGE_KEYS = [
   WORKSPACE_CACHE_KEY,
   'harmonics:onboarding-tour:v1',
+  'harmonics_pending_signup_bootstrap',
 ];
 
 function resetWorkspaceScopedStorage(nextWorkspaceId) {
@@ -86,6 +87,14 @@ export default function NewWorkspacePage() {
       if (!data?.session?.access_token) {
         router.replace('/login?next=/workspace/new');
         return;
+      }
+
+      try {
+        const pending = JSON.parse(window.localStorage.getItem('harmonics_pending_signup_bootstrap') || 'null');
+        if (pending?.workspaceName) setWorkspaceName((current) => current || pending.workspaceName);
+        if (pending?.supportWhatsapp) setSupportWhatsapp((current) => current || pending.supportWhatsapp);
+      } catch {
+        // dados pendentes são opcionais
       }
 
       setCheckingSession(false);

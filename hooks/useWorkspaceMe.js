@@ -43,6 +43,7 @@ async function fetchWorkspaceMe({ force = false } = {}) {
       if (!response.ok || !payload?.ok) {
         const error = new Error(payload?.error || 'Falha ao carregar permissões do workspace.');
         error.status = response.status;
+        error.code = payload?.code || null;
         throw error;
       }
 

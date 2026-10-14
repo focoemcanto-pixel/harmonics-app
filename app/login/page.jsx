@@ -95,9 +95,8 @@ function LoginPageContent() {
 
       if (loginError) throw loginError;
 
-      if (typeof window !== 'undefined') {
-        window.localStorage.removeItem('harmonics_pending_signup_bootstrap');
-      }
+      // Os dados do cadastro pendente (nome da banda, WhatsApp) são consumidos por
+      // /workspace/new quando o workspace ainda não existe; não descartar aqui.
 
       const accessToken = data?.session?.access_token || null;
       const next = getSafeNext(searchParams);

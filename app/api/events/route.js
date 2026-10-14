@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requireWorkspaceAccess } from '@/lib/api/require-workspace-access';
+import { checkPlanLimit } from '@/lib/billing/plan-limits';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -175,6 +176,15 @@ export async function POST(request) {
       ...payload,
       workspace_id: workspaceId,
     };
+
+    // Limite do plano aplicado no backend (a UI só informa).
+    const limit = await checkPlanLimit({ supabase, workspaceId, limitKey: 'events_per_month' });
+    if (!limit.ok) {
+      return NextResponse.json(
+        { ok: false, code: limit.code, message: limit.error, limit: limit.limit, used: limit.used },
+        { status: limit.status }
+      );
+    }
 
     const { data, error } = await supabase
       .from('events')

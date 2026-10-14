@@ -8,14 +8,17 @@ export function createFakeSupabase({ tables = {}, users = {}, unique = {} } = {}
     let limitValue = null;
     const run = () => {
       let rows = (tables[table] || []).filter((row) =>
-        filters.every(([type, column, value]) =>
-          type === 'eq' ? String(row[column]) === String(value) : value.map(String).includes(String(row[column]))
-        )
+        filters.every(([type, column, value]) => {
+          if (type === 'eq') return String(row[column]) === String(value);
+          if (type === 'gte') return String(row[column]) >= String(value);
+          return value.map(String).includes(String(row[column]));
+        })
       );
       if (limitValue !== null) rows = rows.slice(0, limitValue);
       return rows;
     };
     let pendingInsert = null;
+    let wantCount = false;
     let pendingUpdate = null;
     const applyWrite = () => {
       if (pendingInsert) {
@@ -43,7 +46,8 @@ export function createFakeSupabase({ tables = {}, users = {}, unique = {} } = {}
     const query = {
       insert(payload) { pendingInsert = Array.isArray(payload) ? payload[0] : payload; return query; },
       update(payload) { pendingUpdate = payload; return query; },
-      select() { return query; },
+      select(_columns, options = {}) { wantCount = Boolean(options?.count); return query; },
+      gte(column, value) { filters.push(['gte', column, value]); return query; },
       eq(column, value) { filters.push(['eq', column, value]); return query; },
       in(column, values) { filters.push(['in', column, values]); return query; },
       order() { return query; },
@@ -60,7 +64,12 @@ export function createFakeSupabase({ tables = {}, users = {}, unique = {} } = {}
         const row = write ? write.row : run()[0];
         return row ? { data: row, error: null } : { data: null, error: { code: 'PGRST116', message: 'no rows' } };
       },
-      then(resolve) { resolve({ data: run(), error: null }); },
+      then(resolve) {
+        const write = applyWrite();
+        if (write?.error) return resolve({ data: null, error: write.error });
+        if (wantCount && !write) return resolve({ data: null, count: run().length, error: null });
+        resolve({ data: write ? (write.row ? [write.row] : []) : run(), error: null });
+      },
     };
     return query;
   }

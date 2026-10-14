@@ -19,3 +19,12 @@ Legenda: ✅ concluído · 🟡 parcial · ⛔ bloqueio externo · ⏳ pendente
 - ✅ Build de produção ok.
 - ⏳ Mantidas como admin de plataforma (operação Harmonics) até serem escopadas na Fase 1: `automation/payment-reminders/{config,run}`, `automation/retry`, `cron/payment-reminders`, `admin/usuarios/*`, `admin/repertorio/*`, `admin/reviews`.
 - Classificação completa: `API_ACCESS.md`.
+
+## Fase 1 — Multi-tenant real
+- ✅ 1.1 `pricing_settings`, `finance_cost_defaults`, `scale_templates` com `workspace_id` (aditivo, backfill → Harmonics). `/api/settings/pricing` por workspace; portais e assinatura de contrato resolvem preço/custo pelo workspace do evento; `/templates-escala` voltou a funcionar.
+- ✅ 1.1 WhatsApp/alertas: workspace usa só o próprio canal/telefone; o workspace dono das variáveis legadas (Harmonics) mantém o caminho anterior idêntico (shim `lib/whatsapp/legacy-env-workspace.js`).
+- ✅ 1.2 Autorização: `route-guards` + otimização de `requireWorkspaceAccess` (2 Auth + 6 consultas sequenciais → 1 Auth + 4 consultas em 3 ondas).
+- ✅ 1.3 RLS: `current_user_can_access_event` sem bypass de admin global (o dashboard da Harmonics não mistura mais outros tenants). Teste A×B no banco: SELECT/UPDATE/INSERT negados (`supabase/tests/tenant_isolation_a_vs_b.sql`).
+- 🟡 Decisão de produto pendente (D-1): `finance_cost_defaults` está com RLS sem política desde antes desta fase, então o browser **nunca** leu/gravou os custos padrão salvos (as telas usam valores de fallback). Habilitar mudaria os números exibidos à Harmonics — mantido como está até decisão.
+- ⏳ Ainda globais por desenho: catálogo de sugestões (`suggestion_*`), `event_types` legível por qualquer autenticado (RLS `true`), `contract_templates` com políticas de admin global (a API já usa admin do workspace).
+- ⏳ Achado (privacidade intra-tenant): músicos escalados conseguem ler `payments`/`contracts` dos eventos em que tocam (política pré-existente `*_member_select_*`). Não alterado: o portal do membro pode depender disso — validar antes de restringir.

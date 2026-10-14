@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requireScheduleManagerAccess } from '@/lib/api/require-schedule-manager-access';
 import { diffEscala } from '@/lib/escalas/escalas-sync';
+import { sendInviteService } from '@/lib/whatsapp/send-invite-service';
 
 function dedupeByMusician(list = []) {
   const map = new Map();
@@ -147,6 +148,7 @@ export async function POST(request, context) {
 
     const body = await request.json().catch(() => ({}));
     const escalaLocal = Array.isArray(body?.escalaLocal) ? body.escalaLocal : [];
+    const shouldSendInvites = body?.sendInvites === true;
     const escalaLocalDedupe = dedupeByMusician(escalaLocal);
 
     const { data: escalaAtual, error: escalaAtualError } = await supabase
@@ -309,11 +311,44 @@ export async function POST(request, context) {
       .eq('event_id', eventId);
     if (escalaFinalError) throw escalaFinalError;
 
+    // Salvar + enviar acontece no MESMO request. Assim não dependemos de um
+    // segundo fetch do navegador, de estado stale nem de uma nova resolução de sessão.
+    // A deduplicação continua sendo whatsapp_sent_at: somente pending ainda não enviados.
+    const dispatch = { requested: shouldSendInvites, total: 0, successCount: 0, failedCount: 0, results: [], firstError: null };
+
+    if (shouldSendInvites) {
+      const { data: pendingInvites, error: pendingInvitesError } = await supabase
+        .from('invites')
+        .select('id, status, whatsapp_sent_at')
+        .eq('event_id', eventId)
+        .eq('status', 'pending')
+        .is('whatsapp_sent_at', null);
+      if (pendingInvitesError) throw pendingInvitesError;
+
+      const queue = (pendingInvites || []).filter((row) => isUuid(row?.id));
+      dispatch.total = queue.length;
+
+      for (const invite of queue) {
+        const result = await sendInviteService({ inviteId: invite.id, supabaseAdmin: supabase });
+        const sent = result?.ok === true && Number(result?.data?.sent || 0) > 0;
+        const skipped = result?.ok === true && result?.data?.skipped === true;
+        const ok = sent || skipped;
+        const error = ok ? null : result?.error || result?.data?.error || result?.data?.cause || result?.data?.warning || 'O convite não foi confirmado pelo provedor.';
+        dispatch.results.push({ inviteId: invite.id, ok, sent, skipped, error, response: result?.data || null });
+        if (ok) dispatch.successCount += 1;
+        else {
+          dispatch.failedCount += 1;
+          if (!dispatch.firstError) dispatch.firstError = error;
+        }
+      }
+    }
+
     return NextResponse.json({
       ok: true,
       eventId,
       workspaceId: auth.workspaceId,
       escala: escalaFinal || [],
+      dispatch,
       stats: {
         total: escalaLocalDedupe.length,
         novos: novos.length,

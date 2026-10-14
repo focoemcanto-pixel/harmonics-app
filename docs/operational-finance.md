@@ -114,3 +114,5 @@ Novas remoções mantêm um marcador `excluded` no custo, com seu valor anterior
 
 ## Prazo dos recebimentos e correção
 O saldo em aberto é previsto para dois dias corridos antes do evento, inclusive na virada do mês. A ficha permite antecipar e o RPC rejeita previsão posterior ao prazo. Recebimentos realizados mantêm suas datas. Os recebimentos aparecem no início da ficha com estorno por motivo, mantendo o histórico e a auditoria.
+
+A visão mensal mostra entradas pendentes menos pagamentos pendentes de cada mês, sem transporte de saldo. O rodapé mostra a soma dos resultados e o saldo final com caixa atual e atrasos, distinguindo fluxo projetado de lucro dos contratos.

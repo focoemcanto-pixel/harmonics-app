@@ -41,7 +41,10 @@ async function notifyAdminContractGenerationIssue({ context, reason, error }) {
       `Contract ID: ${context?.contract?.id || 'não encontrado'}`,
       error?.message ? `Erro técnico: ${error.message}` : null,
     ].filter(Boolean).join('\n');
-    await sendAdminWhatsAppAlert(message);
+    await sendAdminWhatsAppAlert(message, {
+      workspaceId: context?.precontract?.workspace_id || context?.event?.workspace_id || null,
+      eventId: context?.event?.id || context?.precontract?.event_id || null,
+    });
   } catch (whatsappError) {
     logWarn('CONTRACT_GENERATE', 'ADMIN_WHATSAPP_ALERT_FAILED', { error: whatsappError?.message || String(whatsappError) });
   }

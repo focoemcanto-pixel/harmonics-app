@@ -680,7 +680,7 @@ export default function MembroPage() {
     // ✅ Se não é admin, continuar com validação normal em contacts
     const { data, error: memberError } = await supabase
       .from('contacts')
-      .select('id, name, email, phone, tag, is_active, can_view_all_events, can_manage_schedules')
+      .select('id, workspace_id, name, email, phone, tag, is_active, can_view_all_events, can_manage_schedules')
       .eq('email', sessionEmail)
       .maybeSingle();
 
@@ -734,28 +734,38 @@ export default function MembroPage() {
         const response = await fetch('/api/membro/global-dashboard' + suffix, {
           method: 'GET',
           cache: 'no-store',
+          headers: currentMember.workspace_id
+            ? { 'x-workspace-id': String(currentMember.workspace_id) }
+            : undefined,
         });
         const payload = await response.json().catch(() => ({}));
 
-        if (!response.ok || !payload?.ok) {
-          throw new Error(payload?.error || 'Não foi possível carregar a agenda global.');
+        if (response.ok && payload?.ok) {
+          console.info('[MEMBER_PANEL][GLOBAL_AGENDA_API]', {
+            memberId: currentMember.id,
+            isAdmin: Boolean(currentMember.isAdmin),
+            delegated: Boolean(currentMember.canViewAllEvents && !currentMember.isAdmin),
+            workspaceId: payload.workspaceId || null,
+            events: Array.isArray(payload.events) ? payload.events.length : 0,
+          });
+
+          setDemoScaleRows(Array.isArray(payload.scales) ? payload.scales : []);
+          setInvites(Array.isArray(payload.invites) ? payload.invites : []);
+          setPrecontracts(Array.isArray(payload.precontracts) ? payload.precontracts : []);
+          setContracts(Array.isArray(payload.contracts) ? payload.contracts : []);
+          setRepertoireConfigs(Array.isArray(payload.repertoireConfigs) ? payload.repertoireConfigs : []);
+          setRepertoireItems(Array.isArray(payload.repertoireItems) ? payload.repertoireItems : []);
+          return;
         }
 
-        console.info('[MEMBER_PANEL][GLOBAL_AGENDA_API]', {
+        console.warn('[MEMBER_PANEL][GLOBAL_AGENDA_FALLBACK]', {
           memberId: currentMember.id,
-          isAdmin: Boolean(currentMember.isAdmin),
-          delegated: Boolean(currentMember.canViewAllEvents && !currentMember.isAdmin),
-          workspaceId: payload.workspaceId || null,
-          events: Array.isArray(payload.events) ? payload.events.length : 0,
+          workspaceId: currentMember.workspace_id || null,
+          status: response.status,
+          error: payload?.error || 'Agenda global indisponível',
         });
-
-        setDemoScaleRows(Array.isArray(payload.scales) ? payload.scales : []);
-        setInvites(Array.isArray(payload.invites) ? payload.invites : []);
-        setPrecontracts(Array.isArray(payload.precontracts) ? payload.precontracts : []);
-        setContracts(Array.isArray(payload.contracts) ? payload.contracts : []);
-        setRepertoireConfigs(Array.isArray(payload.repertoireConfigs) ? payload.repertoireConfigs : []);
-        setRepertoireItems(Array.isArray(payload.repertoireItems) ? payload.repertoireItems : []);
-        return;
+        // Não zera o painel se a agenda global falhar: cai para as consultas pessoais abaixo.
+        setError('');
       }
       // ✅ SE NÃO FOR ADMIN: Código original do membro (com filtro .eq('contact_id', currentMember.id))
      const [

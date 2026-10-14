@@ -111,3 +111,6 @@ Foi salvo um snapshot privado das fichas antes da alteração. A RPC mantém as 
 Padrões de sonorização, transporte e operacional passam a preencher somente fichas ainda não salvas. Uma ausência em ficha já salva é preservada como decisão manual, inclusive em fichas antigas que removeram sonorização antes desta correção.
 
 Novas remoções mantêm um marcador `excluded` no custo, com seu valor anterior guardado, e valor ativo zero. A ficha oculta o item da lista ativa; cálculos de margem, compromisso e projeção ignoram exclusões. O marcador impede também que a escala recrie cachês removidos. A auditoria da ficha preserva a alteração. Uma seção de custos removidos permite restaurar explicitamente o valor específico do evento. Custos já pagos continuam protegidos contra remoção pela interface e pela validação transacional existente.
+
+## Prazo dos recebimentos e correção
+O saldo em aberto é previsto para dois dias corridos antes do evento, inclusive na virada do mês. A ficha permite antecipar e o RPC rejeita previsão posterior ao prazo. Recebimentos realizados mantêm suas datas. Os recebimentos aparecem no início da ficha com estorno por motivo, mantendo o histórico e a auditoria.

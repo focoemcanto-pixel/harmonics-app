@@ -402,8 +402,11 @@ export default function GlobalPlayerHost() {
   ]);
 
   return (
-    <div className="hidden" aria-hidden="true">
-      <div ref={mountNodeRef} />
+    <div
+      className="pointer-events-none fixed left-[-10000px] top-0 h-[180px] w-[240px] overflow-hidden opacity-[0.01]"
+      aria-hidden="true"
+    >
+      <div ref={mountNodeRef} className="h-[180px] w-[240px]" />
     </div>
   );
 }

@@ -1274,67 +1274,33 @@ export default function MembroPage() {
 
   function buildPlaylistFromRow(item) {
     if (!Array.isArray(item?.repertorioItems)) return [];
-    const rawItems = item.repertorioItems;
-    console.log('[MEMBRO_PLAYER][RAW_ITEMS]', rawItems);
 
-    const orderInput = rawItems.map((row) => ({
-      song: row?.musica || row?.song_name || '',
-      section: row?.section || row?.tipo || row?.type || '',
-      moment: row?.momento || row?.moment || '',
-      whoEnters: row?.quemEntra || row?.who_enters || '',
-      itemOrder: row?.item_order ?? row?.ordem ?? null,
-      label: row?.label || '',
-    }));
-    console.log('[MEMBRO_PLAYER][ORDER_INPUT]', orderInput);
-
-    const labelInput = rawItems.map((row) => ({
-      song: row?.musica || row?.song_name || '',
-      section: row?.section || '',
-      moment: row?.momento || row?.moment || '',
-      whoEnters: row?.quemEntra || row?.who_enters || '',
-      label: row?.label || '',
-    }));
-    console.log('[MEMBRO_PLAYER][LABEL_INPUT]', labelInput);
-
-    const orderedRows = rawItems
-      .filter((row) => Boolean(resolveTrackUrl(row)))
-      .map((row, index) => {
-        const sectionKey = resolveSectionFromItem(row);
-        const sectionOrder = SECTION_ORDER[sectionKey] ?? 99;
-        const momentOrder = getMomentOrder(row);
-        const itemOrder = Number(row?.item_order ?? row?.ordem ?? index + 1);
-
-        return {
-          row,
-          index,
-          sectionKey,
-          sectionOrder,
-          momentOrder,
-          itemOrder,
-        };
-      })
+    const orderedRows = item.repertorioItems
+      .map((row, originalIndex) => ({
+        row,
+        originalIndex,
+        savedOrder: Number(row?.item_order ?? row?.ordem ?? originalIndex + 1),
+      }))
+      .filter(({ row }) => Boolean(resolveTrackUrl(row)))
       .sort((a, b) => {
-        if (a.sectionOrder !== b.sectionOrder) return a.sectionOrder - b.sectionOrder;
-        if (a.momentOrder !== b.momentOrder) return a.momentOrder - b.momentOrder;
-        if (a.itemOrder !== b.itemOrder) return a.itemOrder - b.itemOrder;
-        return a.index - b.index;
+        if (a.savedOrder !== b.savedOrder) return a.savedOrder - b.savedOrder;
+        return a.originalIndex - b.originalIndex;
       });
 
-    const playlist = orderedRows.map((entry, index) => {
+    return orderedRows.map((entry, index) => {
       const row = entry.row;
+      const sectionKey = resolveSectionFromItem(row);
       return {
+        itemId: row?.id || null,
         title: row?.musica || row?.song_name || `Faixa ${index + 1}`,
-        subtitle: getDisplayLabel(row, entry.sectionKey),
+        subtitle: getDisplayLabel(row, sectionKey),
         notes: row?.observacao || row?.notes || '',
         videoId: String(row?.reference_video_id || '').trim(),
         url: resolveTrackUrl(row),
-        order: row?.ordem ?? row?.item_order ?? index + 1,
-        sectionKey: entry.sectionKey,
+        order: entry.savedOrder,
+        sectionKey,
       };
     });
-
-    console.log('[MEMBRO_PLAYER][FINAL_PLAYLIST]', playlist);
-    return playlist;
   }
 
   function openRepertoire(item, options = {}) {
@@ -1346,14 +1312,21 @@ export default function MembroPage() {
       return;
     }
 
-    const shouldAutoplay = options.autoplay === true;
+    let startIndex = Number.isFinite(options.startIndex) ? Number(options.startIndex) : 0;
+    if (options.startItemId) {
+      const byId = playlist.findIndex((track) => String(track?.itemId || '') === String(options.startItemId));
+      if (byId >= 0) startIndex = byId;
+    } else if (options.startOrder != null) {
+      const byOrder = playlist.findIndex((track) => Number(track?.order) === Number(options.startOrder));
+      if (byOrder >= 0) startIndex = byOrder;
+    }
 
-    replacePlaylist(playlist, { autoplay: shouldAutoplay, startIndex: 0 });
+    startIndex = Math.max(0, Math.min(startIndex, playlist.length - 1));
+    const shouldAutoplay = options.autoplay === true;
+    replacePlaylist(playlist, { autoplay: shouldAutoplay, startIndex });
     setPlayerEventTitle(item?.clientName || 'Repertório');
     setIsPlayerModalOpen(options.openModal !== false);
     setIsMiniPlayerVisible(false);
-    console.log('[AUDIO_PLAYER][CURRENT_TRACK]', playlist[0]?.title || '');
-    console.log('[AUDIO_PLAYER][IS_PLAYING]', shouldAutoplay);
   }
 
   function handleMinimizePlayer() {
@@ -1798,6 +1771,15 @@ export default function MembroPage() {
         onOpenPlayer={(item) => {
           setRepertorioResumoOpen(false);
           openRepertoire(item, { autoplay: false, source: 'repertoire_summary_modal' });
+        }}
+        onOpenTrack={(item, row) => {
+          setRepertorioResumoOpen(false);
+          openRepertoire(item, {
+            autoplay: true,
+            startItemId: row?.id || null,
+            startOrder: row?.item_order ?? row?.ordem ?? null,
+            source: 'repertoire_track_direct',
+          });
         }}
         onGoToRepertorios={() => {
           setRepertorioResumoOpen(false);

@@ -34,3 +34,23 @@ Legenda: ✅ concluído · 🟡 parcial · ⛔ bloqueio externo · ⏳ pendente
 - ✅ Equivalência: prebuild original aplicado sobre `origin/main` numa cópia e comparado com esta branch → idêntico, exceto as edições intencionais desta finalização e 1 defeito corrigido (token de convite de fallback era uma constante gerada no build).
 - ✅ `npm run build` sem prebuild → `git status` limpo após o build.
 - ✅ Scripts incorporados removidos; 2 scripts que nunca estiveram no prebuild ficaram documentados (`scripts/README-unapplied-patches.md`).
+
+## Fase 3 — Onboarding único
+- ✅ Fonte única: `workspace_onboarding_progress` (+ coluna `flow_state`, que o código já gravava mas não existia).
+- ✅ `/onboarding`: nome do negócio, responsável, telefone, cidade, tipo de atuação → "Seu espaço está pronto." → dashboard.
+- ✅ Checklist contextual (6 itens) derivado de dados reais; persistente, retomável, ocultável, reabrível em `/settings/onboarding`; bug que zerava `completed_at` corrigido; usuários atuais não afetados.
+- ⏳ Gerações antigas (tours forçados, guias "Stable", demo/fake) continuam no código mas não são mais disparadas pelo fluxo — remoção na Fase 14 após validação em staging.
+
+## Fase 4 — Signup / Auth / Recovery
+- ✅ Recuperação de senha → `/auth/reset-password` (links antigos encaminhados).
+- ✅ Bootstrap idempotente (checagem + índice único `owner_user_id` para corrida); teste de retry/duplo clique.
+- ✅ Usuário sem workspace é levado a `/workspace/new` (dados do cadastro pré-preenchidos).
+- ✅ Perfil não recebe mais `role='owner'`/`is_admin` no bootstrap.
+- ⛔ Teste ponta a ponta com e-mail real de confirmação depende de staging (BE-5).
+
+## Fase 5 — Billing / Asaas
+- ✅ Schema reconciliado (sem duplicar colunas existentes); `billing_events` auditável e idempotente.
+- ✅ Webhook autenticado/idempotente/ordenado; ciclo Free → checkout → pago → renovação → atraso (carência 7 dias) → regularização → cancelamento no fim do período → reassinatura.
+- ✅ Planos da UI = `workspace_plans` (fonte única); `/assinar`/`/assinatura` redirecionam.
+- ✅ Limites no backend: eventos/mês (POST `/api/events`) e membros (POST `/api/workspace/team`) → 402.
+- ⛔ Validação no sandbox Asaas (BE-7).

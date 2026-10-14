@@ -27,3 +27,19 @@
 
 ## BE-6 — Ativar "Leaked password protection"
 - **AÇÃO NECESSÁRIA:** Dashboard → Authentication → Policies/Password → ativar.
+
+## BE-7 — Configurar Asaas (sandbox primeiro)
+- **AÇÃO NECESSÁRIA:** no Worker (`wrangler secret put`): `ASAAS_API_KEY` (sandbox), `ASAAS_ENV=sandbox`, `ASAAS_WEBHOOK_SECRET` (valor aleatório forte). No painel Asaas (sandbox) → Integrações → Webhooks: URL `https://<app>/api/webhooks/asaas`, token = o mesmo `ASAAS_WEBHOOK_SECRET`, eventos de Cobrança e de Assinatura, fila ativada.
+- **MOTIVO:** sem chave, a tela mostra os planos mas desabilita "Assinar"; sem segredo, o webhook responde 503 (falha fechada, intencional).
+- **MOMENTO CORRETO:** depois do deploy (BE-4), em staging; produção (`ASAAS_ENV=production`) só depois do teste completo no sandbox.
+
+## BE-8 — URLs de redirecionamento do Supabase Auth
+- **AÇÃO NECESSÁRIA:** Dashboard → Authentication → URL Configuration → Redirect URLs: incluir `https://app.bandaharmonics.com/auth/reset-password` e `https://app.bandaharmonics.com/login`.
+- **MOTIVO:** a recuperação de senha agora usa `/auth/reset-password`; se a URL não estiver na lista, o Supabase redireciona para a Site URL.
+
+## BE-9 — CRON_SECRET
+- **AÇÃO NECESSÁRIA:** garantir `CRON_SECRET` no Worker e `HARMONICS_CRON_SECRET` no GitHub (mesmo valor). Hoje, se a variável não existir, `/api/automation/cron` aceita chamadas sem segredo.
+- **MOMENTO CORRETO:** a qualquer momento (configure os dois lados juntos).
+
+## BE-10 — INTERNAL_API_KEY (opcional)
+- Só necessário se algum sistema externo chama `/api/contracts/internal/pdf`, `/api/contracts/html-to-pdf` ou `/api/contracts/archive` sem sessão. Nenhum consumidor foi encontrado no código; rejeições ficam registradas como `[GUARD][REJECTED]` nos logs.

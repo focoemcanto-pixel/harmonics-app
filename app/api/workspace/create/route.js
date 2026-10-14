@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { bootstrapWorkspaceForUser } from '@/lib/workspaces/bootstrap-workspace';
+import { bootstrapWorkspaceForUser, findExistingWorkspaceForUser } from '@/lib/workspaces/bootstrap-workspace';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -150,8 +150,6 @@ async function updateProfileWorkspaceSafe({ supabase, user, workspaceId }) {
     id: user.id,
     email: user.email,
     name: user.user_metadata?.full_name || user.email,
-    role: 'owner',
-    is_admin: false,
   };
 
   const preferredPayload = {
@@ -227,6 +225,22 @@ export async function POST(request) {
 
     if (!workspaceName) {
       return NextResponse.json({ ok: false, error: 'Nome do workspace é obrigatório.' }, { status: 400 });
+    }
+
+    // Idempotência: quem já tem workspace ativo recebe o mesmo workspace (duplo clique,
+    // retry ou volta pelo navegador não criam um segundo).
+    const existing = await findExistingWorkspaceForUser({ supabase, userId: user.id });
+    if (existing?.workspace?.id) {
+      const existingResponse = NextResponse.json({
+        ok: true,
+        alreadyBootstrapped: true,
+        code: 'USER_ALREADY_HAS_WORKSPACE',
+        workspaceId: existing.workspace.id,
+        workspace: existing.workspace,
+        membership: existing.membership,
+        next: '/dashboard',
+      });
+      return existingResponse;
     }
 
     const bootstrap = await bootstrapWorkspaceForUser({

@@ -68,8 +68,6 @@ async function ensureProfileSafe({ supabase, user, fullName }) {
       id: user.id,
       email: user.email,
       name: fullName || user.email,
-      role: 'owner',
-      is_admin: false,
     };
 
     const { data: existing, error: existingError } = await supabase

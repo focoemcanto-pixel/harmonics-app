@@ -1,5 +1,6 @@
 'use client';
 
+import SmartEmptyState from '@/components/onboarding/SmartEmptyState';
 import { Input, Select } from '../admin/AdminFormPrimitives';
 import { getContactTypeLabel, resolveContactType } from '@/lib/contatos/contact-type';
 import BulkActionBar from '@/components/ui/BulkActionBar';
@@ -35,7 +36,23 @@ function StatusBadge({ ativo }) {
   );
 }
 
-function EmptyState({ segment }) {
+function EmptyState({ segment, busca }) {
+  if (!String(busca || '').trim()) {
+    return (
+      <SmartEmptyState
+        icon="👥"
+        eyebrow={segment === 'clients' ? 'Clientes' : 'Equipe'}
+        title={segment === 'clients' ? 'Nenhum cliente ainda' : 'Nenhum músico ou membro ainda'}
+        description={
+          segment === 'clients'
+            ? 'Clientes são criados automaticamente quando alguém assina um pré-contrato — ou cadastre manualmente na aba de cadastro.'
+            : 'Cadastre seus músicos para montar escalas, enviar convites pelo WhatsApp e dar acesso ao painel do membro.'
+        }
+        secondaryHref="/settings/onboarding"
+        secondaryLabel="Ver primeiros passos"
+      />
+    );
+  }
   return (
     <div className="rounded-[24px] border border-dashed border-[#dbe3ef] bg-[#f8fafc] px-5 py-8 text-center">
       <div className="text-[18px] font-black text-[#0f172a]">Nenhum contato encontrado</div>
@@ -210,7 +227,7 @@ export default function ContatosListaTab({
       ) : null}
 
       {contatosFiltrados.length === 0 ? (
-        <EmptyState segment={segment} />
+        <EmptyState segment={segment} busca={busca} />
       ) : (
         <div className="space-y-4">
           {contatosFiltrados.map((contato) => {

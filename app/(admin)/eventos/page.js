@@ -1,5 +1,6 @@
 'use client';
 
+import SmartEmptyState from '@/components/onboarding/SmartEmptyState';
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -2228,7 +2229,18 @@ export default function EventosPage() {
         </div>
 
         <div className="space-y-4">
-          {eventosFiltrados.length === 0 ? (
+          {eventosFiltrados.length === 0 && eventos.length === 0 && !carregando ? (
+            <SmartEmptyState
+              icon="🎶"
+              eyebrow="Agenda"
+              title="Nenhum evento ainda"
+              description="Crie seu primeiro evento para organizar data, local, formação, valores e a escala dos músicos em um só lugar."
+              primaryHref="/eventos/novo"
+              primaryLabel="Criar primeiro evento"
+              secondaryHref="/pre-contratos"
+              secondaryLabel="Enviar um pré-contrato"
+            />
+          ) : eventosFiltrados.length === 0 ? (
             <div className="rounded-[20px] bg-[#f8fafc] px-4 py-5 text-[14px] font-semibold text-[#64748b]">
               Nenhum evento encontrado.
             </div>

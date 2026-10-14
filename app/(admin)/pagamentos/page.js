@@ -1,5 +1,6 @@
 'use client';
 
+import SmartEmptyState from '@/components/onboarding/SmartEmptyState';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
@@ -1408,7 +1409,18 @@ function PagamentosPageContent() {
           </div>
 
           <div className="mt-6 space-y-4">
-            {pagamentosFiltrados.length === 0 ? (
+            {!carregando && pagamentosFiltrados.length === 0 && events.length === 0 && payments.length === 0 ? (
+              <SmartEmptyState
+                icon="💰"
+                eyebrow="Financeiro"
+                title="Nenhum pagamento ainda"
+                description="Os valores, sinais e comprovantes de cada evento aparecem aqui. Comece criando um evento com o valor combinado."
+                primaryHref="/eventos/novo"
+                primaryLabel="Criar evento"
+                secondaryHref="/pagamentos/operacional"
+                secondaryLabel="Ver financeiro operacional"
+              />
+            ) : pagamentosFiltrados.length === 0 ? (
               <div className="rounded-[20px] bg-[#f8fafc] px-5 py-5 text-[14px] font-semibold text-[#64748b]">
                 Nenhum pagamento encontrado com esse filtro.
               </div>

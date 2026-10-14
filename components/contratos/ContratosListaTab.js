@@ -1,5 +1,6 @@
 'use client';
 
+import SmartEmptyState from '@/components/onboarding/SmartEmptyState';
 import AdminSectionTitle from '../admin/AdminSectionTitle';
 import { Input, Select } from '../admin/AdminFormPrimitives';
 import ContractCard from './ContractCard';
@@ -62,7 +63,18 @@ export default function ContratosListaTab({
             Selecionar contratos filtrados
           </label>
         ) : null}
-        {!carregando && contratosFiltrados.length === 0 ? (
+        {!carregando && contratosFiltrados.length === 0 && !String(busca || '').trim() && (!statusFiltro || statusFiltro === 'todos') ? (
+          <SmartEmptyState
+            icon="📄"
+            eyebrow="Contratos"
+            title="Nenhum contrato ainda"
+            description="Os contratos nascem de um pré-contrato: você envia o link, o cliente revisa e assina online, e o PDF assinado fica guardado aqui."
+            primaryHref="/pre-contratos"
+            primaryLabel="Enviar primeiro pré-contrato"
+            secondaryHref="/contratos/templates"
+            secondaryLabel="Revisar modelo de contrato"
+          />
+        ) : !carregando && contratosFiltrados.length === 0 ? (
           <div className="rounded-[20px] bg-[#f8fafc] px-4 py-5 text-[14px] font-semibold text-[#64748b]">
             Nenhum contrato encontrado.
           </div>

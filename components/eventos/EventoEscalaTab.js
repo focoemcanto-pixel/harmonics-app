@@ -565,9 +565,10 @@ export default function EventoEscalaTab({ eventId }) {
             .order('sort_order', { ascending: true }),
           supabase
             .from('repertoire_config')
-            .select('status')
+            .select('status, updated_at')
             .eq('event_id', eventId)
-            .maybeSingle(),
+            .order('updated_at', { ascending: false })
+            .limit(1),
         ]);
 
       if (!isMountedRef.current) return;
@@ -618,7 +619,7 @@ export default function EventoEscalaTab({ eventId }) {
       let escalaInicial = escalaData;
       let templateSugeridoAtual = null;
       let outrasSugestoesAtuais = [];
-      const repertorioStatusAtual = String(repertorioResp?.data?.status || '');
+      const repertorioStatusAtual = String(repertorioResp?.data?.[0]?.status || '');
 
       if (escalaData.length === 0 && eventoData) {
         const suggestion = matchTemplatesForEvent(

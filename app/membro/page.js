@@ -56,6 +56,7 @@ const REPERTOIRE_ITEMS_SELECT = [
   'section',
   'genres',
   'artists',
+  'musical_key',
 ].join(', ');
 
 const MEMBER_PANEL_DEMO_STEPS = [

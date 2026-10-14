@@ -47,6 +47,7 @@ const REPERTOIRE_ITEMS_SELECT = [
   'section',
   'genres',
   'artists',
+  'musical_key',
 ].join(', ');
 
 function normalizeStatus(value) {

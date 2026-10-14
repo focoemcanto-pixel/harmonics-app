@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo } from 'react';
+import EditableMusicalKey from './EditableMusicalKey';
 
 const SECTION_ORDER = ['antessala', 'cortejo', 'cerimonia', 'saida', 'receptivo'];
 
@@ -83,7 +84,7 @@ function RepertorioLinha({ row, index, displayNumber }) {
           <div className="break-words text-[11px] font-extrabold uppercase tracking-[0.08em] text-violet-200/60">{orderLabel}</div>
           <div className="mt-1 flex items-start gap-2">
             <div className="min-w-0 flex-1 break-words text-[17px] font-black text-white">{title}</div>
-            <button type="button" onClick={() => openLyricsSearch(title)} aria-label={`Buscar letra de ${title}`} title="Abrir letra" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] border border-violet-300/20 bg-violet-400/10 text-[17px] text-violet-100 transition active:scale-95">♫</button>
+            <div className="flex shrink-0 flex-col items-end gap-2"><button type="button" onClick={() => openLyricsSearch(title)} aria-label={`Buscar letra de ${title}`} title="Abrir letra" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] border border-violet-300/20 bg-violet-400/10 text-[17px] text-violet-100 transition active:scale-95">♫</button><EditableMusicalKey row={row} /></div>
           </div>
           {showSecondary ? <div className="mt-1 break-words text-[12px] font-semibold uppercase tracking-[0.08em] text-violet-200/70">{secondary}</div> : null}
           {row?.observacao ? <div className="mt-2 break-words rounded-[14px] border border-white/10 bg-black/10 px-3 py-3 text-[13px] leading-5 text-white/70"><span className="font-black text-white/85">Observação:</span>{' '}{row.observacao}</div> : null}

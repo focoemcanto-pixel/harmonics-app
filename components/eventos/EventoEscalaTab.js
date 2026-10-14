@@ -543,7 +543,7 @@ export default function EventoEscalaTab({ eventId }) {
         await Promise.all([
           supabase
             .from('events')
-            .select('id, client_name, event_date, event_time, location_name, formation, instruments, status, open_amount, payment_status')
+            .select('id, workspace_id, client_name, event_date, event_time, location_name, formation, instruments, status, open_amount, payment_status')
             .eq('id', eventId)
             .single(),
           supabase
@@ -580,7 +580,11 @@ export default function EventoEscalaTab({ eventId }) {
 
       const eventoData = eventoResp.data || null;
       const contatosData = filterOperationalTeamContacts(contatosResp.data || []);
-      const templatesData = Array.isArray(templatesResp?.data) ? templatesResp.data : [];
+      // Templates de escala são do workspace do evento (linhas legadas sem workspace continuam visíveis).
+      const eventWorkspaceId = eventoResp?.data?.workspace_id ? String(eventoResp.data.workspace_id) : null;
+      const templatesData = (Array.isArray(templatesResp?.data) ? templatesResp.data : []).filter(
+        (template) => !template?.workspace_id || !eventWorkspaceId || String(template.workspace_id) === eventWorkspaceId
+      );
       const templateItemsRespData = Array.isArray(templateItemsResp?.data) ? templateItemsResp.data : [];
       const contatosMap = new Map(contatosData.map((contact) => [String(contact.id), contact]));
       const templateItemsByTemplateId = new Map();

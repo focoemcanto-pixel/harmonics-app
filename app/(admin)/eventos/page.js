@@ -94,7 +94,6 @@ const PRECONTRACTS_SELECT_FIELDS =
   'id, created_at, event_id, client_name, event_date, event_time, status, public_token';
 const CONTRACTS_SELECT_FIELDS =
   'id, created_at, precontract_id, event_id, status, signed_at, pdf_url, doc_url, public_token';
-const PRICING_SELECT_FIELDS = '*';
 const EVENTOS_LIST_TITLE = 'Eventos';
 const EVENTOS_LIST_SUBTITLE = 'Pesquise, filtre e acompanhe sua operação.';
 const VIEW_MODE_BY_QUERY = {
@@ -822,13 +821,11 @@ export default function EventosPage() {
 
   async function carregarPricing() {
     try {
-      const { data, error } = await supabase
-        .from('pricing_settings')
-        .select(PRICING_SELECT_FIELDS)
-        .eq('slug', 'default')
-        .single();
-
-      if (error && error.code !== 'PGRST116') throw error;
+      // Preços pertencem ao workspace da sessão (API aplica o escopo).
+      const response = await fetch('/api/settings/pricing', { cache: 'no-store' });
+      const json = await response.json().catch(() => null);
+      if (!response.ok || !json?.ok) throw new Error(json?.error || 'Falha ao carregar preços.');
+      const data = json.pricing;
 
       if (data) {
         const normalizedPricing = hydratePricingFromCanonical(data);
@@ -1321,13 +1318,16 @@ export default function EventosPage() {
         costPayload,
       });
 
-      const { data: pricingData, error: pricingError } = await supabase
-        .from('pricing_settings')
-        .upsert(pricingPayload, { onConflict: 'slug' })
-        .select('id')
-        .single();
-
-      if (pricingError) throw pricingError;
+      const pricingSaveResponse = await fetch('/api/settings/pricing', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pricing: pricingPayload }),
+      });
+      const pricingSaveJson = await pricingSaveResponse.json().catch(() => null);
+      if (!pricingSaveResponse.ok || !pricingSaveJson?.ok) {
+        throw new Error(pricingSaveJson?.error || 'Não foi possível salvar os preços.');
+      }
+      const pricingData = pricingSaveJson.pricing;
 
       let financeDefaultsError = null;
       const { error: financeError } = await supabase
@@ -1346,15 +1346,9 @@ export default function EventosPage() {
 
       console.info('[EVENTOS][PRICING_SAVE][UPSERT_OK]');
 
-      const { data: reloadedPricing, error: reloadPricingError } = await supabase
-        .from('pricing_settings')
-        .select(PRICING_SELECT_FIELDS)
-        .eq('slug', 'default')
-        .maybeSingle();
-
-      if (reloadPricingError) throw reloadPricingError;
+      const reloadedPricing = pricingData;
       if (!reloadedPricing) {
-        throw new Error('pricing_settings.default não retornou após salvar.');
+        throw new Error('Os preços não retornaram após salvar.');
       }
 
       let reloadedCosts = null;

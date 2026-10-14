@@ -7,6 +7,7 @@ import { generateContractDocument } from '@/lib/contracts/generate-contract-docu
 import { signInternalContract } from '@/lib/contracts/sign-internal-contract';
 import { executeAutomationEvent } from '@/lib/automation/execute-automation-event';
 import { getCurrentWorkspace } from '@/lib/workspaces/get-current-workspace';
+import { loadWorkspaceCostDefaults } from '@/lib/settings/workspace-pricing';
 import {
   PRECONTRACT_EXPIRED_MESSAGE,
   expirePrecontractIfNeeded,
@@ -121,7 +122,11 @@ async function upsertContactFromSignature({ supabase, precontract, form, workspa
 }
 
 async function upsertEventFromSignature({ supabase, precontract, contactId, form, workspaceId }) {
-  const { data: financeDefaults } = await supabase.from('finance_cost_defaults').select('musician_unit_cost, sound_default_cost, transport_default_cost, other_default_cost, custom_costs').eq('slug', 'default').maybeSingle();
+  const { data: financeDefaults } = await loadWorkspaceCostDefaults({
+    supabase,
+    workspaceId: asString(precontract?.workspace_id || workspaceId) || null,
+    select: 'musician_unit_cost, sound_default_cost, transport_default_cost, other_default_cost, custom_costs',
+  });
   const automaticCosts = getAutomaticCosts({
     formation: precontract?.formation,
     hasSound: !!precontract?.has_sound,

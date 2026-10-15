@@ -21,6 +21,7 @@ import BulkActionBar from '@/components/ui/BulkActionBar';
 import { useMultiSelect } from '@/hooks/useMultiSelect';
 import { useBulkDelete } from '@/hooks/useBulkDelete';
 import { useAppToast } from '@/components/ui/ToastProvider';
+import { isStoredFileReference } from '@/lib/files/public-file-links';
 
 const ADMIN_LIST_LIMIT = 100;
 const CONTRATOS_CACHE_TTL_MS = 60 * 1000;
@@ -384,7 +385,9 @@ export default function ContratosPage() {
           item.enviadoEm ? new Date(item.enviadoEm).toLocaleString('pt-BR') : '',
           item.assinadoEm ? new Date(item.assinadoEm).toLocaleString('pt-BR') : '',
           item.linkContrato ? `${window.location.origin}${item.linkContrato}` : '',
-          item.pdfUrl || '',
+          item.contractId && isStoredFileReference(item.pdfUrl)
+            ? `${window.location.origin}/api/files/contracts/${encodeURIComponent(item.contractId)}/download`
+            : item.pdfUrl || '',
           item.docUrl || '',
           item.observacoes || '',
         ]),

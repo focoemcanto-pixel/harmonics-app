@@ -7,6 +7,10 @@ import {
   persistGoogleCredentialsToSupabase,
   validateGoogleOAuthTokensForStorage,
 } from '../../../../../lib/contracts/googleCredentials.js';
+import {
+  describeTokenPayloadShape,
+  exchangeGoogleAuthorizationCode,
+} from '../../../../../lib/google/oauth-token-exchange.js';
 
 const STATE_TTL_MS = 10 * 60 * 1000;
 
@@ -102,40 +106,6 @@ function getOAuth2Client() {
   return new google.auth.OAuth2(clientId, clientSecret, redirectUri);
 }
 
-function safeKeys(value) {
-  return value && typeof value === 'object' && !Array.isArray(value)
-    ? Object.keys(value)
-    : [];
-}
-
-function maskToken(value) {
-  const raw = String(value || '');
-  if (!raw) return null;
-  if (raw.length <= 12) return `${raw.slice(0, 4)}...`;
-  return `${raw.slice(0, 6)}...${raw.slice(-4)}`;
-}
-
-function serializeForLog(obj) {
-  try {
-    if (!obj || typeof obj !== 'object') return obj;
-
-    return JSON.parse(
-      JSON.stringify(obj, (key, value) => {
-        if (
-          key === 'access_token' ||
-          key === 'refresh_token' ||
-          key === 'id_token'
-        ) {
-          return maskToken(value);
-        }
-        return value;
-      })
-    );
-  } catch {
-    return '[unserializable]';
-  }
-}
-
 async function normalizeTokensWithPreviousRefreshToken(tokens, userId) {
   const refreshToken = String(tokens?.refresh_token || '').trim();
   if (refreshToken) return tokens;
@@ -154,31 +124,6 @@ async function normalizeTokensWithPreviousRefreshToken(tokens, userId) {
   return {
     ...tokens,
     refresh_token: previousRefreshToken,
-  };
-}
-
-function buildRawTokensCandidate(tokenResponse) {
-  const tokenData =
-    tokenResponse?.tokens && typeof tokenResponse.tokens === 'object'
-      ? tokenResponse.tokens
-      : null;
-
-  const responseData =
-    tokenResponse?.res?.data && typeof tokenResponse.res.data === 'object'
-      ? tokenResponse.res.data
-      : null;
-
-  if (responseData?.access_token) {
-    return responseData;
-  }
-
-  if (tokenData?.access_token) {
-    return tokenData;
-  }
-
-  return {
-    ...(responseData || {}),
-    ...(tokenData || {}),
   };
 }
 
@@ -331,29 +276,20 @@ export async function GET(request) {
 
     const oauth2Client = getOAuth2Client();
 
-    let tokenResponse;
+    let tokenPayload;
     try {
-      tokenResponse = await oauth2Client.getToken(code);
-      console.error('[CALLBACK] getToken() executado com sucesso');
-      console.error('[CALLBACK] tokenResponse keys:', safeKeys(tokenResponse));
+      tokenPayload = await exchangeGoogleAuthorizationCode({
+        code,
+        clientId: String(process.env.GOOGLE_OAUTH_CLIENT_ID || '').trim(),
+        clientSecret: String(process.env.GOOGLE_OAUTH_CLIENT_SECRET || '').trim(),
+        redirectUri: String(process.env.GOOGLE_OAUTH_REDIRECT_URI || '').trim(),
+      });
       console.error(
-        '[CALLBACK] tokenResponse has tokens:',
-        !!tokenResponse?.tokens
-      );
-      console.error(
-        '[CALLBACK] tokenResponse.tokens keys:',
-        safeKeys(tokenResponse?.tokens)
-      );
-      console.error(
-        '[CALLBACK] tokenResponse.res keys:',
-        safeKeys(tokenResponse?.res)
-      );
-      console.error(
-        '[CALLBACK] tokenResponse.res.data keys:',
-        safeKeys(tokenResponse?.res?.data)
+        '[CALLBACK] troca do code concluída:',
+        describeTokenPayloadShape(tokenPayload)
       );
     } catch (error) {
-      console.error('[CALLBACK] getToken() falhou:', error?.message || error);
+      console.error('[CALLBACK] troca do code falhou:', error?.message || error);
 
       return NextResponse.json(
         {
@@ -366,54 +302,23 @@ export async function GET(request) {
       );
     }
 
-    console.error(
-      '[CALLBACK] tokenResponse completo:',
-      serializeForLog({
-        tokenResponseKeys: safeKeys(tokenResponse),
-        tokenKeys: safeKeys(tokenResponse?.tokens),
-        resKeys: safeKeys(tokenResponse?.res),
-        resDataKeys: safeKeys(tokenResponse?.res?.data),
-        tokens: tokenResponse?.tokens,
-        resData: tokenResponse?.res?.data,
-      })
-    );
-
-    const rawTokensCandidate = buildRawTokensCandidate(tokenResponse);
-
-    console.error(
-      '[CALLBACK] rawTokensCandidate keys:',
-      safeKeys(rawTokensCandidate)
-    );
-    console.error(
-      '[CALLBACK] rawTokensCandidate masked:',
-      serializeForLog(rawTokensCandidate)
-    );
-
-    const normalizedTokensBase = normalizeTokens(rawTokensCandidate);
+    const normalizedTokensBase = normalizeTokens(tokenPayload);
 
     console.error('[CALLBACK] normalizedTokensBase:', {
       hasAccessToken: !!normalizedTokensBase.access_token,
       hasRefreshToken: !!normalizedTokensBase.refresh_token,
+      hasIdToken: !!normalizedTokensBase.id_token,
       token_type: normalizedTokensBase.token_type,
       scope: normalizedTokensBase.scope,
       expiry_date: normalizedTokensBase.expiry_date,
-      access_token: maskToken(normalizedTokensBase.access_token),
-      refresh_token: maskToken(normalizedTokensBase.refresh_token),
-      id_token: maskToken(normalizedTokensBase.id_token),
     });
 
     if (!normalizedTokensBase.access_token) {
       return NextResponse.json(
         {
           ok: false,
-          message: 'access_token ausente em tokenResponse.tokens',
-          debug: {
-            tokenResponseKeys: safeKeys(tokenResponse),
-            tokenResponseHasTokens: !!tokenResponse?.tokens,
-            tokenCandidateKeys: safeKeys(rawTokensCandidate),
-            tokenResponseTokensKeys: safeKeys(tokenResponse?.tokens),
-            tokenResponseResDataKeys: safeKeys(tokenResponse?.res?.data),
-          },
+          message: 'access_token ausente na resposta do Google',
+          debug: { tokenPayload: describeTokenPayloadShape(tokenPayload) },
         },
         { status: 400 }
       );
@@ -427,8 +332,6 @@ export async function GET(request) {
     console.error('[CALLBACK] tokens normalizados:', {
       hasAccessToken: !!normalizedTokens?.access_token,
       hasRefreshToken: !!normalizedTokens?.refresh_token,
-      access_token: maskToken(normalizedTokens?.access_token),
-      refresh_token: maskToken(normalizedTokens?.refresh_token),
     });
 
     const tokenValidation =
@@ -464,8 +367,6 @@ export async function GET(request) {
         normalizedTokensIsArray: Array.isArray(normalizedTokens),
         hasAccessToken: !!normalizedTokens?.access_token,
         hasRefreshToken: !!normalizedTokens?.refresh_token,
-        accessTokenMasked: maskToken(normalizedTokens?.access_token),
-        refreshTokenMasked: maskToken(normalizedTokens?.refresh_token),
       });
 
       if (!oauth2Client.credentials || typeof oauth2Client.credentials !== 'object') {
@@ -479,8 +380,6 @@ export async function GET(request) {
         oauth2CredentialsIsArray: Array.isArray(oauth2Client.credentials),
         hasAccessToken: !!oauth2Client?.credentials?.access_token,
         hasRefreshToken: !!oauth2Client?.credentials?.refresh_token,
-        accessTokenMasked: maskToken(oauth2Client?.credentials?.access_token),
-        refreshTokenMasked: maskToken(oauth2Client?.credentials?.refresh_token),
       });
 
       console.error('[CALLBACK] setCredentials() sucesso');

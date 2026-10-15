@@ -1,5 +1,8 @@
 # Bloqueios externos (ações que dependem do responsável)
 
+> Estado atualizado em 2026-10-15 (com evidências): `FECHAMENTO_STORAGE_SEGREDOS_ASAAS.md`.
+> BE-4 resolvido — o deploy agora é automático (Cloudflare Workers Builds) ao mergear na `main`.
+
 ## BE-1 — Remover listagem anônima dos buckets de contratos e comprovantes
 - **AÇÃO NECESSÁRIA:** Supabase Dashboard → projeto `harmonics-saas-dev` → Storage → Policies → tabela `objects`: excluir as políticas **"Public read contract pdfs"** e **"Public read access for payment proofs"**.
 - **MOTIVO:** `storage.objects` pertence a `supabase_storage_admin`; o acesso SQL disponível (`postgres`) não pode alterar essas políticas.

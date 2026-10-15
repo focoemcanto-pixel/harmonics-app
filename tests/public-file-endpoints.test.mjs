@@ -12,15 +12,17 @@ const tables = {
   precontracts: [
     { id: 'pre-a', public_token: 'tok-precontract-a', event_id: 'ev-a' },
     { id: 'pre-b', public_token: 'tok-precontract-b', event_id: 'ev-b' },
+    { id: 'pre-drive', public_token: 'tok-precontract-drive', event_id: 'ev-dp' },
   ],
   contracts: [
     { id: 'c-a', public_token: 'tok-contract-a', precontract_id: 'pre-a', event_id: 'ev-a', workspace_id: 'ws-a', created_at: '2026-01-01', pdf_url: `${STORAGE}/contract-pdfs/contracts/pre-a/contrato-assinado.pdf` },
     { id: 'c-b', public_token: 'tok-contract-b', precontract_id: 'pre-b', event_id: 'ev-b', workspace_id: 'ws-b', created_at: '2026-01-01', pdf_url: `${STORAGE}/contract-pdfs/contracts/pre-b/contrato-assinado.pdf` },
     { id: 'c-drive', public_token: 'tok-contract-drive', event_id: 'ev-d', workspace_id: 'ws-a', created_at: '2026-01-01', pdf_url: 'https://drive.google.com/file/d/abc/view' },
     { id: 'c-evil-bucket', public_token: 'tok-contract-evil1', event_id: 'ev-x', workspace_id: 'ws-a', created_at: '2026-01-01', pdf_url: `${STORAGE}/payment-proofs/workspaces/ws-b/events/ev-b/payments/x.pdf` },
+    { id: 'c-drive-pre', public_token: null, precontract_id: 'pre-drive', event_id: 'ev-dp', workspace_id: 'ws-a', created_at: '2026-01-01', pdf_url: 'https://drive.google.com/file/d/xyz/view' },
     { id: 'c-evil-host', public_token: 'tok-contract-evil2', event_id: 'ev-y', workspace_id: 'ws-a', created_at: '2026-01-01', pdf_url: 'https://attacker.example/phish.pdf' },
   ],
-  repertoire_config: [],
+  repertoire_config: [{ event_id: 'ev-a', client_public_token: 'tok-portal-cliente-a' }],
   payments: [
     { id: '11111111-1111-4111-8111-111111111111', event_id: 'ev-a', workspace_id: 'ws-a', proof_file_url: 'workspaces/ws-a/events/ev-a/payments/a.pdf' },
     { id: '22222222-2222-4222-8222-222222222222', event_id: 'ev-b', workspace_id: 'ws-b', proof_file_url: 'workspaces/ws-b/events/ev-b/payments/b.pdf' },
@@ -92,4 +94,26 @@ test('comprovante por token: só pagamentos do evento do token e do mesmo worksp
   assert.equal((await call(proofFile, { token: 'tok-precontract-a', paymentId: '33333333-3333-4333-8333-333333333333' }, db)).status, 404, 'arquivo de outro workspace');
   assert.equal((await call(proofFile, { token: 'tok-nao-existe-123', paymentId: '11111111-1111-4111-8111-111111111111' }, db)).status, 404);
   assert.deepEqual(db.signed, ['payment-proofs/workspaces/ws-a/events/ev-a/payments/a.pdf']);
+});
+
+test('comprovante: token do portal (client_public_token) e token do contrato resolvem o mesmo evento', async () => {
+  const db = fakeSupabase();
+  for (const token of ['tok-portal-cliente-a', 'tok-contract-a']) {
+    const res = await call(proofFile, { token, paymentId: '11111111-1111-4111-8111-111111111111' }, db);
+    assert.equal(res.status, 302, token);
+    assert.match(res.headers.get('location'), /payment-proofs\/workspaces\/ws-a\/events\/ev-a\//);
+  }
+  // Token do portal A não abre comprovante do evento B.
+  assert.equal((await call(proofFile, { token: 'tok-portal-cliente-a', paymentId: '22222222-2222-4222-8222-222222222222' }, db)).status, 404);
+});
+
+test('PDF: contrato do Drive sem token próprio abre pelo token do pré-contrato; sem params/token → 404', async () => {
+  const db = fakeSupabase();
+  const res = await call(contractFile, { token: 'tok-precontract-drive' }, db);
+  assert.equal(res.status, 302);
+  assert.equal(res.headers.get('location'), 'https://drive.google.com/file/d/xyz/view');
+  assert.equal((await contractFile(new Request('https://app.test/x'), {}, { supabase: db })).status, 404);
+  assert.equal((await proofFile(new Request('https://app.test/x'), {}, { supabase: db })).status, 404);
+  assert.equal((await call(proofFile, { token: 'tok-precontract-a', paymentId: 'nao-e-uuid' }, db)).status, 404);
+  assert.equal(db.signed.length, 0);
 });

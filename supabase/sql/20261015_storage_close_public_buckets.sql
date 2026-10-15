@@ -1,5 +1,6 @@
--- BE-1 / BE-2 — Fecha os buckets de arquivos (NÃO executado; rodar no SQL Editor do Dashboard,
--- que tem permissão de supabase_storage_admin, somente depois do GO registrado em docs/saas).
+-- BE-1 / BE-2 — Fecha os buckets de arquivos (NÃO executado). Procedimento oficial: docs/saas/STORAGE_FECHAMENTO.md.
+-- ATENÇÃO: o SQL Editor roda como `postgres`, que altera storage.buckets mas NÃO pode dropar policies de
+-- storage.objects (dono: supabase_storage_admin). Remova as 2 policies pela tela Storage → Policies.
 --
 -- Pré-condições (todas verificadas antes do GO):
 --   1. Código com os consumidores migrados (/api/public/files/contract/<token>,

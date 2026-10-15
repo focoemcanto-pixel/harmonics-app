@@ -430,7 +430,7 @@ export async function GET(request) {
     console.error('[CALLBACK] persist success');
 
     return NextResponse.redirect(
-      new URL('/contrato?google_oauth=success', request.url)
+      new URL('/contratos?google_oauth=success', request.url)
     );
   } catch (error) {
     console.error('[CALLBACK] ERRO CRÍTICO:', {

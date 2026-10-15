@@ -130,7 +130,7 @@ test('callback com resposta do Google sem Content-Type persiste a credencial e r
   }
 
   assert.equal(response.status, 307);
-  assert.equal(new URL(response.headers.get('location')).pathname + new URL(response.headers.get('location')).search, '/contrato?google_oauth=success');
+  assert.equal(new URL(response.headers.get('location')).pathname + new URL(response.headers.get('location')).search, '/contratos?google_oauth=success');
 
   assert.equal(calls.google.length, 1);
   assert.equal(calls.google[0].body.get('code'), 'auth-code-xyz');

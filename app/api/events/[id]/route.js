@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { withApiObservability } from '@/lib/observability/api-observability';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { deleteEventCascade } from '@/lib/events/delete-event-cascade';
 import { requireWorkspaceAccess } from '@/lib/api/require-workspace-access';
@@ -68,7 +69,7 @@ async function canCleanupDemoEventNow({ supabase, workspaceId }) {
   );
 }
 
-export async function DELETE(request, context) {
+async function handleDELETE(request, context) {
   const supabase = getSupabaseAdmin();
   const routeParams = await context?.params;
   const eventId = String(routeParams?.id || '').trim();
@@ -202,3 +203,5 @@ export async function DELETE(request, context) {
     );
   }
 }
+
+export const DELETE = withApiObservability(handleDELETE, { route: '/api/events/[id]' });

@@ -56,6 +56,7 @@ const REPERTOIRE_ITEMS_SELECT = [
   'section',
   'genres',
   'artists',
+  'musical_key',
 ].join(', ');
 
 const MEMBER_PANEL_DEMO_STEPS = [
@@ -398,6 +399,50 @@ function DesktopNavButton({
   );
 }
 
+function MemberBootScreen({ memberName = '' }) {
+  const firstName = String(memberName || '').split(' ')[0];
+  const message = firstName
+    ? 'Só um instante, ' + firstName + '. Estamos organizando seus eventos e repertórios.'
+    : 'Organizando seus eventos, escalas e repertórios para deixar tudo pronto.';
+
+  return (
+    <div className="relative flex min-h-[100dvh] items-center justify-center overflow-hidden bg-[#050814] px-6 text-white">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_28%,rgba(124,58,237,.28),transparent_34%),radial-gradient(circle_at_50%_78%,rgba(59,130,246,.12),transparent_32%)]" />
+      <div className="absolute inset-0 opacity-40 [background-image:linear-gradient(rgba(255,255,255,.025)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.025)_1px,transparent_1px)] [background-size:34px_34px]" />
+
+      <div className="relative z-10 flex w-full max-w-[430px] flex-col items-center text-center">
+        <div className="relative flex h-28 w-28 items-center justify-center">
+          <div className="absolute inset-0 rounded-full border border-violet-400/20 bg-violet-500/10 blur-[1px]" />
+          <div className="absolute inset-2 animate-ping rounded-full border border-violet-400/10 [animation-duration:2.4s]" />
+          <div className="relative flex h-20 w-20 items-center justify-center rounded-full border border-white/10 bg-black shadow-[0_20px_55px_rgba(124,58,237,.28)]">
+            <span className="font-serif text-[38px] italic text-white">H</span>
+          </div>
+        </div>
+
+        <div className="mt-7 inline-flex items-center gap-2 rounded-full border border-violet-300/20 bg-violet-500/10 px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-violet-200">
+          Harmonics Member
+        </div>
+
+        <h1 className="mt-6 text-[30px] font-black tracking-[-0.05em] text-white">
+          Preparando sua agenda
+        </h1>
+        <p className="mt-3 max-w-[320px] text-[14px] font-semibold leading-6 text-white/55">
+          {message}
+        </p>
+
+        <div className="mt-8 h-1.5 w-44 overflow-hidden rounded-full bg-white/8">
+          <div className="h-full w-2/3 animate-pulse rounded-full bg-[linear-gradient(90deg,#7c3aed,#a78bfa,#7c3aed)] shadow-[0_0_20px_rgba(139,92,246,.65)]" />
+        </div>
+
+        <div className="mt-5 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em] text-white/35">
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-violet-300" />
+          Sincronizando painel
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function LoginScreen({ onGoogleLogin, loggingIn, error }) {
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#050814] px-5 py-8 text-white">
@@ -680,7 +725,7 @@ export default function MembroPage() {
     // ✅ Se não é admin, continuar com validação normal em contacts
     const { data, error: memberError } = await supabase
       .from('contacts')
-      .select('id, name, email, phone, tag, is_active')
+      .select('id, workspace_id, name, email, phone, tag, is_active, can_view_all_events, can_manage_schedules')
       .eq('email', sessionEmail)
       .maybeSingle();
 
@@ -702,7 +747,36 @@ export default function MembroPage() {
       return;
     }
 
-    setMember(data);
+    let resolvedMember = {
+      ...data,
+      isAdmin: false,
+      canViewAllEvents: data.can_view_all_events === true || data.can_manage_schedules === true,
+      canManageSchedules: data.can_manage_schedules === true,
+    };
+
+    // Server-authoritative delegated agenda probe. This intentionally works for
+    // staff and musician/member contacts alike and uses the authenticated session.
+    if (!resolvedMember.canViewAllEvents) {
+      try {
+        const agendaProbe = await fetch('/api/membro/global-dashboard', {
+          method: 'GET',
+          cache: 'no-store',
+          headers: resolvedMember.workspace_id
+            ? { 'x-workspace-id': String(resolvedMember.workspace_id) }
+            : undefined,
+        });
+        if (agendaProbe.ok) {
+          resolvedMember = {
+            ...resolvedMember,
+            canViewAllEvents: true,
+          };
+        }
+      } catch (agendaProbeError) {
+        console.warn('[MEMBRO][AGENDA_PERMISSION_PROBE]', agendaProbeError);
+      }
+    }
+
+    setMember(resolvedMember);
   } catch (e) {
     console.error('Erro ao resolver membro:', e);
     setMember(null);
@@ -720,158 +794,48 @@ export default function MembroPage() {
       setLoadingData(true);
       setError('');
 
-      // ✅ SE FOR ADMIN: Buscar TODOS os dados (sem filtro)
-      if (currentMember.isAdmin) {
-        const [
-          scalesResp,
-          invitesResp,
-          precontractsResp,
-          contractsResp,
-          repertoireConfigsResp,
-          repertoireItemsResp,
-        ] = await Promise.all([
-          supabase
-            .from('event_musicians')
-            .select('id, event_id, musician_id, musician_name, snapshot_name, role, status, notes'),
-          supabase
-            .from('invites')
-            .select('event_id')
-            .neq('status', 'removed'),
-
-          supabase
-            .from('precontracts')
-            .select('id, event_id, public_token, reception_hours, has_sound, has_transport'),
-
-          supabase
-            .from('contracts')
-            .select(CONTRACTS_SELECT),
-
-          supabase
-            .from('repertoire_config')
-            .select(REPERTOIRE_CONFIG_SELECT),
-
-          supabase
-            .from('repertoire_items')
-            .select(REPERTOIRE_ITEMS_SELECT)
-            .order('item_order', { ascending: true }),
-        ]);
-
-        if (scalesResp.error) throw scalesResp.error;
-        if (invitesResp.error) throw invitesResp.error;
-        if (precontractsResp.error) throw precontractsResp.error;
-        if (contractsResp.error) throw contractsResp.error;
-        if (repertoireConfigsResp.error) throw repertoireConfigsResp.error;
-        if (repertoireItemsResp.error) throw repertoireItemsResp.error;
-
-        console.log('[MEMBRO_PANEL][RAW_QUERY_RESULT]', {
-          mode: 'admin',
-          scales: scalesResp.data?.length || 0,
-          invites: invitesResp.data?.length || 0,
-          precontracts: precontractsResp.data?.length || 0,
-          contracts: contractsResp.data?.length || 0,
-          repertoireConfigs: repertoireConfigsResp.data?.length || 0,
-          repertoireItems: repertoireItemsResp.data?.length || 0,
+      // Agenda global: admin e membros explicitamente autorizados usam endpoint server-side.
+      // Isso mantém a leitura isolada por workspace sem conceder papel de administrador ao contato.
+      if (currentMember.isAdmin || currentMember.canViewAllEvents) {
+        const params = new URLSearchParams();
+        if (isMemberPanelDemoGuide && demoEventId) params.set('eventId', demoEventId);
+        const suffix = params.toString() ? '?' + params.toString() : '';
+        const response = await fetch('/api/membro/global-dashboard' + suffix, {
+          method: 'GET',
+          cache: 'no-store',
+          headers: currentMember.workspace_id
+            ? { 'x-workspace-id': String(currentMember.workspace_id) }
+            : undefined,
         });
+        const payload = await response.json().catch(() => ({}));
 
-        const selectedDemoEventId = isMemberPanelDemoGuide && demoEventId ? demoEventId : '';
-        const scaleRows = Array.isArray(scalesResp.data) ? scalesResp.data : [];
-        const demoScaleRowsForEvent = selectedDemoEventId
-          ? scaleRows.filter((item) => String(item?.event_id || '').trim() === selectedDemoEventId)
-          : scaleRows;
-        setDemoScaleRows(demoScaleRowsForEvent);
-
-        const operationalEventIds = selectedDemoEventId
-          ? [selectedDemoEventId]
-          : Array.from(
-              new Set(
-                [...scaleRows, ...(invitesResp.data || [])]
-                  .map((item) => String(item?.event_id || '').trim())
-                  .filter(Boolean)
-              )
-            );
-        const eventsResp = await supabase
-          .from('events')
-          .select(`
-            id,
-            created_at,
-            *
-          `)
-          .order('event_date', { ascending: true })
-          .order('event_time', { ascending: true });
-
-        if (eventsResp.error) throw eventsResp.error;
-        const signedContractEventIds = new Set(
-          (contractsResp.data || [])
-            .filter((row) => isSignedContract(row))
-            .map((row) => String(row?.event_id || '').trim())
-            .filter(Boolean)
-        );
-        const repertoireEventIds = new Set(
-          (repertoireConfigsResp.data || [])
-            .filter((row) => hasRepertoireMaterial(row))
-            .map((row) => String(row?.event_id || '').trim())
-            .filter(Boolean)
-        );
-        const operationalEventIdsSet = new Set(operationalEventIds);
-        const relevantEventIds = selectedDemoEventId
-          ? new Set([selectedDemoEventId])
-          : new Set([
-              ...signedContractEventIds,
-              ...repertoireEventIds,
-              ...operationalEventIdsSet,
-            ]);
-
-        const adminEvents = (Array.isArray(eventsResp.data) ? eventsResp.data : [])
-          .filter((event) => {
-            const eventId = String(event?.id || '').trim();
-            if (!eventId) return false;
-            if (!relevantEventIds.has(eventId)) return false;
-            if (!isActiveSystemEvent(event)) return false;
-            if (!isValidEventDate(event?.event_date)) return false;
-            return true;
+        if (response.ok && payload?.ok) {
+          console.info('[MEMBER_PANEL][GLOBAL_AGENDA_API]', {
+            memberId: currentMember.id,
+            isAdmin: Boolean(currentMember.isAdmin),
+            delegated: Boolean(currentMember.canViewAllEvents && !currentMember.isAdmin),
+            workspaceId: payload.workspaceId || null,
+            events: Array.isArray(payload.events) ? payload.events.length : 0,
           });
-        const scaleByEventId = new Map(
-          demoScaleRowsForEvent.map((row) => [String(row?.event_id || '').trim(), row])
-        );
-        const adminInvites = adminEvents.map((event) => {
-          const scaleRow = scaleByEventId.get(String(event?.id || '').trim()) || null;
-          return {
-            id: `admin-event-${event.id}`,
-            event_id: event.id,
-            contact_id: currentMember.id,
-            suggested_role_name: scaleRow?.role || scaleRow?.snapshot_name || scaleRow?.musician_name || '',
-            message: scaleRow?.notes || '',
-            status: 'confirmed',
-            sent_at: event?.created_at || null,
-            responded_at: event?.created_at || null,
-            created_at: event?.created_at || null,
-            events: event,
-            source_flags: {
-              contractSigned: signedContractEventIds.has(String(event?.id || '').trim()),
-              repertoireReady: repertoireEventIds.has(String(event?.id || '').trim()),
-              operationActive: operationalEventIdsSet.has(String(event?.id || '').trim()),
-              adminPreview: true,
-            },
-          };
-        });
 
-        console.info('[MEMBER_PANEL][ADMIN_BYPASS]', {
+          setDemoScaleRows(Array.isArray(payload.scales) ? payload.scales : []);
+          setInvites(Array.isArray(payload.invites) ? payload.invites : []);
+          setPrecontracts(Array.isArray(payload.precontracts) ? payload.precontracts : []);
+          setContracts(Array.isArray(payload.contracts) ? payload.contracts : []);
+          setRepertoireConfigs(Array.isArray(payload.repertoireConfigs) ? payload.repertoireConfigs : []);
+          setRepertoireItems(Array.isArray(payload.repertoireItems) ? payload.repertoireItems : []);
+          return;
+        }
+
+        console.warn('[MEMBER_PANEL][GLOBAL_AGENDA_FALLBACK]', {
           memberId: currentMember.id,
-          totalEvents: adminEvents.length,
-          sourceEventIds: operationalEventIds.length,
-          signedContractEventIds: signedContractEventIds.size,
-          repertoireEventIds: repertoireEventIds.size,
-          relevantEventIds: relevantEventIds.size,
+          workspaceId: currentMember.workspace_id || null,
+          status: response.status,
+          error: payload?.error || 'Agenda global indisponível',
         });
-
-        setInvites(adminInvites);
-        setPrecontracts(Array.isArray(precontractsResp.data) ? precontractsResp.data : []);
-        setContracts(Array.isArray(contractsResp.data) ? contractsResp.data : []);
-        setRepertoireConfigs(Array.isArray(repertoireConfigsResp.data) ? repertoireConfigsResp.data : []);
-        setRepertoireItems(Array.isArray(repertoireItemsResp.data) ? repertoireItemsResp.data : []);
-        return;
+        // Não zera o painel se a agenda global falhar: cai para as consultas pessoais abaixo.
+        setError('');
       }
-
       // ✅ SE NÃO FOR ADMIN: Código original do membro (com filtro .eq('contact_id', currentMember.id))
      const [
   invitesResp,
@@ -1056,9 +1020,10 @@ export default function MembroPage() {
     });
   }, [invites, contracts, precontracts, repertoireConfigs, repertoireItems]);
 
-  const { confirmados, pendentes, proximosConfirmados, resumo } = useMemo(() => ({
+  const { confirmados, pendentes, recusados, proximosConfirmados, resumo } = useMemo(() => ({
     confirmados: Array.isArray(dashboard?.confirmados) ? dashboard.confirmados : [],
     pendentes: Array.isArray(dashboard?.pendentes) ? dashboard.pendentes : [],
+    recusados: Array.isArray(dashboard?.recusados) ? dashboard.recusados : [],
     proximosConfirmados: Array.isArray(dashboard?.proximosConfirmados)
       ? dashboard.proximosConfirmados
       : [],
@@ -1068,6 +1033,20 @@ export default function MembroPage() {
       repertorios: 0,
     },
   }), [dashboard]);
+
+  const agendaItems = useMemo(() => {
+    if (!(member?.isAdmin || member?.canViewAllEvents)) return confirmados;
+
+    const byEventId = new Map();
+    [...confirmados, ...pendentes, ...recusados].forEach((item) => {
+      const key = String(item?.eventId || item?.id || '').trim();
+      if (!key) return;
+      const previous = byEventId.get(key);
+      if (!previous || item?.isPersonalInvite === true) byEventId.set(key, item);
+    });
+
+    return Array.from(byEventId.values());
+  }, [member?.isAdmin, member?.canViewAllEvents, confirmados, pendentes, recusados]);
 
   const repertorios = useMemo(() => {
     return confirmados.filter(
@@ -1319,67 +1298,24 @@ export default function MembroPage() {
 
   function buildPlaylistFromRow(item) {
     if (!Array.isArray(item?.repertorioItems)) return [];
-    const rawItems = item.repertorioItems;
-    console.log('[MEMBRO_PLAYER][RAW_ITEMS]', rawItems);
 
-    const orderInput = rawItems.map((row) => ({
-      song: row?.musica || row?.song_name || '',
-      section: row?.section || row?.tipo || row?.type || '',
-      moment: row?.momento || row?.moment || '',
-      whoEnters: row?.quemEntra || row?.who_enters || '',
-      itemOrder: row?.item_order ?? row?.ordem ?? null,
-      label: row?.label || '',
-    }));
-    console.log('[MEMBRO_PLAYER][ORDER_INPUT]', orderInput);
-
-    const labelInput = rawItems.map((row) => ({
-      song: row?.musica || row?.song_name || '',
-      section: row?.section || '',
-      moment: row?.momento || row?.moment || '',
-      whoEnters: row?.quemEntra || row?.who_enters || '',
-      label: row?.label || '',
-    }));
-    console.log('[MEMBRO_PLAYER][LABEL_INPUT]', labelInput);
-
-    const orderedRows = rawItems
-      .filter((row) => Boolean(resolveTrackUrl(row)))
-      .map((row, index) => {
+    // Usa exatamente a sequência que já chega no repertório do membro.
+    return item.repertorioItems
+      .map((row, originalIndex) => ({ row, originalIndex }))
+      .filter(({ row }) => Boolean(resolveTrackUrl(row)))
+      .map(({ row, originalIndex }, index) => {
         const sectionKey = resolveSectionFromItem(row);
-        const sectionOrder = SECTION_ORDER[sectionKey] ?? 99;
-        const momentOrder = getMomentOrder(row);
-        const itemOrder = Number(row?.item_order ?? row?.ordem ?? index + 1);
-
         return {
-          row,
-          index,
+          itemId: row?.id || null,
+          title: row?.musica || row?.song_name || `Faixa ${index + 1}`,
+          subtitle: getDisplayLabel(row, sectionKey),
+          notes: row?.observacao || row?.notes || '',
+          videoId: String(row?.reference_video_id || '').trim(),
+          url: resolveTrackUrl(row),
+          order: row?.item_order ?? row?.ordem ?? originalIndex + 1,
           sectionKey,
-          sectionOrder,
-          momentOrder,
-          itemOrder,
         };
-      })
-      .sort((a, b) => {
-        if (a.sectionOrder !== b.sectionOrder) return a.sectionOrder - b.sectionOrder;
-        if (a.momentOrder !== b.momentOrder) return a.momentOrder - b.momentOrder;
-        if (a.itemOrder !== b.itemOrder) return a.itemOrder - b.itemOrder;
-        return a.index - b.index;
       });
-
-    const playlist = orderedRows.map((entry, index) => {
-      const row = entry.row;
-      return {
-        title: row?.musica || row?.song_name || `Faixa ${index + 1}`,
-        subtitle: getDisplayLabel(row, entry.sectionKey),
-        notes: row?.observacao || row?.notes || '',
-        videoId: String(row?.reference_video_id || '').trim(),
-        url: resolveTrackUrl(row),
-        order: row?.ordem ?? row?.item_order ?? index + 1,
-        sectionKey: entry.sectionKey,
-      };
-    });
-
-    console.log('[MEMBRO_PLAYER][FINAL_PLAYLIST]', playlist);
-    return playlist;
   }
 
   function openRepertoire(item, options = {}) {
@@ -1391,14 +1327,21 @@ export default function MembroPage() {
       return;
     }
 
-    const shouldAutoplay = options.autoplay === true;
+    let startIndex = Number.isFinite(options.startIndex) ? Number(options.startIndex) : 0;
+    if (options.startItemId) {
+      const byId = playlist.findIndex((track) => String(track?.itemId || '') === String(options.startItemId));
+      if (byId >= 0) startIndex = byId;
+    } else if (options.startOrder != null) {
+      const byOrder = playlist.findIndex((track) => Number(track?.order) === Number(options.startOrder));
+      if (byOrder >= 0) startIndex = byOrder;
+    }
 
-    replacePlaylist(playlist, { autoplay: shouldAutoplay, startIndex: 0 });
+    startIndex = Math.max(0, Math.min(startIndex, playlist.length - 1));
+    const shouldAutoplay = options.autoplay === true;
+    replacePlaylist(playlist, { autoplay: shouldAutoplay, startIndex });
     setPlayerEventTitle(item?.clientName || 'Repertório');
     setIsPlayerModalOpen(options.openModal !== false);
     setIsMiniPlayerVisible(false);
-    console.log('[AUDIO_PLAYER][CURRENT_TRACK]', playlist[0]?.title || '');
-    console.log('[AUDIO_PLAYER][IS_PLAYING]', shouldAutoplay);
   }
 
   function handleMinimizePlayer() {
@@ -1466,8 +1409,12 @@ export default function MembroPage() {
   }
 
   async function handleOpenScale(item) {
+    const eventKey = String(item?.eventId || '');
+    window.__harmonicsScaleRequestSeq = Number(window.__harmonicsScaleRequestSeq || 0) + 1;
+    const requestSeq = window.__harmonicsScaleRequestSeq;
+    const cachedScale = window.__harmonicsMemberScaleCache?.get?.(eventKey) || [];
     setScaleModalEvent(item || null);
-    setScaleModalMusicians([]);
+    setScaleModalMusicians(Array.isArray(cachedScale) ? cachedScale : []);
     setScaleModalOpen(true);
 
     try {
@@ -1488,7 +1435,6 @@ export default function MembroPage() {
           notes,
           contacts (
             id,
-            full_name,
             name,
             email,
             phone,
@@ -1508,7 +1454,6 @@ export default function MembroPage() {
           musician_id: row?.musician_id,
           role: row?.role || contact?.tag || '',
           status: row?.status || 'pending',
-          full_name: contact?.full_name || '',
           name: contact?.name || '',
           musician_name: row?.musician_name || '',
           snapshot_name: row?.snapshot_name || '',
@@ -1520,6 +1465,9 @@ export default function MembroPage() {
         };
       });
 
+      if (requestSeq !== window.__harmonicsScaleRequestSeq) return;
+      if (!window.__harmonicsMemberScaleCache) window.__harmonicsMemberScaleCache = new Map();
+      window.__harmonicsMemberScaleCache.set(eventKey, musicians);
       setScaleModalEvent(item || null);
       setScaleModalMusicians(musicians);
     } catch (e) {
@@ -1578,13 +1526,7 @@ export default function MembroPage() {
   }
 
   if (!sessionChecked) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-[#050814] text-white">
-        <div className="rounded-[24px] border border-white/10 bg-white/5 px-5 py-4 text-[15px] font-semibold">
-          Carregando acesso...
-        </div>
-      </div>
-    );
+    return <MemberBootScreen />;
   }
 
   if (!member) {
@@ -1597,6 +1539,10 @@ export default function MembroPage() {
         />
       </div>
     );
+  }
+
+  if (member && loadingData) {
+    return <MemberBootScreen memberName={member?.name || ''} />;
   }
 
   return (
@@ -1617,7 +1563,11 @@ export default function MembroPage() {
                   {member?.name || 'Membro'}
                 </h1>
                 <p className="mt-1 text-[13px] text-white/45">
-                  {member?.isAdmin ? '🔑 Visão administrativa' : 'Painel premium do músico'}
+                  {member?.isAdmin
+                    ? '🔑 Visão administrativa'
+                    : member?.canViewAllEvents
+                      ? '🗓️ Agenda global liberada'
+                      : 'Painel premium do músico'}
                 </p>
               </div>
             </div>
@@ -1771,7 +1721,7 @@ export default function MembroPage() {
               {!loadingData && activeTab === 'escalas' ? (
                 <MembroEscalasTab
   member={member}
-  confirmados={confirmados}
+  confirmados={agendaItems}
   onOpenRepertoire={handleOpenRepertoireSummary}
   onOpenMaps={openMaps}
   onOpenScale={handleOpenScale}
@@ -1813,7 +1763,9 @@ export default function MembroPage() {
       <MembroEscalaModal
         open={scaleModalOpen}
         eventTitle={scaleModalEvent?.clientName || 'Escala'}
+        eventId={scaleModalEvent?.eventId || null}
         musicians={scaleModalMusicians}
+        canManageSchedule={Boolean(member?.isAdmin || member?.canManageSchedules || member?.can_manage_schedules)}
         onClose={() => {
           setScaleModalOpen(false);
           setScaleModalEvent(null);
@@ -1834,6 +1786,15 @@ export default function MembroPage() {
         onOpenPlayer={(item) => {
           setRepertorioResumoOpen(false);
           openRepertoire(item, { autoplay: false, source: 'repertoire_summary_modal' });
+        }}
+        onOpenTrack={(item, row) => {
+          setRepertorioResumoOpen(false);
+          openRepertoire(item, {
+            autoplay: true,
+            startItemId: row?.id || null,
+            startOrder: row?.item_order ?? row?.ordem ?? null,
+            source: 'repertoire_track_direct',
+          });
         }}
         onGoToRepertorios={() => {
           setRepertorioResumoOpen(false);
@@ -1916,7 +1877,7 @@ export default function MembroPage() {
         onTogglePlay={handleTogglePlaying}
       />
 
-      {showWelcomeSplash ? (
+      {false && showWelcomeSplash ? (
         <WelcomeSplash
           visible={welcomeVisible}
           memberName={member?.name}

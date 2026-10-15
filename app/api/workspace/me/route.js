@@ -51,7 +51,7 @@ export async function GET(request) {
     });
 
     if (!auth.ok) {
-      return NextResponse.json({ ok: false, error: auth.error }, { status: auth.status || 401 });
+      return NextResponse.json({ ok: false, code: auth.code || null, error: auth.error }, { status: auth.status || 401 });
     }
 
     const role = normalizeRole(auth.role);

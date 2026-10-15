@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { assertRowInWorkspace, guardInternalOrWorkspaceAdmin } from '@/lib/api/route-guards';
 
 async function updateStatusById(supabase, table, id, status) {
   const { error } = await supabase
@@ -16,6 +17,9 @@ async function updateStatusById(supabase, table, id, status) {
 }
 
 export async function POST(request) {
+  const guard = await guardInternalOrWorkspaceAdmin(request, { logPrefix: '[POST /api/contracts/archive]' });
+  if (!guard.ok) return guard.response;
+
   try {
     const body = await request.json();
     const precontractId = String(body?.precontractId || '').trim();
@@ -29,6 +33,16 @@ export async function POST(request) {
     }
 
     const supabase = getSupabaseAdmin();
+
+    if (!guard.internal) {
+      const workspaceId = guard.auth.workspaceId;
+      const preCheck = await assertRowInWorkspace({ supabase, table: 'precontracts', id: precontractId, workspaceId });
+      if (!preCheck.ok) return preCheck.response;
+      if (contractId) {
+        const contractCheck = await assertRowInWorkspace({ supabase, table: 'contracts', id: contractId, workspaceId });
+        if (!contractCheck.ok) return contractCheck.response;
+      }
+    }
 
     await updateStatusById(supabase, 'precontracts', precontractId, 'cancelled');
 

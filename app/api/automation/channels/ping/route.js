@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { guardWorkspaceAdmin } from '@/lib/api/route-guards';
 
 function validateBody(body) {
   const missing = [];
@@ -10,7 +11,24 @@ function validateBody(body) {
   return missing;
 }
 
+// Hosts permitidos para o ping: evita uso da rota como proxy para destinos arbitrários (SSRF).
+const ALLOWED_PING_HOST_SUFFIXES = ['wasenderapi.com'];
+
+function isAllowedPingHost(targetUrl) {
+  try {
+    const { protocol, hostname } = new URL(targetUrl);
+    if (protocol !== 'https:') return false;
+    const host = hostname.toLowerCase();
+    return ALLOWED_PING_HOST_SUFFIXES.some((suffix) => host === suffix || host.endsWith(`.${suffix}`));
+  } catch {
+    return false;
+  }
+}
+
 export async function POST(request) {
+  const guard = await guardWorkspaceAdmin(request, { logPrefix: '[POST /api/automation/channels/ping]' });
+  if (!guard.ok) return guard.response;
+
   try {
     const body = await request.json();
     const missing = validateBody(body);
@@ -31,6 +49,11 @@ export async function POST(request) {
       targetUrl = new URL(body.api_url).toString();
     } catch {
       targetUrl = new URL(`https://${String(body.api_url).replace(/^\/+/, '')}`).toString();
+    }
+
+    if (!isAllowedPingHost(targetUrl)) {
+      clearTimeout(timeout);
+      return NextResponse.json({ error: 'Host do provider não permitido para teste.' }, { status: 400 });
     }
 
     const response = await fetch(targetUrl, {

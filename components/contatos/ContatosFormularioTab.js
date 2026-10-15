@@ -13,6 +13,7 @@ export default function ContatosFormularioTab({
   firstInputRef,
 }) {
   const isClient = form.contact_type === 'client';
+  const isOperationalContact = !isClient;
 
   return (
     <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_26px_rgba(17,24,39,0.04)] md:p-6">
@@ -110,6 +111,57 @@ export default function ContatosFormularioTab({
                 {tag}
               </button>
             ))}
+          </div>
+        </div>
+      ) : null}
+
+      {isOperationalContact ? (
+        <div className="mt-6 rounded-[22px] border border-violet-200 bg-violet-50/60 p-4">
+          <div className="text-[12px] font-black uppercase tracking-[0.08em] text-violet-700">
+            Permissões no painel do membro
+          </div>
+          <p className="mt-1 text-[14px] leading-6 text-[#64748b]">
+            Libere apenas para quem deve atuar na operação da agenda e das escalas.
+          </p>
+
+          <div className="mt-4 space-y-3">
+            <label className="flex items-start gap-3 rounded-[18px] border border-violet-100 bg-white px-4 py-3">
+              <input
+                type="checkbox"
+                checked={!!form.can_view_all_events}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  handleFormChange('can_view_all_events', checked);
+                  if (!checked) handleFormChange('can_manage_schedules', false);
+                }}
+                className="mt-1 h-4 w-4 rounded border-[#cbd5e1] text-violet-600 focus:ring-violet-500"
+              />
+              <div>
+                <div className="text-[14px] font-black text-[#0f172a]">Visualizar agenda global</div>
+                <p className="mt-1 text-[13px] leading-5 text-[#64748b]">
+                  Exibe no painel do membro todos os eventos operacionais, como na visão administrativa, mesmo quando ele não está escalado.
+                </p>
+              </div>
+            </label>
+
+            <label className="flex items-start gap-3 rounded-[18px] border border-violet-100 bg-white px-4 py-3">
+              <input
+                type="checkbox"
+                checked={!!form.can_manage_schedules}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  if (checked) handleFormChange('can_view_all_events', true);
+                  handleFormChange('can_manage_schedules', checked);
+                }}
+                className="mt-1 h-4 w-4 rounded border-[#cbd5e1] text-violet-600 focus:ring-violet-500"
+              />
+              <div>
+                <div className="text-[14px] font-black text-[#0f172a]">Montar e editar escalas</div>
+                <p className="mt-1 text-[13px] leading-5 text-[#64748b]">
+                  Libera o botão Montar/Editar dentro da agenda global e permite salvar a escala e disparar os convites, sem transformar o membro em administrador do sistema.
+                </p>
+              </div>
+            </label>
           </div>
         </div>
       ) : null}

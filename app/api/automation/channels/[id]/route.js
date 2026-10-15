@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { getDefaultWorkspaceSettings } from '@/lib/automation/get-workspace';
+import { guardWorkspaceAdmin } from '@/lib/api/route-guards';
 
 const SAVE_CHANNELS_AUDIT_VERSION = '2026-04-12-audit-v2';
 
@@ -16,14 +15,17 @@ function normalizeAdminPhone(value) {
 }
 
 export async function PATCH(request, context) {
+  const guard = await guardWorkspaceAdmin(request, { logPrefix: '[PATCH /api/automation/channels/[id]]' });
+  if (!guard.ok) return guard.response;
+
   try {
     const routeParams = await context?.params;
     const { id } = routeParams || {};
     const body = await request.json();
 
-    const supabaseAdmin = getSupabaseAdmin();
-    const workspace = await getDefaultWorkspaceSettings();
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'missing';
+    const supabaseAdmin = guard.supabase;
+    // Escopo vem da sessão (membership), nunca do "primeiro workspace_settings ativo".
+    const workspace = { id: guard.auth.workspaceId };
 
     const { data: existing, error: findError } = await supabaseAdmin
       .from('whatsapp_channels')
@@ -80,7 +82,6 @@ export async function PATCH(request, context) {
     console.info('[PATCH /api/automation/channels/:id] save-audit:start', {
       audit_version: SAVE_CHANNELS_AUDIT_VERSION,
       deploy_sha: process.env.VERCEL_GIT_COMMIT_SHA || process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA || 'unknown',
-      supabase_url: supabaseUrl,
       channel_id: id,
       workspace_found: !!workspace,
       existing_workspace_settings_id: existing.workspace_id || null,
@@ -104,6 +105,7 @@ export async function PATCH(request, context) {
       .from('whatsapp_channels')
       .update(updates)
       .eq('id', id)
+      .eq('workspace_id', workspace.id)
       .select()
       .single();
 
@@ -120,12 +122,15 @@ export async function PATCH(request, context) {
 }
 
 
-export async function DELETE(_request, context) {
+export async function DELETE(request, context) {
+  const guard = await guardWorkspaceAdmin(request, { logPrefix: '[DELETE /api/automation/channels/[id]]' });
+  if (!guard.ok) return guard.response;
+
   try {
     const routeParams = await context?.params;
     const { id } = routeParams || {};
-    const supabaseAdmin = getSupabaseAdmin();
-    const workspace = await getDefaultWorkspaceSettings();
+    const supabaseAdmin = guard.supabase;
+    const workspace = { id: guard.auth.workspaceId };
 
     const { data: existing, error: findError } = await supabaseAdmin
       .from('whatsapp_channels')

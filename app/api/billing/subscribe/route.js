@@ -1,69 +1,128 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
-import { getCurrentWorkspace } from '@/lib/workspaces/get-current-workspace';
-import { createCustomer, createSubscription } from '@/src/lib/asaas/client';
+import { withApiObservability } from '@/lib/observability/api-observability';
+import { guardWorkspaceAdmin } from '@/lib/api/route-guards';
+import { loadLatestSubscriptionRow, loadWorkspaceBilling } from '@/lib/billing/plan-limits';
+import { normalizeStatus } from '@/lib/billing/subscription-state';
+import { createCustomer, createSubscription, listSubscriptionPayments, updateSubscription } from '@/lib/billing/asaas-client';
 
-export async function POST(request) {
+export const dynamic = 'force-dynamic';
+
+const CHECKOUT_REUSE_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+function onlyDigits(value) {
+  return String(value || '').replace(/\D+/g, '');
+}
+
+function fail(status, error, code = null) {
+  return NextResponse.json({ ok: false, error, code }, { status });
+}
+
+async function handlePOST(request) {
+  const guard = await guardWorkspaceAdmin(request, { logPrefix: '[POST /api/billing/subscribe]' });
+  if (!guard.ok) return guard.response;
+
+  const supabase = guard.supabase;
+  const workspaceId = guard.auth.workspaceId;
+  const body = await request.json().catch(() => ({}));
+  const planSlug = String(body?.planSlug || '').trim();
+
   try {
-    const { planSlug } = await request.json();
-    if (!planSlug) return NextResponse.json({ error: 'Plano obrigatório.' }, { status: 400 });
+    const { data: plan } = await supabase
+      .from('workspace_plans')
+      .select('id, slug, name, monthly_price, is_public')
+      .eq('slug', planSlug)
+      .eq('is_public', true)
+      .maybeSingle();
 
-    const supabase = createClient();
-    const { data: auth } = await supabase.auth.getUser();
-    const user = auth?.user;
-    if (!user) return NextResponse.json({ error: 'Faça login para assinar.' }, { status: 401 });
+    if (!plan?.id) return fail(404, 'Plano inválido.');
+    if (!(Number(plan.monthly_price) > 0)) return fail(400, 'Este plano não exige pagamento.');
 
-    const ctx = await getCurrentWorkspace({ request });
-    const workspaceId = ctx?.workspace?.id;
-    if (!workspaceId) return NextResponse.json({ error: 'Workspace não encontrado.' }, { status: 400 });
+    const billing = await loadWorkspaceBilling({ supabase, workspaceId });
+    if (billing.effectiveReason === 'internal_workspace') return fail(409, 'Este workspace usa um plano interno.');
 
-    const { data: plan } = await supabase.from('workspace_plans').select('*').eq('slug', planSlug).eq('is_active', true).single();
-    if (!plan) return NextResponse.json({ error: 'Plano inválido.' }, { status: 404 });
+    // Sem assinatura ativa (ex.: cancelada antes): reaproveita a linha mais recente para reassinar.
+    const subscription = billing.subscription || (await loadLatestSubscriptionRow({ supabase, workspaceId }));
+    if (!subscription?.id) return fail(409, 'Assinatura do workspace não encontrada.');
 
-    const { data: profile } = await supabase.from('profiles').select('full_name, phone, email').eq('id', user.id).single();
-    let { data: subscription } = await supabase.from('workspace_subscriptions').select('*').eq('workspace_id', workspaceId).order('created_at', { ascending: false }).limit(1).maybeSingle();
+    const pending = subscription.metadata?.pending_checkout;
+    const pendingIsFresh = pending?.created_at && Date.now() - new Date(pending.created_at).getTime() < CHECKOUT_REUSE_WINDOW_MS;
+    if (pending?.plan_id === plan.id && pendingIsFresh && pending.invoice_url) {
+      // Idempotência: clique duplo / volta pelo navegador reaproveita a mesma cobrança.
+      return NextResponse.json({ ok: true, reused: true, checkoutUrl: pending.invoice_url });
+    }
 
-    let customerId = subscription?.asaas_customer_id;
+    const hasPaidSubscription = Boolean(subscription.provider_subscription_id) && !subscription.cancel_at_period_end && normalizeStatus(subscription.status) !== 'canceled';
+    if (hasPaidSubscription) {
+      if (subscription.plan_id === plan.id) return fail(409, 'Você já está neste plano.');
+      // Troca de plano: ajusta o valor da assinatura existente; vale a partir de agora.
+      await updateSubscription(subscription.provider_subscription_id, {
+        value: Number(plan.monthly_price),
+        description: `Harmonics ${plan.name}`,
+        updatePendingPayments: true,
+      });
+      const { error } = await supabase
+        .from('workspace_subscriptions')
+        .update({ plan_id: plan.id, updated_at: new Date().toISOString() })
+        .eq('id', subscription.id);
+      if (error) throw error;
+      return NextResponse.json({ ok: true, changed: true });
+    }
+
+    let customerId = subscription.provider_customer_id || null;
     if (!customerId) {
+      const cpfCnpj = onlyDigits(body?.cpfCnpj);
+      if (cpfCnpj.length !== 11 && cpfCnpj.length !== 14) {
+        return fail(400, 'Informe um CPF ou CNPJ válido para emitir a cobrança.', 'CPF_CNPJ_REQUIRED');
+      }
       const customer = await createCustomer({
-        name: profile?.full_name || user.email,
-        email: profile?.email || user.email,
-        mobilePhone: profile?.phone || undefined,
+        name: String(body?.name || guard.auth.workspace?.name || guard.auth.email || 'Cliente Harmonics').slice(0, 120),
+        email: guard.auth.email || undefined,
+        cpfCnpj,
+        mobilePhone: onlyDigits(body?.phone) || undefined,
         externalReference: workspaceId,
       });
       customerId = customer.id;
     }
 
-    const startDate = new Date().toISOString().slice(0, 10);
-    const asaasSubscription = await createSubscription({
+    const today = new Date().toISOString().slice(0, 10);
+    const providerSubscription = await createSubscription({
       customer: customerId,
       billingType: 'UNDEFINED',
-      value: Number(plan.monthly_price || 0),
-      nextDueDate: startDate,
+      value: Number(plan.monthly_price),
+      nextDueDate: today,
       cycle: 'MONTHLY',
-      description: `Assinatura Harmonics ${plan.name}`,
+      description: `Harmonics ${plan.name}`,
       externalReference: workspaceId,
     });
 
-    const updatePayload = {
-      plan_id: plan.id,
-      status: 'trialing',
-      provider: 'asaas',
-      asaas_customer_id: customerId,
-      asaas_subscription_id: asaasSubscription.id,
-      asaas_payment_id: asaasSubscription?.payment?.id || null,
-      next_billing_at: asaasSubscription?.nextDueDate || null,
-    };
+    const payments = await listSubscriptionPayments(providerSubscription.id).catch(() => null);
+    const invoiceUrl = payments?.data?.[0]?.invoiceUrl || null;
 
-    if (subscription?.id) {
-      await supabase.from('workspace_subscriptions').update(updatePayload).eq('id', subscription.id);
-    } else {
-      await supabase.from('workspace_subscriptions').insert({ workspace_id: workspaceId, ...updatePayload });
-    }
+    // O plano atual (ex.: Free) continua valendo até o webhook confirmar o pagamento.
+    const { error: updateError } = await supabase
+      .from('workspace_subscriptions')
+      .update({
+        provider_customer_id: customerId,
+        metadata: {
+          ...(subscription.metadata || {}),
+          pending_checkout: {
+            plan_id: plan.id,
+            provider_subscription_id: providerSubscription.id,
+            provider_customer_id: customerId,
+            invoice_url: invoiceUrl,
+            created_at: new Date().toISOString(),
+          },
+        },
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', subscription.id);
+    if (updateError) throw updateError;
 
-    return NextResponse.json({ ok: true, checkoutUrl: asaasSubscription.invoiceUrl || asaasSubscription.remoteCheckoutUrl || null });
+    return NextResponse.json({ ok: true, checkoutUrl: invoiceUrl });
   } catch (error) {
-    console.error('[billing.subscribe] error', error);
-    return NextResponse.json({ error: error.message || 'Erro ao criar assinatura.' }, { status: 500 });
+    console.error('[POST /api/billing/subscribe][ERROR]', { workspaceId, code: error?.code, message: error?.message });
+    return fail(error?.statusCode || 500, error?.code === 'ASAAS_NOT_CONFIGURED' ? error.message : 'Não foi possível iniciar a assinatura.', error?.code || null);
   }
 }
+
+export const POST = withApiObservability(handlePOST, { route: '/api/billing/subscribe' });

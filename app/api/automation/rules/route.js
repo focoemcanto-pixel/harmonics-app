@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { getCurrentAutomationWorkspaceSettings } from '@/lib/automation/get-workspace';
 import { ensureDefaultAutomations } from '@/lib/automation/ensure-defaults';
-import { requireAdmin } from '@/lib/api/require-admin';
+import { requireWorkspaceAdmin as requireAdmin } from '@/lib/api/require-workspace-access';
 
 function asUuidOrNull(value) {
   const raw = String(value || '').trim();
@@ -12,7 +12,8 @@ function asUuidOrNull(value) {
 }
 
 function scopeWorkspace(query, workspaceId) {
-  return workspaceId ? query.eq('workspace_id', workspaceId) : query;
+  // Sem workspace resolvido não há escopo seguro: não retorna nada (fail-closed).
+  return query.eq('workspace_id', workspaceId || '00000000-0000-0000-0000-000000000000');
 }
 
 async function requireAutomationRulesAdmin(request, method) {

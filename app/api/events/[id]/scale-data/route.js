@@ -47,7 +47,9 @@ export async function GET(request, context) {
       supabase
         .from('scale_templates')
         .select('*')
-        .eq('is_active', true),
+        .eq('is_active', true)
+        // Templates do workspace do evento; linhas legadas sem workspace continuam disponíveis.
+        .or(`workspace_id.is.null,workspace_id.eq.${auth.workspaceId}`),
       supabase
         .from('scale_template_items')
         .select('*')

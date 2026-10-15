@@ -1,6 +1,8 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import EditableMusicalKey from './EditableMusicalKey';
+import LyricsBrowserOverlay from './LyricsBrowserOverlay';
 
 const SECTION_ORDER = ['antessala', 'cortejo', 'cerimonia', 'saida', 'receptivo'];
 
@@ -68,7 +70,7 @@ function openLyricsSearch(title) {
   window.open(`https://www.google.com/search?q=${query}`, '_blank', 'noopener,noreferrer');
 }
 
-function RepertorioLinha({ row, index, displayNumber }) {
+function RepertorioLinha({ row, index, displayNumber, onOpenLyrics, onOpenTrack }) {
   const orderLabel = getOrderLabel(row, index);
   const title = getMainTitle(row, index);
   const secondary = getSecondaryText(row);
@@ -82,8 +84,16 @@ function RepertorioLinha({ row, index, displayNumber }) {
         <div className="min-w-0 flex-1">
           <div className="break-words text-[11px] font-extrabold uppercase tracking-[0.08em] text-violet-200/60">{orderLabel}</div>
           <div className="mt-1 flex items-start gap-2">
-            <div className="min-w-0 flex-1 break-words text-[17px] font-black text-white">{title}</div>
-            <button type="button" onClick={() => openLyricsSearch(title)} aria-label={`Buscar letra de ${title}`} title="Abrir letra" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] border border-violet-300/20 bg-violet-400/10 text-[17px] text-violet-100 transition active:scale-95">♫</button>
+            <button
+              type="button"
+              onClick={() => onOpenTrack?.(row)}
+              disabled={!resolveTrackUrl(row)}
+              className="min-w-0 flex-1 break-words text-left text-[17px] font-black text-white underline-offset-4 transition enabled:active:scale-[0.99] disabled:cursor-default"
+              title={resolveTrackUrl(row) ? 'Abrir esta música no player' : undefined}
+            >
+              {title}
+            </button>
+            <div className="flex shrink-0 flex-col items-end gap-2"><button type="button" onClick={() => onOpenLyrics?.(row)} aria-label={`Buscar letra de ${title}`} title="Abrir letra" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] border border-violet-300/20 bg-violet-400/10 text-[17px] text-violet-100 transition active:scale-95">♫</button><EditableMusicalKey row={row} /></div>
           </div>
           {showSecondary ? <div className="mt-1 break-words text-[12px] font-semibold uppercase tracking-[0.08em] text-violet-200/70">{secondary}</div> : null}
           {row?.observacao ? <div className="mt-2 break-words rounded-[14px] border border-white/10 bg-black/10 px-3 py-3 text-[13px] leading-5 text-white/70"><span className="font-black text-white/85">Observação:</span>{' '}{row.observacao}</div> : null}
@@ -99,7 +109,8 @@ function ConfigBlock({ title, rows = [], references = [] }) {
   return <div className="rounded-[18px] border border-white/10 bg-[#1e1535] px-4 py-4"><div className="space-y-2 break-words text-[14px] text-white/80">{title ? <div className="font-black text-white">{title}</div> : null}{visibleRows.map((row) => <div key={row.label}><span className="font-black text-white">{row.label}:</span> {row.value}</div>)}{references.length ? <div><div className="font-black text-white">Referências:</div><ul className="mt-1 list-disc space-y-1 pl-5 text-[13px] text-violet-100/85">{references.map((ref) => <li className="break-all" key={ref}>{ref}</li>)}</ul></div> : null}</div></div>;
 }
 
-export default function MembroRepertorioResumoModal({ open, item, onClose, onOpenPdf, onOpenPlayer, onGoToRepertorios }) {
+export default function MembroRepertorioResumoModal({ open, item, onClose, onOpenPdf, onOpenPlayer, onOpenTrack, onGoToRepertorios }) {
+  const [lyricsIndex, setLyricsIndex] = useState(null);
   useEffect(() => {
     if (!open || typeof document === 'undefined') return;
     const htmlOverflow = document.documentElement.style.overflow;
@@ -140,12 +151,35 @@ export default function MembroRepertorioResumoModal({ open, item, onClose, onOpe
     return { rawInput, orderedSections, antessalaBlock, receptivoBlock };
   }, [item]);
 
+  const lyricsItems = useMemo(() => {
+    const result = [];
+    (repertorioData?.orderedSections || []).forEach((section) => {
+      (section?.items || []).forEach(({ row, displayNumber }, index) => {
+        result.push({
+          id: String(row?.id || row?.repertoire_item_id || (section.key + '-' + (displayNumber || index))),
+          row,
+          title: getMainTitle(row, index),
+          subtitle: getSecondaryText(row) || section?.label || '',
+        });
+      });
+    });
+    return result;
+  }, [repertorioData]);
+
+  function handleOpenLyrics(targetRow) {
+    const targetId = String(targetRow?.id || targetRow?.repertoire_item_id || '');
+    let nextIndex = lyricsItems.findIndex((entry) => targetId && String(entry?.id || '') === targetId);
+    if (nextIndex < 0) nextIndex = lyricsItems.findIndex((entry) => entry?.row === targetRow);
+    if (nextIndex >= 0) setLyricsIndex(nextIndex);
+  }
+
   const hasPdf = Boolean(item?.repertorioPdfUrl);
   const hasPlayer = repertorioData.rawInput.some((row) => Boolean(resolveTrackUrl(row)));
   const hasRepertorio = repertorioData.rawInput.length > 0 || Boolean(repertorioData.antessalaBlock.estilo || repertorioData.antessalaBlock.observacao || repertorioData.antessalaBlock.references.length || repertorioData.receptivoBlock.duracao || repertorioData.receptivoBlock.generos || repertorioData.receptivoBlock.artistas || repertorioData.receptivoBlock.observacao || repertorioData.receptivoBlock.references.length);
   if (!open || !item) return null;
 
   return (
+    <>
     <div className="fixed inset-0 z-[180] bg-black/70 backdrop-blur-[4px]" onClick={(e) => { if (e.target === e.currentTarget) onClose?.(); }}>
       <div className="flex h-[100dvh] items-end justify-center overflow-hidden px-0 pt-[env(safe-area-inset-top,0px)]">
         <div className="flex h-[min(92dvh,calc(100dvh-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px)))] w-full max-w-[500px] flex-col overflow-hidden rounded-t-[22px] border border-white/10 bg-[#1a1230] text-white shadow-[0_24px_80px_rgba(0,0,0,0.42)] md:my-6 md:h-auto md:max-h-[88vh] md:rounded-[20px]" onClick={(e) => e.stopPropagation()}>
@@ -155,12 +189,20 @@ export default function MembroRepertorioResumoModal({ open, item, onClose, onOpe
               const isAntessala = section.key === 'antessala'; const isReceptivo = section.key === 'receptivo';
               const hasExtra = (isAntessala && (repertorioData.antessalaBlock.estilo || repertorioData.antessalaBlock.observacao || repertorioData.antessalaBlock.references.length)) || (isReceptivo && (repertorioData.receptivoBlock.duracao || repertorioData.receptivoBlock.generos || repertorioData.receptivoBlock.artistas || repertorioData.receptivoBlock.observacao || repertorioData.receptivoBlock.references.length));
               if (!section.items.length && !hasExtra) return null;
-              return <div key={section.key} className="space-y-2"><div className="break-words px-1 pt-2 text-[13px] font-black uppercase tracking-[0.08em] text-violet-300">{section.label}</div>{isAntessala ? <ConfigBlock rows={[{ label: 'Estilo', value: repertorioData.antessalaBlock.estilo }, { label: 'Observações', value: repertorioData.antessalaBlock.observacao }]} references={repertorioData.antessalaBlock.references} /> : null}{isReceptivo ? <ConfigBlock rows={[{ label: 'Duração', value: repertorioData.receptivoBlock.duracao }, { label: 'Gêneros', value: repertorioData.receptivoBlock.generos }, { label: 'Artistas', value: repertorioData.receptivoBlock.artistas }, { label: 'Observações', value: repertorioData.receptivoBlock.observacao }]} references={repertorioData.receptivoBlock.references} /> : null}{section.items.map(({ row, displayNumber }, index) => <RepertorioLinha key={`${section.key}-${row?.ordem || row?.item_order || index}-${row?.musica || row?.song_name || index}`} row={row} index={index} displayNumber={displayNumber} />)}</div>;
+              return <div key={section.key} className="space-y-2"><div className="break-words px-1 pt-2 text-[13px] font-black uppercase tracking-[0.08em] text-violet-300">{section.label}</div>{isAntessala ? <ConfigBlock rows={[{ label: 'Estilo', value: repertorioData.antessalaBlock.estilo }, { label: 'Observações', value: repertorioData.antessalaBlock.observacao }]} references={repertorioData.antessalaBlock.references} /> : null}{isReceptivo ? <ConfigBlock rows={[{ label: 'Duração', value: repertorioData.receptivoBlock.duracao }, { label: 'Gêneros', value: repertorioData.receptivoBlock.generos }, { label: 'Artistas', value: repertorioData.receptivoBlock.artistas }, { label: 'Observações', value: repertorioData.receptivoBlock.observacao }]} references={repertorioData.receptivoBlock.references} /> : null}{section.items.map(({ row, displayNumber }, index) => <RepertorioLinha key={`${section.key}-${row?.ordem || row?.item_order || index}-${row?.musica || row?.song_name || index}`} row={row} index={index} displayNumber={displayNumber} onOpenLyrics={handleOpenLyrics} onOpenTrack={(selectedRow) => onOpenTrack?.(item, selectedRow)} />)}</div>;
             })}</div> : <div className="rounded-[16px] border border-dashed border-white/10 bg-white/5 px-4 py-5 text-center text-[14px] font-semibold leading-6 text-white/60">O cliente ainda não enviou o repertório deste evento.</div>}
             <div className="mt-4 grid grid-cols-1 gap-3"><button type="button" onClick={() => onOpenPdf(item)} disabled={!hasPdf} className="min-h-11 touch-manipulation rounded-[14px] border border-white/10 bg-[#241b3d] px-4 py-3 text-[14px] font-black text-white disabled:opacity-50">Baixar PDF</button><button type="button" onClick={() => onOpenPlayer(item)} disabled={!hasPlayer} className="min-h-11 touch-manipulation rounded-[14px] bg-[linear-gradient(135deg,#7c3aed,#8b5cf6)] px-4 py-3 text-[14px] font-black text-white disabled:opacity-50">Abrir player</button><button type="button" onClick={onGoToRepertorios} className="min-h-11 touch-manipulation rounded-[14px] border border-white/10 bg-[#241b3d] px-4 py-3 text-[14px] font-black text-white">Ir para repertórios</button></div>
           </div>
         </div>
       </div>
     </div>
+      <LyricsBrowserOverlay
+        open={lyricsIndex !== null}
+        items={lyricsItems}
+        index={lyricsIndex ?? 0}
+        onIndexChange={setLyricsIndex}
+        onClose={() => setLyricsIndex(null)}
+      />
+    </>
   );
 }

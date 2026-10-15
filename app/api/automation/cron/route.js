@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { withApiObservability } from '@/lib/observability/api-observability';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { getActiveRules } from '@/lib/automation/get-active-rules';
 import { getScheduledCandidates } from '@/lib/automation/get-scheduled-candidates';
@@ -88,7 +89,7 @@ async function runCronForWorkspace(workspaceId, startedAt) {
   return summary;
 }
 
-export async function GET(request) {
+async function handleGET(request) {
   const cronSecret = process.env.CRON_SECRET;
   if (cronSecret) {
     const authHeader = request.headers.get('authorization');
@@ -130,3 +131,5 @@ export async function GET(request) {
     return NextResponse.json({ error: error?.message || 'Erro interno' }, { status: 500 });
   }
 }
+
+export const GET = withApiObservability(handleGET, { route: '/api/automation/cron' });

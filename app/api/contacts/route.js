@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { withApiObservability } from '@/lib/observability/api-observability';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requireWorkspaceAccess } from '@/lib/api/require-workspace-access';
 
@@ -6,7 +7,7 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 const CONTACTS_SELECT_FIELDS =
-  'id, workspace_id, created_at, name, email, phone, tag, notes, contact_type, is_active';
+  'id, workspace_id, created_at, name, email, phone, tag, notes, contact_type, is_active, can_view_all_events, can_manage_schedules';
 
 function asString(value) {
   return String(value || '').trim();
@@ -25,11 +26,17 @@ function normalizeContactPayload(payload = {}, workspaceId) {
     notes: asString(payload.notes) || null,
     contact_type: asString(payload.contact_type) || 'musician',
     is_active: payload.is_active !== false,
+    can_view_all_events:
+      asString(payload.contact_type) === 'client'
+        ? false
+        : payload.can_view_all_events === true || payload.can_manage_schedules === true,
+    can_manage_schedules:
+      asString(payload.contact_type) === 'client' ? false : payload.can_manage_schedules === true,
     workspace_id: workspaceId,
   };
 }
 
-export async function GET(request) {
+async function handleGET(request) {
   const supabase = getSupabaseAdmin();
 
   try {
@@ -81,7 +88,7 @@ export async function GET(request) {
   }
 }
 
-export async function POST(request) {
+async function handlePOST(request) {
   const supabase = getSupabaseAdmin();
 
   try {
@@ -168,3 +175,7 @@ export async function POST(request) {
     );
   }
 }
+
+export const GET = withApiObservability(handleGET, { route: '/api/contacts' });
+
+export const POST = withApiObservability(handlePOST, { route: '/api/contacts' });

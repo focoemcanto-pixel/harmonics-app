@@ -25,7 +25,7 @@ function getInitials(name) {
 }
 
 function getScaleMemberName(member) {
-  return member?.contact?.full_name || member?.contact?.name || member?.full_name || member?.name || member?.musician_name || member?.snapshot_name || member?.notes || 'Membro';
+  return member?.contact?.name || member?.contact?.full_name || member?.contact_name || member?.member_name || member?.invitee_name || member?.name || member?.full_name || member?.musician_name || member?.snapshot_name || 'Membro';
 }
 
 function normalizePhone(value) {
@@ -81,8 +81,9 @@ function MusicianRow({ item, eventTitle }) {
   );
 }
 
-export default function MembroEscalaModal({ open, eventTitle, musicians = [], onClose }) {
-  const cached = scaleCache.get(String(eventTitle || '').trim()) || null;
+export default function MembroEscalaModal({ open, eventTitle, eventId = null, musicians = [], canManageSchedule = false, onClose }) {
+  const scaleCacheKey = String(eventId || eventTitle || '').trim();
+  const cached = scaleCache.get(scaleCacheKey) || null;
   const [fallbackMusicians, setFallbackMusicians] = useState(() => cached?.musicians || []);
   const [fallbackLoading, setFallbackLoading] = useState(false);
   const [fallbackError, setFallbackError] = useState('');
@@ -99,6 +100,26 @@ export default function MembroEscalaModal({ open, eventTitle, musicians = [], on
     return fallbackMusicians;
   }, [musicians, fallbackMusicians, hasRefreshedScale]);
   const hasScale = displayedMusicians.length > 0;
+  const canEditScale = isAdmin || canManageSchedule;
+  const immediateEventId = useMemo(() => {
+    if (eventId) return eventId;
+    const fromResolved = resolvedEvent?.id;
+    if (fromResolved) return fromResolved;
+    const sourceRows = Array.isArray(musicians) ? musicians : [];
+    const row = sourceRows.find((item) => item?.event_id || item?.event?.id);
+    return row?.event_id || row?.event?.id || null;
+  }, [eventId, resolvedEvent, musicians]);
+
+  useEffect(() => {
+    if (open) {
+      const nextKey = String(eventId || eventTitle || '').trim();
+      const nextCached = scaleCache.get(nextKey);
+      setFallbackMusicians(Array.isArray(nextCached?.musicians) ? nextCached.musicians : []);
+      setResolvedEvent(eventId ? { id: eventId } : nextCached?.event || null);
+      setHasRefreshedScale(false);
+      setFallbackError('');
+    }
+  }, [open, eventId, eventTitle]);
 
   useEffect(() => {
     if (!open) {
@@ -146,7 +167,7 @@ export default function MembroEscalaModal({ open, eventTitle, musicians = [], on
     const clientName = String(eventTitle || '').trim();
     if (!clientName || clientName === 'Escala' || clientName === 'Evento') return undefined;
 
-    const cachedScale = scaleCache.get(clientName);
+    const cachedScale = scaleCache.get(String(eventId || clientName));
     if (cachedScale && refreshKey === 0) {
       setResolvedEvent(cachedScale.event || null);
       setFallbackMusicians(Array.isArray(cachedScale.musicians) ? cachedScale.musicians : []);
@@ -165,7 +186,7 @@ export default function MembroEscalaModal({ open, eventTitle, musicians = [], on
           const nextMusicians = Array.isArray(result?.musicians) ? result.musicians : [];
           setResolvedEvent(result?.event || null);
           setFallbackMusicians(nextMusicians);
-          scaleCache.set(clientName, { event: result?.event || null, musicians: nextMusicians, cachedAt: Date.now() });
+          scaleCache.set(String(eventId || clientName), { event: result?.event || null, musicians: nextMusicians, cachedAt: Date.now() });
           if (refreshKey > 0) setHasRefreshedScale(true);
         }
       } catch (error) {
@@ -174,19 +195,19 @@ export default function MembroEscalaModal({ open, eventTitle, musicians = [], on
     }
     loadScale();
     return () => { cancelled = true; };
-  }, [open, eventTitle, refreshKey]);
+  }, [open, eventId, eventTitle, refreshKey]);
 
   useEffect(() => {
     if (!open || !Array.isArray(musicians) || musicians.length === 0) return;
     const clientName = String(eventTitle || '').trim();
     if (!clientName) return;
-    const previous = scaleCache.get(clientName) || {};
-    scaleCache.set(clientName, { ...previous, musicians, cachedAt: Date.now() });
+    const previous = scaleCache.get(String(eventId || clientName)) || {};
+    scaleCache.set(String(eventId || clientName), { ...previous, musicians, cachedAt: Date.now() });
   }, [open, eventTitle, musicians]);
 
   if (!open) return null;
   function handleBackdropClick(e) { if (e.target === e.currentTarget) onClose?.(); }
-  function closeBuilderAndRefresh() { setBuilderOpen(false); scaleCache.delete(String(eventTitle || '').trim()); setRefreshKey((value) => value + 1); }
+  function closeBuilderAndRefresh() { setBuilderOpen(false); scaleCache.delete(String(eventId || eventTitle || '').trim()); setRefreshKey((value) => value + 1); }
 
   return (
     <>
@@ -198,7 +219,7 @@ export default function MembroEscalaModal({ open, eventTitle, musicians = [], on
               <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-white/10 bg-[#1a1230] px-5 py-4">
                 <div className="min-w-0 flex-1"><div className="text-[18px] font-black tracking-[-0.03em] text-white">👥 Escala</div><div className="mt-1 truncate text-[12px] font-semibold text-white/55">{eventTitle || 'Evento'}</div></div>
                 <div className="flex items-center gap-2">
-                  {adminChecked && isAdmin && resolvedEvent?.id ? <button type="button" onClick={() => setBuilderOpen(true)} className="rounded-[12px] border border-violet-400/25 bg-violet-500/10 px-3 py-2 text-[11px] font-black text-violet-200 transition active:scale-[0.98]">{hasScale ? 'Editar' : 'Montar'}</button> : null}
+                  {canEditScale && immediateEventId ? <button type="button" onClick={() => setBuilderOpen(true)} className="rounded-[12px] border border-violet-400/25 bg-violet-500/10 px-3 py-2 text-[11px] font-black text-violet-200 transition active:scale-[0.98]">{hasScale ? 'Editar' : 'Montar'}</button> : null}
                   <button type="button" aria-label="Fechar escala" onClick={onClose} className="flex min-h-11 min-w-11 touch-manipulation items-center justify-center rounded-[12px] border border-white/10 bg-[#241b3d] px-3 py-2 text-[13px] font-extrabold text-white transition active:scale-[0.98]">✕</button>
                 </div>
               </div>
@@ -209,7 +230,7 @@ export default function MembroEscalaModal({ open, eventTitle, musicians = [], on
           </div>
         </div>
       </div>
-      {builderOpen && resolvedEvent?.id ? <div className="fixed inset-0 z-[220] bg-[#080411]/95 backdrop-blur-md"><div className="flex h-[100dvh] flex-col overflow-hidden"><div className="flex shrink-0 items-center justify-between border-b border-white/10 bg-[#120a22] px-4 py-3 text-white"><div className="min-w-0"><div className="text-[15px] font-black">Montar escala</div><div className="truncate text-[11px] font-semibold text-white/50">{eventTitle || 'Evento'}</div></div><button type="button" onClick={closeBuilderAndRefresh} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[12px] font-black">Concluir</button></div><div className="min-h-0 flex-1 overflow-y-auto bg-[#f7f4fb] px-2 py-3 md:px-5"><EventoEscalaTab eventId={resolvedEvent.id} /></div></div></div> : null}
+      {builderOpen && immediateEventId ? <div className="fixed inset-0 z-[220] bg-[#080411]/95 backdrop-blur-md"><div className="flex h-[100dvh] flex-col overflow-hidden"><div className="flex shrink-0 items-center justify-between border-b border-white/10 bg-[#120a22] px-4 py-3 text-white"><div className="min-w-0"><div className="text-[15px] font-black">Montar escala</div><div className="truncate text-[11px] font-semibold text-white/50">{eventTitle || 'Evento'}</div></div><button type="button" onClick={closeBuilderAndRefresh} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[12px] font-black">Concluir</button></div><div className="min-h-0 flex-1 overflow-y-auto bg-[#f7f4fb] px-2 py-3 md:px-5"><EventoEscalaTab eventId={immediateEventId} hideFinancial /></div></div></div> : null}
     </>
   );
 }

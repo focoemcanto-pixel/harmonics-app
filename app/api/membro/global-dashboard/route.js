@@ -47,6 +47,7 @@ const REPERTOIRE_ITEMS_SELECT = [
   'section',
   'genres',
   'artists',
+  'musical_key',
 ].join(', ');
 
 function normalizeStatus(value) {
@@ -131,7 +132,7 @@ export async function GET(request) {
     ] = await Promise.all([
       supabase
         .from('event_musicians')
-        .select('id, event_id, musician_id, musician_name, snapshot_name, role, status, notes')
+        .select('id, event_id, musician_id, musician_name, snapshot_name, role, status, notes, confirmed_at')
         .in('event_id', eventIds),
       supabase
         .from('invites')
@@ -199,7 +200,31 @@ export async function GET(request) {
     const invites = events.map((event) => {
       const eventId = String(event?.id || '').trim();
       const personalInvite = personalInviteByEventId.get(eventId);
-      if (personalInvite) return personalInvite;
+      if (personalInvite) {
+        const ownScale = scales.find((row) =>
+          String(row?.event_id || '') === eventId &&
+          String(row?.musician_id || '') === String(auth.contact?.id || auth.userId)
+        );
+        const scaleStatus = String(ownScale?.status || '').trim().toLowerCase();
+        const effectiveInvite =
+          scaleStatus === 'confirmed' &&
+          String(personalInvite?.status || '').trim().toLowerCase() !== 'confirmed'
+            ? {
+                ...personalInvite,
+                status: 'confirmed',
+                responded_at: ownScale?.confirmed_at || personalInvite?.responded_at || null,
+              }
+            : personalInvite;
+        return {
+          ...effectiveInvite,
+          source_flags: {
+            globalAgenda: true,
+            personalInvite: true,
+            adminPreview: auth.canAdminWorkspace === true,
+            delegatedAgendaViewer: auth.delegatedAgendaViewer === true,
+          },
+        };
+      }
 
       const scaleRow = scaleByEventId.get(eventId) || null;
       return {
@@ -216,6 +241,7 @@ export async function GET(request) {
         events: event,
         source_flags: {
           globalAgenda: true,
+          personalInvite: false,
           adminPreview: auth.canAdminWorkspace === true,
           delegatedAgendaViewer: auth.delegatedAgendaViewer === true,
         },

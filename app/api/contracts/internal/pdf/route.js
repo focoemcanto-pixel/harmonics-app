@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { generateAndSaveInternalContractPdf } from '@/lib/contracts/internalPdfFlow';
+import { assertRowInWorkspace, guardInternalOrWorkspaceAdmin } from '@/lib/api/route-guards';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -26,6 +27,9 @@ function resolveStatus(error) {
 }
 
 export async function POST(request) {
+  const guard = await guardInternalOrWorkspaceAdmin(request, { logPrefix: '[POST /api/contracts/internal/pdf]' });
+  if (!guard.ok) return guard.response;
+
   try {
     const body = await request.json().catch(() => null);
     const contractId = asString(body?.contractId) || null;
@@ -33,6 +37,21 @@ export async function POST(request) {
     const html = body?.html || body?.signedHtml || '';
 
     const supabase = getSupabaseAdmin();
+
+    if (!guard.internal) {
+      const workspaceId = guard.auth.workspaceId;
+      if (!contractId && !precontractId) {
+        return errorResponse('MISSING_CONTRACT', 'contractId ou precontractId é obrigatório.', 400);
+      }
+      if (contractId) {
+        const check = await assertRowInWorkspace({ supabase, table: 'contracts', id: contractId, workspaceId });
+        if (!check.ok) return check.response;
+      }
+      if (precontractId) {
+        const check = await assertRowInWorkspace({ supabase, table: 'precontracts', id: precontractId, workspaceId });
+        if (!check.ok) return check.response;
+      }
+    }
     const result = await generateAndSaveInternalContractPdf({
       supabase,
       contractId,

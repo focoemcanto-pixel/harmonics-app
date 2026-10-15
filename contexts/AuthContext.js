@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { redirectToLogin } from '@/lib/auth/logoutRedirect';
+import AppShellSkeleton from '@/components/layout/AppShellSkeleton';
 
 const AuthContext = createContext(null);
 
@@ -265,14 +266,7 @@ export function AuthProvider({ children }) {
 
   return (
     <AuthContext.Provider value={value}>
-      {initialized ? children : (
-        <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-violet-600 mx-auto mb-3" />
-            <p className="text-slate-600 text-sm">Verificando sessão...</p>
-          </div>
-        </div>
-      )}
+      {initialized ? children : <AppShellSkeleton label="Restaurando sessão" />}
     </AuthContext.Provider>
   );
 }

@@ -966,7 +966,7 @@ export async function POST(request) {
         .join('\n');
 
       try {
-        await sendAdminWhatsAppAlert(alertMessage);
+        await sendAdminWhatsAppAlert(alertMessage, { eventId });
       } catch (whatsappError) {
         logError('CLIENTE_REPERTORIO', 'WHATSAPP_ALERT_ERROR', whatsappError, { eventId });
       }

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { withApiObservability } from '@/lib/observability/api-observability';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requireWorkspaceAccess } from '@/lib/api/require-workspace-access';
 
@@ -31,7 +32,7 @@ async function requirePaymentsWriteAccess({ supabase, request, logPrefix }) {
   });
 }
 
-export async function GET(request) {
+async function handleGET(request) {
   const supabase = getSupabaseAdmin();
 
   try {
@@ -93,7 +94,7 @@ export async function GET(request) {
   }
 }
 
-export async function POST(request) {
+async function handlePOST(request) {
   const supabase = getSupabaseAdmin();
 
   try {
@@ -160,3 +161,7 @@ export async function POST(request) {
     );
   }
 }
+
+export const GET = withApiObservability(handleGET, { route: '/api/payments' });
+
+export const POST = withApiObservability(handlePOST, { route: '/api/payments' });

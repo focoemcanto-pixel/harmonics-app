@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { requireWorkspaceAdmin } from '@/lib/api/require-workspace-access';
+import { requireScheduleManagerAccess } from '@/lib/api/require-schedule-manager-access';
 import { diffEscala } from '@/lib/escalas/escalas-sync';
+import { sendInviteService } from '@/lib/whatsapp/send-invite-service';
 
 function dedupeByMusician(list = []) {
   const map = new Map();
@@ -121,7 +122,7 @@ export async function POST(request, context) {
   const eventId = String(routeParams?.id || '').trim();
 
   try {
-    const auth = await requireWorkspaceAdmin({ supabase, request, logPrefix: '[EVENT_SCALE_API]' });
+    const auth = await requireScheduleManagerAccess({ supabase, request, logPrefix: '[EVENT_SCALE_API]' });
     if (!auth.ok) {
       return NextResponse.json({ ok: false, error: auth.error }, { status: auth.status || 401 });
     }
@@ -147,6 +148,7 @@ export async function POST(request, context) {
 
     const body = await request.json().catch(() => ({}));
     const escalaLocal = Array.isArray(body?.escalaLocal) ? body.escalaLocal : [];
+    const shouldSendInvites = body?.sendInvites === true;
     const escalaLocalDedupe = dedupeByMusician(escalaLocal);
 
     const { data: escalaAtual, error: escalaAtualError } = await supabase
@@ -211,40 +213,50 @@ export async function POST(request, context) {
       if (String(existing.status || '').toLowerCase() === 'removed') {
         existentesParaReativar.push({
           id: existing.id,
+          musician_id: item.musician_id,
+          status: item.status || 'pending',
+          confirmed_at: item.confirmed_at || null,
           suggested_role_name: item.role || null,
         });
       }
     }
 
     if (novosParaCriar.length > 0) {
-      const invitesPayload = novosParaCriar.map((item) => ({
-        event_id: eventId,
-        contact_id: item.musician_id,
-        suggested_role_name: item.role || null,
-        status: 'pending',
-        invite_token:
-          typeof crypto !== 'undefined' && crypto.randomUUID
-            ? crypto.randomUUID()
-            : `${Date.now()}-${item.musician_id}`,
-      }));
+      const invitesPayload = novosParaCriar.map((item) => {
+        const scaleStatus = String(item?.status || '').trim().toLowerCase();
+        const isPreconfirmed = scaleStatus === 'confirmed';
+        return {
+          event_id: eventId,
+          contact_id: item.musician_id,
+          suggested_role_name: item.role || null,
+          status: isPreconfirmed ? 'confirmed' : 'pending',
+          responded_at: isPreconfirmed ? item?.confirmed_at || new Date().toISOString() : null,
+          invite_token:
+            typeof crypto !== 'undefined' && crypto.randomUUID
+              ? crypto.randomUUID()
+              : `${Date.now()}-${Math.random().toString(36).slice(2)}-${item.musician_id}`,
+        };
+      });
 
       const { error: insertInviteError } = await supabase.from('invites').insert(invitesPayload);
       if (insertInviteError) throw insertInviteError;
     }
 
     if (existentesParaReativar.length > 0) {
-      const existingIds = existentesParaReativar.map((item) => item.id).filter(isUuid);
-      const { error: reactivateError } = await supabase
-        .from('invites')
-        .update({
-          status: 'pending',
-          responded_at: null,
-          whatsapp_sent_at: null,
-          whatsapp_last_error: null,
-        })
-        .eq('event_id', eventId)
-        .in('id', existingIds);
-      if (reactivateError) throw reactivateError;
+      for (const reactivated of existentesParaReativar) {
+        const isPreconfirmed = String(reactivated?.status || '').trim().toLowerCase() === 'confirmed';
+        const { error: reactivateError } = await supabase
+          .from('invites')
+          .update({
+            status: isPreconfirmed ? 'confirmed' : 'pending',
+            responded_at: isPreconfirmed ? reactivated?.confirmed_at || new Date().toISOString() : null,
+            whatsapp_sent_at: null,
+            whatsapp_last_error: null,
+          })
+          .eq('event_id', eventId)
+          .eq('id', reactivated.id);
+        if (reactivateError) throw reactivateError;
+      }
 
       await updateInviteRoles(supabase, existentesParaReativar);
     }
@@ -265,6 +277,24 @@ export async function POST(request, context) {
 
     await updateInviteRoles(supabase, roleUpdates);
 
+    // A escala é a fonte de verdade para membros pré-confirmados pelo administrador.
+    // Se o músico já foi salvo como confirmed na escala, seu invite não pode continuar pending.
+    for (const item of escalaLocalDedupe) {
+      if (String(item?.status || '').trim().toLowerCase() !== 'confirmed') continue;
+      const existingInvite = inviteMap.get(String(item.musician_id));
+      if (!existingInvite?.id || String(existingInvite.status || '').toLowerCase() === 'confirmed') continue;
+
+      const { error: confirmInviteError } = await supabase
+        .from('invites')
+        .update({
+          status: 'confirmed',
+          responded_at: item?.confirmed_at || new Date().toISOString(),
+        })
+        .eq('event_id', eventId)
+        .eq('id', existingInvite.id);
+      if (confirmInviteError) throw confirmInviteError;
+    }
+
     const removidosIds = removidos.map((item) => item.musician_id).filter(Boolean);
     if (removidosIds.length > 0) {
       const { error: updateError } = await supabase
@@ -281,11 +311,44 @@ export async function POST(request, context) {
       .eq('event_id', eventId);
     if (escalaFinalError) throw escalaFinalError;
 
+    // Salvar + enviar acontece no MESMO request. Assim não dependemos de um
+    // segundo fetch do navegador, de estado stale nem de uma nova resolução de sessão.
+    // A deduplicação continua sendo whatsapp_sent_at: somente pending ainda não enviados.
+    const dispatch = { requested: shouldSendInvites, total: 0, successCount: 0, failedCount: 0, results: [], firstError: null };
+
+    if (shouldSendInvites) {
+      const { data: pendingInvites, error: pendingInvitesError } = await supabase
+        .from('invites')
+        .select('id, status, whatsapp_sent_at')
+        .eq('event_id', eventId)
+        .eq('status', 'pending')
+        .is('whatsapp_sent_at', null);
+      if (pendingInvitesError) throw pendingInvitesError;
+
+      const queue = (pendingInvites || []).filter((row) => isUuid(row?.id));
+      dispatch.total = queue.length;
+
+      for (const invite of queue) {
+        const result = await sendInviteService({ inviteId: invite.id, supabaseAdmin: supabase });
+        const sent = result?.ok === true && Number(result?.data?.sent || 0) > 0;
+        const skipped = result?.ok === true && result?.data?.skipped === true;
+        const ok = sent || skipped;
+        const error = ok ? null : result?.error || result?.data?.error || result?.data?.cause || result?.data?.warning || 'O convite não foi confirmado pelo provedor.';
+        dispatch.results.push({ inviteId: invite.id, ok, sent, skipped, error, response: result?.data || null });
+        if (ok) dispatch.successCount += 1;
+        else {
+          dispatch.failedCount += 1;
+          if (!dispatch.firstError) dispatch.firstError = error;
+        }
+      }
+    }
+
     return NextResponse.json({
       ok: true,
       eventId,
       workspaceId: auth.workspaceId,
       escala: escalaFinal || [],
+      dispatch,
       stats: {
         total: escalaLocalDedupe.length,
         novos: novos.length,

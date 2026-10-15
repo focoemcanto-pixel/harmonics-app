@@ -242,7 +242,16 @@ export default function AdminShell({ pageTitle, children, mobileActions, activeI
     modules,
     role,
     loading: workspaceLoading,
+    error: workspaceError,
   } = useWorkspaceMe({ enabled: Boolean(initialized && !loading && user) });
+
+  // Usuário autenticado sem workspace (cadastro interrompido antes do bootstrap):
+  // em vez de um painel vazio, retoma a criação do workspace.
+  useEffect(() => {
+    if (workspaceError?.code === 'NO_WORKSPACE' && pathname !== '/workspace/new') {
+      router.replace('/workspace/new');
+    }
+  }, [workspaceError, pathname, router]);
 
   const allowedModules = useMemo(() => {
     if (workspaceLoading) {

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { guardPlatformAdmin } from '@/lib/api/route-guards';
 import { createClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
 import { generateInviteLink } from '@/lib/escalas/escalas-invite';
@@ -14,6 +15,9 @@ function getAdminSupabase() {
 }
 
 export async function POST(request) {
+  const guard = await guardPlatformAdmin(request, { logPrefix: '[POST /api/escalas/enviar-convite]' });
+  if (!guard.ok) return guard.response;
+
   try {
     if (!supabaseUrl || !supabaseServiceKey) {
       return NextResponse.json(

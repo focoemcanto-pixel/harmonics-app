@@ -63,7 +63,7 @@ export async function POST(request) {
 
     const { data: precontract, error: precontractError } = await supabase
       .from('precontracts')
-      .select('event_id, client_name, client_phone, public_token')
+      .select('event_id, workspace_id, client_name, client_phone, public_token')
       .eq('public_token', token)
       .maybeSingle();
 
@@ -110,6 +110,7 @@ export async function POST(request) {
         await sendWhatsAppMessage({
           to: precontract.client_phone,
           message,
+          workspaceId: precontract.workspace_id || null,
         });
 
         await supabase

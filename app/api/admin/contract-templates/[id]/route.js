@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { requireAdmin } from '@/lib/api/require-admin';
+import { requireWorkspaceAdmin as requireAdmin } from '@/lib/api/require-workspace-access';
+import { assertRowInWorkspace } from '@/lib/api/route-guards';
 
 const SELECT_FIELDS = 'id, name, slug, description, content, source_text, source_rich_html, is_active, is_default, created_at, updated_at';
 const ALLOWED_PATCH_FIELDS = [
@@ -71,6 +72,9 @@ export async function PATCH(request, context) {
       return NextResponse.json({ ok: false, error: 'ID do template é obrigatório.' }, { status: 400 });
     }
 
+    const ownership = await assertRowInWorkspace({ supabase: supabaseAdmin, table: 'contract_templates', id, workspaceId: auth.workspaceId });
+    if (!ownership.ok) return ownership.response;
+
     const body = await request.json();
     const payload = buildPatchPayload(body);
 
@@ -92,6 +96,7 @@ export async function PATCH(request, context) {
       const { error: clearBeforeError } = await supabaseAdmin
         .from('contract_templates')
         .update({ is_default: false, updated_at: new Date().toISOString() })
+        .eq('workspace_id', auth.workspaceId)
         .neq('id', id);
 
       if (clearBeforeError) throw clearBeforeError;
@@ -162,6 +167,9 @@ export async function DELETE(request, context) {
     if (!id) {
       return NextResponse.json({ ok: false, error: 'ID do template é obrigatório.' }, { status: 400 });
     }
+
+    const ownership = await assertRowInWorkspace({ supabase: supabaseAdmin, table: 'contract_templates', id, workspaceId: auth.workspaceId });
+    if (!ownership.ok) return ownership.response;
 
     const [eventTypesUsage, precontractsUsage] = await Promise.all([
       supabaseAdmin

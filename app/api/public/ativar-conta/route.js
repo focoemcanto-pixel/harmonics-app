@@ -8,7 +8,7 @@ export async function POST(request) {
     if (!email) return NextResponse.json({ ok: false, message: 'E-mail obrigatório.' }, { status: 400 });
 
     const supabase = getSupabaseAdmin();
-    const redirectTo = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/login?reset=done`;
+    const redirectTo = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/auth/reset-password`;
     await supabase.auth.resetPasswordForEmail(email, { redirectTo });
     return NextResponse.json({ ok: true, message: 'Se o e-mail existir, enviamos o link de ativação.' });
   } catch (error) {

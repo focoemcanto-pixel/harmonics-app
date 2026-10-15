@@ -4,7 +4,6 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "prebuild": "node scripts/patch-repertoire-contract-token-fallback.mjs && node scripts/patch-member-schedule-permissions.mjs && node scripts/patch-member-global-dashboard.mjs && node scripts/patch-member-global-agenda-regression.mjs && node scripts/patch-member-global-view-and-scale-builder.mjs && node scripts/patch-member-global-agenda-visual-status.mjs && node scripts/patch-automation-invite-dispatch-and-test-picker.mjs && node scripts/patch-confirmed-scale-invite-status.mjs && node scripts/patch-event-band-notes.mjs && node scripts/patch-delegated-scale-ux.mjs && node scripts/patch-delegated-finance-and-completed-tone.mjs && node scripts/patch-member-scale-modal-instant-actions.mjs && node scripts/patch-member-unified-boot.mjs && node scripts/patch-automation-workspace-resolution.mjs && node scripts/patch-member-scale-event-isolation.mjs && node scripts/patch-scale-save-send-atomic.mjs && node scripts/patch-member-repertoire-musical-key.mjs && node scripts/patch-member-lyrics-browser.mjs && node scripts/patch-member-visible-player-and-exact-order.mjs && node scripts/patch-automation-single-payment-reminder.mjs && node scripts/patch-staff-global-agenda-final.mjs && node scripts/patch-member-server-agenda-source.mjs",
     "build": "next build",
     "build:worker": "npm run build && open-next build",
     "deploy": "npm run build:worker && wrangler deploy",
@@ -13,7 +12,9 @@
     "start": "next start",
     "lint": "eslint",
     "backfill:suggestion-songs": "node scripts/backfill-suggestion-songs-metadata.js",
-    "seed:editorial-catalog": "node scripts/build-editorial-catalog-seed.mjs"
+    "seed:editorial-catalog": "node scripts/build-editorial-catalog-seed.mjs",
+    "test": "node --import ./tests/helpers/register-alias.mjs --test tests/googleCredentials.test.mjs tests/operational-finance.test.mjs tests/route-guards.test.mjs tests/workspace-access.test.mjs tests/workspace-bootstrap.test.mjs tests/onboarding-flow.test.mjs tests/billing.test.mjs tests/observability.test.mjs tests/legacy-env-workspace.test.mjs tests/public-contract-file.test.mjs",
+    "test:oauth-legacy": "node --import ./tests/helpers/register-alias.mjs --test tests/oauth-integration.test.mjs"
   },
   "dependencies": {
     "@supabase/auth-helpers-nextjs": "^0.15.0",

@@ -1,6 +1,7 @@
 import { isAntesalaAuthorized } from '@/lib/cliente/antesala-authorization';
 import { notFound, redirect } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
+import { loadWorkspacePricing } from '@/lib/settings/workspace-pricing';
 import ClienteHome from '../../../../components/cliente/ClienteHome';
 import { resolveSupportWhatsAppConfig } from '../../../../lib/whatsapp/support-config';
 
@@ -680,12 +681,7 @@ export default async function ClienteRepertorioPage({ params }) {
         .eq('event_id', eventId)
         .maybeSingle(),
 
-      supabase
-        .from('pricing_settings')
-        .select(CLIENT_PRICING_SELECT_FIELDS)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle(),
+      loadWorkspacePricing({ supabase, eventId, select: CLIENT_PRICING_SELECT_FIELDS }),
     ]);
   } catch (error) {
     console.error('[CLIENTE REPERTORIO PAGE] Falha inesperada ao carregar dados principais:', error);

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { requireAdmin } from '@/lib/api/require-admin';
+import { requireWorkspaceAdmin as requireAdmin } from '@/lib/api/require-workspace-access';
 import { saveExternalContractForEvent } from '@/lib/contracts/external-contract-flow';
 
 const MAX_PDF_SIZE_BYTES = 15 * 1024 * 1024;
@@ -24,7 +24,7 @@ export async function POST(request, { params }) {
     if (file.type !== 'application/pdf') return NextResponse.json({ ok: false, error: 'Apenas PDF (application/pdf) é aceito.' }, { status: 400 });
     if (file.size > MAX_PDF_SIZE_BYTES) return NextResponse.json({ ok: false, error: 'PDF excede o limite de 15MB.' }, { status: 400 });
 
-    const { data: event, error: eventError } = await supabase.from('events').select('id, client_contact_id').eq('id', eventId).maybeSingle();
+    const { data: event, error: eventError } = await supabase.from('events').select('id, client_contact_id').eq('id', eventId).eq('workspace_id', auth.workspaceId).maybeSingle();
     if (eventError) throw eventError;
     if (!event) return NextResponse.json({ ok: false, error: 'Evento não encontrado.' }, { status: 404 });
 

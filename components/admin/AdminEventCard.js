@@ -2,6 +2,7 @@
 
 import { memo } from 'react';
 import Link from 'next/link';
+import BandNotesButton from '@/components/events/BandNotesButton';
 
 const ACTION_BASE_CLASS =
   'inline-flex min-h-11 touch-manipulation items-center justify-center rounded-[16px] px-4 py-3 text-center text-[14px] font-black transition active:scale-[0.98]';
@@ -344,6 +345,20 @@ function AdminEventCard({
             Escala
           </button>
 
+          <BandNotesButton
+            eventId={id}
+            eventName={cliente}
+            eventDate={event?.event_date || data}
+            eventTime={event?.event_time || hora}
+            initialNotes={event?.band_notes || ''}
+            initialUpdatedAt={event?.band_notes_updated_at || ''}
+            initialUpdatedBy={event?.band_notes_updated_by || ''}
+            canEdit
+            workspaceId={event?.workspace_id || ''}
+            dark={false}
+            compact
+          />
+
           <Link
             href={`/eventos/${id}`}
             className={`${ACTION_BASE_CLASS} border border-[#dbe3ef] bg-white text-[#0f172a]`}
@@ -424,6 +439,8 @@ function areEventCardPropsEqual(prev, next) {
     prev.whatsappNome === next.whatsappNome &&
     prev.whatsappNumero === next.whatsappNumero &&
     prev.observacoes === next.observacoes &&
+    prev.event?.band_notes === next.event?.band_notes &&
+    prev.event?.band_notes_updated_at === next.event?.band_notes_updated_at &&
     prev.valorAcertado === next.valorAcertado &&
     prev.valorPago === next.valorPago &&
     prev.valorAberto === next.valorAberto &&

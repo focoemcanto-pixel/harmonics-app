@@ -239,19 +239,6 @@ const QUICK_SECTIONS = [
         send_time: '10:00',
       },
       {
-        id: 'payment_pending_2_days_client',
-        key: 'lembrete_pagamento_rapido',
-        name: 'Lembrete de pagamento',
-        title: 'Lembrete de pagamento',
-        subtitle: 'Notifica saldo pendente antes do evento',
-        event_type: 'payment_pending_2_days_client',
-        recipient_type: 'financial',
-        triggerType: 'scheduled',
-        badge: 'Programado',
-        days_before: 2,
-        send_time: '10:00',
-      },
-      {
         id: 'payment_confirmed_client',
         key: 'confirmacao_pagamento_rapido',
         name: 'Confirmação de pagamento',
@@ -498,6 +485,8 @@ export default function RegrasPageClient() {
   const [manualModalAberto, setManualModalAberto] = useState(false);
   const [manualForm, setManualForm] = useState(MANUAL_FORM);
   const [enviandoManual, setEnviandoManual] = useState(false);
+  const [entityOptions, setEntityOptions] = useState([]);
+  const [loadingEntityOptions, setLoadingEntityOptions] = useState(false);
   const [paymentReminderConfig, setPaymentReminderConfig] = useState({
     isEnabled: true,
     message: '',
@@ -822,9 +811,30 @@ export default function RegrasPageClient() {
     }
   }
 
+  async function loadEntityOptions(eventType) {
+    if (!eventType) {
+      setEntityOptions([]);
+      return;
+    }
+    try {
+      setLoadingEntityOptions(true);
+      const response = await fetch('/api/automation/entity-options?eventType=' + encodeURIComponent(eventType), { cache: 'no-store' });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload?.ok) throw new Error(payload?.error || 'Não foi possível listar opções para teste.');
+      setEntityOptions(Array.isArray(payload.options) ? payload.options : []);
+    } catch (error) {
+      setEntityOptions([]);
+      toast.error(error.message || 'Não foi possível carregar contratos/eventos para teste.');
+    } finally {
+      setLoadingEntityOptions(false);
+    }
+  }
+
   async function enviarTeste(preset) {
-    setManualForm((prev) => ({ ...prev, eventType: preset.event_type }));
+    const eventType = preset.event_type;
+    setManualForm((prev) => ({ ...prev, eventType, entityId: '' }));
     setManualModalAberto(true);
+    await loadEntityOptions(eventType);
   }
 
   async function enviarManualAgora() {
@@ -1510,17 +1520,39 @@ export default function RegrasPageClient() {
                 {canais.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
 
-              <select value={manualForm.eventType} onChange={(e) => setManualForm((f) => ({ ...f, eventType: e.target.value }))} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm">
+              <select
+                value={manualForm.eventType}
+                onChange={async (e) => {
+                  const eventType = e.target.value;
+                  setManualForm((f) => ({ ...f, eventType, entityId: '' }));
+                  await loadEntityOptions(eventType);
+                }}
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm"
+              >
                 {EVENT_TYPES.map((e) => <option key={e.value} value={e.value}>{e.label}</option>)}
               </select>
 
-              <input
-                type="text"
-                value={manualForm.entityId}
-                onChange={(e) => setManualForm((f) => ({ ...f, entityId: e.target.value }))}
-                placeholder="ID da entidade (ex.: invite_id, event_id, contract_id)"
-                className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm"
-              />
+              <div>
+                <label className="mb-1.5 block text-xs font-black uppercase tracking-[0.08em] text-slate-500">
+                  Registro para o teste
+                </label>
+                <select
+                  value={manualForm.entityId}
+                  onChange={(e) => setManualForm((f) => ({ ...f, entityId: e.target.value }))}
+                  disabled={loadingEntityOptions}
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm disabled:bg-slate-50 disabled:text-slate-400"
+                >
+                  <option value="">{loadingEntityOptions ? 'Carregando...' : 'Selecione pelo nome e data'}</option>
+                  {entityOptions.map((option) => (
+                    <option key={(option.kind || 'entity') + '-' + option.id + '-' + (option.contractId || '')} value={option.id}>
+                      {option.label}{option.subtitle ? ' — ' + option.subtitle : ''}
+                    </option>
+                  ))}
+                </select>
+                {!loadingEntityOptions && entityOptions.length === 0 ? (
+                  <p className="mt-2 text-xs font-semibold text-amber-700">Nenhum registro disponível para este gatilho.</p>
+                ) : null}
+              </div>
             </div>
 
             <div className="mt-5 flex gap-2">

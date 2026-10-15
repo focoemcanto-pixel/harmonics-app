@@ -471,7 +471,7 @@ function SearchResultCard({ contact, onAdd }) {
   );
 }
 
-export default function EventoEscalaTab({ eventId }) {
+export default function EventoEscalaTab({ eventId, hideFinancial = false }) {
   const [evento, setEvento] = useState(null);
   const [contatos, setContatos] = useState([]);
   const [escalaSalva, setEscalaSalva] = useState([]);
@@ -539,36 +539,30 @@ export default function EventoEscalaTab({ eventId }) {
       setCarregando(true);
       setErro('');
 
-      const [eventoResp, contatosResp, escalaResp, templatesResp, templateItemsResp, repertorioResp] =
-        await Promise.all([
-          supabase
-            .from('events')
-            .select('id, client_name, event_date, event_time, location_name, formation, instruments, status, open_amount, payment_status')
-            .eq('id', eventId)
-            .single(),
-          supabase
-            .from('contacts')
-            .select('*')
-            .order('name', { ascending: true }),
-          supabase
-            .from('event_musicians')
-            .select('id, event_id, musician_id, role, status, notes, confirmed_at, created_at, updated_at')
-            .eq('event_id', eventId)
-            .order('created_at', { ascending: true }),
-          supabase
-            .from('scale_templates')
-            .select('*')
-            .eq('is_active', true),
-          supabase
-            .from('scale_template_items')
-            .select('*')
-            .order('sort_order', { ascending: true }),
-          supabase
-            .from('repertoire_config')
-            .select('status')
-            .eq('event_id', eventId)
-            .maybeSingle(),
-        ]);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 12000);
+      let bootstrap;
+      try {
+        const response = await fetch(`/api/events/${eventId}/scale-data`, {
+          method: 'GET',
+          cache: 'no-store',
+          signal: controller.signal,
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || !payload?.ok) {
+          throw new Error(payload?.error || 'Não foi possível carregar a montagem da escala.');
+        }
+        bootstrap = payload;
+      } finally {
+        clearTimeout(timeout);
+      }
+
+      const eventoResp = { data: bootstrap?.event || null, error: null };
+      const contatosResp = { data: Array.isArray(bootstrap?.contacts) ? bootstrap.contacts : [], error: null };
+      const escalaResp = { data: Array.isArray(bootstrap?.scale) ? bootstrap.scale : [], error: null };
+      const templatesResp = { data: Array.isArray(bootstrap?.templates) ? bootstrap.templates : [], error: null };
+      const templateItemsResp = { data: Array.isArray(bootstrap?.templateItems) ? bootstrap.templateItems : [], error: null };
+      const repertorioResp = { data: bootstrap?.repertoire || null, error: null };
 
       if (!isMountedRef.current) return;
       if (eventoResp.error) throw eventoResp.error;
@@ -580,7 +574,11 @@ export default function EventoEscalaTab({ eventId }) {
 
       const eventoData = eventoResp.data || null;
       const contatosData = filterOperationalTeamContacts(contatosResp.data || []);
-      const templatesData = Array.isArray(templatesResp?.data) ? templatesResp.data : [];
+      // Templates de escala são do workspace do evento (linhas legadas sem workspace continuam visíveis).
+      const eventWorkspaceId = eventoResp?.data?.workspace_id ? String(eventoResp.data.workspace_id) : null;
+      const templatesData = (Array.isArray(templatesResp?.data) ? templatesResp.data : []).filter(
+        (template) => !template?.workspace_id || !eventWorkspaceId || String(template.workspace_id) === eventWorkspaceId
+      );
       const templateItemsRespData = Array.isArray(templateItemsResp?.data) ? templateItemsResp.data : [];
       const contatosMap = new Map(contatosData.map((contact) => [String(contact.id), contact]));
       const templateItemsByTemplateId = new Map();
@@ -614,7 +612,8 @@ export default function EventoEscalaTab({ eventId }) {
       let escalaInicial = escalaData;
       let templateSugeridoAtual = null;
       let outrasSugestoesAtuais = [];
-      const repertorioStatusAtual = String(repertorioResp?.data?.status || '');
+      const repertorioRow = Array.isArray(repertorioResp?.data) ? repertorioResp.data[0] : repertorioResp?.data;
+      const repertorioStatusAtual = String(repertorioRow?.status || '');
 
       if (escalaData.length === 0 && eventoData) {
         const suggestion = matchTemplatesForEvent(
@@ -1024,7 +1023,7 @@ export default function EventoEscalaTab({ eventId }) {
     });
   }
 
-async function persistirEscala() {
+async function persistirEscala({ sendInvites = false } = {}) {
   const escalaLocalDedupe = dedupeByMusician(escalaLocalSegura).map((item) => ({
     musician_id: item.musician_id,
     role: item.role || item.contact_tag_text || null,
@@ -1041,7 +1040,7 @@ async function persistirEscala() {
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ escalaLocal: escalaLocalDedupe }),
+    body: JSON.stringify({ escalaLocal: escalaLocalDedupe, sendInvites }),
   });
   if (!isMountedRef.current) return { novos: 0 };
 
@@ -1092,6 +1091,7 @@ async function persistirEscala() {
 
   return {
     novos: Number(data?.stats?.novosConvites || 0),
+    dispatch: data?.dispatch || null,
   };
 }
 
@@ -1129,122 +1129,58 @@ async function salvarEscala() {
   try {
     setSalvando(true);
     setSucesso('');
-    console.info('[automation][step] salvar_escala_started', { eventId });
-
-    await persistirEscala();
+    await persistirEscala({ sendInvites: false });
     if (!isMountedRef.current) return;
-    console.info('[automation][step] salvar_escala_persisted', { eventId });
-
-    const response = await fetch('/api/whatsapp/send-event-invites', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ eventId }),
-    });
-    if (!isMountedRef.current) return;
-    console.info('[automation][step] send_event_invites_called', {
-      eventId,
-      responseStatus: response.status,
-      ok: response.ok,
-    });
-
-    const data = await response.json().catch(() => ({}));
-    if (!isMountedRef.current) return;
-    const { total, sentCount, failedCount } = summarizeInviteDispatchResults(data);
-
-    if (!response.ok && sentCount === 0) {
-      throw new Error(
-        data?.error ||
-        `Escala salva, mas ${failedCount} convite(s) falharam no envio automático.`
-      );
-    }
-
-    if (failedCount > 0 && sentCount > 0) {
-      if (!isMountedRef.current) return;
-      setSucesso(
-        `Escala salva. Envio parcial: ${sentCount} convite(s) enviado(s) e ${failedCount} falha(s) no envio automático.`
-      );
-      return;
-    }
-
-    if (failedCount > 0 && sentCount === 0) {
-      throw new Error(`Escala salva, mas ${failedCount} convite(s) falharam no envio automático.`);
-    }
-
-    if (!isMountedRef.current) return;
-    setSucesso(
-      total > 0
-        ? `Escala salva e ${sentCount} convite(s) enviado(s) automaticamente.`
-        : 'Escala salva. Nenhum convite pendente para envio automático.'
-    );
+    setSucesso('Escala salva com sucesso.');
   } catch (e) {
-    console.error('[automation][step] salvar_escala_failed', e);
+    console.error('[scale][save] failed', e);
     if (!isMountedRef.current) return;
     toast.error(e?.message || 'Erro ao salvar escala.');
   } finally {
-    if (isMountedRef.current) {
-      setSalvando(false);
-    }
+    if (isMountedRef.current) setSalvando(false);
   }
 }
+
 async function salvarEEnviarConvites() {
   try {
     setSalvando(true);
     setEnviandoConvites(true);
     setSucesso('');
+    setInviteProgress({ current: 0, total: 0 });
 
-    await persistirEscala();
-    if (!isMountedRef.current) return;
-    const totalPendentes = await fetchPendingInviteCount(eventId);
-    if (!isMountedRef.current) return;
-    setInviteProgress({ current: 0, total: totalPendentes });
-
-    const response = await fetch('/api/whatsapp/send-event-invites', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ eventId }),
-    });
+    const persisted = await persistirEscala({ sendInvites: true });
     if (!isMountedRef.current) return;
 
-    const data = await response.json();
-    if (!isMountedRef.current) return;
+    const dispatch = persisted?.dispatch || {};
+    const total = Number(dispatch?.total || 0);
+    const sentCount = Number(dispatch?.successCount || 0);
+    const failedCount = Number(dispatch?.failedCount || 0);
+    setInviteProgress({ current: sentCount + failedCount, total });
 
-    const { total, sentCount, failedCount } = summarizeInviteDispatchResults(data);
-    if (!isMountedRef.current) return;
-    setInviteProgress({ current: total, total });
-
-    if (!response.ok && sentCount === 0) {
-      throw new Error(
-        data?.error ||
-        `Escala salva, mas ${failedCount} convite(s) falharam no envio.`
-      );
-    }
-
-    if (failedCount > 0 && sentCount > 0) {
-      if (!isMountedRef.current) return;
-      setSucesso(`Escala salva. Envio parcial: ${sentCount} convite(s) enviado(s) e ${failedCount} falha(s).`);
+    if (failedCount > 0) {
+      const detail = dispatch?.firstError || 'Falha não identificada pelo provedor.';
+      if (sentCount > 0) {
+        setSucesso(`Escala salva. Envio parcial: ${sentCount} enviado(s) e ${failedCount} falha(s).`);
+        toast.error(`${failedCount} convite(s) falharam: ${detail}`);
+      } else {
+        throw new Error(`Escala salva, mas nenhum convite foi enviado. ${detail}`);
+      }
       return;
     }
 
-    if (failedCount > 0 && sentCount === 0) {
-      throw new Error(`Escala salva, mas ${failedCount} convite(s) falharam no envio.`);
-    }
-
-    if (!isMountedRef.current) return;
     setSucesso(
       total > 0
-        ? `Escala salva e ${sentCount} convite(s) enviado(s).`
-        : 'Escala salva. Nenhum convite pendente.'
+        ? `Escala salva e ${sentCount} convite(s) enviado(s) pelo WhatsApp.`
+        : 'Escala salva. Não havia convite pendente sem envio.'
     );
-
   } catch (e) {
-    console.error(e);
+    console.error('[scale][save+send] failed', e);
     if (!isMountedRef.current) return;
-    toast.error(e?.message || 'Erro ao enviar convites');
+    toast.error(e?.message || 'Erro ao salvar e enviar convites.');
   } finally {
     if (isMountedRef.current) {
       setSalvando(false);
       setEnviandoConvites(false);
-      setInviteProgress((prev) => ({ current: prev.total, total: prev.total }));
     }
   }
 }
@@ -1324,6 +1260,7 @@ async function salvarEEnviarConvites() {
         ) : null}
 
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+{!hideFinancial ? (
           <div className="rounded-2xl border border-[#e2e8f0] bg-white px-3 py-3">
             <div className="text-[11px] font-black uppercase tracking-[0.08em] text-[#64748b]">Financeiro</div>
             <div className="mt-1 text-[14px] font-black text-[#0f172a]">{formatMoney(evento?.open_amount)} pendente</div>
@@ -1331,6 +1268,7 @@ async function salvarEEnviarConvites() {
               Ver pagamentos
             </Link>
           </div>
+          ) : null}
           <div className="rounded-2xl border border-[#e2e8f0] bg-white px-3 py-3">
             <div className="text-[11px] font-black uppercase tracking-[0.08em] text-[#64748b]">Repertório</div>
             <div className="mt-1 text-[14px] font-black text-[#0f172a]">{repertorioLabel}</div>

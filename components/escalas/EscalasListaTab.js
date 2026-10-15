@@ -1,5 +1,6 @@
 'use client';
 
+import SmartEmptyState from '@/components/onboarding/SmartEmptyState';
 import AdminSectionTitle from '../admin/AdminSectionTitle';
 import { Input, Select } from '../admin/AdminFormPrimitives';
 import EscalaCard from './EscalaCard';
@@ -48,7 +49,18 @@ export default function EscalasListaTab({
       </div>
 
       <div className="space-y-4">
-        {escalas.length === 0 ? (
+        {escalas.length === 0 && !String(busca || '').trim() && (!statusFiltro || statusFiltro === 'todos') ? (
+          <SmartEmptyState
+            icon="🎻"
+            eyebrow="Escalas"
+            title="Nenhuma escala ainda"
+            description="Monte a escala dentro de cada evento: escolha os músicos, envie os convites e acompanhe as confirmações por aqui."
+            primaryHref="/eventos"
+            primaryLabel="Abrir eventos"
+            secondaryHref="/contatos"
+            secondaryLabel="Cadastrar músicos"
+          />
+        ) : escalas.length === 0 ? (
           <div className="rounded-[20px] bg-[#f8fafc] px-4 py-5 text-[14px] font-semibold text-[#64748b]">
             Nenhuma escala encontrada.
           </div>

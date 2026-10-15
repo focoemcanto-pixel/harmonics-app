@@ -327,7 +327,7 @@ export async function POST(request) {
       .join('\n');
 
     try {
-      await sendAdminWhatsAppAlert(alertMessage);
+      await sendAdminWhatsAppAlert(alertMessage, { workspaceId });
     } catch (whatsappError) {
       console.error('[API CLIENTE PAGAMENTOS] Falha ao enviar alerta admin:', whatsappError);
     }

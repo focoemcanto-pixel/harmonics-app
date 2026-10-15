@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { checkPlanLimit } from '@/lib/billing/plan-limits';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requireWorkspaceAdmin } from '@/lib/api/require-workspace-access';
 
@@ -129,6 +130,14 @@ export async function POST(request) {
       return NextResponse.json(
         { ok: false, error: 'Apenas owners podem convidar novos owners.' },
         { status: 403 }
+      );
+    }
+
+    const memberLimit = await checkPlanLimit({ supabase: supabaseAdmin, workspaceId: auth.workspaceId, limitKey: 'members' });
+    if (!memberLimit.ok) {
+      return NextResponse.json(
+        { ok: false, code: memberLimit.code, error: memberLimit.error, limit: memberLimit.limit, used: memberLimit.used },
+        { status: memberLimit.status }
       );
     }
 

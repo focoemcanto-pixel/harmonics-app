@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
+import { withApiObservability } from '@/lib/observability/api-observability';
 import { createServerClient } from '@supabase/ssr';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { bootstrapWorkspaceForUser } from '@/lib/workspaces/bootstrap-workspace';
+import { bootstrapWorkspaceForUser, findExistingWorkspaceForUser } from '@/lib/workspaces/bootstrap-workspace';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -150,8 +151,6 @@ async function updateProfileWorkspaceSafe({ supabase, user, workspaceId }) {
     id: user.id,
     email: user.email,
     name: user.user_metadata?.full_name || user.email,
-    role: 'owner',
-    is_admin: false,
   };
 
   const preferredPayload = {
@@ -206,7 +205,7 @@ async function updateProfileWorkspaceSafe({ supabase, user, workspaceId }) {
   }
 }
 
-export async function POST(request) {
+async function handlePOST(request) {
   try {
     const supabase = getSupabaseAdmin();
     const { user, error: userError } = await resolveUserFromRequest(request);
@@ -227,6 +226,22 @@ export async function POST(request) {
 
     if (!workspaceName) {
       return NextResponse.json({ ok: false, error: 'Nome do workspace é obrigatório.' }, { status: 400 });
+    }
+
+    // Idempotência: quem já tem workspace ativo recebe o mesmo workspace (duplo clique,
+    // retry ou volta pelo navegador não criam um segundo).
+    const existing = await findExistingWorkspaceForUser({ supabase, userId: user.id });
+    if (existing?.workspace?.id) {
+      const existingResponse = NextResponse.json({
+        ok: true,
+        alreadyBootstrapped: true,
+        code: 'USER_ALREADY_HAS_WORKSPACE',
+        workspaceId: existing.workspace.id,
+        workspace: existing.workspace,
+        membership: existing.membership,
+        next: '/dashboard',
+      });
+      return existingResponse;
     }
 
     const bootstrap = await bootstrapWorkspaceForUser({
@@ -264,7 +279,7 @@ export async function POST(request) {
       settings: bootstrap.settings,
       subscription: bootstrap.subscription,
       onboardingMarked,
-      next: '/dashboard?onboarding=fresh-workspace',
+      next: '/onboarding',
     });
 
     const cookieOptions = {
@@ -293,3 +308,5 @@ export async function POST(request) {
     );
   }
 }
+
+export const POST = withApiObservability(handlePOST, { route: '/api/workspace/create' });

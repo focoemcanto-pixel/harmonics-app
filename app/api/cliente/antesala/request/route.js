@@ -153,7 +153,7 @@ export async function POST(request) {
     ].filter(Boolean).join('\n');
 
     try {
-      await sendAdminWhatsAppAlert(message);
+      await sendAdminWhatsAppAlert(message, { eventId: resolved.eventId });
     } catch (error) {
       console.error('[ANTESALA_REQUEST][WHATSAPP_ALERT_ERROR]', error);
     }

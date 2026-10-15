@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Suspense, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getSupabase } from '@/lib/supabase';
 
@@ -31,6 +31,20 @@ function LoginPageContent() {
         ? 'Conta criada. Confirme seu e-mail e depois faça login para finalizar seu workspace.'
         : ''
   );
+
+  // Compatibilidade: links de recuperação antigos apontavam para /login?reset=done, que não
+  // tem formulário de nova senha. Se a URL trouxer o token de recuperação, encaminha.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const hash = window.location.hash || '';
+    const params = new URLSearchParams(window.location.search);
+    const isRecoveryHash = hash.includes('type=recovery') || (hash.includes('access_token=') && params.get('reset') === 'done');
+    const isRecoveryCode = params.get('reset') === 'done' && params.get('code');
+    if (isRecoveryHash || isRecoveryCode) {
+      const query = params.get('code') ? `?code=${encodeURIComponent(params.get('code'))}` : '';
+      window.location.replace(`/auth/reset-password${query}${hash}`);
+    }
+  }, []);
 
   async function verifyWorkspaceOrRedirect(accessToken) {
     if (!accessToken) return false;
@@ -81,9 +95,8 @@ function LoginPageContent() {
 
       if (loginError) throw loginError;
 
-      if (typeof window !== 'undefined') {
-        window.localStorage.removeItem('harmonics_pending_signup_bootstrap');
-      }
+      // Os dados do cadastro pendente (nome da banda, WhatsApp) são consumidos por
+      // /workspace/new quando o workspace ainda não existe; não descartar aqui.
 
       const accessToken = data?.session?.access_token || null;
       const next = getSafeNext(searchParams);
@@ -126,7 +139,7 @@ function LoginPageContent() {
     setLoading(true);
 
     try {
-      const redirectTo = `${window.location.origin}/login?reset=done`;
+      const redirectTo = `${window.location.origin}/auth/reset-password`;
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
         redirectTo,
       });

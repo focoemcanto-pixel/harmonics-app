@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { normalizeTimeStrict } from '@/lib/time/normalize-time';
+import BandNotesButton from '@/components/events/BandNotesButton';
 import {
   addHoursToTime,
   formatDateBR,
@@ -62,7 +63,7 @@ function getCountdown(item) {
   if (done) {
     return {
       label: 'Concluído',
-      className: 'bg-emerald-500/12 text-emerald-300 border-emerald-400/20',
+      className: 'bg-slate-500/15 text-slate-300 border-slate-400/20',
     };
   }
 
@@ -83,7 +84,7 @@ function getCountdown(item) {
   if (typeof days === 'number' && days < 0) {
     return {
       label: 'Concluído',
-      className: 'bg-emerald-500/12 text-emerald-300 border-emerald-400/20',
+      className: 'bg-slate-500/15 text-slate-300 border-slate-400/20',
     };
   }
 
@@ -309,8 +310,59 @@ function SectionDivider({ label }) {
   );
 }
 
+function getAgendaVisualMeta(item) {
+  const isCompleted = isEventDone(item);
+  if (isCompleted) {
+    return {
+      label: 'CONCLUÍDO',
+      badgeClass: 'border-slate-300/25 bg-slate-500/15 text-slate-200',
+      cardClass: 'border-slate-400/20 bg-[linear-gradient(135deg,rgba(100,116,139,.12),#17151d)]',
+      railClass: 'bg-slate-500',
+    };
+  }
+
+  const isGlobalAgenda = item?.isGlobalAgenda === true || item?.sourceFlags?.globalAgenda === true;
+  const isPersonalInvite = item?.isPersonalInvite === true || item?.sourceFlags?.personalInvite === true || !isGlobalAgenda;
+  const status = String(item?.inviteStatus || '').trim().toLowerCase();
+
+  if (isPersonalInvite && status === 'pending') {
+    return {
+      label: 'MEU CONVITE • RESPONDER',
+      badgeClass: 'border-amber-300/30 bg-amber-500/15 text-amber-200',
+      cardClass: 'border-amber-400/35 bg-[linear-gradient(135deg,rgba(245,158,11,.12),#1e1535)]',
+      railClass: 'bg-amber-400',
+    };
+  }
+
+  if (isPersonalInvite && status === 'declined') {
+    return {
+      label: 'MEU CONVITE • RECUSADO',
+      badgeClass: 'border-rose-300/30 bg-rose-500/15 text-rose-200',
+      cardClass: 'border-rose-400/30 bg-[linear-gradient(135deg,rgba(244,63,94,.10),#1e1535)]',
+      railClass: 'bg-rose-500',
+    };
+  }
+
+  if (isPersonalInvite) {
+    return {
+      label: 'MINHA ESCALA • CONFIRMADO',
+      badgeClass: 'border-emerald-300/30 bg-emerald-500/15 text-emerald-200',
+      cardClass: 'border-emerald-400/35 bg-[linear-gradient(135deg,rgba(16,185,129,.12),#1e1535)]',
+      railClass: 'bg-emerald-500',
+    };
+  }
+
+  return {
+    label: 'AGENDA GLOBAL',
+    badgeClass: 'border-violet-300/25 bg-violet-500/12 text-violet-200',
+    cardClass: 'border-[#352a55] bg-[#1e1535]',
+    railClass: 'bg-violet-500',
+  };
+}
+
 function EventCard({
   item,
+  member,
   onOpenScale,
   onOpenRepertoire,
   onOpenMaps,
@@ -320,21 +372,16 @@ function EventCard({
   const done = isEventDone(item);
   const arrivalTime = addHoursToTime(item?.eventTime, -2);
   const formationTone = getFormationTone(item?.formation);
+  const agendaVisual = getAgendaVisualMeta(item);
+  const canEditBandNotes = member?.isAdmin === true || member?.canManageSchedules === true;
+  const workspaceId = member?.workspaceId || member?.workspace_id || '';
 
   return (
     <article
       onClick={() => onOpenDetails?.(item)}
-      className={`relative overflow-hidden rounded-[18px] border p-[18px] text-[#f1eeff] shadow-[0_4px_20px_rgba(0,0,0,.3)] transition active:scale-[0.995] xl:rounded-[22px] xl:p-[20px] ${
-        done
-          ? 'border-emerald-400/25 bg-[linear-gradient(135deg,rgba(34,197,94,.06),#1e1535)]'
-          : 'border-[#352a55] bg-[#1e1535]'
-      }`}
+      className={`relative overflow-hidden rounded-[18px] border p-[18px] text-[#f1eeff] shadow-[0_4px_20px_rgba(0,0,0,.3)] transition active:scale-[0.995] xl:rounded-[22px] xl:p-[20px] ${agendaVisual.cardClass}`}
     >
-      <div
-        className={`absolute left-0 top-0 h-full w-[4px] ${
-          done ? 'bg-emerald-500' : 'bg-violet-500'
-        }`}
-      />
+      <div className={`absolute left-0 top-0 h-full w-[4px] ${agendaVisual.railClass}`} />
 
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
@@ -351,7 +398,13 @@ function EventCard({
         </div>
       </div>
 
-      <div className="mt-3 text-[17px] font-black tracking-[-0.02em] xl:text-[19px]">
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <span className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] ${agendaVisual.badgeClass}`}>
+          {agendaVisual.label}
+        </span>
+      </div>
+
+      <div className="mt-2 text-[17px] font-black tracking-[-0.02em] xl:text-[19px]">
         {done ? '✅ ' : ''}
         {item?.clientName || 'Evento'}
       </div>
@@ -402,6 +455,21 @@ function EventCard({
       >
         🎼 {item?.formation || '-'}
       </span>
+
+      <div className="absolute right-[18px] top-[46%] z-10 -translate-y-1/2">
+        <BandNotesButton
+          eventId={item?.eventId}
+          eventName={item?.clientName}
+          eventDate={item?.eventDate}
+          eventTime={item?.eventTime}
+          initialNotes={item?.bandNotes}
+          initialUpdatedAt={item?.bandNotesUpdatedAt}
+          initialUpdatedBy={item?.bandNotesUpdatedBy}
+          canEdit={canEditBandNotes}
+          workspaceId={workspaceId}
+          dark
+        />
+      </div>
 
       <div className="mt-[14px] flex flex-wrap gap-2">
         <EventActionButton onClick={() => onOpenScale(item)}>
@@ -589,6 +657,7 @@ export default function MembroEscalasTab({
             <EventCard
               key={item.id}
               item={item}
+              member={member}
               onOpenScale={onOpenScale}
               onOpenRepertoire={onOpenRepertoire}
               onOpenMaps={onOpenMaps}
@@ -601,6 +670,7 @@ export default function MembroEscalasTab({
             <EventCard
               key={item.id}
               item={item}
+              member={member}
               onOpenScale={onOpenScale}
               onOpenRepertoire={onOpenRepertoire}
               onOpenMaps={onOpenMaps}
@@ -613,6 +683,7 @@ export default function MembroEscalasTab({
             <EventCard
               key={item.id}
               item={item}
+              member={member}
               onOpenScale={onOpenScale}
               onOpenRepertoire={onOpenRepertoire}
               onOpenMaps={onOpenMaps}

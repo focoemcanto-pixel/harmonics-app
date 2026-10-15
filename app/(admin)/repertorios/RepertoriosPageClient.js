@@ -1,5 +1,6 @@
 'use client';
 
+import SmartEmptyState from '@/components/onboarding/SmartEmptyState';
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import AdminShell from '@/components/admin/AdminShell';
@@ -730,7 +731,18 @@ export default function RepertoriosPage() {
               </label>
             </div>
 
-            {repertoriosFiltrados.length === 0 ? (
+            {!carregando && repertoriosFiltrados.length === 0 && configs.length === 0 && items.length === 0 ? (
+              <SmartEmptyState
+                icon="🎼"
+                eyebrow="Repertórios"
+                title="Nenhum repertório ainda"
+                description="Depois que o cliente assina o contrato, ele monta o repertório pelo portal (com sugestões) e você acompanha e aprova por aqui."
+                primaryHref="/pre-contratos"
+                primaryLabel="Enviar um pré-contrato"
+                secondaryHref="/sugestoes"
+                secondaryLabel="Ver catálogo de sugestões"
+              />
+            ) : repertoriosFiltrados.length === 0 ? (
               <div className="rounded-[20px] bg-[#f8fafc] px-5 py-5 text-[14px] font-semibold text-[#64748b]">
                 Nenhum repertório encontrado com esse filtro.
               </div>

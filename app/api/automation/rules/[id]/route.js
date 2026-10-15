@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { guardWorkspaceAdmin } from '@/lib/api/route-guards';
 
 export async function PATCH(request, context) {
+  const guard = await guardWorkspaceAdmin(request, { logPrefix: '[PATCH /api/automation/rules/[id]]' });
+  if (!guard.ok) return guard.response;
+
   try {
     const routeParams = await context?.params;
     const { id } = routeParams || {};
@@ -37,14 +40,15 @@ export async function PATCH(request, context) {
 
     updates.updated_at = new Date().toISOString();
 
-    const supabaseAdmin = getSupabaseAdmin();
+    const supabaseAdmin = guard.supabase;
 
     const { data, error } = await supabaseAdmin
       .from('automation_rules')
       .update(updates)
       .eq('id', id)
+      .eq('workspace_id', guard.auth.workspaceId)
       .select()
-      .single();
+      .maybeSingle();
 
     if (error) throw error;
 

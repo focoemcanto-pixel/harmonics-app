@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server.js';
 import crypto from 'node:crypto';
 import { google } from 'googleapis';
-import { createClient } from '@/lib/supabase/server';
+import { guardPlatformAdmin } from '@/lib/api/route-guards';
 
 function getStateSecret() {
   return String(process.env.GOOGLE_OAUTH_STATE_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
@@ -65,29 +65,18 @@ export async function POST(request) {
   try {
     console.error('[START-OAUTH] Iniciando POST');
 
+    // Conectar o Google define qual conta recebe os contratos gerados (a credencial ativa mais
+    // recente é usada na geração). Só admin da plataforma autenticado pode iniciar o fluxo.
+    const guard = await guardPlatformAdmin(request, { logPrefix: '[START-OAUTH]' });
+    if (!guard.ok) return guard.response;
+
     const { searchParams } = new URL(request.url);
     const queryUserId =
       String(searchParams.get('userId') || '').trim() ||
       String(searchParams.get('user_id') || '').trim();
 
-    let userId = queryUserId;
-    let source = 'query';
-
-    if (queryUserId) {
-      console.error('[START-OAUTH] userId via query', queryUserId);
-    } else {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      userId = String(user?.id || '').trim();
-      source = 'session';
-
-      if (userId) {
-        console.error('[START-OAUTH] userId via session', userId);
-      }
-    }
+    const userId = queryUserId || String(guard.auth?.userId || '').trim();
+    const source = queryUserId ? 'query' : 'session';
 
     console.error(`[START-OAUTH] source=${source}`);
 

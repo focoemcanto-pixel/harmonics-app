@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ExternalLink, UploadCloud, X } from 'lucide-react';
 import { Field, Input } from '../admin/AdminFormPrimitives';
 import AppModal from '../ui/AppModal';
+import ContractSignedPdfButton from '../contracts/ContractSignedPdfButton';
 import { supabase } from '@/lib/supabase';
 
 const MAX_PDF_SIZE_BYTES = 15 * 1024 * 1024;
@@ -319,7 +320,11 @@ export default function ExternalContractImportModal({ open, onClose, onImported,
           <p className="font-bold text-emerald-800">Evento criado com sucesso.</p>
           <div className="mt-2 flex flex-wrap gap-3">
             {links.event ? <a className="font-semibold text-emerald-900 underline" href={links.event}>Ver evento</a> : null}
-            {links.pdf ? <a className="font-semibold text-emerald-900 underline" href={links.pdf} target="_blank" rel="noreferrer">Ver PDF do contrato</a> : null}
+            {links.pdf && resultData?.contractId ? (
+              <ContractSignedPdfButton contractId={resultData.contractId} hasPdf className="font-semibold text-emerald-900 underline">
+                Ver PDF do contrato
+              </ContractSignedPdfButton>
+            ) : null}
             {absolutePanelLink ? <button type="button" className="font-semibold text-emerald-900 underline" onClick={() => navigator.clipboard?.writeText(absolutePanelLink)}>Copiar link do painel do cliente</button> : null}
             {absolutePanelLink ? <a className="font-semibold text-emerald-900 underline" href={absolutePanelLink} target="_blank" rel="noreferrer">Abrir painel do cliente</a> : null}
           </div>

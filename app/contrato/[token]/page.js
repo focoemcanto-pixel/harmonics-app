@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
+import { buildPublicContractFileUrl } from '@/lib/contracts/public-file-url';
 import { supabase } from '../../../lib/supabase';
 import Card from '../../../components/ui/Card';
 import Button from '../../../components/ui/Button';
@@ -3110,6 +3111,8 @@ if (contractSignedError) throw contractSignedError;
     const contractLoading = postSignPollingState === 'polling';
     const pdfGenerating = internalPdfIsGenerating || (contractSigned && contractLoading && !pdfUrl);
     const pdfReady = !!pdfUrl;
+    // Abre pelo app (token + URL assinada); a URL gravada só indica que o PDF existe.
+    const pdfHref = pdfUrl ? buildPublicContractFileUrl(token, '') || pdfUrl : '';
 
     return (
       <>
@@ -3148,7 +3151,7 @@ if (contractSignedError) throw contractSignedError;
   {pdfReady ? (
     <>
       <a
-        href={pdfUrl}
+        href={pdfHref}
         target="_blank"
         rel="noreferrer"
         className={`inline-flex ${getGuideSpotlightClass(isClientContractSuccessGuideActive && successGuideVisible)}`}
@@ -3199,9 +3202,9 @@ if (contractSignedError) throw contractSignedError;
       </main>
       {isClientContractSuccessGuideActive && successGuideVisible ? (
         <ClientContractSuccessGuide
-          pdfUrl={pdfUrl}
+          pdfUrl={pdfHref}
           clientPanelUrl={`${painelUrl}${painelUrl.includes('?') ? '&' : '?'}guide=client-panel&returnTo=${encodeURIComponent('/eventos')}${eventData?.id ? `&eventId=${encodeURIComponent(eventData.id)}` : ''}`}
-          onOpenPdf={() => window.open(pdfUrl, '_blank', 'noopener,noreferrer')}
+          onOpenPdf={() => window.open(pdfHref, '_blank', 'noopener,noreferrer')}
           onOpenClientPanel={() => {
             const url = `${painelUrl}${painelUrl.includes('?') ? '&' : '?'}guide=client-panel&returnTo=${encodeURIComponent('/eventos')}${eventData?.id ? `&eventId=${encodeURIComponent(eventData.id)}` : ''}`;
             window.location.href = url;

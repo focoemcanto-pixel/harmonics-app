@@ -88,7 +88,7 @@ Critério: guard detectado no código. PUBLIC TOKEN = autorização por token do
 | `/api/google/maps-key` | PUBLIC |
 | `/api/google/oauth/callback` | PUBLIC TOKEN |
 | `/api/google/oauth/force-reauth` | PLATFORM ADMIN |
-| `/api/google/oauth/start` | AUTHENTICATED |
+| `/api/google/oauth/start` | PLATFORM ADMIN |
 | `/api/invites/delete-many` | WORKSPACE MEMBER |
 | `/api/member/invites/[inviteId]/respond` | AUTHENTICATED |
 | `/api/membro/escala/by-client` | PUBLIC TOKEN |

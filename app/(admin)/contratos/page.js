@@ -1,5 +1,6 @@
 'use client';
 
+import { buildPublicContractFileUrl } from '@/lib/contracts/public-file-url';
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
@@ -384,7 +385,7 @@ export default function ContratosPage() {
           item.enviadoEm ? new Date(item.enviadoEm).toLocaleString('pt-BR') : '',
           item.assinadoEm ? new Date(item.assinadoEm).toLocaleString('pt-BR') : '',
           item.linkContrato ? `${window.location.origin}${item.linkContrato}` : '',
-          item.pdfUrl || '',
+          item.pdfUrl ? (item.token ? buildPublicContractFileUrl(item.token, window.location.origin) : item.pdfUrl) : '',
           item.docUrl || '',
           item.observacoes || '',
         ]),

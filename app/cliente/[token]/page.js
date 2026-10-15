@@ -1,3 +1,5 @@
+import { buildPaymentProofHref } from '@/lib/payments/public-proof-url';
+import { buildContractPdfHref } from '@/lib/contracts/public-file-url';
 import { isAntesalaAuthorized } from '@/lib/cliente/antesala-authorization';
 import { redirect } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
@@ -1281,7 +1283,7 @@ export default async function ClienteTokenPage({ params, searchParams }) {
 
       supabase
         .from('contracts')
-        .select('id, event_id, precontract_id, pdf_url, doc_url, signed_at, raw_payload')
+        .select('id, event_id, precontract_id, public_token, pdf_url, doc_url, signed_at, raw_payload')
         .eq('event_id', eventId)
         .maybeSingle(),
 
@@ -1392,7 +1394,7 @@ export default async function ClienteTokenPage({ params, searchParams }) {
     try {
       const contractByPrecontractResp = await supabase
         .from('contracts')
-        .select('id, event_id, precontract_id, pdf_url, doc_url, signed_at, raw_payload')
+        .select('id, event_id, precontract_id, public_token, pdf_url, doc_url, signed_at, raw_payload')
         .eq('precontract_id', precontract.id)
         .order('created_at', { ascending: false })
         .limit(1)
@@ -1738,7 +1740,7 @@ export default async function ClienteTokenPage({ params, searchParams }) {
     status: String(entry.status || '').trim().toUpperCase() || 'EM_ANALISE',
     note: entry.notes || '',
     fileName: '',
-    proofUrl: entry.proof_file_url || '',
+    proofUrl: buildPaymentProofHref(clientToken, entry),
   }));
 
   console.log('[CLIENTE PAGE][FINANCE_SUMMARY_INPUT]', {
@@ -1869,7 +1871,8 @@ export default async function ClienteTokenPage({ params, searchParams }) {
       '',
     receptivoResumo,
     statusContrato: contract?.signed_at ? 'Contrato assinado' : 'Contrato pendente',
-    contratoPdfUrl: contract?.pdf_url || '',
+    // PDF via app (token + URL assinada): continua funcionando quando o bucket ficar privado.
+    contratoPdfUrl: buildContractPdfHref(contract, { fallbackToken: precontract?.public_token, baseUrl: '' }),
     contratoDocUrl: contract?.doc_url || '',
     contratoAssinadoEm: contract?.signed_at || null,
     statusEvento: resolvedEventSource.status || 'Confirmado',

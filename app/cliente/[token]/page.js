@@ -1,4 +1,4 @@
-import { buildPublicPaymentProofUrl } from '@/lib/payments/public-proof-url';
+import { buildPaymentProofHref } from '@/lib/payments/public-proof-url';
 import { buildContractPdfHref } from '@/lib/contracts/public-file-url';
 import { isAntesalaAuthorized } from '@/lib/cliente/antesala-authorization';
 import { redirect } from 'next/navigation';
@@ -1740,9 +1740,7 @@ export default async function ClienteTokenPage({ params, searchParams }) {
     status: String(entry.status || '').trim().toUpperCase() || 'EM_ANALISE',
     note: entry.notes || '',
     fileName: '',
-    proofUrl: entry.proof_file_url
-      ? buildPublicPaymentProofUrl(clientToken, entry.id) || entry.proof_file_url
-      : '',
+    proofUrl: buildPaymentProofHref(clientToken, entry),
   }));
 
   console.log('[CLIENTE PAGE][FINANCE_SUMMARY_INPUT]', {

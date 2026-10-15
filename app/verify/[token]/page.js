@@ -1,3 +1,4 @@
+import { buildContractPdfHref } from '@/lib/contracts/public-file-url';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import CopyHashButton from './CopyHashButton';
 
@@ -355,7 +356,7 @@ export default async function VerifyContractPage({ params }) {
         <div className="flex flex-wrap gap-3 pt-2">
           {contract.pdf_url ? (
             <a
-              href={contract.pdf_url}
+              href={buildContractPdfHref(contract, { fallbackToken: resolvedPrecontract?.public_token, baseUrl: '' })}
               target="_blank"
               rel="noreferrer"
               className="rounded-2xl bg-[#0f172a] px-5 py-3 text-sm font-black text-white"

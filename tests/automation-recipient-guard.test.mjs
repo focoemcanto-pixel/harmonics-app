@@ -85,3 +85,25 @@ test('formato inválido é decidido sem consultar o banco', async () => {
   assert.equal(result.reason, RECIPIENT_SKIP_REASONS.invalidFormat);
   assert.equal(supabase.stats.from, 0);
 });
+
+test('guarda só se aplica aos fluxos agendados do cron (instantâneos mantêm o comportamento anterior)', async () => {
+  const { shouldGuardRecipient } = await import('../lib/automation/recipient-guard.js');
+  for (const eventType of [
+    'repertoire_pending_15_days_client',
+    'payment_pending_2_days_client',
+    'post_event_review_request_client',
+    'schedule_pending_15_days_admin',
+    'event_day_confirmation_client',
+  ]) {
+    assert.equal(shouldGuardRecipient(eventType), true, eventType);
+  }
+  for (const eventType of [
+    'invite_member',
+    'contract_signed_client',
+    'contract_signed_admin',
+    'contract_review_released_client',
+    'repertoire_review_released_client',
+  ]) {
+    assert.equal(shouldGuardRecipient(eventType), false, eventType);
+  }
+});

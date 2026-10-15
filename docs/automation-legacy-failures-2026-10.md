@@ -38,6 +38,7 @@ Grupos não são afetados: o destinatário sempre passa por `replace(/\D/g, '')`
 
 **Correção** (`lib/automation/recipient-guard.js`, chamada em `executeAutomationEvent` antes do envio):
 - valida o formato (DDD+número com 10/11 dígitos ou 55+DDD+número; DDD sem 0; 11 dígitos começa com 9);
+- aplicada só aos fluxos agendados do cron (os instantâneos — convite, contrato assinado, revisões — mantêm o comportamento anterior, porque seus chamadores só tratam sent/failed);
 - se o mesmo número teve falha `failed` com "JID does not exist" nos últimos 30 dias no workspace, não chama o provider;
 - nos dois casos grava `automation_logs.status = 'skipped'` com `error_message` explicando o motivo e
   `metadata.skipReason` (`recipient_invalid_format` / `recipient_not_on_whatsapp`).

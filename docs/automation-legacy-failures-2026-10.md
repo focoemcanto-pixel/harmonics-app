@@ -60,11 +60,11 @@ de Regras (`components/automacoes/RegrasPageClient.js`), onde o template é opci
 ("Olá, {cliente}! Faltam 15 dias para o seu evento (...). Por favor, acesse o painel e finalize a escolha do repertório: {link}"),
 e essa regra enviou 6 mensagens com sucesso entre 2026-09-11 e 2026-10-09. As falhas que aparecem nela são as dos itens 1 e 2.
 
-**Opções (aguardando confirmação do dono; nada foi alterado em produção):**
-1. Manter como está (a mensagem de fallback continua sendo enviada).
-2. Criar um template "Lembrete de repertório" em `message_templates` com o texto desejado e vinculá-lo à regra
-   (mesmo texto do fallback = sem mudança para o cliente, mas editável na Central).
-3. Desativar a regra (o lembrete de 15 dias deixa de ser enviado).
+**Resolução (opção b, aprovada pelo dono em 2026-10-15).** Criado o template
+`repertoire_pending_15_days_client_whatsapp` ("Lembrete de repertório (15 dias)", id `1f0acc4b-f5b3-40a8-978c-3e859aaa8d45`)
+com o mesmo texto do fallback e vinculado à regra (`docs/sql/2026-10-15-repertoire-reminder-template.sql`).
+O texto enviado ao cliente não muda (coberto por `tests/automation-repertoire-template.test.mjs`) e agora é editável na Central.
+Estado após a mudança: 8 regras ativas, 0 sem template, 9 templates ativos.
 
 ## Legado conhecido, fora deste PR
 

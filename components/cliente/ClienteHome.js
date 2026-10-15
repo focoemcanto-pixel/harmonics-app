@@ -1,4 +1,5 @@
 'use client';
+import { buildPublicPaymentProofUrl } from '@/lib/payments/public-proof-url';
 import { useToast } from '../ui/ToastProvider';
 import { supabase } from '../../lib/supabase';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -5702,7 +5703,9 @@ function FinanceiroTab({ data, paymentHistory, setPaymentHistory, onPaymentRegis
         status: 'EM_ANALISE',
         note: paymentNote || 'Aguardando conferência da equipe.',
         fileName: paymentFile?.name || 'comprovante-anexado',
-        proofUrl: result?.payment?.proof_file_url || '',
+        proofUrl: result?.payment?.proof_file_url
+          ? buildPublicPaymentProofUrl(data.token, result?.payment?.id) || result.payment.proof_file_url
+          : '',
       };
 
       setPaymentHistory((prev) => [novoItem, ...prev]);

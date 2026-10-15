@@ -55,13 +55,14 @@ function isProjectStorageUrl(value) {
   }
 }
 
-export async function GET(_request, context) {
+// `deps` só é usado em testes (cliente Supabase falso); o Next chama com (request, context).
+export async function GET(_request, context, deps = {}) {
   const params = await context?.params;
   const token = String(params?.token || '').trim();
   const paymentId = String(params?.paymentId || '').trim();
   if (!token || token.length < 8 || token.length > 200 || !UUID_REGEX.test(paymentId)) return notFound();
 
-  const supabase = getSupabaseAdmin();
+  const supabase = deps.supabase || getSupabaseAdmin();
   const eventId = await resolveEventIdFromToken(supabase, token);
   if (!eventId) return notFound();
 

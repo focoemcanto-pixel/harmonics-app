@@ -14,6 +14,7 @@ import {
 } from '../../lib/cliente/repertorio';
 import { getYoutubeVideoId } from '../../lib/youtube/getYoutubeVideoId';
 import { buildWhatsAppUrl } from '../../lib/whatsapp/support-config';
+import { buildPublicPaymentProofHref } from '../../lib/files/public-file-links';
 
 const REPERTORIO_DRAFT_LOCAL_STORAGE_KEY = 'repertorio_draft_local';
 const CLIENT_HOME_DEBUG =
@@ -5702,7 +5703,11 @@ function FinanceiroTab({ data, paymentHistory, setPaymentHistory, onPaymentRegis
         status: 'EM_ANALISE',
         note: paymentNote || 'Aguardando conferência da equipe.',
         fileName: paymentFile?.name || 'comprovante-anexado',
-        proofUrl: result?.payment?.proof_file_url || '',
+        proofUrl: buildPublicPaymentProofHref({
+          token: data.token,
+          paymentId: result?.payment?.id,
+          proofUrl: result?.payment?.proof_file_url,
+        }),
       };
 
       setPaymentHistory((prev) => [novoItem, ...prev]);

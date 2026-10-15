@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import CopyHashButton from './CopyHashButton';
+import { buildPublicContractFileHref } from '@/lib/files/public-file-links';
 
 export const dynamic = 'force-dynamic';
 const precontractSelect = `
@@ -355,7 +356,7 @@ export default async function VerifyContractPage({ params }) {
         <div className="flex flex-wrap gap-3 pt-2">
           {contract.pdf_url ? (
             <a
-              href={contract.pdf_url}
+              href={buildPublicContractFileHref({ token, pdfUrl: contract.pdf_url, contractId: contract.id })}
               target="_blank"
               rel="noreferrer"
               className="rounded-2xl bg-[#0f172a] px-5 py-3 text-sm font-black text-white"

@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 import { loadWorkspacePricing } from '@/lib/settings/workspace-pricing';
 import ClienteHome from '../../../components/cliente/ClienteHome';
 import { resolveSupportWhatsAppConfig } from '../../../lib/whatsapp/support-config';
+import { buildPublicContractFileHref, buildPublicPaymentProofHref } from '../../../lib/files/public-file-links';
 import { calculateEventFinance, isConfirmedPayment, normalizeFinanceStatus, toMoneyNumber } from '../../../lib/finance/event-finance';
 
 const IS_DEV = process.env.NODE_ENV !== 'production';
@@ -1738,7 +1739,7 @@ export default async function ClienteTokenPage({ params, searchParams }) {
     status: String(entry.status || '').trim().toUpperCase() || 'EM_ANALISE',
     note: entry.notes || '',
     fileName: '',
-    proofUrl: entry.proof_file_url || '',
+    proofUrl: buildPublicPaymentProofHref({ token: normalizedToken, paymentId: entry.id, proofUrl: entry.proof_file_url }),
   }));
 
   console.log('[CLIENTE PAGE][FINANCE_SUMMARY_INPUT]', {
@@ -1869,7 +1870,7 @@ export default async function ClienteTokenPage({ params, searchParams }) {
       '',
     receptivoResumo,
     statusContrato: contract?.signed_at ? 'Contrato assinado' : 'Contrato pendente',
-    contratoPdfUrl: contract?.pdf_url || '',
+    contratoPdfUrl: buildPublicContractFileHref({ token: normalizedToken, pdfUrl: contract?.pdf_url, contractId: contract?.id }),
     contratoDocUrl: contract?.doc_url || '',
     contratoAssinadoEm: contract?.signed_at || null,
     statusEvento: resolvedEventSource.status || 'Confirmado',

@@ -14,6 +14,7 @@ import { buildContractTemplateData } from '../../../lib/contracts/buildContractT
 import { generateInternalContract } from '../../../lib/contracts/internalContractGenerator';
 import { renderContractHtmlWithData, resolveContractHtmlSource } from '../../../lib/contracts/resolveContractHtmlSource';
 import { useAppToast } from '../../../components/ui/ToastProvider';
+import { buildPublicContractFileHref } from '../../../lib/files/public-file-links';
 const IS_DEV = process.env.NODE_ENV !== 'production';
 const ENABLE_LEGACY_CONTRACT_SIGN_FALLBACK =
   process.env.NEXT_PUBLIC_ENABLE_LEGACY_CONTRACT_SIGN_FALLBACK === 'true';
@@ -3098,6 +3099,8 @@ if (contractSignedError) throw contractSignedError;
 
   if (enviado || contratoFinalizado) {
     const pdfUrl = resultadoFinal.pdfUrl || contract?.signed_pdf_url || contract?.pdf_url || '';
+    // Abre o PDF pelo endpoint do app (URL assinada curta) em vez da URL pública do storage.
+    const pdfOpenHref = buildPublicContractFileHref({ token, pdfUrl, contractId: contract?.id });
     const signedHtml = resultadoFinal.html || contratoHtmlResolvido || '';
     const painelUrl =
       resultadoFinal.clientPanelUrl ||
@@ -3148,7 +3151,7 @@ if (contractSignedError) throw contractSignedError;
   {pdfReady ? (
     <>
       <a
-        href={pdfUrl}
+        href={pdfOpenHref}
         target="_blank"
         rel="noreferrer"
         className={`inline-flex ${getGuideSpotlightClass(isClientContractSuccessGuideActive && successGuideVisible)}`}
@@ -3201,7 +3204,7 @@ if (contractSignedError) throw contractSignedError;
         <ClientContractSuccessGuide
           pdfUrl={pdfUrl}
           clientPanelUrl={`${painelUrl}${painelUrl.includes('?') ? '&' : '?'}guide=client-panel&returnTo=${encodeURIComponent('/eventos')}${eventData?.id ? `&eventId=${encodeURIComponent(eventData.id)}` : ''}`}
-          onOpenPdf={() => window.open(pdfUrl, '_blank', 'noopener,noreferrer')}
+          onOpenPdf={() => window.open(pdfOpenHref, '_blank', 'noopener,noreferrer')}
           onOpenClientPanel={() => {
             const url = `${painelUrl}${painelUrl.includes('?') ? '&' : '?'}guide=client-panel&returnTo=${encodeURIComponent('/eventos')}${eventData?.id ? `&eventId=${encodeURIComponent(eventData.id)}` : ''}`;
             window.location.href = url;

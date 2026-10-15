@@ -7,6 +7,7 @@ import {
   resolveContractBucketName,
   resolveContractStoragePath,
 } from '@/lib/contracts/contract-storage';
+import { isContractInPortalScope, resolvePortalTokenScope } from '@/lib/files/portal-token-scope';
 
 export const dynamic = 'force-dynamic';
 
@@ -81,13 +82,39 @@ async function resolveContractByToken(supabase, token) {
   return precontract.event_id ? latestContractWithPdf(supabase, 'event_id', precontract.event_id) : null;
 }
 
-export async function GET(_request, context) {
+// Contrato específico (?c=<id>) — usado pelo portal, que mostra um contrato já resolvido.
+// Só é aceito se estiver no escopo do token (mesmos tokens que o portal aceita). Caso contrário,
+// 404 (sem revelar existência).
+async function resolveContractByIdForToken(supabase, token, contractId) {
+  const { data: contract } = await supabase
+    .from('contracts')
+    .select('id, pdf_url, precontract_id, workspace_id, event_id')
+    .eq('id', contractId)
+    .maybeSingle();
+  if (!contract?.id) return null;
+  const scope = await resolvePortalTokenScope(supabase, token);
+  return isContractInPortalScope(scope, contract) ? contract : null;
+}
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export async function GET(request, context) {
   const params = await context?.params;
   const token = String(params?.token || '').trim();
   if (!token || token.length < 8 || token.length > 200) return notFound();
 
+  let requestedContractId = '';
+  try {
+    requestedContractId = String(new URL(request?.url || '').searchParams.get('c') || '').trim();
+  } catch {
+    requestedContractId = '';
+  }
+  if (requestedContractId && !UUID_REGEX.test(requestedContractId)) return notFound();
+
   const supabase = getSupabaseAdmin();
-  const contract = await resolveContractByToken(supabase, token);
+  const contract = requestedContractId
+    ? await resolveContractByIdForToken(supabase, token, requestedContractId)
+    : await resolveContractByToken(supabase, token);
   if (!contract?.pdf_url) return notFound();
 
   const pdfUrl = String(contract.pdf_url).trim();

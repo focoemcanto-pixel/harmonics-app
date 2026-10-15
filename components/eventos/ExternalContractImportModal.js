@@ -228,7 +228,10 @@ export default function ExternalContractImportModal({ open, onClose, onImported,
 
   const links = {
     event: resultData?.eventId ? `/eventos/${resultData.eventId}` : null,
-    pdf: resultData?.contractPdfUrl || resultData?.pdfUrl || null,
+    // PDF via download autenticado (funciona com o bucket privado); sem ID, mantém o link anterior.
+    pdf: resultData?.contractId
+      ? `/api/files/contracts/${encodeURIComponent(resultData.contractId)}/download`
+      : resultData?.contractPdfUrl || resultData?.pdfUrl || null,
     panel: resultData?.clientPanelLink || resultData?.panelLink || resultData?.adminLink || null,
   };
   const absolutePanelLink = links.panel

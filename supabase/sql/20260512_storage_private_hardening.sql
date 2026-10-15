@@ -1,3 +1,5 @@
+-- OBSOLETO: nomes de policy não batem com produção e "create policy if not exists" é inválido.
+-- Use supabase/sql/20261015_storage_close_public_buckets.sql.
 -- Storage hardening para o multi-tenant Harmonics App
 -- Execute em uma janela controlada depois de validar que o app já usa signed URLs.
 -- Buckets alvo:

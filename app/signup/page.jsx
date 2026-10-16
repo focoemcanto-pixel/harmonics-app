@@ -1,9 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getSupabase } from '@/lib/supabase';
+import { planFromLocation, readIntendedPlan, saveIntendedPlan } from '@/lib/billing/intended-plan';
 
 const PENDING_SIGNUP_KEY = 'harmonics_pending_signup_bootstrap';
 
@@ -41,6 +42,13 @@ export default function SignupPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [existingWorkspace, setExistingWorkspace] = useState(false);
+  const [intendedPlan, setIntendedPlan] = useState('');
+
+  // Plano escolhido em /planos: a conta começa no Free e o checkout vem logo após o onboarding.
+  useEffect(() => {
+    const fromUrl = planFromLocation();
+    setIntendedPlan(fromUrl ? saveIntendedPlan(fromUrl) : readIntendedPlan());
+  }, []);
 
   function updateField(field, value) {
     setExistingWorkspace(false);
@@ -240,8 +248,13 @@ export default function SignupPage() {
               <div className="mb-6 space-y-2">
                 <h2 className="text-2xl font-semibold">Criar workspace</h2>
                 <p className="text-sm text-slate-300">
-                  Comece no plano Free. Você poderá configurar seu WhatsApp, equipe e identidade depois.
+                  {intendedPlan
+                    ? 'Crie sua conta e configure seu espaço. Em seguida você conclui o pagamento do plano escolhido.'
+                    : 'Comece no plano Free. Você poderá configurar seu WhatsApp, equipe e identidade depois.'}
                 </p>
+                <Link href="/planos" className="inline-block text-sm font-semibold text-emerald-200 underline-offset-4 hover:underline">
+                  {intendedPlan ? 'Trocar de plano' : 'Ver planos'}
+                </Link>
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-4">

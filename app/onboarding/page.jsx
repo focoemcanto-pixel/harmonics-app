@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getSupabase } from '@/lib/supabase';
+import { readIntendedPlan } from '@/lib/billing/intended-plan';
 
 // Passo essencial do onboarding único: só o que o produto precisa para funcionar.
 // O restante vira checklist contextual no dashboard (fonte: /api/onboarding/flow-status).
@@ -33,6 +34,11 @@ export default function OnboardingPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
+  const [intendedPlan, setIntendedPlan] = useState('');
+
+  useEffect(() => {
+    setIntendedPlan(readIntendedPlan());
+  }, []);
   const [error, setError] = useState('');
   const [workspace, setWorkspace] = useState(null);
   const [form, setForm] = useState({
@@ -174,13 +180,32 @@ export default function OnboardingPage() {
             {form.publicName.trim()} já pode organizar eventos, contratos e escalas. No painel você encontra um
             checklist curto para configurar o resto no seu ritmo.
           </p>
-          <button
-            type="button"
-            onClick={() => router.push('/dashboard?onboarding=ready')}
-            className="mt-8 w-full rounded-2xl bg-emerald-300 px-5 py-4 font-black text-slate-950 transition hover:bg-emerald-200"
-          >
-            Ir para o painel
-          </button>
+          {intendedPlan ? (
+            <>
+              <button
+                type="button"
+                onClick={() => router.push(`/settings/billing?plan=${encodeURIComponent(intendedPlan)}`)}
+                className="mt-8 w-full rounded-2xl bg-emerald-300 px-5 py-4 font-black text-slate-950 transition hover:bg-emerald-200"
+              >
+                Concluir assinatura do plano escolhido
+              </button>
+              <button
+                type="button"
+                onClick={() => router.push('/dashboard?onboarding=ready')}
+                className="mt-3 w-full rounded-2xl border border-white/15 px-5 py-3 text-sm font-semibold text-slate-200 transition hover:bg-white/10"
+              >
+                Continuar no Free por enquanto
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={() => router.push('/dashboard?onboarding=ready')}
+              className="mt-8 w-full rounded-2xl bg-emerald-300 px-5 py-4 font-black text-slate-950 transition hover:bg-emerald-200"
+            >
+              Ir para o painel
+            </button>
+          )}
         </section>
       </main>
     );

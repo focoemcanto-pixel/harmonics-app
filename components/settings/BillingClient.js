@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { clearIntendedPlan, planFromLocation, readIntendedPlan } from '@/lib/billing/intended-plan';
 
 // Tela de assinatura: planos vêm de /api/billing/plans (mesma fonte dos limites no backend).
 
@@ -45,6 +46,12 @@ export default function BillingClient() {
   const [canceling, setCanceling] = useState(false);
   const [cpfCnpj, setCpfCnpj] = useState('');
   const [askDocumentFor, setAskDocumentFor] = useState('');
+  // Plano escolhido em /planos (ou ?plan=): só destaca o cartão; a assinatura continua exigindo o clique.
+  const [chosenSlug, setChosenSlug] = useState('');
+
+  useEffect(() => {
+    setChosenSlug(planFromLocation() || readIntendedPlan());
+  }, []);
 
   const load = useCallback(async () => {
     setError('');
@@ -79,6 +86,19 @@ export default function BillingClient() {
   const currentSlug = summary?.subscription?.plan?.slug || summary?.effectivePlan?.slug || 'free';
   const status = summary?.subscription?.status || 'active';
   const statusInfo = STATUS_LABEL[status] || STATUS_LABEL.active;
+  const chosenPlan = useMemo(
+    () => (chosenSlug && chosenSlug !== currentSlug ? plans.find((plan) => plan.slug === chosenSlug) || null : null),
+    [plans, chosenSlug, currentSlug]
+  );
+
+  useEffect(() => {
+    if (chosenSlug && chosenSlug === currentSlug) clearIntendedPlan();
+  }, [chosenSlug, currentSlug]);
+
+  useEffect(() => {
+    if (chosenPlan) document.getElementById(`plan-${chosenPlan.slug}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [chosenPlan]);
+
   const pendingPlan = useMemo(
     () => plans.find((plan) => plan.id === summary?.subscription?.pending_checkout?.plan_id) || null,
     [plans, summary]
@@ -101,6 +121,7 @@ export default function BillingClient() {
       }
       if (!response.ok || !json?.ok) throw new Error(json?.error || 'Não foi possível iniciar a assinatura.');
       setAskDocumentFor('');
+      clearIntendedPlan();
       if (json.checkoutUrl) {
         window.location.assign(json.checkoutUrl);
         return;
@@ -234,8 +255,14 @@ export default function BillingClient() {
             {plans.map((plan) => {
               const isCurrent = plan.slug === currentSlug;
               const isPaid = Number(plan.monthly_price) > 0;
+              const isChosen = chosenPlan?.slug === plan.slug;
               return (
-                <article key={plan.id} className={`flex flex-col rounded-[24px] border p-5 ${isCurrent ? 'border-violet-400 bg-violet-50/60' : 'border-[#dbe3ef] bg-white'}`}>
+                <article
+                  key={plan.id}
+                  id={`plan-${plan.slug}`}
+                  className={`flex flex-col rounded-[24px] border p-5 ${isCurrent ? 'border-violet-400 bg-violet-50/60' : isChosen ? 'border-emerald-400 bg-emerald-50/60 ring-2 ring-emerald-300' : 'border-[#dbe3ef] bg-white'}`}
+                >
+                  {isChosen ? <div className="mb-2 text-xs font-black uppercase tracking-[0.12em] text-emerald-700">Plano escolhido</div> : null}
                   <h3 className="text-lg font-black text-[#0f172a]">{plan.name}</h3>
                   <div className="mt-1 text-2xl font-black text-[#0f172a]">
                     {isPaid ? `${money(plan.monthly_price)}` : 'Grátis'}

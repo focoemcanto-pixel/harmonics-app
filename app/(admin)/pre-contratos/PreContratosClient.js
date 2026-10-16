@@ -1506,6 +1506,9 @@ async function carregarModelosContrato({ force = false } = {}) {
         body: JSON.stringify({
           eventType: 'contract_review_released_client',
           entityId: editandoId,
+          // Cada ajuste liberado é uma etapa: notifica 1 vez por liberação (retry/duplo
+          // clique não duplicam; uma nova liberação notifica de novo).
+          stageKey: `adjustment:${pending.id}`,
         }),
       }).catch((automationError) => {
         console.error('[AUTOMATION][CONTRACT_REVIEW_RELEASED] Falha no disparo automático', {

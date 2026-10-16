@@ -22,6 +22,15 @@ export async function POST(request) {
 
     const supabase = getSupabaseAdmin();
 
+    // Estado anterior: identifica ESTA liberação na chave de idempotência da automação.
+    const { data: previousConfig } = await supabase
+      .from('repertoire_config')
+      .select('id, status, is_locked, updated_at')
+      .eq('event_id', eventId)
+      .maybeSingle();
+    const wasAlreadyReleased =
+      previousConfig?.is_locked === false && String(previousConfig?.status || '') === 'EM_EDICAO';
+
     const { data: updatedConfig, error } = await supabase
       .from('repertoire_config')
       .update({
@@ -42,11 +51,19 @@ export async function POST(request) {
       );
     }
 
-    console.log('[AUTOMATION][REPERTOIRE_REVIEW_RELEASED]', { eventId });
-    await executeAutomationEvent({
-      eventType: 'repertoire_review_released_client',
-      entityId: eventId,
-    }).catch((automationError) => {
+    console.log('[AUTOMATION][REPERTOIRE_REVIEW_RELEASED]', { eventId, wasAlreadyReleased });
+    // Cada liberação (repertório que estava travado) notifica 1 vez; liberar de novo um
+    // repertório que já estava em edição não é uma nova liberação. Duas chamadas
+    // concorrentes leem o mesmo estado anterior e compartilham a mesma chave.
+    const releaseStage = `release:${previousConfig?.id || eventId}:${previousConfig?.updated_at || 'unknown'}`;
+    await (wasAlreadyReleased
+      ? Promise.resolve(null)
+      : executeAutomationEvent({
+          eventType: 'repertoire_review_released_client',
+          entityId: eventId,
+          stageKey: releaseStage,
+        })
+    ).catch((automationError) => {
       console.error('[AUTOMATION][REPERTOIRE_REVIEW_RELEASED] Falha no disparo automático', {
         eventId,
         error: automationError?.message || 'erro desconhecido',

@@ -225,3 +225,37 @@ test('WhatsApp: cota mensal do plano e workspace interno ilimitado', async () =>
   assert.equal((await checkWorkspaceFeature({ supabase: internal, workspaceId: 'ws-a', feature: 'whatsapp' })).allowed, true);
   assert.equal((await checkWorkspaceLimit({ supabase: internal, workspaceId: 'ws-a', limitKey: 'whatsapp_messages' })).allowed, true);
 });
+
+const { checkPlanFeature } = await import('../lib/billing/plan-limits.js');
+
+function featureWorld({ planKey = 'free', planSlug = 'free' } = {}) {
+  const plans = [
+    { id: 'plan-free', slug: 'free', name: 'Free', can_use_automation: false, can_use_whatsapp: false },
+    { id: 'plan-starter', slug: 'starter', name: 'Starter', can_use_automation: true, can_use_whatsapp: true },
+  ];
+  const plan = plans.find((p) => p.slug === planSlug);
+  return createFakeSupabase({
+    tables: {
+      workspaces: [{ id: 'ws-a', plan_key: planKey }],
+      workspace_plans: plans,
+      workspace_subscriptions: [{ id: 's', workspace_id: 'ws-a', status: 'active', plan_id: plan.id, plan }],
+    },
+  });
+}
+
+test('recursos do plano no backend: Free não cria automação/canal de WhatsApp (402); pago e interno liberam', async () => {
+  process.env.ENFORCE_WORKSPACE_PLANS = 'true';
+  const blocked = await checkPlanFeature({ supabase: featureWorld(), workspaceId: 'ws-a', feature: 'automation' });
+  assert.equal(blocked.ok, false);
+  assert.equal(blocked.status, 402);
+  assert.equal(blocked.code, 'PLAN_FEATURE_NOT_INCLUDED');
+  assert.match(blocked.error, /Free não inclui automações/);
+  assert.equal((await checkPlanFeature({ supabase: featureWorld(), workspaceId: 'ws-a', feature: 'whatsapp' })).ok, false);
+  assert.equal((await checkPlanFeature({ supabase: featureWorld({ planSlug: 'starter' }), workspaceId: 'ws-a', feature: 'automation' })).ok, true);
+  assert.equal((await checkPlanFeature({ supabase: featureWorld({ planKey: 'internal' }), workspaceId: 'ws-a', feature: 'whatsapp' })).ok, true);
+
+  process.env.ENFORCE_WORKSPACE_PLANS = '';
+  const soft = await checkPlanFeature({ supabase: featureWorld(), workspaceId: 'ws-a', feature: 'automation' });
+  assert.equal(soft.ok, true);
+  assert.equal(soft.wouldBlock.code, 'PLAN_FEATURE_NOT_INCLUDED');
+});

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { checkPlanFeature, planFeatureBlockedResponseBody } from '@/lib/billing/plan-limits';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { getCurrentAutomationWorkspaceSettings } from '@/lib/automation/get-workspace';
 import { validateChannelConfig } from '@/lib/whatsapp/channel-config';
@@ -137,6 +138,11 @@ export async function POST(request) {
         { ok: false, error: 'Workspace de automação não resolvido. Configure workspace_settings antes de criar canais.' },
         { status: 400 }
       );
+    }
+
+    const featureCheck = await checkPlanFeature({ supabase: supabaseAdmin, workspaceId, feature: 'whatsapp' });
+    if (!featureCheck.ok) {
+      return NextResponse.json(planFeatureBlockedResponseBody(featureCheck), { status: 402 });
     }
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'missing';

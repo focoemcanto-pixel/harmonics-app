@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { checkPlanFeature, planFeatureBlockedResponseBody } from '@/lib/billing/plan-limits';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { getCurrentAutomationWorkspaceSettings } from '@/lib/automation/get-workspace';
 import { ensureDefaultAutomations } from '@/lib/automation/ensure-defaults';
@@ -103,6 +104,11 @@ export async function POST(request) {
         { ok: false, error: 'Workspace de automação não resolvido. Configure workspace_settings antes de criar regras.' },
         { status: 400 }
       );
+    }
+
+    const featureCheck = await checkPlanFeature({ supabase: supabaseAdmin, workspaceId, feature: 'automation' });
+    if (!featureCheck.ok) {
+      return NextResponse.json(planFeatureBlockedResponseBody(featureCheck), { status: 402 });
     }
 
     const { data, error } = await supabaseAdmin

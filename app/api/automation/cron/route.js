@@ -7,6 +7,7 @@ import { runScheduledAutomation } from '@/lib/automation/run-scheduled-automatio
 import { recordAutomationCronRun } from '@/lib/automation/cron-run';
 import { shouldRunScheduledRule } from '@/lib/automation/should-run-scheduled-rule';
 import { ensureDefaultAutomations } from '@/lib/automation/ensure-defaults';
+import { cronDeniedResponse, verifyCronRequest } from '@/lib/api/server-secrets';
 
 const SCHEDULED_EVENT_TYPES = [
   'repertoire_pending_15_days_client',
@@ -95,13 +96,9 @@ async function runCronForWorkspace(workspaceId, startedAt) {
 }
 
 async function handleGET(request) {
-  const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret) {
-    const authHeader = request.headers.get('authorization');
-    const querySecret = new URL(request.url).searchParams.get('secret');
-    const token = authHeader?.replace('Bearer ', '') || querySecret;
-    if (token !== cronSecret) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  // Falha fechada: sem CRON_SECRET configurado a rota não executa (antes ficava pública).
+  const cronAuth = verifyCronRequest(request);
+  if (!cronAuth.ok) return cronDeniedResponse(cronAuth, '[CRON]');
 
   const startedAt = new Date();
   try {

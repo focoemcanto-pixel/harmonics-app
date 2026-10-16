@@ -6,6 +6,7 @@ import { getScheduledCandidates } from '@/lib/automation/get-scheduled-candidate
 import { runScheduledAutomation } from '@/lib/automation/run-scheduled-automation';
 import { recordAutomationCronRun } from '@/lib/automation/cron-run';
 import { shouldRunScheduledRule } from '@/lib/automation/should-run-scheduled-rule';
+import { ensureDefaultAutomations } from '@/lib/automation/ensure-defaults';
 
 const SCHEDULED_EVENT_TYPES = [
   'repertoire_pending_15_days_client',
@@ -13,6 +14,7 @@ const SCHEDULED_EVENT_TYPES = [
   'post_event_review_request_client',
   'schedule_pending_15_days_admin',
   'event_day_confirmation_client',
+  'schedule_no_response_member',
 ];
 
 async function getWorkspaceIdsWithAutomationRules() {
@@ -34,6 +36,9 @@ async function runCronForWorkspace(workspaceId, startedAt) {
   let totalSkipped = 0;
   let totalFailed = 0;
   const rulesSummary = [];
+
+  // Cria só o que falta (ex.: lembrete de convite); nunca altera regra existente.
+  await ensureDefaultAutomations(workspaceId);
 
   for (const eventType of SCHEDULED_EVENT_TYPES) {
     const rules = await getActiveRules(workspaceId, eventType);
@@ -60,7 +65,7 @@ async function runCronForWorkspace(workspaceId, startedAt) {
       }
 
       totalEligible += candidates.length;
-      const result = await runScheduledAutomation(eventType, candidates, workspaceId);
+      const result = await runScheduledAutomation(eventType, candidates, workspaceId, { rule });
       totalExecutions += result.executions?.length || 0;
       totalSent += result.sent;
       totalSkipped += result.skipped;

@@ -28,11 +28,10 @@ export async function POST(request) {
 
     const body = await request.json().catch(() => ({}));
     const eventId = String(body?.eventId || '').trim();
-    // A rota é chamada pelas ações de envio da tela de escala. Se o músico ainda
-    // está PENDENTE, um whatsapp_sent_at antigo não pode transformar o clique em 0/0.
-    // false fica disponível apenas para consumidores que explicitamente queiram
-    // enviar somente convites nunca disparados.
-    const forcePending = body?.forcePending !== false;
+    // Padrão: só convites pendentes ainda NÃO enviados (o convite imediato já sai ao
+    // salvar a escala). Reenviar para quem já recebeu exige forcePending: true explícito;
+    // antes o padrão reenviava a todos os pendentes, gerando um segundo convite.
+    const forcePending = body?.forcePending === true;
     if (!isUuid(eventId)) return NextResponse.json({ ok: false, error: 'eventId inválido ou ausente' }, { status: 400 });
 
     const { data: eventRow, error: eventError } = await supabaseAdmin.from('events').select('id, workspace_id').eq('id', eventId).maybeSingle();

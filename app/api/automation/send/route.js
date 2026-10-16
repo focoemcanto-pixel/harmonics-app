@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { executeAutomationEvent } from '@/lib/automation/execute-automation-event';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requireWorkspaceAdmin } from '@/lib/api/require-workspace-access';
+import { sendInviteForWorkspace } from '@/lib/whatsapp/send-invite-service';
 
 const SUPPORTED_EVENT_TYPES = [
   'invite_member',
@@ -175,7 +176,11 @@ export async function POST(request) {
       source: internal ? 'internal' : 'authenticated_workspace',
     });
 
-    const result = await executeAutomationEvent({ eventType, entityId, workspaceId });
+    // Convite de escala sempre passa pelo caminho idempotente do convite (lock +
+    // whatsapp_sent_at): "Enviar agora" não gera um segundo convite para quem já recebeu.
+    const result = eventType === 'invite_member'
+      ? await sendInviteForWorkspace({ inviteId: entityId, workspaceId, origin: 'manual', supabaseAdmin })
+      : await executeAutomationEvent({ eventType, entityId, workspaceId });
 
     return NextResponse.json(result);
   } catch (error) {

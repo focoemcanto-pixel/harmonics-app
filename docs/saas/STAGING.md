@@ -66,9 +66,15 @@ recuperação de senha e assinatura de contrato respondem erro.
 | `CRON_SECRET`, `INTERNAL_API_KEY` | aleatórios novos (cron não é agendado para staging) | opcional |
 
 **Devem ficar vazias em staging** (desligam integrações reais): `WHATSAPP_*`, `WASENDER_*`, `ADMIN_WHATSAPP_PHONE`,
-`GOOGLE_OAUTH_*`, `CONTRACT_SERVICE_*`, `NEXT_PUBLIC_CONTRACT_SERVICE_*`, `HARMONICS_*`, `CONTRACTS_DRIVE_FOLDER_ID`,
+`GOOGLE_OAUTH_*`, `HARMONICS_*`, `CONTRACTS_DRIVE_FOLDER_ID`,
 `CONTRACT_TEMPLATE_DOC_ID`, `OPENAI_*`, `YOUTUBE_API_KEY`, `GOOGLE_MAPS_KEY`, `DEFAULT_WORKSPACE_*`, `LEGACY_ENV_WORKSPACE_ID`.
 Sem domínio customizado: usar apenas o endereço `workers.dev`.
+
+**Contratos (PDF):** a assinatura de contrato interno sempre gera o PDF pelo serviço de HTML→PDF
+(`CONTRACT_SERVICE_URL`/`NEXT_PUBLIC_CONTRACT_SERVICE_URL` + `CONTRACT_SERVICE_API_KEY`). Sem ele, a assinatura
+falha (e pode deixar o contrato `signed` sem PDF). A homologação hospedada atual cobre **Auth/e-mail e Asaas**:
+sem um serviço de PDF **isolado** de staging, deixe essas variáveis vazias e **pule a assinatura/PDF do passo 3**.
+Nunca aponte staging para o serviço de PDF de produção.
 
 ## 3. Roteiro Cliente Zero (executar em staging)
 1. `/signup` → e-mail de confirmação → login → `/onboarding` (5 campos) → "Seu espaço está pronto" → dashboard com checklist.

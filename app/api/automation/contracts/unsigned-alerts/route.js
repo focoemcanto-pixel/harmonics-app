@@ -48,7 +48,10 @@ export async function POST(request) {
     const should30dEvent = dte !== null && dte >= 0 && dte <= 30 && !raw.unsigned_alert_30d_event_sent_at;
     if (!should15d && !should30dEvent) continue;
 
-    const dispatch = await executeAutomationEvent({ eventType: 'contract_signed_admin', entityId: pre.id }).catch(() => null);
+    // Etapa própria: o alerta de contrato não assinado não pode ocupar a chave de
+    // idempotência da notificação de assinatura (mesma regra contract_signed_admin).
+    const alertStage = ['unsigned_alert', should15d ? '15d' : null, should30dEvent ? '30d_event' : null].filter(Boolean).join(':');
+    const dispatch = await executeAutomationEvent({ eventType: 'contract_signed_admin', entityId: pre.id, stageKey: alertStage }).catch(() => null);
     const updatedRaw = { ...(contract?.raw_payload || {}) };
     if (should15d) updatedRaw.unsigned_alert_15d_sent_at = now.toISOString();
     if (should30dEvent) updatedRaw.unsigned_alert_30d_event_sent_at = now.toISOString();

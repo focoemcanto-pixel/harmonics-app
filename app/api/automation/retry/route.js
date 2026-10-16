@@ -28,7 +28,7 @@ async function readJsonSafe(response) {
   return response.json().catch(() => ({}));
 }
 
-async function postAutomationSend({ baseUrl, request, eventType, entityId }) {
+async function postAutomationSend({ baseUrl, request, eventType, entityId, stageKey = null }) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), AUTOMATION_RETRY_TIMEOUT_MS);
 
@@ -36,7 +36,7 @@ async function postAutomationSend({ baseUrl, request, eventType, entityId }) {
     return await fetch(`${baseUrl}/api/automation/send`, {
       method: 'POST',
       headers: buildInternalHeaders(request),
-      body: JSON.stringify({ eventType, entityId }),
+      body: JSON.stringify({ eventType, entityId, ...(stageKey ? { stageKey } : {}) }),
       signal: controller.signal,
     });
   } finally {
@@ -70,7 +70,9 @@ export async function POST(request) {
 
     const { data: originalLog, error: logError } = await supabaseAdmin
       .from('automation_logs')
-      .select('id, status, entity_id, metadata, rule_id, rule:rule_id(event_type)')
+      // automation_logs não tem coluna entity_id (o ID fica em metadata.entityId); selecioná-la
+      // fazia toda tentativa de retry falhar com "column does not exist".
+      .select('id, status, metadata, rule_id, rule:rule_id(event_type)')
       .eq('id', logId)
       .maybeSingle();
 
@@ -87,7 +89,8 @@ export async function POST(request) {
       );
     }
 
-    const entityId = String(originalLog.entity_id || originalLog.metadata?.entityId || '').trim();
+    const entityId = String(originalLog.metadata?.entityId || '').trim();
+    const stageKey = String(originalLog.metadata?.stageKey || '').trim() || null;
     const eventType = String(originalLog.metadata?.eventType || originalLog.rule?.event_type || '').trim();
 
     if (!entityId || !eventType) {
@@ -98,7 +101,7 @@ export async function POST(request) {
     }
 
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || 'http://localhost:3000';
-    const response = await postAutomationSend({ baseUrl, request, eventType, entityId });
+    const response = await postAutomationSend({ baseUrl, request, eventType, entityId, stageKey });
     const result = await readJsonSafe(response);
 
     if (!response.ok) {

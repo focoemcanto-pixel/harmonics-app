@@ -113,6 +113,7 @@ export async function POST(request) {
     const eventType = String(body?.eventType || '').trim();
     const entityId = String(body?.entityId || '').trim();
     const requestedWorkspaceId = String(body?.workspaceId || '').trim() || null;
+    const stageKey = String(body?.stageKey || '').trim() || null;
 
     if (!eventType || !entityId) {
       return NextResponse.json(
@@ -180,7 +181,7 @@ export async function POST(request) {
     // whatsapp_sent_at): "Enviar agora" não gera um segundo convite para quem já recebeu.
     const result = eventType === 'invite_member'
       ? await sendInviteForWorkspace({ inviteId: entityId, workspaceId, origin: 'manual', supabaseAdmin })
-      : await executeAutomationEvent({ eventType, entityId, workspaceId });
+      : await executeAutomationEvent({ eventType, entityId, workspaceId, stageKey, origin: internal ? 'retry' : 'manual' });
 
     return NextResponse.json(result);
   } catch (error) {

@@ -18,6 +18,14 @@ function parseEmbeds(columns) {
   return embeds;
 }
 
+// "metadata->>entityId" lê um campo do JSON, como o PostgREST.
+function readColumn(row, column) {
+  const match = String(column).match(/^([a-zA-Z_]+)->>([a-zA-Z_]+)$/);
+  if (!match) return row[column];
+  const value = row[match[1]]?.[match[2]];
+  return value === undefined || value === null ? null : String(value);
+}
+
 function compare(a, b) {
   if (a === null || a === undefined || b === null || b === undefined) return null;
   return String(a) < String(b) ? -1 : String(a) > String(b) ? 1 : 0;
@@ -55,7 +63,8 @@ export function createMemorySupabase({ tables = {}, unique = {}, foreignKeys = {
 
     const matches = (row) =>
       filters.every(([op, column, value]) => {
-        const current = row[column];
+        if (op === 'or') return value.some(([col, val]) => String(readColumn(row, col) ?? '') === String(val));
+        const current = readColumn(row, column);
         switch (op) {
           case 'eq': return current !== null && current !== undefined && String(current) === String(value);
           case 'neq': return current === null || current === undefined || String(current) !== String(value);
@@ -156,7 +165,16 @@ export function createMemorySupabase({ tables = {}, unique = {}, foreignKeys = {
         filters.push(['not_is', column, value]);
         return query;
       },
-      or() { throw new Error('or() não suportado no fake'); },
+      or(expression) {
+        // Suporta apenas "col.eq.valor,col2.eq.valor".
+        const parts = String(expression).split(',').map((part) => {
+          const [col, op, ...rest] = part.split('.');
+          if (op !== 'eq') throw new Error(`or(${op}) não suportado no fake`);
+          return [col, rest.join('.')];
+        });
+        filters.push(['or', null, parts]);
+        return query;
+      },
       order(column, options = {}) { orderBy = { column, ascending: options.ascending !== false }; return query; },
       limit(value) { limitValue = value; return query; },
       async maybeSingle() {

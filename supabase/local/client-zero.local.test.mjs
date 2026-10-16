@@ -9,8 +9,11 @@ import assert from 'node:assert/strict';
 import { createPgSupabase } from './pg-supabase.mjs';
 
 const DB_URL = process.env.LOCAL_DB_URL || 'postgresql://postgres@localhost/harmonics_local?host=/tmp&port=54329';
-if (!/host=\/tmp|@localhost|@127\.0\.0\.1/.test(DB_URL)) {
-  throw new Error('client-zero.local: recusado — LOCAL_DB_URL precisa apontar para um Postgres local.');
+// O teste trunca todas as tabelas: só aceita o banco descartável harmonics_local em host local.
+const parsedDbUrl = new URL(DB_URL);
+const dbHost = parsedDbUrl.searchParams.get('host') || parsedDbUrl.hostname;
+if (decodeURIComponent(parsedDbUrl.pathname.slice(1)) !== 'harmonics_local' || !['/tmp', 'localhost', '127.0.0.1'].includes(dbHost)) {
+  throw new Error('client-zero.local: recusado — LOCAL_DB_URL precisa apontar para o banco descartável harmonics_local local.');
 }
 const pg = (await import(process.env.PG_MODULE || 'pg')).default;
 const pool = new pg.Pool({ connectionString: DB_URL, max: 8 });

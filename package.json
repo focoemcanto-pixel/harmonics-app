@@ -8,6 +8,7 @@
     "build:worker": "npm run build && open-next build",
     "deploy": "npm run build:worker && wrangler deploy",
     "deploy:preview": "npm run build:worker && wrangler deploy --env preview",
+    "deploy:staging": "opennextjs-cloudflare build && wrangler deploy -c wrangler.staging.toml",
     "preview:local": "wrangler dev",
     "start": "next start",
     "lint": "eslint",

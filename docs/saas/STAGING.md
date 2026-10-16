@@ -4,10 +4,11 @@ Objetivo: ambiente isolado para Cliente Zero, teste A×B e billing, **sem dados 
 
 ## 1. Banco (escolha uma opção)
 
-**Opção A — Supabase Branch (recomendada, tem custo):** Dashboard do projeto `harmonics-saas-dev` →
+**Opção A — Supabase Branch (recomendada; cobrado por hora enquanto existir — apagar ao fim do teste):** Dashboard do projeto `harmonics-saas-dev` →
 Branches → Create branch `staging`. O branch nasce com o schema das migrations registradas e **sem dados**.
 > Atenção: só 7 migrations recentes estão registradas em `supabase_migrations`. Antes de criar o branch,
 > gere um dump de schema de produção (passo 1.1) e aplique no branch, ou o schema ficará incompleto.
+> Alternativa sem CLI: aplicar `supabase/local/10..40_*.sql` (snapshot só de schema, já validado no Client Zero local).
 
 **Opção B — projeto separado `harmonics-staging`:** criar no mesmo org (região us-east-1).
 
@@ -24,7 +25,10 @@ Não use `--data-only`/dumps de dados: contratos, CPFs e comprovantes reais não
 - Buckets: criar `contract-pdfs` e `payment-proofs` **privados** no staging.
 
 ## 2. Aplicação (Cloudflare Worker de preview)
-`wrangler.toml` já suporta `npm run deploy:preview` (`--env preview`). Configure **segredos próprios** do staging:
+Worker separado `harmonics-app-staging` (`wrangler.staging.toml`, sem rotas de produção):
+`npm run deploy:staging`. As variáveis `NEXT_PUBLIC_*` entram no bundle **no build**: exporte as do staging
+no ambiente antes do build (nunca as de produção). Os demais valores são segredos do Worker de staging
+(`wrangler secret put <NOME> -c wrangler.staging.toml`). Configure **segredos próprios** do staging:
 
 | Variável | Valor em staging |
 |---|---|

@@ -1,0 +1,11 @@
+# Staging/homologação: Worker separado (harmonics-app-staging), sem rotas nem segredos de produção.
+# Uso: npm run deploy:staging  (equivale a: opennextjs-cloudflare build && wrangler deploy -c wrangler.staging.toml)
+# Variáveis/segredos próprios do staging (Supabase de staging, Asaas sandbox) — ver docs/saas/STAGING.md.
+name = "harmonics-app-staging"
+main = ".open-next/worker.js"
+compatibility_date = "2026-03-27"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = true
+
+[assets]
+directory = ".open-next/assets"

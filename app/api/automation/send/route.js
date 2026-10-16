@@ -3,6 +3,7 @@ import { executeAutomationEvent } from '@/lib/automation/execute-automation-even
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requireWorkspaceAdmin } from '@/lib/api/require-workspace-access';
 import { sendInviteForWorkspace } from '@/lib/whatsapp/send-invite-service';
+import { verifyInternalRequest } from '@/lib/api/server-secrets';
 
 const SUPPORTED_EVENT_TYPES = [
   'invite_member',
@@ -23,12 +24,10 @@ function isUuid(value) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || '').trim());
 }
 
+// INTERNAL_API_KEY (x-internal-key) ou o legado INTERNAL_API_SECRET (x-internal-api-secret),
+// comparados em tempo constante; sem chave configurada, nenhuma chamada é interna.
 function isAuthorizedInternalRequest(request) {
-  const internalSecret = process.env.INTERNAL_API_SECRET;
-  if (!internalSecret) return false;
-
-  const headerSecret = request.headers.get('x-internal-api-secret');
-  return headerSecret === internalSecret;
+  return verifyInternalRequest(request);
 }
 
 async function resolveEntityWorkspaceId({ supabase, eventType, entityId }) {

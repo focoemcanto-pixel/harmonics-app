@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { executeAutomationEvent } from '@/lib/automation/execute-automation-event';
 import { requireAdminServer } from '@/lib/api/require-admin-server';
+import { timingSafeEqualString, verifyCronRequest } from '@/lib/api/server-secrets';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,9 +11,12 @@ function daysBetween(a, b) {
 }
 
 export async function POST(request) {
-  const cronSecret = String(process.env.AUTOMATION_CRON_SECRET || '').trim();
-  const auth = String(request.headers.get('x-automation-secret') || '').trim();
-  const isCronAllowed = cronSecret && auth && auth === cronSecret;
+  // Cron: Bearer CRON_SECRET (padrão) ou o legado x-automation-secret/AUTOMATION_CRON_SECRET.
+  // Sem segredo configurado, só admin (falha fechada).
+  const legacySecret = String(process.env.AUTOMATION_CRON_SECRET || '').trim();
+  const legacyHeader = String(request.headers.get('x-automation-secret') || '').trim();
+  const isCronAllowed =
+    verifyCronRequest(request).ok || (Boolean(legacySecret) && timingSafeEqualString(legacyHeader, legacySecret));
   if (!isCronAllowed) {
     const adminGuard = await requireAdminServer(request);
     if (!adminGuard.ok) return adminGuard.response;

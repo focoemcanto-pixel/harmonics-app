@@ -21,10 +21,20 @@ jobs:
         run: |
           set -euo pipefail
           URL="https://app.bandaharmonics.com/api/automation/cron"
-          if [ -n "${CRON_SECRET:-}" ]; then
-            curl --fail --show-error --silent --retry 2 --max-time 120 \
-              -H "Authorization: Bearer ${CRON_SECRET}" \
-              "$URL"
-          else
-            curl --fail --show-error --silent --retry 2 --max-time 120 "$URL"
+          # A rota é fail-closed: sem o segredo o cron não roda. Falhar aqui deixa o
+          # problema visível em vez de chamar a rota sem autenticação.
+          if [ -z "${CRON_SECRET:-}" ]; then
+            echo "::error::Secret HARMONICS_CRON_SECRET não configurado no repositório."
+            exit 1
+          fi
+          # Repositório público: o log do Actions é público. Só o status e os totais.
+          HTTP_CODE=$(curl --show-error --silent --retry 2 --max-time 120 \
+            -o response.json -w "%{http_code}" \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            "$URL")
+          echo "HTTP ${HTTP_CODE}"
+          jq -c '{ok, workspacesProcessed, totalEligible, totalSent, totalSkipped, totalFailed, error}' response.json || true
+          rm -f response.json
+          if [ "${HTTP_CODE}" -lt 200 ] || [ "${HTTP_CODE}" -ge 300 ]; then
+            exit 1
           fi

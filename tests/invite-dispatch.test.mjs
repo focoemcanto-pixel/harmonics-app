@@ -10,7 +10,7 @@ register('./helpers/automation-fakes-loader.mjs', import.meta.url);
 process.env.NEXT_PUBLIC_SUPABASE_URL ||= 'https://supabase.test';
 process.env.SUPABASE_SERVICE_ROLE_KEY ||= 'service-role-test-key';
 process.env.NEXT_PUBLIC_APP_URL ||= 'https://app.test';
-delete process.env.CRON_SECRET;
+process.env.CRON_SECRET = 'invite-tests-cron-secret';
 delete process.env.ENFORCE_WORKSPACE_PLANS;
 
 const { ensureDefaultAutomations, DEFAULT_AUTOMATION_RULE_KEYS } = await import('../lib/automation/ensure-defaults.js');
@@ -121,7 +121,9 @@ function sentMessages() {
 }
 
 async function runCron() {
-  const response = await cronGET(new Request('https://app.test/api/automation/cron'));
+  const response = await cronGET(
+    new Request('https://app.test/api/automation/cron', { headers: { authorization: `Bearer ${process.env.CRON_SECRET}` } })
+  );
   assert.equal(response.status, 200);
   return response.json();
 }

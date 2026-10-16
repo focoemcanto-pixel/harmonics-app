@@ -2,23 +2,11 @@ import { NextResponse } from 'next/server';
 import { runPaymentDue2DaysReminder } from '@/lib/automation/payment-due-2-days';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requireAdmin } from '@/lib/api/require-admin';
+import { cronDeniedResponse, verifyCronRequest } from '@/lib/api/server-secrets';
 
-function getCronTokenFromRequest(request) {
-  const authHeader = request.headers.get('authorization');
-  const bearer = authHeader?.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
-  const query = new URL(request.url).searchParams;
-  const queryToken = query.get('key') || '';
-  return bearer || queryToken;
-}
-
-function isCronAuthorized(request) {
-  const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret) return true;
-  return getCronTokenFromRequest(request) === cronSecret;
-}
-
+// Falha fechada: antes, sem CRON_SECRET a rota ficava pública e aceitava ?key= na URL.
 async function assertAdminIfNotCron(request) {
-  if (isCronAuthorized(request)) return { ok: true };
+  if (verifyCronRequest(request).ok) return { ok: true };
 
   const supabase = getSupabaseAdmin();
   const auth = await requireAdmin({
@@ -31,9 +19,8 @@ async function assertAdminIfNotCron(request) {
 }
 
 export async function GET(request) {
-  if (!isCronAuthorized(request)) {
-    return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
-  }
+  const cronAuth = verifyCronRequest(request);
+  if (!cronAuth.ok) return cronDeniedResponse(cronAuth, '[PAYMENT_REMINDERS_CRON]');
 
   try {
     const result = await runPaymentDue2DaysReminder();

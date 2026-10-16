@@ -8,19 +8,15 @@ function isUuid(value) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || '').trim());
 }
 
+// Repassa a credencial do PRÓPRIO admin (cookie/Bearer), nunca a chave interna: assim
+// /api/automation/send aplica o guard de workspace e a checagem da entidade. Antes, com
+// INTERNAL_API_SECRET configurado, o retry virava chamada interna e ignorava o workspace.
 function buildInternalHeaders(request) {
   const headers = { 'Content-Type': 'application/json' };
-
-  const internalSecret = process.env.INTERNAL_API_SECRET;
-  if (internalSecret) {
-    headers['x-internal-api-secret'] = internalSecret;
-  } else {
-    const cookie = request.headers.get('cookie');
-    if (cookie) {
-      headers.cookie = cookie;
-    }
-  }
-
+  const cookie = request.headers.get('cookie');
+  if (cookie) headers.cookie = cookie;
+  const authorization = request.headers.get('authorization');
+  if (authorization) headers.authorization = authorization;
   return headers;
 }
 

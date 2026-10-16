@@ -3,6 +3,9 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
+import { useConfirm } from '@/hooks/useConfirm';
+import { apiError, isPlanBlock, offerUpgrade } from '@/lib/billing/upgrade-prompt';
 import AutomationBackLink from '@/components/automacoes/AutomationBackLink';
 import { cachedPromise, invalidateCache, readCachedValue } from '@/lib/client/light-cache';
 import { useAppToast } from '@/components/ui/ToastProvider';
@@ -495,6 +498,8 @@ export default function RegrasPageClient() {
   const [salvandoPaymentReminder, setSalvandoPaymentReminder] = useState(false);
   const [executandoPaymentReminder, setExecutandoPaymentReminder] = useState(false);
   const toast = useAppToast();
+  const router = useRouter();
+  const { confirm: confirmDialog } = useConfirm() || {};
 
   const carregarDados = useCallback(async ({ force = false } = {}) => {
     try {
@@ -706,13 +711,17 @@ export default function RegrasPageClient() {
       });
 
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Erro ao salvar regra rápida');
+      if (!response.ok) throw apiError(data, 'Erro ao salvar regra rápida');
 
       invalidateCache(RULES_CACHE_KEY);
       await carregarDados({ force: true });
       fecharModal();
     } catch (error) {
       console.error('Erro ao salvar regra rápida:', error);
+      if (isPlanBlock(error)) {
+        await offerUpgrade({ confirm: confirmDialog, router, message: error.message, suggestedPlan: error.suggestedPlan });
+        return;
+      }
       toast.error(error.message || 'Não foi possível concluir a ação');
     } finally {
       setSalvando(false);
@@ -751,13 +760,17 @@ export default function RegrasPageClient() {
       });
 
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Erro ao salvar regra avançada');
+      if (!response.ok) throw apiError(data, 'Erro ao salvar regra avançada');
 
       invalidateCache(RULES_CACHE_KEY);
       await carregarDados({ force: true });
       fecharModal();
     } catch (error) {
       console.error('Erro ao salvar regra avançada:', error);
+      if (isPlanBlock(error)) {
+        await offerUpgrade({ confirm: confirmDialog, router, message: error.message, suggestedPlan: error.suggestedPlan });
+        return;
+      }
       toast.error(error.message || 'Não foi possível concluir a ação');
     } finally {
       setSalvando(false);
@@ -800,13 +813,17 @@ export default function RegrasPageClient() {
 
       if (!response.ok) {
         const data = await response.json();
-        throw new Error(data.error || 'Erro ao atualizar status');
+        throw apiError(data, 'Erro ao atualizar status');
       }
 
       invalidateCache(RULES_CACHE_KEY);
       await carregarDados({ force: true });
     } catch (error) {
       console.error('Erro ao alternar status:', error);
+      if (isPlanBlock(error)) {
+        await offerUpgrade({ confirm: confirmDialog, router, message: error.message, suggestedPlan: error.suggestedPlan });
+        return;
+      }
       toast.error(error.message || 'Não foi possível concluir a ação');
     }
   }

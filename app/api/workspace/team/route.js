@@ -136,7 +136,7 @@ export async function POST(request) {
     const memberLimit = await checkPlanLimit({ supabase: supabaseAdmin, workspaceId: auth.workspaceId, limitKey: 'members' });
     if (!memberLimit.ok) {
       return NextResponse.json(
-        { ok: false, code: memberLimit.code, error: memberLimit.error, limit: memberLimit.limit, used: memberLimit.used },
+        { ok: false, code: memberLimit.code, error: memberLimit.error, limit: memberLimit.limit, used: memberLimit.used, suggestedPlan: memberLimit.suggestedPlan || null },
         { status: memberLimit.status }
       );
     }

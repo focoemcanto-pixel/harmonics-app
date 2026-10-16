@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
+import { apiError, isPlanBlock, offerUpgrade } from '@/lib/billing/upgrade-prompt';
 import AdminSummaryCard from '@/components/admin/AdminSummaryCard';
 import AutomationBackLink from '@/components/automacoes/AutomationBackLink';
 import SmartEmptyState from '@/components/onboarding/SmartEmptyState';
@@ -118,6 +120,7 @@ export default function CanaisPageClient() {
   const [toastTest, setToastTest] = useState(null);
   const { confirm } = useConfirm() || {};
   const toast = useAppToast();
+  const router = useRouter();
 
   const providerDefaults = getProviderDefaults(form.provider);
 
@@ -211,13 +214,17 @@ export default function CanaisPageClient() {
         body: JSON.stringify(payload),
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Erro ao salvar canal');
+      if (!response.ok) throw apiError(data, 'Erro ao salvar canal');
 
       invalidateCache(CHANNELS_CACHE_KEY);
       await carregarCanais({ force: true });
       fecharModal();
       toast.success(isCreating ? 'Canal criado com sucesso. Próximo passo: teste o envio e ative suas automações.' : 'Canal atualizado com sucesso.');
     } catch (error) {
+      if (isPlanBlock(error)) {
+        await offerUpgrade({ confirm, router, message: error.message, suggestedPlan: error.suggestedPlan });
+        return;
+      }
       toast.error(error.message || 'Não foi possível concluir a ação');
     } finally {
       setSalvando(false);

@@ -182,7 +182,7 @@ async function handlePOST(request) {
     const limit = await checkPlanLimit({ supabase, workspaceId, limitKey: 'events_per_month' });
     if (!limit.ok) {
       return NextResponse.json(
-        { ok: false, code: limit.code, message: limit.error, limit: limit.limit, used: limit.used },
+        { ok: false, code: limit.code, message: limit.error, limit: limit.limit, used: limit.used, suggestedPlan: limit.suggestedPlan || null },
         { status: limit.status }
       );
     }

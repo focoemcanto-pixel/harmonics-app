@@ -259,3 +259,26 @@ test('recursos do plano no backend: Free não cria automação/canal de WhatsApp
   assert.equal(soft.ok, true);
   assert.equal(soft.wouldBlock.code, 'PLAN_FEATURE_NOT_INCLUDED');
 });
+
+test('bloqueio de plano sugere o plano pago mais barato que resolve (limite e recurso)', async () => {
+  process.env.ENFORCE_WORKSPACE_PLANS = 'true';
+  const month = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 2)).toISOString();
+  const plans = [
+    { id: 'p0', slug: 'free', name: 'Free', monthly_price: 0, is_public: true, sort_order: 0, max_events_per_month: 10, can_use_automation: false },
+    { id: 'p1', slug: 'starter', name: 'Starter', monthly_price: 97, is_public: true, sort_order: 10, max_events_per_month: 30, can_use_automation: true },
+    { id: 'p2', slug: 'pro', name: 'Pro', monthly_price: 197, is_public: true, sort_order: 20, max_events_per_month: 100, can_use_automation: true },
+  ];
+  const world = (events) => createFakeSupabase({
+    tables: {
+      workspaces: [{ id: 'ws-a', plan_key: 'free' }],
+      workspace_plans: plans,
+      workspace_subscriptions: [{ id: 's', workspace_id: 'ws-a', status: 'active', plan_id: 'p0', plan: plans[0] }],
+      events: Array.from({ length: events }, (_, i) => ({ id: `e${i}`, workspace_id: 'ws-a', created_at: month })),
+    },
+  });
+  const limit = await checkPlanLimit({ supabase: world(10), workspaceId: 'ws-a', limitKey: 'events_per_month' });
+  assert.equal(limit.ok, false);
+  assert.deepEqual(limit.suggestedPlan, { slug: 'starter', name: 'Starter' });
+  const feature = await checkPlanFeature({ supabase: world(0), workspaceId: 'ws-a', feature: 'automation' });
+  assert.deepEqual(feature.suggestedPlan, { slug: 'starter', name: 'Starter' });
+});

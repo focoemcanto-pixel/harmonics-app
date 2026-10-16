@@ -43,6 +43,9 @@ export default function AdminSidebar({ activeItem = 'dashboard' }) {
   const pathname = usePathname();
   const { signOut, profile } = useAuth();
   const { workspace, loading: workspaceLoading } = useCurrentWorkspace();
+  // Assinatura só para workspaces de clientes (o interno da Harmonics não tem plano a contratar).
+  const planKey = String(workspace?.workspace?.plan_key || '').toLowerCase();
+  const settingsItems = planKey && planKey !== 'internal' ? [...SETTINGS_ITEMS, ['Assinatura', '/settings/billing']] : SETTINGS_ITEMS;
   const [loading, setLoading] = useState(false);
 
   async function handleLogout() {
@@ -120,7 +123,7 @@ export default function AdminSidebar({ activeItem = 'dashboard' }) {
 
               {href === '/eventos' && eventosOpen && renderSubItems(EVENTOS_ITEMS)}
               {href === '/contratos' && contratosOpen && renderSubItems(CONTRATOS_ITEMS)}
-              {href === '/settings' && settingsOpen && renderSubItems(SETTINGS_ITEMS)}
+              {href === '/settings' && settingsOpen && renderSubItems(settingsItems)}
             </div>
           );
         })}

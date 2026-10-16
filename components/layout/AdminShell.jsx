@@ -16,7 +16,7 @@ const MOBILE_DRAWER_SECTIONS = [
   { key: 'musical', label: 'MUSICAL', items: [{ module: 'repertorios', label: 'Repertórios', href: '/repertorios', icon: '🎧', helper: 'Biblioteca principal' }, { module: 'sugestoes', label: 'Sugestões', href: '/sugestoes', icon: '✨', helper: 'Ideias do cliente' }] },
   { key: 'equipe', label: 'EQUIPE', items: [{ module: 'contatos', label: 'Contatos', href: '/contatos', icon: '📇', helper: 'Rede e fornecedores' }] },
   { key: 'automacao', label: 'AUTOMAÇÃO', items: [{ module: 'automacoes', label: 'Automação', href: '/automacoes', icon: '⚡', helper: 'Fluxos e rotinas' }, { module: 'automacoes', label: 'Templates', href: '/automacoes/templates', icon: '📄', helper: 'Mensagens e ações' }, { module: 'automacoes', label: 'Logs', href: '/automacoes/logs', icon: '🧠', helper: 'Histórico de execução' }] },
-  { key: 'sistema', label: 'SISTEMA', items: [{ module: 'eventos', label: 'Tipos de eventos', href: '/eventos/tipos', icon: '🧩', helper: 'Modelos e fluxos' }, { module: 'workspace', label: 'Configurações', href: '/settings', icon: '⚙️', helper: 'Conta e segurança' }, { module: 'workspace', label: 'Workspace', href: '/settings/workspace', icon: '🏢', helper: 'Marca e identidade' }] },
+  { key: 'sistema', label: 'SISTEMA', items: [{ module: 'eventos', label: 'Tipos de eventos', href: '/eventos/tipos', icon: '🧩', helper: 'Modelos e fluxos' }, { module: 'workspace', label: 'Configurações', href: '/settings', icon: '⚙️', helper: 'Conta e segurança' }, { module: 'workspace', label: 'Workspace', href: '/settings/workspace', icon: '🏢', helper: 'Marca e identidade' }, { module: 'workspace', label: 'Assinatura', href: '/settings/billing', icon: '💳', helper: 'Plano e cobrança', clientWorkspaceOnly: true }] },
 ];
 
 const ALL_MOBILE_DRAWER_MODULES = Array.from(
@@ -265,9 +265,15 @@ export default function AdminShell({ pageTitle, children, mobileActions, activeI
     return new Set(['dashboard', 'workspace']);
   }, [modules, workspaceLoading]);
 
+  // Assinatura só para workspaces de clientes (o interno da Harmonics não tem plano a contratar).
+  const workspacePlanKey = String(workspaceMe?.workspace?.plan_key || '').toLowerCase();
+  const showClientBilling = Boolean(workspacePlanKey) && workspacePlanKey !== 'internal';
   const visibleDrawerSections = useMemo(() => MOBILE_DRAWER_SECTIONS
-    .map((section) => ({ ...section, items: section.items.filter((item) => allowedModules.has(item.module)) }))
-    .filter((section) => section.items.length > 0), [allowedModules]);
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) => allowedModules.has(item.module) && (!item.clientWorkspaceOnly || showClientBilling)),
+    }))
+    .filter((section) => section.items.length > 0), [allowedModules, showClientBilling]);
   const prefetchableAdminHrefs = useMemo(() => Array.from(new Set(
     visibleDrawerSections.flatMap((section) => section.items.map((item) => stripClientPanelGuideFromHref(item.href))).filter(Boolean)
   )), [visibleDrawerSections]);

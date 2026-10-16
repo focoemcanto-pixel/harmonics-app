@@ -46,6 +46,36 @@ Configure **segredos próprios** do staging:
 Supabase Auth (staging): Site URL = URL do preview; Redirect URLs: `/auth/reset-password`, `/login`.
 Asaas sandbox: webhook → `https://<preview>/api/webhooks/asaas` com o token do `ASAAS_WEBHOOK_SECRET`.
 
+### 2.1 Checklist de variáveis do Worker `harmonics-app-staging`
+Nenhum valor de produção. `lib/config/validate-env.js` exige as 8 primeiras; sem elas, cadastro de usuários,
+recuperação de senha e assinatura de contrato respondem erro.
+
+| Variável | Origem (staging) | Obrigatória |
+|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | URL do branch de staging (build **e** runtime) | sim |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | chave pública do branch (build **e** runtime) | sim |
+| `SUPABASE_SERVICE_ROLE_KEY` | chave service role do branch | sim |
+| `NEXT_PUBLIC_APP_URL` | `https://harmonics-app-staging.<subdomínio>.workers.dev` (build **e** runtime) | sim |
+| `ASAAS_ENV` | `sandbox` | sim |
+| `ASAAS_API_KEY` | chave da conta **sandbox** | sim |
+| `RESEND_API_KEY` | chave de teste própria (conta/chave separada; nunca a de produção) | sim |
+| `RESEND_FROM_EMAIL` | remetente de teste verificado nessa conta | sim |
+| `ASAAS_WEBHOOK_SECRET` | aleatório novo | sim (sem ele o webhook responde 503) |
+| `ENFORCE_WORKSPACE_PLANS` | `true` | sim |
+| `APP_BASE_URL` | igual a `NEXT_PUBLIC_APP_URL` | recomendado |
+| `CRON_SECRET`, `INTERNAL_API_KEY` | aleatórios novos (cron não é agendado para staging) | opcional |
+
+**Devem ficar vazias em staging** (desligam integrações reais): `WHATSAPP_*`, `WASENDER_*`, `ADMIN_WHATSAPP_PHONE`,
+`GOOGLE_OAUTH_*`, `HARMONICS_*`, `CONTRACTS_DRIVE_FOLDER_ID`,
+`CONTRACT_TEMPLATE_DOC_ID`, `OPENAI_*`, `YOUTUBE_API_KEY`, `GOOGLE_MAPS_KEY`, `DEFAULT_WORKSPACE_*`, `LEGACY_ENV_WORKSPACE_ID`.
+Sem domínio customizado: usar apenas o endereço `workers.dev`.
+
+**Contratos (PDF):** a assinatura de contrato interno sempre gera o PDF pelo serviço de HTML→PDF
+(`CONTRACT_SERVICE_URL`/`NEXT_PUBLIC_CONTRACT_SERVICE_URL` + `CONTRACT_SERVICE_API_KEY`). Sem ele, a assinatura
+falha (e pode deixar o contrato `signed` sem PDF). A homologação hospedada atual cobre **Auth/e-mail e Asaas**:
+sem um serviço de PDF **isolado** de staging, deixe essas variáveis vazias e **pule a assinatura/PDF do passo 3**.
+Nunca aponte staging para o serviço de PDF de produção.
+
 ## 3. Roteiro Cliente Zero (executar em staging)
 1. `/signup` → e-mail de confirmação → login → `/onboarding` (5 campos) → "Seu espaço está pronto" → dashboard com checklist.
 2. Dashboard vazio, `/eventos`, `/contatos`, `/contratos`, `/pagamentos`, `/repertorios`: estados vazios com ação.

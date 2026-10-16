@@ -16,6 +16,8 @@ import { Field, Input, Select } from '@/components/admin/AdminFormPrimitives';
 import Pill from '@/components/admin/AdminPill';
 import AppModal from '@/components/ui/AppModal';
 import { useAppToast } from '@/components/ui/ToastProvider';
+import { useConfirm } from '@/hooks/useConfirm';
+import { isPlanBlock, offerUpgrade } from '@/lib/billing/upgrade-prompt';
 import EventosOperacaoTab from '@/components/eventos/EventosOperacaoTab';
 import EventosResumoTab from '@/components/eventos/EventosResumoTab';
 import EventosPricingTab from '@/components/eventos/EventosPricingTab';
@@ -507,6 +509,7 @@ export default function EventosPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const toast = useAppToast();
+  const { confirm: confirmDialog } = useConfirm() || {};
   const [eventos, setEventos] = useState([]);
   const [editandoId, setEditandoId] = useState(null);
   const [salvando, setSalvando] = useState(false);
@@ -1553,6 +1556,7 @@ export default function EventosPage() {
         if (!response.ok || !result?.ok) {
           const createError = new Error(result?.message || 'Erro ao criar evento.');
           createError.code = result?.code || null;
+          createError.suggestedPlan = result?.suggestedPlan || null;
           throw createError;
         }
       }
@@ -1563,12 +1567,12 @@ export default function EventosPage() {
       toast.success(editandoId ? 'Evento atualizado com sucesso.' : 'Evento criado com sucesso.');
     } catch (error) {
       console.error('Erro ao salvar evento:', error);
-      // Limite do plano: mostrar o motivo e o caminho do upgrade, não "tente novamente".
-      toast.error(
-        error?.code === 'PLAN_LIMIT_REACHED'
-          ? `${error.message} Veja os planos em Configurações → Assinatura.`
-          : 'Erro ao salvar evento. Tente novamente.'
-      );
+      // Limite do plano: mostrar o motivo e oferecer o upgrade, não "tente novamente".
+      if (isPlanBlock(error)) {
+        await offerUpgrade({ confirm: confirmDialog, router, message: error.message, suggestedPlan: error.suggestedPlan });
+      } else {
+        toast.error('Erro ao salvar evento. Tente novamente.');
+      }
     } finally {
       setSalvando(false);
     }

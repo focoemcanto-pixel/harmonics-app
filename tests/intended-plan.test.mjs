@@ -13,3 +13,14 @@ test('plano escolhido: aceita slugs de plano pago e rejeita free/valores inváli
   assert.equal(normalizePlanSlug('pro"><script>'), '');
   assert.equal(normalizePlanSlug('x'.repeat(41)), '');
 });
+
+test('upgrade: identifica bloqueio de plano e monta o link da assinatura com o plano sugerido', async () => {
+  const { isPlanBlock, upgradeHref } = await import('../lib/billing/upgrade-prompt.js');
+  assert.equal(isPlanBlock({ code: 'PLAN_LIMIT_REACHED' }), true);
+  assert.equal(isPlanBlock({ code: 'PLAN_FEATURE_NOT_INCLUDED' }), true);
+  assert.equal(isPlanBlock({ code: 'OTHER' }), false);
+  assert.equal(isPlanBlock(null), false);
+  assert.equal(upgradeHref({ slug: 'starter' }), '/settings/billing?plan=starter');
+  assert.equal(upgradeHref(null), '/settings/billing');
+  assert.equal(upgradeHref({ slug: '../x' }), '/settings/billing');
+});

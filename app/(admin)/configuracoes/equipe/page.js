@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import AdminShell from '@/components/admin/AdminShell';
 import WorkspaceModuleGuard from '@/components/workspace/WorkspaceModuleGuard';
 import { invalidateWorkspaceMeCache } from '@/hooks/useWorkspaceMe';
+import { useConfirm } from '@/hooks/useConfirm';
+import { apiError, isPlanBlock, offerUpgrade } from '@/lib/billing/upgrade-prompt';
 
 const ROLE_OPTIONS = [
   { value: 'owner', label: 'Owner', description: 'Controle total do workspace.' },
@@ -84,6 +86,7 @@ function LoadingSkeleton() {
 
 function EquipeContent() {
   const router = useRouter();
+  const { confirm: confirmDialog } = useConfirm() || {};
   const searchParams = useSearchParams();
   const guide = searchParams?.get('guide') || '';
   const demoEventId = searchParams?.get('eventId') || '';
@@ -254,7 +257,7 @@ function EquipeContent() {
       const payload = await response.json().catch(() => null);
 
       if (!response.ok || !payload?.ok) {
-        throw new Error(payload?.error || 'Erro ao convidar membro.');
+        throw apiError(payload, 'Erro ao convidar membro.');
       }
 
       if (payload.mode === 'member_added_existing_profile') {
@@ -269,6 +272,9 @@ function EquipeContent() {
       invalidateWorkspaceMeCache();
       await carregarEquipe();
     } catch (err) {
+      if (isPlanBlock(err)) {
+        await offerUpgrade({ confirm: confirmDialog, router, message: err.message, suggestedPlan: err.suggestedPlan });
+      }
       setError(err?.message || 'Erro ao convidar membro.');
     } finally {
       setSaving(false);

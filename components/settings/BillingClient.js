@@ -256,6 +256,14 @@ export default function BillingClient() {
                 {usage.activeMembers ?? 0}{effective.unlimited || effective.max_members == null ? '' : ` / ${effective.max_members}`}
               </dd>
             </div>
+            {effective.unlimited || effective.can_use_whatsapp ? (
+              <div className="rounded-2xl bg-slate-50 p-3">
+                <dt className="text-[11px] font-black uppercase text-slate-500">WhatsApp no período</dt>
+                <dd className="mt-1 font-black text-[#0f172a]">
+                  {usage.whatsappMessages ?? 0}{effective.unlimited || effective.max_whatsapp_messages == null ? '' : ` / ${effective.max_whatsapp_messages}`}
+                </dd>
+              </div>
+            ) : null}
           </dl>
         </div>
 

@@ -3,7 +3,8 @@ import { withApiObservability } from '@/lib/observability/api-observability';
 import { guardWorkspaceAdmin } from '@/lib/api/route-guards';
 import { loadLatestSubscriptionRow, loadWorkspaceBilling } from '@/lib/billing/plan-limits';
 import { normalizeStatus } from '@/lib/billing/subscription-state';
-import { createCustomer, createSubscription, listSubscriptionPayments, updateSubscription } from '@/lib/billing/asaas-client';
+import { cancelSubscription, createCustomer, createSubscription, listSubscriptionPayments, updateSubscription } from '@/lib/billing/asaas-client';
+import { cancelSupersededPendingCheckout } from '@/lib/billing/pending-checkout';
 
 export const dynamic = 'force-dynamic';
 
@@ -66,6 +67,16 @@ async function handlePOST(request) {
         .eq('id', subscription.id);
       if (error) throw error;
       return NextResponse.json({ ok: true, changed: true });
+    }
+
+    const superseded = await cancelSupersededPendingCheckout({
+      pending,
+      activeProviderSubscriptionId: subscription.provider_subscription_id,
+      cancelSubscription,
+    });
+    if (!superseded.ok) {
+      console.error('[POST /api/billing/subscribe][PENDING_CANCEL_FAILED]', { workspaceId, message: superseded.error?.message });
+      return fail(502, 'Não foi possível substituir a cobrança anterior. Tente novamente em instantes.', 'PENDING_CHECKOUT_CANCEL_FAILED');
     }
 
     let customerId = subscription.provider_customer_id || null;

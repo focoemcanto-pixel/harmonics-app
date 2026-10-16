@@ -15,7 +15,9 @@ async function handleGET(request) {
   const billing = await loadWorkspaceBilling({ supabase, workspaceId });
 
   const monthStart = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1)).toISOString();
-  const [{ count: eventsThisMonth }, { count: activeMembers }, { data: history }] = await Promise.all([
+  // Mesma janela da cota de WhatsApp em checkWorkspaceLimit (início do período da assinatura ou do mês).
+  const whatsappSince = billing.subscription?.current_period_start || monthStart;
+  const [{ count: eventsThisMonth }, { count: activeMembers }, { data: history }, { data: whatsappUsage }] = await Promise.all([
     supabase.from('events').select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId).gte('created_at', monthStart),
     supabase.from('workspace_members').select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId).eq('status', 'active'),
     supabase
@@ -25,7 +27,14 @@ async function handleGET(request) {
       .like('event_type', 'PAYMENT_%')
       .order('received_at', { ascending: false })
       .limit(12),
+    supabase
+      .from('usage_events')
+      .select('quantity')
+      .eq('workspace_id', workspaceId)
+      .eq('event_type', 'whatsapp_message_sent')
+      .gte('occurred_at', whatsappSince),
   ]);
+  const whatsappMessages = (whatsappUsage || []).reduce((total, row) => total + Number(row?.quantity || 0), 0);
 
   const subscription = billing.subscription || null;
   const pending = subscription?.metadata?.pending_checkout || null;
@@ -47,10 +56,10 @@ async function handleGET(request) {
         }
       : null,
     effectivePlan: billing.effectivePlan
-      ? { slug: billing.effectivePlan.slug, name: billing.effectivePlan.name, max_events_per_month: billing.effectivePlan.max_events_per_month ?? null, max_members: billing.effectivePlan.max_members ?? null, unlimited: Boolean(billing.effectivePlan.unlimited) }
+      ? { slug: billing.effectivePlan.slug, name: billing.effectivePlan.name, max_events_per_month: billing.effectivePlan.max_events_per_month ?? null, max_members: billing.effectivePlan.max_members ?? null, can_use_whatsapp: Boolean(billing.effectivePlan.can_use_whatsapp), max_whatsapp_messages: billing.effectivePlan.max_whatsapp_messages ?? null, unlimited: Boolean(billing.effectivePlan.unlimited) }
       : null,
     effectiveReason: billing.effectiveReason,
-    usage: { eventsThisMonth: Number(eventsThisMonth || 0), activeMembers: Number(activeMembers || 0) },
+    usage: { eventsThisMonth: Number(eventsThisMonth || 0), activeMembers: Number(activeMembers || 0), whatsappMessages },
     history: history || [],
   });
 }

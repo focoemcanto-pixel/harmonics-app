@@ -26,9 +26,11 @@ Não use `--data-only`/dumps de dados: contratos, CPFs e comprovantes reais não
 
 ## 2. Aplicação (Cloudflare Worker de preview)
 Worker separado `harmonics-app-staging` (`wrangler.staging.toml`, sem rotas de produção):
-`npm run deploy:staging`. As variáveis `NEXT_PUBLIC_*` entram no bundle **no build**: exporte as do staging
-no ambiente antes do build (nunca as de produção). Os demais valores são segredos do Worker de staging
-(`wrangler secret put <NOME> -c wrangler.staging.toml`). Configure **segredos próprios** do staging:
+`npm run deploy:staging`. As variáveis `NEXT_PUBLIC_*` são usadas nos **dois** momentos: exporte as do staging
+no ambiente antes do build (entram no bundle do browser) **e** cadastre-as também como variáveis do Worker de
+staging, porque `lib/config/validate-env.js` as lê em runtime (`process.env[key]`). Nunca use as de produção.
+Todos os valores abaixo vão para o Worker de staging (`wrangler secret put <NOME> -c wrangler.staging.toml`).
+Configure **segredos próprios** do staging:
 
 | Variável | Valor em staging |
 |---|---|

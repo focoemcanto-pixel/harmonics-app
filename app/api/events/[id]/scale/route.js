@@ -252,6 +252,13 @@ export async function POST(request, context) {
             responded_at: isPreconfirmed ? reactivated?.confirmed_at || new Date().toISOString() : null,
             whatsapp_sent_at: null,
             whatsapp_last_error: null,
+            // Reativar = novo ciclo de convite: novo convite imediato e um novo lembrete
+            // de 5 dias contado a partir desse novo envio.
+            sent_at: null,
+            reminder_5d_claimed_at: null,
+            reminder_5d_sent_at: null,
+            reminder_5d_attempts: 0,
+            reminder_5d_last_error: null,
           })
           .eq('event_id', eventId)
           .eq('id', reactivated.id);

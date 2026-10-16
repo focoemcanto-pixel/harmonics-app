@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requireWorkspaceAccess } from '@/lib/api/require-workspace-access';
 import { executeAutomationEvent } from '@/lib/automation/execute-automation-event';
+import { sendInviteForWorkspace } from '@/lib/whatsapp/send-invite-service';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -77,11 +78,15 @@ export async function POST(request) {
       userId: auth.userId || null,
     });
 
-    const result = await executeAutomationEvent({
-      eventType,
-      entityId,
-      workspaceId,
-    });
+    // Convite de escala: mesmo caminho idempotente do envio real e restrito ao workspace.
+    const result = eventType === 'invite_member'
+      ? await sendInviteForWorkspace({ inviteId: entityId, workspaceId, origin: 'test', supabaseAdmin: supabase })
+      : await executeAutomationEvent({
+          eventType,
+          entityId,
+          workspaceId,
+          origin: 'test',
+        });
 
     console.info('[AUTOMATION_TEST_DISPATCH_API][RESULT]', {
       eventType,

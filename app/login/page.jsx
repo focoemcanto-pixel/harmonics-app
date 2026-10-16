@@ -287,6 +287,9 @@ function LoginPageContent() {
                 <Link href="/signup" className="mt-3 inline-flex w-full justify-center rounded-2xl border border-white/15 px-5 py-3 text-sm font-black text-violet-100 transition hover:bg-white/10">
                   Começar grátis
                 </Link>
+                <Link href="/planos" className="mt-3 inline-block text-sm font-semibold text-slate-300 underline-offset-4 hover:underline">
+                  Conhecer os planos
+                </Link>
               </div>
 
               <p className="mt-5 text-center text-xs text-slate-500">

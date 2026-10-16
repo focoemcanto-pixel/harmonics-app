@@ -1551,7 +1551,9 @@ export default function EventosPage() {
         });
         const result = await response.json().catch(() => ({}));
         if (!response.ok || !result?.ok) {
-          throw new Error(result?.message || 'Erro ao criar evento.');
+          const createError = new Error(result?.message || 'Erro ao criar evento.');
+          createError.code = result?.code || null;
+          throw createError;
         }
       }
 
@@ -1561,7 +1563,12 @@ export default function EventosPage() {
       toast.success(editandoId ? 'Evento atualizado com sucesso.' : 'Evento criado com sucesso.');
     } catch (error) {
       console.error('Erro ao salvar evento:', error);
-      toast.error('Erro ao salvar evento. Tente novamente.');
+      // Limite do plano: mostrar o motivo e o caminho do upgrade, não "tente novamente".
+      toast.error(
+        error?.code === 'PLAN_LIMIT_REACHED'
+          ? `${error.message} Veja os planos em Configurações → Assinatura.`
+          : 'Erro ao salvar evento. Tente novamente.'
+      );
     } finally {
       setSalvando(false);
     }

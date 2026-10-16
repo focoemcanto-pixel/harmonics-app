@@ -190,3 +190,72 @@ test('loadLatestSubscriptionRow encontra assinatura cancelada (base da reassinat
   assert.equal((await loadWorkspaceBilling({ supabase, workspaceId: 'ws-a' })).subscription, null);
   assert.equal((await loadLatestSubscriptionRow({ supabase, workspaceId: 'ws-a' })).id, 'sub-c');
 });
+
+const { checkWorkspaceFeature, checkWorkspaceLimit } = await import('../lib/billing/check-workspace-plan-limit.js');
+
+function whatsappWorld({ planKey = 'starter', status = 'active', periodEnd = null, cancelAtPeriodEnd = false, usedMessages = 0 } = {}) {
+  const plans = [
+    { id: 'plan-free', slug: 'free', name: 'Free', can_use_whatsapp: false, max_whatsapp_messages: 100 },
+    { id: 'plan-starter', slug: 'starter', name: 'Starter', can_use_whatsapp: true, max_whatsapp_messages: 500 },
+  ];
+  const plan = plans[1];
+  return createFakeSupabase({
+    tables: {
+      workspaces: [{ id: 'ws-a', plan_key: planKey }],
+      workspace_plans: plans,
+      workspace_subscriptions: [{ id: 's', workspace_id: 'ws-a', status, plan_id: plan.id, plan, current_period_end: periodEnd, cancel_at_period_end: cancelAtPeriodEnd }],
+      usage_events: Array.from({ length: usedMessages }, (_, i) => ({ id: `u${i}`, workspace_id: 'ws-a', event_type: 'whatsapp_message_sent', quantity: 1, occurred_at: new Date().toISOString() })),
+    },
+  });
+}
+
+test('WhatsApp usa o plano efetivo: pago ativo libera; cancelado no fim do período e atraso fora da carência voltam ao Free', async () => {
+  const past = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
+  assert.equal((await checkWorkspaceFeature({ supabase: whatsappWorld(), workspaceId: 'ws-a', feature: 'whatsapp' })).allowed, true);
+  assert.equal((await checkWorkspaceFeature({ supabase: whatsappWorld({ cancelAtPeriodEnd: true, periodEnd: past }), workspaceId: 'ws-a', feature: 'whatsapp' })).allowed, false);
+  assert.equal((await checkWorkspaceFeature({ supabase: whatsappWorld({ status: 'past_due', periodEnd: past }), workspaceId: 'ws-a', feature: 'whatsapp' })).allowed, false);
+  const inGrace = new Date(Date.now() - 2 * 24 * 3600 * 1000).toISOString();
+  assert.equal((await checkWorkspaceFeature({ supabase: whatsappWorld({ status: 'past_due', periodEnd: inGrace }), workspaceId: 'ws-a', feature: 'whatsapp' })).allowed, true);
+});
+
+test('WhatsApp: cota mensal do plano e workspace interno ilimitado', async () => {
+  assert.equal((await checkWorkspaceLimit({ supabase: whatsappWorld({ usedMessages: 499 }), workspaceId: 'ws-a', limitKey: 'whatsapp_messages' })).allowed, true);
+  assert.equal((await checkWorkspaceLimit({ supabase: whatsappWorld({ usedMessages: 500 }), workspaceId: 'ws-a', limitKey: 'whatsapp_messages' })).allowed, false);
+  const internal = whatsappWorld({ planKey: 'internal', usedMessages: 5000 });
+  assert.equal((await checkWorkspaceFeature({ supabase: internal, workspaceId: 'ws-a', feature: 'whatsapp' })).allowed, true);
+  assert.equal((await checkWorkspaceLimit({ supabase: internal, workspaceId: 'ws-a', limitKey: 'whatsapp_messages' })).allowed, true);
+});
+
+const { checkPlanFeature } = await import('../lib/billing/plan-limits.js');
+
+function featureWorld({ planKey = 'free', planSlug = 'free' } = {}) {
+  const plans = [
+    { id: 'plan-free', slug: 'free', name: 'Free', can_use_automation: false, can_use_whatsapp: false },
+    { id: 'plan-starter', slug: 'starter', name: 'Starter', can_use_automation: true, can_use_whatsapp: true },
+  ];
+  const plan = plans.find((p) => p.slug === planSlug);
+  return createFakeSupabase({
+    tables: {
+      workspaces: [{ id: 'ws-a', plan_key: planKey }],
+      workspace_plans: plans,
+      workspace_subscriptions: [{ id: 's', workspace_id: 'ws-a', status: 'active', plan_id: plan.id, plan }],
+    },
+  });
+}
+
+test('recursos do plano no backend: Free não cria automação/canal de WhatsApp (402); pago e interno liberam', async () => {
+  process.env.ENFORCE_WORKSPACE_PLANS = 'true';
+  const blocked = await checkPlanFeature({ supabase: featureWorld(), workspaceId: 'ws-a', feature: 'automation' });
+  assert.equal(blocked.ok, false);
+  assert.equal(blocked.status, 402);
+  assert.equal(blocked.code, 'PLAN_FEATURE_NOT_INCLUDED');
+  assert.match(blocked.error, /Free não inclui automações/);
+  assert.equal((await checkPlanFeature({ supabase: featureWorld(), workspaceId: 'ws-a', feature: 'whatsapp' })).ok, false);
+  assert.equal((await checkPlanFeature({ supabase: featureWorld({ planSlug: 'starter' }), workspaceId: 'ws-a', feature: 'automation' })).ok, true);
+  assert.equal((await checkPlanFeature({ supabase: featureWorld({ planKey: 'internal' }), workspaceId: 'ws-a', feature: 'whatsapp' })).ok, true);
+
+  process.env.ENFORCE_WORKSPACE_PLANS = '';
+  const soft = await checkPlanFeature({ supabase: featureWorld(), workspaceId: 'ws-a', feature: 'automation' });
+  assert.equal(soft.ok, true);
+  assert.equal(soft.wouldBlock.code, 'PLAN_FEATURE_NOT_INCLUDED');
+});

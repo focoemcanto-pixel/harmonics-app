@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { clearIntendedPlan, planFromLocation, readIntendedPlan } from '@/lib/billing/intended-plan';
 
 // Tela de assinatura: planos vêm de /api/billing/plans (mesma fonte dos limites no backend).
@@ -99,15 +99,44 @@ export default function BillingClient() {
     if (chosenPlan) document.getElementById(`plan-${chosenPlan.slug}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }, [chosenPlan]);
 
+  const [activatedPlanName, setActivatedPlanName] = useState('');
+  const pendingPlanIdRef = useRef(null);
+
   const pendingPlan = useMemo(
     () => plans.find((plan) => plan.id === summary?.subscription?.pending_checkout?.plan_id) || null,
     [plans, summary]
   );
 
+  // Enquanto o pagamento não é confirmado (webhook), recarrega a cada 15 s; quando o plano
+  // pendente vira o plano atual, mostra a confirmação.
+  useEffect(() => {
+    if (!pendingPlan) return undefined;
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') load();
+    }, 15000);
+    return () => window.clearInterval(timer);
+  }, [pendingPlan, load]);
+
+  useEffect(() => {
+    if (pendingPlan) {
+      pendingPlanIdRef.current = pendingPlan;
+      return;
+    }
+    const previous = pendingPlanIdRef.current;
+    if (previous && previous.slug === currentSlug) setActivatedPlanName(previous.name);
+    pendingPlanIdRef.current = null;
+  }, [pendingPlan, currentSlug]);
+
   async function subscribe(planSlug) {
     if (busyPlan) return;
     setBusyPlan(planSlug);
     setError('');
+    // Aberta ainda no clique (gesto do usuário) para o navegador não bloquear; o app continua
+    // aberto nesta aba e detecta sozinho a confirmação do pagamento.
+    let paymentWindow = null;
+    try {
+      paymentWindow = window.open('', '_blank');
+    } catch {}
     try {
       const response = await fetch('/api/billing/subscribe', {
         method: 'POST',
@@ -123,13 +152,21 @@ export default function BillingClient() {
       setAskDocumentFor('');
       clearIntendedPlan();
       if (json.checkoutUrl) {
-        window.location.assign(json.checkoutUrl);
+        if (paymentWindow && !paymentWindow.closed) {
+          paymentWindow.opener = null;
+          paymentWindow.location.href = json.checkoutUrl;
+          paymentWindow = null;
+          await load();
+        } else {
+          window.location.assign(json.checkoutUrl);
+        }
         return;
       }
       await load();
     } catch (err) {
       setError(err?.message || 'Erro ao assinar.');
     } finally {
+      if (paymentWindow && !paymentWindow.closed) paymentWindow.close();
       setBusyPlan('');
     }
   }
@@ -222,6 +259,12 @@ export default function BillingClient() {
           </dl>
         </div>
 
+        {activatedPlanName ? (
+          <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-900">
+            Pagamento confirmado: o plano {activatedPlanName} está ativo.
+          </div>
+        ) : null}
+
         {pendingPlan ? (
           <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-violet-200 bg-violet-50 p-4 text-sm md:flex-row md:items-center md:justify-between">
             <span className="font-semibold text-violet-900">
@@ -229,7 +272,7 @@ export default function BillingClient() {
               ativado automaticamente.
             </span>
             {subscription?.pending_checkout?.invoice_url ? (
-              <a href={subscription.pending_checkout.invoice_url} className="rounded-xl bg-violet-600 px-4 py-2 text-center font-black text-white">
+              <a href={subscription.pending_checkout.invoice_url} target="_blank" rel="noopener noreferrer" className="rounded-xl bg-violet-600 px-4 py-2 text-center font-black text-white">
                 Abrir cobrança
               </a>
             ) : null}

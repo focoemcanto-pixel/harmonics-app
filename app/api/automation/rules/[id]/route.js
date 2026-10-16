@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { guardWorkspaceAdmin } from '@/lib/api/route-guards';
+import { checkPlanFeature, planFeatureBlockedResponseBody } from '@/lib/billing/plan-limits';
 
 export async function PATCH(request, context) {
   const guard = await guardWorkspaceAdmin(request, { logPrefix: '[PATCH /api/automation/rules/[id]]' });
@@ -39,6 +40,13 @@ export async function PATCH(request, context) {
     }
 
     updates.updated_at = new Date().toISOString();
+
+    if (updates.is_active === true) {
+      const featureCheck = await checkPlanFeature({ supabase: guard.supabase, workspaceId: guard.auth.workspaceId, feature: 'automation' });
+      if (!featureCheck.ok) {
+        return NextResponse.json(planFeatureBlockedResponseBody(featureCheck), { status: 402 });
+      }
+    }
 
     const supabaseAdmin = guard.supabase;
 

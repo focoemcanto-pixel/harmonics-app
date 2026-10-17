@@ -78,3 +78,20 @@ test('falha técnica ao consultar plano ou uso NÃO bloqueia o envio (fail-open 
   assert.equal(thrown.allowed, true);
   assert.equal(thrown.technicalFailure, true);
 });
+
+test('workspace sem plano ativo (NO_ACTIVE_PLAN) é negação de plano, não falha técnica', async () => {
+  const noPlan = createFakeSupabase({
+    tables: { workspaces: [{ id: 'ws-a', plan_key: 'free' }], workspace_plans: [], workspace_subscriptions: [] },
+  });
+  const result = await evaluate(noPlan);
+  assert.equal(result.allowed, false);
+  assert.equal(result.technicalFailure, false);
+  assert.equal(result.code, 'NO_ACTIVE_PLAN');
+
+  const limitNoPlan = await evaluateWhatsappPlanAccess({
+    checkFeature: async () => ({ ok: true, allowed: true }),
+    checkLimit: async () => ({ ok: false, allowed: false, code: 'NO_ACTIVE_PLAN', error: 'Workspace sem plano ativo.' }),
+  });
+  assert.equal(limitNoPlan.allowed, false);
+  assert.equal(limitNoPlan.technicalFailure, false);
+});

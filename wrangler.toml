@@ -1,8 +1,13 @@
 name = "harmonics-app"
-main = ".open-next/worker.js"
+main = "cloudflare-worker.mjs"
 compatibility_date = "2026-03-27"
 compatibility_flags = ["nodejs_compat"]
 
 # Assets configuration for static files (CSS, JS, fonts, images)
 [assets]
 directory = ".open-next/assets"
+
+# Automações de data: 09:05–18:05 em America/Sao_Paulo (UTC-3), de hora em hora.
+# Executadas pelo handler scheduled de cloudflare-worker.mjs (antes: schedule do GitHub Actions).
+[triggers]
+crons = ["5 12-21 * * *"]

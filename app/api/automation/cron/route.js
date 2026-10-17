@@ -9,6 +9,8 @@ import { shouldRunScheduledRule } from '@/lib/automation/should-run-scheduled-ru
 import { ensureDefaultAutomations } from '@/lib/automation/ensure-defaults';
 import { cronDeniedResponse, verifyCronRequest } from '@/lib/api/server-secrets';
 
+const CRON_SOURCES = new Set(['cloudflare-cron', 'github-actions']);
+
 const SCHEDULED_EVENT_TYPES = [
   'repertoire_pending_15_days_client',
   'payment_pending_2_days_client',
@@ -29,7 +31,7 @@ async function getWorkspaceIdsWithAutomationRules() {
   return Array.from(new Set((data || []).map((row) => String(row?.workspace_id || '').trim()).filter(Boolean)));
 }
 
-async function runCronForWorkspace(workspaceId, startedAt) {
+async function runCronForWorkspace(workspaceId, startedAt, source = 'unknown') {
   let totalRules = 0;
   let totalEligible = 0;
   let totalExecutions = 0;
@@ -76,7 +78,7 @@ async function runCronForWorkspace(workspaceId, startedAt) {
   }
 
   const completedAt = new Date();
-  const summary = { ok: totalFailed === 0, workspaceId, timestamp: completedAt.toISOString(), totalRules, totalEligible, totalExecutions, totalSent, totalSkipped, totalFailed, rules: rulesSummary };
+  const summary = { ok: totalFailed === 0, source, workspaceId, timestamp: completedAt.toISOString(), totalRules, totalEligible, totalExecutions, totalSent, totalSkipped, totalFailed, rules: rulesSummary };
 
   await recordAutomationCronRun({
     workspace_id: workspaceId,
@@ -101,6 +103,9 @@ async function handleGET(request) {
   if (!cronAuth.ok) return cronDeniedResponse(cronAuth, '[CRON]');
 
   const startedAt = new Date();
+  // Origem da execução para os logs/automation_cron_runs (Cron Trigger da Cloudflare ou manual).
+  const source = CRON_SOURCES.has(request.headers.get('x-cron-source')) ? request.headers.get('x-cron-source') : 'unknown';
+  console.info('[CRON][START]', { source, startedAt: startedAt.toISOString() });
   try {
     const workspaceIds = await getWorkspaceIdsWithAutomationRules();
     if (workspaceIds.length === 0) {
@@ -110,10 +115,10 @@ async function handleGET(request) {
     const workspaceSummaries = [];
     for (const workspaceId of workspaceIds) {
       try {
-        workspaceSummaries.push(await runCronForWorkspace(workspaceId, startedAt));
+        workspaceSummaries.push(await runCronForWorkspace(workspaceId, startedAt, source));
       } catch (workspaceError) {
         console.error(`[CRON][${workspaceId}] Erro no workspace:`, workspaceError);
-        await recordAutomationCronRun({ workspace_id: workspaceId, started_at: startedAt.toISOString(), completed_at: new Date().toISOString(), status: 'failed', total_rules: 0, total_eligible: 0, total_executions: 0, total_sent: 0, total_skipped: 0, total_failed: 1, error_message: workspaceError?.message || 'Erro interno' });
+        await recordAutomationCronRun({ workspace_id: workspaceId, started_at: startedAt.toISOString(), completed_at: new Date().toISOString(), status: 'failed', total_rules: 0, total_eligible: 0, total_executions: 0, total_sent: 0, total_skipped: 0, total_failed: 1, error_message: workspaceError?.message || 'Erro interno', payload: { source } });
         workspaceSummaries.push({ ok: false, workspaceId, error: workspaceError?.message || 'Erro interno', totalRules: 0, totalEligible: 0, totalExecutions: 0, totalSent: 0, totalSkipped: 0, totalFailed: 1, rules: [] });
       }
     }
@@ -127,7 +132,7 @@ async function handleGET(request) {
       totalFailed: acc.totalFailed + (item.totalFailed || 0),
     }), { totalRules: 0, totalEligible: 0, totalExecutions: 0, totalSent: 0, totalSkipped: 0, totalFailed: 0 });
 
-    return NextResponse.json({ ok: workspaceSummaries.every((item) => item.ok !== false), timestamp: new Date().toISOString(), workspacesProcessed: workspaceSummaries.length, ...totals, workspaces: workspaceSummaries });
+    return NextResponse.json({ ok: workspaceSummaries.every((item) => item.ok !== false), source, timestamp: new Date().toISOString(), workspacesProcessed: workspaceSummaries.length, ...totals, workspaces: workspaceSummaries });
   } catch (error) {
     console.error('[CRON] Erro geral:', error);
     return NextResponse.json({ error: error?.message || 'Erro interno' }, { status: 500 });

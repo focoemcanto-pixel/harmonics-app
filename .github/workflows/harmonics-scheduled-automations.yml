@@ -1,9 +1,9 @@
 name: Harmonics scheduled automations
 
+# O agendamento passou para o Cron Trigger do Worker (wrangler.toml → [triggers]), porque o
+# schedule do GitHub atrasava e pulava execuções. Este workflow fica só para execução manual
+# (Actions → Run workflow); a deduplicação de envios impede ação repetida.
 on:
-  schedule:
-    # 09:05–18:05 em America/Sao_Paulo (UTC-3)
-    - cron: '5 12-21 * * *'
   workflow_dispatch:
 
 concurrency:
@@ -31,6 +31,7 @@ jobs:
           HTTP_CODE=$(curl --show-error --silent --retry 2 --max-time 120 \
             -o response.json -w "%{http_code}" \
             -H "Authorization: Bearer ${CRON_SECRET}" \
+            -H "x-cron-source: github-actions" \
             "$URL")
           echo "HTTP ${HTTP_CODE}"
           jq -c '{ok, workspacesProcessed, totalEligible, totalSent, totalSkipped, totalFailed, error}' response.json || true

@@ -6,7 +6,21 @@ import { useRouter } from 'next/navigation';
 import { getSupabase } from '@/lib/supabase';
 import { planFromLocation, readIntendedPlan, saveIntendedPlan } from '@/lib/billing/intended-plan';
 import { buildLegalAcceptance } from '@/lib/legal/documents';
+import { formatMoney, planFeatureList } from '@/lib/billing/plan-presentation';
 import PublicFooter from '@/components/public/PublicFooter';
+import {
+  Alert,
+  BrandMark,
+  JourneySteps,
+  PublicBackground,
+  Spinner,
+  inputClass,
+  labelClass,
+  panelClass,
+  primaryButtonClass,
+  secondaryButtonClass,
+} from '@/components/public/PublicUI';
+import { usePlanDetails } from '@/components/public/usePlanDetails';
 
 const PENDING_SIGNUP_KEY = 'harmonics_pending_signup_bootstrap';
 
@@ -53,6 +67,9 @@ export default function SignupPage() {
     const fromUrl = planFromLocation();
     setIntendedPlan(fromUrl ? saveIntendedPlan(fromUrl) : readIntendedPlan());
   }, []);
+
+  const [showPassword, setShowPassword] = useState(false);
+  const { details: planDetails, name: planName } = usePlanDetails(intendedPlan);
 
   function updateField(field, value) {
     setExistingWorkspace(false);
@@ -119,6 +136,12 @@ export default function SignupPage() {
 
     if (!form.email.trim()) {
       setError('Informe seu e-mail.');
+      return;
+    }
+
+    // O formulário usa noValidate (mensagens próprias), então o formato do e-mail é checado aqui.
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+      setError('Informe um e-mail válido.');
       return;
     }
 
@@ -194,140 +217,165 @@ export default function SignupPage() {
     }
   }
 
-  return (
-    <main className="min-h-screen bg-slate-950 text-white">
-      <section className="mx-auto grid min-h-screen w-full max-w-6xl items-center gap-10 px-6 py-10 lg:grid-cols-[1.05fr_0.95fr]">
-        <div className="space-y-8">
-          <div className="inline-flex rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-emerald-200 shadow-2xl shadow-emerald-500/10">
-            Harmonics SaaS • gestão musical inteligente
-          </div>
+  const nextStepLabel = intendedPlan ? `pagamento do ${planName}` : 'seu painel';
+  const linkClass = 'font-semibold text-violet-200 underline-offset-4 hover:text-white hover:underline';
 
-          <div className="space-y-5">
-            <h1 className="max-w-3xl text-4xl font-semibold tracking-tight text-white md:text-6xl">
-              Organize eventos, contratos, escalas e automações em um só lugar.
+  return (
+    <div className="relative min-h-[100dvh] overflow-hidden bg-slate-950 text-white">
+      <PublicBackground />
+      <header className="relative z-10 mx-auto flex w-full max-w-6xl items-center justify-between gap-3 px-4 py-5 md:px-6">
+        <BrandMark />
+        <p className="text-sm text-slate-400">
+          Já tem conta? <Link href="/login" className={linkClass}>Entrar</Link>
+        </p>
+      </header>
+
+      <main className="relative z-10 mx-auto grid grid-cols-1 w-full max-w-6xl items-start gap-10 px-4 pb-16 pt-4 md:px-6 md:pt-8 lg:grid-cols-[0.95fr_1.05fr]">
+        <section className="order-2 space-y-6 lg:order-1 lg:pt-6">
+          <div>
+            <h1 className="text-[2.2rem] font-black leading-[1.05] tracking-[-0.05em] md:text-5xl">
+              {intendedPlan ? `Crie sua conta e comece com o ${planName}.` : 'Crie sua conta grátis no Harmonics.'}
             </h1>
-            <p className="max-w-2xl text-lg leading-8 text-slate-300">
-              Crie seu workspace gratuito e comece a estruturar a operação da sua banda, ministério ou equipe musical com uma base profissional.
+            <p className="mt-4 max-w-lg text-base leading-7 text-slate-300">
+              Organize eventos, contratos, escalas, repertório e automações da sua banda, ministério ou equipe musical em um só lugar.
             </p>
           </div>
 
-          <div className="grid max-w-2xl gap-3 text-sm text-slate-300 sm:grid-cols-3">
-            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <strong className="block text-white">Contratos</strong>
-              Links, assinatura e PDFs.
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <strong className="block text-white">Escalas</strong>
-              Convites e confirmação.
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <strong className="block text-white">Automação</strong>
-              WhatsApp e lembretes.
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-[2rem] border border-white/10 bg-white/[0.06] p-5 shadow-2xl shadow-black/40 backdrop-blur md:p-8">
-          {existingWorkspace ? (
-            <div className="space-y-5">
-              <div className="inline-flex rounded-full border border-emerald-300/30 bg-emerald-400/10 px-4 py-2 text-xs font-black uppercase tracking-[0.12em] text-emerald-100">
-                Workspace já encontrado
+          {intendedPlan ? (
+            <div className="rounded-[24px] border border-violet-300/30 bg-gradient-to-br from-violet-600/20 via-fuchsia-600/10 to-transparent p-5">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.12em] text-violet-200">Plano escolhido</p>
+                  <p className="mt-1 text-2xl font-black tracking-[-0.03em]">{planName}</p>
+                </div>
+                {planDetails ? (
+                  <p className="text-right text-2xl font-black tracking-[-0.03em]">
+                    {formatMoney(planDetails.monthly_price)}
+                    <span className="text-sm font-semibold text-slate-400">/mês</span>
+                  </p>
+                ) : null}
               </div>
+              {planDetails ? (
+                <ul className="mt-4 grid gap-2 text-sm text-slate-200 sm:grid-cols-2">
+                  {planFeatureList(planDetails).filter((item) => item.included).map((item) => (
+                    <li key={item.text} className="flex gap-2"><span className="text-emerald-300" aria-hidden="true">✓</span>{item.text}</li>
+                  ))}
+                </ul>
+              ) : null}
+              <p className="mt-4 text-sm leading-6 text-slate-300">
+                Sem cartão agora: você cria a conta, configura seu espaço e só então conclui o pagamento (Pix, boleto ou cartão). Até
+                lá, sua conta funciona no Free.
+              </p>
+              <Link href="/planos" className={`${linkClass} mt-3 inline-block text-sm`}>Trocar de plano</Link>
+            </div>
+          ) : (
+            <div className="rounded-[24px] border border-white/10 bg-white/[0.04] p-5">
+              <p className="text-xs font-black uppercase tracking-[0.12em] text-violet-200">Plano Free</p>
+              <p className="mt-2 text-sm leading-6 text-slate-300">
+                Sua conta começa no Free, sem cartão. Quando precisar de automações, WhatsApp ou mais eventos, é só mudar de plano.
+              </p>
+              <Link href="/planos" className={`${linkClass} mt-3 inline-block text-sm`}>Ver planos</Link>
+            </div>
+          )}
 
-              <div className="space-y-3">
-                <h2 className="text-2xl font-semibold">Este e-mail já possui um workspace.</h2>
+          <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-5">
+            <p className="text-sm font-black text-white">O que acontece depois</p>
+            <ol className="mt-3 space-y-3 text-sm text-slate-300">
+              <li className="flex gap-3"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/10 text-xs font-black">1</span>Criamos sua conta e o espaço da sua banda.</li>
+              <li className="flex gap-3"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/10 text-xs font-black">2</span>Você confirma nome, contato e tipo de atuação em um passo rápido.</li>
+              <li className="flex gap-3"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/10 text-xs font-black">3</span>{intendedPlan ? `Você conclui a assinatura do ${planName} e começa a usar.` : 'Você entra no painel e cadastra o primeiro evento.'}</li>
+            </ol>
+          </div>
+        </section>
+
+        <section className={`order-1 p-5 sm:p-7 md:p-8 lg:order-2 ${panelClass}`}>
+          <JourneySteps current="account" paidPlanName={intendedPlan ? planName : ''} />
+
+          {existingWorkspace ? (
+            <div className="mt-7 space-y-5">
+              <Alert tone="info">Este e-mail já possui um espaço no Harmonics.</Alert>
+              <div className="space-y-2">
+                <h2 className="text-2xl font-black tracking-[-0.03em]">Entre para continuar.</h2>
                 <p className="text-sm leading-6 text-slate-300">
-                  Para continuar, faça login com este e-mail e acesse normalmente o painel do seu workspace.
+                  Faça login com este e-mail e acesse normalmente o painel do seu espaço.
                 </p>
               </div>
-
-              <Link
-                href="/login"
-                className="block w-full rounded-2xl bg-emerald-300 px-5 py-4 text-center font-semibold text-slate-950 transition hover:bg-emerald-200"
-              >
-                Entrar no painel
-              </Link>
-
-              <button
-                type="button"
-                onClick={() => setExistingWorkspace(false)}
-                className="w-full rounded-2xl border border-white/10 px-5 py-3 text-sm font-medium text-slate-200 transition hover:bg-white/10"
-              >
+              <Link href="/login" className={`${primaryButtonClass} w-full`}>Entrar no painel</Link>
+              <button type="button" onClick={() => setExistingWorkspace(false)} className={`${secondaryButtonClass} w-full py-3`}>
                 Usar outro e-mail
               </button>
             </div>
           ) : (
             <>
-              <div className="mb-6 space-y-2">
-                <h2 className="text-2xl font-semibold">Criar workspace</h2>
-                <p className="text-sm text-slate-300">
-                  {intendedPlan
-                    ? 'Crie sua conta e configure seu espaço. Em seguida você conclui o pagamento do plano escolhido.'
-                    : 'Comece no plano Free. Você poderá configurar seu WhatsApp, equipe e identidade depois.'}
+              <div className="mt-7 space-y-1">
+                <h2 className="text-2xl font-black tracking-[-0.03em]">Criar sua conta</h2>
+                <p className="text-sm text-slate-400">
+                  Próximo passo: configurar seu espaço · depois: {nextStepLabel}
                 </p>
-                <Link href="/planos" className="inline-block text-sm font-semibold text-emerald-200 underline-offset-4 hover:underline">
-                  {intendedPlan ? 'Trocar de plano' : 'Ver planos'}
-                </Link>
               </div>
 
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <label className="block space-y-2">
-                  <span className="text-sm text-slate-300">Seu nome</span>
-                  <input value={form.fullName} onChange={(event) => updateField('fullName', event.target.value)} className="w-full rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-3 text-white outline-none transition focus:border-emerald-300" placeholder="Ex: Marcos Cruz" autoComplete="name" />
+              <form onSubmit={handleSubmit} className="mt-6 space-y-4" noValidate>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <label className="block">
+                    <span className={labelClass}>Seu nome</span>
+                    <input value={form.fullName} onChange={(event) => updateField('fullName', event.target.value)} className={inputClass} placeholder="Ex: Marcos Cruz" autoComplete="name" disabled={loading} />
+                  </label>
+                  <label className="block">
+                    <span className={labelClass}>WhatsApp principal</span>
+                    <input value={form.whatsapp} onChange={(event) => updateField('whatsapp', event.target.value)} className={inputClass} placeholder="Ex: 71999999999" inputMode="tel" autoComplete="tel" disabled={loading} />
+                  </label>
+                </div>
+
+                <label className="block">
+                  <span className={labelClass}>Nome da banda ou equipe</span>
+                  <input value={form.workspaceName} onChange={(event) => updateField('workspaceName', event.target.value)} className={inputClass} placeholder="Ex: Banda Aurora" autoComplete="organization" disabled={loading} />
                 </label>
 
-                <label className="block space-y-2">
-                  <span className="text-sm text-slate-300">E-mail</span>
-                  <input type="email" value={form.email} onChange={(event) => updateField('email', event.target.value)} className="w-full rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-3 text-white outline-none transition focus:border-emerald-300" placeholder="voce@email.com" autoComplete="email" />
+                <label className="block">
+                  <span className={labelClass}>E-mail</span>
+                  <input type="email" value={form.email} onChange={(event) => updateField('email', event.target.value)} className={inputClass} placeholder="voce@email.com" autoComplete="email" disabled={loading} />
                 </label>
 
-                <label className="block space-y-2">
-                  <span className="text-sm text-slate-300">Senha</span>
-                  <input type="password" value={form.password} onChange={(event) => updateField('password', event.target.value)} className="w-full rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-3 text-white outline-none transition focus:border-emerald-300" placeholder="Mínimo de 8 caracteres" autoComplete="new-password" />
+                <label className="block">
+                  <span className={labelClass}>Senha</span>
+                  <span className="relative block">
+                    <input type={showPassword ? 'text' : 'password'} value={form.password} onChange={(event) => updateField('password', event.target.value)} className={`${inputClass} pr-20`} placeholder="Mínimo de 8 caracteres" autoComplete="new-password" disabled={loading} />
+                    <button type="button" onClick={() => setShowPassword((value) => !value)} className="absolute inset-y-0 right-3 my-auto h-8 rounded-lg px-2 text-xs font-bold text-slate-300 hover:text-white" aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}>
+                      {showPassword ? 'Ocultar' : 'Mostrar'}
+                    </button>
+                  </span>
                 </label>
 
-                <label className="block space-y-2">
-                  <span className="text-sm text-slate-300">Nome da banda/equipe</span>
-                  <input value={form.workspaceName} onChange={(event) => updateField('workspaceName', event.target.value)} className="w-full rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-3 text-white outline-none transition focus:border-emerald-300" placeholder="Ex: Harmonics Eventos" />
-                </label>
-
-                <label className="block space-y-2">
-                  <span className="text-sm text-slate-300">WhatsApp principal</span>
-                  <input value={form.whatsapp} onChange={(event) => updateField('whatsapp', event.target.value)} className="w-full rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-3 text-white outline-none transition focus:border-emerald-300" placeholder="Ex: 71999999999" inputMode="tel" />
-                </label>
-
-                <label className="flex items-start gap-3 rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-3 text-sm text-slate-300">
+                <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3.5 text-sm leading-6 text-slate-300">
                   <input
                     type="checkbox"
                     checked={acceptedLegal}
                     onChange={(event) => setAcceptedLegal(event.target.checked)}
-                    className="mt-1 h-4 w-4 accent-emerald-300"
+                    className="mt-1 h-4 w-4 shrink-0 accent-violet-500"
                     required
+                    disabled={loading}
                   />
                   <span>
                     Li e aceito os{' '}
-                    <Link href="/termos" target="_blank" className="font-semibold text-emerald-200 underline-offset-4 hover:underline">Termos de Uso</Link>
+                    <Link href="/termos" target="_blank" className={linkClass}>Termos de Uso</Link>
                     {' '}e a{' '}
-                    <Link href="/privacidade" target="_blank" className="font-semibold text-emerald-200 underline-offset-4 hover:underline">Política de Privacidade</Link>.
+                    <Link href="/privacidade" target="_blank" className={linkClass}>Política de Privacidade</Link>.
                   </span>
                 </label>
 
-                {error ? <div className="rounded-2xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-100">{error}</div> : null}
-                {success ? <div className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">{success}</div> : null}
+                {error ? <Alert tone="error">{error}</Alert> : null}
+                {success ? <Alert tone="success">{success}</Alert> : null}
 
-                <button type="submit" disabled={loading} className="w-full rounded-2xl bg-emerald-300 px-5 py-4 font-semibold text-slate-950 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-60">
-                  {loading ? 'Criando workspace...' : 'Começar grátis'}
+                <button type="submit" disabled={loading} className={`${primaryButtonClass} w-full`}>
+                  {loading ? (<><Spinner /> Criando sua conta...</>) : intendedPlan ? 'Criar conta e continuar' : 'Criar conta grátis'}
                 </button>
+                <p className="text-center text-xs text-slate-500">Sem cartão de crédito no cadastro.</p>
               </form>
-
-              <p className="mt-5 text-center text-sm text-slate-400">
-                Já tem conta? <Link href="/login" className="font-medium text-emerald-200 hover:text-emerald-100">Entrar</Link>
-              </p>
             </>
           )}
-        </div>
-      </section>
+        </section>
+      </main>
       <PublicFooter />
-    </main>
+    </div>
   );
 }

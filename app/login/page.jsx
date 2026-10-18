@@ -5,6 +5,18 @@ import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getSupabase } from '@/lib/supabase';
 import PublicFooter from '@/components/public/PublicFooter';
+import {
+  Alert,
+  BrandMark,
+  PublicBackground,
+  PublicLoading,
+  Spinner,
+  inputClass,
+  labelClass,
+  panelClass,
+  primaryButtonClass,
+  secondaryButtonClass,
+} from '@/components/public/PublicUI';
 
 function getSafeNext(searchParams) {
   const next = searchParams?.get('next') || '/eventos';
@@ -24,6 +36,7 @@ function LoginPageContent() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState(
     searchParams?.get('signup') === 'confirmed'
@@ -154,151 +167,107 @@ function LoginPageContent() {
     }
   }
 
-  const gradientButtonClass =
-    'w-full rounded-2xl px-6 py-4 text-sm font-black text-white shadow-[0_18px_42px_rgba(124,58,237,0.38)] transition focus:outline-none focus:ring-2 focus:ring-violet-300 disabled:cursor-not-allowed disabled:opacity-60 bg-gradient-to-r from-violet-600 via-fuchsia-600 to-purple-700 hover:from-violet-500 hover:via-fuchsia-500 hover:to-purple-600';
+  const linkClass = 'font-semibold text-violet-200 underline-offset-4 hover:text-white hover:underline';
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-slate-950 text-white">
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute -top-32 left-1/2 h-96 w-96 -translate-x-1/2 rounded-full bg-violet-700/25 blur-3xl" />
-        <div className="absolute bottom-0 right-0 h-[28rem] w-[28rem] rounded-full bg-fuchsia-600/20 blur-3xl" />
-        <div className="absolute left-0 top-1/3 h-96 w-96 rounded-full bg-indigo-600/20 blur-3xl" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.08),transparent_34%)]" />
-      </div>
+    <div className="relative min-h-[100dvh] overflow-hidden bg-slate-950 text-white">
+      <PublicBackground />
+      <header className="relative z-10 mx-auto flex w-full max-w-6xl items-center justify-between gap-3 px-4 py-5 md:px-6">
+        <BrandMark />
+        <p className="text-sm text-slate-400">
+          Novo por aqui? <Link href="/signup" className={linkClass}>Criar conta</Link>
+        </p>
+      </header>
 
-      <main className="relative z-10 mx-auto flex min-h-screen w-full max-w-6xl flex-col items-center justify-center px-4 py-10 md:px-8">
-        <div className="grid w-full overflow-hidden rounded-[34px] border border-white/15 bg-white/[0.06] shadow-[0_35px_120px_rgba(2,6,23,0.65)] backdrop-blur-xl lg:grid-cols-[1.06fr_0.94fr]">
-          <section className="hidden p-10 lg:flex lg:flex-col lg:justify-between">
+      <main className="relative z-10 mx-auto grid grid-cols-1 w-full max-w-6xl items-center gap-10 px-4 pb-16 pt-4 md:px-6 md:pt-10 lg:grid-cols-[1fr_0.9fr]">
+        <section className="hidden lg:block">
+          <h1 className="max-w-xl text-5xl font-black leading-[1.02] tracking-[-0.05em]">
+            Bem-vindo de volta ao seu espaço.
+          </h1>
+          <p className="mt-5 max-w-md text-base leading-7 text-slate-300">
+            Eventos, contratos, escalas, repertórios, pagamentos e automações da sua banda continuam exatamente onde você deixou.
+          </p>
+          <div className="mt-8 grid max-w-lg grid-cols-3 gap-3">
+            {[
+              ['Contratos', 'Links, PDFs e assinatura'],
+              ['Escalas', 'Convites e confirmações'],
+              ['Automação', 'WhatsApp e lembretes'],
+            ].map(([title, subtitle]) => (
+              <div key={title} className="rounded-2xl border border-white/10 bg-white/[0.05] p-4">
+                <strong className="block text-sm text-white">{title}</strong>
+                <span className="mt-1 block text-xs leading-5 text-slate-400">{subtitle}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className={`mx-auto w-full max-w-md p-6 sm:p-8 ${panelClass}`}>
+          <h2 className="text-3xl font-black tracking-[-0.04em]">Entrar</h2>
+          <p className="mt-2 text-sm leading-6 text-slate-400">Acesse o painel da sua banda, ministério ou equipe musical.</p>
+
+          <form onSubmit={handleSubmit} className="mt-7 space-y-4">
+            {error ? <Alert tone="error">{error}</Alert> : null}
+            {notice ? <Alert tone="success">{notice}</Alert> : null}
+
+            <label className="block">
+              <span className={labelClass}>E-mail</span>
+              <input
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                required
+                disabled={loading}
+                className={inputClass}
+                placeholder="voce@email.com"
+                autoComplete="email"
+              />
+            </label>
+
             <div>
-              <p className="inline-flex rounded-full border border-white/20 bg-white/10 px-4 py-1 text-xs font-black uppercase tracking-[0.12em] text-violet-100">
-                Harmonics SaaS
-              </p>
-              <h1 className="mt-8 max-w-xl text-5xl font-black leading-[0.98] tracking-[-0.06em] text-white">
-                Acesse seu workspace musical inteligente.
-              </h1>
-              <p className="mt-5 max-w-md text-sm leading-7 text-slate-200/90">
-                Gerencie eventos, contratos, escalas, repertórios, pagamentos e automações em um painel premium preparado para equipes musicais.
-              </p>
-            </div>
-
-            <div className="space-y-4">
-              <div className="grid grid-cols-3 gap-3">
-                {[
-                  ['Contratos', 'Links, PDFs e assinatura'],
-                  ['Escalas', 'Convites e confirmações'],
-                  ['Automação', 'WhatsApp e lembretes'],
-                ].map(([title, subtitle]) => (
-                  <div key={title} className="rounded-2xl border border-white/10 bg-white/[0.05] p-4">
-                    <strong className="block text-sm text-white">{title}</strong>
-                    <span className="mt-1 block text-xs leading-5 text-slate-300">{subtitle}</span>
-                  </div>
-                ))}
-              </div>
-
-              <ul className="space-y-4 text-sm text-slate-200/90">
-                {[
-                  'Cada equipe opera dentro do seu próprio workspace.',
-                  'Acesso com segurança, isolamento e governança por plano.',
-                  'Preparado para crescimento, automações e operação profissional.',
-                ].map((item) => (
-                  <li key={item} className="flex items-start gap-3">
-                    <span className="mt-1 h-2 w-2 rounded-full bg-violet-300" />
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </section>
-
-          <section className="p-6 sm:p-8 md:p-10">
-            <div className="mx-auto w-full max-w-md">
-              <div className="text-center lg:hidden">
-                <p className="text-xs font-black uppercase tracking-[0.12em] text-violet-200">Harmonics SaaS</p>
-              </div>
-
-              <div className="text-center lg:text-left">
-                <h2 className="mt-2 text-3xl font-black tracking-tight text-white">
-                  Entrar no painel
-                </h2>
-                <p className="mt-2 text-sm leading-6 text-slate-300">
-                  Acesse seu workspace para continuar a operação da sua banda, ministério ou equipe musical.
-                </p>
-              </div>
-
-              <form onSubmit={handleSubmit} className="mt-7 space-y-4">
-                {error ? (
-                  <div className="rounded-2xl border border-red-400/35 bg-red-500/10 px-4 py-3 text-sm text-red-100">
-                    {error}
-                  </div>
-                ) : null}
-
-                {notice ? (
-                  <div className="rounded-2xl border border-emerald-400/35 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
-                    {notice}
-                  </div>
-                ) : null}
-
-                <div>
-                  <label className="mb-2 block text-sm font-semibold text-slate-200">E-mail</label>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(event) => setEmail(event.target.value)}
-                    required
-                    disabled={loading}
-                    className="w-full rounded-2xl border border-white/15 bg-white/10 px-4 py-4 text-sm text-white placeholder:text-slate-400 focus:border-violet-300 focus:outline-none focus:ring-2 focus:ring-violet-500/40 disabled:opacity-60"
-                    placeholder="voce@email.com"
-                    autoComplete="email"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-2 block text-sm font-semibold text-slate-200">Senha</label>
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(event) => setPassword(event.target.value)}
-                    required
-                    disabled={loading}
-                    className="w-full rounded-2xl border border-white/15 bg-white/10 px-4 py-4 text-sm text-white placeholder:text-slate-400 focus:border-violet-300 focus:outline-none focus:ring-2 focus:ring-violet-500/40 disabled:opacity-60"
-                    placeholder="••••••••"
-                    autoComplete="current-password"
-                  />
-                </div>
-
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-xs text-slate-400">Acesso seguro por workspace</span>
-                  <button
-                    type="button"
-                    onClick={handlePasswordReset}
-                    disabled={loading}
-                    className="text-xs font-semibold text-violet-200 transition hover:text-violet-100 disabled:opacity-50"
-                  >
-                    Esqueci minha senha
-                  </button>
-                </div>
-
-                <button type="submit" disabled={loading} className={gradientButtonClass}>
-                  {loading ? 'Entrando...' : 'Entrar no painel'}
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <label htmlFor="login-password" className="text-sm font-semibold text-slate-200">Senha</label>
+                <button
+                  type="button"
+                  onClick={handlePasswordReset}
+                  disabled={loading}
+                  className="text-xs font-semibold text-violet-200 transition hover:text-white disabled:opacity-50"
+                >
+                  Esqueci minha senha
                 </button>
-              </form>
-
-              <div className="mt-6 rounded-2xl border border-white/10 bg-slate-900/45 p-4 text-center">
-                <p className="text-sm text-slate-300">Ainda não tem workspace?</p>
-                <Link href="/signup" className="mt-3 inline-flex w-full justify-center rounded-2xl border border-white/15 px-5 py-3 text-sm font-black text-violet-100 transition hover:bg-white/10">
-                  Começar grátis
-                </Link>
-                <Link href="/planos" className="mt-3 inline-block text-sm font-semibold text-slate-300 underline-offset-4 hover:underline">
-                  Conhecer os planos
-                </Link>
               </div>
-
-              <p className="mt-5 text-center text-xs text-slate-500">
-                Plataforma multi-workspace para gestão musical profissional.
-              </p>
+              <div className="relative">
+                <input
+                  id="login-password"
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  required
+                  disabled={loading}
+                  className={`${inputClass} pr-20`}
+                  placeholder="••••••••"
+                  autoComplete="current-password"
+                />
+                <button type="button" onClick={() => setShowPassword((value) => !value)} className="absolute inset-y-0 right-3 my-auto h-8 rounded-lg px-2 text-xs font-bold text-slate-300 hover:text-white" aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}>
+                  {showPassword ? 'Ocultar' : 'Mostrar'}
+                </button>
+              </div>
             </div>
-          </section>
-        </div>
+
+            <button type="submit" disabled={loading} className={`${primaryButtonClass} w-full`}>
+              {loading ? (<><Spinner /> Entrando...</>) : 'Entrar no painel'}
+            </button>
+          </form>
+
+          <div className="mt-6 border-t border-white/10 pt-6 text-center">
+            <p className="text-sm text-slate-400">Ainda não usa o Harmonics?</p>
+            <Link href="/signup" className={`${secondaryButtonClass} mt-3 w-full py-3`}>
+              Começar grátis
+            </Link>
+            <Link href="/planos" className={`${linkClass} mt-3 inline-block text-sm`}>
+              Conhecer os planos
+            </Link>
+          </div>
+        </section>
       </main>
     </div>
   );
@@ -307,18 +276,10 @@ function LoginPageContent() {
 export default function LoginPage() {
   return (
     <div className="bg-slate-950">
-    <Suspense
-      fallback={
-        <main className="flex min-h-screen items-center justify-center bg-slate-950 px-6 text-white">
-          <div className="rounded-3xl border border-white/10 bg-white/[0.06] px-6 py-5 text-sm text-slate-200">
-            Carregando login...
-          </div>
-        </main>
-      }
-    >
-      <LoginPageContent />
-    </Suspense>
-    <PublicFooter />
+      <Suspense fallback={<PublicLoading label="Carregando..." />}>
+        <LoginPageContent />
+      </Suspense>
+      <PublicFooter />
     </div>
   );
 }

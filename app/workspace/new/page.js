@@ -6,6 +6,20 @@ import { getSupabase } from '@/lib/supabase';
 import { WORKSPACE_CACHE_KEY } from '@/hooks/useCurrentWorkspace';
 import Link from 'next/link';
 import { buildLegalAcceptance } from '@/lib/legal/documents';
+import { readIntendedPlan } from '@/lib/billing/intended-plan';
+import {
+  Alert,
+  BrandMark,
+  JourneySteps,
+  PublicBackground,
+  PublicLoading,
+  Spinner,
+  inputClass,
+  labelClass,
+  panelClass,
+  primaryButtonClass,
+} from '@/components/public/PublicUI';
+import { usePlanDetails } from '@/components/public/usePlanDetails';
 
 const DEFAULT_COLOR = '#8b5cf6';
 
@@ -73,6 +87,12 @@ export default function NewWorkspacePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [acceptedLegal, setAcceptedLegal] = useState(false);
+  const [intendedPlan, setIntendedPlan] = useState('');
+  const { name: planName } = usePlanDetails(intendedPlan);
+
+  useEffect(() => {
+    setIntendedPlan(readIntendedPlan());
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -172,129 +192,113 @@ export default function NewWorkspacePage() {
   }
 
   if (checkingSession) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-950 px-6 text-white">
-        <div className="rounded-3xl border border-white/10 bg-white/[0.06] px-6 py-5 text-sm font-semibold text-slate-200">
-          Validando sessão...
-        </div>
-      </main>
-    );
+    return <PublicLoading label="Validando sessão..." />;
   }
 
+  const linkClass = 'font-semibold text-violet-200 underline-offset-4 hover:text-white hover:underline';
+
   return (
-    <main className="min-h-screen bg-slate-950 px-6 py-10 text-white">
-      <div className="mx-auto flex min-h-[calc(100vh-5rem)] w-full max-w-5xl items-center">
-        <div className="grid w-full overflow-hidden rounded-[34px] border border-white/15 bg-white/[0.06] shadow-[0_35px_120px_rgba(2,6,23,0.65)] backdrop-blur-xl lg:grid-cols-[0.9fr_1.1fr]">
-          <section className="bg-gradient-to-br from-violet-700/35 via-fuchsia-600/20 to-emerald-400/10 p-8 md:p-10">
-            <p className="inline-flex rounded-full border border-white/20 bg-white/10 px-4 py-1 text-xs font-black uppercase tracking-[0.12em] text-violet-100">
-              Novo workspace
-            </p>
-            <h1 className="mt-8 text-4xl font-black leading-tight tracking-[-0.05em] md:text-5xl">
-              Crie um workspace para sua conta existente.
-            </h1>
-            <p className="mt-5 text-sm font-semibold leading-7 text-slate-200">
-              Este fluxo é autenticado e serve para quem já tem conta no Harmonics. Ele não cria uma conta pública nova e não usa a página de signup.
-            </p>
-            <div className="mt-8 rounded-3xl border border-white/10 bg-black/20 p-5 text-sm font-semibold leading-7 text-slate-200">
-              Depois da criação, você será definido como owner do workspace e poderá continuar no painel.
-            </div>
-          </section>
+    <div className="relative min-h-[100dvh] overflow-hidden bg-slate-950 text-white">
+      <PublicBackground />
+      <header className="relative z-10 mx-auto flex w-full max-w-5xl flex-col gap-4 px-4 py-5 sm:flex-row sm:items-center sm:justify-between md:px-6">
+        <BrandMark />
+        <JourneySteps current="workspace" paidPlanName={intendedPlan ? planName : ''} />
+      </header>
 
-          <section className="p-6 sm:p-8 md:p-10">
-            <h2 className="text-3xl font-black tracking-[-0.04em]">Dados iniciais</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-300">
-              Preencha apenas as informações básicas. Configurações avançadas podem ser ajustadas depois.
-            </p>
+      <main className="relative z-10 mx-auto grid grid-cols-1 w-full max-w-5xl items-start gap-8 px-4 pb-16 pt-4 md:px-6 md:pt-8 lg:grid-cols-[0.9fr_1.1fr]">
+        <section className="lg:pt-6">
+          <p className="text-xs font-black uppercase tracking-[0.14em] text-violet-200">Novo espaço</p>
+          <h1 className="mt-3 text-3xl font-black tracking-[-0.04em] md:text-4xl">Crie o espaço da sua banda.</h1>
+          <p className="mt-4 max-w-md text-base leading-7 text-slate-300">
+            Sua conta já existe; falta só o espaço onde ficam eventos, contratos, escalas e equipe. Você será o responsável
+            (owner) e, em seguida, faz a configuração rápida.
+          </p>
+        </section>
 
-            <form onSubmit={handleSubmit} className="mt-7 space-y-5">
-              {error ? (
-                <div className="rounded-2xl border border-red-400/35 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-100">
-                  {error}
-                </div>
-              ) : null}
+        <section className={`p-5 sm:p-7 md:p-8 ${panelClass}`}>
+          <h2 className="text-2xl font-black tracking-[-0.03em]">Dados iniciais</h2>
+          <p className="mt-1 text-sm text-slate-400">O restante pode ser ajustado depois em Configurações.</p>
 
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-slate-200">
-                  Nome do workspace/banda/equipe
-                </label>
+          <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+            {error ? <Alert tone="error">{error}</Alert> : null}
+
+            <label className="block">
+              <span className={labelClass}>Nome da banda ou equipe</span>
+              <input
+                type="text"
+                value={workspaceName}
+                onChange={(event) => setWorkspaceName(event.target.value)}
+                required
+                disabled={loading}
+                className={inputClass}
+                placeholder="Ex.: Banda Aurora"
+                autoComplete="organization"
+              />
+            </label>
+
+            <label className="block">
+              <span className={labelClass}>
+                WhatsApp principal <span className="font-normal text-slate-400">(opcional)</span>
+              </span>
+              <input
+                type="tel"
+                value={supportWhatsapp}
+                onChange={(event) => setSupportWhatsapp(event.target.value)}
+                disabled={loading}
+                className={inputClass}
+                placeholder="+55 71 99999-9999"
+                autoComplete="tel"
+              />
+            </label>
+
+            <div>
+              <span className={labelClass}>
+                Cor principal <span className="font-normal text-slate-400">(opcional)</span>
+              </span>
+              <div className="flex items-center gap-3">
+                <input
+                  type="color"
+                  value={normalizeHexColor(primaryColor)}
+                  onChange={(event) => setPrimaryColor(event.target.value)}
+                  disabled={loading}
+                  className="h-[52px] w-16 shrink-0 rounded-2xl border border-white/15 bg-white/[0.07] p-2 disabled:opacity-60"
+                  aria-label="Cor principal do workspace"
+                />
                 <input
                   type="text"
-                  value={workspaceName}
-                  onChange={(event) => setWorkspaceName(event.target.value)}
-                  required
+                  value={primaryColor}
+                  onChange={(event) => setPrimaryColor(event.target.value)}
                   disabled={loading}
-                  className="w-full rounded-2xl border border-white/15 bg-white/10 px-4 py-4 text-sm text-white placeholder:text-slate-400 focus:border-violet-300 focus:outline-none focus:ring-2 focus:ring-violet-500/40 disabled:opacity-60"
-                  placeholder="Ex.: Banda Harmonics"
-                  autoComplete="organization"
+                  className={inputClass}
+                  placeholder={DEFAULT_COLOR}
+                  aria-label="Código da cor principal"
                 />
               </div>
+            </div>
 
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-slate-200">
-                  WhatsApp principal <span className="text-slate-400">(opcional)</span>
-                </label>
-                <input
-                  type="tel"
-                  value={supportWhatsapp}
-                  onChange={(event) => setSupportWhatsapp(event.target.value)}
-                  disabled={loading}
-                  className="w-full rounded-2xl border border-white/15 bg-white/10 px-4 py-4 text-sm text-white placeholder:text-slate-400 focus:border-violet-300 focus:outline-none focus:ring-2 focus:ring-violet-500/40 disabled:opacity-60"
-                  placeholder="+55 11 99999-9999"
-                  autoComplete="tel"
-                />
-              </div>
-
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-slate-200">
-                  Cor principal <span className="text-slate-400">(opcional)</span>
-                </label>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="color"
-                    value={normalizeHexColor(primaryColor)}
-                    onChange={(event) => setPrimaryColor(event.target.value)}
-                    disabled={loading}
-                    className="h-14 w-16 rounded-2xl border border-white/15 bg-white/10 p-2 disabled:opacity-60"
-                    aria-label="Cor principal do workspace"
-                  />
-                  <input
-                    type="text"
-                    value={primaryColor}
-                    onChange={(event) => setPrimaryColor(event.target.value)}
-                    disabled={loading}
-                    className="w-full rounded-2xl border border-white/15 bg-white/10 px-4 py-4 text-sm text-white placeholder:text-slate-400 focus:border-violet-300 focus:outline-none focus:ring-2 focus:ring-violet-500/40 disabled:opacity-60"
-                    placeholder={DEFAULT_COLOR}
-                  />
-                </div>
-              </div>
-
-              <label className="flex items-start gap-3 rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-3 text-sm text-slate-300">
-                <input
-                  type="checkbox"
-                  checked={acceptedLegal}
-                  onChange={(event) => setAcceptedLegal(event.target.checked)}
-                  className="mt-1 h-4 w-4 accent-emerald-300"
-                  required
-                />
-                <span>
-                  Li e aceito os{' '}
-                  <Link href="/termos" target="_blank" className="font-semibold text-emerald-200 underline-offset-4 hover:underline">Termos de Uso</Link>
-                  {' '}e a{' '}
-                  <Link href="/privacidade" target="_blank" className="font-semibold text-emerald-200 underline-offset-4 hover:underline">Política de Privacidade</Link>.
-                </span>
-              </label>
-
-              <button
-                type="submit"
+            <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3.5 text-sm leading-6 text-slate-300">
+              <input
+                type="checkbox"
+                checked={acceptedLegal}
+                onChange={(event) => setAcceptedLegal(event.target.checked)}
+                className="mt-1 h-4 w-4 shrink-0 accent-violet-500"
+                required
                 disabled={loading}
-                className="w-full rounded-2xl bg-gradient-to-r from-violet-600 via-fuchsia-600 to-purple-700 px-6 py-4 text-sm font-black text-white shadow-[0_18px_42px_rgba(124,58,237,0.38)] transition hover:from-violet-500 hover:via-fuchsia-500 hover:to-purple-600 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {loading ? 'Criando workspace...' : 'Criar workspace'}
-              </button>
-            </form>
-          </section>
-        </div>
-      </div>
-    </main>
+              />
+              <span>
+                Li e aceito os{' '}
+                <Link href="/termos" target="_blank" className={linkClass}>Termos de Uso</Link>
+                {' '}e a{' '}
+                <Link href="/privacidade" target="_blank" className={linkClass}>Política de Privacidade</Link>.
+              </span>
+            </label>
+
+            <button type="submit" disabled={loading} className={`${primaryButtonClass} w-full`}>
+              {loading ? (<><Spinner /> Criando seu espaço...</>) : 'Criar espaço e continuar'}
+            </button>
+          </form>
+        </section>
+      </main>
+    </div>
   );
 }

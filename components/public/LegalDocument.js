@@ -6,8 +6,8 @@ function Inline({ parts }) {
     if (part.type === 'strong') return <strong key={index} className="font-semibold text-white">{part.value}</strong>;
     if (part.type === 'link') {
       return part.href.startsWith('/')
-        ? <Link key={index} href={part.href} className="text-emerald-200 underline-offset-4 hover:underline">{part.value}</Link>
-        : <a key={index} href={part.href} className="text-emerald-200 underline-offset-4 hover:underline" rel="noopener noreferrer">{part.value}</a>;
+        ? <Link key={index} href={part.href} className="text-violet-200 underline-offset-4 hover:underline">{part.value}</Link>
+        : <a key={index} href={part.href} className="text-violet-200 underline-offset-4 hover:underline" rel="noopener noreferrer">{part.value}</a>;
     }
     return <span key={index}>{part.value}</span>;
   });

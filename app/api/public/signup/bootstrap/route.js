@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { recordLegalAcceptance } from '@/lib/legal/record-acceptance';
 import { withApiObservability } from '@/lib/observability/api-observability';
 import { createServerClient } from '@supabase/ssr';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
@@ -143,6 +144,18 @@ async function handlePOST(request) {
         workspaceId: existingMembership.workspace_id,
         next: '/eventos',
       });
+    }
+
+    // Aceite obrigatório e auditável dos Termos/Política vigentes antes de criar o workspace.
+    const legal = await recordLegalAcceptance({
+      supabase,
+      request,
+      user,
+      acceptance: body?.legalAcceptance || user.user_metadata?.legal_acceptance,
+      source: 'public_signup_bootstrap_api',
+    });
+    if (!legal.ok) {
+      return NextResponse.json({ ok: false, code: legal.code, error: legal.error }, { status: legal.status });
     }
 
     const profile = await ensureProfileSafe({ supabase, user, fullName });

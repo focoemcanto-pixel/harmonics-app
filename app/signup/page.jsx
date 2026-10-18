@@ -5,6 +5,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getSupabase } from '@/lib/supabase';
 import { planFromLocation, readIntendedPlan, saveIntendedPlan } from '@/lib/billing/intended-plan';
+import { buildLegalAcceptance } from '@/lib/legal/documents';
+import PublicFooter from '@/components/public/PublicFooter';
 
 const PENDING_SIGNUP_KEY = 'harmonics_pending_signup_bootstrap';
 
@@ -12,7 +14,7 @@ function normalizePhone(value) {
   return String(value || '').replace(/\D+/g, '');
 }
 
-function savePendingSignupBootstrap(form) {
+function savePendingSignupBootstrap(form, legalAcceptance) {
   if (typeof window === 'undefined') return;
 
   window.localStorage.setItem(
@@ -22,6 +24,7 @@ function savePendingSignupBootstrap(form) {
       workspaceName: form.workspaceName.trim(),
       supportWhatsapp: normalizePhone(form.whatsapp),
       timezone: 'America/Bahia',
+      legalAcceptance,
       createdAt: new Date().toISOString(),
     })
   );
@@ -43,6 +46,7 @@ export default function SignupPage() {
   const [success, setSuccess] = useState('');
   const [existingWorkspace, setExistingWorkspace] = useState(false);
   const [intendedPlan, setIntendedPlan] = useState('');
+  const [acceptedLegal, setAcceptedLegal] = useState(false);
 
   // Plano escolhido em /planos: a conta começa no Free e o checkout vem logo após o onboarding.
   useEffect(() => {
@@ -65,7 +69,7 @@ export default function SignupPage() {
     setExistingWorkspace(true);
   }
 
-  async function bootstrapWorkspace(accessToken) {
+  async function bootstrapWorkspace(accessToken, legalAcceptance) {
     const response = await fetch('/api/public/signup/bootstrap', {
       method: 'POST',
       headers: {
@@ -77,6 +81,7 @@ export default function SignupPage() {
         workspaceName: form.workspaceName.trim(),
         supportWhatsapp: normalizePhone(form.whatsapp),
         timezone: 'America/Bahia',
+        legalAcceptance,
       }),
     });
 
@@ -127,10 +132,17 @@ export default function SignupPage() {
       return;
     }
 
+    if (!acceptedLegal) {
+      setError('Para criar sua conta, aceite os Termos de Uso e a Política de Privacidade.');
+      return;
+    }
+
     setLoading(true);
 
     try {
-      savePendingSignupBootstrap(form);
+      // Versões vigentes + data/hora do aceite; o servidor registra junto com a data do registro.
+      const legalAcceptance = buildLegalAcceptance();
+      savePendingSignupBootstrap(form, legalAcceptance);
       const redirectTo = `${window.location.origin}/login?signup=confirmed`;
 
       const { data: signupData, error: signupError } = await supabase.auth.signUp({
@@ -142,6 +154,7 @@ export default function SignupPage() {
             full_name: form.fullName.trim(),
             workspace_name: form.workspaceName.trim(),
             signup_source: 'public_signup_page',
+            legal_acceptance: legalAcceptance,
           },
         },
       });
@@ -161,7 +174,7 @@ export default function SignupPage() {
         return;
       }
 
-      const payload = await bootstrapWorkspace(accessToken);
+      const payload = await bootstrapWorkspace(accessToken, legalAcceptance);
       if (!payload) return;
 
       window.localStorage.removeItem(PENDING_SIGNUP_KEY);
@@ -283,6 +296,22 @@ export default function SignupPage() {
                   <input value={form.whatsapp} onChange={(event) => updateField('whatsapp', event.target.value)} className="w-full rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-3 text-white outline-none transition focus:border-emerald-300" placeholder="Ex: 71999999999" inputMode="tel" />
                 </label>
 
+                <label className="flex items-start gap-3 rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-3 text-sm text-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={acceptedLegal}
+                    onChange={(event) => setAcceptedLegal(event.target.checked)}
+                    className="mt-1 h-4 w-4 accent-emerald-300"
+                    required
+                  />
+                  <span>
+                    Li e aceito os{' '}
+                    <Link href="/termos" target="_blank" className="font-semibold text-emerald-200 underline-offset-4 hover:underline">Termos de Uso</Link>
+                    {' '}e a{' '}
+                    <Link href="/privacidade" target="_blank" className="font-semibold text-emerald-200 underline-offset-4 hover:underline">Política de Privacidade</Link>.
+                  </span>
+                </label>
+
                 {error ? <div className="rounded-2xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-100">{error}</div> : null}
                 {success ? <div className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">{success}</div> : null}
 
@@ -298,6 +327,7 @@ export default function SignupPage() {
           )}
         </div>
       </section>
+      <PublicFooter />
     </main>
   );
 }

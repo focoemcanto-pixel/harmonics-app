@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { loadPublicPlans } from '@/lib/billing/public-plans';
+import PublicFooter from '@/components/public/PublicFooter';
 
 // Página pública de planos: o visitante conhece os planos antes de criar a conta.
 // Mesma fonte dos limites do backend (workspace_plans), sem nada fixo no código.
@@ -42,10 +43,10 @@ export default async function PlanosPage() {
   }
 
   return (
-    <main className="min-h-[100dvh] bg-slate-950 px-4 py-10 text-white md:py-16">
+    <main className="min-h-[100dvh] bg-slate-950 px-4 pt-10 text-white md:pt-16">
       <section className="mx-auto w-full max-w-6xl">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-emerald-200">Harmonics</span>
+          <Link href="/" className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-emerald-200">Harmonics</Link>
           <Link href="/login" className="rounded-2xl border border-white/15 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-white/10">
             Entrar
           </Link>
@@ -106,6 +107,7 @@ export default async function PlanosPage() {
           é ativado assim que o pagamento é confirmado.
         </p>
       </section>
+      <PublicFooter className="mt-12" />
     </main>
   );
 }

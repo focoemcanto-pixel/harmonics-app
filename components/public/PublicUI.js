@@ -28,30 +28,51 @@ export function PublicBackground() {
   );
 }
 
-export function BrandMark({ href = '/', compact = false }) {
+export function BrandMark({ href = '/', compact = false, compactOnMobile = false }) {
   return (
     <Link href={href} className="inline-flex items-center gap-2.5 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-300" aria-label="Harmonics — página inicial">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src="/icon-192.png" alt="" width={36} height={36} className="h-9 w-9 rounded-xl border border-white/15 shadow-lg shadow-violet-900/40" />
-      {compact ? null : <span className="text-lg font-black tracking-[-0.03em] text-white">Harmonics</span>}
+      {compact ? null : <span className={`text-lg font-black tracking-[-0.03em] text-white ${compactOnMobile ? 'hidden min-[420px]:inline' : ''}`}>Harmonics</span>}
     </Link>
   );
 }
 
+const NAV_ITEMS = [
+  { key: 'produto', href: '/#produto', label: 'Produto' },
+  { key: 'como-funciona', href: '/#como-funciona', label: 'Como funciona' },
+  { key: 'recursos', href: '/#recursos', label: 'Recursos' },
+  { key: 'planos', href: '/planos', label: 'Planos' },
+];
+
 export function PublicHeader({ active = '' }) {
   const linkClass = (key) =>
-    `hidden rounded-xl px-3 py-2 text-sm font-semibold transition sm:inline-flex ${active === key ? 'text-white' : 'text-slate-300 hover:text-white'}`;
+    `rounded-xl px-3 py-2 text-sm font-semibold transition ${active === key ? 'text-white' : 'text-slate-300 hover:text-white'}`;
   return (
     <header className="relative z-20 mx-auto flex w-full max-w-6xl items-center justify-between gap-3 px-4 py-5 md:px-6">
-      <BrandMark />
-      <nav className="flex items-center gap-1 sm:gap-2" aria-label="Navegação principal">
-        <Link href="/#recursos" className={linkClass('recursos')}>Recursos</Link>
-        <Link href="/planos" className={linkClass('planos')}>Planos</Link>
+      <BrandMark compactOnMobile />
+      <nav className="hidden items-center gap-1 lg:flex" aria-label="Navegação principal">
+        {NAV_ITEMS.map((item) => (
+          <Link key={item.key} href={item.href} className={linkClass(item.key)}>{item.label}</Link>
+        ))}
+      </nav>
+      <div className="flex items-center gap-1 sm:gap-2">
         <Link href="/login" className="rounded-xl px-3 py-2 text-sm font-semibold text-slate-200 transition hover:text-white">Entrar</Link>
         <Link href="/signup" className="rounded-xl bg-white px-4 py-2 text-sm font-black text-slate-950 transition hover:bg-violet-100">
           Começar grátis
         </Link>
-      </nav>
+        <details className="group relative lg:hidden">
+          <summary className="flex h-9 w-9 cursor-pointer list-none items-center justify-center rounded-xl border border-white/15 text-slate-200 [&::-webkit-details-marker]:hidden" aria-label="Abrir menu">
+            <span aria-hidden="true" className="text-lg leading-none group-open:hidden">☰</span>
+            <span aria-hidden="true" className="hidden text-lg leading-none group-open:inline">✕</span>
+          </summary>
+          <nav className="absolute right-0 top-11 w-52 rounded-2xl border border-white/12 bg-slate-900/95 p-2 shadow-2xl backdrop-blur-xl" aria-label="Navegação principal (menu)">
+            {NAV_ITEMS.map((item) => (
+              <Link key={item.key} href={item.href} className="block rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-200 hover:bg-white/10">{item.label}</Link>
+            ))}
+          </nav>
+        </details>
+      </div>
     </header>
   );
 }

@@ -139,6 +139,12 @@ export default function SignupPage() {
       return;
     }
 
+    // O formulário usa noValidate (mensagens próprias), então o formato do e-mail é checado aqui.
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+      setError('Informe um e-mail válido.');
+      return;
+    }
+
     if (String(form.password || '').length < 8) {
       setError('A senha precisa ter pelo menos 8 caracteres.');
       return;

@@ -47,19 +47,16 @@ export async function middleware(req) {
     SUPABASE_URL,
     SUPABASE_ANON_KEY,
     {
+      // getAll/setAll: uma sessão grande é gravada em vários pedaços (.0, .1, ...); todos precisam
+      // chegar juntos na mesma resposta, senão o navegador fica com pedaços velhos e novos misturados.
       cookies: {
-        get(name) {
-          return req.cookies.get(name)?.value;
+        getAll() {
+          return req.cookies.getAll();
         },
-        set(name, value, options) {
-          req.cookies.set({ name, value, ...options });
-          res = NextResponse.next({ request: { headers: req.headers } });
-          res.cookies.set({ name, value, ...options });
-        },
-        remove(name, options) {
-          req.cookies.set({ name, value: '', ...options });
-          res = NextResponse.next({ request: { headers: req.headers } });
-          res.cookies.set({ name, value: '', ...options });
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) => req.cookies.set(name, value));
+          res = NextResponse.next({ request: req });
+          cookiesToSet.forEach(({ name, value, options }) => res.cookies.set(name, value, options));
         },
       },
     }

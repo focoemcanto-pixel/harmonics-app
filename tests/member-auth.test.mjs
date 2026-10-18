@@ -40,7 +40,7 @@ test('valida o usuário com getUser(token) e nunca renova a sessão', async () =
 test('identifica conta de membro (contato ativo) com e-mail exato, escapando curingas', async () => {
   const seen = [];
   const supabase = { from: () => {
-    const q = { select: () => q, ilike: (_c, v) => { seen.push(v); return q; }, neq: () => q, limit: async () => ({ data: seen.at(-1) === 'musico\\_x@ex.com' ? [{ id: 'c1' }] : [], error: null }) };
+    const q = { select: () => q, ilike: (_c, v) => { seen.push(v); return q; }, neq: () => q, or: (f) => { assert.equal(f, 'contact_type.is.null,contact_type.neq.client'); return q; }, limit: async () => ({ data: seen.at(-1) === 'musico\\_x@ex.com' ? [{ id: 'c1' }] : [], error: null }) };
     return q;
   } };
   assert.equal(await isActiveMemberContact({ supabase, email: ' Musico_X@ex.com ' }), true);

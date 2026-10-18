@@ -73,3 +73,14 @@ a {
     font-size: max(16px, 1em) !important;
   }
 }
+
+/* Landing: entrada suave dos blocos ao rolar (desligada com movimento reduzido). */
+@media (prefers-reduced-motion: no-preference) {
+  .landing-reveal[data-visible='false'] {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  .landing-reveal {
+    transition: opacity 700ms ease, transform 700ms ease;
+  }
+}

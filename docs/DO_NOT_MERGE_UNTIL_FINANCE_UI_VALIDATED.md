@@ -1,0 +1,1 @@
+Esta branch não deve ser mergeada até a tela operacional detalhada anterior estar integralmente preservada junto do novo Caixa Vivo.

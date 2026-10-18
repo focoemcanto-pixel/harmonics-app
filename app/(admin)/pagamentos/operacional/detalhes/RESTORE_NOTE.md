@@ -1,0 +1,1 @@
+A tela detalhada é preservada a partir da implementação operacional anterior; não remover seus fluxos.

@@ -247,7 +247,12 @@ export default function AdminShell({ pageTitle, children, mobileActions, activeI
 
   // Usuário autenticado sem workspace (cadastro interrompido antes do bootstrap):
   // em vez de um painel vazio, retoma a criação do workspace.
+  // Conta que só é músico/membro (sem membership administrativa): o lugar dela é o portal /membro.
   useEffect(() => {
+    if (workspaceError?.code === 'MEMBER_ONLY') {
+      router.replace('/membro');
+      return;
+    }
     if (workspaceError?.code === 'NO_WORKSPACE' && pathname !== '/workspace/new') {
       router.replace('/workspace/new');
     }

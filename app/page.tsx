@@ -1,7 +1,4 @@
 import Link from 'next/link';
-import { cookies } from 'next/headers';
-import { redirect } from 'next/navigation';
-import { createServerClient } from '@supabase/ssr';
 import { ArrowRight, Check, CircleAlert } from 'lucide-react';
 import PublicFooter from '@/components/public/PublicFooter';
 import { PublicBackground, PublicHeader, primaryButtonClass, secondaryButtonClass } from '@/components/public/PublicUI';
@@ -13,7 +10,7 @@ import { loadPublicPlans } from '@/lib/billing/public-plans';
 import { RECOMMENDED_PLAN_SLUG, formatMoney, isPaidPlan, planTagline } from '@/lib/billing/plan-presentation';
 import { TESTIMONIALS } from '@/lib/landing/testimonials';
 
-// Página de vendas pública. Quem já está autenticado continua indo direto para o painel.
+// Página de vendas pública. Quem já está autenticado é levado ao painel pelo middleware.
 // As telas mostradas são capturas reais do produto com uma banda fictícia (Banda Aurora).
 export const dynamic = 'force-dynamic';
 
@@ -42,26 +39,6 @@ export const metadata = {
     images: [`${SITE_URL}/landing/og-harmonics.png`],
   },
 };
-
-async function hasAuthenticatedUser() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !anonKey) return false;
-  try {
-    const cookieStore = await cookies();
-    if (!cookieStore.getAll().some((cookie) => cookie.name.startsWith('sb-'))) return false;
-    const supabase = createServerClient(url, anonKey, {
-      cookies: {
-        getAll: () => cookieStore.getAll(),
-        setAll: () => {},
-      },
-    });
-    const { data } = await supabase.auth.getUser();
-    return Boolean(data?.user);
-  } catch {
-    return false;
-  }
-}
 
 type PublicPlan = {
   id: string;
@@ -209,8 +186,6 @@ function Bullet({ children }: { children: React.ReactNode }) {
 }
 
 export default async function Home() {
-  if (await hasAuthenticatedUser()) redirect('/dashboard');
-
   const plans = await loadPlans();
   const automationPlans = joinNames(plans.filter((plan) => plan.can_use_automation && plan.can_use_whatsapp).map((plan) => plan.name));
   const faq = FAQ_ITEMS(automationPlans);

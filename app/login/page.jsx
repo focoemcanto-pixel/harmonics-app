@@ -76,6 +76,12 @@ function LoginPageContent() {
     const payload = await response.json().catch(() => null);
     const message = String(payload?.error || '').toLowerCase();
 
+    // Conta de músico/membro sem acesso administrativo: vai para o portal do membro.
+    if (payload?.code === 'MEMBER_ONLY') {
+      router.replace('/membro');
+      return false;
+    }
+
     if (response.status === 403 || message.includes('não pertence') || message.includes('workspace')) {
       router.replace('/workspace/new');
       return false;
@@ -267,6 +273,11 @@ function LoginPageContent() {
               Conhecer os planos
             </Link>
           </div>
+
+          <p className="mt-6 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-center text-sm text-slate-300">
+            É músico ou membro de uma equipe?{' '}
+            <Link href="/membro" className={linkClass}>Entrar no painel do membro</Link>
+          </p>
         </section>
       </main>
     </div>

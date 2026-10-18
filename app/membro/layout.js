@@ -1,5 +1,16 @@
 import { Suspense } from 'react';
 
+// App instalado a partir do portal do membro abre sempre em /membro (manifest e escopo próprios),
+// nunca no painel administrativo do manifest global.
+export const metadata = {
+  manifest: '/membro.webmanifest',
+  appleWebApp: {
+    capable: true,
+    title: 'Harmonics Membro',
+    statusBarStyle: 'black-translucent',
+  },
+};
+
 function MemberPanelFallback() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#050814] text-white">

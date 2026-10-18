@@ -4,6 +4,8 @@ import { withApiObservability } from '@/lib/observability/api-observability';
 import { createServerClient } from '@supabase/ssr';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { bootstrapWorkspaceForUser, findExistingWorkspaceForUser } from '@/lib/workspaces/bootstrap-workspace';
+import { getUserFromCookieSession } from '@/lib/auth/cookie-access-token';
+import { isActiveMemberContact } from '@/lib/api/require-workspace-access';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -65,8 +67,8 @@ async function resolveUserFromRequest(request) {
   const cookieClient = createCookieSupabaseClient(request);
   if (!cookieClient) return { user: null, error: null };
 
-  const { data, error } = await cookieClient.auth.getUser();
-  return { user: data?.user || null, error: error || null };
+  const { user, error } = await getUserFromCookieSession(cookieClient, request);
+  return { user, error: error || null };
 }
 
 async function ensureOnboardingProgressMarked({ supabase, workspaceId }) {
@@ -243,6 +245,14 @@ async function handlePOST(request) {
         next: '/dashboard',
       });
       return existingResponse;
+    }
+
+    // Conta que é só músico/membro não abre workspace por aqui: o acesso dela é o portal /membro.
+    if (await isActiveMemberContact({ supabase, email: user.email })) {
+      return NextResponse.json(
+        { ok: false, code: 'MEMBER_ONLY', error: 'Esta conta acessa o Harmonics pelo painel do membro.', next: '/membro' },
+        { status: 403 }
+      );
     }
 
     // Aceite obrigatório e auditável dos Termos/Política vigentes antes de criar o workspace.

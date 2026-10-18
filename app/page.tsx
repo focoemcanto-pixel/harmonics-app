@@ -212,7 +212,7 @@ export default async function Home() {
   if (await hasAuthenticatedUser()) redirect('/dashboard');
 
   const plans = await loadPlans();
-  const automationPlans = joinNames(plans.filter((plan) => plan.can_use_automation || plan.can_use_whatsapp).map((plan) => plan.name));
+  const automationPlans = joinNames(plans.filter((plan) => plan.can_use_automation && plan.can_use_whatsapp).map((plan) => plan.name));
   const faq = FAQ_ITEMS(automationPlans);
 
   const jsonLd = {

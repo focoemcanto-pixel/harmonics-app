@@ -99,6 +99,13 @@ export default function BillingClient() {
     if (chosenPlan) document.getElementById(`plan-${chosenPlan.slug}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }, [chosenPlan]);
 
+  useEffect(() => {
+    if (!askDocumentFor) return;
+    const input = document.getElementById(`doc-${askDocumentFor}`);
+    input?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    input?.focus({ preventScroll: true });
+  }, [askDocumentFor]);
+
   const [activatedPlanName, setActivatedPlanName] = useState('');
   const pendingPlanIdRef = useRef(null);
 
@@ -215,6 +222,36 @@ export default function BillingClient() {
           Identificamos um pagamento em atraso. Regularize para manter os recursos do seu plano — após 7 dias de atraso o
           workspace passa a usar os limites do plano Free (seus dados continuam guardados).
         </div>
+      ) : null}
+
+      {chosenPlan && !summary?.internal && !pendingPlan ? (
+        <section className="rounded-[28px] bg-gradient-to-r from-violet-700 via-fuchsia-700 to-purple-800 p-5 text-white shadow-[0_18px_42px_rgba(124,58,237,0.28)] md:p-6">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div>
+              <div className="text-[12px] font-black uppercase tracking-[0.14em] text-violet-100">Plano escolhido</div>
+              <h2 className="mt-1 text-[24px] font-black tracking-[-0.04em]">
+                {chosenPlan.name} · {money(chosenPlan.monthly_price)}<span className="text-sm font-semibold text-violet-100">/mês</span>
+              </h2>
+              <p className="mt-1 max-w-xl text-sm font-semibold leading-6 text-violet-50">
+                Pague por Pix, boleto ou cartão. O plano é ativado assim que o pagamento é confirmado; até lá seu espaço segue no {effective.name || 'plano atual'}.
+              </p>
+            </div>
+            {canManage && summary?.paymentsConfigured ? (
+              <button
+                type="button"
+                onClick={() => subscribe(chosenPlan.slug)}
+                disabled={Boolean(busyPlan)}
+                className="shrink-0 rounded-2xl bg-white px-6 py-4 text-sm font-black text-violet-800 transition hover:bg-violet-50 disabled:opacity-60"
+              >
+                {busyPlan === chosenPlan.slug ? 'Abrindo pagamento...' : `Assinar o ${chosenPlan.name}`}
+              </button>
+            ) : (
+              <p className="shrink-0 rounded-2xl bg-white/15 px-4 py-3 text-sm font-semibold">
+                {canManage ? 'Pagamentos online em configuração.' : 'Só o responsável pelo espaço pode assinar.'}
+              </p>
+            )}
+          </div>
+        </section>
       ) : null}
 
       <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-5 shadow-[0_12px_28px_rgba(15,23,42,0.04)] md:p-6">

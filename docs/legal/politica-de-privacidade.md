@@ -1,6 +1,6 @@
 # Política de Privacidade — Harmonics
 
-**Última atualização:** [data da publicação]
+**Versão:** 2026-10-18 · **Última atualização:** 18 de outubro de 2026
 
 Esta Política explica como a **FOCO START LTDA**, CNPJ **29.671.912/0001-77**, com sede em **Salvador/BA** ("Harmonics", "nós"), trata dados pessoais na plataforma **Harmonics** ("Plataforma"), em conformidade com a Lei nº 13.709/2018 (Lei Geral de Proteção de Dados — LGPD).
 

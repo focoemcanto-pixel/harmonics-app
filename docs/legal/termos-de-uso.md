@@ -1,6 +1,6 @@
 # Termos de Uso — Harmonics
 
-**Última atualização:** [data da publicação]
+**Versão:** 2026-10-18 · **Última atualização:** 18 de outubro de 2026
 
 Estes Termos de Uso ("Termos") regulam o acesso e o uso da plataforma **Harmonics** ("Plataforma"), disponibilizada por **FOCO START LTDA**, inscrita no CNPJ sob o nº **29.671.912/0001-77**, com sede em **Salvador/BA** ("Harmonics", "nós").
 
@@ -30,7 +30,7 @@ Os recursos disponíveis variam conforme o plano contratado e podem ser alterado
 
 3.3. Os pagamentos são processados pelo **Asaas**, instituição de pagamento parceira, nos meios disponíveis no checkout (como Pix, boleto ou cartão). Não armazenamos dados completos de cartão de pagamento.
 
-3.4. O plano pago é ativado após a confirmação do pagamento pelo meio de pagamento. Em caso de atraso, o acesso ao plano pago pode ser mantido por um período de tolerância e, depois dele, o Workspace pode voltar aos recursos e limites do plano gratuito, sem exclusão dos dados.
+3.4. O plano pago é ativado após a confirmação do pagamento pelo meio de pagamento. Em caso de inadimplência, o acesso ao plano pago é mantido por um período de tolerância de **7 (sete) dias** contados do fim do período pago sem que o novo pagamento tenha sido confirmado. Encerrada a tolerância sem pagamento, o Workspace passa aos recursos e limites do plano gratuito, sem exclusão dos dados, e o plano pago volta a valer assim que o pagamento for confirmado.
 
 3.5. Os preços podem ser reajustados. Alterações de preço de planos já contratados serão comunicadas com antecedência e valerão a partir do período seguinte à comunicação.
 

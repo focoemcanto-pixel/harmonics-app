@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getSupabase } from '@/lib/supabase';
 import { WORKSPACE_CACHE_KEY } from '@/hooks/useCurrentWorkspace';
+import Link from 'next/link';
+import { buildLegalAcceptance } from '@/lib/legal/documents';
 
 const DEFAULT_COLOR = '#8b5cf6';
 
@@ -70,6 +72,7 @@ export default function NewWorkspacePage() {
   const [checkingSession, setCheckingSession] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [acceptedLegal, setAcceptedLegal] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -116,6 +119,11 @@ export default function NewWorkspacePage() {
       return;
     }
 
+    if (!acceptedLegal) {
+      setError('Para criar seu espaço, aceite os Termos de Uso e a Política de Privacidade.');
+      return;
+    }
+
     if (!workspaceName.trim()) {
       setError('Informe o nome do workspace, banda ou equipe.');
       return;
@@ -142,6 +150,7 @@ export default function NewWorkspacePage() {
           workspaceName,
           supportWhatsapp,
           primaryColor: normalizeHexColor(primaryColor),
+          legalAcceptance: buildLegalAcceptance(),
         }),
       });
 
@@ -152,7 +161,8 @@ export default function NewWorkspacePage() {
       }
 
       resetWorkspaceScopedStorage(payload?.workspaceId);
-      router.push(payload?.next || '/dashboard?onboarding=fresh-workspace');
+      // Sempre converge para o onboarding oficial (a API também devolve next: '/onboarding').
+      router.push(payload?.next || '/onboarding');
       router.refresh();
     } catch (err) {
       setError(err?.message || 'Não foi possível criar o workspace.');
@@ -257,6 +267,22 @@ export default function NewWorkspacePage() {
                   />
                 </div>
               </div>
+
+              <label className="flex items-start gap-3 rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-3 text-sm text-slate-300">
+                <input
+                  type="checkbox"
+                  checked={acceptedLegal}
+                  onChange={(event) => setAcceptedLegal(event.target.checked)}
+                  className="mt-1 h-4 w-4 accent-emerald-300"
+                  required
+                />
+                <span>
+                  Li e aceito os{' '}
+                  <Link href="/termos" target="_blank" className="font-semibold text-emerald-200 underline-offset-4 hover:underline">Termos de Uso</Link>
+                  {' '}e a{' '}
+                  <Link href="/privacidade" target="_blank" className="font-semibold text-emerald-200 underline-offset-4 hover:underline">Política de Privacidade</Link>.
+                </span>
+              </label>
 
               <button
                 type="submit"

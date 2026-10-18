@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getSupabase } from '@/lib/supabase';
+import PublicFooter from '@/components/public/PublicFooter';
 
 function getSafeNext(searchParams) {
   const next = searchParams?.get('next') || '/eventos';
@@ -305,6 +306,7 @@ function LoginPageContent() {
 
 export default function LoginPage() {
   return (
+    <div className="bg-slate-950">
     <Suspense
       fallback={
         <main className="flex min-h-screen items-center justify-center bg-slate-950 px-6 text-white">
@@ -316,5 +318,7 @@ export default function LoginPage() {
     >
       <LoginPageContent />
     </Suspense>
+    <PublicFooter />
+    </div>
   );
 }

@@ -112,6 +112,22 @@ export default function NewWorkspacePage() {
         return;
       }
 
+      // Conta que é só músico/membro não cria workspace: vai para o portal do membro.
+      try {
+        const meResponse = await fetch('/api/workspace/me', {
+          cache: 'no-store',
+          headers: { Authorization: `Bearer ${data.session.access_token}` },
+        });
+        const mePayload = await meResponse.json().catch(() => null);
+        if (!active) return;
+        if (mePayload?.code === 'MEMBER_ONLY') {
+          router.replace('/membro');
+          return;
+        }
+      } catch {
+        // Sem resposta: segue o fluxo normal; o servidor recusa a criação para membros.
+      }
+
       try {
         const pending = JSON.parse(window.localStorage.getItem('harmonics_pending_signup_bootstrap') || 'null');
         if (pending?.workspaceName) setWorkspaceName((current) => current || pending.workspaceName);
@@ -177,6 +193,10 @@ export default function NewWorkspacePage() {
       const payload = await response.json().catch(() => null);
 
       if (!response.ok || !payload?.ok) {
+        if (payload?.code === 'MEMBER_ONLY') {
+          router.replace('/membro');
+          return;
+        }
         throw new Error(payload?.error || 'Não foi possível criar o workspace.');
       }
 

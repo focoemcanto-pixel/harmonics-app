@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requireWorkspaceAdmin } from '@/lib/api/require-workspace-access';
+import { getUserFromCookieSession } from '@/lib/auth/cookie-access-token';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -32,8 +33,8 @@ async function resolveUser({ supabase, request }) {
 
   const cookieClient = createCookieClient(request);
   if (!cookieClient) return { user: null, error: null };
-  const { data, error } = await cookieClient.auth.getUser();
-  return { user: data?.user || null, error: error || null };
+  const { user, error } = await getUserFromCookieSession(cookieClient, request);
+  return { user, error: error || null };
 }
 
 function normalizeMusicalKey(value) {

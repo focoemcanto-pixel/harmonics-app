@@ -47,25 +47,37 @@ export async function middleware(req) {
     SUPABASE_URL,
     SUPABASE_ANON_KEY,
     {
+      // getAll/setAll: uma sessão grande é gravada em vários pedaços (.0, .1, ...); todos precisam
+      // chegar juntos na mesma resposta, senão o navegador fica com pedaços velhos e novos misturados.
       cookies: {
-        get(name) {
-          return req.cookies.get(name)?.value;
+        getAll() {
+          return req.cookies.getAll();
         },
-        set(name, value, options) {
-          req.cookies.set({ name, value, ...options });
-          res = NextResponse.next({ request: { headers: req.headers } });
-          res.cookies.set({ name, value, ...options });
-        },
-        remove(name, options) {
-          req.cookies.set({ name, value: '', ...options });
-          res = NextResponse.next({ request: { headers: req.headers } });
-          res.cookies.set({ name, value: '', ...options });
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) => req.cookies.set(name, value));
+          res = NextResponse.next({ request: req });
+          cookiesToSet.forEach(({ name, value, options }) => res.cookies.set(name, value, options));
         },
       },
     }
   );
 
   const isProtectedPath = PROTECTED_PATHS.some((path) => pathname.startsWith(path));
+
+  // Raiz pública: visitante vê a página de vendas; quem já tem sessão vai para o app.
+  // A sessão é checada aqui (e não na página) porque o middleware grava os cookies renovados;
+  // renovar numa página de servidor descartaria os tokens novos e derrubaria a sessão do navegador.
+  if (pathname === '/') {
+    const hasSessionCookie = req.cookies.getAll().some((cookie) => /^sb-.+-auth-token(\.\d+)?$/.test(cookie.name));
+    if (!hasSessionCookie) return res;
+    const {
+      data: { user: rootUser },
+    } = await supabase.auth.getUser();
+    if (!rootUser) return res;
+    const redirect = NextResponse.redirect(new URL('/dashboard', req.url));
+    res.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie));
+    return redirect;
+  }
 
   if (!isProtectedPath) {
     return res;
@@ -88,6 +100,7 @@ export async function middleware(req) {
 
 export const config = {
   matcher: [
+    '/',
     '/dashboard/:path*',
     '/eventos/:path*',
     '/contratos/:path*',

@@ -443,6 +443,40 @@ function MemberBootScreen({ memberName = '' }) {
   );
 }
 
+// Toda etapa assíncrona do portal termina: sucesso ou erro explícito, nunca carregamento infinito.
+const MEMBER_AUTH_TIMEOUT_MS = 20000;
+const MEMBER_DATA_TIMEOUT_MS = 25000;
+
+function withTimeout(promise, ms, label) {
+  let timer = null;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      const error = new Error(`${label}: tempo esgotado`);
+      error.code = 'MEMBER_TIMEOUT';
+      reject(error);
+    }, ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+function MemberBootError({ message, onRetry, onLogout }) {
+  return (
+    <div className="flex min-h-[100dvh] items-center justify-center bg-[#050814] px-6 text-white">
+      <div className="w-full max-w-[420px] rounded-[28px] border border-white/10 bg-white/[0.05] p-6 text-center">
+        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-violet-200">Harmonics Member</p>
+        <h1 className="mt-4 text-[24px] font-black tracking-[-0.04em]">Não conseguimos abrir seu painel</h1>
+        <p className="mt-3 text-[14px] font-semibold leading-6 text-white/60">{message}</p>
+        <button type="button" onClick={onRetry} className="mt-6 w-full rounded-2xl bg-violet-600 px-5 py-3.5 text-[14px] font-black text-white">
+          Tentar novamente
+        </button>
+        <button type="button" onClick={onLogout} className="mt-3 w-full rounded-2xl border border-white/15 px-5 py-3 text-[14px] font-bold text-white/80">
+          Sair e entrar com outra conta
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function LoginScreen({ onGoogleLogin, loggingIn, error }) {
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#050814] px-5 py-8 text-white">
@@ -643,6 +677,9 @@ export default function MembroPage() {
   const [precontracts, setPrecontracts] = useState([]);
   const [contracts, setContracts] = useState([]);
   const [loadingData, setLoadingData] = useState(true);
+  const [bootError, setBootError] = useState('');
+  // Usuário cuja ficha de membro já foi resolvida nesta aba (evita reprocessar a cada renovação de token).
+  const resolvedUserIdRef = useRef(null);
 
   const [activeTab, setActiveTab] = useState('home');
   const [loadingKey, setLoadingKey] = useState('');
@@ -680,6 +717,23 @@ export default function MembroPage() {
   const [repertoireConfigs, setRepertoireConfigs] = useState([]);
   const [repertoireItems, setRepertoireItems] = useState([]);
  async function resolveMemberFromSession() {
+  try {
+    await withTimeout(resolveMemberCore(), MEMBER_AUTH_TIMEOUT_MS, 'Validação do acesso');
+  } catch (e) {
+    console.error('Erro ao resolver membro:', e);
+    resolvedUserIdRef.current = null;
+    setMember(null);
+    setError(
+      e?.code === 'MEMBER_TIMEOUT'
+        ? 'A validação do seu acesso demorou mais que o esperado. Verifique a conexão e tente entrar novamente.'
+        : 'Não foi possível validar seu acesso.'
+    );
+    setSessionChecked(true);
+    setLoggingIn(false);
+  }
+ }
+
+ async function resolveMemberCore() {
   try {
     setError('');
 
@@ -719,6 +773,7 @@ export default function MembroPage() {
         is_active: true,
         isAdmin: true, // ✅ FLAG para controlar comportamento
       });
+      resolvedUserIdRef.current = session.user.id;
       return;
     }
 
@@ -777,6 +832,7 @@ export default function MembroPage() {
     }
 
     setMember(resolvedMember);
+    resolvedUserIdRef.current = session.user.id;
   } catch (e) {
     console.error('Erro ao resolver membro:', e);
     setMember(null);
@@ -789,7 +845,22 @@ export default function MembroPage() {
 
   async function loadDashboardData(currentMember) {
     if (!currentMember?.id) return;
+    setBootError('');
+    try {
+      await withTimeout(loadDashboardDataCore(currentMember), MEMBER_DATA_TIMEOUT_MS, 'Carregamento do painel');
+    } catch (e) {
+      console.error('Erro ao carregar painel do membro:', e);
+      setBootError(
+        e?.code === 'MEMBER_TIMEOUT'
+          ? 'O carregamento demorou mais que o esperado. Verifique a conexão e tente novamente.'
+          : e?.message || 'Não foi possível carregar seu painel.'
+      );
+    } finally {
+      setLoadingData(false);
+    }
+  }
 
+  async function loadDashboardDataCore(currentMember) {
     try {
       setLoadingData(true);
       setError('');
@@ -920,10 +991,16 @@ export default function MembroPage() {
       try {
         setError('');
 
+        // Retorno do Google com erro (consentimento negado, callback interrompido etc.).
+        const oauthError = searchParams?.get('error_description') || searchParams?.get('error');
+        if (oauthError) {
+          setError(`Não foi possível concluir o login com Google (${String(oauthError).slice(0, 120)}). Tente novamente.`);
+        }
+
         const {
           data: { session },
           error: sessionError,
-        } = await supabase.auth.getSession();
+        } = await withTimeout(supabase.auth.getSession(), MEMBER_AUTH_TIMEOUT_MS, 'Sessão');
 
         if (sessionError) {
           throw sessionError;
@@ -940,6 +1017,7 @@ export default function MembroPage() {
       } catch (e) {
         console.error('Erro no bootstrap de auth:', e);
         if (mounted) {
+          setError('Não foi possível concluir o login. Tente entrar novamente.');
           setSessionChecked(true);
           setLoggingIn(false);
         }
@@ -952,15 +1030,22 @@ export default function MembroPage() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!authBootstrappedRef.current) return;
       if (!mounted) return;
 
       if (session?.user?.email) {
-        await resolveMemberFromSession();
+        // Renovação de token / foco na aba do mesmo usuário: nada a refazer.
+        if (resolvedUserIdRef.current === session.user.id) return;
+        // Nunca aguardar chamadas do Supabase dentro deste callback: o lock de auth ainda está
+        // preso e getSession()/consultas ficariam esperando para sempre (painel carregando sem fim).
+        setTimeout(() => {
+          if (mounted) resolveMemberFromSession();
+        }, 0);
         return;
       }
 
+      resolvedUserIdRef.current = null;
       setMember(null);
       setInvites([]);
       setPrecontracts([]);
@@ -1224,10 +1309,13 @@ export default function MembroPage() {
 
   async function handleLogout() {
     try {
-      await supabase.auth.signOut();
+      // Só esta sessão: sair do portal do membro não derruba o acesso administrativo em outros aparelhos.
+      await supabase.auth.signOut({ scope: 'local' });
     } catch (e) {
       console.error('Erro ao sair:', e);
     } finally {
+      resolvedUserIdRef.current = null;
+      setBootError('');
       setMember(null);
       setInvites([]);
       setPrecontracts([]);
@@ -1543,6 +1631,10 @@ export default function MembroPage() {
 
   if (member && loadingData) {
     return <MemberBootScreen memberName={member?.name || ''} />;
+  }
+
+  if (member && bootError) {
+    return <MemberBootError message={bootError} onRetry={() => loadDashboardData(member)} onLogout={handleLogout} />;
   }
 
   return (

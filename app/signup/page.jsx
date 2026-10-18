@@ -104,6 +104,11 @@ export default function SignupPage() {
 
     const payload = await response.json().catch(() => null);
 
+    if (payload?.code === 'MEMBER_ONLY') {
+      router.push('/membro');
+      return null;
+    }
+
     if (response.status === 409 && payload?.code === 'USER_ALREADY_HAS_WORKSPACE') {
       handleExistingWorkspace();
       return null;

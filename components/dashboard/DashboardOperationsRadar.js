@@ -47,7 +47,7 @@ function RadarCard({ item, value }) {
 
   return (
     <div
-      className={`relative min-w-0 rounded-[24px] border px-5 py-5 shadow-[0_10px_24px_rgba(17,24,39,0.04)] ${item.tone}`}
+      className={`relative min-w-0 rounded-[24px] border px-5 py-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)] ${item.tone}`}
     >
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.45),transparent_34%)]" />
 
@@ -83,7 +83,7 @@ function RadarCard({ item, value }) {
 
           <Link
             href={item.href}
-            className="inline-flex w-full min-w-[132px] shrink-0 items-center justify-center whitespace-nowrap rounded-[16px] bg-white/90 px-4 py-3 text-[12px] font-black text-[#0f172a] shadow-[0_8px_18px_rgba(17,24,39,0.05)] transition hover:bg-white sm:w-auto"
+            className="inline-flex w-full min-w-[132px] shrink-0 items-center justify-center whitespace-nowrap rounded-[16px] bg-white/90 px-4 py-3 text-[12px] font-black text-[#0f172a] shadow-[0_1px_2px_rgba(16,24,40,0.04)] transition hover:bg-white sm:w-auto"
           >
             Ver detalhes
           </Link>
@@ -95,7 +95,7 @@ function RadarCard({ item, value }) {
 
 export default function DashboardOperationsRadar({ summary }) {
   return (
-    <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-5 shadow-[0_12px_32px_rgba(17,24,39,0.05)] md:p-6">
+    <section className="rounded-[24px] border border-[#e4e7ec] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)] md:p-6">
       <AdminSectionTitle
         title="Atenção agora"
         subtitle="Radar operacional com pendências reais que merecem leitura e ação imediata."

@@ -170,7 +170,7 @@ function DashboardUpcomingEvents({
   );
 
   return (
-    <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-5 shadow-[0_12px_32px_rgba(17,24,39,0.05)] md:p-6">
+    <section className="rounded-[24px] border border-[#e4e7ec] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)] md:p-6">
       <div className="flex items-start justify-between gap-4">
         <AdminSectionTitle
           title="Próximos eventos"
@@ -179,7 +179,7 @@ function DashboardUpcomingEvents({
 
         <Link
           href="/eventos"
-          className="hidden rounded-[16px] border border-[#dbe3ef] bg-[#f8fafc] px-4 py-3 text-[12px] font-black text-[#0f172a] transition hover:bg-[#eef2ff] md:inline-flex"
+          className="hidden rounded-[16px] border border-[#e4e7ec] bg-[#f8fafc] px-4 py-3 text-[12px] font-black text-[#0f172a] transition hover:bg-[#eef2ff] md:inline-flex"
         >
           Ver agenda completa
         </Link>
@@ -200,7 +200,7 @@ function DashboardUpcomingEvents({
               return (
                 <div
                   key={event.id}
-                  className="w-[88%] shrink-0 rounded-[24px] border border-[#e6ebf2] bg-[linear-gradient(180deg,#ffffff_0%,#fcfdff_100%)] px-4 py-4 shadow-[0_10px_24px_rgba(17,24,39,0.04)]"
+                  className="w-[88%] shrink-0 rounded-[24px] border border-[#e6ebf2] bg-[linear-gradient(180deg,#ffffff_0%,#fcfdff_100%)] px-4 py-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)]"
                 >
                   <div className="flex flex-wrap gap-2">
                     <EventMetaPill tone="violet">
@@ -268,7 +268,7 @@ function DashboardUpcomingEvents({
               return (
                 <div
                   key={event.id}
-                  className="relative overflow-hidden rounded-[24px] border border-[#e6ebf2] bg-[linear-gradient(180deg,#ffffff_0%,#fcfdff_100%)] px-5 py-5 shadow-[0_10px_24px_rgba(17,24,39,0.04)]"
+                  className="relative overflow-hidden rounded-[24px] border border-[#e6ebf2] bg-[linear-gradient(180deg,#ffffff_0%,#fcfdff_100%)] px-5 py-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)]"
                 >
                   <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(124,58,237,0.06),transparent_28%)]" />
 
@@ -344,7 +344,7 @@ function DashboardUpcomingEvents({
           <div className="mt-4 md:hidden">
             <Link
               href="/eventos"
-              className="inline-flex w-full items-center justify-center rounded-[18px] border border-[#dbe3ef] bg-white px-4 py-3 text-[13px] font-black text-[#0f172a] transition hover:bg-[#eef2ff]"
+              className="inline-flex w-full items-center justify-center rounded-[18px] border border-[#e4e7ec] bg-white px-4 py-3 text-[13px] font-black text-[#0f172a] transition hover:bg-[#eef2ff]"
             >
               Ver agenda completa
             </Link>

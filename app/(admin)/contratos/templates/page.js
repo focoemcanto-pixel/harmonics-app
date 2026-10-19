@@ -511,15 +511,15 @@ export default function ContractTemplatesPage() {
         />
 
         <section className="grid gap-3 md:grid-cols-3">
-          <article className="rounded-[24px] border border-[#dbe3ef] bg-white px-5 py-4 shadow-[0_10px_25px_rgba(15,23,42,0.05)]">
+          <article className="rounded-[24px] border border-[#e4e7ec] bg-white px-5 py-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
             <p className="text-xs font-bold uppercase tracking-[0.08em] text-[#64748b]">Total</p>
             <p className="mt-2 text-3xl font-black tracking-[-0.04em] text-[#0f172a]">{totais.total}</p>
           </article>
-          <article className="rounded-[24px] border border-[#dbe3ef] bg-white px-5 py-4 shadow-[0_10px_25px_rgba(15,23,42,0.05)]">
+          <article className="rounded-[24px] border border-[#e4e7ec] bg-white px-5 py-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
             <p className="text-xs font-bold uppercase tracking-[0.08em] text-[#64748b]">Ativos</p>
             <p className="mt-2 text-3xl font-black tracking-[-0.04em] text-emerald-600">{totais.ativos}</p>
           </article>
-          <article className="rounded-[24px] border border-[#dbe3ef] bg-white px-5 py-4 shadow-[0_10px_25px_rgba(15,23,42,0.05)]">
+          <article className="rounded-[24px] border border-[#e4e7ec] bg-white px-5 py-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
             <p className="text-xs font-bold uppercase tracking-[0.08em] text-[#64748b]">Defaults</p>
             <p className="mt-2 text-3xl font-black tracking-[-0.04em] text-violet-700">{totais.defaults}</p>
           </article>
@@ -531,7 +531,7 @@ export default function ContractTemplatesPage() {
 
         <div className="grid gap-5 lg:grid-cols-[1.2fr_1fr]">
           {(mobileTab === 'lista' || mobileTab === 'form') && (
-            <section className={`rounded-[28px] border border-[#dbe3ef] bg-white p-5 shadow-[0_12px_28px_rgba(15,23,42,0.05)] ${mobileTab !== 'lista' ? 'hidden md:block' : ''}`}>
+            <section className={`rounded-[24px] border border-[#e4e7ec] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)] ${mobileTab !== 'lista' ? 'hidden md:block' : ''}`}>
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <h2 className="text-[22px] font-black tracking-[-0.03em] text-[#0f172a]">Lista de templates</h2>
                 <input
@@ -539,7 +539,7 @@ export default function ContractTemplatesPage() {
                   value={busca}
                   onChange={(event) => setBusca(event.target.value)}
                   placeholder="Buscar por nome, slug ou descrição"
-                  className="w-full rounded-2xl border border-[#dbe3ef] bg-[#f8fafc] px-4 py-2.5 text-sm font-medium text-[#0f172a] outline-none transition focus:border-violet-400 md:max-w-[320px]"
+                  className="w-full rounded-2xl border border-[#e4e7ec] bg-[#f8fafc] px-4 py-2.5 text-sm font-medium text-[#0f172a] outline-none transition focus:border-violet-400 md:max-w-[320px]"
                 />
               </div>
 
@@ -555,7 +555,7 @@ export default function ContractTemplatesPage() {
                   {templatesFiltrados.map((template) => (
                     <article
                       key={template.id}
-                      className="rounded-[22px] border border-[#e2e8f0] bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-4 shadow-[0_8px_20px_rgba(15,23,42,0.04)]"
+                      className="rounded-[22px] border border-[#e2e8f0] bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)]"
                     >
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
@@ -591,7 +591,7 @@ export default function ContractTemplatesPage() {
                           <button
                             type="button"
                             onClick={() => alternarStatus(template)}
-                            className="rounded-xl border border-[#dbe3ef] bg-white px-3 py-1.5 text-xs font-black text-[#334155] transition hover:bg-slate-50"
+                            className="rounded-xl border border-[#e4e7ec] bg-white px-3 py-1.5 text-xs font-black text-[#334155] transition hover:bg-slate-50"
                           >
                             {template.is_active !== false ? 'Inativar' : 'Ativar'}
                           </button>
@@ -612,7 +612,7 @@ export default function ContractTemplatesPage() {
             </section>
           )}
 
-          <section data-tour="template-form-card" className={`rounded-[28px] border border-[#dbe3ef] bg-white p-5 shadow-[0_12px_28px_rgba(15,23,42,0.05)] ${mobileTab !== 'form' ? 'hidden md:block' : ''}`}>
+          <section data-tour="template-form-card" className={`rounded-[24px] border border-[#e4e7ec] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)] ${mobileTab !== 'form' ? 'hidden md:block' : ''}`}>
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-[22px] font-black tracking-[-0.03em] text-[#0f172a]">
                 {editandoId ? 'Editar template' : 'Novo template'}
@@ -621,7 +621,7 @@ export default function ContractTemplatesPage() {
                 <button
                   type="button"
                   onClick={limparFormulario}
-                  className="rounded-xl border border-[#dbe3ef] px-3 py-1.5 text-xs font-black text-[#475569]"
+                  className="rounded-xl border border-[#e4e7ec] px-3 py-1.5 text-xs font-black text-[#475569]"
                 >
                   Cancelar edição
                 </button>
@@ -635,7 +635,7 @@ export default function ContractTemplatesPage() {
                   data-tour="template-name-input"
                   value={form.name}
                   onChange={(event) => handleFormChange('name', event.target.value)}
-                  className="w-full rounded-2xl border border-[#dbe3ef] bg-[#f8fafc] px-4 py-2.5 text-sm text-[#0f172a] outline-none transition focus:border-violet-400"
+                  className="w-full rounded-2xl border border-[#e4e7ec] bg-[#f8fafc] px-4 py-2.5 text-sm text-[#0f172a] outline-none transition focus:border-violet-400"
                   placeholder="Ex: Contrato padrão casamento"
                 />
               </label>
@@ -645,7 +645,7 @@ export default function ContractTemplatesPage() {
                 <input
                   value={form.slug}
                   onChange={(event) => handleFormChange('slug', normalizeSlug(event.target.value))}
-                  className="w-full rounded-2xl border border-[#dbe3ef] bg-[#f8fafc] px-4 py-2.5 text-sm text-[#0f172a] outline-none transition focus:border-violet-400"
+                  className="w-full rounded-2xl border border-[#e4e7ec] bg-[#f8fafc] px-4 py-2.5 text-sm text-[#0f172a] outline-none transition focus:border-violet-400"
                   placeholder="contrato-casamento-padrao"
                 />
               </label>
@@ -655,12 +655,12 @@ export default function ContractTemplatesPage() {
                 <textarea
                   value={form.description}
                   onChange={(event) => handleFormChange('description', event.target.value)}
-                  className="min-h-[80px] w-full rounded-2xl border border-[#dbe3ef] bg-[#f8fafc] px-4 py-3 text-sm text-[#0f172a] outline-none transition focus:border-violet-400"
+                  className="min-h-[80px] w-full rounded-2xl border border-[#e4e7ec] bg-[#f8fafc] px-4 py-3 text-sm text-[#0f172a] outline-none transition focus:border-violet-400"
                   placeholder="Breve descrição de quando usar este template"
                 />
               </label>
 
-              <div className="rounded-2xl border border-[#dbe3ef] bg-[#f8fafc] p-3">
+              <div className="rounded-2xl border border-[#e4e7ec] bg-[#f8fafc] p-3">
                 <div className="mb-3 flex gap-2">
                   <button
                     type="button"
@@ -717,7 +717,7 @@ export default function ContractTemplatesPage() {
                       onChange={(event) => {
                         handleFormChange('content', event.target.value);
                       }}
-                      className="min-h-[220px] w-full rounded-2xl border border-[#dbe3ef] bg-white px-4 py-3 font-mono text-sm text-[#0f172a] outline-none transition focus:border-violet-400"
+                      className="min-h-[220px] w-full rounded-2xl border border-[#e4e7ec] bg-white px-4 py-3 font-mono text-sm text-[#0f172a] outline-none transition focus:border-violet-400"
                       placeholder="Conteúdo técnico final salvo em content"
                     />
                   </label>
@@ -748,7 +748,7 @@ export default function ContractTemplatesPage() {
               )}
 
               <div className="grid gap-3 sm:grid-cols-2">
-                <label className="flex items-center gap-2 rounded-2xl border border-[#dbe3ef] bg-[#f8fafc] px-4 py-3 text-sm font-semibold text-[#334155]">
+                <label className="flex items-center gap-2 rounded-2xl border border-[#e4e7ec] bg-[#f8fafc] px-4 py-3 text-sm font-semibold text-[#334155]">
                   <input
                     type="checkbox"
                     checked={form.is_active}
@@ -756,7 +756,7 @@ export default function ContractTemplatesPage() {
                   />
                   Template ativo
                 </label>
-                <label className="flex items-center gap-2 rounded-2xl border border-[#dbe3ef] bg-[#f8fafc] px-4 py-3 text-sm font-semibold text-[#334155]">
+                <label className="flex items-center gap-2 rounded-2xl border border-[#e4e7ec] bg-[#f8fafc] px-4 py-3 text-sm font-semibold text-[#334155]">
                   <input
                     type="checkbox"
                     checked={form.is_default}

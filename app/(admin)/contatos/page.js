@@ -411,7 +411,7 @@ export default function ContatosPage() {
   if (carregando) {
     return (
       <AdminShell pageTitle="Contatos" activeItem="contatos" mobileActions={mobileActions}>
-        <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-6 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
+        <section className="rounded-[24px] border border-[#e4e7ec] bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
           <p className="text-center text-[#64748b]">Carregando contatos...</p>
         </section>
       </AdminShell>
@@ -456,7 +456,7 @@ export default function ContatosPage() {
         </div>
 
         <div className="hidden md:block">
-          <div className="rounded-[24px] border border-[#dbe3ef] bg-white p-2 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
+          <div className="rounded-[24px] border border-[#e4e7ec] bg-white p-2 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
             <div className="flex flex-wrap gap-2">
               {DESKTOP_TABS.map((tab) => {
                 const active = desktopTab === tab.key;
@@ -468,8 +468,8 @@ export default function ContatosPage() {
                     onClick={() => setDesktopTab(tab.key)}
                     className={`rounded-[18px] px-4 py-3 text-[14px] font-black transition ${
                       active
-                        ? 'bg-violet-600 text-white shadow-[0_12px_28px_rgba(124,58,237,0.18)]'
-                        : 'bg-[#f8fafc] text-[#475569] hover:bg-[#eef2ff]'
+                        ? 'bg-[#0c0d12] text-white'
+                        : 'bg-transparent text-[#586174] hover:bg-[#f6f7f9]'
                     }`}
                   >
                     {tab.label}

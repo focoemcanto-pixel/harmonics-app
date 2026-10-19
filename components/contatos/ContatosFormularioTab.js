@@ -16,10 +16,10 @@ export default function ContatosFormularioTab({
   const isOperationalContact = !isClient;
 
   return (
-    <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_26px_rgba(17,24,39,0.04)] md:p-6">
+    <section className="rounded-[24px] border border-[#e4e7ec] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)] md:p-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
-          <div className="text-[12px] font-black uppercase tracking-[0.14em] text-violet-600">
+          <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#8b93a3]">
             Cadastro de contatos
           </div>
           <h2 className="mt-2 text-[28px] font-black tracking-[-0.04em] text-[#0f172a]">
@@ -88,7 +88,7 @@ export default function ContatosFormularioTab({
               onChange={(e) => handleFormChange('notes', e.target.value)}
               rows={4}
               placeholder="Ex.: informações úteis para operação/comercial..."
-              className="w-full rounded-[18px] border border-[#dbe3ef] bg-white px-4 py-3 text-[15px] text-[#0f172a] outline-none transition focus:border-violet-300 focus:ring-4 focus:ring-violet-100"
+              className="w-full rounded-[18px] border border-[#e4e7ec] bg-white px-4 py-3 text-[15px] text-[#0f172a] outline-none transition focus:border-violet-300 focus:ring-4 focus:ring-violet-100"
             />
           </Field>
         </div>
@@ -166,7 +166,7 @@ export default function ContatosFormularioTab({
         </div>
       ) : null}
 
-      <div className="mt-6 rounded-[22px] border border-[#dbe3ef] bg-[#f8fafc] p-4">
+      <div className="mt-6 rounded-[22px] border border-[#e4e7ec] bg-[#f8fafc] p-4">
         <label className="flex items-start gap-3">
           <input
             type="checkbox"
@@ -188,7 +188,7 @@ export default function ContatosFormularioTab({
           type="button"
           onClick={cancelarEdicao}
           disabled={salvando}
-          className="rounded-[18px] border border-[#dbe3ef] bg-white px-5 py-4 text-[15px] font-black text-[#0f172a] disabled:opacity-60"
+          className="rounded-[18px] border border-[#e4e7ec] bg-white px-5 py-4 text-[15px] font-black text-[#0f172a] disabled:opacity-60"
         >
           Cancelar
         </button>

@@ -71,7 +71,7 @@ export default function OperacaoContractInline({
             onClick={onCreateOrEdit}
             className={`min-h-11 touch-manipulation rounded-[14px] px-4 py-2 text-[13px] font-black active:scale-[0.98] ${
               contractStatus.action === 'view'
-                ? 'border border-[#dbe3ef] bg-white text-[#0f172a]'
+                ? 'border border-[#e4e7ec] bg-white text-[#0f172a]'
                 : 'bg-violet-600 text-white'
             }`}
           >

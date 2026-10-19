@@ -49,7 +49,7 @@ export default function PaymentProofSignedButton({
       onClick={handleOpen}
       disabled={disabled}
       title={!resolvedPaymentId || !hasProof ? disabledLabel : ''}
-      className={className || 'rounded-xl border border-[#dbe3ef] bg-white px-3 py-2 text-xs font-bold text-slate-900 disabled:cursor-not-allowed disabled:opacity-60'}
+      className={className || 'rounded-xl border border-[#e4e7ec] bg-white px-3 py-2 text-xs font-bold text-slate-900 disabled:cursor-not-allowed disabled:opacity-60'}
     >
       {opening ? 'Abrindo...' : children}
     </button>

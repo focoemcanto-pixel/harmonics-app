@@ -54,7 +54,7 @@ function EmptyState({ segment, busca }) {
     );
   }
   return (
-    <div className="rounded-[24px] border border-dashed border-[#dbe3ef] bg-[#f8fafc] px-5 py-8 text-center">
+    <div className="rounded-[24px] border border-dashed border-[#e4e7ec] bg-[#f8fafc] px-5 py-8 text-center">
       <div className="text-[18px] font-black text-[#0f172a]">Nenhum contato encontrado</div>
       <p className="mt-2 text-[15px] leading-7 text-[#64748b]">
         {segment === 'clients'
@@ -69,7 +69,7 @@ function ContatoCard({ contato, iniciarEdicao, excluirContato, checked, onToggle
   const ativo = contato.is_active !== false;
 
   return (
-    <article className="rounded-[24px] border border-[#dbe3ef] bg-white p-5 shadow-[0_8px_22px_rgba(17,24,39,0.04)]">
+    <article className="rounded-[24px] border border-[#e4e7ec] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           <div className="flex items-start gap-3">
@@ -100,7 +100,7 @@ function ContatoCard({ contato, iniciarEdicao, excluirContato, checked, onToggle
           <button
             type="button"
             onClick={() => iniciarEdicao(contato)}
-            className="rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3 text-[14px] font-black text-[#0f172a]"
+            className="rounded-[16px] border border-[#e4e7ec] bg-white px-4 py-3 text-[14px] font-black text-[#0f172a]"
           >
             Editar
           </button>
@@ -158,9 +158,9 @@ export default function ContatosListaTab({
 
   return (
     <section className="space-y-5">
-      <div className="rounded-[28px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_26px_rgba(17,24,39,0.04)] md:p-6">
+      <div className="rounded-[24px] border border-[#e4e7ec] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)] md:p-6">
         <div className="mb-5">
-          <div className="text-[12px] font-black uppercase tracking-[0.14em] text-violet-600">Gestão inteligente</div>
+          <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#8b93a3]">Gestão inteligente</div>
           <h2 className="mt-2 text-[28px] font-black tracking-[-0.04em] text-[#0f172a]">Painel de contatos</h2>
           <p className="mt-2 text-[15px] leading-7 text-[#64748b]">
             Visualize equipe e clientes em contextos separados para evitar ruído operacional.

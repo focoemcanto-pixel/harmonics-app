@@ -182,7 +182,7 @@ function LogDetailModal({ log, onClose, onRetrySuccess }) {
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="relative z-10 w-full max-w-2xl overflow-y-auto rounded-t-[28px] bg-white p-6 shadow-2xl sm:rounded-[28px] sm:m-4 max-h-[92vh]">
+      <div className="relative z-10 w-full max-w-2xl overflow-y-auto rounded-t-[28px] bg-white p-6 shadow-2xl sm:rounded-[24px] sm:m-4 max-h-[92vh]">
         {/* Header */}
         <div className="flex items-start justify-between gap-4">
           <div>
@@ -406,7 +406,7 @@ function LogCard({ log, onVerDetalhes, onRetrySuccess, isSelected, onToggle }) {
   const severity = log.status === 'failed' ? getFailureSeverity(log) : null;
 
   return (
-    <div className="rounded-[28px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
+    <div className="rounded-[24px] border border-[#e4e7ec] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         {/* Checkbox de seleção */}
         <div className="flex shrink-0 items-start pt-0.5">
@@ -781,8 +781,8 @@ export default function LogsPageClient() {
       </div>
 
       {/* Hero Section */}
-      <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-6 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
-        <div className="text-[12px] font-black uppercase tracking-[0.14em] text-violet-600">
+      <section className="rounded-[24px] border border-[#e4e7ec] bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
+        <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#8b93a3]">
           Logs
         </div>
         <h1 className="mt-1 text-[28px] font-black tracking-[-0.03em] text-[#0f172a]">
@@ -801,7 +801,7 @@ export default function LogsPageClient() {
       </section>
 
       {/* Filtros */}
-      <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
+      <section className="rounded-[24px] border border-[#e4e7ec] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
         <div className="flex flex-wrap items-end gap-3">
           {/* Status */}
           <div className="min-w-[140px] flex-1">
@@ -871,7 +871,7 @@ export default function LogsPageClient() {
 
       {/* Loading */}
       {carregando && (
-        <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-6 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
+        <section className="rounded-[24px] border border-[#e4e7ec] bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
           <div className="space-y-3 animate-pulse">
             {Array.from({ length: 5 }).map((_, index) => (
               <div key={index} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -886,7 +886,7 @@ export default function LogsPageClient() {
 
       {/* Error */}
       {!carregando && erro && (
-        <section className="rounded-[28px] border border-red-200 bg-red-50 p-8 text-center shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
+        <section className="rounded-[24px] border border-red-200 bg-red-50 p-8 text-center shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
           <div className="mb-2 text-[32px]">⚠️</div>
           <p className="text-[15px] font-bold text-red-700">{erro}</p>
           <button
@@ -900,7 +900,7 @@ export default function LogsPageClient() {
 
       {/* Empty State */}
       {!carregando && !erro && logs.length === 0 && (
-        <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-12 text-center shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
+        <section className="rounded-[24px] border border-[#e4e7ec] bg-white p-12 text-center shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
           <div className="mx-auto max-w-md">
             <div className="mb-4 text-[48px]">📊</div>
             <h2 className="text-[20px] font-black tracking-[-0.02em] text-[#0f172a]">
@@ -967,7 +967,7 @@ export default function LogsPageClient() {
       )}
 
       {!carregando && !erro && logs.length > 0 && (
-        <section className="rounded-[20px] border border-[#dbe3ef] bg-white p-4 shadow-[0_4px_12px_rgba(15,23,42,0.04)]">
+        <section className="rounded-[20px] border border-[#e4e7ec] bg-white p-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
           <div className="text-[12px] font-black uppercase tracking-[0.08em] text-[#475569]">
             Limpar logs antigos
           </div>

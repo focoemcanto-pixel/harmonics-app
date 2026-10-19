@@ -369,14 +369,14 @@ function ShareLinkModal({
     >
       <div className="flex h-[100dvh] items-end justify-center overflow-hidden px-0 md:items-center md:px-6">
         <div
-          className="flex h-[86dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-[28px] border border-white/10 bg-white text-slate-900 shadow-[0_24px_80px_rgba(0,0,0,0.45)] md:h-auto md:max-h-[88vh] md:rounded-[28px]"
+          className="flex h-[86dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-[28px] border border-white/10 bg-white text-slate-900 shadow-[0_24px_80px_rgba(0,0,0,0.45)] md:h-auto md:max-h-[88vh] md:rounded-[24px]"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="shrink-0 border-b border-slate-200 px-5 py-4">
             <div className="mx-auto mb-3 h-1.5 w-14 rounded-full bg-slate-200 md:hidden" />
             <div className="flex items-center justify-between gap-4">
               <div>
-                <div className="text-[12px] font-black uppercase tracking-[0.12em] text-violet-600/80">
+                <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#8b93a3]/80">
                   Link pronto para envio
                 </div>
                 <div className="mt-1 text-[22px] font-black tracking-[-0.03em]">
@@ -400,7 +400,7 @@ function ShareLinkModal({
           <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
             <div className="space-y-5">
               <div className="rounded-[24px] border border-violet-200 bg-violet-50 p-4">
-                <div className="text-[11px] font-black uppercase tracking-[0.1em] text-violet-700/70">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#8b93a3]/70">
                   Resumo do envio
                 </div>
 
@@ -562,12 +562,12 @@ function PreviewContractModal({ open, item, onClose }) {
   return (
     <div className="fixed inset-0 z-[190] bg-slate-950/70 px-4 py-6 backdrop-blur-[3px]" onClick={onClose}>
       <div
-        className="mx-auto max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-[30px] border border-white/15 bg-white p-6 shadow-[0_30px_90px_rgba(0,0,0,0.45)]"
+        className="mx-auto max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-[24px] border border-white/15 bg-white p-6 shadow-[0_30px_90px_rgba(0,0,0,0.45)]"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-[11px] font-black uppercase tracking-[0.1em] text-violet-600">Visualização premium</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#8b93a3]">Visualização premium</p>
             <h3 className="mt-1 text-2xl font-black text-slate-900">Contrato de {item.client_name || 'Cliente'}</h3>
           </div>
           <Button variant="soft" onClick={onClose}>Fechar</Button>

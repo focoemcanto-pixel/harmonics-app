@@ -80,9 +80,9 @@ function getPaymentVisualState(item) {
     : { label: 'Parcial', tone: 'amber', cardClass: 'border-amber-200 bg-amber-50/25' };
   if (normalized === 'pendente') return eventPast
     ? { label: 'Vencido', tone: 'red', cardClass: 'border-red-300 bg-red-50/35' }
-    : { label: 'Pendente', tone: 'slate', cardClass: 'border-[#dbe3ef] bg-white' };
+    : { label: 'Pendente', tone: 'slate', cardClass: 'border-[#e4e7ec] bg-white' };
 
-  return { label: item?.paymentStatus || 'Pendente', tone: 'slate', cardClass: 'border-[#dbe3ef] bg-white' };
+  return { label: item?.paymentStatus || 'Pendente', tone: 'slate', cardClass: 'border-[#e4e7ec] bg-white' };
 }
 
 function getEntryTone(status) {
@@ -179,7 +179,7 @@ function FeedbackBanner({ feedback, onClose }) {
 
   return (
     <div
-      className={`rounded-[22px] border px-4 py-4 shadow-[0_8px_20px_rgba(17,24,39,0.04)] ${tones[feedback.type] || tones.info}`}
+      className={`rounded-[22px] border px-4 py-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)] ${tones[feedback.type] || tones.info}`}
     >
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
@@ -1204,8 +1204,8 @@ function PagamentosPageContent() {
   if (carregando) {
     return (
       <AdminShell pageTitle="Pagamentos" activeItem="pagamentos">
-      <nav className="mb-5 flex flex-wrap gap-3"><span className="rounded-xl border px-4 py-2 font-semibold">Pagamentos / Legado</span><Link href="/pagamentos/operacional" className="rounded-xl bg-violet-700 px-4 py-2 font-semibold text-white">Caixa &amp; Compromissos — novo financeiro</Link></nav>
-        <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-6 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
+      <nav aria-label="Visões do financeiro" className="mb-4 inline-flex max-w-full gap-1 overflow-x-auto rounded-full border border-[#e4e7ec] bg-white p-1 text-[13px] shadow-[0_1px_2px_rgba(16,24,40,0.04)] [scrollbar-width:none]"><span aria-current="page" className="shrink-0 whitespace-nowrap rounded-full bg-[#0c0d12] px-4 py-2 font-medium text-white">Pagamentos / Legado</span><Link href="/pagamentos/operacional" className="shrink-0 whitespace-nowrap rounded-full px-4 py-2 font-medium text-[#586174] transition hover:bg-[#f6f7f9] hover:text-[#0c0d12]">Caixa &amp; Compromissos — novo financeiro</Link></nav>
+        <section className="rounded-[24px] border border-[#e4e7ec] bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
           <div className="animate-pulse space-y-4">
             <div className="h-5 w-52 rounded bg-slate-200" />
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -1221,7 +1221,7 @@ function PagamentosPageContent() {
 
   return (
     <AdminShell pageTitle="Pagamentos" activeItem="pagamentos">
-      <nav className="mb-5 flex flex-wrap gap-3"><span className="rounded-xl border px-4 py-2 font-semibold">Pagamentos / Legado</span><Link href="/pagamentos/operacional" className="rounded-xl bg-violet-700 px-4 py-2 font-semibold text-white">Caixa &amp; Compromissos — novo financeiro</Link></nav>
+      <nav aria-label="Visões do financeiro" className="mb-4 inline-flex max-w-full gap-1 overflow-x-auto rounded-full border border-[#e4e7ec] bg-white p-1 text-[13px] shadow-[0_1px_2px_rgba(16,24,40,0.04)] [scrollbar-width:none]"><span aria-current="page" className="shrink-0 whitespace-nowrap rounded-full bg-[#0c0d12] px-4 py-2 font-medium text-white">Pagamentos / Legado</span><Link href="/pagamentos/operacional" className="shrink-0 whitespace-nowrap rounded-full px-4 py-2 font-medium text-[#586174] transition hover:bg-[#f6f7f9] hover:text-[#0c0d12]">Caixa &amp; Compromissos — novo financeiro</Link></nav>
       <div className="space-y-5">
         <AdminPageHero
           badge="Harmonics Admin"
@@ -1236,7 +1236,7 @@ function PagamentosPageContent() {
           />
         ) : null}
 
-        <section className="space-y-4 rounded-[28px] border border-[#dbe3ef] bg-white p-6 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
+        <section className="space-y-4 rounded-[24px] border border-[#e4e7ec] bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-lg font-semibold text-[#0f172a]">Resumo financeiro</h2>
@@ -1339,7 +1339,7 @@ function PagamentosPageContent() {
           </div>
         </section>
 
-        <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-6 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
+        <section className="rounded-[24px] border border-[#e4e7ec] bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
           <AdminSectionTitle
             title="Controle financeiro"
             subtitle="Filtre os eventos e acompanhe a fotografia financeira consolidada e o histórico real de entradas."
@@ -1356,7 +1356,7 @@ function PagamentosPageContent() {
             <button
               type="button"
               onClick={abrirModalCustosPadrao}
-              className="rounded-[18px] border border-[#dbe3ef] bg-white px-4 py-3 text-[14px] font-black text-[#0f172a]"
+              className="rounded-[18px] border border-[#e4e7ec] bg-white px-4 py-3 text-[14px] font-black text-[#0f172a]"
             >
               Custos padrão
             </button>
@@ -1367,13 +1367,13 @@ function PagamentosPageContent() {
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
               placeholder="Buscar por cliente, local, tipo..."
-              className="rounded-[18px] border border-[#dbe3ef] bg-white px-4 py-3 text-[14px] font-semibold text-[#0f172a] outline-none"
+              className="rounded-[18px] border border-[#e4e7ec] bg-white px-4 py-3 text-[14px] font-semibold text-[#0f172a] outline-none"
             />
 
             <select
               value={statusFiltro}
               onChange={(e) => setStatusFiltro(e.target.value)}
-              className="rounded-[18px] border border-[#dbe3ef] bg-white px-4 py-3 text-[14px] font-semibold text-[#0f172a] outline-none"
+              className="rounded-[18px] border border-[#e4e7ec] bg-white px-4 py-3 text-[14px] font-semibold text-[#0f172a] outline-none"
             >
               <option value="todos">Todos os status</option>
               <option value="pago">Pago</option>
@@ -1386,8 +1386,8 @@ function PagamentosPageContent() {
               onClick={() => setSomentePendentes((prev) => !prev)}
               className={`rounded-[18px] px-4 py-3 text-[14px] font-black transition ${
                 somentePendentes
-                  ? 'bg-violet-600 text-white shadow-[0_12px_28px_rgba(124,58,237,0.18)]'
-                  : 'border border-[#dbe3ef] bg-white text-[#0f172a]'
+                  ? 'bg-[#0c0d12] text-white'
+                  : 'border border-[#e4e7ec] bg-white text-[#0f172a]'
               }`}
             >
               {somentePendentes ? 'Mostrando apenas pendentes' : 'Filtrar apenas pendentes'}
@@ -1399,7 +1399,7 @@ function PagamentosPageContent() {
               className={`rounded-[18px] px-4 py-3 text-[14px] font-black transition ${
                 somenteAguardandoValidacao
                   ? 'bg-amber-500 text-white shadow-[0_12px_28px_rgba(245,158,11,0.18)]'
-                  : 'border border-[#dbe3ef] bg-white text-[#0f172a]'
+                  : 'border border-[#e4e7ec] bg-white text-[#0f172a]'
               }`}
             >
               {somenteAguardandoValidacao
@@ -1433,7 +1433,7 @@ function PagamentosPageContent() {
                 return (
                   <div
                     key={item.id}
-                    className={`rounded-[24px] border p-5 shadow-[0_8px_22px_rgba(17,24,39,0.04)] ${visualState.cardClass}`}
+                    className={`rounded-[24px] border p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)] ${visualState.cardClass}`}
                   >
                     <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                       <div className="min-w-0">
@@ -1537,7 +1537,7 @@ function PagamentosPageContent() {
                             String(prev) === String(item.id) ? null : String(item.id)
                           )
                         }
-                        className="rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3 text-[14px] font-black text-[#0f172a]"
+                        className="rounded-[16px] border border-[#e4e7ec] bg-white px-4 py-3 text-[14px] font-black text-[#0f172a]"
                       >
                         {historicoAberto ? 'Ocultar histórico' : 'Ver histórico'}
                       </button>
@@ -1553,7 +1553,7 @@ function PagamentosPageContent() {
                       <button
                         type="button"
                         onClick={() => abrirModalCustos(item)}
-                        className="rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3 text-[14px] font-black text-[#0f172a]"
+                        className="rounded-[16px] border border-[#e4e7ec] bg-white px-4 py-3 text-[14px] font-black text-[#0f172a]"
                       >
                         Editar custos
                       </button>
@@ -1569,7 +1569,7 @@ function PagamentosPageContent() {
                               breakdown: item.cost_breakdown,
                             })
                           }
-                          className="rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3 text-[14px] font-black text-[#0f172a]"
+                          className="rounded-[16px] border border-[#e4e7ec] bg-white px-4 py-3 text-[14px] font-black text-[#0f172a]"
                         >
                           Ver detalhamento de custos
                         </button>
@@ -1577,14 +1577,14 @@ function PagamentosPageContent() {
 
                       <Link
                         href="/eventos"
-                        className="rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3 text-[14px] font-black text-[#0f172a]"
+                        className="rounded-[16px] border border-[#e4e7ec] bg-white px-4 py-3 text-[14px] font-black text-[#0f172a]"
                       >
                         Ir para eventos
                       </Link>
 
                       <Link
                         href={`/eventos/${item.primaryEventId}`}
-                        className="rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3 text-[14px] font-black text-[#0f172a]"
+                        className="rounded-[16px] border border-[#e4e7ec] bg-white px-4 py-3 text-[14px] font-black text-[#0f172a]"
                       >
                         Ver detalhe
                       </Link>
@@ -1642,7 +1642,7 @@ function PagamentosPageContent() {
                                     </div>
 
                                     <div className="flex flex-wrap gap-2">
-                                      <label className="inline-flex items-center gap-2 rounded-full border border-[#dbe3ef] bg-white px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-[#0f172a]">
+                                      <label className="inline-flex items-center gap-2 rounded-full border border-[#e4e7ec] bg-white px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-[#0f172a]">
                                         <input
                                           type="checkbox"
                                           checked={isSelected}
@@ -1662,7 +1662,7 @@ function PagamentosPageContent() {
                                           paymentId={entry.id}
                                           hasProof={!!entry.proof_file_url}
                                           onError={(error) => toast.error(error?.message || 'Não foi possível abrir o comprovante.')}
-                                          className="rounded-full border border-[#dbe3ef] bg-white px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-[#0f172a] disabled:cursor-not-allowed disabled:opacity-60"
+                                          className="rounded-full border border-[#e4e7ec] bg-white px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-[#0f172a] disabled:cursor-not-allowed disabled:opacity-60"
                                         >
                                           Abrir comprovante
                                         </PaymentProofSignedButton>
@@ -1671,7 +1671,7 @@ function PagamentosPageContent() {
                                       <button
                                         type="button"
                                         onClick={() => setHistoricoSelecionadoId(String(entry.id))}
-                                        className="rounded-full border border-[#dbe3ef] bg-white px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-[#0f172a]"
+                                        className="rounded-full border border-[#e4e7ec] bg-white px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-[#0f172a]"
                                       >
                                         Validar comprovante
                                       </button>
@@ -1723,7 +1723,7 @@ function PagamentosPageContent() {
               <button
                 type="button"
                 onClick={() => setHistoricoSelecionadoId(null)}
-                className="rounded-[12px] border border-[#dbe3ef] px-3 py-2 text-xs font-black text-[#0f172a]"
+                className="rounded-[12px] border border-[#e4e7ec] px-3 py-2 text-xs font-black text-[#0f172a]"
               >
                 Fechar
               </button>
@@ -1786,7 +1786,7 @@ function PagamentosPageContent() {
               <button
                 type="button"
                 onClick={() => setManualPaymentModal({ open: false, eventId: '' })}
-                className="rounded-[12px] border border-[#dbe3ef] px-3 py-2 text-xs font-black"
+                className="rounded-[12px] border border-[#e4e7ec] px-3 py-2 text-xs font-black"
               >
                 Fechar
               </button>
@@ -1797,7 +1797,7 @@ function PagamentosPageContent() {
                 onChange={(e) =>
                   setManualPaymentForm((prev) => ({ ...prev, event_id: e.target.value }))
                 }
-                className="rounded-[12px] border border-[#dbe3ef] px-3 py-2 text-sm md:col-span-2"
+                className="rounded-[12px] border border-[#e4e7ec] px-3 py-2 text-sm md:col-span-2"
               >
                 <option value="">Selecione evento/cliente</option>
                 {events.map((ev) => (
@@ -1810,7 +1810,7 @@ function PagamentosPageContent() {
                 value={manualPaymentForm.amount}
                 onChange={(e) => setManualPaymentForm((prev) => ({ ...prev, amount: e.target.value }))}
                 placeholder="Valor"
-                className="rounded-[12px] border border-[#dbe3ef] px-3 py-2 text-sm"
+                className="rounded-[12px] border border-[#e4e7ec] px-3 py-2 text-sm"
               />
               <input
                 type="date"
@@ -1818,14 +1818,14 @@ function PagamentosPageContent() {
                 onChange={(e) =>
                   setManualPaymentForm((prev) => ({ ...prev, payment_date: e.target.value }))
                 }
-                className="rounded-[12px] border border-[#dbe3ef] px-3 py-2 text-sm"
+                className="rounded-[12px] border border-[#e4e7ec] px-3 py-2 text-sm"
               />
               <select
                 value={manualPaymentForm.payment_method}
                 onChange={(e) =>
                   setManualPaymentForm((prev) => ({ ...prev, payment_method: e.target.value }))
                 }
-                className="rounded-[12px] border border-[#dbe3ef] px-3 py-2 text-sm"
+                className="rounded-[12px] border border-[#e4e7ec] px-3 py-2 text-sm"
               >
                 <option value="pix">Pix</option>
                 <option value="cartao">Cartão</option>
@@ -1836,7 +1836,7 @@ function PagamentosPageContent() {
               <select
                 value={manualPaymentForm.status}
                 onChange={(e) => setManualPaymentForm((prev) => ({ ...prev, status: e.target.value }))}
-                className="rounded-[12px] border border-[#dbe3ef] px-3 py-2 text-sm"
+                className="rounded-[12px] border border-[#e4e7ec] px-3 py-2 text-sm"
               >
                 <option value="confirmado">Confirmado</option>
                 <option value="pendente">Pendente</option>
@@ -1848,13 +1848,13 @@ function PagamentosPageContent() {
                   setManualPaymentForm((prev) => ({ ...prev, proof_file_url: e.target.value }))
                 }
                 placeholder="Comprovante (URL opcional)"
-                className="rounded-[12px] border border-[#dbe3ef] px-3 py-2 text-sm md:col-span-2"
+                className="rounded-[12px] border border-[#e4e7ec] px-3 py-2 text-sm md:col-span-2"
               />
               <textarea
                 value={manualPaymentForm.notes}
                 onChange={(e) => setManualPaymentForm((prev) => ({ ...prev, notes: e.target.value }))}
                 placeholder="Observações"
-                className="rounded-[12px] border border-[#dbe3ef] px-3 py-2 text-sm md:col-span-2"
+                className="rounded-[12px] border border-[#e4e7ec] px-3 py-2 text-sm md:col-span-2"
                 rows={3}
               />
             </div>
@@ -1880,7 +1880,7 @@ function PagamentosPageContent() {
               <button
                 type="button"
                 onClick={() => setCostModal({ open: false, eventId: '' })}
-                className="rounded-[12px] border border-[#dbe3ef] px-3 py-2 text-xs font-black"
+                className="rounded-[12px] border border-[#e4e7ec] px-3 py-2 text-xs font-black"
               >
                 Fechar
               </button>
@@ -1890,13 +1890,13 @@ function PagamentosPageContent() {
                 value={costForm.musician_cost}
                 onChange={(e) => setCostForm((prev) => ({ ...prev, musician_cost: e.target.value }))}
                 placeholder="Custo músicos"
-                className="rounded-[12px] border border-[#dbe3ef] px-3 py-2 text-sm"
+                className="rounded-[12px] border border-[#e4e7ec] px-3 py-2 text-sm"
               />
               <input
                 value={costForm.sound_cost}
                 onChange={(e) => setCostForm((prev) => ({ ...prev, sound_cost: e.target.value }))}
                 placeholder="Custo som"
-                className="rounded-[12px] border border-[#dbe3ef] px-3 py-2 text-sm"
+                className="rounded-[12px] border border-[#e4e7ec] px-3 py-2 text-sm"
               />
               <input
                 value={costForm.extra_transport_cost}
@@ -1904,13 +1904,13 @@ function PagamentosPageContent() {
                   setCostForm((prev) => ({ ...prev, extra_transport_cost: e.target.value }))
                 }
                 placeholder="Custo transporte"
-                className="rounded-[12px] border border-[#dbe3ef] px-3 py-2 text-sm"
+                className="rounded-[12px] border border-[#e4e7ec] px-3 py-2 text-sm"
               />
               <input
                 value={costForm.other_cost}
                 onChange={(e) => setCostForm((prev) => ({ ...prev, other_cost: e.target.value }))}
                 placeholder="Outros custos"
-                className="rounded-[12px] border border-[#dbe3ef] px-3 py-2 text-sm"
+                className="rounded-[12px] border border-[#e4e7ec] px-3 py-2 text-sm"
               />
             </div>
             <div className="mt-4 flex justify-end">
@@ -1929,8 +1929,8 @@ function PagamentosPageContent() {
 
       {defaultCostsModalOpen ? (
         <div className="fixed inset-0 z-[96] flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-2xl rounded-[24px] border border-[#dbe3ef] bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.3)]">
-            <div className="mb-1 text-[11px] font-black uppercase tracking-[0.14em] text-violet-600">
+          <div className="w-full max-w-2xl rounded-[24px] border border-[#e4e7ec] bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.3)]">
+            <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#8b93a3]">
               Financeiro premium
             </div>
             <div className="mb-4 flex items-start justify-between gap-3">
@@ -1943,7 +1943,7 @@ function PagamentosPageContent() {
               <button
                 type="button"
                 onClick={() => setDefaultCostsModalOpen(false)}
-                className="rounded-[12px] border border-[#dbe3ef] px-3 py-2 text-xs font-black"
+                className="rounded-[12px] border border-[#e4e7ec] px-3 py-2 text-xs font-black"
               >
                 Fechar
               </button>
@@ -1958,7 +1958,7 @@ function PagamentosPageContent() {
                     setDefaultCostsForm((prev) => ({ ...prev, musician_unit_cost: e.target.value }))
                   }
                   placeholder="Ex.: 250"
-                  className="w-full rounded-[12px] border border-[#dbe3ef] px-3 py-2 text-sm"
+                  className="w-full rounded-[12px] border border-[#e4e7ec] px-3 py-2 text-sm"
                 />
               </label>
               <label className="space-y-1 text-sm font-semibold text-[#0f172a]">
@@ -1969,7 +1969,7 @@ function PagamentosPageContent() {
                     setDefaultCostsForm((prev) => ({ ...prev, sound_default_cost: e.target.value }))
                   }
                   placeholder="Ex.: 350"
-                  className="w-full rounded-[12px] border border-[#dbe3ef] px-3 py-2 text-sm"
+                  className="w-full rounded-[12px] border border-[#e4e7ec] px-3 py-2 text-sm"
                 />
               </label>
               <label className="space-y-1 text-sm font-semibold text-[#0f172a]">
@@ -1980,7 +1980,7 @@ function PagamentosPageContent() {
                     setDefaultCostsForm((prev) => ({ ...prev, transport_default_cost: e.target.value }))
                   }
                   placeholder="Ex.: 200"
-                  className="w-full rounded-[12px] border border-[#dbe3ef] px-3 py-2 text-sm"
+                  className="w-full rounded-[12px] border border-[#e4e7ec] px-3 py-2 text-sm"
                 />
               </label>
               <label className="space-y-1 text-sm font-semibold text-[#0f172a]">
@@ -1991,7 +1991,7 @@ function PagamentosPageContent() {
                     setDefaultCostsForm((prev) => ({ ...prev, other_default_cost: e.target.value }))
                   }
                   placeholder="Ex.: 100"
-                  className="w-full rounded-[12px] border border-[#dbe3ef] px-3 py-2 text-sm"
+                  className="w-full rounded-[12px] border border-[#e4e7ec] px-3 py-2 text-sm"
                 />
               </label>
             </div>
@@ -2005,13 +2005,13 @@ function PagamentosPageContent() {
                   value={customCostDraft.label}
                   onChange={(e) => setCustomCostDraft((prev) => ({ ...prev, label: e.target.value }))}
                   placeholder="Nome do custo (ex.: Alimentação)"
-                  className="rounded-[12px] border border-[#dbe3ef] bg-white px-3 py-2 text-sm"
+                  className="rounded-[12px] border border-[#e4e7ec] bg-white px-3 py-2 text-sm"
                 />
                 <input
                   value={customCostDraft.amount}
                   onChange={(e) => setCustomCostDraft((prev) => ({ ...prev, amount: e.target.value }))}
                   placeholder="Valor"
-                  className="rounded-[12px] border border-[#dbe3ef] bg-white px-3 py-2 text-sm"
+                  className="rounded-[12px] border border-[#e4e7ec] bg-white px-3 py-2 text-sm"
                 />
                 <button
                   type="button"
@@ -2048,7 +2048,7 @@ function PagamentosPageContent() {
                   setDefaultCostsForm((prev) => ({ ...prev, notes: e.target.value }))
                 }
                 placeholder="Notas internas sobre a política de custos"
-                className="w-full rounded-[12px] border border-[#dbe3ef] px-3 py-2 text-sm"
+                className="w-full rounded-[12px] border border-[#e4e7ec] px-3 py-2 text-sm"
                 rows={3}
               />
             </label>
@@ -2071,7 +2071,7 @@ function PagamentosPageContent() {
               <button
                 type="button"
                 onClick={aplicarNosProximosEventos}
-                className="rounded-[14px] border border-[#dbe3ef] bg-white px-4 py-3 text-sm font-black text-[#0f172a]"
+                className="rounded-[14px] border border-[#e4e7ec] bg-white px-4 py-3 text-sm font-black text-[#0f172a]"
               >
                 Usar em novos eventos
               </button>
@@ -2092,8 +2092,8 @@ function PagamentosPageContent() {
 
       {applyCostsModal.open ? (
         <div className="fixed inset-0 z-[97] flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-5xl rounded-[24px] border border-[#dbe3ef] bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.3)]">
-            <div className="mb-1 text-[11px] font-black uppercase tracking-[0.14em] text-violet-600">
+          <div className="w-full max-w-5xl rounded-[24px] border border-[#e4e7ec] bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.3)]">
+            <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#8b93a3]">
               Aplicar custos a eventos
             </div>
             <p className="text-sm text-[#64748b]">
@@ -2151,7 +2151,7 @@ function PagamentosPageContent() {
               <div className="flex gap-2">
                 <button
                   type="button"
-                  className="rounded-[12px] border border-[#dbe3ef] px-3 py-2 text-xs font-black"
+                  className="rounded-[12px] border border-[#e4e7ec] px-3 py-2 text-xs font-black"
                   onClick={() =>
                     setApplyCostsModal((prev) => ({
                       ...prev,
@@ -2163,7 +2163,7 @@ function PagamentosPageContent() {
                 </button>
                 <button
                   type="button"
-                  className="rounded-[12px] border border-[#dbe3ef] px-3 py-2 text-xs font-black"
+                  className="rounded-[12px] border border-[#e4e7ec] px-3 py-2 text-xs font-black"
                   onClick={() => setApplyCostsModal((prev) => ({ ...prev, selectedIds: [] }))}
                 >
                   Limpar seleção
@@ -2173,7 +2173,7 @@ function PagamentosPageContent() {
                 <button
                   type="button"
                   onClick={() => setApplyCostsModal({ open: false, rows: [], selectedIds: [] })}
-                  className="rounded-[12px] border border-[#dbe3ef] px-4 py-2 text-xs font-black"
+                  className="rounded-[12px] border border-[#e4e7ec] px-4 py-2 text-xs font-black"
                 >
                   Cancelar
                 </button>
@@ -2202,7 +2202,7 @@ function PagamentosPageContent() {
               <button
                 type="button"
                 onClick={() => setCostBreakdownModal({ open: false, eventId: '', clientName: '', breakdown: [] })}
-                className="rounded-[12px] border border-[#dbe3ef] px-3 py-2 text-xs font-black"
+                className="rounded-[12px] border border-[#e4e7ec] px-3 py-2 text-xs font-black"
               >
                 Fechar
               </button>

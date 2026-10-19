@@ -10,7 +10,7 @@ export default function AutomationBackLink() {
   return (
     <Link
       href="/automacoes"
-      className="inline-flex items-center gap-1.5 rounded-full border border-[#dbe3ef] bg-white px-4 py-2 text-[13px] font-semibold text-[#64748b] shadow-[0_2px_8px_rgba(17,24,39,0.04)] transition hover:border-violet-300 hover:text-violet-700 hover:shadow-[0_4px_12px_rgba(109,40,217,0.08)]"
+      className="inline-flex items-center gap-1.5 rounded-full border border-[#e4e7ec] bg-white px-4 py-2 text-[13px] font-semibold text-[#64748b] shadow-[0_1px_2px_rgba(16,24,40,0.04)] transition hover:border-violet-300 hover:text-violet-700 hover:shadow-[0_4px_12px_rgba(109,40,217,0.08)]"
     >
       <svg
         xmlns="http://www.w3.org/2000/svg"

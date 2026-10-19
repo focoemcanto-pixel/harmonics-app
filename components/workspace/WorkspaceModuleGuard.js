@@ -1,13 +1,14 @@
 'use client';
 
+import { AdminContentSkeleton } from '@/components/layout/AppShellSkeleton';
 import { useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import useWorkspaceMe from '@/hooks/useWorkspaceMe';
 
 function AccessDenied({ moduleKey }) {
   return (
-    <div className="min-h-[60vh] bg-[#f4f6fa] px-4 py-10">
-      <div className="mx-auto max-w-xl rounded-[28px] border border-red-100 bg-white p-6 text-center shadow-[0_18px_50px_rgba(15,23,42,0.08)]">
+    <div className="min-h-[60vh] px-0 py-10">
+      <div className="mx-auto max-w-xl rounded-[24px] border border-[var(--hx-border,#e4e7ec)] bg-white p-6 text-center shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50 text-2xl">🚫</div>
         <h1 className="mt-4 text-2xl font-black tracking-[-0.04em] text-slate-900">Acesso não permitido</h1>
         <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
@@ -16,7 +17,7 @@ function AccessDenied({ moduleKey }) {
         <button
           type="button"
           onClick={() => window.location.assign('/dashboard')}
-          className="mt-5 rounded-2xl bg-violet-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-violet-600/20 transition hover:bg-violet-700"
+          className="mt-5 rounded-full bg-[#0c0d12] px-5 py-3 text-sm font-semibold text-white transition hover:bg-black"
         >
           Voltar para o dashboard
         </button>
@@ -26,14 +27,7 @@ function AccessDenied({ moduleKey }) {
 }
 
 function LoadingAccess() {
-  return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-      <div className="text-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-violet-600 mx-auto mb-4" />
-        <p className="text-slate-600 font-semibold">Verificando permissões...</p>
-      </div>
-    </div>
-  );
+  return <AdminContentSkeleton label="Verificando permissões" />;
 }
 
 export default function WorkspaceModuleGuard({
@@ -82,7 +76,7 @@ export default function WorkspaceModuleGuard({
 
   if (error) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+      <div className="flex min-h-[50dvh] items-center justify-center p-6">
         <div className="max-w-lg rounded-2xl border border-red-200 bg-red-50 p-5 text-red-700">
           <h2 className="text-base font-bold">Falha ao validar permissões</h2>
           <p className="mt-2 text-sm">{error?.message || String(error)}</p>

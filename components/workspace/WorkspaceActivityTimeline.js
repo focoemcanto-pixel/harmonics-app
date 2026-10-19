@@ -58,10 +58,10 @@ export default function WorkspaceActivityTimeline({ limit = 8, compact = false }
   }, [limit, supabase]);
 
   return (
-    <section className="rounded-[30px] border border-[#dbe3ef] bg-white p-5 shadow-[0_14px_38px_rgba(15,23,42,0.06)] md:p-6">
+    <section className="rounded-[24px] border border-[#e4e7ec] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)] md:p-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <div className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-700">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#8b93a3]">
             Workspace vivo
           </div>
           <h2 className="mt-1 text-[22px] font-black tracking-[-0.04em] text-[#0f172a]">
@@ -103,7 +103,7 @@ export default function WorkspaceActivityTimeline({ limit = 8, compact = false }
             {timeline.map((event) => {
               const toneClass = TONE_CLASSES[event.tone] || TONE_CLASSES.slate;
               return (
-                <article key={event.id || `${event.type}-${event.createdAt}`} className="flex gap-3 rounded-[24px] border border-[#e2e8f0] bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-4 shadow-[0_8px_22px_rgba(15,23,42,0.04)]">
+                <article key={event.id || `${event.type}-${event.createdAt}`} className="flex gap-3 rounded-[24px] border border-[#e2e8f0] bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
                   <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border text-[20px] ${toneClass}`}>
                     {event.icon || '✨'}
                   </div>

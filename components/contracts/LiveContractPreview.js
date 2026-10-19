@@ -39,11 +39,11 @@ export default function LiveContractPreview({ html = '' }) {
   }, [html]);
 
   return (
-    <div className="overflow-hidden rounded-[28px] border border-[#dbe3ef] bg-[#e2e8f0] p-3 shadow-inner">
-      <div className="mx-auto max-w-[760px] rounded-[22px] border border-[#dbe3ef] bg-white shadow-[0_18px_42px_rgba(15,23,42,0.08)]">
+    <div className="overflow-hidden rounded-[24px] border border-[#e4e7ec] bg-[#e2e8f0] p-3 shadow-inner">
+      <div className="mx-auto max-w-[760px] rounded-[22px] border border-[#e4e7ec] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
         <div className="flex items-center justify-between border-b border-[#eef2f7] px-5 py-3">
           <div>
-            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-700">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#8b93a3]">
               Documento renderizado
             </div>
             <div className="mt-1 text-[12px] font-semibold text-[#64748b]">
@@ -60,7 +60,7 @@ export default function LiveContractPreview({ html = '' }) {
 
         <div className="bg-[#f8fafc] px-5 py-5">
           <article
-            className="prose prose-slate max-w-none rounded-[18px] bg-white px-8 py-8 text-[14px] leading-7 text-[#0f172a] shadow-[0_10px_30px_rgba(15,23,42,0.05)]"
+            className="prose prose-slate max-w-none rounded-[18px] bg-white px-8 py-8 text-[14px] leading-7 text-[#0f172a] shadow-[0_1px_2px_rgba(16,24,40,0.04)]"
             dangerouslySetInnerHTML={{ __html: renderedHtml }}
           />
         </div>

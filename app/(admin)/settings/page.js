@@ -65,10 +65,10 @@ const SETTINGS_CARDS = [
 
 function SettingsCard({ item }) {
   const content = (
-    <div className={`h-full rounded-[28px] border bg-white p-6 shadow-[0_12px_28px_rgba(15,23,42,0.04)] transition ${
+    <div className={`h-full rounded-[24px] border bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)] transition ${
       item.disabled
         ? 'border-[#e2e8f0] opacity-70'
-        : 'border-[#dbe3ef] hover:-translate-y-0.5 hover:shadow-[0_18px_38px_rgba(15,23,42,0.08)]'
+        : 'border-[#e4e7ec] hover:-translate-y-0.5 hover:border-[#d0d5dd] hover:shadow-[0_8px_24px_rgba(16,24,40,0.06)]'
     }`}>
       <div className="flex items-start justify-between gap-4">
         <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#f1f5f9] text-[22px]">
@@ -81,14 +81,14 @@ function SettingsCard({ item }) {
         </span>
       </div>
 
-      <h2 className="mt-5 text-[22px] font-black tracking-[-0.03em] text-[#0f172a]">
+      <h2 className="mt-5 text-[18px] font-semibold tracking-[-0.02em] text-[#0c0d12]">
         {item.title}
       </h2>
-      <p className="mt-2 text-[14px] font-semibold leading-6 text-[#64748b]">
+      <p className="mt-1.5 text-[14px] leading-6 text-[#586174]">
         {item.description}
       </p>
 
-      <div className="mt-6 text-[13px] font-black text-violet-700">
+      <div className="mt-5 text-[13px] font-semibold text-[#0c0d12]">
         {item.disabled ? 'Ainda não liberado' : 'Abrir configurações →'}
       </div>
     </div>
@@ -107,14 +107,14 @@ export default function SettingsOverviewPage() {
   return (
     <AdminShell pageTitle="Configurações" activeItem="settings" mobileSubtitle="Perfil, workspace e SaaS">
       <div className="space-y-6">
-        <section className="rounded-[30px] border border-[#dbe3ef] bg-white p-6 shadow-[0_12px_28px_rgba(15,23,42,0.04)]">
-          <div className="text-[12px] font-black uppercase tracking-[0.14em] text-violet-700">
+        <section className="pt-1 md:pt-2">
+          <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#8b93a3]">
             Central do SaaS
           </div>
-          <h1 className="mt-2 text-[34px] font-black tracking-[-0.05em] text-[#0f172a] md:text-[44px]">
+          <h1 className="mt-2 text-[26px] font-semibold tracking-[-0.03em] text-[#0c0d12] md:text-[34px]">
             Configurações
           </h1>
-          <p className="mt-3 max-w-3xl text-[15px] font-semibold leading-7 text-[#64748b]">
+          <p className="mt-1.5 max-w-3xl text-[14px] leading-6 text-[#586174] md:text-[15px]">
             Gerencie os ajustes gerais do workspace: identidade, equipe, conta, assinatura, segurança, integrações, onboarding e recursos avançados. A exclusão do workspace fica protegida dentro da área Workspace, na zona de perigo.
           </p>
         </section>

@@ -18,7 +18,7 @@ export default function ContractEditorShell({
       <section className="relative">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-[24px] border border-violet-200 bg-violet-50/70 px-4 py-3">
           <div>
-            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-700">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#8b93a3]">
               Builder inteligente
             </div>
             <p className="mt-1 text-[13px] font-semibold leading-5 text-violet-800">
@@ -61,7 +61,7 @@ export default function ContractEditorShell({
             >
               <div className="mb-3 flex items-center justify-between gap-3 px-1">
                 <div>
-                  <div className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-700">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#8b93a3]">
                     Assistente
                   </div>
                   <h2 className="text-[20px] font-black tracking-[-0.04em] text-[#0f172a]">

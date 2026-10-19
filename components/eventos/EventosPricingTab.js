@@ -10,7 +10,7 @@ export default function EventosPricingTab({
   salvando,
 }) {
   return (
-    <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_26px_rgba(17,24,39,0.04)] md:p-6">
+    <section className="rounded-[24px] border border-[#e4e7ec] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)] md:p-6">
       <AdminSectionTitle
         title="Preços automáticos"
         subtitle="Configure formações, som e receptivo para preencher os eventos automaticamente."

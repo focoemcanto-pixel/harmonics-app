@@ -13,7 +13,7 @@ import { useConfirm } from '@/components/ui/ConfirmDialogProvider';
 
 function EscalaTabSkeleton() {
   return (
-    <section className="space-y-4 rounded-[24px] border border-[#dbe3ef] bg-white p-4 text-[#64748b] md:p-5">
+    <section className="space-y-4 rounded-[24px] border border-[#e4e7ec] bg-white p-4 text-[#64748b] md:p-5">
       <div className="flex items-center justify-between gap-3">
         <div>
           <div className="h-3 w-24 animate-pulse rounded-full bg-slate-200" />
@@ -128,7 +128,7 @@ function MetricCard({ label, value, tone = 'default' }) {
 
 function EventoDetalheSkeleton({ message = 'Carregando evento...' }) {
   return (
-    <section className="space-y-4 rounded-[24px] border border-[#dbe3ef] bg-white p-5 text-[#64748b]">
+    <section className="space-y-4 rounded-[24px] border border-[#e4e7ec] bg-white p-5 text-[#64748b]">
       <div className="h-4 w-44 animate-pulse rounded-full bg-slate-200" />
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         {[0, 1, 2].map((item) => (
@@ -423,9 +423,9 @@ export default function EventoDetalhePage() {
       <div className="space-y-5">
         <header className="space-y-3">
           <div className="flex flex-wrap gap-2">
-            <Link href={backHref} className="rounded-xl border border-[#dbe3ef] bg-white px-3 py-2 text-xs font-bold text-[#0f172a] active:scale-[0.98]">Voltar</Link>
+            <Link href={backHref} className="rounded-xl border border-[#e4e7ec] bg-white px-3 py-2 text-xs font-bold text-[#0f172a] active:scale-[0.98]">Voltar</Link>
             {evento?.id ? (
-              <Link href={`/eventos?edit=${evento.id}`} className="rounded-xl border border-[#dbe3ef] bg-white px-3 py-2 text-xs font-bold text-[#0f172a]">Editar</Link>
+              <Link href={`/eventos?edit=${evento.id}`} className="rounded-xl border border-[#e4e7ec] bg-white px-3 py-2 text-xs font-bold text-[#0f172a]">Editar</Link>
             ) : null}
             {evento?.id ? (
               <button type="button" onClick={excluirEvento} disabled={excluindo} className="rounded-xl bg-red-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-60">
@@ -445,7 +445,7 @@ export default function EventoDetalhePage() {
           </div>
         </header>
 
-        <div className="rounded-[24px] border border-[#dbe3ef] bg-white p-2 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
+        <div className="rounded-[24px] border border-[#e4e7ec] bg-white p-2 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
           <AdminSegmentTabs items={tabs} active={activeTab} onChange={handleTabChange} />
         </div>
 
@@ -462,7 +462,7 @@ export default function EventoDetalhePage() {
             </button>
           </section>
         ) : !evento ? (
-          <section className="rounded-[24px] border border-[#dbe3ef] bg-white p-6 text-center text-[#64748b]">Evento não encontrado.</section>
+          <section className="rounded-[24px] border border-[#e4e7ec] bg-white p-6 text-center text-[#64748b]">Evento não encontrado.</section>
         ) : (
           <>
             <TabPanel active={activeTab === 'resumo'} className="space-y-4">
@@ -499,7 +499,7 @@ export default function EventoDetalhePage() {
                   <p className="font-black text-slate-900">Financeiro</p>
                   <p className="font-semibold text-amber-700">{formatMoney(evento?.open_amount || 0)} pendente</p>
                 </div>
-                <button type="button" onClick={() => handleTabChange('financeiro')} className="rounded-xl border border-[#dbe3ef] bg-white px-3 py-2 text-sm font-bold text-slate-900">
+                <button type="button" onClick={() => handleTabChange('financeiro')} className="rounded-xl border border-[#e4e7ec] bg-white px-3 py-2 text-sm font-bold text-slate-900">
                   Ver pagamentos
                 </button>
               </section>
@@ -521,8 +521,8 @@ export default function EventoDetalhePage() {
                 ) : null}
                 {externalContract?.public_token ? (
                   <div className="flex flex-wrap gap-2">
-                    <a href={`/cliente/${externalContract.public_token}`} target="_blank" rel="noreferrer" className="rounded-xl border border-[#dbe3ef] bg-white px-3 py-2 text-xs font-bold text-slate-900">Abrir painel do cliente</a>
-                    <button type="button" className="rounded-xl border border-[#dbe3ef] bg-white px-3 py-2 text-xs font-bold text-slate-900" onClick={async () => { await navigator.clipboard.writeText(`${window.location.origin}/cliente/${externalContract.public_token}`); toast.success('Link do painel copiado.'); }}>
+                    <a href={`/cliente/${externalContract.public_token}`} target="_blank" rel="noreferrer" className="rounded-xl border border-[#e4e7ec] bg-white px-3 py-2 text-xs font-bold text-slate-900">Abrir painel do cliente</a>
+                    <button type="button" className="rounded-xl border border-[#e4e7ec] bg-white px-3 py-2 text-xs font-bold text-slate-900" onClick={async () => { await navigator.clipboard.writeText(`${window.location.origin}/cliente/${externalContract.public_token}`); toast.success('Link do painel copiado.'); }}>
                       Copiar link do painel do cliente
                     </button>
                   </div>
@@ -545,7 +545,7 @@ export default function EventoDetalhePage() {
                   <p className="font-black text-slate-900">Repertório</p>
                   <p className="text-slate-700">{getRepertoireStatusLabel(repertoireStatus)}</p>
                 </div>
-                <Link href="/repertorios" className="inline-flex rounded-xl border border-[#dbe3ef] bg-white px-3 py-2 text-sm font-bold text-slate-900">
+                <Link href="/repertorios" className="inline-flex rounded-xl border border-[#e4e7ec] bg-white px-3 py-2 text-sm font-bold text-slate-900">
                   Ver repertório
                 </Link>
               </section>
@@ -576,7 +576,7 @@ export default function EventoDetalhePage() {
               ) : null}
             </TabPanel>
 
-            <TabPanel active={activeTab === 'detalhes'} className="rounded-[28px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_26px_rgba(17,24,39,0.04)] md:p-6">
+            <TabPanel active={activeTab === 'detalhes'} className="rounded-[24px] border border-[#e4e7ec] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)] md:p-6">
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <InfoItem label="Contratante / Cliente" value={evento.client_name} />
                 <InfoItem label="Tipo do evento" value={evento.event_type} />
@@ -599,7 +599,7 @@ export default function EventoDetalhePage() {
               </div>
             </TabPanel>
 
-            <TabPanel active={activeTab === 'escala'} className="space-y-4 rounded-[24px] border border-[#dbe3ef] bg-white p-4 md:p-5">
+            <TabPanel active={activeTab === 'escala'} className="space-y-4 rounded-[24px] border border-[#e4e7ec] bg-white p-4 md:p-5">
               <div id="escala-section" />
               <EventoEscalaTab eventId={evento.id} />
             </TabPanel>

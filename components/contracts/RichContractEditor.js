@@ -175,7 +175,7 @@ const RichContractEditor = forwardRef(function RichContractEditor(
         onKeyUp={handleInput}
         onMouseUp={handleInput}
         onCut={scheduleCommitCurrentEditorHtml}
-        className={`prose prose-slate max-w-none overflow-y-auto rounded-2xl border border-[#dbe3ef] bg-white px-4 py-3 text-sm text-[#0f172a] outline-none transition focus:border-violet-400 ${minHeightClass}`}
+        className={`prose prose-slate max-w-none overflow-y-auto rounded-2xl border border-[#e4e7ec] bg-white px-4 py-3 text-sm text-[#0f172a] outline-none transition focus:border-violet-400 ${minHeightClass}`}
       />
     </div>
   );

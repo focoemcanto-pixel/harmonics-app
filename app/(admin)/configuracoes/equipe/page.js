@@ -342,7 +342,7 @@ function EquipeContent() {
   return (
     <AdminShell pageTitle="Equipe" activeItem="usuarios">
       <div className="mx-auto max-w-6xl space-y-6 px-0 py-2">
-        <div className="overflow-hidden rounded-[32px] border border-slate-200 bg-gradient-to-br from-slate-950 via-slate-900 to-violet-950 p-6 text-white shadow-[0_22px_60px_rgba(15,23,42,0.18)]">
+        <div className="overflow-hidden rounded-[24px] border border-slate-200 bg-gradient-to-br from-slate-950 via-slate-900 to-violet-950 p-6 text-white shadow-[0_22px_60px_rgba(15,23,42,0.18)]">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="text-xs font-black uppercase tracking-[0.18em] text-violet-200">Workspace Team</p>
@@ -369,7 +369,7 @@ function EquipeContent() {
         </div>
 
         {isFakeMembersGuide ? (
-          <section className="overflow-hidden rounded-[32px] border border-violet-200 bg-white shadow-[0_18px_54px_rgba(124,58,237,0.12)]" data-onboarding-tour="fake-members-guide">
+          <section className="overflow-hidden rounded-[24px] border border-violet-200 bg-white shadow-[0_18px_54px_rgba(124,58,237,0.12)]" data-onboarding-tour="fake-members-guide">
             <div className="bg-gradient-to-br from-violet-700 via-fuchsia-700 to-slate-950 p-6 text-white">
               <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                 <div>
@@ -481,7 +481,7 @@ function EquipeContent() {
         {success ? <div className="rounded-[18px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-700">{success}</div> : null}
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[0.85fr_1.15fr]">
-          <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_12px_32px_rgba(15,23,42,0.05)]">
+          <section className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
             <h2 className="text-lg font-black text-slate-900">Convidar membro</h2>
             <p className="mt-1 text-sm text-slate-500">Adicione um usuário existente ou gere um convite pendente.</p>
 
@@ -522,7 +522,7 @@ function EquipeContent() {
             </form>
           </section>
 
-          <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_12px_32px_rgba(15,23,42,0.05)]">
+          <section className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h2 className="text-lg font-black text-slate-900">Membros ativos</h2>
@@ -585,7 +585,7 @@ function EquipeContent() {
           </section>
         </div>
 
-        <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_12px_32px_rgba(15,23,42,0.05)]">
+        <section className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
           <h2 className="text-lg font-black text-slate-900">Convites pendentes</h2>
           <p className="mt-1 text-sm text-slate-500">Convites criados para usuários que ainda não possuem perfil ou não aceitaram.</p>
 

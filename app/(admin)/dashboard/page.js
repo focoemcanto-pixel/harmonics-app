@@ -10,6 +10,8 @@ import { supabase } from '@/lib/supabase';
 import { buildDashboardSummary } from '@/lib/dashboard/dashboard-summary';
 import { calculateFinancialSummary } from '@/lib/finance/calculateFinancialSummary';
 import { logWarn, reportError } from '@/lib/observability/client-log';
+import { useAuth } from '@/contexts/AuthContext';
+import { DashboardHeader, DashboardOverview, DashboardQuickActions } from '@/components/dashboard/DashboardOverview';
 
 const DashboardRevenueChart = dynamic(() => import('@/components/dashboard/DashboardRevenueChart'));
 const DashboardFinanceBreakdown = dynamic(() => import('@/components/dashboard/DashboardFinanceBreakdown'));
@@ -51,13 +53,13 @@ function filterRowsByMonth(rows = [], dateField, referenceDate = new Date()) {
 function DashboardLoading() {
   return (
     <div className="space-y-5">
-      <div className="h-[220px] animate-pulse rounded-[32px] border border-[#dbe3ef] bg-white" />
+      <div className="h-[220px] hx-skeleton rounded-[24px]" />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {Array.from({ length: 4 }).map((_, index) => (
           <div
             key={index}
-            className="h-[148px] animate-pulse rounded-[28px] border border-[#dbe3ef] bg-white"
+            className="h-[148px] hx-skeleton rounded-[24px]"
           />
         ))}
       </div>
@@ -84,7 +86,7 @@ function DashboardLoading() {
       </div>
 
       {/* Atividade Recente Skeleton */}
-      <div className="rounded-[28px] border border-[#dbe3ef] bg-white p-4 md:p-6">
+      <div className="rounded-[24px] border border-[#e4e7ec] bg-white p-4 md:p-6">
         <div className="flex items-center justify-between mb-3 md:mb-4 animate-pulse">
           <div className="h-6 w-40 bg-slate-200 rounded" />
           <div className="h-8 w-20 bg-slate-200 rounded" />
@@ -104,13 +106,13 @@ function DashboardLoading() {
       </div>
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.5fr_1fr]">
-        <div className="h-[420px] animate-pulse rounded-[30px] border border-[#dbe3ef] bg-white" />
-        <div className="h-[420px] animate-pulse rounded-[30px] border border-[#dbe3ef] bg-white" />
+        <div className="h-[420px] hx-skeleton rounded-[24px]" />
+        <div className="h-[420px] hx-skeleton rounded-[24px]" />
       </div>
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_1.2fr]">
-        <div className="h-[360px] animate-pulse rounded-[28px] border border-[#dbe3ef] bg-white" />
-        <div className="h-[420px] animate-pulse rounded-[28px] border border-[#dbe3ef] bg-white" />
+        <div className="h-[360px] hx-skeleton rounded-[24px]" />
+        <div className="h-[420px] hx-skeleton rounded-[24px]" />
       </div>
     </div>
   );
@@ -279,10 +281,9 @@ function InsightCard({ insight }) {
 
   return (
     <div className={`
-      rounded-xl border-2 p-4
+      rounded-[16px] border p-4
       ${insight.bgColor} ${insight.borderColor}
-      transition-all duration-200
-      hover:shadow-md
+      transition-colors duration-200
     `}>
       <div className="flex items-start gap-3">
         <div className="flex-shrink-0">
@@ -318,27 +319,27 @@ function ReviewRequestsAlertCard({ total, urgentClientName, urgentEventDate }) {
   return (
     <Link
       href={linkHref}
-      className="group block rounded-[24px] border-2 border-amber-300 bg-gradient-to-r from-amber-50 via-orange-50 to-amber-100 p-5 shadow-[0_12px_28px_rgba(245,158,11,0.14)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_16px_32px_rgba(245,158,11,0.2)]"
+      className="group block rounded-[20px] border border-[#e4e7ec] bg-white p-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)] transition hover:border-[#d0d5dd] hover:shadow-[0_8px_24px_rgba(16,24,40,0.06)] md:p-5"
     >
       <div className="flex items-start gap-4">
-        <div className="mt-0.5 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-amber-200/80 text-amber-800">
+        <div className="mt-0.5 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-amber-50 text-amber-700">
           <AlertTriangleIcon className="h-6 w-6" aria-hidden="true" />
         </div>
 
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-black uppercase tracking-[0.1em] text-amber-700">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-amber-700">
             Atenção imediata
           </p>
-          <h2 className="mt-1 text-lg font-black text-amber-950">{title}</h2>
-          <p className="mt-1 text-sm font-semibold text-amber-900/90">
+          <h2 className="mt-1 text-[16px] font-semibold text-slate-900">{title}</h2>
+          <p className="mt-0.5 text-[13px] text-slate-600">
             Mais urgente: {urgentClientLabel}
           </p>
-          <p className="mt-1 text-sm font-semibold text-amber-900/90">
+          <p className="mt-0.5 text-[13px] text-slate-600">
             Evento: {urgentEventLabel}
           </p>
         </div>
 
-        <div className="rounded-[14px] bg-white/90 px-3 py-2 text-[12px] font-black text-amber-800 transition-colors group-hover:bg-white">
+        <div className="hidden shrink-0 rounded-full border border-[#e4e7ec] px-3 py-1.5 text-[12px] font-semibold text-slate-800 transition-colors group-hover:bg-[#f6f7f9] sm:block">
           Liberar revisão
         </div>
       </div>
@@ -362,27 +363,27 @@ function ContractAdjustmentAlertCard({
   return (
     <Link
       href={linkHref}
-      className="group block rounded-[24px] border-2 border-orange-300 bg-gradient-to-r from-orange-50 via-amber-50 to-orange-100 p-5 shadow-[0_12px_28px_rgba(251,146,60,0.14)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_16px_32px_rgba(251,146,60,0.22)]"
+      className="group block rounded-[20px] border border-[#e4e7ec] bg-white p-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)] transition hover:border-[#d0d5dd] hover:shadow-[0_8px_24px_rgba(16,24,40,0.06)] md:p-5"
     >
       <div className="flex items-start gap-4">
-        <div className="mt-0.5 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-orange-200/80 text-orange-800">
+        <div className="mt-0.5 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-orange-50 text-orange-700">
           <AlertCircleIcon className="h-6 w-6" aria-hidden="true" />
         </div>
 
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-black uppercase tracking-[0.1em] text-orange-700">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-orange-700">
             Operação pendente
           </p>
-          <h2 className="mt-1 text-lg font-black text-orange-950">{title}</h2>
-          <p className="mt-1 text-sm font-semibold text-orange-900/90">
+          <h2 className="mt-1 text-[16px] font-semibold text-slate-900">{title}</h2>
+          <p className="mt-0.5 text-[13px] text-slate-600">
             Mais urgente: {urgentClientLabel}
           </p>
-          <p className="mt-1 text-sm font-semibold text-orange-900/90">
+          <p className="mt-0.5 text-[13px] text-slate-600">
             Evento: {urgentEventLabel}
           </p>
         </div>
 
-        <div className="rounded-[14px] bg-white/90 px-3 py-2 text-[12px] font-black text-orange-800 transition-colors group-hover:bg-white">
+        <div className="hidden shrink-0 rounded-full border border-[#e4e7ec] px-3 py-1.5 text-[12px] font-semibold text-slate-800 transition-colors group-hover:bg-[#f6f7f9] sm:block">
           Abrir pré-contrato
         </div>
       </div>
@@ -407,27 +408,27 @@ function PendingPaymentValidationAlertCard({
   return (
     <Link
       href={linkHref}
-      className="group block rounded-[24px] border-2 border-violet-300 bg-gradient-to-r from-violet-50 via-fuchsia-50 to-violet-100 p-5 shadow-[0_12px_28px_rgba(124,58,237,0.14)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_16px_32px_rgba(124,58,237,0.2)]"
+      className="group block rounded-[20px] border border-[#e4e7ec] bg-white p-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)] transition hover:border-[#d0d5dd] hover:shadow-[0_8px_24px_rgba(16,24,40,0.06)] md:p-5"
     >
       <div className="flex items-start gap-4">
-        <div className="mt-0.5 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-violet-200/80 text-violet-800">
+        <div className="mt-0.5 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-violet-50 text-violet-700">
           <AlertCircleIcon className="h-6 w-6" aria-hidden="true" />
         </div>
 
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-black uppercase tracking-[0.1em] text-violet-700">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-violet-700">
             Pagamentos aguardando validação
           </p>
-          <h2 className="mt-1 text-lg font-black text-violet-950">{title}</h2>
-          <p className="mt-1 text-sm font-semibold text-violet-900/90">
+          <h2 className="mt-1 text-[16px] font-semibold text-slate-900">{title}</h2>
+          <p className="mt-0.5 text-[13px] text-slate-600">
             Mais urgente: {urgentClientLabel}
           </p>
-          <p className="mt-1 text-sm font-semibold text-violet-900/90">
+          <p className="mt-0.5 text-[13px] text-slate-600">
             Evento: {urgentEventLabel}
           </p>
         </div>
 
-        <div className="rounded-[14px] bg-white/90 px-3 py-2 text-[12px] font-black text-violet-800 transition-colors group-hover:bg-white">
+        <div className="hidden shrink-0 rounded-full border border-[#e4e7ec] px-3 py-1.5 text-[12px] font-semibold text-slate-800 transition-colors group-hover:bg-[#f6f7f9] sm:block">
           Validar agora
         </div>
       </div>
@@ -473,7 +474,7 @@ function MobileSectionTabs({ active, onChange }) {
 
   return (
     <div className="overflow-x-auto pb-1 xl:hidden">
-      <div className="flex min-w-max gap-2 rounded-[20px] border border-[#e5e7eb] bg-white p-1 shadow-[0_8px_24px_rgba(17,24,39,0.04)]">
+      <div className="flex min-w-max gap-1 rounded-full border border-[#e4e7ec] bg-white p-1 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
         {items.map((item) => {
           const isActive = active === item.key;
 
@@ -482,10 +483,10 @@ function MobileSectionTabs({ active, onChange }) {
               key={item.key}
               type="button"
               onClick={() => onChange(item.key)}
-              className={`whitespace-nowrap rounded-[16px] px-4 py-3 text-[13px] font-black transition ${
+              className={`min-h-10 whitespace-nowrap rounded-full px-4 py-2 text-[13px] font-medium transition ${
                 isActive
-                  ? 'bg-violet-600 text-white shadow-[0_10px_24px_rgba(124,58,237,0.18)]'
-                  : 'text-[#475569]'
+                  ? 'bg-[#0c0d12] text-white'
+                  : 'text-[#586174]'
               }`}
             >
               {item.label}
@@ -609,33 +610,9 @@ const quickActions = [
   },
 ];
 
-const quickActionColorClasses = {
-  violet: 'bg-violet-50 text-violet-600 hover:bg-violet-100 border-violet-200',
-  blue: 'bg-blue-50 text-blue-600 hover:bg-blue-100 border-blue-200',
-  emerald: 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border-emerald-200',
-  amber: 'bg-amber-50 text-amber-600 hover:bg-amber-100 border-amber-200',
-  purple: 'bg-purple-50 text-purple-600 hover:bg-purple-100 border-purple-200',
-  green: 'bg-green-50 text-green-600 hover:bg-green-100 border-green-200',
-};
-
-function QuickActionCard({ action, className = '' }) {
-  return (
-    <Link
-      href={action.href}
-      aria-label={action.label}
-      className={`flex items-center gap-3 rounded-xl border-2 p-4 transition-all duration-200 hover:shadow-md cursor-pointer ${quickActionColorClasses[action.color]} ${className}`}
-    >
-      <div className="flex-shrink-0">
-        {action.icon}
-      </div>
-      <span className="font-semibold text-sm">
-        {action.label}
-      </span>
-    </Link>
-  );
-}
-
 export default function DashboardPage() {
+  const { profile, user } = useAuth();
+  const firstName = String(profile?.name || user?.user_metadata?.name || '').trim().split(/\s+/)[0] || '';
   const [events, setEvents] = useState([]);
   const [antesalaRequests, setAntesalaRequests] = useState([]);
   const [contracts, setContracts] = useState([]);
@@ -675,6 +652,15 @@ export default function DashboardPage() {
     [events, todayISO]
   );
 
+  const healthScore = useMemo(() => {
+    if (!summary) return null;
+    return Math.min(100, Math.round(
+      ((summary.eventosMes > 0 ? 1 : 0) * 40) +
+      (summary.contratosPendentes === 0 ? 30 : Math.max(0, 30 - summary.contratosPendentes * 5)) +
+      (summary.escalasPendentes === 0 ? 30 : Math.max(0, 30 - summary.escalasPendentes * 3))
+    ));
+  }, [summary]);
+
   const eventosPagos = useMemo(
     () => events.filter((e) => e.status === 'done' || e.status === 'Pago').length,
     [events]
@@ -682,7 +668,7 @@ export default function DashboardPage() {
 
   const completionRate = useMemo(() => {
     const total = summary?.eventosMes ?? 0;
-    if (total === 0) return 87;
+    if (total === 0) return null;
     return Math.min(100, Math.round((eventosPagos / total) * 100));
   }, [eventosPagos, summary]);
 
@@ -710,6 +696,8 @@ export default function DashboardPage() {
         setPrecontracts(dashboardMemoryCache.precontracts);
         setRepertoireConfigs(dashboardMemoryCache.repertoireConfigs);
         setSummary(dashboardMemoryCache.summary);
+        if (dashboardMemoryCache.antesalaRequests) setAntesalaRequests(dashboardMemoryCache.antesalaRequests);
+        if (dashboardMemoryCache.pendingPaymentValidation) setPendingPaymentValidation(dashboardMemoryCache.pendingPaymentValidation);
         setSecondaryReady(true);
         setHeavyReady(true);
         setCarregando(false);
@@ -796,7 +784,8 @@ export default function DashboardPage() {
 
       setEvents(eventsData);
       const antesalaRequestsResult = await antesalaRequestsPromise;
-      if (!antesalaRequestsResult.error) setAntesalaRequests(antesalaRequestsResult.data || []);
+      const antesalaRequestsData = antesalaRequestsResult.error ? null : antesalaRequestsResult.data || [];
+      if (antesalaRequestsData) setAntesalaRequests(antesalaRequestsData);
       else logWarn('dashboard', 'Solicitações de antessala indisponíveis', antesalaRequestsResult.error);
 
       setContracts(contractsData);
@@ -816,12 +805,13 @@ export default function DashboardPage() {
         )[0];
       const urgentEvent = urgentPending ? eventsById.get(String(urgentPending.event_id)) : null;
 
-      setPendingPaymentValidation({
+      const nextPendingPaymentValidation = {
         total: pendingValidationRows.length,
         urgentClientName: urgentEvent?.client_name || '',
         urgentEventDate: urgentEvent?.event_date || '',
         urgentEventId: urgentEvent?.id || '',
-      });
+      };
+      setPendingPaymentValidation(nextPendingPaymentValidation);
 
       const heavyResults = await heavyResultsPromise;
       const eventMusiciansRes =
@@ -892,6 +882,8 @@ export default function DashboardPage() {
         eventMusicians: eventMusiciansData,
         repertoireConfigs: repertoireConfigsData,
         summary: nextSummary,
+        antesalaRequests: antesalaRequestsData,
+        pendingPaymentValidation: nextPendingPaymentValidation,
       };
     } catch (error) {
       reportError('dashboard.load', error);
@@ -1000,7 +992,7 @@ export default function DashboardPage() {
             {secondaryReady ? (
               <DashboardSecondaryKpis summary={summary} />
             ) : (
-              <div className="h-[148px] animate-pulse rounded-[28px] border border-[#dbe3ef] bg-white" />
+              <div className="h-[148px] hx-skeleton rounded-[24px]" />
             )}
           </MobileSlide>
         </MobileCarousel>
@@ -1014,7 +1006,7 @@ export default function DashboardPage() {
                 precontracts={precontracts}
               />
             ) : (
-              <div className="h-[360px] animate-pulse rounded-[28px] border border-[#dbe3ef] bg-white" />
+              <div className="h-[360px] hx-skeleton rounded-[24px]" />
             )}
           </MobileSlide>
         </MobileCarousel>
@@ -1030,14 +1022,14 @@ export default function DashboardPage() {
             {heavyReady ? (
               <DashboardRevenueChart events={events} />
             ) : (
-              <div className="h-[420px] animate-pulse rounded-[30px] border border-[#dbe3ef] bg-white" />
+              <div className="h-[420px] hx-skeleton rounded-[24px]" />
             )}
           </MobileSlide>
           <MobileSlide wide>
             {heavyReady ? (
               <DashboardFinanceBreakdown summary={summary} />
             ) : (
-              <div className="h-[420px] animate-pulse rounded-[30px] border border-[#dbe3ef] bg-white" />
+              <div className="h-[420px] hx-skeleton rounded-[24px]" />
             )}
           </MobileSlide>
         </MobileCarousel>
@@ -1053,7 +1045,7 @@ export default function DashboardPage() {
             {heavyReady ? (
               <DashboardOperationsRadar summary={summary} />
             ) : (
-              <div className="h-[360px] animate-pulse rounded-[28px] border border-[#dbe3ef] bg-white" />
+              <div className="h-[360px] hx-skeleton rounded-[24px]" />
             )}
           </MobileSlide>
         </MobileCarousel>
@@ -1073,14 +1065,14 @@ export default function DashboardPage() {
                 precontracts={precontracts}
               />
             ) : (
-              <div className="h-[360px] animate-pulse rounded-[28px] border border-[#dbe3ef] bg-white" />
+              <div className="h-[360px] hx-skeleton rounded-[24px]" />
             )}
           </MobileSlide>
           <MobileSlide wide>
             {secondaryReady ? (
               <DashboardSecondaryKpis summary={summary} />
             ) : (
-              <div className="h-[148px] animate-pulse rounded-[28px] border border-[#dbe3ef] bg-white" />
+              <div className="h-[148px] hx-skeleton rounded-[24px]" />
             )}
           </MobileSlide>
         </MobileCarousel>
@@ -1098,62 +1090,7 @@ export default function DashboardPage() {
         <DashboardLoading />
       ) : (
         <div className="space-y-4 md:space-y-6">
-          {/* Hero Section */}
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-8">
-            <div>
-              <h1 className="text-3xl font-black tracking-tight text-slate-950">
-                Bem-vindo de volta, Admin
-              </h1>
-              <p className="text-sm text-slate-600 mt-1">
-                Resumo do mês atual • {new Date().toLocaleDateString('pt-BR', {
-                  weekday: 'long',
-                  day: 'numeric',
-                  month: 'long',
-                  year: 'numeric',
-                })}
-              </p>
-            </div>
-            <Link
-  href="/pre-contratos"
-  className="inline-flex w-full items-center justify-center gap-2 rounded-[18px] bg-violet-600 px-5 py-4 text-[14px] font-black text-white shadow-lg transition hover:bg-violet-700 sm:w-auto"
->
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
-    <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
-  </svg>
-  Novo Pré-contrato
-</Link>
-          </div>
-
-          {/* Ações Rápidas (mobile no topo) */}
-          <div className="md:hidden -mt-1">
-            <h2 className="text-lg font-bold text-slate-950 mb-2">
-              Ações Rápidas
-            </h2>
-            <div className="flex overflow-x-auto gap-3 pb-2 pr-1 snap-x snap-mandatory scrollbar-hide">
-              {quickActions.map((action) => (
-                <Link
-                  key={`mobile-top-${action.href}`}
-                  href={action.href}
-                  className={`
-                    flex-shrink-0 w-[180px] snap-start
-                    p-4 rounded-xl border-2
-                    transition-all duration-200
-                    hover:shadow-md
-                    cursor-pointer
-                    flex items-center gap-3
-                    ${quickActionColorClasses[action.color]}
-                  `}
-                >
-                  <div className="flex-shrink-0">
-                    {action.icon}
-                  </div>
-                  <span className="font-semibold text-xs">
-                    {action.label}
-                  </span>
-                </Link>
-              ))}
-            </div>
-          </div>
+          <DashboardHeader firstName={firstName} />
 
           {erro ? (
             <div className="rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-[14px] font-semibold text-red-700">
@@ -1175,181 +1112,17 @@ export default function DashboardPage() {
             </div>
           ) : null}
 
-          {/* Primeira Dobra */}
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 mb-6">
-            {/* Card Principal — Saúde da Operação (ocupa 2 colunas no desktop) */}
-            <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-violet-600 to-violet-800 p-6 text-white lg:col-span-2">
-              {/* Header com Score */}
-              <div className="mb-6 flex items-center justify-between">
-                <div>
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-violet-200">
-                    Saúde da Operação
-                  </p>
-                  <div className="text-5xl font-black">
-                    {summary ? Math.min(100, Math.round(
-                      ((summary.eventosMes > 0 ? 1 : 0) * 40) +
-                      (summary.contratosPendentes === 0 ? 30 : Math.max(0, 30 - summary.contratosPendentes * 5)) +
-                      (summary.escalasPendentes === 0 ? 30 : Math.max(0, 30 - summary.escalasPendentes * 3))
-                    )) : 95}%
-                  </div>
-                </div>
-                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-sm">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-9 w-9">
-                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-                  </svg>
-                </div>
-              </div>
-
-              {/* 3 Indicadores */}
-              <div className="mb-6 grid grid-cols-3 gap-4">
-                <div>
-                  <div className="text-3xl font-bold">{summary?.eventosMes ?? 12}</div>
-                  <div className="mt-1 text-xs text-violet-200">Eventos ativos</div>
-                </div>
-                <div>
-                  <div className="text-3xl font-bold">{summary?.contratosPendentes ?? 5}</div>
-                  <div className="mt-1 text-xs text-violet-200">Contratos pendentes</div>
-                </div>
-                <div>
-                  <div className="text-3xl font-bold">{summary?.escalasPendentes ?? 3}</div>
-                  <div className="mt-1 text-xs text-violet-200">Escalas abertas</div>
-                </div>
-              </div>
-
-              {/* Barra de Progresso */}
-              <div className="border-t border-white/20 pt-4">
-                <div className="mb-2 flex items-center justify-between text-xs">
-                  <span className="text-violet-200">Taxa de conclusão mensal</span>
-                  <span className="font-semibold">{completionRate}%</span>
-                </div>
-                <div className="h-2 overflow-hidden rounded-full bg-white/20">
-                  <div
-                    className="h-full rounded-full bg-white transition-all duration-500"
-                    style={{ width: `${completionRate}%` }}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Cards Menores — stack vertical */}
-            <div className="space-y-4">
-              {/* Card 1: Eventos Hoje */}
-              <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-4 transition-shadow hover:shadow-md">
-                <div className="mb-3 flex items-center justify-between">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5 text-emerald-600">
-                      <path fillRule="evenodd" d="M5.75 2a.75.75 0 01.75.75V4h7V2.75a.75.75 0 011.5 0V4h.25A2.75 2.75 0 0118 6.75v8.5A2.75 2.75 0 0115.25 18H4.75A2.75 2.75 0 012 15.25v-8.5A2.75 2.75 0 014.75 4H5V2.75A.75.75 0 015.75 2zm-1 5.5c-.69 0-1.25.56-1.25 1.25v6.5c0 .69.56 1.25 1.25 1.25h10.5c.69 0 1.25-.56 1.25-1.25v-6.5c0-.69-.56-1.25-1.25-1.25H4.75z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                  <span className="rounded-full bg-emerald-200 px-2.5 py-0.5 text-[11px] font-bold text-emerald-800">
-                    {eventosHoje || 3} hoje
-                  </span>
-                </div>
-                <div className="text-3xl font-black text-emerald-900 mb-1">
-                  {eventosHoje || 3}
-                </div>
-                <div className="text-xs font-medium text-emerald-700">Eventos programados</div>
-              </div>
-
-              {/* Card 2: Contratos Pendentes */}
-              <div className="rounded-3xl border border-amber-200 bg-amber-50 p-4 transition-shadow hover:shadow-md">
-                <div className="mb-3 flex items-center justify-between">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5 text-amber-600">
-                      <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                  <span className="rounded-full bg-amber-200 px-2.5 py-0.5 text-[11px] font-bold text-amber-800">
-                    pendentes
-                  </span>
-                </div>
-                <div className="text-3xl font-black text-amber-900 mb-1">
-                  {summary?.contratosPendentes ?? 5}
-                </div>
-                <div className="text-xs font-medium text-amber-700">Contratos pendentes</div>
-              </div>
-
-              {/* Card 3: Automação */}
-              <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4 transition-shadow hover:shadow-md">
-                <div className="mb-3 flex items-center justify-between">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-200">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5 text-slate-600">
-                      <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                  <span className="rounded-full bg-slate-200 px-2.5 py-0.5 text-[11px] font-bold text-slate-700">
-                    ativa
-                  </span>
-                </div>
-                <div className="text-3xl font-black text-slate-900 mb-1">
-                  {summary?.repertoriosAguardandoAcao ?? 0}
-                </div>
-                <div className="text-xs font-medium text-slate-600">Automações ativas</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Métricas Rápidas */}
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4 mb-6">
-            {/* Escalas abertas */}
-            <div className="rounded-3xl border border-[#dbe3ef] bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
-              <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-blue-100">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5 text-blue-600">
-                  <path d="M10 9a3 3 0 100-6 3 3 0 000 6zM6 8a2 2 0 11-4 0 2 2 0 014 0zM1.49 15.326a.78.78 0 01-.358-.442 3 3 0 014.308-3.516 6.484 6.484 0 00-1.905 3.959c-.023.222-.014.442.025.654a4.97 4.97 0 01-2.07-.655zM16.44 15.98a4.97 4.97 0 002.07-.654.78.78 0 00.357-.442 3 3 0 00-4.308-3.517 6.484 6.484 0 011.907 3.96 2.32 2.32 0 01-.026.654zM18 8a2 2 0 11-4 0 2 2 0 014 0zM5.304 16.19a.844.844 0 01-.277-.71 5 5 0 019.947 0 .843.843 0 01-.277.71A6.975 6.975 0 0110 18a6.974 6.974 0 01-4.696-1.81z" />
-                </svg>
-              </div>
-              <div className="text-2xl font-black text-slate-900">{summary?.escalasPendentes ?? 3}</div>
-              <div className="mt-1 text-xs font-medium text-slate-500">Escalas abertas</div>
-              {(summary?.escalasPendentes ?? 3) > 0 && (
-                <div className="mt-2 text-[11px] font-semibold text-red-500">↑ Requer atenção</div>
-              )}
-            </div>
-
-            {/* Repertórios */}
-            <div className="rounded-3xl border border-[#dbe3ef] bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
-              <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-violet-100">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5 text-violet-600">
-                  <path d="M18 3a1 1 0 00-1.196-.98l-10 2A1 1 0 006 5v9.114A4.369 4.369 0 005 14c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V7.82l8-1.6v5.894A4.37 4.37 0 0015 12c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V3z" />
-                </svg>
-              </div>
-              <div className="text-2xl font-black text-slate-900">{repertoireConfigs.length || 23}</div>
-              <div className="mt-1 text-xs font-medium text-slate-500">Repertórios</div>
-              <div className="mt-2 text-[11px] font-semibold text-emerald-600">↑ Atualizado</div>
-            </div>
-
-            {/* Receita do mês */}
-            <div className="rounded-3xl border border-[#dbe3ef] bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
-              <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-100">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5 text-emerald-600">
-                  <path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z" />
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clipRule="evenodd" />
-                </svg>
-              </div>
-              <div className="text-2xl font-black text-slate-900">
-                {summary?.bruto > 0
-                  ? `R$${(summary.bruto / 1000).toFixed(0)}k`
-                  : 'R$45k'}
-              </div>
-              <div className="mt-1 text-xs font-medium text-slate-500">Receita contratada do mês</div>
-              <div className="mt-2 text-[11px] font-semibold text-emerald-600">↑ Mês atual</div>
-            </div>
-
-            {/* Eventos do mês */}
-            <div className="rounded-3xl border border-[#dbe3ef] bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
-              <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-amber-100">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5 text-amber-600">
-                  <path fillRule="evenodd" d="M12 7a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0V8.414l-4.293 4.293a1 1 0 01-1.414 0L8 10.414l-4.293 4.293a1 1 0 01-1.414-1.414l5-5a1 1 0 011.414 0L11 10.586 14.586 7H12z" clipRule="evenodd" />
-                </svg>
-              </div>
-              <div className="text-2xl font-black text-slate-900">{summary?.eventosMes ?? 12}</div>
-              <div className="mt-1 text-xs font-medium text-slate-500">Eventos no mês</div>
-              <div className="mt-2 text-[11px] font-semibold text-emerald-600">↑ Taxa {completionRate}%</div>
-            </div>
-          </div>
+          <DashboardOverview
+            summary={summary}
+            healthScore={healthScore}
+            completionRate={completionRate}
+            eventosHoje={eventosHoje}
+            repertoireCount={heavyReady && !partialDataWarning.includes('repertórios') ? repertoireConfigs.length : null}
+          />
 
           <div className="space-y-3">
             {antesalaRequests.map((event) => (
-              <Link key={`antesala-${event.id}`} href={`/eventos/${event.id}`} className="block rounded-2xl border border-amber-200 bg-amber-50 p-4">
+              <Link key={`antesala-${event.id}`} href={`/eventos/${event.id}`} className="block rounded-[20px] border border-amber-200 bg-amber-50/60 p-4">
                 <div className="text-sm font-black text-amber-900">Liberar antessala</div>
                 <div className="mt-1 text-sm text-amber-800">{event.client_name} • {formatEventDate(event.event_date)}</div>
                 <div className="mt-2 text-xs font-bold text-amber-900">Revisar solicitação e liberar ou recusar</div>
@@ -1382,43 +1155,7 @@ export default function DashboardPage() {
             ) : null}
           </div>
 
-          {/* Ações Rápidas */}
-          <div>
-            <h2 className="text-lg font-bold text-slate-950 mb-3 md:mb-4">
-              Ações Rápidas
-            </h2>
-            {/* Desktop: grid normal */}
-            <div className="hidden md:grid md:grid-cols-3 lg:grid-cols-4 gap-3">
-              {quickActions.map((action) => (
-                <QuickActionCard key={action.href} action={action} />
-              ))}
-            </div>
-            {/* Mobile: versão no topo */}
-            <div className="hidden">
-              {quickActions.map((action) => (
-                <Link
-                  key={action.href}
-                  href={action.href}
-                  className={`
-                    flex-shrink-0 w-[180px] snap-start
-                    p-4 rounded-xl border-2
-                    transition-all duration-200
-                    hover:shadow-md
-                    cursor-pointer
-                    flex items-center gap-3
-                    ${quickActionColorClasses[action.color]}
-                  `}
-                >
-                  <div className="flex-shrink-0">
-                    {action.icon}
-                  </div>
-                  <span className="font-semibold text-xs">
-                    {action.label}
-                  </span>
-                </Link>
-              ))}
-            </div>
-          </div>
+          <DashboardQuickActions actions={quickActions} />
 
           {/* Insights Inteligentes */}
           {insights.length > 0 && (
@@ -1430,10 +1167,10 @@ export default function DashboardPage() {
           )}
 
           {/* Atividade Recente */}
-          <div className="rounded-[28px] border border-[#dbe3ef] bg-white p-4 md:p-6 shadow-sm">
+          <div className="rounded-[24px] border border-[#e4e7ec] bg-white p-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)] md:p-6">
             <div className="flex items-center justify-between mb-3 md:mb-4">
-              <h2 className="text-lg font-bold text-slate-950">
-                Atividade Recente
+              <h2 className="text-[17px] font-semibold tracking-[-0.02em] text-slate-950">
+                Atividade recente
               </h2>
               <Link
                 href="/automacoes/logs"
@@ -1488,8 +1225,8 @@ export default function DashboardPage() {
                   </>
                 ) : (
                   <>
-                    <div className="h-[420px] animate-pulse rounded-[30px] border border-[#dbe3ef] bg-white" />
-                    <div className="h-[420px] animate-pulse rounded-[30px] border border-[#dbe3ef] bg-white" />
+                    <div className="h-[420px] hx-skeleton rounded-[24px]" />
+                    <div className="h-[420px] hx-skeleton rounded-[24px]" />
                   </>
                 )}
               </div>
@@ -1506,8 +1243,8 @@ export default function DashboardPage() {
                   </>
                 ) : (
                   <>
-                    <div className="h-[360px] animate-pulse rounded-[28px] border border-[#dbe3ef] bg-white" />
-                    <div className="h-[420px] animate-pulse rounded-[28px] border border-[#dbe3ef] bg-white" />
+                    <div className="h-[360px] hx-skeleton rounded-[24px]" />
+                    <div className="h-[420px] hx-skeleton rounded-[24px]" />
                   </>
                 )}
               </div>
@@ -1515,7 +1252,7 @@ export default function DashboardPage() {
               {secondaryReady ? (
                 <DashboardSecondaryKpis summary={summary} />
               ) : (
-                <div className="h-[148px] animate-pulse rounded-[28px] border border-[#dbe3ef] bg-white" />
+                <div className="h-[148px] hx-skeleton rounded-[24px]" />
               )}
             </div>
           </div>

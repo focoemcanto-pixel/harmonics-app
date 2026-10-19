@@ -73,7 +73,7 @@ function normalizeSuggestionSong(song = {}) {
 
 function EmptyState({ title, text, actionLabel, onAction }) {
   return (
-    <div className="rounded-[26px] border border-dashed border-[#dbe3ef] bg-[#f8fafc] px-5 py-8 text-center">
+    <div className="rounded-[26px] border border-dashed border-[#e4e7ec] bg-[#f8fafc] px-5 py-8 text-center">
       <div className="text-[18px] font-black text-[#0f172a]">{title}</div>
       <p className="mx-auto mt-2 max-w-xl text-[15px] leading-7 text-[#64748b]">
         {text}
@@ -94,7 +94,7 @@ function EmptyState({ title, text, actionLabel, onAction }) {
 
 function SummaryCard({ label, value, helper, tone = 'default' }) {
   const tones = {
-    default: 'border-[#dbe3ef] bg-white text-[#0f172a]',
+    default: 'border-[#e4e7ec] bg-white text-[#0f172a]',
     violet: 'border-violet-200 bg-violet-50 text-violet-800',
     amber: 'border-amber-200 bg-amber-50 text-amber-800',
     emerald: 'border-emerald-200 bg-emerald-50 text-emerald-800',
@@ -117,11 +117,11 @@ function SummaryCard({ label, value, helper, tone = 'default' }) {
 
 function SectionCard({ eyebrow, title, subtitle, right, children }) {
   return (
-    <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_26px_rgba(17,24,39,0.04)] md:p-6">
+    <section className="rounded-[24px] border border-[#e4e7ec] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)] md:p-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
           {eyebrow ? (
-            <div className="text-[12px] font-black uppercase tracking-[0.14em] text-violet-600">
+            <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#8b93a3]">
               {eyebrow}
             </div>
           ) : null}
@@ -145,7 +145,7 @@ function SectionCard({ eyebrow, title, subtitle, right, children }) {
 
 function Pill({ children, tone = 'default' }) {
   const tones = {
-    default: 'border-[#dbe3ef] bg-[#f8fafc] text-[#475569]',
+    default: 'border-[#e4e7ec] bg-[#f8fafc] text-[#475569]',
     emerald: 'border-emerald-200 bg-emerald-50 text-emerald-700',
     amber: 'border-amber-200 bg-amber-50 text-amber-700',
     red: 'border-red-200 bg-red-50 text-red-700',
@@ -170,8 +170,8 @@ function TabButton({ active, children, onClick }) {
       className={classNames(
         'rounded-[18px] px-4 py-3 text-[14px] font-black transition',
         active
-          ? 'bg-violet-600 text-white shadow-[0_12px_28px_rgba(124,58,237,0.18)]'
-          : 'bg-[#f8fafc] text-[#475569] hover:bg-[#eef2ff]'
+          ? 'bg-[#0c0d12] text-white'
+          : 'bg-transparent text-[#586174] hover:bg-[#f6f7f9]'
       )}
     >
       {children}
@@ -200,7 +200,7 @@ function Input({ value, onChange, placeholder, type = 'text' }) {
       value={value}
       onChange={onChange}
       placeholder={placeholder}
-      className="w-full rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3 text-[15px] font-semibold text-[#0f172a] outline-none transition focus:border-violet-300 focus:ring-4 focus:ring-violet-100"
+      className="w-full rounded-[16px] border border-[#e4e7ec] bg-white px-4 py-3 text-[15px] font-semibold text-[#0f172a] outline-none transition focus:border-violet-300 focus:ring-4 focus:ring-violet-100"
     />
   );
 }
@@ -212,7 +212,7 @@ function Textarea({ value, onChange, placeholder, rows = 3 }) {
       value={value}
       onChange={onChange}
       placeholder={placeholder}
-      className="w-full rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3 text-[15px] font-semibold text-[#0f172a] outline-none transition focus:border-violet-300 focus:ring-4 focus:ring-violet-100"
+      className="w-full rounded-[16px] border border-[#e4e7ec] bg-white px-4 py-3 text-[15px] font-semibold text-[#0f172a] outline-none transition focus:border-violet-300 focus:ring-4 focus:ring-violet-100"
     />
   );
 }
@@ -222,7 +222,7 @@ function Select({ value, onChange, children }) {
     <select
       value={value}
       onChange={onChange}
-      className="w-full rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3 text-[15px] font-semibold text-[#0f172a] outline-none transition focus:border-violet-300 focus:ring-4 focus:ring-violet-100"
+      className="w-full rounded-[16px] border border-[#e4e7ec] bg-white px-4 py-3 text-[15px] font-semibold text-[#0f172a] outline-none transition focus:border-violet-300 focus:ring-4 focus:ring-violet-100"
     >
       {children}
     </select>
@@ -231,7 +231,7 @@ function Select({ value, onChange, children }) {
 
 function Checkbox({ checked, onChange, label }) {
   return (
-    <label className="flex items-center gap-3 rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3">
+    <label className="flex items-center gap-3 rounded-[16px] border border-[#e4e7ec] bg-white px-4 py-3">
       <input
         type="checkbox"
         checked={checked}
@@ -358,11 +358,11 @@ function SuggestionEditorModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-[rgba(15,23,42,0.45)] p-4 md:items-center">
-      <div className="max-h-[92vh] w-full max-w-5xl overflow-auto rounded-[30px] border border-[#dbe3ef] bg-[#f8fafc] shadow-[0_30px_90px_rgba(15,23,42,0.26)]">
+      <div className="max-h-[92vh] w-full max-w-5xl overflow-auto rounded-[24px] border border-[#e4e7ec] bg-[#f8fafc] shadow-[0_30px_90px_rgba(15,23,42,0.26)]">
         <div className="sticky top-0 z-10 border-b border-[#e5edf6] bg-white/95 px-6 py-5 backdrop-blur">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <div className="text-[12px] font-black uppercase tracking-[0.1em] text-violet-600">
+              <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#8b93a3]">
                 Biblioteca musical
               </div>
               <div className="mt-1 text-[24px] font-black tracking-[-0.03em] text-[#0f172a]">
@@ -376,7 +376,7 @@ function SuggestionEditorModal({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3 text-[13px] font-black text-[#0f172a]"
+              className="rounded-[16px] border border-[#e4e7ec] bg-white px-4 py-3 text-[13px] font-black text-[#0f172a]"
             >
               Fechar
             </button>
@@ -549,7 +549,7 @@ function SuggestionEditorModal({
                 </div>
 
                 <FormField label="Tags editoriais">
-                  <div className="flex flex-wrap gap-2 rounded-[18px] border border-[#dbe3ef] bg-white p-3">
+                  <div className="flex flex-wrap gap-2 rounded-[18px] border border-[#e4e7ec] bg-white p-3">
                     {tags.length ? (
                       tags.map((tag) => {
                         const active = form.tag_ids.includes(tag.id);
@@ -562,7 +562,7 @@ function SuggestionEditorModal({
                               'rounded-full px-3 py-2 text-[12px] font-black transition',
                               active
                                 ? 'bg-violet-100 text-violet-700'
-                                : 'border border-[#dbe3ef] bg-white text-[#475569]'
+                                : 'border border-[#e4e7ec] bg-white text-[#475569]'
                             )}
                           >
                             {tag.name}
@@ -578,7 +578,7 @@ function SuggestionEditorModal({
                 </FormField>
 
                 <FormField label="Coleções">
-                  <div className="flex flex-wrap gap-2 rounded-[18px] border border-[#dbe3ef] bg-white p-3">
+                  <div className="flex flex-wrap gap-2 rounded-[18px] border border-[#e4e7ec] bg-white p-3">
                     {collections.length ? (
                       collections.map((collection) => {
                         const active = form.collection_ids.includes(collection.id);
@@ -591,7 +591,7 @@ function SuggestionEditorModal({
                               'rounded-full px-3 py-2 text-[12px] font-black transition',
                               active
                                 ? 'bg-violet-100 text-violet-700'
-                                : 'border border-[#dbe3ef] bg-white text-[#475569]'
+                                : 'border border-[#e4e7ec] bg-white text-[#475569]'
                             )}
                           >
                             {collection.name}
@@ -611,7 +611,7 @@ function SuggestionEditorModal({
 
           <div className="space-y-6">
             <SectionCard eyebrow="Prévia" title="Como vai aparecer">
-              <div className="overflow-hidden rounded-[24px] border border-[#dbe3ef] bg-white shadow-[0_8px_24px_rgba(15,23,42,0.06)]">
+              <div className="overflow-hidden rounded-[24px] border border-[#e4e7ec] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
                 <div className="relative h-[220px] bg-[#f3f4f6]">
                   {form.thumbnail_url ? (
                     <img
@@ -705,7 +705,7 @@ function SuggestionEditorModal({
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-[18px] border border-[#dbe3ef] bg-white px-5 py-4 text-[15px] font-black text-[#0f172a]"
+                className="rounded-[18px] border border-[#e4e7ec] bg-white px-5 py-4 text-[15px] font-black text-[#0f172a]"
               >
                 Cancelar
               </button>
@@ -866,12 +866,12 @@ function SuggestoesBibliotecaTab({
       />
 
       {loading ? (
-        <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_10px_30px_rgba(15,23,42,0.05)] md:p-6">
+        <section className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)] md:p-6">
           <div className="grid gap-4 xl:grid-cols-2">
             {Array.from({ length: 6 }).map((_, index) => (
               <div
                 key={index}
-                className="overflow-hidden rounded-[28px] border border-slate-200 bg-white"
+                className="overflow-hidden rounded-[24px] border border-slate-200 bg-white"
               >
                 <div className="h-[164px] animate-pulse bg-slate-200" />
                 <div className="space-y-3 p-5">
@@ -966,17 +966,17 @@ function SuggestoesRepertoriosTab({
         </div>
       </SectionCard>
 
-      <div className="rounded-[24px] border border-[#dbe3ef] bg-white p-4 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
+      <div className="rounded-[24px] border border-[#e4e7ec] bg-white p-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
         <input
           value={search}
           onChange={(event) => setSearch(event.target.value)}
           placeholder={searchPlaceholder}
-          className="w-full rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3 text-[15px] font-semibold text-[#0f172a] outline-none transition focus:border-violet-300 focus:ring-4 focus:ring-violet-100"
+          className="w-full rounded-[16px] border border-[#e4e7ec] bg-white px-4 py-3 text-[15px] font-semibold text-[#0f172a] outline-none transition focus:border-violet-300 focus:ring-4 focus:ring-violet-100"
         />
       </div>
 
       {loading ? (
-        <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_10px_30px_rgba(15,23,42,0.05)] md:p-6">
+        <section className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)] md:p-6">
           <div className="grid gap-4 xl:grid-cols-2">
             {Array.from({ length: 6 }).map((_, index) => (
               <div key={index} className="h-36 animate-pulse rounded-[24px] bg-slate-100" />
@@ -994,7 +994,7 @@ function SuggestoesRepertoriosTab({
             const isBusy = importingKey === song.key;
             const wasImportedNow = song.already_in_catalog && recentlyImportedKeys.has(song.key);
             return (
-              <article key={song.key} className="rounded-[24px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_26px_rgba(15,23,42,0.05)]">
+              <article key={song.key} className="rounded-[24px] border border-[#e4e7ec] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <h3 className="truncate text-[20px] font-black tracking-[-0.03em] text-[#0f172a]">{song.title}</h3>
@@ -1030,12 +1030,12 @@ function SuggestoesRepertoriosTab({
                       href={song.youtube_url}
                       target="_blank"
                       rel="noreferrer"
-                      className="rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3 text-center text-[13px] font-black text-[#0f172a]"
+                      className="rounded-[16px] border border-[#e4e7ec] bg-white px-4 py-3 text-center text-[13px] font-black text-[#0f172a]"
                     >
                       Abrir referência
                     </a>
                   ) : (
-                    <div className="rounded-[16px] border border-dashed border-[#dbe3ef] px-4 py-3 text-center text-[12px] font-bold text-[#94a3b8]">
+                    <div className="rounded-[16px] border border-dashed border-[#e4e7ec] px-4 py-3 text-center text-[12px] font-bold text-[#94a3b8]">
                       Sem referência externa
                     </div>
                   )}
@@ -1051,7 +1051,7 @@ function SuggestoesRepertoriosTab({
 
 function TaxonomyCard({ item, typeLabel, usageCount = 0, onEdit, onToggleActive }) {
   return (
-    <div className="rounded-[24px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_26px_rgba(15,23,42,0.05)]">
+    <div className="rounded-[24px] border border-[#e4e7ec] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="text-[20px] font-black tracking-[-0.03em] text-[#0f172a]">
@@ -1077,7 +1077,7 @@ function TaxonomyCard({ item, typeLabel, usageCount = 0, onEdit, onToggleActive 
         <button
           type="button"
           onClick={() => onEdit(item)}
-          className="rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3 text-[13px] font-black text-[#0f172a]"
+          className="rounded-[16px] border border-[#e4e7ec] bg-white px-4 py-3 text-[13px] font-black text-[#0f172a]"
         >
           Editar
         </button>
@@ -1129,11 +1129,11 @@ function TaxonomyEditorModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-[rgba(15,23,42,0.45)] p-4 md:items-center">
-      <div className="w-full max-w-2xl overflow-hidden rounded-[30px] border border-[#dbe3ef] bg-[#f8fafc] shadow-[0_30px_90px_rgba(15,23,42,0.26)]">
+      <div className="w-full max-w-2xl overflow-hidden rounded-[24px] border border-[#e4e7ec] bg-[#f8fafc] shadow-[0_30px_90px_rgba(15,23,42,0.26)]">
         <div className="border-b border-[#e5edf6] bg-white px-6 py-5">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <div className="text-[12px] font-black uppercase tracking-[0.1em] text-violet-600">
+              <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#8b93a3]">
                 {eyebrow}
               </div>
               <div className="mt-1 text-[24px] font-black tracking-[-0.03em] text-[#0f172a]">
@@ -1144,7 +1144,7 @@ function TaxonomyEditorModal({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3 text-[13px] font-black text-[#0f172a]"
+              className="rounded-[16px] border border-[#e4e7ec] bg-white px-4 py-3 text-[13px] font-black text-[#0f172a]"
             >
               Fechar
             </button>
@@ -1211,7 +1211,7 @@ function TaxonomyEditorModal({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-[18px] border border-[#dbe3ef] bg-white px-5 py-4 text-[15px] font-black text-[#0f172a]"
+              className="rounded-[18px] border border-[#e4e7ec] bg-white px-5 py-4 text-[15px] font-black text-[#0f172a]"
             >
               Cancelar
             </button>
@@ -1270,10 +1270,10 @@ function SuggestoesGenerosTab({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar gênero..."
-            className="w-full rounded-[18px] border border-[#dbe3ef] bg-white px-4 py-3 text-[15px] font-semibold text-[#0f172a] outline-none transition focus:border-violet-300 focus:ring-4 focus:ring-violet-100"
+            className="w-full rounded-[18px] border border-[#e4e7ec] bg-white px-4 py-3 text-[15px] font-semibold text-[#0f172a] outline-none transition focus:border-violet-300 focus:ring-4 focus:ring-violet-100"
           />
 
-          <div className="rounded-[18px] border border-[#dbe3ef] bg-[#f8fafc] px-4 py-3 text-[14px] font-black text-[#475569]">
+          <div className="rounded-[18px] border border-[#e4e7ec] bg-[#f8fafc] px-4 py-3 text-[14px] font-black text-[#475569]">
             {filtered.length} encontrado(s)
           </div>
         </div>
@@ -1285,7 +1285,7 @@ function SuggestoesGenerosTab({
             {Array.from({ length: 4 }).map((_, index) => (
               <div
                 key={index}
-                className="h-[220px] animate-pulse rounded-[28px] bg-[#eef2f7]"
+                className="h-[220px] animate-pulse rounded-[24px] bg-[#eef2f7]"
               />
             ))}
           </div>
@@ -1363,10 +1363,10 @@ function SuggestoesMomentosTab({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar momento..."
-            className="w-full rounded-[18px] border border-[#dbe3ef] bg-white px-4 py-3 text-[15px] font-semibold text-[#0f172a] outline-none transition focus:border-violet-300 focus:ring-4 focus:ring-violet-100"
+            className="w-full rounded-[18px] border border-[#e4e7ec] bg-white px-4 py-3 text-[15px] font-semibold text-[#0f172a] outline-none transition focus:border-violet-300 focus:ring-4 focus:ring-violet-100"
           />
 
-          <div className="rounded-[18px] border border-[#dbe3ef] bg-[#f8fafc] px-4 py-3 text-[14px] font-black text-[#475569]">
+          <div className="rounded-[18px] border border-[#e4e7ec] bg-[#f8fafc] px-4 py-3 text-[14px] font-black text-[#475569]">
             {filtered.length} encontrado(s)
           </div>
         </div>
@@ -1378,7 +1378,7 @@ function SuggestoesMomentosTab({
             {Array.from({ length: 4 }).map((_, index) => (
               <div
                 key={index}
-                className="h-[220px] animate-pulse rounded-[28px] bg-[#eef2f7]"
+                className="h-[220px] animate-pulse rounded-[24px] bg-[#eef2f7]"
               />
             ))}
           </div>
@@ -1552,7 +1552,7 @@ function SuggestoesColecoesTab({ automaticCollections, manualCollections, loadin
         ) : (
           <div className="grid gap-3 md:grid-cols-2">
             {manualCollections.map((collection) => (
-              <div key={collection.id} className="rounded-[18px] border border-[#dbe3ef] bg-white p-4">
+              <div key={collection.id} className="rounded-[18px] border border-[#e4e7ec] bg-white p-4">
                 <div className="text-[16px] font-black text-[#0f172a]">{collection.name}</div>
                 <div className="text-[13px] font-semibold text-[#64748b]">slug: {collection.slug}</div>
               </div>
@@ -2137,7 +2137,7 @@ const [savingMoment, setSavingMoment] = useState(false);
   return (
     <div className="space-y-5">
       <SectionCard
-        eyebrow="Harmonics Admin"
+        eyebrow="Curadoria musical"
         title="Sugestões"
         subtitle="Gerencie a curadoria musical do painel do cliente com controle editorial, visão de catálogo e ações rápidas."
         right={
@@ -2161,7 +2161,7 @@ const [savingMoment, setSavingMoment] = useState(false);
 
             <Link
               href="/cliente/demo"
-              className="rounded-[18px] border border-[#dbe3ef] bg-white px-5 py-4 text-[14px] font-black text-[#0f172a]"
+              className="rounded-[18px] border border-[#e4e7ec] bg-white px-5 py-4 text-[14px] font-black text-[#0f172a]"
             >
               Ver painel do cliente
             </Link>
@@ -2207,7 +2207,7 @@ const [savingMoment, setSavingMoment] = useState(false);
         </div>
       ) : null}
 
-      <div className="rounded-[24px] border border-[#dbe3ef] bg-white p-2 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
+      <div className="rounded-[24px] border border-[#e4e7ec] bg-white p-2 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
         <div className="flex flex-wrap gap-2">
           {tabs.map((tab) => (
             <TabButton

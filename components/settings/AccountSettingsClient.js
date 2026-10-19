@@ -94,7 +94,7 @@ export default function AccountSettingsClient() {
 
   if (loading) {
     return (
-      <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-8 text-[#64748b]">
+      <section className="rounded-[24px] border border-[#e4e7ec] bg-white p-8 text-[#64748b]">
         Carregando dados da conta...
       </section>
     );
@@ -102,10 +102,10 @@ export default function AccountSettingsClient() {
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_0.8fr]">
-      <section className="rounded-[30px] border border-[#dbe3ef] bg-white p-6 shadow-[0_12px_28px_rgba(15,23,42,0.04)]">
+      <section className="rounded-[24px] border border-[#e4e7ec] bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <div className="text-[12px] font-black uppercase tracking-[0.14em] text-violet-700">
+            <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#8b93a3]">
               Perfil
             </div>
 
@@ -142,7 +142,7 @@ export default function AccountSettingsClient() {
             <input
               value={name}
               onChange={(event) => setName(event.target.value)}
-              className="mt-2 w-full rounded-2xl border border-[#dbe3ef] px-4 py-3 text-[14px] font-semibold outline-none transition focus:border-violet-400"
+              className="mt-2 w-full rounded-2xl border border-[#e4e7ec] px-4 py-3 text-[14px] font-semibold outline-none transition focus:border-violet-400"
               placeholder="Seu nome"
             />
           </label>
@@ -155,7 +155,7 @@ export default function AccountSettingsClient() {
             <input
               value={profile?.email || ''}
               disabled
-              className="mt-2 w-full rounded-2xl border border-[#dbe3ef] bg-slate-50 px-4 py-3 text-[14px] font-semibold text-slate-500"
+              className="mt-2 w-full rounded-2xl border border-[#e4e7ec] bg-slate-50 px-4 py-3 text-[14px] font-semibold text-slate-500"
             />
           </label>
 
@@ -173,7 +173,7 @@ export default function AccountSettingsClient() {
               type="button"
               onClick={sendPasswordReset}
               disabled={sendingReset}
-              className="rounded-2xl border border-[#dbe3ef] bg-white px-5 py-3 text-sm font-black text-[#0f172a] transition hover:bg-slate-50 disabled:opacity-50"
+              className="rounded-2xl border border-[#e4e7ec] bg-white px-5 py-3 text-sm font-black text-[#0f172a] transition hover:bg-slate-50 disabled:opacity-50"
             >
               {sendingReset ? 'Enviando...' : 'Redefinir senha'}
             </button>
@@ -182,8 +182,8 @@ export default function AccountSettingsClient() {
       </section>
 
       <div className="space-y-6">
-        <section className="rounded-[30px] border border-[#dbe3ef] bg-white p-6 shadow-[0_12px_28px_rgba(15,23,42,0.04)]">
-          <div className="text-[12px] font-black uppercase tracking-[0.14em] text-violet-700">
+        <section className="rounded-[24px] border border-[#e4e7ec] bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
+          <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#8b93a3]">
             Segurança
           </div>
 
@@ -191,7 +191,7 @@ export default function AccountSettingsClient() {
             Sessão ativa
           </h2>
 
-          <div className="mt-5 rounded-2xl border border-[#dbe3ef] bg-slate-50 p-4">
+          <div className="mt-5 rounded-2xl border border-[#e4e7ec] bg-slate-50 p-4">
             <div className="text-sm font-black text-[#0f172a]">
               Sessão autenticada
             </div>
@@ -210,7 +210,7 @@ export default function AccountSettingsClient() {
           </button>
         </section>
 
-        <section className="rounded-[30px] border border-[#dbe3ef] bg-white p-6 shadow-[0_12px_28px_rgba(15,23,42,0.04)]">
+        <section className="rounded-[24px] border border-[#e4e7ec] bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
           <div className="text-[12px] font-black uppercase tracking-[0.14em] text-slate-500">
             Em breve
           </div>

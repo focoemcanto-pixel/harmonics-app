@@ -3,28 +3,24 @@
 function getToneClasses(tone) {
   switch (tone) {
     case 'emerald':
-      return 'bg-emerald-100 text-emerald-700';
+      return 'bg-emerald-50 text-emerald-700 ring-emerald-600/15';
     case 'amber':
-      return 'bg-amber-100 text-amber-800';
+      return 'bg-amber-50 text-amber-800 ring-amber-600/20';
     case 'red':
-      return 'bg-red-100 text-red-700';
+      return 'bg-red-50 text-red-700 ring-red-600/15';
     case 'violet':
-      return 'bg-violet-100 text-violet-700';
+      return 'bg-violet-50 text-violet-700 ring-violet-600/15';
     case 'blue':
-      return 'bg-sky-100 text-sky-700';
-    case 'slate':
-      return 'bg-slate-100 text-slate-700';
+      return 'bg-sky-50 text-sky-700 ring-sky-600/15';
     default:
-      return 'bg-slate-100 text-slate-700';
+      return 'bg-[#f2f4f7] text-[#475467] ring-[#475467]/10';
   }
 }
 
 export default function AdminPill({ tone = 'default', children }) {
   return (
     <span
-      className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.08em] ${getToneClasses(
-        tone
-      )}`}
+      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${getToneClasses(tone)}`}
     >
       {children}
     </span>

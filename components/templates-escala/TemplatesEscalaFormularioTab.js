@@ -13,7 +13,7 @@ function normalizeText(value) {
 
 function MemberChip({ item, index, atualizarItem, removerItem }) {
   return (
-    <div className="rounded-[22px] border border-[#dbe3ef] bg-white p-4 shadow-[0_8px_22px_rgba(17,24,39,0.04)]">
+    <div className="rounded-[22px] border border-[#e4e7ec] bg-white p-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div className="min-w-0">
           <div className="text-[18px] font-black text-[#0f172a]">
@@ -85,10 +85,10 @@ export default function TemplatesEscalaFormularioTab({
 
   return (
     <section className="space-y-5">
-      <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_26px_rgba(17,24,39,0.04)] md:p-6">
+      <section className="rounded-[24px] border border-[#e4e7ec] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)] md:p-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
-            <div className="text-[12px] font-black uppercase tracking-[0.14em] text-violet-600">
+            <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#8b93a3]">
               Automação operacional
             </div>
             <h2 className="mt-2 text-[28px] font-black tracking-[-0.04em] text-[#0f172a]">
@@ -153,7 +153,7 @@ export default function TemplatesEscalaFormularioTab({
             />
           </Field>
 
-          <div className="rounded-[22px] border border-[#dbe3ef] bg-[#f8fafc] p-4">
+          <div className="rounded-[22px] border border-[#e4e7ec] bg-[#f8fafc] p-4">
             <label className="flex items-start gap-3">
               <input
                 type="checkbox"
@@ -179,15 +179,15 @@ export default function TemplatesEscalaFormularioTab({
                 onChange={(e) => handleFormChange('notes', e.target.value)}
                 rows={4}
                 placeholder="Ex.: template padrão para cerimônia clássica com time principal"
-                className="w-full rounded-[18px] border border-[#dbe3ef] bg-white px-4 py-3 text-[15px] text-[#0f172a] outline-none transition focus:border-violet-300 focus:ring-4 focus:ring-violet-100"
+                className="w-full rounded-[18px] border border-[#e4e7ec] bg-white px-4 py-3 text-[15px] text-[#0f172a] outline-none transition focus:border-violet-300 focus:ring-4 focus:ring-violet-100"
               />
             </Field>
           </div>
         </div>
       </section>
 
-      <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_26px_rgba(17,24,39,0.04)] md:p-6">
-        <div className="text-[12px] font-black uppercase tracking-[0.14em] text-violet-600">
+      <section className="rounded-[24px] border border-[#e4e7ec] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)] md:p-6">
+        <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#8b93a3]">
           Membros base
         </div>
         <h3 className="mt-2 text-[24px] font-black tracking-[-0.03em] text-[#0f172a]">
@@ -236,7 +236,7 @@ export default function TemplatesEscalaFormularioTab({
 
         <div className="mt-5 space-y-4">
           {itens.length === 0 ? (
-            <div className="rounded-[20px] border border-dashed border-[#dbe3ef] bg-[#f8fafc] px-4 py-5 text-[15px] font-semibold text-[#64748b]">
+            <div className="rounded-[20px] border border-dashed border-[#e4e7ec] bg-[#f8fafc] px-4 py-5 text-[15px] font-semibold text-[#64748b]">
               Nenhum membro adicionado ao template ainda.
             </div>
           ) : (
@@ -257,7 +257,7 @@ export default function TemplatesEscalaFormularioTab({
             type="button"
             onClick={cancelarEdicao}
             disabled={salvando}
-            className="rounded-[18px] border border-[#dbe3ef] bg-white px-5 py-4 text-[15px] font-black text-[#0f172a] disabled:opacity-60"
+            className="rounded-[18px] border border-[#e4e7ec] bg-white px-5 py-4 text-[15px] font-black text-[#0f172a] disabled:opacity-60"
           >
             Cancelar
           </button>

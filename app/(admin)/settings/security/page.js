@@ -15,22 +15,22 @@ export default function SecuritySettingsPage() {
   return (
     <AdminShell pageTitle="Segurança" activeItem="settings" mobileSubtitle="Proteção e auditoria">
       <div className="space-y-6">
-        <section className="rounded-[30px] border border-[#dbe3ef] bg-white p-6 shadow-[0_12px_28px_rgba(15,23,42,0.04)]">
-          <div className="text-[12px] font-black uppercase tracking-[0.14em] text-violet-700">
+        <section className="pt-1 md:pt-2">
+          <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#8b93a3]">
             Segurança
           </div>
 
-          <h1 className="mt-2 text-[34px] font-black tracking-[-0.05em] text-[#0f172a] md:text-[44px]">
+          <h1 className="mt-2 text-[26px] font-semibold tracking-[-0.03em] text-[#0c0d12] md:text-[34px]">
             Segurança e governança
           </h1>
 
-          <p className="mt-3 max-w-3xl text-[15px] font-semibold leading-7 text-[#64748b]">
+          <p className="mt-1.5 max-w-3xl text-[14px] leading-6 text-[#586174] md:text-[15px]">
             O Harmonics já opera com isolamento por workspace e proteção de membership. Esta área centralizará auditoria, 2FA, logs e governança avançada do SaaS.
           </p>
         </section>
 
         <section className="grid gap-6 lg:grid-cols-[1fr_0.9fr]">
-          <div className="rounded-[30px] border border-[#dbe3ef] bg-white p-6 shadow-[0_12px_28px_rgba(15,23,42,0.04)]">
+          <div className="rounded-[24px] border border-[#e4e7ec] bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
             <h2 className="text-[24px] font-black tracking-[-0.03em] text-[#0f172a]">
               Camadas já implementadas
             </h2>
@@ -44,7 +44,7 @@ export default function SecuritySettingsPage() {
             </div>
           </div>
 
-          <div className="rounded-[30px] border border-amber-200 bg-amber-50 p-6 shadow-[0_12px_28px_rgba(15,23,42,0.04)]">
+          <div className="rounded-[24px] border border-amber-200 bg-amber-50 p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
             <div className="text-[12px] font-black uppercase tracking-[0.14em] text-amber-700">
               Roadmap
             </div>

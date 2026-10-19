@@ -559,7 +559,7 @@ export default function TemplatesEscalaPage() {
   if (carregando || workspaceLoading) {
     return (
       <AdminShell pageTitle="Templates de escala" activeItem="escalas" mobileActions={mobileActions}>
-        <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-6 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
+        <section className="rounded-[24px] border border-[#e4e7ec] bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
           <p className="text-center text-[#64748b]">Carregando templates...</p>
         </section>
       </AdminShell>
@@ -570,7 +570,7 @@ export default function TemplatesEscalaPage() {
     <AdminShell pageTitle="Templates de escala" activeItem="escalas" mobileActions={mobileActions}>
       <div className="space-y-5">
         {isFormationGuide ? (
-          <section className="overflow-hidden rounded-[32px] border border-violet-200 bg-white shadow-[0_18px_54px_rgba(124,58,237,0.12)]" data-onboarding-tour="formation-template-guide">
+          <section className="overflow-hidden rounded-[24px] border border-violet-200 bg-white shadow-[0_18px_54px_rgba(124,58,237,0.12)]" data-onboarding-tour="formation-template-guide">
             <div className="bg-gradient-to-br from-violet-700 via-purple-700 to-fuchsia-600 px-5 py-5 text-white md:px-7">
               <div className="text-[12px] font-black uppercase tracking-[0.16em] text-violet-100">Etapa operacional</div>
               <h2 className="mt-2 text-[28px] font-black tracking-[-0.04em] md:text-[34px]">Crie uma formação inteligente reutilizável</h2>
@@ -582,7 +582,7 @@ export default function TemplatesEscalaPage() {
             <div className="grid grid-cols-1 gap-4 p-5 md:grid-cols-[1.4fr_0.9fr] md:p-7">
               <div className="space-y-4">
                 <div className="rounded-[24px] border border-violet-100 bg-violet-50 p-4">
-                  <div className="text-sm font-black uppercase tracking-[0.12em] text-violet-700">Modelo sugerido</div>
+                  <div className="text-sm font-semibold uppercase tracking-[0.08em] text-[#8b93a3]">Modelo sugerido</div>
                   <h3 className="mt-2 text-2xl font-black text-slate-900">Formação Demo Premium</h3>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {(formationGuideStatus.requiredRoles || ['Voz', 'Piano', 'Violino']).map((role) => (
@@ -677,7 +677,7 @@ export default function TemplatesEscalaPage() {
         </div>
 
         <div className="hidden md:block">
-          <div className="rounded-[24px] border border-[#dbe3ef] bg-white p-2 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
+          <div className="rounded-[24px] border border-[#e4e7ec] bg-white p-2 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
             <div className="flex flex-wrap gap-2">
               {DESKTOP_TABS.map((tab) => {
                 const active = desktopTab === tab.key;
@@ -688,8 +688,8 @@ export default function TemplatesEscalaPage() {
                     onClick={() => setDesktopTab(tab.key)}
                     className={`rounded-[18px] px-4 py-3 text-[14px] font-black transition ${
                       active
-                        ? 'bg-violet-600 text-white shadow-[0_12px_28px_rgba(124,58,237,0.18)]'
-                        : 'bg-[#f8fafc] text-[#475569] hover:bg-[#eef2ff]'
+                        ? 'bg-[#0c0d12] text-white'
+                        : 'bg-transparent text-[#586174] hover:bg-[#f6f7f9]'
                     }`}
                   >
                     {tab.label}

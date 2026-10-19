@@ -352,7 +352,7 @@ function GestaoUsuariosContent() {
         )}
 
         {/* Cadastro */}
-        <div className="rounded-[28px] border border-[#dbe3ef] bg-white p-6 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
+        <div className="rounded-[24px] border border-[#e4e7ec] bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
           <h2 className="text-lg font-bold text-slate-900 mb-4">Cadastrar novo usuário</h2>
 
           <form onSubmit={cadastrarUsuario} className="space-y-4">
@@ -453,7 +453,7 @@ function GestaoUsuariosContent() {
         </div>
 
         {/* Lista de usuários */}
-        <div className="rounded-[28px] border border-[#dbe3ef] bg-white p-6 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
+        <div className="rounded-[24px] border border-[#e4e7ec] bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
           <h2 className="text-lg font-bold text-slate-900 mb-4">
             Usuários cadastrados
             {!loading && (
@@ -550,7 +550,7 @@ function GestaoUsuariosContent() {
           role="presentation"
         >
           <div
-            className="w-full max-w-md rounded-[28px] border border-slate-200 bg-white p-6 shadow-2xl"
+            className="w-full max-w-md rounded-[24px] border border-slate-200 bg-white p-6 shadow-2xl"
             role="dialog"
             aria-modal="true"
             aria-labelledby="edit-user-modal-title"
@@ -608,7 +608,7 @@ function GestaoUsuariosContent() {
           role="presentation"
         >
           <div
-            className="w-full max-w-md rounded-[28px] border border-white/20 bg-white/95 p-6 shadow-2xl"
+            className="w-full max-w-md rounded-[24px] border border-white/20 bg-white/95 p-6 shadow-2xl"
             role="dialog"
             aria-modal="true"
             aria-labelledby="delete-user-modal-title"

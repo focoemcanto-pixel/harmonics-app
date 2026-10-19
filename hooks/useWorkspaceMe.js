@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { AuthContext } from '@/contexts/AuthContext';
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const STALE_CACHE_TTL_MS = 30 * 60 * 1000;
@@ -76,6 +77,10 @@ export function invalidateWorkspaceMeCache({ broadcast = true } = {}) {
 
 export default function useWorkspaceMe({ enabled = true } = {}) {
   const mountedRef = useRef(false);
+  // Cache em memória é por usuário: se outra conta assumir esta aba, descarta antes de usar.
+  const authUserId = useContext(AuthContext)?.user?.id || null;
+  const cachedUserId = workspaceMeCache.value?.user?.id || null;
+  if (authUserId && cachedUserId && cachedUserId !== authUserId) clearWorkspaceMeCache();
   const hasUsableCache = isCacheUsable();
   const [data, setData] = useState(() => (hasUsableCache ? workspaceMeCache.value : null));
   const [loading, setLoading] = useState(enabled && !hasUsableCache);

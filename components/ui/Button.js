@@ -8,11 +8,11 @@ export default function Button({
 }) {
   const variants = {
     primary:
-      'bg-violet-600 text-white hover:bg-violet-700',
+      'bg-violet-600 text-white hover:bg-violet-700 shadow-[0_1px_2px_rgba(16,24,40,0.08)]',
     secondary:
-      'bg-slate-900 text-white hover:bg-slate-800',
+      'bg-[#0c0d12] text-white hover:bg-black',
     soft:
-      'bg-slate-100 text-slate-800 hover:bg-slate-200',
+      'border border-[#e4e7ec] bg-white text-slate-800 hover:bg-[#f6f7f9]',
     danger:
       'bg-red-500 text-white hover:bg-red-600',
     success:
@@ -26,7 +26,7 @@ export default function Button({
       type={type}
       onClick={onClick}
       disabled={disabled}
-      className={`inline-flex min-h-11 touch-manipulation items-center justify-center rounded-2xl px-4 py-3 text-center text-sm font-semibold transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 disabled:active:scale-100 ${variants[variant]} ${className}`}
+      className={`inline-flex min-h-11 touch-manipulation items-center justify-center rounded-full px-5 py-2.5 text-center text-sm font-semibold transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 disabled:active:scale-100 ${variants[variant]} ${className}`}
     >
       {children}
     </button>

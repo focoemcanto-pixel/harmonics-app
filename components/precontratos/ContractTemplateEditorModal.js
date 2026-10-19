@@ -108,11 +108,11 @@ export default function ContractTemplateEditorModal({
       onClick={handleClose}
     >
       <div
-        className="mx-auto flex h-[100dvh] w-full max-w-6xl flex-col overflow-hidden rounded-t-[28px] border border-white/10 bg-white shadow-[0_32px_90px_rgba(0,0,0,0.4)] md:mt-4 md:h-[calc(100dvh-32px)] md:rounded-[30px]"
+        className="mx-auto flex h-[100dvh] w-full max-w-6xl flex-col overflow-hidden rounded-t-[28px] border border-white/10 bg-white shadow-[0_32px_90px_rgba(0,0,0,0.4)] md:mt-4 md:h-[calc(100dvh-32px)] md:rounded-[24px]"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="shrink-0 border-b border-slate-200 px-5 py-4 md:px-7 md:py-5">
-          <p className="text-[11px] font-black uppercase tracking-[0.12em] text-violet-600/80">Editor de documento</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#8b93a3]/80">Editor de documento</p>
           <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
             <div>
               <h3 className="text-xl font-black tracking-[-0.02em] text-slate-900 md:text-2xl">Editar modelo deste contrato</h3>
@@ -186,7 +186,7 @@ export default function ContractTemplateEditorModal({
                 <p className="text-xs font-bold uppercase tracking-[0.1em] text-slate-500">Preview</p>
               </div>
               <div className="min-h-0 flex-1 overflow-y-auto p-4 md:p-6">
-                <div className="mx-auto w-full max-w-[680px] rounded-[24px] border border-slate-200 bg-white p-6 shadow-[0_20px_45px_rgba(15,23,42,0.08)] md:p-8">
+                <div className="mx-auto w-full max-w-[680px] rounded-[24px] border border-slate-200 bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)] md:p-8">
                   {previewHtml ? (
                     <div className="prose prose-slate max-w-none text-[15px] leading-7" dangerouslySetInnerHTML={{ __html: previewHtml }} />
                   ) : (

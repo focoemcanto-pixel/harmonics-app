@@ -335,7 +335,7 @@ function FeedbackBanner({ feedback, onClose }) {
 
   return (
     <div
-      className={`rounded-[22px] border px-4 py-4 shadow-[0_8px_20px_rgba(17,24,39,0.04)] ${tones[feedback.type] || tones.info}`}
+      className={`rounded-[22px] border px-4 py-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)] ${tones[feedback.type] || tones.info}`}
     >
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
@@ -372,7 +372,7 @@ function isOnboardingDemoEvent(event) {
 function CleanupFakeEventGuide({ event, eventId, onDelete, deleting, onClose }) {
   const isDemo = isOnboardingDemoEvent(event);
   return (
-    <aside className="fixed bottom-4 right-4 z-[70] w-[calc(100vw-2rem)] max-w-lg rounded-3xl border border-amber-200 bg-white/95 p-4 shadow-2xl shadow-amber-950/20 backdrop-blur md:bottom-6 md:right-6">
+    <aside className="fixed bottom-[calc(env(safe-area-inset-bottom,0px)+80px)] right-4 z-[70] w-[calc(100vw-2rem)] max-w-lg rounded-3xl border border-amber-200 bg-white/95 p-4 shadow-2xl shadow-amber-950/20 backdrop-blur md:bottom-6 md:right-6">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-black uppercase tracking-[0.22em] text-amber-600">Cleanup do onboarding</p>
@@ -431,7 +431,7 @@ function DeleteEventDialog({
             type="button"
             onClick={onCancel}
             disabled={loading}
-            className="rounded-[14px] border border-[#dbe3ef] bg-white px-4 py-2 text-[13px] font-black text-[#0f172a]"
+            className="rounded-[14px] border border-[#e4e7ec] bg-white px-4 py-2 text-[13px] font-black text-[#0f172a]"
           >
             Cancelar
           </button>
@@ -479,7 +479,7 @@ function BulkDeleteDialog({
             type="button"
             onClick={onCancel}
             disabled={loading}
-            className="rounded-[14px] border border-[#dbe3ef] bg-white px-4 py-2 text-[13px] font-black text-[#0f172a]"
+            className="rounded-[14px] border border-[#e4e7ec] bg-white px-4 py-2 text-[13px] font-black text-[#0f172a]"
           >
             Cancelar
           </button>
@@ -2165,7 +2165,7 @@ export default function EventosPage() {
 
   function renderLista() {
     return (
-      <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_26px_rgba(17,24,39,0.04)] md:p-6">
+      <section className="rounded-[24px] border border-[#e4e7ec] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)] md:p-6">
         <AdminSectionTitle
           title={EVENTOS_LIST_TITLE}
           subtitle={EVENTOS_LIST_SUBTITLE}
@@ -2204,7 +2204,7 @@ export default function EventosPage() {
           </Select>
         </div>
 
-        <div className="mb-5 flex flex-col gap-3 rounded-[20px] border border-[#dbe3ef] bg-[#f8fafc] p-4 md:flex-row md:items-center md:justify-between">
+        <div className="mb-5 flex flex-col gap-3 rounded-[20px] border border-[#e4e7ec] bg-[#f8fafc] p-4 md:flex-row md:items-center md:justify-between">
           <label className="inline-flex items-center gap-3 text-[13px] font-black text-[#334155]">
             <input
               type="checkbox"
@@ -2223,7 +2223,7 @@ export default function EventosPage() {
               <button
                 type="button"
                 onClick={limparSelecaoEventos}
-                className="rounded-[14px] border border-[#dbe3ef] bg-white px-3 py-2 text-[12px] font-black text-[#0f172a]"
+                className="rounded-[14px] border border-[#e4e7ec] bg-white px-3 py-2 text-[12px] font-black text-[#0f172a]"
               >
                 Limpar seleção
               </button>
@@ -2405,7 +2405,7 @@ export default function EventosPage() {
         mobileActions={mobileActions}
         activeItem="eventos"
       >
-        <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-6 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
+        <section className="rounded-[24px] border border-[#e4e7ec] bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
           <p className="text-center text-[#64748b]">Carregando eventos...</p>
         </section>
       </AdminShell>
@@ -2466,7 +2466,7 @@ export default function EventosPage() {
                   setMobileTab('precos');
                   window.scrollTo({ top: 0, behavior: 'smooth' });
                 }}
-                className="rounded-[18px] border border-[#dbe3ef] bg-white px-5 py-4 text-[14px] font-black text-[#0f172a]"
+                className="rounded-[18px] border border-[#e4e7ec] bg-white px-5 py-4 text-[14px] font-black text-[#0f172a]"
               >
                 Preços automáticos
               </button>
@@ -2489,7 +2489,7 @@ export default function EventosPage() {
         />
 
         <div className="hidden md:block">
-          <div className="rounded-[24px] border border-[#dbe3ef] bg-white p-2 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
+          <div className="rounded-[24px] border border-[#e4e7ec] bg-white p-2 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
             <div className="flex flex-wrap gap-2">
               {DESKTOP_TABS.map((tab) => {
                 const active = desktopTab === tab.key;
@@ -2501,8 +2501,8 @@ export default function EventosPage() {
                     onClick={() => setDesktopTab(tab.key)}
                     className={`rounded-[18px] px-4 py-3 text-[14px] font-black transition ${
                       active
-                        ? 'bg-violet-600 text-white shadow-[0_12px_28px_rgba(124,58,237,0.18)]'
-                        : 'bg-[#f8fafc] text-[#475569] hover:bg-[#eef2ff]'
+                        ? 'bg-[#0c0d12] text-white'
+                        : 'bg-transparent text-[#586174] hover:bg-[#f6f7f9]'
                     }`}
                   >
                     {tab.label}

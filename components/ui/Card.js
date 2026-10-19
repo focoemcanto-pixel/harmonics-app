@@ -7,13 +7,13 @@ export default function Card({
 }) {
   return (
     <div
-      className={`rounded-3xl border border-slate-200 bg-white/95 shadow-sm ${className}`}
+      className={`rounded-[20px] border border-[#e4e7ec] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)] ${className}`}
     >
       {(title || subtitle || actions) && (
         <div className="flex flex-col gap-3 px-5 pt-5 pb-3 md:flex-row md:items-start md:justify-between md:gap-4 md:px-6">
           <div>
             {title && (
-              <h3 className="text-lg md:text-xl font-semibold text-slate-900">
+              <h3 className="text-[17px] md:text-[19px] font-semibold tracking-[-0.02em] text-slate-900">
                 {title}
               </h3>
             )}

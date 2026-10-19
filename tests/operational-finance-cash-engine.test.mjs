@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cashPosition, dashboard, monthlyCommitments } from "../lib/operational-finance/model.mjs";
+import { cashPosition, cashPositionAt, dashboard, monthlyCommitments } from "../lib/operational-finance/model.mjs";
 import { eventHistory, matchesEventSearch, receivablesOverview } from "../lib/operational-finance/receivables.mjs";
 
 // Motor único do caixa: marco zero → recebimentos → evento acontece → cachês realizados → caixa diminui.
@@ -167,4 +167,49 @@ test("data manual de pagamento vencida de evento futuro fica em atraso, não mig
   assert.equal(p.arrears[0].overdue, true);
   assert.equal(p.months.reduce((n, m) => n + m.total, 0), 0);
   assert.equal(dashboard([e], [s], [], settings, "2026-10-13").committed, 50000);
+});
+
+test("ajuste de conciliação corrige o caixa sem virar retirada nem afetar a margem", () => {
+  const e = ev("a", "2026-12-01"), s = sheet("a", 200000, [cost("m", 50000)]);
+  const out = entry("adjustment_out", 203392, "2026-10-19", { notes: "Conferência com extrato" });
+  const d = dashboard([e], [s], [out], settings, "2026-10-19");
+  assert.equal(d.position.reconstructed, 1000000);
+  assert.equal(d.position.adjustments, -203392);
+  assert.equal(d.cash, 1000000 - 203392);
+  assert.equal(d.position.withdrawals, 0);
+  assert.equal(d.projected, d.cash + 200000 - 50000);
+  const r = receivablesOverview([e], [s], [out], settings, "2026-10-19");
+  assert.equal(r.totals.withdrawals, 0);
+  assert.equal(r.rows[0].margin, 150000);
+  const inn = entry("adjustment_in", 5000, "2026-10-19", { notes: "Tarifa estornada pelo banco" });
+  assert.equal(cashPosition([e], [s], [out, inn], settings, "2026-10-19").cash, 1000000 - 203392 + 5000);
+});
+
+test("ajuste de conciliação estornado deixa de afetar o caixa e permanece no histórico", () => {
+  const adj = entry("adjustment_out", 10000, "2026-10-19", { notes: "Diferença" });
+  const ledger = [adj, entry("reversal", 10000, "2026-10-19", { reverses_id: adj.id, notes: "Lançado errado" })];
+  const p = cashPosition([], [], ledger, settings, "2026-10-19");
+  assert.equal(p.adjustments, 0);
+  assert.equal(p.cash, 1000000);
+  assert.equal(ledger.length, 2);
+});
+
+test("conciliação do saldo real: caixa reconstruído R$ 3.230,00 + ajuste −R$ 2.033,92 = R$ 1.196,08", () => {
+  const s0 = { opening_on: "2026-10-13", opening_cents: 163000 };
+  const events = [ev("jo", "2026-10-17"), ev("pa", "2026-10-17"), ev("di", "2026-10-18")];
+  const sheets = [sheet("jo", 290000, [cost("j1", 125000)]), sheet("pa", 210000, [cost("p1", 120000)]), sheet("di", 175000, [cost("d1", 65000)])];
+  const ledger = [entry("receipt", 630000, "2026-10-15", { event_id: "jo" }), entry("withdrawal", 160000, "2026-10-14")];
+  const before = cashPosition(events, sheets, ledger, s0, "2026-10-19");
+  assert.equal(before.cash, 323000);
+  const adjusted = cashPosition(events, sheets, [...ledger, entry("adjustment_out", 323000 - 119608, "2026-10-19", { notes: "Saldo conferido" })], s0, "2026-10-19");
+  assert.equal(adjusted.reconstructed, 323000);
+  assert.equal(adjusted.cash, 119608);
+});
+
+test("conciliação retroativa usa o saldo da data escolhida, sem movimentos posteriores", () => {
+  const e = ev("a", "2026-10-16"), s = sheet("a", 0, [cost("m", 40000)]);
+  const ledger = [entry("receipt", 100000, "2026-10-14", { event_id: "a" }), entry("receipt", 50000, "2026-10-18", { event_id: "a" })];
+  assert.equal(cashPositionAt([e], [s], ledger, settings, "2026-10-15").cash, 1100000);
+  assert.equal(cashPositionAt([e], [s], ledger, settings, "2026-10-17").cash, 1060000);
+  assert.equal(cashPositionAt([e], [s], ledger, settings, "2026-10-19").cash, cashPosition([e], [s], ledger, settings, "2026-10-19").cash);
 });

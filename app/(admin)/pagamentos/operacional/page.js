@@ -6,6 +6,7 @@ import AdminShell from "@/components/admin/AdminShell";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { eventHistory, matchesEventSearch, receivablesOverview } from "@/lib/operational-finance/receivables.mjs";
 import {
+  cashPositionAt,
   isCancelledEvent,
   receiptDeadline,
   expectedReceiptDate,
@@ -141,6 +142,8 @@ const KIND_LABEL = {
   withdrawal: "Retirada pessoal",
   reversal: "Estorno",
   realized_cost: "Cachês e custos realizados (automático)",
+  adjustment_in: "Ajuste de conciliação (+)",
+  adjustment_out: "Ajuste de conciliação (−)",
 };
 const RECEIPT_STATUS = {
   pending: ["Não recebido", "bg-amber-50 text-amber-800 ring-amber-600/20"],
@@ -209,7 +212,8 @@ function Finance() {
     [movement, setMovement] = useState(null),
     [movementSearch, setMovementSearch] = useState(""),
     [musician, setMusician] = useState(""),
-    [historyKind, setHistoryKind] = useState("all");
+    [historyKind, setHistoryKind] = useState("all"),
+    [reconcile, setReconcile] = useState(null);
   const [opening, setOpening] = useState({ opening_on: today(), amount: "" }),
     [defaultForm, setDefaultForm] = useState({ key: "", amount: "" });
   function setTab(key) {
@@ -444,18 +448,18 @@ function Finance() {
     ...data.ledger.map((x) => ({ ...x, source: "ledger" })),
     ...position.realizedEvents.map((x) => ({ id: `realized:${x.event_id}`, source: "realized", kind: "realized_cost", event_id: x.event_id, amount_cents: x.total, musician_cents: x.musician, other_cents: x.other, occurred_on: x.event_date, created_at: `${x.event_date}T23:59:59Z` })),
   ]
-    .filter((x) => historyKind === "all" || x.kind === historyKind)
+    .filter((x) => historyKind === "all" || x.kind === historyKind || (historyKind === "adjustment" && String(x.kind).startsWith("adjustment_")))
     .sort((a, b) => String(b.occurred_on).localeCompare(String(a.occurred_on)) || String(b.created_at).localeCompare(String(a.created_at)));
   const movementEvents = relevant.filter((e) => e.id === movement?.event_id || matchesEventSearch({ event_name: e.client_name, event_date: e.event_date, location_name: e.location_name }, movementSearch));
 
   function historyRow(item) {
     const reversed = item.source === "ledger" && item.kind !== "reversal" && !activeIds.has(item.id);
-    const sign = item.kind === "receipt" ? "+" : item.kind === "reversal" ? "↺" : "−";
+    const sign = item.kind === "receipt" || item.kind === "adjustment_in" ? "+" : item.kind === "reversal" ? "↺" : "−";
     return (
       <div key={item.id} className="flex flex-wrap items-start justify-between gap-3 border-t border-[#eceef2] py-3 first:border-t-0">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <strong className={`tabular-nums ${item.kind === "receipt" && !reversed ? "text-emerald-700" : ""} ${reversed ? "line-through opacity-60" : ""}`}>{sign} {money(item.amount_cents)}</strong>
+            <strong className={`tabular-nums ${(item.kind === "receipt" || item.kind === "adjustment_in") && !reversed ? "text-emerald-700" : ""} ${reversed ? "line-through opacity-60" : ""}`}>{sign} {money(item.amount_cents)}</strong>
             <span className="text-[13px] text-[#586174]">{KIND_LABEL[item.kind]}</span>
             {item.in_opening ? <Pill className="bg-[#f2f4f7] text-[#475467] ring-[#475467]/10">Já incluído no caixa inicial</Pill> : null}
             {reversed ? <Pill className="bg-red-50 text-red-700 ring-red-600/15">Estornado</Pill> : null}
@@ -585,11 +589,23 @@ function Finance() {
                     <dd className="font-semibold"><Amount value={value} /></dd>
                   </div>
                 ))}
+                <div className="flex items-center justify-between gap-3 py-2.5">
+                  <dt className="font-semibold"><span className="mr-2 inline-block w-3">=</span>Caixa reconstruído pelos registros</dt>
+                  <dd className="font-semibold"><Amount value={position.reconstructed} /></dd>
+                </div>
+                <div className="flex items-center justify-between gap-3 py-2.5">
+                  <dt className="text-[#586174]"><span className="mr-2 inline-block w-3 font-semibold text-[#0c0d12]">±</span>Ajustes de conciliação</dt>
+                  <dd className="font-semibold"><Amount value={position.adjustments} /></dd>
+                </div>
                 <div className="flex items-center justify-between gap-3 py-3 text-[15px]">
                   <dt className="font-semibold"><span className="mr-2 inline-block w-3">=</span>Caixa real agora</dt>
                   <dd className="font-semibold"><Amount value={stats.cash} /></dd>
                 </div>
               </dl>
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-[16px] border border-[#e4e7ec] p-3">
+                <p className="max-w-xl text-[13px] text-[#586174]">Conferiu o saldo no banco e há diferença residual? Registre um ajuste de conciliação: corrige o caixa, exige motivo, fica no histórico e não conta como retirada nem afeta a margem.</p>
+                <button type="button" disabled={!data.settings || busy} className={ghost} onClick={() => setReconcile({ real: "", kind: "adjustment_out", amount: "", occurred_on: today(), notes: "", request_id: crypto.randomUUID() })}>Conciliar com saldo real</button>
+              </div>
               <p className="mt-2 text-[12px] text-[#8b93a3]">
                 Lançamentos marcados como “já incluído no caixa inicial” ficam no histórico sem movimentar o caixa. Estornos anulam o lançamento original{position.reversed ? ` (${position.reversed} estorno(s) após o marco zero)` : ""}. Depois da data do evento, os cachês e custos da ficha conferida contam como pagos — pagamentos já registrados para o mesmo custo não são descontados de novo.
               </p>
@@ -902,6 +918,7 @@ function Finance() {
                 <option value="withdrawal">Retiradas</option>
                 <option value="payment">Pagamentos de custos</option>
                 <option value="realized_cost">Cachês realizados</option>
+                <option value="adjustment">Ajustes de conciliação</option>
                 <option value="reversal">Estornos</option>
               </select>
             </div>
@@ -989,6 +1006,76 @@ function Finance() {
           </section>
         )}
       </div>
+
+      {reconcile && (() => {
+        // Saldo do sistema na data da conferência (lançamentos até essa data), para não dobrar
+        // movimentos posteriores dentro do ajuste.
+        const balanceAt = (date) => cashPositionAt(data.events, data.sheets, data.ledger, data.settings, date).cash;
+        const systemBalance = balanceAt(reconcile.occurred_on);
+        const realCentsOf = (value) => { try { return String(value).trim() ? cents(value) : null; } catch { return null; } };
+        const realCents = realCentsOf(reconcile.real);
+        const diff = realCents === null ? null : realCents - systemBalance;
+        const withCalculated = (next) => {
+          const real = realCentsOf(next.real);
+          if (real === null) return next;
+          const delta = real - balanceAt(next.occurred_on);
+          return delta === 0 ? { ...next, amount: "" } : { ...next, kind: delta > 0 ? "adjustment_in" : "adjustment_out", amount: (Math.abs(delta) / 100).toFixed(2).replace(".", ",") };
+        };
+        return (
+          <Modal title="Ajuste de conciliação" subtitle="Corrige o caixa para o saldo real conferido. Não é retirada, não é custo e não altera a margem." onClose={() => setReconcile(null)}>
+            <form
+              className="grid gap-3 sm:grid-cols-2"
+              onSubmit={async (event) => {
+                event.preventDefault();
+                try {
+                  const amount = cents(reconcile.amount);
+                  if (amount <= 0) throw new Error("Informe um valor de ajuste maior que zero.");
+                  const next = await run({ action: "movement", kind: reconcile.kind, amount_cents: amount, occurred_on: reconcile.occurred_on, notes: reconcile.notes.trim(), method: "conciliação", event_id: null, in_opening: false, request_id: reconcile.request_id });
+                  if (next) setReconcile(null);
+                } catch (e) {
+                  setError(e.message);
+                }
+              }}
+            >
+              <div className="rounded-[14px] bg-[#f6f7f9] p-3 text-[13px] sm:col-span-2">
+                <div className="flex justify-between"><span className="text-[#586174]">Caixa no sistema em {br(reconcile.occurred_on)}</span><strong><Amount value={systemBalance} /></strong></div>
+                {diff !== null && <div className="mt-1 flex justify-between"><span className="text-[#586174]">Diferença para o saldo conferido</span><strong><Amount value={diff} /></strong></div>}
+                {diff === 0 && <p className="mt-1 font-semibold text-emerald-700">Saldos conferem: nenhum ajuste necessário.</p>}
+              </div>
+              <Field label="Saldo real conferido (opcional, calcula o ajuste)">
+                <input
+                  inputMode="decimal"
+                  className={input}
+                  value={reconcile.real}
+                  onChange={(e) => setReconcile(withCalculated({ ...reconcile, real: e.target.value }))}
+                  placeholder="Ex.: 1.196,08"
+                />
+              </Field>
+              <Field label="Tipo do ajuste">
+                <select className={input} value={reconcile.kind} onChange={(e) => setReconcile({ ...reconcile, kind: e.target.value })}>
+                  <option value="adjustment_out">Reduzir o caixa (−)</option>
+                  <option value="adjustment_in">Aumentar o caixa (+)</option>
+                </select>
+              </Field>
+              <Field label="Valor do ajuste (R$)">
+                <input required inputMode="decimal" className={input} value={reconcile.amount} onChange={(e) => setReconcile({ ...reconcile, amount: e.target.value })} />
+              </Field>
+              <Field label="Data da conferência">
+                <input required type="date" min={data.settings?.opening_on} max={today()} className={input} value={reconcile.occurred_on} onChange={(e) => { if (e.target.value) setReconcile(withCalculated({ ...reconcile, occurred_on: e.target.value })); }} />
+              </Field>
+              <div className="sm:col-span-2">
+                <Field label="Motivo (obrigatório)">
+                  <textarea required rows={3} maxLength={500} className={input} value={reconcile.notes} onChange={(e) => setReconcile({ ...reconcile, notes: e.target.value })} placeholder="Ex.: conferência com extrato bancário de 19/10 — diferença residual após reconstrução do caixa" />
+                </Field>
+              </div>
+              <div className="flex flex-wrap gap-2 sm:col-span-2">
+                <button disabled={busy || !reconcile.notes.trim() || !reconcile.amount.trim() || diff === 0} className={button}>Registrar ajuste</button>
+                <button type="button" className={ghost} onClick={() => setReconcile(null)}>Cancelar</button>
+              </div>
+            </form>
+          </Modal>
+        );
+      })()}
 
       {movement && (
         <Modal

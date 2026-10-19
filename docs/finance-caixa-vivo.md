@@ -7,7 +7,8 @@ Semântica aprovada:
 - Retirada reduz caixa e projeção, mas não é custo econômico do evento. Tipos de UI: Empréstimo, Distribuição/Lucro, Pró-labore e Outros.
 - Custos de músicos e demais custos previstos pesam na projeção enquanto o evento ainda não passou.
 - Depois da data do evento, esses custos deixam de ser obrigação futura e passam a custo realizado: reduzem o caixa real na data do evento, sem baixa músico a músico e sem criar lançamentos. Pagamentos já registrados para o mesmo custo não são deduzidos de novo; eventos anteriores ao marco zero e eventos cancelados não são deduzidos.
-- Caixa real = caixa inicial + recebimentos posteriores − retiradas − pagamentos de custos − custos de eventos realizados após o marco zero (motor único em `cashPosition`).
+- Caixa real = caixa inicial + recebimentos posteriores − retiradas − pagamentos de custos − custos de eventos realizados após o marco zero ± ajustes de conciliação (motor único em `cashPosition`).
+- Ajuste de conciliação (`adjustment_in`/`adjustment_out`): usado só para a diferença residual entre o caixa reconstruído pelos registros e o saldo real conferido. Exige motivo, é posterior ao marco zero, não pertence a evento, não é retirada, não afeta margem e é estornável; fica no histórico e na auditoria.
 - Caixa projetado = caixa real + saldo ainda a receber - custos futuros dos eventos.
 - A margem econômica permanece contrato - custos, independentemente de retiradas.
 - O seletor mensal controla apenas a leitura do fluxo. A busca do checklist é global por cliente, data e local.

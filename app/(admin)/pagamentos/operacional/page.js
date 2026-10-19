@@ -2,6 +2,8 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import FinancialReading from "@/components/finance/FinancialReading";
+import { compareEventDates } from "@/lib/operational-finance/reading.mjs";
 import AdminShell from "@/components/admin/AdminShell";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { eventHistory, matchesEventSearch, receivablesOverview } from "@/lib/operational-finance/receivables.mjs";
@@ -278,7 +280,7 @@ function Finance() {
       data
         ? data.events
             .filter((e) => data.sheets.some((s) => s.event_id === e.id) || (e.event_date >= today() && !isCancelledEvent(e)))
-            .sort((a, b) => a.event_date.localeCompare(b.event_date))
+            .sort(compareEventDates)
         : [],
     [data],
   );
@@ -528,48 +530,7 @@ function Finance() {
 
         {tab === "overview" && (
           <>
-            <section aria-label="Posição de caixa" className="overflow-hidden rounded-[24px] bg-[linear-gradient(135deg,#6d28d9_0%,#7c3aed_48%,#a855f7_100%)] p-5 text-white shadow-[0_18px_40px_rgba(109,40,217,0.22)] md:p-7">
-              <div className="grid gap-5 lg:grid-cols-[1.1fr_1.9fr] lg:items-end">
-                <div>
-                  <p className="text-[12px] font-medium uppercase tracking-[0.1em] text-white/70">Caixa real agora</p>
-                  <div className="mt-2 text-[40px] font-semibold leading-none tracking-[-0.04em] tabular-nums md:text-[52px]"><Amount value={stats.cash} /></div>
-                  <p className="mt-2 text-[13px] text-white/75">Saldo efetivo desde o marco zero, já com os cachês dos eventos realizados.</p>
-                </div>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                  {[
-                    ["+", "A receber com previsão", stats.receivable - decision.uncertainReceivable],
-                    ["−", "Compromissos futuros", stats.committed],
-                    ["=", "Caixa projetado", decision.projected],
-                  ].map(([op, label, value]) => (
-                    <div key={label} className={`flex items-center justify-between gap-3 rounded-[18px] px-4 py-3 sm:block ${op === "=" ? "bg-white text-[#0c0d12]" : "bg-white/12 backdrop-blur"}`}>
-                      <div className={`text-[12px] ${op === "=" ? "text-[#586174]" : "text-white/75"}`}><span className="mr-1 font-semibold">{op}</span>{label}</div>
-                      <div className="text-[20px] font-semibold tabular-nums sm:mt-1 md:text-[24px]"><Amount value={value} /></div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <p className={`mt-5 rounded-[16px] px-4 py-3 text-[13px] ${decision.projected < 0 ? "bg-red-950/40 text-red-50" : "bg-white/10 text-white/85"}`}>
-                {decision.projected < 0
-                  ? `Atenção: falta ${money(-decision.projected)} para os contratos conhecidos cobrirem os próximos compromissos.`
-                  : `Recebendo os saldos conhecidos e cumprindo os próximos eventos, o caixa chega a ${money(decision.projected)}.`}{" "}
-                Caixa a preservar hoje: {money(decision.reserve)}. Caixa livre hoje: {money(decision.free)}.
-                {decision.deficit > 0 && <strong> Déficit futuro: {money(decision.deficit)}.</strong>}
-                {decision.uncertainReceivable > 0 && <span> Recebimentos sem previsão vigente: {money(decision.uncertainReceivable)}; não financiam esta projeção.</span>}
-                {decision.unchecked > 0 && <span> Projeção parcial: {decision.unchecked} evento(s) sem conferência.</span>}
-              </p>
-            </section>
-
-            <details className={box}>
-              <summary className="cursor-pointer font-semibold">Projeção cronológica: caixa, reserva e livre por mês</summary>
-              <div className="mt-3 overflow-x-auto"><table className="w-full min-w-[700px] text-left text-[13px]">
-                <thead><tr>{["Mês", "Operação", "Fluxo pendente", "Caixa projetado", "Preservar depois", "Livre"].map((label) => <th key={label} className="p-2">{label}</th>)}</tr></thead>
-                <tbody>{decision.months.filter((r) => r.month >= today().slice(0, 7)).map((r) => <tr key={r.month} className="border-t border-[#e4e7ec]">
-                  <td className="p-2"><button onClick={() => setMonth(r.month)}>{monthLabel(r.month)}{r.unchecked > 0 ? " • Parcial" : ""}</button></td>
-                  {[r.result, r.coverage, r.projected, r.reserve, r.free].map((value, i) => <td key={i} className="whitespace-nowrap p-2">{money(value)}</td>)}
-                </tr>)}</tbody>
-              </table></div>
-              <p className="mt-2 text-[12px] text-[#586174]">Reserva calculada pela ordem diária dos vencimentos; entradas e saídas do mesmo dia são compensadas. Depende de receber nas datas previstas.</p>
-            </details>
+            <FinancialReading decision={decision} planning={planning} events={data.events} sheets={data.sheets} month={month} setMonth={setMonth} onEvent={openEvent} onUnchecked={() => { setSearch(""); setFilter("unchecked"); setTab("events"); }} />
 
             <details className={`${box} group`}>
               <summary className="flex cursor-pointer list-none items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">
@@ -626,7 +587,7 @@ function Finance() {
               )}
             </details>
 
-            {(position.uncheckedPast.length > 0 || stats.unchecked > 0) && (
+            {(position.uncheckedPast.length > 0) && (
               <div className="rounded-[20px] border border-amber-200 bg-amber-50/70 p-4 text-[13px] text-amber-900">
                 {position.uncheckedPast.length > 0 && (
                   <p>
@@ -636,31 +597,15 @@ function Finance() {
                     ))}
                   </p>
                 )}
-                {stats.unchecked > 0 && (
-                  <p className={position.uncheckedPast.length ? "mt-2" : ""}>
-                    <strong>{stats.unchecked} evento(s) futuro(s) não conferido(s).</strong> Compromissos, margem e projeção consideram somente fichas conferidas.{" "}
-                    <button className="font-semibold underline" onClick={() => { setFilter("unchecked"); setTab("events"); }}>Conferir agora</button>
-                  </p>
-                )}
+
               </div>
             )}
 
-            <section className={`${box} space-y-4`}>
-              <div className="flex flex-wrap items-end justify-between gap-3">
-                <div>
-                  <h2 className="text-[18px] font-semibold tracking-[-0.02em]">Visão do mês</h2>
-                  <p className="text-[13px] text-[#586174]">O mês controla só esta leitura e as projeções. A busca de eventos é global.</p>
-                </div>
-                <Field label="Mês de referência">
-                  <input type="month" className={input} value={month} onChange={(e) => { if (e.target.value) setMonth(e.target.value); }} />
-                </Field>
-              </div>
-              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                <Stat label="Já entrou no mês" value={realizedInMonth} hint="Recebimentos registrados" />
-                <Stat label="Ainda a receber no mês" value={period.receivable} hint="Saldos com previsão neste mês" />
-                <Stat label={`Compromissos em ${monthLabel(month)}`} value={remainingCommitments} hint={`Cachês ${money(period.musician)} • outros ${money(period.other)}`} />
-                <Stat label="Cobertura futura do mês" value={monthlyResult} hint="A receber − compromissos do mês" strong />
-              </div>
+            <details className={`${box} space-y-4`}>
+              <summary className="cursor-pointer text-[15px] font-semibold">Explorar recebimentos e compromissos · {monthLabel(month)}</summary>
+              <dl className="divide-y divide-[#eceef2] text-[13px]">
+                {[["Já entrou no mês (por data de recebimento)", realizedInMonth], ["Ainda a receber no mês", period.receivable], [`Compromissos em ${monthLabel(month)}`, remainingCommitments], ["Cobertura futura do mês", monthlyResult]].map(([label, value]) => <div key={label} className="flex justify-between gap-4 py-3"><dt className="text-[#586174]">{label}</dt><dd className="shrink-0 font-semibold tabular-nums">{money(value)}</dd></div>)}
+              </dl>
               {period.unchecked > 0 ? <p className="text-[13px] text-amber-800">{period.unchecked} evento(s) deste mês ainda aguardam conferência.</p> : null}
               <div className="grid gap-3 lg:grid-cols-2">
                 <div className="rounded-[16px] bg-[#f6f7f9] p-3">
@@ -734,30 +679,9 @@ function Finance() {
                   <p className="px-2 text-[12px] text-[#8b93a3]">Saldo de caixa projetado ao final de todos os meses: <strong>{money(accumulatedCash)}</strong> (caixa real + fluxo pendente acumulado).</p>
                 </div>
               </details>
-            </section>
+            </details>
 
-            <section className={`${box} space-y-3`}>
-              <h2 className="text-[18px] font-semibold">Operação de {monthLabel(month)}</h2>
-              <p className="text-[13px] text-[#586174]">Competência dos eventos. Recebimentos antecipados e retiradas não alteram o resultado.</p>
-              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                {[["Contratado", operation?.contract], ["Já recebido pelos eventos", operation?.received], ["Falta receber pelos eventos", operation?.open], ["Custos totais", operation?.costs], ["Cachês totais", operation?.musician], ["Outros custos totais", operation?.other], ["Custos realizados", operation?.realized], ["Custos pendentes", operation?.pending], ["Resultado operacional", operation?.result]].map(([label, value]) => <Stat key={label} label={label} value={value || 0} />)}
-              </div>
-              <p>Margem: {(operation?.marginPercent || 0).toFixed(1)}%.</p>
-              <details className="rounded-[16px] bg-[#f6f7f9] p-4">
-                <summary className="cursor-pointer font-semibold">Operação de todos os eventos futuros conferidos ({decision.future.events})</summary>
-                <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
-                  {[["Contratado", decision.future.contract], ["Cachês", decision.future.musician], ["Outros custos", decision.future.other], ["Resultado operacional", decision.future.result]].map(([label, value]) => <Stat key={label} label={label} value={value} />)}
-                </div>
-              </details>
-              {(operation?.unchecked || 0) > 0 && <p className="text-amber-800">Operação parcial: {operation.unchecked} evento(s) sem conferência.</p>}
-              {operation?.need > 0 && <p>Necessidade de caixa para {monthLabel(month)}: {money(operation.need)}.</p>}
-              {operation?.projected !== undefined && <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                <Stat label="Caixa projetado ao fim do mês" value={operation.projected} />
-                <Stat label="Preservar para os meses seguintes" value={operation.reserve} />
-                <Stat label="Caixa livre ao fim do mês" value={operation.free} />
-                {month === today().slice(0, 7) && <Stat label="Caixa de hoje − compromissos restantes" value={operation.withoutReceipts} hint="Sem novas entradas neste mês" />}
-              </div>}
-            </section>
+
           </>
         )}
 

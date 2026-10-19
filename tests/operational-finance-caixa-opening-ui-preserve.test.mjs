@@ -1,0 +1,5 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+const source=readFileSync(new URL("../app/(admin)/pagamentos/operacional/page.js",import.meta.url),"utf8");
+test("operação completa mantém configuração de saldo inicial",()=>{assert.match(source,/opening_on/);assert.match(source,/opening_cents/)});

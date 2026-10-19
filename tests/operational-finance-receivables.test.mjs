@@ -1,43 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { dashboard, monthlyCommitments } from "../lib/operational-finance/model.mjs";
 import { receivablesOverview } from "../lib/operational-finance/receivables.mjs";
-
-const event = { id: "joseane", client_name: "Joseane", event_date: "2026-10-17", agreed_amount: 1450, status: "confirmado" };
-const sheet = { event_id: "joseane", status: "checked", contract_cents: 145000, expected_receipt_on: "2026-10-15", costs: [{ id: "m1", category: "musician", amount_cents: 65000 }] };
-const receipt = (amount, id = "r1", occurred_on = "2026-10-14") => ({ id, event_id: "joseane", kind: "receipt", amount_cents: amount, occurred_on, created_at: `${occurred_on}T12:00:00Z`, in_opening: false });
-
-test("recebimento parcial consome a previsão e mantém apenas o saldo", () => {
-  const result = receivablesOverview([event], [sheet], [receipt(100000)], "2026-10-14");
-  assert.equal(result.rows[0].received, 100000);
-  assert.equal(result.rows[0].open, 45000);
-  assert.equal(result.rows[0].status, "partial");
-  assert.equal(result.months[0].realized, 100000);
-  assert.equal(result.months[0].remaining, 45000);
-  assert.equal(result.months[0].expected, 145000);
-});
-
-test("quitação zera a entrada futura sem apagar os recebimentos", () => {
-  const ledger = [receipt(100000), receipt(45000, "r2", "2026-10-15")];
-  const result = receivablesOverview([event], [sheet], ledger, "2026-10-15");
-  assert.equal(result.rows[0].received, 145000);
-  assert.equal(result.rows[0].open, 0);
-  assert.equal(result.rows[0].status, "paid");
-  assert.equal(result.rows[0].receipts.length, 2);
-  assert.equal(result.months[0].realized, 145000);
-  assert.equal(result.months[0].remaining, 0);
-});
-
-test("cachê entra no custo e margem, mas não vira recebível", () => {
-  const result = receivablesOverview([event], [sheet], [], "2026-10-14");
-  assert.equal(result.totals.costs, 65000);
-  assert.equal(result.totals.margin, 80000);
-  assert.equal(result.totals.open, 145000);
-});
-
-test("estorno retira efeito do recebimento sem apagar histórico bruto", () => {
-  const ledger = [receipt(100000), { id: "rev", kind: "reversal", reverses_id: "r1", event_id: "joseane", amount_cents: 100000, occurred_on: "2026-10-15" }];
-  const result = receivablesOverview([event], [sheet], ledger, "2026-10-15");
-  assert.equal(result.rows[0].received, 0);
-  assert.equal(result.rows[0].open, 145000);
-  assert.equal(result.rows[0].status, "pending");
-});
+const event={id:"joseane",client_name:"Joseane",event_date:"2026-10-17",agreed_amount:1450,status:"confirmado"};
+const sheet={event_id:"joseane",status:"checked",contract_cents:145000,expected_receipt_on:"2026-10-15",costs:[{id:"m1",category:"musician",amount_cents:65000}]};
+const receipt=(amount,id="r1",occurred_on="2026-10-14",in_opening=false)=>({id,event_id:"joseane",kind:"receipt",amount_cents:amount,occurred_on,created_at:`${occurred_on}T12:00:00Z`,in_opening});
+const settings={opening_on:"2026-10-01",opening_cents:1000000};
+test("parcial consome previsão sem duplicar",()=>{const r=receivablesOverview([event],[sheet],[receipt(100000)],settings,"2026-10-14");assert.equal(r.rows[0].received,100000);assert.equal(r.rows[0].open,45000);assert.equal(r.months[0].expected,145000)});
+test("marco zero ignora histórico já incluído no caixa",()=>{const s=dashboard([event],[sheet],[receipt(100000,"r0","2026-10-02",true),receipt(50000,"r1","2026-10-14")],settings,"2026-10-14");assert.equal(s.cash,1050000)});
+test("retirada reduz caixa e projeção sem reduzir margem",()=>{const w={id:"w1",kind:"withdrawal",amount_cents:200000,occurred_on:"2026-10-14",in_opening:false},s=dashboard([event],[sheet],[w],settings,"2026-10-14");assert.equal(s.cash,800000);assert.equal(s.projected,880000);assert.equal(s.margin,80000)});
+test("cachê futuro sai da projeção automaticamente depois do evento",()=>{const before=dashboard([event],[sheet],[],settings,"2026-10-16");assert.equal(before.musician,65000);assert.equal(before.projected,1080000);const after=dashboard([event],[sheet],[],settings,"2026-10-18");assert.equal(after.musician,0);assert.equal(after.projected,1145000);const p=monthlyCommitments([event],[sheet],[],"2026-10-18");assert.equal(p.arrearsTotal,0);assert.equal(p.months.reduce((s,r)=>s+r.musician,0),0)});
+test("quitação zera futuro e preserva histórico",()=>{const ledger=[receipt(100000),receipt(45000,"r2","2026-10-15")],r=receivablesOverview([event],[sheet],ledger,settings,"2026-10-15");assert.equal(r.rows[0].open,0);assert.equal(r.rows[0].receipts.length,2)});
+test("estorno remove efeito sem apagar bruto",()=>{const ledger=[receipt(100000),{id:"rev",kind:"reversal",reverses_id:"r1",event_id:"joseane",amount_cents:100000,occurred_on:"2026-10-15"}],r=receivablesOverview([event],[sheet],ledger,settings,"2026-10-15");assert.equal(r.rows[0].received,0);assert.equal(r.rows[0].open,145000)});

@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-const api=readFileSync(new URL("../app/api/operational-finance/route.js",import.meta.url),"utf8"),page=readFileSync(new URL("../app/(admin)/pagamentos/recebimentos/page.js",import.meta.url),"utf8");
-test("retirada premium reutiliza kind withdrawal existente",()=>{assert.match(api,/"withdrawal"/);assert.match(page,/kind:"withdrawal"/)});
+const read=(p)=>readFileSync(new URL(`../${p}`,import.meta.url),"utf8");
+const page=read("app/(admin)/pagamentos/operacional/page.js"),layout=read("app/(admin)/pagamentos/operacional/layout.js"),caixa=read("app/(admin)/pagamentos/operacional/caixa/page.js"),receb=read("app/(admin)/pagamentos/operacional/recebimentos/page.js"),legacyReceb=read("app/(admin)/pagamentos/recebimentos/page.js"),model=read("lib/operational-finance/model.mjs"),doc=read("docs/finance-caixa-vivo.md");
+test("retirada reutiliza kind withdrawal existente",()=>{const api=read("app/api/operational-finance/route.js");assert.match(api,/"withdrawal"/);assert.match(page,/newMovement\("withdrawal"\)/)});

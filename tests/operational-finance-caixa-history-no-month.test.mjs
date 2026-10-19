@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-const s=readFileSync(new URL("../app/(admin)/pagamentos/recebimentos/page.js",import.meta.url),"utf8");
-test("details renderiza row.receipts sem filtro de month",()=>{const segment=s.slice(s.indexOf("<details"),s.indexOf("</details>"));assert.match(segment,/row\.receipts/);assert.doesNotMatch(segment,/month/)});
+const read=(p)=>readFileSync(new URL(`../${p}`,import.meta.url),"utf8");
+const page=read("app/(admin)/pagamentos/operacional/page.js"),layout=read("app/(admin)/pagamentos/operacional/layout.js"),caixa=read("app/(admin)/pagamentos/operacional/caixa/page.js"),receb=read("app/(admin)/pagamentos/operacional/recebimentos/page.js"),legacyReceb=read("app/(admin)/pagamentos/recebimentos/page.js"),model=read("lib/operational-finance/model.mjs"),doc=read("docs/finance-caixa-vivo.md");
+test("histórico do evento não é filtrado pelo mês",()=>{const segment=page.slice(page.indexOf("const history = eventHistory"),page.indexOf("Registrar recebimento</button>}"));assert.match(segment,/eventHistory/);assert.doesNotMatch(segment,/month/)});

@@ -1,12 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import fs from "node:fs";
-
-test("financeiro organiza recebimentos sem substituir a visão completa", () => {
-  const layout = fs.readFileSync("app/(admin)/pagamentos/operacional/layout.js", "utf8");
-  const route = fs.readFileSync("app/(admin)/pagamentos/operacional/recebimentos/page.js", "utf8");
-  assert.match(layout, /Visão operacional completa/);
-  assert.match(layout, /Recebimentos e saldos/);
-  assert.match(layout, /\/pagamentos\/operacional\/recebimentos/);
-  assert.match(route, /recebimentos\/page/);
-});
+import { readFileSync } from "node:fs";
+const read=(p)=>readFileSync(new URL(`../${p}`,import.meta.url),"utf8");
+const page=read("app/(admin)/pagamentos/operacional/page.js"),layout=read("app/(admin)/pagamentos/operacional/layout.js"),caixa=read("app/(admin)/pagamentos/operacional/caixa/page.js"),receb=read("app/(admin)/pagamentos/operacional/recebimentos/page.js"),legacyReceb=read("app/(admin)/pagamentos/recebimentos/page.js"),model=read("lib/operational-finance/model.mjs"),doc=read("docs/finance-caixa-vivo.md");
+test("financeiro organiza recebimentos sem substituir a visão completa",()=>{assert.match(page,/Eventos e recebimentos/);assert.match(page,/Visão geral/);assert.match(receb,/\/pagamentos\/operacional\?tab=events/)});

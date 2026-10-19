@@ -1,16 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import fs from "node:fs";
-
-const page = fs.readFileSync("app/(admin)/pagamentos/operacional/page.js", "utf8");
-
-test("financeiro operacional preserva os fluxos existentes", () => {
-  assert.match(page, /Caixa & Compromissos/);
-  assert.match(page, /Eventos/);
-  assert.match(page, /Músicos a pagar/);
-  assert.match(page, /Configurações/);
-  assert.match(page, /Registrar recebimento/);
-  assert.match(page, /Registrar retirada/);
-  assert.match(page, /eventSummary/);
-  assert.match(page, /activeEntries/);
-});
+import { readFileSync } from "node:fs";
+const read=(p)=>readFileSync(new URL(`../${p}`,import.meta.url),"utf8");
+const page=read("app/(admin)/pagamentos/operacional/page.js"),layout=read("app/(admin)/pagamentos/operacional/layout.js"),caixa=read("app/(admin)/pagamentos/operacional/caixa/page.js"),receb=read("app/(admin)/pagamentos/operacional/recebimentos/page.js"),legacyReceb=read("app/(admin)/pagamentos/recebimentos/page.js"),model=read("lib/operational-finance/model.mjs"),doc=read("docs/finance-caixa-vivo.md");
+test("financeiro operacional preserva os fluxos existentes",()=>{for(const x of [/Compromissos/,/Eventos/,/Músicos a pagar/,/Configurações/,/Registrar recebimento/,/Registrar retirada/,/eventSummary/,/activeEntries/])assert.match(page,x)});

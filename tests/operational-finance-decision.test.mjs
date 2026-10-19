@@ -45,3 +45,16 @@ test('evento realizado sai dos pendentes sem dupla dedução de custo', () => {
  assert.equal(d.cash,300000);assert.equal(d.reserve,0);assert.equal(d.projected,300000);
  const dec=d.months.find(r=>r.month==='2026-12');assert.deepEqual([dec.realized,dec.pending],[600000,0]);
 });
+test('recebimento vencido no mês atual não é remarcado automaticamente para hoje', () => {
+ const ev=[event('overdue','2026-10-17'),event('pay','2026-10-20')];
+ const sh=[sheet('overdue',900000,0),sheet('pay',0,600000)];
+ const d=financeDecision(ev,sh,[],{...settings,opening_cents:0},'2026-10-19');
+ assert.equal(d.uncertainReceivable,900000);assert.equal(d.reserve,600000);assert.equal(d.deficit,600000);
+ assert.equal(d.months.find(r=>r.month==='2026-10').receivable,0);
+ assert.ok(d.timeline.every(r=>r.change<=0));
+});
+test('visão econômica mantém cachês, outros custos e agregado futuro', () => {
+ const d=run();const dec=d.months.find(r=>r.month==='2026-12');
+ assert.deepEqual([dec.musician,dec.other],[600000,0]);
+ assert.deepEqual(d.future,{contract:1000000,musician:600000,other:0,result:400000,events:1});
+});

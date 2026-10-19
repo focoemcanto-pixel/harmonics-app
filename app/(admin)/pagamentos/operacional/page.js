@@ -675,7 +675,7 @@ function Finance() {
                   ))}
                   {planning.overdueReceipts.length > 0 && (
                     <div className="mt-3 rounded-[12px] bg-amber-50 p-3 text-[13px]">
-                      <strong>Recebimentos anteriores ou sem data: reprogramar previsão</strong>
+                      <strong>Recebimentos vencidos ou sem data: reprogramar previsão</strong>
                       <p className="text-[#586174]">Continuam a receber, mas não entram automaticamente na projeção de um mês futuro.</p>
                       {planning.overdueReceipts.map((item) => (
                         <button key={item.event_id} className="mt-1.5 block font-semibold text-violet-700" onClick={() => { const e = data.events.find((ev) => ev.id === item.event_id); if (e) openEvent(e); }}>{item.event_name} • {money(item.amount)} • Ajustar data prevista</button>
@@ -740,9 +740,15 @@ function Finance() {
               <h2 className="text-[18px] font-semibold">Operação de {monthLabel(month)}</h2>
               <p className="text-[13px] text-[#586174]">Competência dos eventos. Recebimentos antecipados e retiradas não alteram o resultado.</p>
               <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                {[["Contratado", operation?.contract], ["Já recebido pelos eventos", operation?.received], ["Falta receber pelos eventos", operation?.open], ["Custos totais", operation?.costs], ["Custos realizados", operation?.realized], ["Custos pendentes", operation?.pending], ["Resultado operacional", operation?.result]].map(([label, value]) => <Stat key={label} label={label} value={value || 0} />)}
+                {[["Contratado", operation?.contract], ["Já recebido pelos eventos", operation?.received], ["Falta receber pelos eventos", operation?.open], ["Custos totais", operation?.costs], ["Cachês totais", operation?.musician], ["Outros custos totais", operation?.other], ["Custos realizados", operation?.realized], ["Custos pendentes", operation?.pending], ["Resultado operacional", operation?.result]].map(([label, value]) => <Stat key={label} label={label} value={value || 0} />)}
               </div>
               <p>Margem: {(operation?.marginPercent || 0).toFixed(1)}%.</p>
+              <details className="rounded-[16px] bg-[#f6f7f9] p-4">
+                <summary className="cursor-pointer font-semibold">Operação de todos os eventos futuros conferidos ({decision.future.events})</summary>
+                <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
+                  {[["Contratado", decision.future.contract], ["Cachês", decision.future.musician], ["Outros custos", decision.future.other], ["Resultado operacional", decision.future.result]].map(([label, value]) => <Stat key={label} label={label} value={value} />)}
+                </div>
+              </details>
               {(operation?.unchecked || 0) > 0 && <p className="text-amber-800">Operação parcial: {operation.unchecked} evento(s) sem conferência.</p>}
               {operation?.need > 0 && <p>Necessidade de caixa para {monthLabel(month)}: {money(operation.need)}.</p>}
               {operation?.projected !== undefined && <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

@@ -25,4 +25,4 @@ Semântica aprovada:
 
 Caixa livre hoje = caixa real − reserva necessária hoje. Ao fim de cada mês, livre = caixa projetado daquele mês − reserva dos fluxos posteriores. Valor negativo mostra déficit. Retiradas e ajustes já compõem o caixa real; nunca são repetidos no fluxo pendente ou no lucro.
 
-Recebíveis de meses anteriores ou sem previsão vigente ficam destacados como incertos, fora da projeção datada até reprogramação. Eventos sem conferência tornam a projeção parcial; custos desconhecidos não são inventados. A pesquisa global e todos os comandos/históricos permanecem no fluxo existente.
+Recebíveis vencidos (inclusive no mês atual) ou sem previsão vigente ficam destacados como incertos, fora da projeção datada até reprogramação. Eventos sem conferência tornam a projeção parcial; custos desconhecidos não são inventados. A pesquisa global e todos os comandos/históricos permanecem no fluxo existente.

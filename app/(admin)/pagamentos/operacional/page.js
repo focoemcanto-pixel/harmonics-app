@@ -6,6 +6,7 @@ import AdminShell from "@/components/admin/AdminShell";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { eventHistory, matchesEventSearch, receivablesOverview } from "@/lib/operational-finance/receivables.mjs";
 import {
+  cashPositionAt,
   isCancelledEvent,
   receiptDeadline,
   expectedReceiptDate,
@@ -1007,9 +1008,19 @@ function Finance() {
       </div>
 
       {reconcile && (() => {
-        let realCents = null;
-        try { realCents = reconcile.real.trim() ? cents(reconcile.real) : null; } catch { realCents = null; }
-        const diff = realCents === null ? null : realCents - stats.cash;
+        // Saldo do sistema na data da conferência (lançamentos até essa data), para não dobrar
+        // movimentos posteriores dentro do ajuste.
+        const balanceAt = (date) => cashPositionAt(data.events, data.sheets, data.ledger, data.settings, date).cash;
+        const systemBalance = balanceAt(reconcile.occurred_on);
+        const realCentsOf = (value) => { try { return String(value).trim() ? cents(value) : null; } catch { return null; } };
+        const realCents = realCentsOf(reconcile.real);
+        const diff = realCents === null ? null : realCents - systemBalance;
+        const withCalculated = (next) => {
+          const real = realCentsOf(next.real);
+          if (real === null) return next;
+          const delta = real - balanceAt(next.occurred_on);
+          return delta === 0 ? { ...next, amount: "" } : { ...next, kind: delta > 0 ? "adjustment_in" : "adjustment_out", amount: (Math.abs(delta) / 100).toFixed(2).replace(".", ",") };
+        };
         return (
           <Modal title="Ajuste de conciliação" subtitle="Corrige o caixa para o saldo real conferido. Não é retirada, não é custo e não altera a margem." onClose={() => setReconcile(null)}>
             <form
@@ -1027,23 +1038,16 @@ function Finance() {
               }}
             >
               <div className="rounded-[14px] bg-[#f6f7f9] p-3 text-[13px] sm:col-span-2">
-                <div className="flex justify-between"><span className="text-[#586174]">Caixa real no sistema</span><strong><Amount value={stats.cash} /></strong></div>
+                <div className="flex justify-between"><span className="text-[#586174]">Caixa no sistema em {br(reconcile.occurred_on)}</span><strong><Amount value={systemBalance} /></strong></div>
                 {diff !== null && <div className="mt-1 flex justify-between"><span className="text-[#586174]">Diferença para o saldo conferido</span><strong><Amount value={diff} /></strong></div>}
+                {diff === 0 && <p className="mt-1 font-semibold text-emerald-700">Saldos conferem: nenhum ajuste necessário.</p>}
               </div>
               <Field label="Saldo real conferido (opcional, calcula o ajuste)">
                 <input
                   inputMode="decimal"
                   className={input}
                   value={reconcile.real}
-                  onChange={(e) => {
-                    const real = e.target.value;
-                    let nextKind = reconcile.kind, nextAmount = reconcile.amount;
-                    try {
-                      const delta = cents(real) - stats.cash;
-                      if (delta !== 0) { nextKind = delta > 0 ? "adjustment_in" : "adjustment_out"; nextAmount = (Math.abs(delta) / 100).toFixed(2).replace(".", ","); }
-                    } catch {}
-                    setReconcile({ ...reconcile, real, kind: nextKind, amount: nextAmount });
-                  }}
+                  onChange={(e) => setReconcile(withCalculated({ ...reconcile, real: e.target.value }))}
                   placeholder="Ex.: 1.196,08"
                 />
               </Field>
@@ -1057,7 +1061,7 @@ function Finance() {
                 <input required inputMode="decimal" className={input} value={reconcile.amount} onChange={(e) => setReconcile({ ...reconcile, amount: e.target.value })} />
               </Field>
               <Field label="Data da conferência">
-                <input required type="date" min={data.settings?.opening_on} max={today()} className={input} value={reconcile.occurred_on} onChange={(e) => setReconcile({ ...reconcile, occurred_on: e.target.value })} />
+                <input required type="date" min={data.settings?.opening_on} max={today()} className={input} value={reconcile.occurred_on} onChange={(e) => { if (e.target.value) setReconcile(withCalculated({ ...reconcile, occurred_on: e.target.value })); }} />
               </Field>
               <div className="sm:col-span-2">
                 <Field label="Motivo (obrigatório)">
@@ -1065,7 +1069,7 @@ function Finance() {
                 </Field>
               </div>
               <div className="flex flex-wrap gap-2 sm:col-span-2">
-                <button disabled={busy || !reconcile.notes.trim()} className={button}>Registrar ajuste</button>
+                <button disabled={busy || !reconcile.notes.trim() || !reconcile.amount.trim() || diff === 0} className={button}>Registrar ajuste</button>
                 <button type="button" className={ghost} onClick={() => setReconcile(null)}>Cancelar</button>
               </div>
             </form>

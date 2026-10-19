@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cashPosition, dashboard, monthlyCommitments } from "../lib/operational-finance/model.mjs";
+import { cashPosition, cashPositionAt, dashboard, monthlyCommitments } from "../lib/operational-finance/model.mjs";
 import { eventHistory, matchesEventSearch, receivablesOverview } from "../lib/operational-finance/receivables.mjs";
 
 // Motor único do caixa: marco zero → recebimentos → evento acontece → cachês realizados → caixa diminui.
@@ -204,4 +204,12 @@ test("conciliação do saldo real: caixa reconstruído R$ 3.230,00 + ajuste −R
   const adjusted = cashPosition(events, sheets, [...ledger, entry("adjustment_out", 323000 - 119608, "2026-10-19", { notes: "Saldo conferido" })], s0, "2026-10-19");
   assert.equal(adjusted.reconstructed, 323000);
   assert.equal(adjusted.cash, 119608);
+});
+
+test("conciliação retroativa usa o saldo da data escolhida, sem movimentos posteriores", () => {
+  const e = ev("a", "2026-10-16"), s = sheet("a", 0, [cost("m", 40000)]);
+  const ledger = [entry("receipt", 100000, "2026-10-14", { event_id: "a" }), entry("receipt", 50000, "2026-10-18", { event_id: "a" })];
+  assert.equal(cashPositionAt([e], [s], ledger, settings, "2026-10-15").cash, 1100000);
+  assert.equal(cashPositionAt([e], [s], ledger, settings, "2026-10-17").cash, 1060000);
+  assert.equal(cashPositionAt([e], [s], ledger, settings, "2026-10-19").cash, cashPosition([e], [s], ledger, settings, "2026-10-19").cash);
 });

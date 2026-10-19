@@ -175,12 +175,17 @@ export async function POST(request) {
       if (
         !integer(b.amount_cents) ||
         b.amount_cents === 0 ||
-        !["receipt", "payment", "withdrawal"].includes(b.kind) ||
+        !["receipt", "payment", "withdrawal", "adjustment_in", "adjustment_out"].includes(b.kind) ||
         !/^\d{4}-\d{2}-\d{2}$/.test(b.occurred_on || "")
       )
         throw new Error("Movimento inválido.");
       if (b.kind === "payment" && !uuid.test(b.cost_id || ""))
         throw new Error("Custo inválido.");
+      if (
+        ["adjustment_in", "adjustment_out"].includes(b.kind) &&
+        (typeof b.notes !== "string" || !b.notes.trim() || b.notes.length > 500)
+      )
+        throw new Error("Informe o motivo do ajuste de conciliação.");
       if (b.proof_reference && !/^https:\/\//.test(b.proof_reference))
         throw new Error("Comprovante deve ser um link HTTPS.");
     }

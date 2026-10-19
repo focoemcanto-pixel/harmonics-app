@@ -372,7 +372,7 @@ function isOnboardingDemoEvent(event) {
 function CleanupFakeEventGuide({ event, eventId, onDelete, deleting, onClose }) {
   const isDemo = isOnboardingDemoEvent(event);
   return (
-    <aside className="fixed bottom-4 right-4 z-[70] w-[calc(100vw-2rem)] max-w-lg rounded-3xl border border-amber-200 bg-white/95 p-4 shadow-2xl shadow-amber-950/20 backdrop-blur md:bottom-6 md:right-6">
+    <aside className="fixed bottom-[calc(env(safe-area-inset-bottom,0px)+80px)] right-4 z-[70] w-[calc(100vw-2rem)] max-w-lg rounded-3xl border border-amber-200 bg-white/95 p-4 shadow-2xl shadow-amber-950/20 backdrop-blur md:bottom-6 md:right-6">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-black uppercase tracking-[0.22em] text-amber-600">Cleanup do onboarding</p>

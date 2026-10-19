@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { redirectToLogin } from '@/lib/auth/logoutRedirect';
 import AppShellSkeleton from '@/components/layout/AppShellSkeleton';
 
-const AuthContext = createContext(null);
+export const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);

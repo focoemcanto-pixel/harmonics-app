@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getSupabase } from '@/lib/supabase';
-import useCurrentWorkspace, { clearWorkspaceScopedStorage } from '@/hooks/useCurrentWorkspace';
+import useCurrentWorkspace, { clearWorkspaceScopedStorage, invalidateCurrentWorkspaceCache } from '@/hooks/useCurrentWorkspace';
 
 function normalizePhone(value) {
   return String(value || '').replace(/\D+/g, '');
@@ -78,6 +78,7 @@ export default function WorkspaceSettingsClient() {
       }
 
       setSuccess('Configurações salvas com sucesso. Atualize a página se a cor não mudar imediatamente em algum ponto antigo.');
+      invalidateCurrentWorkspaceCache();
       router.refresh();
     } catch (err) {
       setError(err?.message || 'Erro ao salvar configurações.');

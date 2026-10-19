@@ -145,26 +145,28 @@ export default function AdminSegmentTabs({
   return (
     <nav
       aria-label="Abas da seção"
-      className="relative z-0 -mx-1 flex gap-2 overflow-x-auto overscroll-x-contain px-1 pb-2 [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      className="relative z-0 -mx-1 overflow-x-auto overscroll-x-contain px-1 pb-1 [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
     >
-      {items.map((item) => {
-        const selected = active === item.key;
-        return (
-          <button
-            key={item.key}
-            type="button"
-            aria-pressed={selected}
-            onClick={() => handleTabChange(item.key)}
-            className={`shrink-0 touch-manipulation whitespace-nowrap rounded-full px-4 py-2.5 text-[12px] font-black transition active:scale-[0.98] ${
-              selected
-                ? 'bg-violet-100 text-violet-700 shadow-[0_8px_18px_rgba(124,58,237,0.12)]'
-                : 'border border-[#dbe3ef] bg-white text-[#475569]'
-            }`}
-          >
-            {item.label}
-          </button>
-        );
-      })}
+      <div className="inline-flex gap-1 rounded-full border border-[var(--hx-border,#e4e7ec)] bg-white p-1 shadow-[var(--hx-shadow-sm)]">
+        {items.map((item) => {
+          const selected = active === item.key;
+          return (
+            <button
+              key={item.key}
+              type="button"
+              aria-pressed={selected}
+              onClick={() => handleTabChange(item.key)}
+              className={`min-h-9 shrink-0 touch-manipulation whitespace-nowrap rounded-full px-4 py-2 text-[13px] font-medium transition-colors active:scale-[0.98] ${
+                selected
+                  ? 'bg-[var(--hx-ink,#0c0d12)] text-white'
+                  : 'text-[var(--hx-text-2,#586174)] hover:bg-[var(--hx-surface-2,#f6f7f9)] hover:text-[var(--hx-text,#0c0d12)]'
+              }`}
+            >
+              {item.label}
+            </button>
+          );
+        })}
+      </div>
     </nav>
   );
 }

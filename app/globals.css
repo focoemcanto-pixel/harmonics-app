@@ -84,3 +84,87 @@ a {
     transition: opacity 700ms ease, transform 700ms ease;
   }
 }
+
+/* ============================================================================
+   Admin Harmonics — design tokens e normalização da linguagem visual.
+   Tudo fica sob .hx-admin (o frame persistente do painel); landing, portal do membro e páginas
+   públicas não são afetados. Regras fora de @layer vencem as utilidades do Tailwind de propósito.
+   ========================================================================= */
+.hx-admin {
+  --hx-canvas: #eef0f4;
+  --hx-surface: #ffffff;
+  --hx-surface-2: #f6f7f9;
+  --hx-surface-3: #eceef2;
+  --hx-border: #e4e7ec;
+  --hx-border-strong: #d0d5dd;
+  --hx-text: #0c0d12;
+  --hx-text-2: #586174;
+  --hx-text-3: #8b93a3;
+  --hx-ink: #0c0d12;
+  --hx-ink-contrast: #ffffff;
+  --hx-accent: #7c3aed;
+  --hx-accent-strong: #6d28d9;
+  --hx-accent-soft: #f3effe;
+  --hx-radius-sm: 12px;
+  --hx-radius-md: 16px;
+  --hx-radius-lg: 20px;
+  --hx-radius-xl: 24px;
+  --hx-shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.04);
+  --hx-shadow-md: 0 1px 2px rgba(16, 24, 40, 0.04), 0 8px 24px rgba(16, 24, 40, 0.06);
+  --hx-shadow-lg: 0 24px 64px rgba(16, 24, 40, 0.16);
+  --hx-mobile-nav-h: 64px;
+  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  color: var(--hx-text);
+  background: var(--hx-canvas);
+  letter-spacing: -0.006em;
+}
+
+/* Peso tipográfico: o admin usa semibold/bold; "black" (900) das telas antigas vira bold. */
+.hx-admin .font-black {
+  font-weight: 700;
+}
+
+.hx-admin ::selection {
+  background: rgba(124, 58, 237, 0.18);
+}
+
+.hx-admin :focus-visible {
+  outline: 2px solid rgba(124, 58, 237, 0.55);
+  outline-offset: 2px;
+}
+
+/* Entrada suave do conteúdo a cada troca de tela (sem remontar a árvore). */
+@keyframes hxEnter {
+  from { opacity: 0; transform: translateY(6px); filter: blur(3px); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .hx-admin [data-hx-enter='true'] {
+    animation: hxEnter 280ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+  .hx-admin .hx-lift {
+    transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+  }
+  .hx-admin .hx-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--hx-shadow-md);
+  }
+}
+
+@keyframes hxShimmer {
+  0% { background-position: -320px 0; }
+  100% { background-position: 320px 0; }
+}
+
+.hx-skeleton {
+  background: linear-gradient(90deg, #eceef2 0px, #f6f7f9 160px, #eceef2 320px);
+  background-size: 640px 100%;
+  animation: hxShimmer 1.2s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hx-skeleton {
+    animation: none;
+  }
+}

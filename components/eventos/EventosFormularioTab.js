@@ -69,7 +69,7 @@ function MoneyCard({ label, value, tone = 'slate' }) {
 
 function EventOnboardingGuideCard() {
   return (
-    <aside className="fixed bottom-4 left-1/2 z-[9999] w-[calc(100vw-1.5rem)] max-w-[420px] -translate-x-1/2 rounded-[20px] border border-violet-200 bg-white/95 p-4 shadow-[0_20px_45px_rgba(76,29,149,0.28)] backdrop-blur md:bottom-6 md:left-auto md:right-6 md:w-[400px] md:translate-x-0">
+    <aside className="fixed bottom-[calc(env(safe-area-inset-bottom,0px)+80px)] md:bottom-4 left-1/2 z-[9999] w-[calc(100vw-1.5rem)] max-w-[420px] -translate-x-1/2 rounded-[20px] border border-violet-200 bg-white/95 p-4 shadow-[0_20px_45px_rgba(76,29,149,0.28)] backdrop-blur md:bottom-6 md:left-auto md:right-6 md:w-[400px] md:translate-x-0">
       <div className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-violet-700">
         Guia · Criar evento operacional
       </div>

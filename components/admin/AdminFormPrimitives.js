@@ -5,7 +5,7 @@ import { forwardRef } from 'react';
 export function Field({ label, children, helper }) {
   return (
     <div className="min-w-0 space-y-2">
-      <label className="block text-[12px] font-bold text-[#64748b]">{label}</label>
+      <label className="block text-[13px] font-medium text-[var(--hx-text-2,#586174)]">{label}</label>
       {children}
       {helper && <p className="break-words text-[11px] text-[#94a3b8]">{helper}</p>}
     </div>
@@ -28,7 +28,7 @@ export const Input = forwardRef(function Input(
       disabled={disabled}
       step={step}
       {...props}
-      className="min-h-12 w-full touch-manipulation rounded-[18px] border border-[#dbe3ef] bg-white px-4 py-3.5 text-[16px] font-semibold text-[#0f172a] outline-none transition focus:border-violet-400 focus:ring-2 focus:ring-violet-100 disabled:bg-slate-50 disabled:text-slate-400"
+      className="min-h-12 w-full touch-manipulation rounded-[14px] border border-[var(--hx-border-strong,#d0d5dd)] bg-white px-4 py-3 text-[16px] font-medium md:text-[15px] text-[#0f172a] outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-100 disabled:bg-slate-50 disabled:text-slate-400"
     />
   );
 });
@@ -40,7 +40,7 @@ export function Select({ value, onChange, children, disabled = false, ...props }
       onChange={onChange}
       disabled={disabled}
       {...props}
-      className="min-h-12 w-full touch-manipulation rounded-[18px] border border-[#dbe3ef] bg-white px-4 py-3.5 text-[16px] font-semibold text-[#0f172a] outline-none transition focus:border-violet-400 focus:ring-2 focus:ring-violet-100 disabled:bg-slate-50 disabled:text-slate-400"
+      className="min-h-12 w-full touch-manipulation rounded-[14px] border border-[var(--hx-border-strong,#d0d5dd)] bg-white px-4 py-3 text-[16px] font-medium md:text-[15px] text-[#0f172a] outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-100 disabled:bg-slate-50 disabled:text-slate-400"
     >
       {children}
     </select>
@@ -55,7 +55,7 @@ export function Textarea({ value, onChange, placeholder = '', rows = 3, disabled
       placeholder={placeholder}
       rows={rows}
       disabled={disabled}
-      className="min-h-[120px] w-full touch-manipulation resize-y rounded-[18px] border border-[#dbe3ef] bg-white px-4 py-3.5 text-[16px] font-semibold leading-6 text-[#0f172a] outline-none transition focus:border-violet-400 focus:ring-2 focus:ring-violet-100 disabled:bg-slate-50 disabled:text-slate-400"
+      className="min-h-[120px] w-full touch-manipulation resize-y rounded-[14px] border border-[var(--hx-border-strong,#d0d5dd)] bg-white px-4 py-3 text-[16px] font-medium md:text-[15px] leading-6 text-[#0f172a] outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-100 disabled:bg-slate-50 disabled:text-slate-400"
     />
   );
 }

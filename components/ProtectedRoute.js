@@ -1,5 +1,6 @@
 'use client';
 
+import { AdminContentSkeleton } from '@/components/layout/AppShellSkeleton';
 import { useEffect, useMemo, useRef } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
@@ -22,14 +23,7 @@ function inferModuleFromPath(pathname = '') {
 }
 
 function LoadingAccess() {
-  return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-      <div className="text-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-violet-600 mx-auto mb-4"></div>
-        <p className="text-slate-600">Verificando acesso...</p>
-      </div>
-    </div>
-  );
+  return <AdminContentSkeleton label="Verificando acesso" />;
 }
 
 export default function ProtectedRoute({ children, requiredRole = null }) {
@@ -178,7 +172,7 @@ export default function ProtectedRoute({ children, requiredRole = null }) {
 
   if (authError) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+      <div className="flex min-h-[50dvh] items-center justify-center p-6">
         <div className="max-w-lg rounded-2xl border border-red-200 bg-red-50 p-5 text-red-700">
           <h2 className="text-base font-bold">Falha ao validar autenticação</h2>
           <p className="mt-2 text-sm">
@@ -191,7 +185,7 @@ export default function ProtectedRoute({ children, requiredRole = null }) {
 
   if (workspaceError && workspaceError?.status !== 401) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+      <div className="flex min-h-[50dvh] items-center justify-center p-6">
         <div className="max-w-lg rounded-2xl border border-red-200 bg-red-50 p-5 text-red-700">
           <h2 className="text-base font-bold">Falha ao validar permissões</h2>
           <p className="mt-2 text-sm">{workspaceError?.message || 'Atualize a página ou faça login novamente.'}</p>

@@ -119,45 +119,49 @@ test("projeção = caixa real + ainda a receber − compromissos futuros", () =>
   assert.equal(d.projected, d.cash + d.receivable - d.committed);
 });
 
-test("busca global encontra eventos de qualquer mês por nome, data ou local", () => {
+test("busca global encontra fixtures sintéticos por nome, data e local", () => {
   const rows = [
-    { event_name: "Joseane Bispo", event_date: "2026-10-17", location_name: "Beach Villas Mansion" },
-    { event_name: "Olga Neves", event_date: "2027-01-09", location_name: "Solar D'Kell" },
+    { event_name: "Cliente Alfa", event_date: "2044-03-07", location_name: "Salão Fictício Alfa" },
+    { event_name: "Cliente Beta", event_date: "2045-08-23", location_name: "Espaço D'Exemplo" },
   ];
-  assert.deepEqual(rows.filter((r) => matchesEventSearch(r, "olga")).map((r) => r.event_name), ["Olga Neves"]);
-  assert.deepEqual(rows.filter((r) => matchesEventSearch(r, "09/01/2027")).map((r) => r.event_name), ["Olga Neves"]);
-  assert.deepEqual(rows.filter((r) => matchesEventSearch(r, "beach villas")).map((r) => r.event_name), ["Joseane Bispo"]);
-  assert.deepEqual(rows.filter((r) => matchesEventSearch(r, "solar dkell")).length, 0);
-  assert.deepEqual(rows.filter((r) => matchesEventSearch(r, "Solar D'Kell")).map((r) => r.event_name), ["Olga Neves"]);
+  assert.deepEqual(rows.filter((r) => matchesEventSearch(r, "beta")).map((r) => r.event_name), ["Cliente Beta"]);
+  assert.deepEqual(rows.filter((r) => matchesEventSearch(r, "23/08/2045")).map((r) => r.event_name), ["Cliente Beta"]);
+  assert.deepEqual(rows.filter((r) => matchesEventSearch(r, "salao ficticio")).map((r) => r.event_name), ["Cliente Alfa"]);
+  assert.equal(rows.filter((r) => matchesEventSearch(r, "espaco dexemplo")).length, 0);
+  assert.deepEqual(rows.filter((r) => matchesEventSearch(r, "Espaço D'Exemplo")).map((r) => r.event_name), ["Cliente Beta"]);
 });
 
-test("sequência crítica: marco zero → recebimentos → evento acontece → cachês realizados → caixa diminui", () => {
-  // Mesma estrutura da reconciliação real do workspace (valores em centavos).
-  const s0 = { opening_on: "2026-10-13", opening_cents: 163000 };
-  const events = [ev("jo", "2026-10-17"), ev("pa", "2026-10-17"), ev("di", "2026-10-18"), ev("al", "2026-11-01"), ev("pe", "2026-12-13")];
-  const sheets = [sheet("jo", 290000, [cost("j1", 65000), cost("j2", 0), cost("j3", 60000)]), sheet("pa", 210000, [cost("p1", 30000), cost("p2", 30000), cost("p3", 30000), cost("p4", 30000)]), sheet("di", 175000, [cost("d1", 0), cost("d2", 30000), cost("d3", 35000)]), sheet("al", 120000, []), sheet("pe", 280000, [])];
-  const dup = entry("receipt", 280000, "2026-10-13", { event_id: "pe", in_opening: true });
-  const ledger = [
-    entry("receipt", 145000, "2026-10-08", { event_id: "jo", in_opening: true }),
-    entry("receipt", 210000, "2026-10-13", { event_id: "pa", in_opening: true }),
-    entry("receipt", 100000, "2026-10-13", { event_id: "di", in_opening: true }),
-    entry("receipt", 280000, "2026-10-13", { event_id: "pe", in_opening: true }), dup,
-    entry("reversal", 280000, "2026-10-13", { event_id: "pe", reverses_id: dup.id, in_opening: true }),
-    entry("withdrawal", 160000, "2026-10-14"),
-    entry("receipt", 60000, "2026-10-15", { event_id: "al" }),
-    entry("receipt", 145000, "2026-10-18", { event_id: "jo" }),
-    entry("receipt", 75000, "2026-10-18", { event_id: "di" }),
+test("sequência sintética: marco zero, recebimentos, realização e projeção estável", () => {
+  const syntheticSettings = { opening_on: "2044-03-02", opening_cents: 230000 };
+  const events = [ev("synthetic-alpha", "2044-03-18"), ev("synthetic-beta", "2044-03-19"), ev("synthetic-gamma", "2044-03-20"), ev("synthetic-delta", "2044-06-12"), ev("synthetic-epsilon", "2044-07-09")];
+  const sheets = [
+    sheet("synthetic-alpha", 71000, [cost("synthetic-a1", 7300), cost("synthetic-a2", 9100)]),
+    sheet("synthetic-beta", 83000, [cost("synthetic-b1", 11200), cost("synthetic-b2", 6400), cost("synthetic-b3", 3900)]),
+    sheet("synthetic-gamma", 97000, [cost("synthetic-g1", 8700), cost("synthetic-g2", 12600)]),
+    sheet("synthetic-delta", 53000, []), sheet("synthetic-epsilon", 59000, []),
   ];
-  const beforeEvents = cashPosition(events, sheets, ledger.slice(0, 8), s0, "2026-10-16");
-  assert.equal(beforeEvents.cash, 163000 - 160000 + 60000); // recebimento novo aumentou o caixa
-  const now = cashPosition(events, sheets, ledger, s0, "2026-10-19");
-  assert.equal(now.receipts, 280000);
-  assert.equal(now.withdrawals, 160000);
-  assert.equal(now.realizedCosts, 125000 + 120000 + 65000);
-  assert.equal(now.cash, 163000 + 280000 - 160000 - 310000);
-  const projBefore = dashboard(events, sheets, ledger, s0, "2026-10-17").projected;
-  const projAfter = dashboard(events, sheets, ledger, s0, "2026-10-19").projected;
-  assert.equal(projAfter, projBefore); // a projeção não sobe quando os eventos passam
+  const dup = entry("receipt", 17000, "2044-02-24", { event_id: "synthetic-epsilon", in_opening: true });
+  const ledger = [
+    entry("receipt", 19000, "2044-02-21", { event_id: "synthetic-alpha", in_opening: true }),
+    entry("receipt", 23000, "2044-02-22", { event_id: "synthetic-beta", in_opening: true }),
+    entry("receipt", 31000, "2044-02-23", { event_id: "synthetic-gamma", in_opening: true }),
+    entry("receipt", 17000, "2044-02-24", { event_id: "synthetic-epsilon", in_opening: true }), dup,
+    entry("reversal", 17000, "2044-02-25", { event_id: "synthetic-epsilon", reverses_id: dup.id, in_opening: true }),
+    entry("withdrawal", 4700, "2044-03-04"),
+    entry("receipt", 21000, "2044-03-05", { event_id: "synthetic-delta" }),
+    entry("receipt", 52000, "2044-03-16", { event_id: "synthetic-alpha" }),
+    entry("receipt", 66000, "2044-03-17", { event_id: "synthetic-gamma" }),
+  ];
+  const beforeEvents = cashPosition(events, sheets, ledger.slice(0, 8), syntheticSettings, "2044-03-15");
+  assert.equal(beforeEvents.cash, 246300);
+  const now = cashPosition(events, sheets, ledger, syntheticSettings, "2044-03-21");
+  assert.equal(now.receipts, 139000);
+  assert.equal(now.withdrawals, 4700);
+  assert.equal(now.realizedCosts, 59200);
+  assert.equal(now.cash, 305100);
+  const projBefore = dashboard(events, sheets, ledger, syntheticSettings, "2044-03-17").projected;
+  const projAfter = dashboard(events, sheets, ledger, syntheticSettings, "2044-03-21").projected;
+  assert.equal(projAfter, projBefore);
 });
 
 test("data manual de pagamento vencida de evento futuro fica em atraso, não migra para a data do evento", () => {
@@ -194,16 +198,16 @@ test("ajuste de conciliação estornado deixa de afetar o caixa e permanece no h
   assert.equal(ledger.length, 2);
 });
 
-test("conciliação do saldo real: caixa reconstruído R$ 3.230,00 + ajuste −R$ 2.033,92 = R$ 1.196,08", () => {
-  const s0 = { opening_on: "2026-10-13", opening_cents: 163000 };
-  const events = [ev("jo", "2026-10-17"), ev("pa", "2026-10-17"), ev("di", "2026-10-18")];
-  const sheets = [sheet("jo", 290000, [cost("j1", 125000)]), sheet("pa", 210000, [cost("p1", 120000)]), sheet("di", 175000, [cost("d1", 65000)])];
-  const ledger = [entry("receipt", 630000, "2026-10-15", { event_id: "jo" }), entry("withdrawal", 160000, "2026-10-14")];
-  const before = cashPosition(events, sheets, ledger, s0, "2026-10-19");
-  assert.equal(before.cash, 323000);
-  const adjusted = cashPosition(events, sheets, [...ledger, entry("adjustment_out", 323000 - 119608, "2026-10-19", { notes: "Saldo conferido" })], s0, "2026-10-19");
-  assert.equal(adjusted.reconstructed, 323000);
-  assert.equal(adjusted.cash, 119608);
+test("conciliação sintética ajusta o saldo reconstruído preservando sua origem", () => {
+  const syntheticSettings = { opening_on: "2046-05-03", opening_cents: 183700 };
+  const events = [ev("synthetic-one", "2046-05-09"), ev("synthetic-two", "2046-05-11"), ev("synthetic-three", "2046-05-14")];
+  const sheets = [sheet("synthetic-one", 67000, [cost("synthetic-cost-one", 11300)]), sheet("synthetic-two", 89000, [cost("synthetic-cost-two", 15700)]), sheet("synthetic-three", 103000, [cost("synthetic-cost-three", 21900)])];
+  const ledger = [entry("receipt", 34700, "2046-05-07", { event_id: "synthetic-one" }), entry("withdrawal", 8600, "2046-05-08")];
+  const before = cashPosition(events, sheets, ledger, syntheticSettings, "2046-05-16");
+  assert.equal(before.cash, 160900);
+  const adjusted = cashPosition(events, sheets, [...ledger, entry("adjustment_out", 27600, "2046-05-16", { notes: "Conciliação sintética" })], syntheticSettings, "2046-05-16");
+  assert.equal(adjusted.reconstructed, 160900);
+  assert.equal(adjusted.cash, 133300);
 });
 
 test("conciliação retroativa usa o saldo da data escolhida, sem movimentos posteriores", () => {

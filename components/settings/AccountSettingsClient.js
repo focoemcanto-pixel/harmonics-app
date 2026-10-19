@@ -105,7 +105,7 @@ export default function AccountSettingsClient() {
       <section className="rounded-[24px] border border-[#e4e7ec] bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <div className="text-[12px] font-black uppercase tracking-[0.14em] text-violet-700">
+            <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#8b93a3]">
               Perfil
             </div>
 
@@ -183,7 +183,7 @@ export default function AccountSettingsClient() {
 
       <div className="space-y-6">
         <section className="rounded-[24px] border border-[#e4e7ec] bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
-          <div className="text-[12px] font-black uppercase tracking-[0.14em] text-violet-700">
+          <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#8b93a3]">
             Segurança
           </div>
 

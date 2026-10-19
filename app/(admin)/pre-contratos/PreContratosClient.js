@@ -376,7 +376,7 @@ function ShareLinkModal({
             <div className="mx-auto mb-3 h-1.5 w-14 rounded-full bg-slate-200 md:hidden" />
             <div className="flex items-center justify-between gap-4">
               <div>
-                <div className="text-[12px] font-black uppercase tracking-[0.12em] text-violet-600/80">
+                <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#8b93a3]/80">
                   Link pronto para envio
                 </div>
                 <div className="mt-1 text-[22px] font-black tracking-[-0.03em]">
@@ -400,7 +400,7 @@ function ShareLinkModal({
           <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
             <div className="space-y-5">
               <div className="rounded-[24px] border border-violet-200 bg-violet-50 p-4">
-                <div className="text-[11px] font-black uppercase tracking-[0.1em] text-violet-700/70">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#8b93a3]/70">
                   Resumo do envio
                 </div>
 
@@ -567,7 +567,7 @@ function PreviewContractModal({ open, item, onClose }) {
       >
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-[11px] font-black uppercase tracking-[0.1em] text-violet-600">Visualização premium</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#8b93a3]">Visualização premium</p>
             <h3 className="mt-1 text-2xl font-black text-slate-900">Contrato de {item.client_name || 'Cliente'}</h3>
           </div>
           <Button variant="soft" onClick={onClose}>Fechar</Button>

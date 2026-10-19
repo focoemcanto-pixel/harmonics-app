@@ -97,7 +97,7 @@ function SectionCard({ eyebrow, title, subtitle, right, children }) {
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
           {eyebrow ? (
-            <div className="text-[12px] font-black uppercase tracking-[0.14em] text-violet-600">
+            <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#8b93a3]">
               {eyebrow}
             </div>
           ) : null}

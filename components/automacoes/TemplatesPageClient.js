@@ -286,7 +286,7 @@ export default function TemplatesPageClient() {
       <section className="rounded-[24px] border border-[#e4e7ec] bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <div className="text-[12px] font-black uppercase tracking-[0.14em] text-violet-600">
+            <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#8b93a3]">
               Templates
             </div>
             <h1 className="mt-1 text-[28px] font-black tracking-[-0.03em] text-[#0f172a]">

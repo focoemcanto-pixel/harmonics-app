@@ -121,7 +121,7 @@ function SectionCard({ eyebrow, title, subtitle, right, children }) {
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
           {eyebrow ? (
-            <div className="text-[12px] font-black uppercase tracking-[0.14em] text-violet-600">
+            <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#8b93a3]">
               {eyebrow}
             </div>
           ) : null}
@@ -362,7 +362,7 @@ function SuggestionEditorModal({
         <div className="sticky top-0 z-10 border-b border-[#e5edf6] bg-white/95 px-6 py-5 backdrop-blur">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <div className="text-[12px] font-black uppercase tracking-[0.1em] text-violet-600">
+              <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#8b93a3]">
                 Biblioteca musical
               </div>
               <div className="mt-1 text-[24px] font-black tracking-[-0.03em] text-[#0f172a]">
@@ -1133,7 +1133,7 @@ function TaxonomyEditorModal({
         <div className="border-b border-[#e5edf6] bg-white px-6 py-5">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <div className="text-[12px] font-black uppercase tracking-[0.1em] text-violet-600">
+              <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#8b93a3]">
                 {eyebrow}
               </div>
               <div className="mt-1 text-[24px] font-black tracking-[-0.03em] text-[#0f172a]">
@@ -2137,7 +2137,7 @@ const [savingMoment, setSavingMoment] = useState(false);
   return (
     <div className="space-y-5">
       <SectionCard
-        eyebrow="Harmonics Admin"
+        eyebrow="Curadoria musical"
         title="Sugestões"
         subtitle="Gerencie a curadoria musical do painel do cliente com controle editorial, visão de catálogo e ações rápidas."
         right={

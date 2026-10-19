@@ -402,7 +402,7 @@ export default function AutomacoesPageClient() {
       <section className="rounded-[24px] border border-[#e4e7ec] bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <div className="text-[12px] font-black uppercase tracking-[0.14em] text-violet-600">Automação</div>
+            <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#8b93a3]">Automação</div>
             <h1 className="mt-1 text-[28px] font-black tracking-[-0.03em] text-[#0f172a]">Central de Automação</h1>
           </div>
           <div className="flex items-center gap-2">

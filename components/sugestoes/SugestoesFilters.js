@@ -17,7 +17,7 @@ export default function SugestoesFilters({
     <section className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)] md:p-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <div className="text-[12px] font-black uppercase tracking-[0.14em] text-violet-600">Catálogo editorial</div>
+          <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#8b93a3]">Catálogo editorial</div>
           <h3 className="mt-1 text-[24px] font-black tracking-[-0.03em] text-slate-900">Músicas</h3>
           <p className="mt-1 text-[14px] font-semibold text-slate-500">{total} resultado(s) no filtro atual.</p>
         </div>

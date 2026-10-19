@@ -160,7 +160,7 @@ export default function ContatosListaTab({
     <section className="space-y-5">
       <div className="rounded-[24px] border border-[#e4e7ec] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)] md:p-6">
         <div className="mb-5">
-          <div className="text-[12px] font-black uppercase tracking-[0.14em] text-violet-600">Gestão inteligente</div>
+          <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#8b93a3]">Gestão inteligente</div>
           <h2 className="mt-2 text-[28px] font-black tracking-[-0.04em] text-[#0f172a]">Painel de contatos</h2>
           <p className="mt-2 text-[15px] leading-7 text-[#64748b]">
             Visualize equipe e clientes em contextos separados para evitar ruído operacional.

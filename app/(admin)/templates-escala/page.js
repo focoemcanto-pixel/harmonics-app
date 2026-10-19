@@ -582,7 +582,7 @@ export default function TemplatesEscalaPage() {
             <div className="grid grid-cols-1 gap-4 p-5 md:grid-cols-[1.4fr_0.9fr] md:p-7">
               <div className="space-y-4">
                 <div className="rounded-[24px] border border-violet-100 bg-violet-50 p-4">
-                  <div className="text-sm font-black uppercase tracking-[0.12em] text-violet-700">Modelo sugerido</div>
+                  <div className="text-sm font-semibold uppercase tracking-[0.08em] text-[#8b93a3]">Modelo sugerido</div>
                   <h3 className="mt-2 text-2xl font-black text-slate-900">Formação Demo Premium</h3>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {(formationGuideStatus.requiredRoles || ['Voz', 'Piano', 'Violino']).map((role) => (

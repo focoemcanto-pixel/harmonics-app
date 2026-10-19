@@ -88,7 +88,7 @@ export default function TemplatesEscalaFormularioTab({
       <section className="rounded-[24px] border border-[#e4e7ec] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)] md:p-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
-            <div className="text-[12px] font-black uppercase tracking-[0.14em] text-violet-600">
+            <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#8b93a3]">
               Automação operacional
             </div>
             <h2 className="mt-2 text-[28px] font-black tracking-[-0.04em] text-[#0f172a]">
@@ -187,7 +187,7 @@ export default function TemplatesEscalaFormularioTab({
       </section>
 
       <section className="rounded-[24px] border border-[#e4e7ec] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)] md:p-6">
-        <div className="text-[12px] font-black uppercase tracking-[0.14em] text-violet-600">
+        <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#8b93a3]">
           Membros base
         </div>
         <h3 className="mt-2 text-[24px] font-black tracking-[-0.03em] text-[#0f172a]">

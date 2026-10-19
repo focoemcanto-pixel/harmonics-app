@@ -55,7 +55,7 @@ export default function GettingStartedPage() {
         <section className="overflow-hidden rounded-[34px] border border-[#e4e7ec] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
           <div className="grid gap-6 p-6 lg:grid-cols-[1.1fr_0.9fr] lg:p-8">
             <div>
-              <div className="inline-flex rounded-full bg-violet-100 px-4 py-2 text-[12px] font-black uppercase tracking-[0.14em] text-violet-700">
+              <div className="inline-flex rounded-full bg-violet-100 px-4 py-2 text-[12px] font-semibold uppercase tracking-[0.08em] text-[#8b93a3]">
                 Onboarding guiado
               </div>
 
@@ -78,7 +78,7 @@ export default function GettingStartedPage() {
             </div>
 
             <div className="rounded-[24px] border border-violet-200 bg-violet-50 p-6">
-              <div className="text-[12px] font-black uppercase tracking-[0.14em] text-violet-700">
+              <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#8b93a3]">
                 Progresso sugerido
               </div>
               <div className="mt-4 text-[52px] font-black tracking-[-0.06em] text-violet-950">

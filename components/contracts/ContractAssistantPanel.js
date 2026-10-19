@@ -117,7 +117,7 @@ export default function ContractAssistantPanel({ content = '', onInsertTag }) {
     <aside className="rounded-[24px] border border-[#e4e7ec] bg-white p-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
       <div className="rounded-[24px] bg-[radial-gradient(circle_at_top_right,rgba(124,58,237,0.18),transparent_42%),linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-4">
         <div className="flex items-start justify-between gap-3">
-          <div className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-700">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#8b93a3]">
             Assistente de contrato
           </div>
           <span className={`rounded-full border px-2.5 py-1 text-[10px] font-black ${READINESS_BADGES[experience.readiness.color] || READINESS_BADGES.slate}`}>

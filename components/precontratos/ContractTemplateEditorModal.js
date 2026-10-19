@@ -112,7 +112,7 @@ export default function ContractTemplateEditorModal({
         onClick={(event) => event.stopPropagation()}
       >
         <div className="shrink-0 border-b border-slate-200 px-5 py-4 md:px-7 md:py-5">
-          <p className="text-[11px] font-black uppercase tracking-[0.12em] text-violet-600/80">Editor de documento</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#8b93a3]/80">Editor de documento</p>
           <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
             <div>
               <h3 className="text-xl font-black tracking-[-0.02em] text-slate-900 md:text-2xl">Editar modelo deste contrato</h3>

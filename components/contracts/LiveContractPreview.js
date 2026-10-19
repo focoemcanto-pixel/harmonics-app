@@ -43,7 +43,7 @@ export default function LiveContractPreview({ html = '' }) {
       <div className="mx-auto max-w-[760px] rounded-[22px] border border-[#e4e7ec] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
         <div className="flex items-center justify-between border-b border-[#eef2f7] px-5 py-3">
           <div>
-            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-700">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#8b93a3]">
               Documento renderizado
             </div>
             <div className="mt-1 text-[12px] font-semibold text-[#64748b]">

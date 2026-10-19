@@ -102,7 +102,7 @@ export default function WorkspaceRecommendationsFeed({ limit = 3 }) {
   return (
     <section className="space-y-4">
       <div>
-        <div className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-700">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#8b93a3]">
           Recomendações inteligentes
         </div>
 

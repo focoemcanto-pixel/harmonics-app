@@ -257,7 +257,7 @@ export default function BillingClient() {
       <section className="rounded-[24px] border border-[#e4e7ec] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)] md:p-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
-            <div className="text-[12px] font-black uppercase tracking-[0.14em] text-violet-700">Plano atual</div>
+            <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#8b93a3]">Plano atual</div>
             <h2 className="mt-1 text-[28px] font-black tracking-[-0.04em] text-[#0f172a]">
               {summary?.internal ? 'Plano interno' : subscription?.plan?.name || 'Free'}
             </h2>

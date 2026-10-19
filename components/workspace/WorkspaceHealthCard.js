@@ -89,7 +89,7 @@ export default function WorkspaceHealthCard() {
     <section className="overflow-hidden rounded-[24px] border border-[#e4e7ec] bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <div className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-700">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#8b93a3]">
             Saúde operacional
           </div>
 

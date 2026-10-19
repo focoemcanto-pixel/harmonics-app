@@ -314,7 +314,7 @@ export default function CanaisPageClient() {
       <section className="rounded-[24px] border border-[#e4e7ec] bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <div className="text-[12px] font-black uppercase tracking-[0.14em] text-violet-600">Canais</div>
+            <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#8b93a3]">Canais</div>
             <h1 className="mt-1 text-[28px] font-black tracking-[-0.03em] text-[#0f172a]">Canais WhatsApp</h1>
             <p className="mt-2 max-w-2xl text-[14px] font-semibold leading-6 text-[#64748b]">
               Conecte a API WhatsApp do próprio workspace. O Harmonics organiza os disparos, mas cada cliente pode usar seu provedor preferido.

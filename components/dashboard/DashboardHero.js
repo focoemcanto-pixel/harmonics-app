@@ -21,7 +21,7 @@ export default function DashboardHero() {
       <div className="relative z-10">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-3xl">
-            <div className="inline-flex rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-violet-700 md:text-[11px]">
+            <div className="inline-flex rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8b93a3] md:text-[11px]">
               Harmonics Admin
             </div>
 

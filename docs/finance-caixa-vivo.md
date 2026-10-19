@@ -14,3 +14,15 @@ Semântica aprovada:
 - O seletor mensal controla apenas a leitura do fluxo. A busca do checklist é global por cliente, data e local.
 - Experiência única em /pagamentos/operacional: Visão geral, Eventos e recebimentos, Histórico, Músicos a pagar e Configurações. Os endereços antigos (caixa, recebimentos) redirecionam para a seção correspondente.
 - Histórico, estornos, conferência, configurações e demais controles da tela operacional existente são preservados; esta evolução não reescreve ledger nem contratos históricos.
+
+## Decisão financeira
+
+`financeDecision` deriva três leituras dos mesmos registros, sem gravar dados:
+
+- Operação por competência do evento: contratado menos custos totais, com margem percentual. Recebimentos antecipados permanecem na competência do evento.
+- Fluxo pendente por vencimento: somente saldos não recebidos e custos não pagos de eventos ainda futuros. Custos vencidos continuam exigíveis imediatamente.
+- Posição cronológica: caixa real mais fluxos por dia. A reserva necessária é o maior déficit de qualquer prefixo dos fluxos restantes. Entradas anteriores podem financiar saídas posteriores; uma entrada posterior não cobre um déficit anterior. Entradas/saídas no mesmo dia são compensadas.
+
+Caixa livre hoje = caixa real − reserva necessária hoje. Ao fim de cada mês, livre = caixa projetado daquele mês − reserva dos fluxos posteriores. Valor negativo mostra déficit. Retiradas e ajustes já compõem o caixa real; nunca são repetidos no fluxo pendente ou no lucro.
+
+Recebíveis de meses anteriores ou sem previsão vigente ficam destacados como incertos, fora da projeção datada até reprogramação. Eventos sem conferência tornam a projeção parcial; custos desconhecidos não são inventados. A pesquisa global e todos os comandos/históricos permanecem no fluxo existente.

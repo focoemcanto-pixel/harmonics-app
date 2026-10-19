@@ -7,6 +7,7 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import { eventHistory, matchesEventSearch, receivablesOverview } from "@/lib/operational-finance/receivables.mjs";
 import {
   cashPositionAt,
+  financeDecision,
   isCancelledEvent,
   receiptDeadline,
   expectedReceiptDate,
@@ -262,28 +263,16 @@ function Finance() {
   }
   // Fonte única: todos os números desta tela saem do mesmo motor (dashboard/cashPosition).
   const stats = useMemo(() => (data ? dashboard(data.events, data.sheets, data.ledger, data.settings) : null), [data]);
+  const decision = useMemo(() => data ? financeDecision(data.events, data.sheets, data.ledger, data.settings) : null, [data]);
+  const operation = decision?.months.find((row) => row.month === month);
   const planning = useMemo(() => (data ? monthlyCommitments(data.events, data.sheets, data.ledger) : null), [data]);
   const overview = useMemo(() => (data ? receivablesOverview(data.events, data.sheets, data.ledger, data.settings) : null), [data]);
   const period = planning?.months.find((row) => row.month === month) || { month, musician: 0, other: 0, total: 0, receivable: 0, receipts: [], unchecked: 0, items: [] };
   const realizedInMonth = overview?.months.find((row) => row.month === month)?.realized || 0;
-  const monthlyResult = period.receivable - period.total;
+  const remainingCommitments = operation?.commitments || 0;
+  const monthlyResult = period.receivable - remainingCommitments;
   const accumulatedResult = planning ? planning.months.reduce((sum, row) => sum + row.receivable - row.total, 0) : 0;
   const accumulatedCash = stats ? stats.cash + accumulatedResult - (planning?.arrearsTotal || 0) : 0;
-  const economic = useMemo(() => {
-    const empty = { contract: 0, musician: 0, other: 0, margin: 0, events: 0 };
-    if (!data) return { month: empty, future: empty };
-    const add = (acc, event) => {
-      const s = eventSummary(event, data.sheets.find((x) => x.event_id === event.id), data.ledger);
-      if (!s.checked) return acc;
-      const musicianCosts = s.costs.filter((c) => c.category === "musician").reduce((n, c) => n + c.amount_cents, 0);
-      return { contract: acc.contract + s.contract, musician: acc.musician + musicianCosts, other: acc.other + s.total - musicianCosts, margin: acc.margin + s.margin, events: acc.events + 1 };
-    };
-    const active = data.events.filter((e) => !isCancelledEvent(e) && e.event_date);
-    return {
-      month: active.filter((e) => e.event_date.slice(0, 7) === month).reduce(add, empty),
-      future: active.filter((e) => e.event_date >= today()).reduce(add, empty),
-    };
-  }, [data, month]);
   const relevant = useMemo(
     () =>
       data
@@ -548,9 +537,9 @@ function Finance() {
                 </div>
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                   {[
-                    ["+", "Ainda a receber", stats.receivable],
+                    ["+", "A receber com previsão", stats.receivable - decision.uncertainReceivable],
                     ["−", "Compromissos futuros", stats.committed],
-                    ["=", "Caixa projetado", stats.projected],
+                    ["=", "Caixa projetado", decision.projected],
                   ].map(([op, label, value]) => (
                     <div key={label} className={`flex items-center justify-between gap-3 rounded-[18px] px-4 py-3 sm:block ${op === "=" ? "bg-white text-[#0c0d12]" : "bg-white/12 backdrop-blur"}`}>
                       <div className={`text-[12px] ${op === "=" ? "text-[#586174]" : "text-white/75"}`}><span className="mr-1 font-semibold">{op}</span>{label}</div>
@@ -559,13 +548,28 @@ function Finance() {
                   ))}
                 </div>
               </div>
-              <p className={`mt-5 rounded-[16px] px-4 py-3 text-[13px] ${stats.projected < 0 ? "bg-red-950/40 text-red-50" : "bg-white/10 text-white/85"}`}>
-                {stats.projected < 0
-                  ? `Atenção: falta ${money(-stats.projected)} para os contratos conhecidos cobrirem os próximos compromissos.`
-                  : `Recebendo os saldos conhecidos e cumprindo os próximos eventos, o caixa chega a ${money(stats.projected)}.`}{" "}
-                Sem contar recebimentos, o caixa após reservar os eventos futuros é {money(stats.free)}.
+              <p className={`mt-5 rounded-[16px] px-4 py-3 text-[13px] ${decision.projected < 0 ? "bg-red-950/40 text-red-50" : "bg-white/10 text-white/85"}`}>
+                {decision.projected < 0
+                  ? `Atenção: falta ${money(-decision.projected)} para os contratos conhecidos cobrirem os próximos compromissos.`
+                  : `Recebendo os saldos conhecidos e cumprindo os próximos eventos, o caixa chega a ${money(decision.projected)}.`}{" "}
+                Caixa a preservar hoje: {money(decision.reserve)}. Caixa livre hoje: {money(decision.free)}.
+                {decision.deficit > 0 && <strong> Déficit futuro: {money(decision.deficit)}.</strong>}
+                {decision.uncertainReceivable > 0 && <span> Recebimentos sem previsão vigente: {money(decision.uncertainReceivable)}; não financiam esta projeção.</span>}
+                {decision.unchecked > 0 && <span> Projeção parcial: {decision.unchecked} evento(s) sem conferência.</span>}
               </p>
             </section>
+
+            <details className={box}>
+              <summary className="cursor-pointer font-semibold">Projeção cronológica: caixa, reserva e livre por mês</summary>
+              <div className="mt-3 overflow-x-auto"><table className="w-full min-w-[700px] text-left text-[13px]">
+                <thead><tr>{["Mês", "Operação", "Fluxo pendente", "Caixa projetado", "Preservar depois", "Livre"].map((label) => <th key={label} className="p-2">{label}</th>)}</tr></thead>
+                <tbody>{decision.months.filter((r) => r.month >= today().slice(0, 7)).map((r) => <tr key={r.month} className="border-t border-[#e4e7ec]">
+                  <td className="p-2"><button onClick={() => setMonth(r.month)}>{monthLabel(r.month)}{r.unchecked > 0 ? " • Parcial" : ""}</button></td>
+                  {[r.result, r.coverage, r.projected, r.reserve, r.free].map((value, i) => <td key={i} className="whitespace-nowrap p-2">{money(value)}</td>)}
+                </tr>)}</tbody>
+              </table></div>
+              <p className="mt-2 text-[12px] text-[#586174]">Reserva calculada pela ordem diária dos vencimentos; entradas e saídas do mesmo dia são compensadas. Depende de receber nas datas previstas.</p>
+            </details>
 
             <details className={`${box} group`}>
               <summary className="flex cursor-pointer list-none items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">
@@ -654,8 +658,8 @@ function Finance() {
               <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                 <Stat label="Já entrou no mês" value={realizedInMonth} hint="Recebimentos registrados" />
                 <Stat label="Ainda a receber no mês" value={period.receivable} hint="Saldos com previsão neste mês" />
-                <Stat label={`Compromissos em ${monthLabel(month)}`} value={period.total} hint={`Cachês ${money(period.musician)} • outros ${money(period.other)}`} />
-                <Stat label="Resultado previsto do mês" value={monthlyResult} hint="A receber − compromissos do mês" strong />
+                <Stat label={`Compromissos em ${monthLabel(month)}`} value={remainingCommitments} hint={`Cachês ${money(period.musician)} • outros ${money(period.other)}`} />
+                <Stat label="Cobertura futura do mês" value={monthlyResult} hint="A receber − compromissos do mês" strong />
               </div>
               {period.unchecked > 0 ? <p className="text-[13px] text-amber-800">{period.unchecked} evento(s) deste mês ainda aguardam conferência.</p> : null}
               <div className="grid gap-3 lg:grid-cols-2">
@@ -702,7 +706,7 @@ function Finance() {
                         <th className="p-2 font-medium">Outros custos</th>
                         <th className="p-2 font-medium">A receber</th>
                         <th className="p-2 font-medium">A pagar</th>
-                        <th className="p-2 font-medium">Resultado do mês</th>
+                        <th className="p-2 font-medium">Cobertura futura</th>
                         <th className="p-2 font-medium">A conferir</th>
                       </tr>
                     </thead>
@@ -721,35 +725,32 @@ function Finance() {
                     </tbody>
                     <tfoot>
                       <tr className="font-semibold">
-                        <td colSpan={5} className="p-2">Resultado acumulado dos meses exibidos</td>
+                        <td colSpan={5} className="p-2">Fluxo pendente acumulado dos meses exibidos</td>
                         <td className="whitespace-nowrap p-2">{money(accumulatedResult)}</td>
                         <td />
                       </tr>
                     </tfoot>
                   </table>
-                  <p className="px-2 text-[12px] text-[#8b93a3]">Saldo de caixa projetado ao final de todos os meses: <strong>{money(accumulatedCash)}</strong> (caixa real + resultado acumulado).</p>
+                  <p className="px-2 text-[12px] text-[#8b93a3]">Saldo de caixa projetado ao final de todos os meses: <strong>{money(accumulatedCash)}</strong> (caixa real + fluxo pendente acumulado).</p>
                 </div>
               </details>
             </section>
 
             <section className={`${box} space-y-3`}>
-              <div>
-                <h2 className="text-[18px] font-semibold tracking-[-0.02em]">Margem econômica</h2>
-                <p className="text-[13px] text-[#586174]">Contratos − cachês − outros custos. É resultado da operação, não dinheiro em caixa; retiradas não entram aqui.</p>
+              <h2 className="text-[18px] font-semibold">Operação de {monthLabel(month)}</h2>
+              <p className="text-[13px] text-[#586174]">Competência dos eventos. Recebimentos antecipados e retiradas não alteram o resultado.</p>
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                {[["Contratado", operation?.contract], ["Já recebido pelos eventos", operation?.received], ["Falta receber pelos eventos", operation?.open], ["Custos totais", operation?.costs], ["Custos realizados", operation?.realized], ["Custos pendentes", operation?.pending], ["Resultado operacional", operation?.result]].map(([label, value]) => <Stat key={label} label={label} value={value || 0} />)}
               </div>
-              <div className="grid gap-3 md:grid-cols-2">
-                {[[`Eventos de ${monthLabel(month)}`, economic.month], ["Eventos futuros conferidos", economic.future]].map(([title, e]) => (
-                  <div key={title} className="rounded-[16px] bg-[#f6f7f9] p-4">
-                    <p className="text-[13px] font-semibold">{title} <span className="font-normal text-[#8b93a3]">({e.events})</span></p>
-                    <dl className="mt-2 space-y-1.5 text-[14px]">
-                      <div className="flex justify-between"><dt className="text-[#586174]">Contratos</dt><dd><Amount value={e.contract} /></dd></div>
-                      <div className="flex justify-between"><dt className="text-[#586174]">− Cachês</dt><dd><Amount value={e.musician} /></dd></div>
-                      <div className="flex justify-between"><dt className="text-[#586174]">− Outros custos</dt><dd><Amount value={e.other} /></dd></div>
-                      <div className="flex justify-between border-t border-[#e4e7ec] pt-1.5 font-semibold"><dt>= Margem</dt><dd><Amount value={e.margin} /></dd></div>
-                    </dl>
-                  </div>
-                ))}
-              </div>
+              <p>Margem: {(operation?.marginPercent || 0).toFixed(1)}%.</p>
+              {(operation?.unchecked || 0) > 0 && <p className="text-amber-800">Operação parcial: {operation.unchecked} evento(s) sem conferência.</p>}
+              {operation?.need > 0 && <p>Necessidade de caixa para {monthLabel(month)}: {money(operation.need)}.</p>}
+              {operation?.projected !== undefined && <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                <Stat label="Caixa projetado ao fim do mês" value={operation.projected} />
+                <Stat label="Preservar para os meses seguintes" value={operation.reserve} />
+                <Stat label="Caixa livre ao fim do mês" value={operation.free} />
+                {month === today().slice(0, 7) && <Stat label="Caixa de hoje − compromissos restantes" value={operation.withoutReceipts} hint="Sem novas entradas neste mês" />}
+              </div>}
             </section>
           </>
         )}

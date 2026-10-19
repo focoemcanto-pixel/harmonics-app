@@ -198,7 +198,7 @@ export default function BillingClient() {
   if (loading) {
     return (
       <div className="space-y-4" aria-busy="true">
-        <div className="h-40 animate-pulse rounded-[28px] bg-slate-100" />
+        <div className="h-40 animate-pulse rounded-[24px] bg-slate-100" />
         <div className="grid gap-4 md:grid-cols-3">
           {[0, 1, 2].map((key) => <div key={key} className="h-56 animate-pulse rounded-[24px] bg-slate-100" />)}
         </div>
@@ -225,7 +225,7 @@ export default function BillingClient() {
       ) : null}
 
       {chosenPlan && !summary?.internal && !pendingPlan ? (
-        <section className="rounded-[28px] bg-gradient-to-r from-violet-700 via-fuchsia-700 to-purple-800 p-5 text-white shadow-[0_18px_42px_rgba(124,58,237,0.28)] md:p-6">
+        <section className="rounded-[24px] bg-gradient-to-r from-violet-700 via-fuchsia-700 to-purple-800 p-5 text-white shadow-[0_18px_42px_rgba(124,58,237,0.28)] md:p-6">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
               <div className="text-[12px] font-black uppercase tracking-[0.14em] text-violet-100">Plano escolhido</div>
@@ -254,7 +254,7 @@ export default function BillingClient() {
         </section>
       ) : null}
 
-      <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-5 shadow-[0_12px_28px_rgba(15,23,42,0.04)] md:p-6">
+      <section className="rounded-[24px] border border-[#e4e7ec] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)] md:p-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
             <div className="text-[12px] font-black uppercase tracking-[0.14em] text-violet-700">Plano atual</div>
@@ -348,7 +348,7 @@ export default function BillingClient() {
                 <article
                   key={plan.id}
                   id={`plan-${plan.slug}`}
-                  className={`flex flex-col rounded-[24px] border p-5 ${isCurrent ? 'border-violet-400 bg-violet-50/60' : isChosen ? 'border-emerald-400 bg-emerald-50/60 ring-2 ring-emerald-300' : 'border-[#dbe3ef] bg-white'}`}
+                  className={`flex flex-col rounded-[24px] border p-5 ${isCurrent ? 'border-violet-400 bg-violet-50/60' : isChosen ? 'border-emerald-400 bg-emerald-50/60 ring-2 ring-emerald-300' : 'border-[#e4e7ec] bg-white'}`}
                 >
                   {isChosen ? <div className="mb-2 text-xs font-black uppercase tracking-[0.12em] text-emerald-700">Plano escolhido</div> : null}
                   <h3 className="text-lg font-black text-[#0f172a]">{plan.name}</h3>
@@ -389,7 +389,7 @@ export default function BillingClient() {
         </section>
       ) : null}
 
-      <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-5 md:p-6">
+      <section className="rounded-[24px] border border-[#e4e7ec] bg-white p-5 md:p-6">
         <h2 className="text-[20px] font-black tracking-[-0.03em] text-[#0f172a]">Histórico de cobranças</h2>
         {summary?.history?.length ? (
           <ul className="mt-3 divide-y divide-slate-100">

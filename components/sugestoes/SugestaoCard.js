@@ -2,7 +2,7 @@ import Image from 'next/image';
 
 function Pill({ children, tone = 'default' }) {
   const tones = {
-    default: 'border-[#dbe3ef] bg-[#f8fafc] text-[#475569]',
+    default: 'border-[#e4e7ec] bg-[#f8fafc] text-[#475569]',
     emerald: 'border-emerald-200 bg-emerald-50 text-emerald-700',
     amber: 'border-amber-200 bg-amber-50 text-amber-700',
     red: 'border-red-200 bg-red-50 text-red-700',
@@ -65,7 +65,7 @@ export default function SugestaoCard({
   const shouldShowImage = Boolean(song?.thumbnail_url);
 
   return (
-    <article className="group overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_14px_34px_rgba(15,23,42,0.07)] transition hover:-translate-y-[1px] hover:shadow-[0_18px_44px_rgba(15,23,42,0.1)]">
+    <article className="group overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)] transition hover:-translate-y-[1px] hover:shadow-[0_18px_44px_rgba(15,23,42,0.1)]">
       <div className="relative h-[164px] bg-slate-100">
         {shouldShowImage ? (
           <Image

@@ -250,7 +250,7 @@ function CronStatusCard({ cronStatus }) {
   const tone = cronStatus?.level === 'critical' ? 'text-red-700' : cronStatus?.level === 'attention' ? 'text-amber-700' : 'text-emerald-700';
 
   return (
-    <section className="rounded-[24px] border border-[#dbe3ef] bg-white p-5 shadow-[0_4px_14px_rgba(17,24,39,0.04)]">
+    <section className="rounded-[24px] border border-[#e4e7ec] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
       <h2 className="text-[13px] font-black uppercase tracking-[0.1em] text-[#94a3b8] mb-2">Scheduler / Cron</h2>
       <p className={`text-[14px] font-semibold ${tone}`}>{cronStatus?.message || 'Sem dados de cron'}</p>
       <p className="text-[12px] text-[#64748b] mt-1">Última execução: {formatarData(cronStatus?.last_run_at)}</p>
@@ -399,7 +399,7 @@ export default function AutomacoesPageClient() {
 
   return (
     <div className="space-y-6">
-      <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-6 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
+      <section className="rounded-[24px] border border-[#e4e7ec] bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
         <div className="flex items-center justify-between gap-4">
           <div>
             <div className="text-[12px] font-black uppercase tracking-[0.14em] text-violet-600">Automação</div>
@@ -417,7 +417,7 @@ export default function AutomacoesPageClient() {
               <button
                 type="button"
                 onClick={restoreHiddenAlerts}
-                className="rounded-[14px] border border-[#dbe3ef] bg-white px-4 py-2 text-[12px] font-semibold text-slate-700"
+                className="rounded-[14px] border border-[#e4e7ec] bg-white px-4 py-2 text-[12px] font-semibold text-slate-700"
               >
                 Reexibir alertas
               </button>
@@ -428,7 +428,7 @@ export default function AutomacoesPageClient() {
                 fetchDashboard({ force: true, silent: Boolean(data) });
               }}
               disabled={loading || refreshing}
-              className="rounded-[14px] border border-[#dbe3ef] px-4 py-2 text-[13px] font-semibold"
+              className="rounded-[14px] border border-[#e4e7ec] px-4 py-2 text-[13px] font-semibold"
             >
               {loading || refreshing ? 'Atualizando…' : '↻ Atualizar'}
             </button>
@@ -475,7 +475,7 @@ export default function AutomacoesPageClient() {
 
       {!loading && !error && <CronStatusCard cronStatus={data?.cron_status} />}
 
-      <section className="rounded-[24px] border border-[#dbe3ef] bg-white p-5 shadow-[0_4px_14px_rgba(17,24,39,0.04)]">
+      <section className="rounded-[24px] border border-[#e4e7ec] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
         <h2 className="mb-3 text-[13px] font-black uppercase tracking-[0.1em] text-[#94a3b8]">Alertas rápidos</h2>
         {loading && !data ? (
           <div className="space-y-2">
@@ -493,7 +493,7 @@ export default function AutomacoesPageClient() {
           <h2 className="text-[13px] font-black uppercase tracking-[0.1em] text-[#94a3b8]">Últimas falhas</h2>
           <Link href="/automacoes/logs" className="text-[13px] font-bold text-violet-600">Ver todos os logs →</Link>
         </div>
-        <div className="rounded-[24px] border border-[#dbe3ef] bg-white p-5 shadow-[0_4px_14px_rgba(17,24,39,0.04)]">
+        <div className="rounded-[24px] border border-[#e4e7ec] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
           {loading && !data ? (
             <div className="space-y-2">
               {Array.from({ length: 2 }).map((_, index) => (

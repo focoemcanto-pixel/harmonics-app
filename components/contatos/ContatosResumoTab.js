@@ -19,13 +19,13 @@ export default function ContatosResumoTab({
       ? 'border-emerald-200 bg-emerald-50'
       : tone === 'violet'
       ? 'border-violet-200 bg-violet-50'
-      : 'border-[#dbe3ef] bg-[#f8fafc]';
+      : 'border-[#e4e7ec] bg-[#f8fafc]';
 
   return (
     <div className="space-y-5">
       {/* Health banner */}
       <section
-        className={`rounded-[28px] border px-5 py-5 shadow-[0_10px_26px_rgba(17,24,39,0.04)] md:px-6 ${sectionBg}`}
+        className={`rounded-[24px] border px-5 py-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)] md:px-6 ${sectionBg}`}
       >
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
@@ -50,7 +50,7 @@ export default function ContatosResumoTab({
                 setMobileTab('lista');
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
-              className="rounded-[16px] bg-white px-4 py-3 text-[14px] font-black text-[#0f172a] shadow-[0_8px_20px_rgba(15,23,42,0.06)]"
+              className="rounded-[16px] bg-white px-4 py-3 text-[14px] font-black text-[#0f172a] shadow-[0_1px_2px_rgba(16,24,40,0.04)]"
             >
               Ver lista
             </button>
@@ -92,7 +92,7 @@ export default function ContatosResumoTab({
       </div>
 
       {/* Tags */}
-      <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_26px_rgba(17,24,39,0.04)] md:p-6">
+      <section className="rounded-[24px] border border-[#e4e7ec] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)] md:p-6">
           <div className="mb-4">
             <div className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#64748b]">
               Tags
@@ -117,7 +117,7 @@ export default function ContatosResumoTab({
                     setDesktopTab('visao');
                     setMobileTab('lista');
                   }}
-                  className="rounded-full border border-[#dbe3ef] bg-[#f8fafc] px-3 py-2 text-[13px] font-black text-[#0f172a]"
+                  className="rounded-full border border-[#e4e7ec] bg-[#f8fafc] px-3 py-2 text-[13px] font-black text-[#0f172a]"
                 >
                   {tag}{' '}
                   <span className="font-semibold text-[#64748b]">({count})</span>

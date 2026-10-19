@@ -216,13 +216,13 @@ function AdminEventCard({
       className={
         flat
           ? 'rounded-[22px] border-0 bg-transparent p-0 shadow-none'
-          : `rounded-[24px] border ${onboardingHighlight ? 'border-amber-400 ring-4 ring-amber-300/60 shadow-[0_0_0_9999px_rgba(15,23,42,0.18),0_18px_50px_rgba(245,158,11,0.25)]' : 'border-[#dbe3ef] shadow-[0_8px_22px_rgba(17,24,39,0.04)]'} bg-white p-5${visualStateClasses}`
+          : `rounded-[24px] border ${onboardingHighlight ? 'border-amber-400 ring-4 ring-amber-300/60 shadow-[0_0_0_9999px_rgba(15,23,42,0.18),0_18px_50px_rgba(245,158,11,0.25)]' : 'border-[#e4e7ec] shadow-[0_1px_2px_rgba(16,24,40,0.04)]'} bg-white p-5${visualStateClasses}`
       }
     >
       <div className={flat ? 'space-y-4' : ''}>
         {selectable ? (
           <div className="mb-2 flex items-center justify-end">
-            <label className="inline-flex min-h-11 touch-manipulation items-center gap-2 rounded-[12px] border border-[#dbe3ef] bg-white/90 px-3 py-2 text-[12px] font-black text-[#334155] active:scale-[0.99]">
+            <label className="inline-flex min-h-11 touch-manipulation items-center gap-2 rounded-[12px] border border-[#e4e7ec] bg-white/90 px-3 py-2 text-[12px] font-black text-[#334155] active:scale-[0.99]">
               <input
                 type="checkbox"
                 checked={selected}
@@ -361,7 +361,7 @@ function AdminEventCard({
 
           <Link
             href={`/eventos/${id}`}
-            className={`${ACTION_BASE_CLASS} border border-[#dbe3ef] bg-white text-[#0f172a]`}
+            className={`${ACTION_BASE_CLASS} border border-[#e4e7ec] bg-white text-[#0f172a]`}
           >
             Ver detalhe
           </Link>
@@ -374,7 +374,7 @@ function AdminEventCard({
               gerandoContrato
                 ? 'cursor-not-allowed border border-[#e5e7eb] bg-[#f8fafc] text-[#94a3b8] opacity-70'
                 : contractLink
-                ? 'border border-[#dbe3ef] bg-white text-[#0f172a] hover:bg-[#f8fafc]'
+                ? 'border border-[#e4e7ec] bg-white text-[#0f172a] hover:bg-[#f8fafc]'
                 : 'bg-[#0f172a] text-white shadow-[0_10px_24px_rgba(15,23,42,0.20)] hover:bg-[#111827]'
             }`}
           >
@@ -385,7 +385,7 @@ function AdminEventCard({
             <button
               type="button"
               onClick={onCopyContractLink}
-              className={`${ACTION_BASE_CLASS} border border-[#dbe3ef] bg-white text-[#0f172a]`}
+              className={`${ACTION_BASE_CLASS} border border-[#e4e7ec] bg-white text-[#0f172a]`}
             >
               Copiar link
             </button>
@@ -396,7 +396,7 @@ function AdminEventCard({
               href={whatsappHref}
               target="_blank"
               rel="noreferrer"
-              className={`${ACTION_BASE_CLASS} border border-[#dbe3ef] bg-white text-[#0f172a]`}
+              className={`${ACTION_BASE_CLASS} border border-[#e4e7ec] bg-white text-[#0f172a]`}
             >
               WhatsApp
             </a>
@@ -405,7 +405,7 @@ function AdminEventCard({
           <button
             type="button"
             onClick={onEdit}
-            className={`${ACTION_BASE_CLASS} border border-[#dbe3ef] bg-white text-[#0f172a]`}
+            className={`${ACTION_BASE_CLASS} border border-[#e4e7ec] bg-white text-[#0f172a]`}
           >
             Editar
           </button>

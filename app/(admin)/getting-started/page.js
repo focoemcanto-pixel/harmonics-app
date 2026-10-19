@@ -52,7 +52,7 @@ export default function GettingStartedPage() {
   return (
     <AdminShell pageTitle="Primeiros passos" activeItem="settings" mobileSubtitle="Tutorial guiado">
       <div className="space-y-6">
-        <section className="overflow-hidden rounded-[34px] border border-[#dbe3ef] bg-white shadow-[0_18px_46px_rgba(15,23,42,0.06)]">
+        <section className="overflow-hidden rounded-[34px] border border-[#e4e7ec] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
           <div className="grid gap-6 p-6 lg:grid-cols-[1.1fr_0.9fr] lg:p-8">
             <div>
               <div className="inline-flex rounded-full bg-violet-100 px-4 py-2 text-[12px] font-black uppercase tracking-[0.14em] text-violet-700">
@@ -71,13 +71,13 @@ export default function GettingStartedPage() {
                 <Link href="/eventos" className="rounded-2xl bg-violet-600 px-5 py-3 text-sm font-black text-white shadow-[0_14px_30px_rgba(124,58,237,0.24)] transition hover:bg-violet-500">
                   Criar primeiro evento
                 </Link>
-                <Link href="/settings/workspace" className="rounded-2xl border border-[#dbe3ef] bg-white px-5 py-3 text-sm font-black text-[#0f172a] transition hover:bg-slate-50">
+                <Link href="/settings/workspace" className="rounded-2xl border border-[#e4e7ec] bg-white px-5 py-3 text-sm font-black text-[#0f172a] transition hover:bg-slate-50">
                   Ajustar identidade
                 </Link>
               </div>
             </div>
 
-            <div className="rounded-[30px] border border-violet-200 bg-violet-50 p-6">
+            <div className="rounded-[24px] border border-violet-200 bg-violet-50 p-6">
               <div className="text-[12px] font-black uppercase tracking-[0.14em] text-violet-700">
                 Progresso sugerido
               </div>
@@ -93,7 +93,7 @@ export default function GettingStartedPage() {
 
         <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
           {STEPS.map((step, index) => (
-            <Link key={step.title} href={step.href} className="group block rounded-[30px] border border-[#dbe3ef] bg-white p-6 shadow-[0_12px_28px_rgba(15,23,42,0.04)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_38px_rgba(15,23,42,0.08)]">
+            <Link key={step.title} href={step.href} className="group block rounded-[24px] border border-[#e4e7ec] bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)] transition hover:-translate-y-0.5 hover:shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#f1f5f9] text-[24px]">
                   {step.icon}
@@ -118,7 +118,7 @@ export default function GettingStartedPage() {
           ))}
         </section>
 
-        <section className="rounded-[30px] border border-amber-200 bg-amber-50 p-6 shadow-[0_12px_28px_rgba(15,23,42,0.04)]">
+        <section className="rounded-[24px] border border-amber-200 bg-amber-50 p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
           <div className="text-[12px] font-black uppercase tracking-[0.14em] text-amber-700">
             Próxima evolução
           </div>

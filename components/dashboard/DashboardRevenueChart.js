@@ -19,7 +19,7 @@ function MobileMetricCard({ label, value, helper, tone = 'default' }) {
   };
 
   return (
-    <div className={`rounded-[20px] border px-4 py-4 shadow-[0_8px_20px_rgba(17,24,39,0.03)] ${tones[tone] || tones.default}`}>
+    <div className={`rounded-[20px] border px-4 py-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)] ${tones[tone] || tones.default}`}>
       <div className="text-[11px] font-black uppercase tracking-[0.08em] text-[#64748b]">
         {label}
       </div>
@@ -47,7 +47,7 @@ export default function DashboardRevenueChart({ events = [] }) {
   const melhorMes = [...series].sort((a, b) => b.receitaContratada - a.receitaContratada)[0];
 
   return (
-    <section className="rounded-[30px] border border-[#dbe3ef] bg-[linear-gradient(180deg,#ffffff_0%,#fcfdff_100%)] p-5 shadow-[0_16px_40px_rgba(17,24,39,0.06)] md:p-6">
+    <section className="rounded-[24px] border border-[#e4e7ec] bg-[linear-gradient(180deg,#ffffff_0%,#fcfdff_100%)] p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)] md:p-6">
       <AdminSectionTitle
         title="Evolução financeira"
         subtitle="Leitura dos últimos 6 meses, acompanhando receita contratada e lucro previsto."
@@ -71,7 +71,7 @@ export default function DashboardRevenueChart({ events = [] }) {
         </div>
 
         <div className="mt-4 md:hidden">
-          <div className="rounded-[20px] border border-[#eef2f7] bg-white/90 px-4 py-4 shadow-[0_8px_20px_rgba(17,24,39,0.03)]">
+          <div className="rounded-[20px] border border-[#eef2f7] bg-white/90 px-4 py-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
             <div className="flex items-center justify-between gap-4">
               <div>
                 <div className="text-[11px] font-black uppercase tracking-[0.08em] text-[#64748b]">
@@ -116,7 +116,7 @@ export default function DashboardRevenueChart({ events = [] }) {
               return (
                 <div
                   key={item.key}
-                  className="w-[132px] shrink-0 rounded-[20px] border border-[#eef2f7] bg-white/90 px-4 py-4 shadow-[0_8px_20px_rgba(17,24,39,0.03)]"
+                  className="w-[132px] shrink-0 rounded-[20px] border border-[#eef2f7] bg-white/90 px-4 py-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)]"
                 >
                   <div className="flex h-[136px] items-end justify-center gap-3">
                     <div className="flex flex-col items-center">

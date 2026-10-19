@@ -69,7 +69,7 @@ function EscalasFormularioTabInner({
   }));
 
   return (
-    <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-6 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
+    <section className="rounded-[24px] border border-[#e4e7ec] bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
       <AdminSectionTitle
         title={escalaSelecionada ? 'Editar escala' : 'Nova escala'}
         subtitle="Atribua músicos aos eventos"
@@ -158,7 +158,7 @@ function EscalasFormularioTabInner({
               type="button"
               onClick={onCancel}
               disabled={salvando}
-              className="rounded-[18px] border border-[#dbe3ef] bg-white px-6 py-3 text-[14px] font-black text-[#0f172a] transition hover:bg-slate-50 disabled:bg-slate-100"
+              className="rounded-[18px] border border-[#e4e7ec] bg-white px-6 py-3 text-[14px] font-black text-[#0f172a] transition hover:bg-slate-50 disabled:bg-slate-100"
             >
               Cancelar
             </button>

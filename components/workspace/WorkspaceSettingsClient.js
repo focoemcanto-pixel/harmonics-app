@@ -127,7 +127,7 @@ export default function WorkspaceSettingsClient() {
 
   if (loading) {
     return (
-      <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-8 text-[#64748b]">
+      <section className="rounded-[24px] border border-[#e4e7ec] bg-white p-8 text-[#64748b]">
         Carregando configurações do workspace...
       </section>
     );
@@ -135,7 +135,7 @@ export default function WorkspaceSettingsClient() {
 
   return (
     <div className="space-y-6">
-      <section className="rounded-[30px] border border-[#dbe3ef] bg-white p-6 shadow-[0_12px_28px_rgba(15,23,42,0.04)]">
+      <section className="rounded-[24px] border border-[#e4e7ec] bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
         <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
           <div>
             <div className="text-[12px] font-black uppercase tracking-[0.14em]" style={{ color: currentColor }}>
@@ -162,7 +162,7 @@ export default function WorkspaceSettingsClient() {
       ) : null}
 
       <section className="grid gap-6 lg:grid-cols-[1fr_0.9fr]">
-        <div className="rounded-[30px] border border-[#dbe3ef] bg-white p-6 shadow-[0_12px_28px_rgba(15,23,42,0.04)]">
+        <div className="rounded-[24px] border border-[#e4e7ec] bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
           <div>
             <h2 className="text-[22px] font-black tracking-[-0.03em] text-[#0f172a]">Identidade e tema</h2>
             <p className="mt-2 text-[14px] font-semibold leading-6 text-[#64748b]">
@@ -176,7 +176,7 @@ export default function WorkspaceSettingsClient() {
               <input
                 value={form.publicName}
                 onChange={(event) => updateField('publicName', event.target.value)}
-                className="mt-2 w-full rounded-2xl border border-[#dbe3ef] px-4 py-3 text-[14px] font-semibold outline-none transition focus:border-slate-400"
+                className="mt-2 w-full rounded-2xl border border-[#e4e7ec] px-4 py-3 text-[14px] font-semibold outline-none transition focus:border-slate-400"
                 placeholder="Ex: Rocha Worship"
               />
             </label>
@@ -186,7 +186,7 @@ export default function WorkspaceSettingsClient() {
               <input
                 value={form.supportWhatsapp}
                 onChange={(event) => updateField('supportWhatsapp', event.target.value)}
-                className="mt-2 w-full rounded-2xl border border-[#dbe3ef] px-4 py-3 text-[14px] font-semibold outline-none transition focus:border-slate-400"
+                className="mt-2 w-full rounded-2xl border border-[#e4e7ec] px-4 py-3 text-[14px] font-semibold outline-none transition focus:border-slate-400"
                 placeholder="Ex: 71999999999"
                 inputMode="tel"
               />
@@ -199,12 +199,12 @@ export default function WorkspaceSettingsClient() {
                   type="color"
                   value={form.primaryColor}
                   onChange={(event) => updateField('primaryColor', event.target.value)}
-                  className="h-12 w-16 rounded-2xl border border-[#dbe3ef] bg-white p-1"
+                  className="h-12 w-16 rounded-2xl border border-[#e4e7ec] bg-white p-1"
                 />
                 <input
                   value={form.primaryColor}
                   onChange={(event) => updateField('primaryColor', event.target.value)}
-                  className="flex-1 rounded-2xl border border-[#dbe3ef] px-4 py-3 text-[14px] font-semibold outline-none transition focus:border-slate-400"
+                  className="flex-1 rounded-2xl border border-[#e4e7ec] px-4 py-3 text-[14px] font-semibold outline-none transition focus:border-slate-400"
                 />
               </div>
             </label>
@@ -221,7 +221,7 @@ export default function WorkspaceSettingsClient() {
           </div>
         </div>
 
-        <div className="rounded-[30px] border border-red-200 bg-red-50 p-6 shadow-[0_12px_28px_rgba(127,29,29,0.06)]">
+        <div className="rounded-[24px] border border-red-200 bg-red-50 p-6 shadow-[0_12px_28px_rgba(127,29,29,0.06)]">
           <div>
             <div className="text-[12px] font-black uppercase tracking-[0.14em] text-red-700">
               Zona de perigo

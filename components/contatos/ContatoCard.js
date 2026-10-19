@@ -20,7 +20,7 @@ export default function ContatoCard({
   const whatsappLink = getWhatsAppLink(phone);
 
   return (
-    <div className="rounded-[24px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)] transition hover:shadow-[0_14px_32px_rgba(15,23,42,0.08)]">
+    <div className="rounded-[24px] border border-[#e4e7ec] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)] transition hover:shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
       <div className="flex items-start gap-4">
         <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-lg font-black ${getInitialsClasses(tone)}`}>
           {initials}
@@ -43,7 +43,7 @@ export default function ContatoCard({
             <button
               type="button"
               onClick={onEdit}
-              className="rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-2 text-[13px] font-black text-[#0f172a] transition hover:bg-[#f8fafc]"
+              className="rounded-[16px] border border-[#e4e7ec] bg-white px-4 py-2 text-[13px] font-black text-[#0f172a] transition hover:bg-[#f8fafc]"
             >
               Editar
             </button>
@@ -53,7 +53,7 @@ export default function ContatoCard({
                 href={whatsappLink}
                 target="_blank"
                 rel="noreferrer"
-                className="rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-2 text-[13px] font-black text-[#0f172a] transition hover:bg-[#f8fafc]"
+                className="rounded-[16px] border border-[#e4e7ec] bg-white px-4 py-2 text-[13px] font-black text-[#0f172a] transition hover:bg-[#f8fafc]"
               >
                 WhatsApp
               </a>

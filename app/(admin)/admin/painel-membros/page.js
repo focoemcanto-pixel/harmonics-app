@@ -117,7 +117,7 @@ function PainelMembrosContent() {
   if (error) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <div className="rounded-[28px] border border-[#dbe3ef] bg-white p-6 shadow-[0_10px_26px_rgba(17,24,39,0.04)] max-w-md w-full text-center">
+        <div className="rounded-[24px] border border-[#e4e7ec] bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)] max-w-md w-full text-center">
           <p className="text-red-600 font-semibold mb-2">Erro ao carregar dados</p>
           <p className="text-sm text-slate-600 mb-4">{error}</p>
           <button
@@ -156,7 +156,7 @@ function PainelMembrosContent() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Resumo */}
-          <div className="lg:col-span-3 rounded-[28px] border border-[#dbe3ef] bg-white p-6 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
+          <div className="lg:col-span-3 rounded-[24px] border border-[#e4e7ec] bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
             <h2 className="text-lg font-bold text-slate-900 mb-4">Resumo</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="bg-violet-50 rounded-[18px] p-4">
@@ -192,7 +192,7 @@ function PainelMembrosContent() {
           </div>
 
           {/* Lista de Membros */}
-          <div className="lg:col-span-2 rounded-[28px] border border-[#dbe3ef] bg-white p-6 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
+          <div className="lg:col-span-2 rounded-[24px] border border-[#e4e7ec] bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-slate-900">Membros Ativos</h2>
               <Link
@@ -230,7 +230,7 @@ function PainelMembrosContent() {
           </div>
 
           {/* Escalas Recentes */}
-          <div className="rounded-[28px] border border-[#dbe3ef] bg-white p-6 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
+          <div className="rounded-[24px] border border-[#e4e7ec] bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
             <h2 className="text-lg font-bold text-slate-900 mb-4">Escalas Recentes</h2>
 
             <div className="space-y-3">

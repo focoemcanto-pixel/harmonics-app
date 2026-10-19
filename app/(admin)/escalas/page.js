@@ -70,7 +70,7 @@ function isUpcomingWithin(dateValue, days = 15) {
 
 function SummaryCard({ label, value, helper, tone = 'default' }) {
   const tones = {
-    default: 'border-[#dbe3ef] bg-white text-[#0f172a]',
+    default: 'border-[#e4e7ec] bg-white text-[#0f172a]',
     violet: 'border-violet-200 bg-violet-50 text-violet-800',
     amber: 'border-amber-200 bg-amber-50 text-amber-800',
     emerald: 'border-emerald-200 bg-emerald-50 text-emerald-800',
@@ -93,7 +93,7 @@ function SummaryCard({ label, value, helper, tone = 'default' }) {
 
 function SectionCard({ eyebrow, title, subtitle, right, children }) {
   return (
-    <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_26px_rgba(17,24,39,0.04)] md:p-6">
+    <section className="rounded-[24px] border border-[#e4e7ec] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)] md:p-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
           {eyebrow ? (
@@ -121,7 +121,7 @@ function SectionCard({ eyebrow, title, subtitle, right, children }) {
 
 function Pill({ children, tone = 'default' }) {
   const tones = {
-    default: 'border-[#dbe3ef] bg-[#f8fafc] text-[#475569]',
+    default: 'border-[#e4e7ec] bg-[#f8fafc] text-[#475569]',
     emerald: 'border-emerald-200 bg-emerald-50 text-emerald-700',
     amber: 'border-amber-200 bg-amber-50 text-amber-700',
     red: 'border-red-200 bg-red-50 text-red-700',
@@ -140,7 +140,7 @@ function Pill({ children, tone = 'default' }) {
 
 function EmptyState({ title, text, actionLabel, actionHref }) {
   return (
-    <div className="rounded-[26px] border border-dashed border-[#dbe3ef] bg-[#f8fafc] px-5 py-8 text-center">
+    <div className="rounded-[26px] border border-dashed border-[#e4e7ec] bg-[#f8fafc] px-5 py-8 text-center">
       <div className="text-[18px] font-black text-[#0f172a]">{title}</div>
       <p className="mx-auto mt-2 max-w-xl text-[15px] leading-7 text-[#64748b]">
         {text}
@@ -149,7 +149,7 @@ function EmptyState({ title, text, actionLabel, actionHref }) {
       {actionLabel && actionHref ? (
         <Link
           href={actionHref}
-          className="mt-5 inline-flex rounded-[16px] border border-[#dbe3ef] bg-white px-5 py-3 text-[14px] font-black text-[#0f172a] transition hover:bg-[#f8fafc]"
+          className="mt-5 inline-flex rounded-[16px] border border-[#e4e7ec] bg-white px-5 py-3 text-[14px] font-black text-[#0f172a] transition hover:bg-[#f8fafc]"
         >
           {actionLabel}
         </Link>
@@ -267,7 +267,7 @@ function EventScaleCard({ card, selected, onToggleSelect, onRequestDelete, onOpe
       : 'Sem equipe montada';
 
   return (
-    <div className="rounded-[26px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_26px_rgba(17,24,39,0.04)] transition hover:shadow-[0_16px_34px_rgba(17,24,39,0.08)] md:p-6">
+    <div className="rounded-[26px] border border-[#e4e7ec] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)] transition hover:shadow-[0_1px_2px_rgba(16,24,40,0.04)] md:p-6">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
@@ -391,7 +391,7 @@ function EventScaleCard({ card, selected, onToggleSelect, onRequestDelete, onOpe
 
         <Link
           href="/eventos"
-          className="rounded-[18px] border border-[#dbe3ef] bg-white px-5 py-3 text-[14px] font-black text-[#0f172a]"
+          className="rounded-[18px] border border-[#e4e7ec] bg-white px-5 py-3 text-[14px] font-black text-[#0f172a]"
         >
           Ir para Eventos
         </Link>
@@ -404,7 +404,7 @@ function InviteCard({ invite }) {
   const meta = InviteStatusMeta(invite.status);
 
   return (
-    <div className="rounded-[24px] border border-[#dbe3ef] bg-white p-4 shadow-[0_8px_22px_rgba(17,24,39,0.04)] md:p-5">
+    <div className="rounded-[24px] border border-[#e4e7ec] bg-white p-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)] md:p-5">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div className="min-w-0">
           <div className="text-[18px] font-black text-[#0f172a]">
@@ -808,7 +808,7 @@ export default function EscalasPage() {
   if (carregando) {
     return (
       <AdminShell pageTitle="Escalas" activeItem="escalas">
-        <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-6 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
+        <section className="rounded-[24px] border border-[#e4e7ec] bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
           <p className="text-center text-[#64748b]">Carregando painel de escalas...</p>
         </section>
       </AdminShell>
@@ -826,14 +826,14 @@ export default function EscalasPage() {
             <div className="flex flex-wrap gap-3">
               <Link
                 href="/escalas/templates"
-                className="rounded-[18px] border border-[#dbe3ef] bg-white px-5 py-4 text-[14px] font-black text-[#0f172a]"
+                className="rounded-[18px] border border-[#e4e7ec] bg-white px-5 py-4 text-[14px] font-black text-[#0f172a]"
               >
                 Templates
               </Link>
 
               <Link
                 href="/eventos"
-                className="rounded-[18px] border border-[#dbe3ef] bg-white px-5 py-4 text-[14px] font-black text-[#0f172a]"
+                className="rounded-[18px] border border-[#e4e7ec] bg-white px-5 py-4 text-[14px] font-black text-[#0f172a]"
               >
                 Ir para Eventos
               </Link>
@@ -866,7 +866,7 @@ export default function EscalasPage() {
                 value={busca}
                 onChange={(e) => setBusca(e.target.value)}
                 placeholder="Cliente, local, formação..."
-                className="w-full rounded-[18px] border border-[#dbe3ef] bg-white px-4 py-3 text-[15px] font-semibold text-[#0f172a] outline-none transition focus:border-violet-300 focus:ring-4 focus:ring-violet-100"
+                className="w-full rounded-[18px] border border-[#e4e7ec] bg-white px-4 py-3 text-[15px] font-semibold text-[#0f172a] outline-none transition focus:border-violet-300 focus:ring-4 focus:ring-violet-100"
               />
             </div>
           }
@@ -927,7 +927,7 @@ export default function EscalasPage() {
         ) : null}
 
         <div className="hidden md:block">
-          <div className="rounded-[24px] border border-[#dbe3ef] bg-white p-2 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
+          <div className="rounded-[24px] border border-[#e4e7ec] bg-white p-2 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
             <div className="flex flex-wrap gap-2">
               {desktopTabs.map((tab) => {
                 const active = desktopTab === tab.key;
@@ -939,8 +939,8 @@ export default function EscalasPage() {
                     onClick={() => setDesktopTab(tab.key)}
                     className={`rounded-[18px] px-4 py-3 text-[14px] font-black transition ${
                       active
-                        ? 'bg-violet-600 text-white shadow-[0_12px_28px_rgba(124,58,237,0.18)]'
-                        : 'bg-[#f8fafc] text-[#475569] hover:bg-[#eef2ff]'
+                        ? 'bg-[#0c0d12] text-white'
+                        : 'bg-transparent text-[#586174] hover:bg-[#f6f7f9]'
                     }`}
                   >
                     {tab.label}
@@ -1140,7 +1140,7 @@ export default function EscalasPage() {
       />
       {scaleWorkspaceOpen ? (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/70 p-4">
-          <div className="flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-[28px] border border-[#dbe3ef] bg-white shadow-[0_24px_60px_rgba(15,23,42,0.3)]">
+          <div className="flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-[24px] border border-[#e4e7ec] bg-white shadow-[0_24px_60px_rgba(15,23,42,0.3)]">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e2e8f0] px-5 py-4">
               <div>
                 <div className="text-[12px] font-black uppercase tracking-[0.08em] text-violet-600">
@@ -1161,7 +1161,7 @@ export default function EscalasPage() {
                 <button
                   type="button"
                   onClick={closeScaleWorkspace}
-                  className="rounded-[14px] border border-[#dbe3ef] bg-white px-4 py-2 text-[13px] font-black text-[#0f172a]"
+                  className="rounded-[14px] border border-[#e4e7ec] bg-white px-4 py-2 text-[13px] font-black text-[#0f172a]"
                 >
                   Fechar
                 </button>
@@ -1170,7 +1170,7 @@ export default function EscalasPage() {
 
             <div className="overflow-y-auto px-5 py-5">
               {selectedScaleCard ? (
-                <div className="mb-5 rounded-[22px] border border-[#dbe3ef] bg-white p-4">
+                <div className="mb-5 rounded-[22px] border border-[#e4e7ec] bg-white p-4">
                   <div className="text-[20px] font-black tracking-[-0.03em] text-[#0f172a]">
                     {selectedScaleCard.clientName || 'Evento'}
                   </div>
@@ -1180,7 +1180,7 @@ export default function EscalasPage() {
                   </div>
 
                   <div className="mt-4 grid gap-3 md:grid-cols-2">
-                    <div className="rounded-[18px] border border-[#dbe3ef] bg-[#f8fafc] px-4 py-3">
+                    <div className="rounded-[18px] border border-[#e4e7ec] bg-[#f8fafc] px-4 py-3">
                       <div className="text-[11px] font-black uppercase tracking-[0.1em] text-[#64748b]">
                         Formação
                       </div>
@@ -1189,7 +1189,7 @@ export default function EscalasPage() {
                       </div>
                     </div>
 
-                    <div className="rounded-[18px] border border-[#dbe3ef] bg-[#f8fafc] px-4 py-3">
+                    <div className="rounded-[18px] border border-[#e4e7ec] bg-[#f8fafc] px-4 py-3">
                       <div className="text-[11px] font-black uppercase tracking-[0.1em] text-[#64748b]">
                         Instrumentos / funções esperadas
                       </div>

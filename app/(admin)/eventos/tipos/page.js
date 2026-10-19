@@ -402,19 +402,19 @@ export default function EventTypesPage() {
         ) : null}
 
         <section className="grid gap-6 xl:grid-cols-[1.45fr_1fr]">
-          <div className="rounded-[26px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_28px_rgba(17,24,39,0.05)] md:p-6">
+          <div className="rounded-[26px] border border-[#e4e7ec] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)] md:p-6">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <h2 className="text-[20px] font-black tracking-[-0.02em] text-[#0f172a]">Lista de tipos (configuração)</h2>
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Buscar por nome, slug ou template"
-                className="w-full rounded-[14px] border border-[#dbe3ef] bg-white px-4 py-2.5 text-[14px] font-semibold text-[#0f172a] outline-none focus:border-violet-400 md:max-w-[300px]"
+                className="w-full rounded-[14px] border border-[#e4e7ec] bg-white px-4 py-2.5 text-[14px] font-semibold text-[#0f172a] outline-none focus:border-violet-400 md:max-w-[300px]"
               />
             </div>
 
             <div className="mt-4 space-y-3">
-              {loading && <div className="rounded-[16px] border border-dashed border-[#dbe3ef] p-4 text-sm text-slate-500">Carregando tipos de evento...</div>}
+              {loading && <div className="rounded-[16px] border border-dashed border-[#e4e7ec] p-4 text-sm text-slate-500">Carregando tipos de evento...</div>}
 
               {!loading && filteredTypes.length === 0 && eventTypes.length === 0 && (
                 <SmartEmptyState
@@ -430,13 +430,13 @@ export default function EventTypesPage() {
               )}
 
               {!loading && filteredTypes.length === 0 && eventTypes.length > 0 && (
-                <div className="rounded-[16px] border border-dashed border-[#dbe3ef] p-4 text-sm text-slate-500">Nenhum tipo encontrado para esta busca.</div>
+                <div className="rounded-[16px] border border-dashed border-[#e4e7ec] p-4 text-sm text-slate-500">Nenhum tipo encontrado para esta busca.</div>
               )}
 
               {!loading && filteredTypes.map((item) => {
                 const templateName = templateMap.get(String(item.default_contract_template_id || ''));
                 return (
-                  <article key={item.id} data-tour="event-type-create" className="rounded-[20px] border border-[#e2e8f0] bg-[#fcfdff] p-4 shadow-[0_8px_20px_rgba(15,23,42,0.04)]">
+                  <article key={item.id} data-tour="event-type-create" className="rounded-[20px] border border-[#e2e8f0] bg-[#fcfdff] p-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
                         <h3 className="text-[17px] font-black text-[#0f172a]">{item.name}</h3>
@@ -468,14 +468,14 @@ export default function EventTypesPage() {
                         <button
                           type="button"
                           onClick={() => startEdit(item)}
-                          className="rounded-[12px] border border-[#dbe3ef] bg-white px-3 py-2 text-[12px] font-black text-[#0f172a]"
+                          className="rounded-[12px] border border-[#e4e7ec] bg-white px-3 py-2 text-[12px] font-black text-[#0f172a]"
                         >
                           Editar
                         </button>
                         <button
                           type="button"
                           onClick={() => toggleStatus(item)}
-                          className="rounded-[12px] border border-[#dbe3ef] bg-white px-3 py-2 text-[12px] font-black text-[#0f172a]"
+                          className="rounded-[12px] border border-[#e4e7ec] bg-white px-3 py-2 text-[12px] font-black text-[#0f172a]"
                         >
                           {item.is_active !== false ? 'Inativar' : 'Ativar'}
                         </button>
@@ -495,7 +495,7 @@ export default function EventTypesPage() {
             </div>
           </div>
 
-          <div className="rounded-[26px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_28px_rgba(17,24,39,0.05)] md:p-6">
+          <div className="rounded-[26px] border border-[#e4e7ec] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)] md:p-6">
             <h2 className="text-[20px] font-black tracking-[-0.02em] text-[#0f172a]">
               {editingId ? 'Editar tipo' : 'Novo tipo'}
             </h2>
@@ -565,7 +565,7 @@ export default function EventTypesPage() {
                   type="button"
                   onClick={resetForm}
                   disabled={saving}
-                  className="rounded-[14px] border border-[#dbe3ef] bg-white px-4 py-2.5 text-[13px] font-black text-[#0f172a]"
+                  className="rounded-[14px] border border-[#e4e7ec] bg-white px-4 py-2.5 text-[13px] font-black text-[#0f172a]"
                 >
                   Limpar
                 </button>

@@ -99,7 +99,7 @@ export default function EventosOperacaoTab({
   ];
 
   return (
-    <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_26px_rgba(17,24,39,0.04)] md:p-6">
+    <section className="rounded-[24px] border border-[#e4e7ec] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)] md:p-6">
       <AdminSectionTitle
         title="Operação"
         subtitle="Acompanhe rapidamente os eventos que exigem atenção, contrato, financeiro ou ação imediata."
@@ -132,7 +132,7 @@ export default function EventosOperacaoTab({
                 setOperacaoFiltro(primaryAction.filtro);
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
-              className="min-h-11 touch-manipulation rounded-[16px] bg-white/90 px-4 py-3 text-[14px] font-black text-[#0f172a] shadow-[0_8px_20px_rgba(15,23,42,0.06)] active:scale-[0.98] hover:bg-white"
+              className="min-h-11 touch-manipulation rounded-[16px] bg-white/90 px-4 py-3 text-[14px] font-black text-[#0f172a] shadow-[0_1px_2px_rgba(16,24,40,0.04)] active:scale-[0.98] hover:bg-white"
             >
               {primaryAction.label}
             </button>
@@ -152,7 +152,7 @@ export default function EventosOperacaoTab({
       </div>
 
       <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-[22px] border border-[#e7edf5] bg-white px-5 py-5 shadow-[0_8px_22px_rgba(15,23,42,0.04)]">
+        <div className="rounded-[22px] border border-[#e7edf5] bg-white px-5 py-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
           <div className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#64748b]">
             Em atenção
           </div>
@@ -218,8 +218,8 @@ export default function EventosOperacaoTab({
               onClick={() => setOperacaoFiltro(tab.key)}
               className={`inline-flex min-h-10 shrink-0 touch-manipulation items-center gap-2 rounded-full px-4 py-2 text-[13px] font-black transition active:scale-[0.98] ${
                 active
-                  ? 'bg-violet-600 text-white shadow-[0_10px_24px_rgba(124,58,237,0.18)]'
-                  : 'bg-[#f8fafc] text-[#475569] hover:bg-[#eef2ff]'
+                  ? 'bg-[#0c0d12] text-white'
+                  : 'bg-transparent text-[#586174] hover:bg-[#f6f7f9]'
               }`}
             >
               <span>{tab.label}</span>
@@ -258,7 +258,7 @@ export default function EventosOperacaoTab({
             return (
               <div
                 key={ev.id}
-                className={`overflow-hidden rounded-[28px] border shadow-[0_8px_20px_rgba(17,24,39,0.035)] transition-all duration-300 ${
+                className={`overflow-hidden rounded-[24px] border shadow-[0_8px_20px_rgba(17,24,39,0.035)] transition-all duration-300 ${
                   pagamentoRecemAtualizado
                     ? 'ring-2 ring-emerald-300 ring-offset-2'
                     : ''
@@ -276,7 +276,7 @@ export default function EventosOperacaoTab({
                       <button
                         type="button"
                         onClick={() => iniciarEdicao(ev)}
-                        className={`${ACTION_BUTTON_CLASS} border border-[#dbe3ef] bg-white text-[#0f172a] hover:bg-[#f8fafc]`}
+                        className={`${ACTION_BUTTON_CLASS} border border-[#e4e7ec] bg-white text-[#0f172a] hover:bg-[#f8fafc]`}
                       >
                         Editar
                       </button>
@@ -462,7 +462,7 @@ export default function EventosOperacaoTab({
                         placeholder="Valor"
                         value={valorPagamento}
                         onChange={(e) => setValorPagamento(e.target.value)}
-                        className="mb-3 min-h-11 w-full rounded-[12px] border border-[#dbe3ef] px-3 py-2 text-sm"
+                        className="mb-3 min-h-11 w-full rounded-[12px] border border-[#e4e7ec] px-3 py-2 text-sm"
                       />
 
                       <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
@@ -495,7 +495,7 @@ export default function EventosOperacaoTab({
                             setValorPagamento('');
                           }}
                           disabled={salvandoPagamentoId === ev.id}
-                          className="min-h-11 touch-manipulation rounded-[12px] border border-[#dbe3ef] px-4 py-2 text-sm font-black active:scale-[0.98] disabled:opacity-60"
+                          className="min-h-11 touch-manipulation rounded-[12px] border border-[#e4e7ec] px-4 py-2 text-sm font-black active:scale-[0.98] disabled:opacity-60"
                         >
                           Cancelar
                         </button>

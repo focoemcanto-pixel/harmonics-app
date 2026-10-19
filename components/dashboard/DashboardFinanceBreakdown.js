@@ -21,7 +21,7 @@ function BreakdownCard({ item, receitaContratada, maxValue }) {
 
   return (
     <div
-      className={`rounded-[20px] border bg-white/90 px-4 py-4 shadow-[0_8px_20px_rgba(17,24,39,0.03)] ${item.border}`}
+      className={`rounded-[20px] border bg-white/90 px-4 py-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)] ${item.border}`}
     >
       <div className="flex items-center justify-between gap-4">
         <div className="min-w-0">
@@ -101,7 +101,7 @@ export default function DashboardFinanceBreakdown({ summary }) {
   const maxValue = Math.max(1, ...rows.map((item) => item.value));
 
   return (
-    <section className="rounded-[30px] border border-[#dbe3ef] bg-[linear-gradient(180deg,#ffffff_0%,#fcfdff_100%)] p-5 shadow-[0_16px_40px_rgba(17,24,39,0.06)] md:p-6">
+    <section className="rounded-[24px] border border-[#e4e7ec] bg-[linear-gradient(180deg,#ffffff_0%,#fcfdff_100%)] p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)] md:p-6">
       <AdminSectionTitle
         title="Composição financeira"
         subtitle="Resumo do mês atual com foco em receita contratada, recebido, pendências, custos e lucro previsto."

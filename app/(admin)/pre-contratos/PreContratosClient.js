@@ -369,7 +369,7 @@ function ShareLinkModal({
     >
       <div className="flex h-[100dvh] items-end justify-center overflow-hidden px-0 md:items-center md:px-6">
         <div
-          className="flex h-[86dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-[28px] border border-white/10 bg-white text-slate-900 shadow-[0_24px_80px_rgba(0,0,0,0.45)] md:h-auto md:max-h-[88vh] md:rounded-[28px]"
+          className="flex h-[86dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-[28px] border border-white/10 bg-white text-slate-900 shadow-[0_24px_80px_rgba(0,0,0,0.45)] md:h-auto md:max-h-[88vh] md:rounded-[24px]"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="shrink-0 border-b border-slate-200 px-5 py-4">
@@ -562,7 +562,7 @@ function PreviewContractModal({ open, item, onClose }) {
   return (
     <div className="fixed inset-0 z-[190] bg-slate-950/70 px-4 py-6 backdrop-blur-[3px]" onClick={onClose}>
       <div
-        className="mx-auto max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-[30px] border border-white/15 bg-white p-6 shadow-[0_30px_90px_rgba(0,0,0,0.45)]"
+        className="mx-auto max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-[24px] border border-white/15 bg-white p-6 shadow-[0_30px_90px_rgba(0,0,0,0.45)]"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-center justify-between">

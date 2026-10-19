@@ -187,9 +187,9 @@ function getRepertorioStatusLabel(status) {
 
 function SummaryChip({ children, tone = 'default' }) {
   const classes = {
-    default: 'border-[#dbe3ef] bg-white text-[#0f172a]',
+    default: 'border-[#e4e7ec] bg-white text-[#0f172a]',
     violet: 'border-violet-200 bg-violet-50 text-violet-700',
-    slate: 'border-[#dbe3ef] bg-[#f8fafc] text-[#475569]',
+    slate: 'border-[#e4e7ec] bg-[#f8fafc] text-[#475569]',
     emerald: 'border-emerald-200 bg-emerald-50 text-emerald-700',
     amber: 'border-amber-200 bg-amber-50 text-amber-700',
     red: 'border-red-200 bg-red-50 text-red-700',
@@ -207,7 +207,7 @@ function SummaryChip({ children, tone = 'default' }) {
 
 function MetricCard({ label, value, tone = 'default', helper }) {
   const tones = {
-    default: 'border-[#dbe3ef] bg-white text-[#0f172a]',
+    default: 'border-[#e4e7ec] bg-white text-[#0f172a]',
     emerald: 'border-emerald-200 bg-emerald-50 text-emerald-800',
     amber: 'border-amber-200 bg-amber-50 text-amber-800',
     red: 'border-red-200 bg-red-50 text-red-800',
@@ -230,7 +230,7 @@ function MetricCard({ label, value, tone = 'default', helper }) {
 
 function SectionCard({ eyebrow, title, subtitle, right, children }) {
   return (
-    <section className="w-full max-w-full overflow-hidden rounded-[28px] border border-[#dbe3ef] bg-white p-4 shadow-[0_10px_26px_rgba(17,24,39,0.04)] md:p-6">
+    <section className="w-full max-w-full overflow-hidden rounded-[24px] border border-[#e4e7ec] bg-white p-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)] md:p-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
           {eyebrow ? (
@@ -258,7 +258,7 @@ function SectionCard({ eyebrow, title, subtitle, right, children }) {
 
 function EmptyState({ title, text, actionLabel, onAction }) {
   return (
-    <div className="rounded-[26px] border border-dashed border-[#dbe3ef] bg-[#f8fafc] px-5 py-7 text-center">
+    <div className="rounded-[26px] border border-dashed border-[#e4e7ec] bg-[#f8fafc] px-5 py-7 text-center">
       <div className="text-[18px] font-black text-[#0f172a]">{title}</div>
       <p className="mx-auto mt-2 max-w-xl text-[15px] leading-7 text-[#64748b]">
         {text}
@@ -268,7 +268,7 @@ function EmptyState({ title, text, actionLabel, onAction }) {
         <button
           type="button"
           onClick={onAction}
-          className="mt-5 rounded-[16px] border border-[#dbe3ef] bg-white px-5 py-3 text-[14px] font-black text-[#0f172a] transition hover:bg-[#f8fafc]"
+          className="mt-5 rounded-[16px] border border-[#e4e7ec] bg-white px-5 py-3 text-[14px] font-black text-[#0f172a] transition hover:bg-[#f8fafc]"
         >
           {actionLabel}
         </button>
@@ -282,7 +282,7 @@ function CoveragePill({ label, tone = 'default' }) {
     covered: 'border-emerald-200 bg-emerald-50 text-emerald-700',
     pending: 'border-amber-200 bg-amber-50 text-amber-700',
     missing: 'border-red-200 bg-red-50 text-red-700',
-    default: 'border-[#dbe3ef] bg-[#f8fafc] text-[#475569]',
+    default: 'border-[#e4e7ec] bg-[#f8fafc] text-[#475569]',
   };
 
   return (
@@ -298,7 +298,7 @@ function PreviewScaleCard({ item }) {
   const statusMeta = getStatusMeta(item.status);
 
   return (
-    <div className="rounded-[24px] border border-[#dbe3ef] bg-white p-4 shadow-[0_8px_22px_rgba(17,24,39,0.04)] transition hover:shadow-[0_14px_30px_rgba(17,24,39,0.06)] md:p-5">
+    <div className="rounded-[24px] border border-[#e4e7ec] bg-white p-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)] transition hover:shadow-[0_1px_2px_rgba(16,24,40,0.04)] md:p-5">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
@@ -347,7 +347,7 @@ function SelectedMusicianCard({ item, index, onChange, onRemove }) {
   const hasEmptyRole = !String(item.role || '').trim();
 
   return (
-    <div className="rounded-[24px] border border-[#dbe3ef] bg-white p-4 shadow-[0_8px_22px_rgba(17,24,39,0.04)] md:p-5">
+    <div className="rounded-[24px] border border-[#e4e7ec] bg-white p-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)] md:p-5">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
@@ -397,7 +397,7 @@ function SelectedMusicianCard({ item, index, onChange, onRemove }) {
             className={`w-full rounded-[18px] border bg-white px-4 py-3 text-[15px] font-semibold text-[#0f172a] outline-none transition focus:ring-4 ${
               hasEmptyRole
                 ? 'border-red-200 focus:border-red-300 focus:ring-red-100'
-                : 'border-[#dbe3ef] focus:border-violet-300 focus:ring-violet-100'
+                : 'border-[#e4e7ec] focus:border-violet-300 focus:ring-violet-100'
             }`}
           />
         </div>
@@ -409,7 +409,7 @@ function SelectedMusicianCard({ item, index, onChange, onRemove }) {
           <select
             value={item.status}
             onChange={(e) => onChange(index, 'status', e.target.value)}
-            className="w-full rounded-[18px] border border-[#dbe3ef] bg-white px-4 py-3 text-[15px] font-semibold text-[#0f172a] outline-none transition focus:border-violet-300 focus:ring-4 focus:ring-violet-100"
+            className="w-full rounded-[18px] border border-[#e4e7ec] bg-white px-4 py-3 text-[15px] font-semibold text-[#0f172a] outline-none transition focus:border-violet-300 focus:ring-4 focus:ring-violet-100"
           >
             <option value="pending">Pendente</option>
             <option value="confirmed">Confirmado</option>
@@ -427,7 +427,7 @@ function SelectedMusicianCard({ item, index, onChange, onRemove }) {
             onChange={(e) => onChange(index, 'notes', e.target.value)}
             rows={3}
             placeholder="Ex.: chega 1h antes, toca só receptivo, levar retorno..."
-            className="w-full rounded-[18px] border border-[#dbe3ef] bg-white px-4 py-3 text-[15px] font-semibold text-[#0f172a] outline-none transition focus:border-violet-300 focus:ring-4 focus:ring-violet-100"
+            className="w-full rounded-[18px] border border-[#e4e7ec] bg-white px-4 py-3 text-[15px] font-semibold text-[#0f172a] outline-none transition focus:border-violet-300 focus:ring-4 focus:ring-violet-100"
           />
         </div>
       </div>
@@ -1187,7 +1187,7 @@ async function salvarEEnviarConvites() {
 
   if (carregando) {
     return (
-      <div className="space-y-4 rounded-[24px] border border-[#dbe3ef] bg-[#f8fafc] px-5 py-6 text-[15px] font-semibold text-[#64748b]">
+      <div className="space-y-4 rounded-[24px] border border-[#e4e7ec] bg-[#f8fafc] px-5 py-6 text-[15px] font-semibold text-[#64748b]">
         <div className="h-5 w-48 animate-pulse rounded-full bg-slate-200" />
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div className="h-32 animate-pulse rounded-[22px] bg-white" />
@@ -1208,7 +1208,7 @@ async function salvarEEnviarConvites() {
 
   return (
     <div className="w-full max-w-full space-y-4 overflow-hidden px-0 md:space-y-5">
-      <section className="space-y-3 rounded-[24px] border border-[#dbe3ef] bg-white p-4 shadow-[0_10px_26px_rgba(17,24,39,0.04)] md:p-5">
+      <section className="space-y-3 rounded-[24px] border border-[#e4e7ec] bg-white p-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)] md:p-5">
         <div>
           <h3 className="text-[22px] font-black tracking-[-0.03em] text-[#0f172a]">{evento?.client_name || 'Evento'}</h3>
           <p className="mt-1 text-[13px] font-semibold text-[#64748b]">
@@ -1234,7 +1234,7 @@ async function salvarEEnviarConvites() {
             <button
               type="button"
               onClick={iniciarMontagemManual}
-              className="rounded-[14px] border border-[#dbe3ef] bg-white px-4 py-2 text-[13px] font-black text-[#0f172a]"
+              className="rounded-[14px] border border-[#e4e7ec] bg-white px-4 py-2 text-[13px] font-black text-[#0f172a]"
             >
               Montagem manual
             </button>
@@ -1264,7 +1264,7 @@ async function salvarEEnviarConvites() {
           <div className="rounded-2xl border border-[#e2e8f0] bg-white px-3 py-3">
             <div className="text-[11px] font-black uppercase tracking-[0.08em] text-[#64748b]">Financeiro</div>
             <div className="mt-1 text-[14px] font-black text-[#0f172a]">{formatMoney(evento?.open_amount)} pendente</div>
-            <Link href="/pagamentos" className="mt-2 inline-flex rounded-[12px] border border-[#dbe3ef] px-3 py-1.5 text-[12px] font-black text-[#0f172a]">
+            <Link href="/pagamentos" className="mt-2 inline-flex rounded-[12px] border border-[#e4e7ec] px-3 py-1.5 text-[12px] font-black text-[#0f172a]">
               Ver pagamentos
             </Link>
           </div>
@@ -1272,7 +1272,7 @@ async function salvarEEnviarConvites() {
           <div className="rounded-2xl border border-[#e2e8f0] bg-white px-3 py-3">
             <div className="text-[11px] font-black uppercase tracking-[0.08em] text-[#64748b]">Repertório</div>
             <div className="mt-1 text-[14px] font-black text-[#0f172a]">{repertorioLabel}</div>
-            <Link href="/repertorios" className="mt-2 inline-flex rounded-[12px] border border-[#dbe3ef] px-3 py-1.5 text-[12px] font-black text-[#0f172a]">
+            <Link href="/repertorios" className="mt-2 inline-flex rounded-[12px] border border-[#e4e7ec] px-3 py-1.5 text-[12px] font-black text-[#0f172a]">
               Ver repertório
             </Link>
           </div>
@@ -1453,7 +1453,7 @@ async function salvarEEnviarConvites() {
                     value={busca}
                     onChange={(e) => setBusca(e.target.value)}
                     placeholder="Buscar por nome, tag, whatsapp ou email..."
-                    className="w-full rounded-[18px] border border-[#dbe3ef] bg-white px-4 py-3 text-[15px] font-semibold text-[#0f172a] outline-none transition focus:border-violet-300 focus:ring-4 focus:ring-violet-100"
+                    className="w-full rounded-[18px] border border-[#e4e7ec] bg-white px-4 py-3 text-[15px] font-semibold text-[#0f172a] outline-none transition focus:border-violet-300 focus:ring-4 focus:ring-violet-100"
                   />
                 </div>
 
@@ -1527,7 +1527,7 @@ async function salvarEEnviarConvites() {
                   ))}
                 </div>
               ) : (
-                <div className="rounded-[22px] border border-dashed border-[#dbe3ef] bg-[#f8fafc] px-4 py-5 text-[15px] font-semibold text-[#64748b]">
+                <div className="rounded-[22px] border border-dashed border-[#e4e7ec] bg-[#f8fafc] px-4 py-5 text-[15px] font-semibold text-[#64748b]">
                   Selecione músicos na coluna ao lado para montar esta equipe.
                 </div>
               )}
@@ -1557,7 +1557,7 @@ async function salvarEEnviarConvites() {
   type="button"
   onClick={cancelarEdicao}
   disabled={salvando || enviandoConvites}
-  className="rounded-[18px] border border-[#dbe3ef] bg-white px-5 py-4 text-[15px] font-black text-[#0f172a] disabled:opacity-60"
+  className="rounded-[18px] border border-[#e4e7ec] bg-white px-5 py-4 text-[15px] font-black text-[#0f172a] disabled:opacity-60"
 >
   Cancelar
 </button>

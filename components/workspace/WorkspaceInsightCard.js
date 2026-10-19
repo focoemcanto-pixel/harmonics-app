@@ -77,7 +77,7 @@ export default function WorkspaceInsightCard() {
 
   if (loading) {
     return (
-      <section className="animate-pulse rounded-[30px] border border-[#dbe3ef] bg-white p-6 shadow-[0_14px_38px_rgba(15,23,42,0.06)]">
+      <section className="animate-pulse rounded-[24px] border border-[#e4e7ec] bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
         <div className="h-4 w-32 rounded-full bg-slate-200" />
         <div className="mt-4 h-8 w-3/4 rounded-full bg-slate-200" />
         <div className="mt-3 h-4 w-full rounded-full bg-slate-100" />
@@ -92,7 +92,7 @@ export default function WorkspaceInsightCard() {
   const styles = PRIORITY_STYLES[insight.priority] || PRIORITY_STYLES.medium;
 
   return (
-    <section className="overflow-hidden rounded-[32px] border border-[#dbe3ef] bg-[radial-gradient(circle_at_top_right,rgba(139,92,246,0.08),transparent_38%),linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-6 shadow-[0_14px_38px_rgba(15,23,42,0.06)]">
+    <section className="overflow-hidden rounded-[24px] border border-[#e4e7ec] bg-[radial-gradient(circle_at_top_right,rgba(139,92,246,0.08),transparent_38%),linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
       <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] ${styles.badge}`}>
         {insight.eyebrow}
       </div>
@@ -108,7 +108,7 @@ export default function WorkspaceInsightCard() {
       <div className="mt-6 flex flex-wrap gap-3">
         <Link
           href={insight.href || '/dashboard'}
-          className={`inline-flex items-center justify-center rounded-[18px] px-5 py-3 text-[14px] font-black shadow-[0_12px_24px_rgba(15,23,42,0.08)] transition ${styles.button}`}
+          className={`inline-flex items-center justify-center rounded-[18px] px-5 py-3 text-[14px] font-black shadow-[0_1px_2px_rgba(16,24,40,0.04)] transition ${styles.button}`}
         >
           {insight.cta}
         </Link>

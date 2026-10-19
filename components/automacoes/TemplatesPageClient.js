@@ -283,7 +283,7 @@ export default function TemplatesPageClient() {
       </div>
 
       {/* Hero Section */}
-      <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-6 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
+      <section className="rounded-[24px] border border-[#e4e7ec] bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <div className="text-[12px] font-black uppercase tracking-[0.14em] text-violet-600">
@@ -316,7 +316,7 @@ export default function TemplatesPageClient() {
 
       {/* Loading */}
       {carregando && (
-        <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-12 text-center shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
+        <section className="rounded-[24px] border border-[#e4e7ec] bg-white p-12 text-center shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
           <div className="mx-auto flex max-w-xs flex-col items-center gap-3">
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-violet-200 border-t-violet-600" />
             <p className="text-[14px] font-semibold text-[#64748b]">Carregando templates...</p>
@@ -326,7 +326,7 @@ export default function TemplatesPageClient() {
 
       {/* Error */}
       {!carregando && erro && (
-        <section className="rounded-[28px] border border-red-200 bg-red-50 p-8 text-center shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
+        <section className="rounded-[24px] border border-red-200 bg-red-50 p-8 text-center shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
           <div className="mb-2 text-[32px]">⚠️</div>
           <p className="text-[15px] font-bold text-red-700">{erro}</p>
           <button
@@ -340,7 +340,7 @@ export default function TemplatesPageClient() {
 
       {/* Empty State */}
       {!carregando && !erro && templates.length === 0 && (
-        <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-12 text-center shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
+        <section className="rounded-[24px] border border-[#e4e7ec] bg-white p-12 text-center shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
           <div className="mx-auto max-w-md">
             <div className="mb-4 text-[48px]">🎨</div>
             <h2 className="text-[20px] font-black tracking-[-0.02em] text-[#0f172a]">
@@ -373,7 +373,7 @@ export default function TemplatesPageClient() {
             return (
               <div
                 key={template.id}
-                className="rounded-[28px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_26px_rgba(17,24,39,0.04)]"
+                className="rounded-[24px] border border-[#e4e7ec] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)]"
               >
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0 flex-1">
@@ -639,7 +639,7 @@ export default function TemplatesPageClient() {
             className="absolute inset-0 bg-black/40 backdrop-blur-sm"
             onClick={() => setTemplateParaTestar(null)}
           />
-          <div className="relative z-10 w-full max-w-3xl overflow-y-auto rounded-t-[28px] bg-white p-6 shadow-2xl sm:rounded-[28px] sm:m-4 max-h-[92vh]">
+          <div className="relative z-10 w-full max-w-3xl overflow-y-auto rounded-t-[28px] bg-white p-6 shadow-2xl sm:rounded-[24px] sm:m-4 max-h-[92vh]">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-[20px] font-black tracking-[-0.02em] text-[#0f172a]">

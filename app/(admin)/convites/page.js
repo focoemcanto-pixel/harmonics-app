@@ -98,7 +98,7 @@ function FeedbackBanner({ feedback, onClose }) {
   };
 
   return (
-    <div className={`rounded-[22px] border px-4 py-4 shadow-[0_8px_20px_rgba(17,24,39,0.04)] ${tones[feedback.type] || tones.info}`}>
+    <div className={`rounded-[22px] border px-4 py-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)] ${tones[feedback.type] || tones.info}`}>
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="text-[12px] font-black uppercase tracking-[0.08em] opacity-80">{feedback.title || 'Atualização'}</div>
@@ -269,7 +269,7 @@ export default function ConvitesPage() {
   if (carregando) {
     return (
       <AdminShell pageTitle="Convites" activeItem="convites">
-        <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-6 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
+        <section className="rounded-[24px] border border-[#e4e7ec] bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
           <p className="text-center text-[#64748b]">Carregando convites...</p>
         </section>
       </AdminShell>
@@ -295,7 +295,7 @@ export default function ConvitesPage() {
           <AdminSummaryCard label="Eventos em risco" value={String(resumo.eventosRisco)} helper="Data próxima + cobertura incompleta" tone="danger" size="highlight" />
         </div>
 
-        <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-6 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
+        <section className="rounded-[24px] border border-[#e4e7ec] bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
           <AdminSectionTitle
             title="Convites por evento"
             subtitle="Cada card representa um evento. Expanda para acessar os convites individuais e executar ações rápidas."
@@ -306,7 +306,7 @@ export default function ConvitesPage() {
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
               placeholder="Buscar por evento, local, músico ou função..."
-              className="rounded-[18px] border border-[#dbe3ef] bg-white px-4 py-3 text-[14px] font-semibold text-[#0f172a] outline-none"
+              className="rounded-[18px] border border-[#e4e7ec] bg-white px-4 py-3 text-[14px] font-semibold text-[#0f172a] outline-none"
             />
 
             <div className="flex flex-wrap gap-2">
@@ -317,8 +317,8 @@ export default function ConvitesPage() {
                   onClick={() => setFiltroEvento(filter.key)}
                   className={`rounded-full px-4 py-2 text-[12px] font-black uppercase tracking-[0.06em] transition ${
                     filtroEvento === filter.key
-                      ? 'bg-violet-600 text-white shadow-[0_12px_28px_rgba(124,58,237,0.18)]'
-                      : 'border border-[#dbe3ef] bg-white text-[#334155]'
+                      ? 'bg-[#0c0d12] text-white'
+                      : 'border border-[#e4e7ec] bg-white text-[#334155]'
                   }`}
                 >
                   {filter.label}
@@ -336,7 +336,7 @@ export default function ConvitesPage() {
                 const sendingEvent = sendingEventIds.includes(String(group.eventId));
 
                 return (
-                  <div key={group.eventId} className="rounded-[24px] border border-[#dbe3ef] bg-white p-5 shadow-[0_8px_22px_rgba(17,24,39,0.04)]">
+                  <div key={group.eventId} className="rounded-[24px] border border-[#e4e7ec] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
                     <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                       <div className="min-w-0">
                         <div className="text-[20px] font-black tracking-[-0.03em] text-[#0f172a]">{group.event.client_name || 'Evento sem cliente'}</div>
@@ -360,10 +360,10 @@ export default function ConvitesPage() {
                       </div>
 
                       <div className="flex w-full flex-col gap-2 xl:w-[280px]">
-                        <Link href={`/escalas?event=${group.eventId}`} className="rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3 text-center text-[14px] font-black text-[#0f172a]">
+                        <Link href={`/escalas?event=${group.eventId}`} className="rounded-[16px] border border-[#e4e7ec] bg-white px-4 py-3 text-center text-[14px] font-black text-[#0f172a]">
                           Ir para Escala
                         </Link>
-                        <Link href={`/eventos?event=${group.eventId}`} className="rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3 text-center text-[14px] font-black text-[#0f172a]">
+                        <Link href={`/eventos?event=${group.eventId}`} className="rounded-[16px] border border-[#e4e7ec] bg-white px-4 py-3 text-center text-[14px] font-black text-[#0f172a]">
                           Abrir Evento
                         </Link>
                         <button
@@ -377,7 +377,7 @@ export default function ConvitesPage() {
                         <button
                           type="button"
                           onClick={() => setExpandedEvents((prev) => ({ ...prev, [group.eventId]: !isExpanded }))}
-                          className="rounded-[16px] border border-[#dbe3ef] bg-[#f8fafc] px-4 py-3 text-[14px] font-black text-[#0f172a]"
+                          className="rounded-[16px] border border-[#e4e7ec] bg-[#f8fafc] px-4 py-3 text-[14px] font-black text-[#0f172a]"
                         >
                           {isExpanded ? 'Ocultar convites' : `Ver todos os convites (${group.total})`}
                         </button>
@@ -426,13 +426,13 @@ export default function ConvitesPage() {
                                   </button>
                                   <a
                                     href={invite.contact?.phone ? `tel:${invite.contact.phone}` : '#'}
-                                    className="rounded-[14px] border border-[#dbe3ef] bg-white px-3 py-2 text-[12px] font-black text-[#0f172a]"
+                                    className="rounded-[14px] border border-[#e4e7ec] bg-white px-3 py-2 text-[12px] font-black text-[#0f172a]"
                                   >
                                     Abrir contato
                                   </a>
                                   <Link
                                     href={`/escalas?event=${group.eventId}`}
-                                    className="rounded-[14px] border border-[#dbe3ef] bg-white px-3 py-2 text-[12px] font-black text-[#0f172a]"
+                                    className="rounded-[14px] border border-[#e4e7ec] bg-white px-3 py-2 text-[12px] font-black text-[#0f172a]"
                                   >
                                     Trocar músico
                                   </Link>

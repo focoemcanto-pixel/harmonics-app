@@ -9,7 +9,7 @@ const ENABLE_CONTRACT_IMPORT_UI = true;
 
 function SectionCard({ eyebrow, title, subtitle, children }) {
   return (
-    <section className="rounded-[24px] border border-[#e6edf7] bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)] md:p-6">
+    <section className="rounded-[24px] border border-[#e6edf7] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)] md:p-6">
       <div className="mb-5">
         {eyebrow ? (
           <div className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#64748b]">
@@ -116,7 +116,7 @@ export default function EventosFormularioTab({
   return (
     <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.9fr_1fr]">
       <div className="space-y-5">
-        <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_26px_rgba(17,24,39,0.04)] md:p-6">
+        <section className="rounded-[24px] border border-[#e4e7ec] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)] md:p-6">
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
               <div className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-violet-700">
@@ -355,7 +355,7 @@ export default function EventosFormularioTab({
               </Select>
             </Field>
 
-            <label className="flex items-center justify-between rounded-[18px] border border-[#dbe3ef] bg-[#f8fafc] px-4 py-4">
+            <label className="flex items-center justify-between rounded-[18px] border border-[#e4e7ec] bg-[#f8fafc] px-4 py-4">
               <span className="text-[15px] font-bold text-[#0f172a]">
                 Tem som
               </span>
@@ -381,14 +381,14 @@ export default function EventosFormularioTab({
                     handleFormChange('observations', e.target.value)
                   }
                   rows={5}
-                  className="w-full rounded-[18px] border border-[#dbe3ef] bg-white px-4 py-4 text-[15px] font-semibold text-[#0f172a] outline-none"
+                  className="w-full rounded-[18px] border border-[#e4e7ec] bg-white px-4 py-4 text-[15px] font-semibold text-[#0f172a] outline-none"
                 />
               </Field>
             </div>
           </div>
         </SectionCard>
 
-        <section className="rounded-[24px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)] md:p-6">
+        <section className="rounded-[24px] border border-[#e4e7ec] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)] md:p-6">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
               <div className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#64748b]">
@@ -420,7 +420,7 @@ export default function EventosFormularioTab({
                 <button
                   type="button"
                   onClick={cancelarEdicao}
-                  className="rounded-[18px] border border-[#dbe3ef] bg-white px-5 py-4 text-[14px] font-black text-[#0f172a]"
+                  className="rounded-[18px] border border-[#e4e7ec] bg-white px-5 py-4 text-[14px] font-black text-[#0f172a]"
                 >
                   Cancelar
                 </button>

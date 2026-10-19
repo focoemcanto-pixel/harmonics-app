@@ -119,7 +119,7 @@ function FeedbackBanner({ feedback, onClose }) {
 
   return (
     <div
-      className={`rounded-[22px] border px-4 py-4 shadow-[0_8px_20px_rgba(17,24,39,0.04)] ${tones[feedback.type] || tones.info}`}
+      className={`rounded-[22px] border px-4 py-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)] ${tones[feedback.type] || tones.info}`}
     >
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
@@ -623,7 +623,7 @@ export default function RepertoriosPage() {
   if (carregando) {
     return (
       <AdminShell pageTitle="Repertórios" activeItem="repertorios">
-        <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-6 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
+        <section className="rounded-[24px] border border-[#e4e7ec] bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
           <p className="text-center text-[#64748b]">Carregando repertórios...</p>
         </section>
       </AdminShell>
@@ -678,7 +678,7 @@ export default function RepertoriosPage() {
           />
         </div>
 
-        <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-6 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
+        <section className="rounded-[24px] border border-[#e4e7ec] bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
           <AdminSectionTitle
             title="Fluxo de repertório"
             subtitle="Filtre por status, acompanhe o envio do cliente e aja rapidamente nos repertórios que exigem revisão."
@@ -689,13 +689,13 @@ export default function RepertoriosPage() {
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
               placeholder="Buscar por cliente, local, tipo..."
-              className="rounded-[18px] border border-[#dbe3ef] bg-white px-4 py-3 text-[14px] font-semibold text-[#0f172a] outline-none"
+              className="rounded-[18px] border border-[#e4e7ec] bg-white px-4 py-3 text-[14px] font-semibold text-[#0f172a] outline-none"
             />
 
             <select
               value={statusFiltro}
               onChange={(e) => setStatusFiltro(e.target.value)}
-              className="rounded-[18px] border border-[#dbe3ef] bg-white px-4 py-3 text-[14px] font-semibold text-[#0f172a] outline-none"
+              className="rounded-[18px] border border-[#e4e7ec] bg-white px-4 py-3 text-[14px] font-semibold text-[#0f172a] outline-none"
             >
               <option value="todos">Todos os status</option>
               <option value="nao_iniciado">Não iniciado</option>
@@ -710,8 +710,8 @@ export default function RepertoriosPage() {
               onClick={() => setSomenteProximos((prev) => !prev)}
               className={`rounded-[18px] px-4 py-3 text-[14px] font-black transition ${
                 somenteProximos
-                  ? 'bg-violet-600 text-white shadow-[0_12px_28px_rgba(124,58,237,0.18)]'
-                  : 'border border-[#dbe3ef] bg-white text-[#0f172a]'
+                  ? 'bg-[#0c0d12] text-white'
+                  : 'border border-[#e4e7ec] bg-white text-[#0f172a]'
               }`}
             >
               {somenteProximos ? 'Mostrando próximos 15 dias' : 'Filtrar próximos 15 dias'}
@@ -719,7 +719,7 @@ export default function RepertoriosPage() {
           </div>
 
           <div className="mt-6 space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-[20px] border border-[#dbe3ef] bg-[#f8fafc] px-4 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-[20px] border border-[#e4e7ec] bg-[#f8fafc] px-4 py-3">
               <label className="inline-flex items-center gap-3 text-[13px] font-black text-[#334155]">
                 <input
                   type="checkbox"
@@ -769,7 +769,7 @@ export default function RepertoriosPage() {
                 return (
                   <div
                     key={`${entry.event_id}-${entry.config.id}`}
-                    className="rounded-[24px] border border-[#dbe3ef] bg-white p-5 shadow-[0_8px_22px_rgba(17,24,39,0.04)]"
+                    className="rounded-[24px] border border-[#e4e7ec] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)]"
                   >
                     <div className="mb-4">
                       <label className="inline-flex items-center gap-2 text-[12px] font-black uppercase tracking-[0.08em] text-[#475569]">
@@ -845,7 +845,7 @@ export default function RepertoriosPage() {
                             prev === entry.config.id ? null : entry.config.id
                           )
                         }
-                        className="rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3 text-[14px] font-black text-[#0f172a]"
+                        className="rounded-[16px] border border-[#e4e7ec] bg-white px-4 py-3 text-[14px] font-black text-[#0f172a]"
                       >
                         {resumoAberto ? 'Ocultar resumo' : 'Ver resumo'}
                       </button>
@@ -855,7 +855,7 @@ export default function RepertoriosPage() {
                           href={painelUrl}
                           target="_blank"
                           rel="noreferrer"
-                          className="rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-3 text-[14px] font-black text-[#0f172a]"
+                          className="rounded-[16px] border border-[#e4e7ec] bg-white px-4 py-3 text-[14px] font-black text-[#0f172a]"
                         >
                           Abrir painel do cliente
                         </a>

@@ -67,7 +67,7 @@ export function Checkbox({ checked, onChange, label }) {
         type="checkbox"
         checked={checked}
         onChange={onChange}
-        className="h-5 w-5 rounded border-[#dbe3ef] text-violet-600 focus:ring-2 focus:ring-violet-100"
+        className="h-5 w-5 rounded border-[#e4e7ec] text-violet-600 focus:ring-2 focus:ring-violet-100"
       />
       <span className="min-w-0 break-words text-[14px] font-semibold text-[#0f172a]">{label}</span>
     </label>

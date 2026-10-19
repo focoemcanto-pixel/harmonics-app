@@ -9,7 +9,7 @@ export default function AdminError({ error, reset }) {
 
   return (
     <div className="flex min-h-[60dvh] items-center justify-center p-6">
-      <div className="w-full max-w-md rounded-[28px] border border-[#dbe3ef] bg-white p-6 text-center shadow-[0_12px_28px_rgba(15,23,42,0.06)]">
+      <div className="w-full max-w-md rounded-[24px] border border-[#e4e7ec] bg-white p-6 text-center shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
         <h1 className="text-xl font-black text-[#0f172a]">Não foi possível abrir esta tela</h1>
         <p className="mt-2 text-sm font-semibold text-[#64748b]">
           Pode ter sido uma instabilidade de conexão. Seus dados estão seguros.

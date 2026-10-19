@@ -91,7 +91,7 @@ export default function WorkspaceRecommendationsFeed({ limit = 3 }) {
     return (
       <section className="space-y-3">
         {[0, 1].map((item) => (
-          <div key={item} className="h-[140px] animate-pulse rounded-[28px] bg-slate-100" />
+          <div key={item} className="h-[140px] animate-pulse rounded-[24px] bg-slate-100" />
         ))}
       </section>
     );
@@ -118,7 +118,7 @@ export default function WorkspaceRecommendationsFeed({ limit = 3 }) {
           return (
             <article
               key={recommendation.id}
-              className="overflow-hidden rounded-[30px] border border-[#dbe3ef] bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-5 shadow-[0_12px_30px_rgba(15,23,42,0.06)]"
+              className="overflow-hidden rounded-[24px] border border-[#e4e7ec] bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)]"
             >
               <div className={`inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] ${styles.badge}`}>
                 {recommendation.priority}
@@ -135,7 +135,7 @@ export default function WorkspaceRecommendationsFeed({ limit = 3 }) {
               <div className="mt-5 flex flex-wrap gap-3">
                 <Link
                   href={recommendation.href || '/dashboard'}
-                  className={`inline-flex items-center justify-center rounded-[18px] px-5 py-3 text-[14px] font-black shadow-[0_12px_24px_rgba(15,23,42,0.08)] transition ${styles.button}`}
+                  className={`inline-flex items-center justify-center rounded-[18px] px-5 py-3 text-[14px] font-black shadow-[0_1px_2px_rgba(16,24,40,0.04)] transition ${styles.button}`}
                 >
                   {recommendation.actionLabel || 'Abrir'}
                 </Link>

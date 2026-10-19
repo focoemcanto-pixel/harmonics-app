@@ -17,7 +17,7 @@ export default function EscalaCard({ escala, onEdit, onDelete, onChangeStatus, o
   const roleIcon = getRoleIcon(role);
 
   return (
-    <div className="rounded-[24px] border border-[#dbe3ef] bg-white p-5 shadow-[0_8px_22px_rgba(17,24,39,0.04)]">
+    <div className="rounded-[24px] border border-[#e4e7ec] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0">
           <div className="text-[20px] font-black text-[#0f172a]">
@@ -51,7 +51,7 @@ export default function EscalaCard({ escala, onEdit, onDelete, onChangeStatus, o
         <button
           type="button"
           onClick={() => onEdit(escala)}
-          className="rounded-[16px] border border-[#dbe3ef] bg-white px-4 py-2 text-[13px] font-black text-[#0f172a] transition hover:bg-slate-50"
+          className="rounded-[16px] border border-[#e4e7ec] bg-white px-4 py-2 text-[13px] font-black text-[#0f172a] transition hover:bg-slate-50"
         >
           Editar
         </button>

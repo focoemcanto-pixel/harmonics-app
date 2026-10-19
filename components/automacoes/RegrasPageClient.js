@@ -982,7 +982,7 @@ export default function RegrasPageClient() {
     <div className="space-y-6 pb-8">
       <AutomationBackLink />
 
-      <section className="rounded-3xl border border-slate-200 bg-white p-7 shadow-[0_10px_24px_rgba(15,23,42,0.06)]">
+      <section className="rounded-3xl border border-slate-200 bg-white p-7 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
         <div className="text-xs font-bold uppercase tracking-[0.22em] text-violet-600">AUTOMAÇÃO</div>
         <h1 className="mt-2 text-4xl font-black tracking-tight text-slate-950">Regras rápidas</h1>
         <p className="mt-3 max-w-3xl text-base text-slate-500">

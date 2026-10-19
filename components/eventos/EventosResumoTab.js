@@ -53,7 +53,7 @@ export default function EventosResumoTab({
   return (
     <div className="space-y-5">
       <section
-        className={`rounded-[28px] border px-5 py-5 shadow-[0_10px_26px_rgba(17,24,39,0.04)] md:px-6 ${
+        className={`rounded-[24px] border px-5 py-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)] md:px-6 ${
           saudeTone === 'amber'
             ? 'border-amber-200 bg-amber-50'
             : saudeTone === 'violet'
@@ -87,7 +87,7 @@ export default function EventosResumoTab({
                 setMobileTab('lista');
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
-              className="rounded-[16px] bg-white px-4 py-3 text-[14px] font-black text-[#0f172a] shadow-[0_8px_20px_rgba(15,23,42,0.06)]"
+              className="rounded-[16px] bg-white px-4 py-3 text-[14px] font-black text-[#0f172a] shadow-[0_1px_2px_rgba(16,24,40,0.04)]"
             >
               Ir para operação
             </button>
@@ -133,7 +133,7 @@ export default function EventosResumoTab({
         />
       </div>
 
-      <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_26px_rgba(17,24,39,0.04)] md:p-6">
+      <section className="rounded-[24px] border border-[#e4e7ec] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)] md:p-6">
           <div className="mb-4 flex items-end justify-between gap-3">
             <div>
               <div className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#64748b]">
@@ -202,7 +202,7 @@ export default function EventosResumoTab({
                         <button
                           type="button"
                           onClick={() => iniciarEdicao(ev)}
-                          className="rounded-[14px] border border-[#dbe3ef] bg-white px-3 py-2 text-[12px] font-black text-[#0f172a]"
+                          className="rounded-[14px] border border-[#e4e7ec] bg-white px-3 py-2 text-[12px] font-black text-[#0f172a]"
                         >
                           Abrir
                         </button>
@@ -215,7 +215,7 @@ export default function EventosResumoTab({
           </div>
       </section>
 
-      <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_26px_rgba(17,24,39,0.04)] md:p-6">
+      <section className="rounded-[24px] border border-[#e4e7ec] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)] md:p-6">
         <div className="mb-4">
           <div className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#64748b]">
             Atenção agora

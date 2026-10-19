@@ -311,7 +311,7 @@ export default function CanaisPageClient() {
     <div className="space-y-6">
       <AutomationBackLink />
 
-      <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-6 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
+      <section className="rounded-[24px] border border-[#e4e7ec] bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <div className="text-[12px] font-black uppercase tracking-[0.14em] text-violet-600">Canais</div>
@@ -330,7 +330,7 @@ export default function CanaisPageClient() {
         <AdminSummaryCard label="Canal padrão" value={carregando ? '–' : canalPadrao ? canalPadrao.name : '—'} tone="accent" />
       </section>
 
-      <section className="rounded-[20px] border border-[#dbe3ef] bg-white px-5 py-4 text-[13px] text-[#475569]">
+      <section className="rounded-[20px] border border-[#e4e7ec] bg-white px-5 py-4 text-[13px] text-[#475569]">
         <span className="font-semibold">Status admin:</span>{' '}
         <span className={adminConfigurado ? 'text-emerald-700 font-bold' : 'text-amber-700 font-bold'}>
           {adminConfigurado ? 'Admin configurado' : 'Admin não configurado'}
@@ -349,12 +349,12 @@ export default function CanaisPageClient() {
         />
       )}
 
-      {!carregando && erro && <section className="rounded-[28px] border border-red-200 bg-red-50 p-8">{erro}</section>}
+      {!carregando && erro && <section className="rounded-[24px] border border-red-200 bg-red-50 p-8">{erro}</section>}
 
       {!carregando && !erro && canais.length > 0 && (
         <section className="space-y-4">
           {canais.map((canal) => (
-            <div key={canal.id} className="rounded-[28px] border border-[#dbe3ef] bg-white p-5 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
+            <div key={canal.id} className="rounded-[24px] border border-[#e4e7ec] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
               <div className="flex flex-col gap-3 sm:flex-row sm:justify-between">
                 <div>
                   <div className="flex flex-wrap items-center gap-2">

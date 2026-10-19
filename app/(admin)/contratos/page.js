@@ -434,7 +434,7 @@ export default function ContratosPage() {
         mobileActions={mobileActions}
         activeItem="contratos"
       >
-        <section className="rounded-[28px] border border-[#dbe3ef] bg-white p-6 shadow-[0_10px_26px_rgba(17,24,39,0.04)]">
+        <section className="rounded-[24px] border border-[#e4e7ec] bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
           <p className="text-center text-[#64748b]">Carregando contratos...</p>
         </section>
       </AdminShell>
@@ -458,7 +458,7 @@ export default function ContratosPage() {
                 type="button"
                 onClick={handleExportar}
                 disabled={exportando || !contratosFiltrados.length}
-                className="rounded-[18px] border border-[#dbe3ef] bg-white px-5 py-4 text-[14px] font-black text-[#0f172a] transition hover:border-[#cbd5e1] hover:bg-[#f8fafc] disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-[18px] border border-[#e4e7ec] bg-white px-5 py-4 text-[14px] font-black text-[#0f172a] transition hover:border-[#cbd5e1] hover:bg-[#f8fafc] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {exportando ? 'Exportando...' : 'Exportar'}
               </button>

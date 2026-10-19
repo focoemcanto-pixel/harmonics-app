@@ -159,3 +159,12 @@ test("sequência crítica: marco zero → recebimentos → evento acontece → c
   const projAfter = dashboard(events, sheets, ledger, s0, "2026-10-19").projected;
   assert.equal(projAfter, projBefore); // a projeção não sobe quando os eventos passam
 });
+
+test("data manual de pagamento vencida de evento futuro fica em atraso, não migra para a data do evento", () => {
+  const e = ev("a", "2026-11-20"), s = sheet("a", 0, [{ ...cost("m", 50000), due_on: "2026-10-10" }]);
+  const p = monthlyCommitments([e], [s], [], "2026-10-13");
+  assert.equal(p.arrearsTotal, 50000);
+  assert.equal(p.arrears[0].overdue, true);
+  assert.equal(p.months.reduce((n, m) => n + m.total, 0), 0);
+  assert.equal(dashboard([e], [s], [], settings, "2026-10-13").committed, 50000);
+});

@@ -669,7 +669,7 @@ function Finance() {
                   {period.items.length === 0 && <p className="mt-2 text-[13px] text-[#586174]">Nenhum custo pendente de ficha conferida neste mês.</p>}
                   {[...planning.arrears, ...period.items].map((item) => (
                     <button key={`${item.event_id}:${item.cost_id}`} className="mt-2 flex w-full flex-wrap justify-between gap-2 rounded-[12px] bg-white p-3 text-left text-[13px]" onClick={() => { const e = data.events.find((ev) => ev.id === item.event_id); if (e) openEvent(e); }}>
-                      <span><strong>{br(item.due_on)} • {item.event_name}</strong><span className="block text-[#8b93a3]">{item.description}</span></span>
+                      <span><strong>{br(item.due_on)} • {item.event_name}</strong><span className="block text-[#8b93a3]">{item.description}{item.overdue ? <span className="font-semibold text-red-700"> • Em atraso</span> : null}</span></span>
                       <strong>{money(item.amount)}</strong>
                     </button>
                   ))}

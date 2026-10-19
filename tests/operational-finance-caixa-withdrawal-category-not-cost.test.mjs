@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-const source=readFileSync(new URL("../app/(admin)/pagamentos/recebimentos/page.js",import.meta.url),"utf8");
-test("tipo da retirada é anotação do movimento",()=>{assert.match(source,/\[withdrawal\.category,withdrawal\.notes\]/);assert.doesNotMatch(source,/category:withdrawal\.category/)});
+const read=(p)=>readFileSync(new URL(`../${p}`,import.meta.url),"utf8");
+const page=read("app/(admin)/pagamentos/operacional/page.js"),layout=read("app/(admin)/pagamentos/operacional/layout.js"),caixa=read("app/(admin)/pagamentos/operacional/caixa/page.js"),receb=read("app/(admin)/pagamentos/operacional/recebimentos/page.js"),legacyReceb=read("app/(admin)/pagamentos/recebimentos/page.js"),model=read("lib/operational-finance/model.mjs"),doc=read("docs/finance-caixa-vivo.md");
+test("tipo da retirada é anotação do movimento",()=>{assert.match(page,/\[category, movement\.notes\]/);assert.match(page,/const \{ category, \.\.\.rest \} = movement/)});

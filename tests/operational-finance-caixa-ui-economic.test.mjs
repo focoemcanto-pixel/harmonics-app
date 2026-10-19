@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-const page=readFileSync(new URL("../app/(admin)/pagamentos/recebimentos/page.js",import.meta.url),"utf8");
-test("painel mantém margem econômica separada da projeção",()=>{assert.match(page,/Margem econômica/);assert.match(page,/Cachês futuros/);assert.match(page,/Outros custos futuros/)});
+const read=(p)=>readFileSync(new URL(`../${p}`,import.meta.url),"utf8");
+const page=read("app/(admin)/pagamentos/operacional/page.js"),layout=read("app/(admin)/pagamentos/operacional/layout.js"),caixa=read("app/(admin)/pagamentos/operacional/caixa/page.js"),receb=read("app/(admin)/pagamentos/operacional/recebimentos/page.js"),legacyReceb=read("app/(admin)/pagamentos/recebimentos/page.js"),model=read("lib/operational-finance/model.mjs"),doc=read("docs/finance-caixa-vivo.md");
+test("painel mantém margem econômica separada da projeção",()=>{assert.match(page,/Margem econômica/);assert.match(page,/− Cachês/);assert.match(page,/− Outros custos/);assert.match(page,/não dinheiro em caixa/)});

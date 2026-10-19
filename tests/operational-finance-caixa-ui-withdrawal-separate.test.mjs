@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-const s=readFileSync(new URL("../app/(admin)/pagamentos/recebimentos/page.js",import.meta.url),"utf8");
-test("UI tem indicadores distintos de retirada e margem",()=>{assert.match(s,/Retiradas registradas/);assert.match(s,/Margem econômica/)});
+const read=(p)=>readFileSync(new URL(`../${p}`,import.meta.url),"utf8");
+const page=read("app/(admin)/pagamentos/operacional/page.js"),layout=read("app/(admin)/pagamentos/operacional/layout.js"),caixa=read("app/(admin)/pagamentos/operacional/caixa/page.js"),receb=read("app/(admin)/pagamentos/operacional/recebimentos/page.js"),legacyReceb=read("app/(admin)/pagamentos/recebimentos/page.js"),model=read("lib/operational-finance/model.mjs"),doc=read("docs/finance-caixa-vivo.md");
+test("UI separa retiradas da margem",()=>{assert.match(page,/\["Retiradas", position\.withdrawals/);assert.match(page,/Margem econômica/)});

@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-const layout=readFileSync(new URL("../app/(admin)/pagamentos/operacional/layout.js",import.meta.url),"utf8");
-test("layout mantém caixa vivo e operação completa lado a lado",()=>{assert.match(layout,/Caixa vivo/);assert.match(layout,/Operação completa/);assert.match(layout,/Recebimentos/)});
+const read=(p)=>readFileSync(new URL(`../${p}`,import.meta.url),"utf8");
+const page=read("app/(admin)/pagamentos/operacional/page.js"),layout=read("app/(admin)/pagamentos/operacional/layout.js"),caixa=read("app/(admin)/pagamentos/operacional/caixa/page.js"),receb=read("app/(admin)/pagamentos/operacional/recebimentos/page.js"),legacyReceb=read("app/(admin)/pagamentos/recebimentos/page.js"),model=read("lib/operational-finance/model.mjs"),doc=read("docs/finance-caixa-vivo.md");
+test("seções do financeiro ficam lado a lado na mesma tela",()=>{assert.match(page,/\["overview", "Visão geral"\]/);assert.match(page,/\["events", "Eventos e recebimentos"\]/);assert.match(page,/\["history", "Histórico"\]/)});

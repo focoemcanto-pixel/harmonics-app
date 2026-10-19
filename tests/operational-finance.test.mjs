@@ -179,10 +179,10 @@ test("novo evento conferido amplia margem futura", () => {
     s2 = { ...sheet, event_id: "e2" };
   assert.equal(calc([sheet, s2], [], [e, e2]).margin, 410000);
 });
-test("evento passado com dívida continua em compromissos", () => {
+test("evento passado deixa de ser compromisso futuro (custo realizado na data do evento)", () => {
   const past = { ...e, event_date: "2026-09-01" };
   const s = calc([sheet], [], [past]);
-  assert.equal(s.committed, 265000);
+  assert.equal(s.committed, 0);
   assert.equal(s.margin, 0);
 });
 test("déficit é exibido com sinal negativo", () => {
@@ -391,11 +391,11 @@ test("mensal: pagamentos quitados não entram em reservas", () => {
   assert.equal(p.months[0].total, 0);
   assert.equal(p.months[0].items.length, 0);
 });
-test("mensal: anteriores em aberto entram na necessidade acumulada", () => {
+test("mensal: custos de eventos passados não viram atraso (já foram realizados)", () => {
   const past = { ...e, event_date: "2026-09-20" };
   const p = monthlyCommitments([past], [sheet], [], "2026-10-13");
-  assert.equal(p.arrearsTotal, 265000);
-  assert.equal(p.months[0].cumulative, 265000);
+  assert.equal(p.arrearsTotal, 0);
+  assert.equal(p.months[0].cumulative, 0);
   assert.equal(p.months[0].total, 0);
 });
 test("mensal: fichas não conferidas mostram incompletude sem custo fictício", () => {

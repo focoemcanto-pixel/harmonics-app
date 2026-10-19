@@ -3,6 +3,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import FinancialReading from "@/components/finance/FinancialReading";
+import { compareEventDates } from "@/lib/operational-finance/reading.mjs";
 import AdminShell from "@/components/admin/AdminShell";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { eventHistory, matchesEventSearch, receivablesOverview } from "@/lib/operational-finance/receivables.mjs";
@@ -279,7 +280,7 @@ function Finance() {
       data
         ? data.events
             .filter((e) => data.sheets.some((s) => s.event_id === e.id) || (e.event_date >= today() && !isCancelledEvent(e)))
-            .sort((a, b) => a.event_date.localeCompare(b.event_date))
+            .sort(compareEventDates)
         : [],
     [data],
   );

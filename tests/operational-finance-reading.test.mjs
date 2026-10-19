@@ -75,3 +75,62 @@ test('déficit cronológico é detectado com retirada de valor fictício', () =>
   assert.ok(context.operation.free < 0);
   assert.ok(context.risk.balance < 0);
 });
+
+test('evento sintético sem data mantém fluxo previsto sem inventar competência e renderiza a leitura', async () => {
+  const undated = { id: 'synthetic-undated', client_name: 'Cliente Sem Data Sintético', event_date: null };
+  const syntheticEvents = [undated];
+  const syntheticSheets = [{ event_id: undated.id, status: 'checked', contract_cents: 32741, expected_receipt_on: '2047-09-13', costs: [] }];
+  const syntheticSettings = { opening_on: '2047-07-06', opening_cents: 89213 };
+  const syntheticDate = '2047-07-08';
+  const original = JSON.stringify({ syntheticEvents, syntheticSheets, syntheticSettings });
+  const syntheticPlanning = monthlyCommitments(syntheticEvents, syntheticSheets, [], syntheticDate);
+  const syntheticDecision = financeDecision(syntheticEvents, syntheticSheets, [], syntheticSettings, syntheticDate);
+  const context = readingContext(syntheticDecision, syntheticPlanning, syntheticEvents, '2047-09');
+  assert.deepEqual(context.crossingReceipts.map(row => [row.event_id, row.amount, row.due_on, row.event_date]), [
+    [undated.id, 32741, '2047-09-13', null],
+  ]);
+  assert.equal(context.operation.receivable, 32741);
+  assert.equal(context.operation.contract, 0);
+  assert.equal(context.operation.result, 0);
+  assert.equal(syntheticDecision.future.events, 0);
+  assert.ok(syntheticDecision.months.every(row => row.contract === 0 && row.result === 0));
+  assert.deepEqual(syntheticDecision.timeline.map(row => [row.on, row.change]), [['2047-09-13', 32741]]);
+  assert.equal(readingContext(syntheticDecision, syntheticPlanning, syntheticEvents, '2047-07').crossingReceipts.length, 0);
+
+  // Exercise the actual JSX with Next's compiler; replace only the CSS-module import.
+  const { createRequire, default: Module } = await import('node:module');
+  const { readFileSync } = await import('node:fs');
+  const { fileURLToPath } = await import('node:url');
+  const { dirname } = await import('node:path');
+  const { createElement } = await import('react');
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const require = createRequire(import.meta.url);
+  const { transformSync } = require('next/dist/build/swc');
+  const filename = fileURLToPath(new URL('../components/finance/FinancialReading.js', import.meta.url));
+  const source = readFileSync(filename, 'utf8')
+    .replace('import styles from "./FinancialReading.module.css";', 'const styles = {};')
+    .replaceAll('@/lib/', '../../lib/');
+  const { code } = transformSync(source, { filename, jsc: { parser: { syntax: 'ecmascript', jsx: true }, transform: { react: { runtime: 'automatic' } } }, module: { type: 'commonjs' } });
+  const compiled = new Module(filename);
+  compiled.filename = filename;
+  compiled.paths = Module._nodeModulePaths(dirname(filename));
+  compiled._compile(code, filename);
+  const html = renderToStaticMarkup(createElement(compiled.exports.default, {
+    decision: syntheticDecision, planning: syntheticPlanning, events: syntheticEvents,
+    sheets: syntheticSheets, month: '2047-09', setMonth() {}, onEvent() {}, onUnchecked() {},
+  }));
+  assert.match(html, /Evento sem data definida/);
+  assert.match(html, /A competência econômica será definida quando a data do evento for informada/);
+  assert.match(html, /Faz parte do caixa de setembro/);
+  assert.doesNotMatch(html, /e da operação de setembro/);
+  assert.equal(JSON.stringify({ syntheticEvents, syntheticSheets, syntheticSettings }), original);
+});
+
+test('ordenação sintética da overview aceita eventos sem data em qualquer posição', async () => {
+  const { compareEventDates } = await import('../lib/operational-finance/reading.mjs');
+  const undated = { id: 'synthetic-unscheduled', event_date: null };
+  const dated = { id: 'synthetic-scheduled', event_date: '2047-09-21' };
+  assert.deepEqual([undated, dated].sort(compareEventDates).map(row => row.id), [dated.id, undated.id]);
+  assert.deepEqual([dated, undated].sort(compareEventDates).map(row => row.id), [dated.id, undated.id]);
+  assert.equal(compareEventDates(undated, { event_date: null }), 0);
+});

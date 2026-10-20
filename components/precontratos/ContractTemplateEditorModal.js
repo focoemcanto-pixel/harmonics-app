@@ -52,6 +52,9 @@ export default function ContractTemplateEditorModal({
   readOnly = false,
 }) {
   const [draft, setDraft] = useState(() => textToEditorHtml(initialText));
+  // Conteúdo inicial fixo por abertura (o modal é remontado a cada abertura). Passar o rascunho
+  // vivo ao editor o reidrataria a cada tecla, jogando o cursor para o início do documento.
+  const [initialEditorHtml] = useState(() => textToEditorHtml(initialText));
   const [mobileTab, setMobileTab] = useState('edit');
   const editorApiRef = useRef(null);
 
@@ -167,7 +170,7 @@ export default function ContractTemplateEditorModal({
                 <RichContractEditor
                   ref={editorApiRef}
                   sessionKey={`${open}-${templateName}-${eventTypeName}`}
-                  initialHtml={draft}
+                  initialHtml={initialEditorHtml}
                   readOnly={readOnly}
                   minHeightClass="min-h-[520px] md:min-h-[calc(100dvh-250px)]"
                   onChangeHtml={(nextHtml) => {

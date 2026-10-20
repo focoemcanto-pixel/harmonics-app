@@ -1154,7 +1154,17 @@ async function carregarModelosContrato({ force = false } = {}) {
     return resolveContractHtmlSource(selectedTemplate || {}).html;
   }
 
-  function openContractEditor({ readOnly = false } = {}) {
+  async function openContractEditor({ readOnly = false } = {}) {
+    // Templates são carregados sob demanda: ao abrir um pré-contrato existente a lista ainda pode
+    // estar vazia, e o editor nasceria sem o texto do template aplicado.
+    if (!hasCustomContractContent && form.contract_template_id && !selectedTemplate) {
+      try {
+        await carregarModelosContrato({ force: true });
+      } catch (error) {
+        showToast?.(error?.message || 'Não foi possível carregar o template do contrato.', 'error');
+        return;
+      }
+    }
     setContractEditorReadOnly(readOnly);
     setContractEditorSeed((prev) => prev + 1);
     setContractEditorOpen(true);

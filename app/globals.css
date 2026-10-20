@@ -204,7 +204,7 @@ a {
 .hx-doc li > p { margin: 0; }
 .hx-doc hr { margin: 18px 0; border: 0; border-top: 1px solid #c7ccd4; }
 .hx-doc table { width: 100%; margin: 8px 0 14px; border-collapse: collapse; }
-.hx-doc td, .hx-doc th { padding: 6px 8px; border: 1px solid #d0d5dd; vertical-align: top; text-align: left; }
+.hx-doc td, .hx-doc th { padding: 6px 8px; border: 1px solid #d0d5dd; vertical-align: top; }
 
 /* Superfície de edição: área ampla tipo folha, foco e seleção claros. */
 .hx-doc-editor {

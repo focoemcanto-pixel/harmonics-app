@@ -21,3 +21,9 @@ test("abrir o editor carrega o template aplicado quando a lista ainda não foi c
   assert.match(open, /carregarModelosContrato\(\{ force: true \}\)/);
   assert.match(open, /setContractEditorOpen\(true\)/);
 });
+
+test("carregamento de templates em andamento é reaproveitado (não devolve lista vazia)", () => {
+  const load = client.slice(client.indexOf("async function carregarModelosContrato"), client.indexOf("async function", client.indexOf("async function carregarModelosContrato") + 10));
+  assert.match(load, /if \(contractTemplatesRequestRef\.current\) return contractTemplatesRequestRef\.current;/);
+  assert.doesNotMatch(load, /if \(contractTemplatesLoading\) return contractTemplates;/);
+});

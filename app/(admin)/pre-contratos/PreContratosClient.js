@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import AdminShell from '@/components/admin/AdminShell';
 import Card from '@/components/ui/Card';
@@ -629,8 +629,9 @@ export default function PreContratosClient() {
   const [eventTypesLoading, setEventTypesLoading] = useState(true);
   const [eventTypesLoaded, setEventTypesLoaded] = useState(false);
   const [eventTypesError, setEventTypesError] = useState(null);
-  const [contractTemplatesLoading, setContractTemplatesLoading] = useState(false);
+  const [, setContractTemplatesLoading] = useState(false);
   const [contractTemplatesLoaded, setContractTemplatesLoaded] = useState(false);
+  const contractTemplatesRequestRef = useRef(null);
   const [appliedTemplateName, setAppliedTemplateName] = useState('');
 
   const [editandoId, setEditandoId] = useState(null);
@@ -777,24 +778,31 @@ export default function PreContratosClient() {
   }
 
 async function carregarModelosContrato({ force = false } = {}) {
-    if (contractTemplatesLoading) return contractTemplates;
+    // Requisição em andamento é reaproveitada: quem chama recebe os templates de verdade,
+    // não a lista ainda vazia.
+    if (contractTemplatesRequestRef.current) return contractTemplatesRequestRef.current;
     if (!force && contractTemplatesLoaded && contractTemplates.length > 0) return contractTemplates;
 
-    setContractTemplatesLoading(true);
-    const response = await fetch('/api/admin/contract-templates', { credentials: 'include', cache: 'no-store' });
-    const json = await response.json();
-    if (!json?.ok) {
-      setContractTemplatesLoading(false);
-      throw new Error(json?.error || 'Erro ao carregar templates.');
-    }
+    const request = (async () => {
+      setContractTemplatesLoading(true);
+      try {
+        const response = await fetch('/api/admin/contract-templates', { credentials: 'include', cache: 'no-store' });
+        const json = await response.json();
+        if (!json?.ok) throw new Error(json?.error || 'Erro ao carregar templates.');
 
-    const templates = json.templates || [];
-    setContractTemplates(templates);
-    setContractTemplatesLoaded(true);
-    setContractTemplatesLoading(false);
-    preContratosCache.contractTemplates = templates;
-    preContratosCache.updatedAt = Date.now();
-    return templates;
+        const templates = json.templates || [];
+        setContractTemplates(templates);
+        setContractTemplatesLoaded(true);
+        preContratosCache.contractTemplates = templates;
+        preContratosCache.updatedAt = Date.now();
+        return templates;
+      } finally {
+        setContractTemplatesLoading(false);
+        contractTemplatesRequestRef.current = null;
+      }
+    })();
+    contractTemplatesRequestRef.current = request;
+    return request;
   }
 
 

@@ -181,6 +181,8 @@ a {
   font-family: Arial, Helvetica, sans-serif;
   font-size: 15px;
   line-height: 1.7;
+  /* Como no PDF; evita também que o Chrome embrulhe texto colado em spans de letter-spacing do admin. */
+  letter-spacing: normal;
   overflow-wrap: anywhere;
 }
 .hx-doc > :first-child { margin-top: 0; }

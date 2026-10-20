@@ -250,6 +250,31 @@ async function handlePOST(request) {
     const id = String(body?.id || '').trim();
     const isCreating = !id;
     const payload = body?.payload && typeof body.payload === 'object' ? body.payload : {};
+    if (body?.action === 'customize_contract') {
+      if (!id) return NextResponse.json({ ok: false, message: 'Pré-contrato obrigatório.' }, { status: 400 });
+      const { data: existing, error: lookupError } = await supabase.from('precontracts')
+        .select('id, status').eq('id', id).eq('workspace_id', auth.workspaceId).maybeSingle();
+      if (lookupError) throw lookupError;
+      if (!existing) return NextResponse.json({ ok: false, message: 'Pré-contrato não encontrado.' }, { status: 404 });
+      const { data: signedContract, error: signedError } = await supabase.from('contracts')
+        .select('status, signed_at').eq('precontract_id', id).maybeSingle();
+      if (signedError) throw signedError;
+      if (existing.status === 'signed' || signedContract?.status === 'signed' || signedContract?.signed_at) {
+        return NextResponse.json({ ok: false, message: 'Contrato assinado não pode ser personalizado.' }, { status: 409 });
+      }
+      const html = String(payload.custom_contract_rich_html || '').trim();
+      const restore = body.restore_default === true;
+      if (!html && !restore) return NextResponse.json({ ok: false, message: 'Adicione conteúdo antes de salvar.' }, { status: 400 });
+      const { data, error } = await supabase.from('precontracts').update({
+        custom_contract_enabled: !restore,
+        custom_contract_content: restore ? null : html,
+        custom_contract_rich_html: restore ? null : html,
+        contract_mode: 'internal',
+      }).eq('id', id).eq('workspace_id', auth.workspaceId).neq('status', 'signed')
+        .select(PRECONTRACT_SELECT_FIELDS).single();
+      if (error) throw error;
+      return NextResponse.json({ ok: true, data });
+    }
     const eventDateRaw = payload?.event_date;
     const eventDate = parseDateOnly(eventDateRaw);
     const todayStart = getTodayStart();

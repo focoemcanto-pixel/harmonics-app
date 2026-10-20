@@ -2,8 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { generateAndSaveInternalContractPdf } from '@/lib/contracts/internalPdfFlow';
 import { buildContractTemplateData } from '@/lib/contracts/buildContractTemplateData';
-import { renderContractHtmlWithTemplateData, resolveContractHtmlSource } from '@/lib/contracts/resolveContractHtmlSource';
-import { resolveEventTypeDefaultTemplateId } from '@/lib/contracts/precontract-template';
+import { renderContractHtmlWithTemplateData, resolvePrecontractHtmlSource } from '@/lib/contracts/resolveContractHtmlSource';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -28,48 +27,6 @@ function isGenericInternalFallbackHtml(html) {
   );
 }
 
-async function loadLinkedTemplate({ supabase, precontract }) {
-  let templateId = asString(precontract?.contract_template_id);
-  if (!templateId && precontract?.event_type_id) {
-    templateId = await resolveEventTypeDefaultTemplateId({
-      supabase,
-      workspaceId: precontract?.workspace_id,
-      eventTypeId: precontract?.event_type_id,
-    });
-
-    if (templateId && precontract?.id) {
-      await supabase
-        .from('precontracts')
-        .update({
-          contract_template_id: templateId,
-          contract_mode: 'internal',
-          custom_contract_enabled: true,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', precontract.id);
-      precontract.contract_template_id = templateId;
-    }
-  }
-
-  if (!templateId) return null;
-
-  const { data, error } = await supabase
-    .from('contract_templates')
-    .select('*')
-    .eq('id', templateId)
-    .maybeSingle();
-
-  if (error) throw error;
-  return data || null;
-}
-
-function resolveHtmlFromTemplate({ template, context }) {
-  if (!template) return '';
-  const source = resolveContractHtmlSource(template);
-  const templateData = buildContractTemplateData(context);
-  return renderContractHtmlWithTemplateData(source.html, templateData);
-}
-
 function pickExistingSignedHtml(contract) {
   const raw = contract?.raw_payload || {};
   const candidates = [
@@ -80,12 +37,6 @@ function pickExistingSignedHtml(contract) {
   ];
 
   return asString(candidates.find((value) => asString(value).length > 0));
-}
-
-function pickPrecontractEmbeddedHtml(precontract, context) {
-  const source = resolveContractHtmlSource(precontract || {});
-  const templateData = buildContractTemplateData(context);
-  return renderContractHtmlWithTemplateData(source.html, templateData);
 }
 
 async function resolveRealContractHtml({ supabase, contract, precontract }) {
@@ -114,26 +65,17 @@ async function resolveRealContractHtml({ supabase, contract, precontract }) {
     context.event = data || null;
   }
 
-  const template = await loadLinkedTemplate({ supabase, precontract });
-  const templateHtml = resolveHtmlFromTemplate({ template, context });
-  if (templateHtml && !isGenericInternalFallbackHtml(templateHtml)) {
-    return { html: templateHtml, source: 'contract_templates.contract_template_id', templateId: template?.id || null };
-  }
-
+  // An executed document is immutable: regenerate from the signed HTML first.
   const existingSignedHtml = pickExistingSignedHtml(contract);
   if (existingSignedHtml && !isGenericInternalFallbackHtml(existingSignedHtml)) {
     return { html: existingSignedHtml, source: 'contract.raw_payload', templateId: null };
   }
-
-  const embeddedHtml = pickPrecontractEmbeddedHtml(precontract, context);
-  if (embeddedHtml && !isGenericInternalFallbackHtml(embeddedHtml)) {
-    return { html: embeddedHtml, source: 'precontracts.embedded_contract', templateId: null };
-  }
-
+  const source = await resolvePrecontractHtmlSource({ supabase, precontract });
+  const html = renderContractHtmlWithTemplateData(source.html, buildContractTemplateData(context));
   return {
-    html: '',
-    source: 'missing',
-    templateId: template?.id || null,
+    html: isGenericInternalFallbackHtml(html) ? '' : html,
+    source: source.sourceField || 'missing',
+    templateId: source.templateId,
   };
 }
 

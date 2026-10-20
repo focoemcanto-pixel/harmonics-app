@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { buildContractTemplateData } from '../../../../../lib/contracts/buildContractTemplateData';
-import { renderContractHtmlWithData, resolveContractHtmlSource } from '../../../../../lib/contracts/resolveContractHtmlSource';
+import { renderContractHtmlWithData, resolvePrecontractHtmlSource } from '../../../../../lib/contracts/resolveContractHtmlSource';
 
 function getAdminSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -206,16 +206,7 @@ export async function GET(_request, context) {
       event,
     });
 
-    let sourceHtml = resolveContractHtmlSource(precontract || {}).html;
-
-    if (!String(sourceHtml || '').trim() && precontract?.contract_template_id) {
-      const { data: templateDataRow } = await supabase
-        .from('contract_templates')
-        .select('content')
-        .eq('id', precontract.contract_template_id)
-        .maybeSingle();
-      sourceHtml = resolveContractHtmlSource(templateDataRow || {}).html;
-    }
+    const { html: sourceHtml } = await resolvePrecontractHtmlSource({ supabase, precontract });
 
     const html = renderContractHtmlWithData(sourceHtml, templateData).trim();
 

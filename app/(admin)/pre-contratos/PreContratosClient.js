@@ -903,10 +903,11 @@ async function carregarModelosContrato({ force = false } = {}) {
 
     setForm((prev) => ({
       ...prev,
-      custom_contract_enabled: true,
-      custom_contract_content: resolvedTemplate.html,
-      custom_contract_rich_html: template.source_rich_html || '',
+      custom_contract_enabled: false,
+      custom_contract_content: '',
+      custom_contract_rich_html: '',
       contract_template_id: template.id,
+      contract_mode: 'internal',
     }));
 
     setAppliedTemplateName(
@@ -950,9 +951,10 @@ async function carregarModelosContrato({ force = false } = {}) {
     setForm((prev) => ({
       ...prev,
       contract_template_id: template.id,
-      custom_contract_enabled: true,
-      custom_contract_content: resolveContractHtmlSource(template).html || '',
-      custom_contract_rich_html: template.source_rich_html || '',
+      custom_contract_enabled: false,
+      custom_contract_content: '',
+      custom_contract_rich_html: '',
+      contract_mode: 'internal',
     }));
 
     setContractTemplates((prev) => {
@@ -1148,8 +1150,8 @@ async function carregarModelosContrato({ force = false } = {}) {
   );
 
   const hasCustomContractContent = useMemo(
-    () => String(form.custom_contract_content || '').trim().length > 0,
-    [form.custom_contract_content]
+    () => Boolean(String(form.custom_contract_rich_html || form.custom_contract_content || '').trim()),
+    [form.custom_contract_rich_html, form.custom_contract_content]
   );
 
   function getContractEditableContent() {
@@ -1179,33 +1181,45 @@ async function carregarModelosContrato({ force = false } = {}) {
     setContractEditorOpen(true);
   }
 
-  function handleSaveContractCustomization(payload) {
+  async function persistContractCustomization(changes, restore = false) {
+    if (salvando) return false;
+    try {
+      setSalvando(true);
+      if (editandoId) {
+        const response = await fetch('/api/precontracts', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: editandoId, action: 'customize_contract',
+            restore_default: restore, payload: changes }),
+        });
+        const result = await response.json();
+        if (!response.ok || !result.ok) throw new Error(result.message || 'Não foi possível salvar a personalização.');
+        setItems((prev) => prev.map((item) => String(item.id) === String(editandoId) ? result.data : item));
+      }
+      setForm((prev) => ({ ...prev, ...changes }));
+      setContractEditorOpen(false);
+      showToast?.(editandoId
+        ? (restore ? 'Modelo padrão restaurado para este pré-contrato.' : 'Personalização do contrato salva com sucesso.')
+        : 'Personalização aplicada ao rascunho. Salve o pré-contrato para gerar o link.', 'success');
+      return true;
+    } catch (error) {
+      showToast?.(error.message || 'Não foi possível salvar a personalização.', 'error');
+      return false;
+    } finally { setSalvando(false); }
+  }
+
+  async function handleSaveContractCustomization(payload) {
     const richHtml = String(payload?.rawText || '').trim();
     if (!richHtml) {
       showToast?.('Adicione conteúdo antes de salvar a personalização.', 'warning');
-      return;
+      return false;
     }
-    setForm((prev) => ({
-      ...prev,
-      custom_contract_enabled: true,
-      custom_contract_content: richHtml,
-      custom_contract_rich_html: richHtml,
-      contract_mode: 'internal',
-    }));
-    setContractEditorOpen(false);
-    showToast?.('Personalização do contrato salva com sucesso.', 'success');
+    return persistContractCustomization({ custom_contract_enabled: true,
+      custom_contract_content: richHtml, custom_contract_rich_html: richHtml, contract_mode: 'internal' });
   }
 
-  function handleRestoreDefaultTemplate() {
-    setForm((prev) => ({
-      ...prev,
-      custom_contract_enabled: false,
-      custom_contract_content: '',
-      custom_contract_rich_html: '',
-      contract_mode: '',
-    }));
-    setContractEditorOpen(false);
-    showToast?.('Modelo padrão restaurado para este pré-contrato.', 'success');
+  async function handleRestoreDefaultTemplate() {
+    return persistContractCustomization({ custom_contract_enabled: false,
+      custom_contract_content: '', custom_contract_rich_html: '', contract_mode: 'internal' }, true);
   }
 
   const financeiro = useMemo(() => {

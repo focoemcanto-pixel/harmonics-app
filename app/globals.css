@@ -195,6 +195,8 @@ a {
 .hx-doc ul { list-style: disc; }
 .hx-doc ol { list-style: decimal; }
 .hx-doc li { margin: 0 0 4px; }
+.hx-doc li > ul, .hx-doc li > ol { margin: 4px 0 4px; }
+.hx-doc ul ul { list-style: circle; }
 .hx-doc li > p { margin: 0; }
 .hx-doc hr { margin: 18px 0; border: 0; border-top: 1px solid #c7ccd4; }
 .hx-doc table { width: 100%; margin: 8px 0 14px; border-collapse: collapse; }

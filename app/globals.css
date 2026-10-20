@@ -186,7 +186,9 @@ a {
 .hx-doc > :first-child { margin-top: 0; }
 .hx-doc h1 { margin: 0 0 18px; font-size: 22px; font-weight: 800; line-height: 1.2; text-transform: uppercase; letter-spacing: -0.01em; }
 .hx-doc h2 { margin: 22px 0 10px; font-size: 18px; font-weight: 800; line-height: 1.25; text-transform: uppercase; }
-.hx-doc h3, .hx-doc h4, .hx-doc h5, .hx-doc h6 { margin: 16px 0 8px; font-size: 15px; font-weight: 800; line-height: 1.35; text-transform: uppercase; }
+.hx-doc h3 { margin: 16px 0 8px; font-size: 15px; font-weight: 800; line-height: 1.35; text-transform: uppercase; }
+/* h4–h6 (contratos antigos): como no PDF, sem caixa alta forçada. */
+.hx-doc h4, .hx-doc h5, .hx-doc h6 { margin: 14px 0 6px; font-size: 14.5px; font-weight: 800; line-height: 1.35; }
 .hx-doc p { margin: 0 0 10px; }
 .hx-doc strong, .hx-doc b { font-weight: 800; }
 .hx-doc em, .hx-doc i { font-style: italic; }

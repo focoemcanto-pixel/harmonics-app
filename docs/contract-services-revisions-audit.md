@@ -38,4 +38,12 @@ Após mudança de valor assinada: ajustar parcela de saldo existente; registrar 
 - Testes comportamentais de serviços, fonte individual, aliases/placeholder, contratos antigos, diff, IDs preservados, CPF/aceite/hash, PDF falhando sem promoção, upload único, assinatura idempotente, mudança de data/local e autenticação administrativa.
 - SQL transacional com dados fictícios + rollback: versão vigente imutável até novo aceite, arquivo V1 preservado, mesmo evento/cliente/pré-contrato, parcelas/pago/escala intactos, revisão cancelada e nova base correta, rejeição de HTML antigo, bloqueio de alteração do histórico assinado e permissões RLS/RPC.
 - Advisors: apenas INFO esperado de RLS sem policies na nova tabela, que é deliberadamente server-only, sem grants para anon/authenticated. Sem permissão RPC para esses papéis.
-- A reconstrução do rascunho de contratos muito antigos sem fonte original utiliza a personalização/template disponível; por isso o administrador revisa o documento completo antes de publicar. O PDF/HTML anteriormente assinado é preservado integralmente, sem regeneração.
+- A reconstrução do rascunho usa primeiro a fonte congelada da versão assinada, depois a personalização do snapshot de assinatura. Em contratos antigos sem modelo editável, carrega o texto executado (sem certificado anterior), nunca o template global atual, e exige conferência explícita das cláusulas antes de publicar. Trechos legados com valores fixos precisam ser ajustados no editor. O PDF/HTML anteriormente assinado é preservado integralmente, sem regeneração.
+
+## Ajustes após revisão automática
+
+- Fonte da versão vigente congelada para novas assinaturas e revisões; não usar template global posterior como baseline. Rascunho comercial de contrato assinado nasce do snapshot ativo, não de uma linha de pré-contrato alterada depois da assinatura.
+- V1 legada arquivada do `raw_payload.precontract_snapshot` quando disponível, complementada pelos dados efetivamente assinados do formulário. Linha atual só é fallback legado. Migration adicional `20261020232809_archive_signing_time_contract_snapshot`.
+- Fallback interno preservado quando GAS lança erro em contrato legado; contratos internos/estruturados continuam sem fallback para conteúdo legado divergente.
+
+- Conferência financeira compara com o valor assinado, mesmo se uma linha legada tiver sido alterada depois. Migration `revision_financial_signed_baseline`; saldo/parcelas continuam sem cobranças automáticas.

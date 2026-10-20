@@ -14,6 +14,7 @@ export default function ContractRevisionPanel({ contractId }) {
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [link, setLink] = useState("");
+  const [legacySourceAck, setLegacySourceAck] = useState(false);
   const endpoint = `/api/contracts/${contractId}/revisions`;
   async function load() {
     setBusy(true);
@@ -29,6 +30,7 @@ export default function ContractRevisionPanel({ contractId }) {
       });
       setSource(j.source);
       setReview(null);
+      setLegacySourceAck(false);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -51,6 +53,7 @@ export default function ContractRevisionPanel({ contractId }) {
           source_html: source,
           revision_id: revisionId,
           expected_updated_at: data.contract.updated_at,
+          legacy_source_ack: legacySourceAck,
         }),
       });
       const j = await r.json();
@@ -191,6 +194,15 @@ export default function ContractRevisionPanel({ contractId }) {
               </section>
             ) : null}
             {link && !pending ? <a href={link}>Abrir revisão criada</a> : null}
+            {data?.sourceMode === "legacy_rendered" ? (
+              <p className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+                Este contrato antigo não guardou o modelo editável. O texto da
+                versão assinada foi carregado, sem usar o template global atual.
+                Confira e ajuste no editor as cláusulas afetadas por formação,
+                data, local ou valor; esses trechos antigos podem conter valores
+                fixos.
+              </p>
+            ) : null}
             {draft && !pending && !review ? (
               <>
                 <ServiceSpecsEditor
@@ -292,12 +304,28 @@ export default function ContractRevisionPanel({ contractId }) {
                   sandbox=""
                   srcDoc={review.html}
                 />
+                {review.sourceMode === "legacy_rendered" ? (
+                  <label className="flex gap-3 rounded-xl bg-amber-50 p-3">
+                    <input
+                      type="checkbox"
+                      checked={legacySourceAck}
+                      onChange={(e) => setLegacySourceAck(e.target.checked)}
+                    />
+                    Conferi e ajustei o texto completo do contrato antigo para
+                    refletir as alterações desta revisão.
+                  </label>
+                ) : null}
                 <div className="flex gap-3">
                   <button disabled={busy} onClick={() => setReview(null)}>
                     Voltar à edição
                   </button>
                   <button
-                    disabled={busy || !review.changes.length}
+                    disabled={
+                      busy ||
+                      !review.changes.length ||
+                      (review.sourceMode === "legacy_rendered" &&
+                        !legacySourceAck)
+                    }
                     onClick={() => action("create")}
                     className="rounded-xl bg-violet-700 p-3 font-bold text-white"
                   >

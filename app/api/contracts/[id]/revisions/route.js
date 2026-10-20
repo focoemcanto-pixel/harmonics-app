@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import { requireWorkspaceAdmin } from "@/lib/api/require-workspace-access";
 import { revisionContext, prepareRevision } from "@/lib/contracts/revisions";
-import { resolvePrecontractHtmlSource } from "@/lib/contracts/resolveContractHtmlSource";
+import { resolveSignedContractSource } from "@/lib/contracts/signed-source";
 export const dynamic = "force-dynamic";
 export async function GET(request, context) {
   return handle(request, context, false);
@@ -34,19 +34,24 @@ async function handle(request, context, write) {
       .eq("workspace_id", auth.workspaceId)
       .order("version", { ascending: false });
     if (history.error) throw history.error;
-    if (!write)
+    if (!write) {
+      const signedSource = await resolveSignedContractSource({
+        supabase,
+        contract,
+        precontract,
+      });
       return NextResponse.json(
         {
           ok: true,
           contract,
           precontract,
-          source: (
-            await resolvePrecontractHtmlSource({ supabase, precontract })
-          ).html,
+          source: signedSource.html,
+          sourceMode: signedSource.mode,
           history: history.data,
         },
         { headers: { "Cache-Control": "no-store" } },
       );
+    }
     if (contract.status !== "signed")
       return NextResponse.json(
         {
@@ -77,6 +82,18 @@ async function handle(request, context, write) {
     });
     if (body.action === "preview")
       return NextResponse.json({ ok: true, ...prepared });
+    if (
+      prepared.sourceMode === "legacy_rendered" &&
+      body.legacy_source_ack !== true
+    )
+      return NextResponse.json(
+        {
+          ok: false,
+          message:
+            "Este contrato antigo só possui o texto assinado. Confira e ajuste as cláusulas no editor antes de publicar a revisão.",
+        },
+        { status: 409 },
+      );
     if (!prepared.changes.length)
       return NextResponse.json(
         { ok: false, message: "Nenhuma alteração nesta revisão." },

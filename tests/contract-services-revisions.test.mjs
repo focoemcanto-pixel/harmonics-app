@@ -363,13 +363,212 @@ test("revised date/location overrides saved client form without reusing prior ac
   assert.throws(() => revisionSnapshot(old, { event_date: "2027-02-30" }));
 });
 
-test('admin revision endpoint rejects unauthenticated creation before reading contractual data', async () => {
-  const {readFileSync}=await import('node:fs');
-  let source=readFileSync(new URL('../app/api/contracts/[id]/revisions/route.js',import.meta.url),'utf8')
-    .replace(/^import[\s\S]*?from ["'][^"']+["'];\n/gm,'').replace(/export /g,'');
-  let touched=false;
-  const post=new Function('NextResponse','getSupabaseAdmin','requireWorkspaceAdmin','revisionContext',`${source};return POST;`)(
-    {json:(body,options)=>Response.json(body,options)},()=>({}),async()=>({ok:false,status:401,error:'Sessão necessária'}),()=>{touched=true;});
-  const result=await post(new Request('https://test/api/contracts/c/revisions',{method:'POST',body:'{}'}),{params:Promise.resolve({id:'c'})});
-  assert.equal(result.status,401);assert.equal(touched,false);
+test("admin revision endpoint rejects unauthenticated creation before reading contractual data", async () => {
+  const { readFileSync } = await import("node:fs");
+  let source = readFileSync(
+    new URL("../app/api/contracts/[id]/revisions/route.js", import.meta.url),
+    "utf8",
+  )
+    .replace(/^import[\s\S]*?from ["'][^"']+["'];\n/gm, "")
+    .replace(/export /g, "");
+  let touched = false;
+  const post = new Function(
+    "NextResponse",
+    "getSupabaseAdmin",
+    "requireWorkspaceAdmin",
+    "revisionContext",
+    `${source};return POST;`,
+  )(
+    { json: (body, options) => Response.json(body, options) },
+    () => ({}),
+    async () => ({ ok: false, status: 401, error: "Sessão necessária" }),
+    () => {
+      touched = true;
+    },
+  );
+  const result = await post(
+    new Request("https://test/api/contracts/c/revisions", {
+      method: "POST",
+      body: "{}",
+    }),
+    { params: Promise.resolve({ id: "c" }) },
+  );
+  assert.equal(result.status, 401);
+  assert.equal(touched, false);
+});
+
+test("P1 revisions keep signing-time source even if the global template or mutable precontract changed", async () => {
+  const contract = {
+    id: "c",
+    workspace_id: "w",
+    status: "signed",
+    raw_payload: {
+      contract_source_html: "<p>{{formation}}</p><p>Cláusula original</p>",
+    },
+  };
+  const supabase = {
+    from(table) {
+      assert.equal(table, "contract_revisions");
+      return {
+        select() {
+          return this;
+        },
+        eq() {
+          return this;
+        },
+        order() {
+          return this;
+        },
+        limit() {
+          return this;
+        },
+        async maybeSingle() {
+          return { data: null, error: null };
+        },
+      };
+    },
+  };
+  const prepared = await prepareRevision({
+    supabase,
+    contract,
+    precontract: {
+      ...old,
+      custom_contract_rich_html: "<p>NOVA CLÁUSULA GLOBAL NÃO APROVADA</p>",
+    },
+    changes: { service_specs: specs },
+  });
+  assert.match(prepared.html, /Cláusula original/);
+  assert.match(prepared.html, /Trio/);
+  assert.doesNotMatch(prepared.html, /NOVA CLÁUSULA/);
+  assert.equal(prepared.sourceMode, "frozen_source");
+});
+
+test("P1 legacy without editable source uses executed text, strips prior certificate, never uses latest template", async () => {
+  const contract = {
+    id: "c",
+    workspace_id: "w",
+    status: "signed",
+    signed_html:
+      '<p>Duo · Cláusula original</p><section class="signature-certificate"><p>ASSINATURA ANTERIOR</p></section>',
+    raw_payload: {},
+  };
+  const supabase = {
+    from(table) {
+      assert.equal(table, "contract_revisions");
+      return {
+        select() {
+          return this;
+        },
+        eq() {
+          return this;
+        },
+        order() {
+          return this;
+        },
+        limit() {
+          return this;
+        },
+        async maybeSingle() {
+          return { data: null, error: null };
+        },
+      };
+    },
+  };
+  const prepared = await prepareRevision({
+    supabase,
+    contract,
+    precontract: { ...old, custom_contract_rich_html: "TEMPLATE NOVO" },
+    changes: { service_specs: specs },
+    sourceHtml: "<p>Trio · Cláusula original</p>",
+  });
+  assert.equal(prepared.sourceMode, "legacy_rendered");
+  assert.match(prepared.html, /Cláusula original/);
+  assert.doesNotMatch(prepared.html, /ASSINATURA ANTERIOR|TEMPLATE NOVO/);
+  assert.ok(
+    prepared.changes.some((x) => x.field === "Cláusulas personalizadas"),
+  );
+});
+
+test("P2 legacy GAS failures still fall back to the internal PDF preview", async () => {
+  const { readFileSync } = await import("node:fs");
+  const source = readFileSync(
+    new URL("../app/api/contracts/preview/[token]/route.js", import.meta.url),
+    "utf8",
+  )
+    .replace(/^import[\s\S]*?from ["'][^"']+["'];\n/gm, "")
+    .replace(/export /g, "");
+  const names = [
+    "NEXT_PUBLIC_SUPABASE_URL",
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "HARMONICS_CONTRATO_GAS_EXEC_URL",
+  ];
+  const prior = Object.fromEntries(names.map((k) => [k, process.env[k]]));
+  const originalFetch = globalThis.fetch;
+  let internalUsed = false;
+  try {
+    process.env.NEXT_PUBLIC_SUPABASE_URL = "https://db.test";
+    process.env.SUPABASE_SERVICE_ROLE_KEY = "unit-test-not-a-secret";
+    process.env.HARMONICS_CONTRATO_GAS_EXEC_URL = "https://gas.test";
+    globalThis.fetch = async () =>
+      new Response("upstream unavailable", { status: 502 });
+    const client = {
+      from() {
+        return {
+          select() {
+            return this;
+          },
+          eq() {
+            return this;
+          },
+          async maybeSingle() {
+            return {
+              data: {
+                id: "pre",
+                contract_mode: "docs",
+                custom_contract_enabled: false,
+                service_specs: null,
+              },
+              error: null,
+            };
+          },
+        };
+      },
+    };
+    const get = new Function(
+      "NextResponse",
+      "createClient",
+      "generateContractDocument",
+      "generatePdfBufferFromHtml",
+      `${source};return GET;`,
+    )(
+      Response,
+      () => client,
+      async () => {
+        internalUsed = true;
+        return { ok: true, html: "<p>Contract</p>", ids: { contractId: "c" } };
+      },
+      async () => Buffer.from("%PDF-1.4 fallback"),
+    );
+    const result = await get(null, {
+      params: Promise.resolve({ token: "legacy-token" }),
+    });
+    assert.equal(result.status, 200);
+    assert.equal(internalUsed, true);
+    assert.equal(result.headers.get("Content-Type"), "application/pdf");
+  } finally {
+    globalThis.fetch = originalFetch;
+    for (const k of names) {
+      if (prior[k] === undefined) delete process.env[k];
+      else process.env[k] = prior[k];
+    }
+  }
+});
+
+test('P2 revision form loads signed terms rather than a precontract mutated after signing',async()=>{
+ const {revisionContext}=await import('../lib/contracts/revisions.js');
+ const signedPre={...old,client_name:'Original signed client'};
+ const contract={id:'c',workspace_id:'w',precontract_id:old.id,status:'signed',raw_payload:{precontract_snapshot:signedPre,client_form:{full_name:'Original signed client',event_date:old.event_date}}};
+ const mutable={...old,client_name:'MUTATED',formation:'Quinteto',event_date:'2029-01-01'};
+ const client={from(table){return{select(){return this;},eq(){return this;},order(){return this;},limit(){return this;},async single(){return{data:table==='contracts'?contract:mutable,error:null};},async maybeSingle(){return{data:null,error:null};}};}};
+ const result=await revisionContext(client,'c','w');assert.equal(result.precontract.formation,'Duo');assert.equal(result.precontract.event_date,'2027-10-20');assert.equal(result.precontract.client_name,'Original signed client');assert.equal(result.precontract.event_id,old.event_id);
 });

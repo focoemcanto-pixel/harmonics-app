@@ -56,6 +56,7 @@ export default function ContractTemplateEditorModal({
   // Conteúdo inicial fixo por abertura (o modal é remontado a cada abertura). Passar o rascunho
   // vivo ao editor o reidrataria a cada tecla, jogando o cursor para o início do documento.
   const [initialEditorHtml] = useState(() => textToEditorHtml(initialText));
+  const [saving, setSaving] = useState(false);
   const [mobileTab, setMobileTab] = useState('edit');
   const editorApiRef = useRef(null);
 
@@ -66,18 +67,20 @@ export default function ContractTemplateEditorModal({
   }, [draft, parsed.normalizedContent]);
 
   const handleClose = () => {
+    if (saving) return;
     unlockPageScroll();
     setMobileTab('edit');
     onClose?.();
   };
 
-  const handleSave = () => {
-    unlockPageScroll();
-    onSave?.({
-      rawText: draft,
-      processedContent: parsed.normalizedContent,
-      sourceText: htmlToReadableText(draft),
-    });
+  const handleSave = async () => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      const saved = await onSave?.({ rawText: draft,
+        processedContent: parsed.normalizedContent, sourceText: htmlToReadableText(draft) });
+      if (saved !== false) unlockPageScroll();
+    } finally { setSaving(false); }
   };
 
   useEffect(() => {
@@ -214,13 +217,13 @@ export default function ContractTemplateEditorModal({
             </div>
             <div className="flex flex-wrap gap-2">
               {hasCustomContent && !readOnly ? (
-                <Button variant="ghost" onClick={() => onRestoreDefault?.()}>
+                <Button variant="ghost" disabled={saving} onClick={async () => { if (saving) return; setSaving(true); try { await onRestoreDefault?.(); } finally { setSaving(false); } }}>
                   Restaurar modelo padrão
                 </Button>
               ) : null}
               <Button variant="soft" onClick={handleClose}>Cancelar</Button>
               {!readOnly ? (
-                <Button onClick={handleSave}>
+                <Button onClick={handleSave} disabled={saving}>
                   Salvar personalização
                 </Button>
               ) : null}

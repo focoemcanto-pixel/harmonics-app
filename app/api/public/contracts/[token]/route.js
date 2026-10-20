@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { resolvePrecontractHtmlSource } from '@/lib/contracts/resolveContractHtmlSource';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import {
   PRECONTRACT_EXPIRED_MESSAGE,
@@ -208,6 +209,8 @@ export async function GET(_request, context) {
 
     const contractState = pickContract(contract);
     const precontractState = pickPrecontract(precontract);
+    const source = await resolvePrecontractHtmlSource({ supabase, precontract });
+    precontractState.contract_source_html = source.html;
     const isSigned = contractState?.status === 'signed' || precontractState?.status === 'signed';
 
     return NextResponse.json({
@@ -227,7 +230,7 @@ export async function GET(_request, context) {
             doc_url: contractState?.doc_url || null,
           }
         : null,
-    });
+    }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
     return NextResponse.json(
       { ok: false, message: error?.message || 'Erro ao buscar contrato público.' },

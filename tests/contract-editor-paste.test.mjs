@@ -32,3 +32,12 @@ test('pré-visualizações usam o mesmo estilo de documento do editor (prose nã
   }
   assert.match(read('app/globals.css'), /\.hx-doc h1/);
 });
+
+test('listas a/A/i/I salvas exibem o marcador certo no editor e nas prévias, sem tocar placeholders', async () => {
+  const { withOrderedListMarkers } = await import('../lib/contracts/listMarkers.js');
+  assert.equal(withOrderedListMarkers('<ol type="a"><li>{{client_name}}</li></ol>'), '<ol type="a" style="list-style-type: lower-alpha"><li>{{client_name}}</li></ol>');
+  assert.equal(withOrderedListMarkers('<ol type="I" style="margin:0">'), '<ol type="I" style="margin:0; list-style-type: upper-roman">');
+  assert.equal(withOrderedListMarkers('<ol type="i" style="list-style-type: lower-roman">'), '<ol type="i" style="list-style-type: lower-roman">');
+  assert.equal(withOrderedListMarkers('<ol><li>{{#EXTRAS}}x{{/EXTRAS}}</li></ol>'), '<ol><li>{{#EXTRAS}}x{{/EXTRAS}}</li></ol>');
+  assert.equal(withOrderedListMarkers('<ol data-type="a">'), '<ol data-type="a">');
+});

@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { useContractEditor } from '@/contexts/ContractEditorContext';
 import { normalizePastedContractHtml } from '@/lib/contracts/pasteNormalize';
+import { withOrderedListMarkers } from '@/lib/contracts/listMarkers';
 
 // Toolbar enxuta: só o que um contrato precisa. `state` indica o que está ativo na seleção.
 const EDITOR_GROUPS = [
@@ -123,7 +124,7 @@ const RichContractEditor = forwardRef(function RichContractEditor(
     const nextHtml = String(initialHtml || '');
     latestHtmlRef.current = nextHtml;
     if (editorRef.current) {
-      editorRef.current.innerHTML = nextHtml;
+      editorRef.current.innerHTML = withOrderedListMarkers(nextHtml);
     }
     contractEditor?.setHtml?.(nextHtml);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -228,7 +229,7 @@ const RichContractEditor = forwardRef(function RichContractEditor(
     setHtml: (nextHtml) => {
       const normalized = String(nextHtml || '');
       latestHtmlRef.current = normalized;
-      if (editorRef.current) editorRef.current.innerHTML = normalized;
+      if (editorRef.current) editorRef.current.innerHTML = withOrderedListMarkers(normalized);
       contractEditor?.setHtml?.(normalized);
       onChangeHtml?.(normalized);
     },

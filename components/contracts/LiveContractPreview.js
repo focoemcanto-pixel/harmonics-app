@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react';
 import { getMockContractTagValues } from '@/lib/contracts/contractTagsRegistry';
+import { withOrderedListMarkers } from '@/lib/contracts/listMarkers';
 
 function replaceTags(content = '') {
   const values = getMockContractTagValues();
@@ -35,7 +36,7 @@ export default function LiveContractPreview({ html = '' }) {
       return buildEmptyState();
     }
 
-    return replaceTags(normalized);
+    return withOrderedListMarkers(replaceTags(normalized));
   }, [html]);
 
   return (

@@ -14,6 +14,7 @@ import ContractTemplateEditorModal from '@/components/precontratos/ContractTempl
 import { supabase } from '@/lib/supabase';
 import { normalizeTimeStrict, isValidTime, sanitizeTimeFields } from '@/lib/time/normalize-time';
 import { resolveContractHtmlSource } from '@/lib/contracts/resolveContractHtmlSource';
+import { withOrderedListMarkers } from '@/lib/contracts/listMarkers';
 
 const FORMATIONS = [
   'Solo',
@@ -592,7 +593,7 @@ function PreviewContractModal({ open, item, onClose }) {
           {contractHtml ? (
             <div
               className="hx-doc"
-              dangerouslySetInnerHTML={{ __html: contractHtml }}
+              dangerouslySetInnerHTML={{ __html: withOrderedListMarkers(contractHtml) }}
             />
           ) : fallbackNotes ? (
             <p className="whitespace-pre-wrap text-sm text-slate-700">{fallbackNotes}</p>

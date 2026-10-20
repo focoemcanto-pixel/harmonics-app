@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Button from '../ui/Button.js';
 import RichContractEditor from '@/components/contracts/RichContractEditor';
 import { parseContractTemplateInput, looksLikeHtml } from '@/lib/contracts/templateImport';
+import { withOrderedListMarkers } from '@/lib/contracts/listMarkers';
 
 function htmlToReadableText(value) {
   const raw = String(value || '').trim();
@@ -61,7 +62,7 @@ export default function ContractTemplateEditorModal({
   const parsed = useMemo(() => parseContractTemplateInput(draft), [draft]);
   const previewHtml = useMemo(() => {
     if (!String(draft || '').trim()) return '';
-    return parsed.normalizedContent;
+    return withOrderedListMarkers(parsed.normalizedContent);
   }, [draft, parsed.normalizedContent]);
 
   const handleClose = () => {

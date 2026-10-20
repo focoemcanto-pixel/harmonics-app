@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Button from '../ui/Button.js';
 import RichContractEditor from '@/components/contracts/RichContractEditor';
 import { parseContractTemplateInput, looksLikeHtml } from '@/lib/contracts/templateImport';
+import { withOrderedListMarkers } from '@/lib/contracts/listMarkers';
 
 function htmlToReadableText(value) {
   const raw = String(value || '').trim();
@@ -61,7 +62,7 @@ export default function ContractTemplateEditorModal({
   const parsed = useMemo(() => parseContractTemplateInput(draft), [draft]);
   const previewHtml = useMemo(() => {
     if (!String(draft || '').trim()) return '';
-    return parsed.normalizedContent;
+    return withOrderedListMarkers(parsed.normalizedContent);
   }, [draft, parsed.normalizedContent]);
 
   const handleClose = () => {
@@ -191,7 +192,7 @@ export default function ContractTemplateEditorModal({
               <div className="min-h-0 flex-1 overflow-y-auto p-4 md:p-6">
                 <div className="mx-auto w-full max-w-[680px] rounded-[24px] border border-slate-200 bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)] md:p-8">
                   {previewHtml ? (
-                    <div className="prose prose-slate max-w-none text-[15px] leading-7" dangerouslySetInnerHTML={{ __html: previewHtml }} />
+                    <div className="hx-doc" dangerouslySetInnerHTML={{ __html: previewHtml }} />
                   ) : (
                     <p className="text-sm text-slate-500">Sem conteúdo para pré-visualização.</p>
                   )}

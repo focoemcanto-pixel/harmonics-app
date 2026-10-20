@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react';
 import { getMockContractTagValues } from '@/lib/contracts/contractTagsRegistry';
+import { withOrderedListMarkers } from '@/lib/contracts/listMarkers';
 
 function replaceTags(content = '') {
   const values = getMockContractTagValues();
@@ -35,7 +36,7 @@ export default function LiveContractPreview({ html = '' }) {
       return buildEmptyState();
     }
 
-    return replaceTags(normalized);
+    return withOrderedListMarkers(replaceTags(normalized));
   }, [html]);
 
   return (
@@ -60,7 +61,7 @@ export default function LiveContractPreview({ html = '' }) {
 
         <div className="bg-[#f8fafc] px-5 py-5">
           <article
-            className="prose prose-slate max-w-none rounded-[18px] bg-white px-8 py-8 text-[14px] leading-7 text-[#0f172a] shadow-[0_1px_2px_rgba(16,24,40,0.04)]"
+            className="hx-doc max-w-none rounded-[18px] bg-white px-8 py-8 shadow-[0_1px_2px_rgba(16,24,40,0.04)]"
             dangerouslySetInnerHTML={{ __html: renderedHtml }}
           />
         </div>

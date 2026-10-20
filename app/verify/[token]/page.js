@@ -1,3 +1,4 @@
+import { lookupSignedRevision } from '@/lib/contracts/revisions';
 import { buildContractPdfHref } from '@/lib/contracts/public-file-url';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import CopyHashButton from './CopyHashButton';
@@ -265,7 +266,9 @@ export default async function VerifyContractPage({ params }) {
     contractByPrecontract = data || null;
   }
 
+  const archivedRevision = await lookupSignedRevision(supabase, token);
   const contract =
+    (archivedRevision ? { ...archivedRevision.signed_record, id: archivedRevision.contract_id, public_token: archivedRevision.public_token, signed_at: archivedRevision.signed_at, pdf_url: archivedRevision.pdf_url, document_hash: archivedRevision.document_hash, signature_metadata: archivedRevision.signature_metadata } : null) ||
     contractByPublicToken ||
     contractByValidationToken ||
     contractByVerificationToken ||
@@ -273,7 +276,7 @@ export default async function VerifyContractPage({ params }) {
     contractByPrecontract ||
     null;
 
-  let resolvedPrecontract = precontract || null;
+  let resolvedPrecontract = archivedRevision?.snapshot || precontract || null;
   if (!resolvedPrecontract?.id && contract?.precontract_id) {
     const { data: byId } = await fetchPrecontractWithFallback({
       supabase,
@@ -327,7 +330,7 @@ export default async function VerifyContractPage({ params }) {
     >
       <div className="space-y-4">
         <InfoCard title="Status">
-          <p><strong>Status:</strong> Documento válido</p>
+          <p><strong>Status:</strong> Documento válido{archivedRevision ? ` · Versão ${archivedRevision.version} · Registro histórico preservado` : ''}</p>
           <p><strong>Hash SHA256:</strong> confirmado</p>
           <p><strong>Assinatura eletrônica:</strong> registrada</p>
         </InfoCard>

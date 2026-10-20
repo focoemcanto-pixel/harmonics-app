@@ -1,4 +1,5 @@
 'use client';
+import ContractRevisionPanel from '@/components/contracts/ContractRevisionPanel';
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -214,10 +215,13 @@ export default function ContractCard({ item, onCopyLink, onDeleteContract, selec
           </div>
         </div>
 
+        {item.pendingRevision ? <p className="mt-3 rounded-xl bg-amber-100 p-3 text-sm font-bold text-amber-900">Revisão {item.pendingRevision.version} pendente de assinatura. A versão assinada anterior continua vigente.</p> : null}
+        {item.financialReviewRequired ? <p className="mt-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">Valor alterado por revisão assinada. Conferir parcelas no financeiro; nenhuma cobrança foi criada automaticamente.</p> : null}
         <div className="mt-5 flex flex-wrap gap-3">
           <button type="button" onClick={handleOpenPreview} className="rounded-[16px] bg-violet-600 px-4 py-3 text-[14px] font-black text-white shadow-[0_10px_24px_rgba(124,58,237,0.22)]">Preview</button>
 
-          {hasPrecontract ? <Link href={editPrecontractHref} className="rounded-[16px] border border-violet-200 bg-white px-4 py-3 text-[14px] font-black text-violet-700 shadow-[0_10px_24px_rgba(124,58,237,0.08)]">Editar contrato</Link> : null}
+          {item.assinadoEm && hasContractId ? <ContractRevisionPanel contractId={item.contractId} /> : null}
+          {hasPrecontract && !item.assinadoEm ? <Link href={editPrecontractHref} className="rounded-[16px] border border-violet-200 bg-white px-4 py-3 text-[14px] font-black text-violet-700 shadow-[0_10px_24px_rgba(124,58,237,0.08)]">Editar contrato</Link> : null}
 
           {hasLink ? <Link href={item.linkContrato} className="rounded-[16px] bg-[#0f172a] px-4 py-3 text-[14px] font-black text-white shadow-[0_10px_24px_rgba(15,23,42,0.18)]">Abrir contrato</Link> : <button type="button" disabled className="cursor-not-allowed rounded-[16px] bg-slate-300 px-4 py-3 text-[14px] font-black text-white">Sem link</button>}
 

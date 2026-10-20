@@ -1,4 +1,5 @@
 'use client';
+import EventServices from '@/components/contracts/EventServices';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
@@ -473,6 +474,7 @@ function SearchResultCard({ contact, onAdd }) {
 
 export default function EventoEscalaTab({ eventId, hideFinancial = false }) {
   const [evento, setEvento] = useState(null);
+  const [serviceSpecs, setServiceSpecs] = useState(null);
   const [contatos, setContatos] = useState([]);
   const [escalaSalva, setEscalaSalva] = useState([]);
   const [escalaLocal, setEscalaLocal] = useState([]);
@@ -706,10 +708,12 @@ export default function EventoEscalaTab({ eventId, hideFinancial = false }) {
   const safeOutrasSugestoes = Array.isArray(outrasSugestoes) ? outrasSugestoes : [];
 
   const instrumentosEsperados = useMemo(() => {
+    const fromServices = [...new Set((serviceSpecs || []).flatMap(s => s.roles || []))];
+    if (fromServices.length) return fromServices;
     const fromInstruments = splitCsvLike(evento?.instruments);
     if (fromInstruments.length > 0) return fromInstruments;
     return splitCsvLike(evento?.formation);
-  }, [evento]);
+  }, [evento, serviceSpecs]);
   const safeInstrumentos = Array.isArray(instrumentosEsperados) ? instrumentosEsperados : [];
 
   const escalaBase = editando
@@ -1208,6 +1212,7 @@ async function salvarEEnviarConvites() {
 
   return (
     <div className="w-full max-w-full space-y-4 overflow-hidden px-0 md:space-y-5">
+      <EventServices eventId={eventId} onLoad={setServiceSpecs} />
       <section className="space-y-3 rounded-[24px] border border-[#e4e7ec] bg-white p-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)] md:p-5">
         <div>
           <h3 className="text-[22px] font-black tracking-[-0.03em] text-[#0f172a]">{evento?.client_name || 'Evento'}</h3>

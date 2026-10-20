@@ -228,6 +228,9 @@ async function handlePOST(request, context) {
     const resolvedWorkspaceId = asString(precontract?.workspace_id || workspaceContext.workspaceId) || null;
 
     let { data: contract } = await supabase.from('contracts').select('*').eq('precontract_id', precontract.id).maybeSingle();
+    if ((contract?.status === 'signed' && contract?.pdf_url) || precontract.status === 'signed') {
+      return NextResponse.json({ ok: false, message: 'Contrato já assinado. Solicite uma revisão.', fallbackAllowed: false }, { status: 409 });
+    }
     if (!contract?.id) {
       const inserted = await supabase.from('contracts').insert({
         precontract_id: precontract.id,

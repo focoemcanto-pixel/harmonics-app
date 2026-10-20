@@ -1,4 +1,6 @@
 'use client';
+import ServiceSpecsEditor from '@/components/contracts/ServiceSpecsEditor';
+import { getServiceSpecs, legacyServiceProjection } from '@/lib/contracts/service-specs.mjs';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
@@ -75,6 +77,7 @@ const PRECONTRACT_SELECT_FIELDS = [
   'status',
   'public_token',
   'generated_link',
+  'service_specs',
   'custom_contract_enabled',
   'custom_contract_content',
   'custom_contract_rich_html',
@@ -233,6 +236,7 @@ function getInitialForm() {
 
     notes: '',
     status: 'draft',
+    service_specs: null,
     custom_contract_enabled: false,
     custom_contract_content: '',
     custom_contract_rich_html: '',
@@ -1061,6 +1065,7 @@ async function carregarModelosContrato({ force = false } = {}) {
 
       notes: item.notes || '',
       status: item.status || 'draft',
+      service_specs: item.service_specs ?? null,
       custom_contract_enabled: item.custom_contract_enabled === true,
       custom_contract_content: resolveContractHtmlSource(item).html || '',
       custom_contract_rich_html: item.custom_contract_rich_html || '',
@@ -1393,6 +1398,7 @@ async function carregarModelosContrato({ force = false } = {}) {
 
         notes: form.notes.trim() || null,
         status: statusToSave,
+        service_specs: form.service_specs,
         custom_contract_enabled: form.custom_contract_enabled === true,
         custom_contract_content:
           form.custom_contract_enabled && String(form.custom_contract_content || '').trim()
@@ -1771,7 +1777,7 @@ async function carregarModelosContrato({ force = false } = {}) {
                     </div>
                   ) : null}
 
-                  <Select
+                  {!Array.isArray(form.service_specs) ? (<Select
                     label="Formação"
                     value={form.formation}
                     onChange={(e) => handleFormChange('formation', e.target.value)}
@@ -1783,7 +1789,7 @@ async function carregarModelosContrato({ force = false } = {}) {
                         {f}
                       </option>
                     ))}
-                  </Select>
+                  </Select>) : null}
 
                   <Input
                     label="Data"
@@ -1809,21 +1815,21 @@ async function carregarModelosContrato({ force = false } = {}) {
                     data-guide="event_time"
                   />
 
-                  <Input
+                  {!Array.isArray(form.service_specs) ? (<Input
                     label="Duração (min)"
                     type="number"
                     min="1"
                     value={form.duration_min}
                     onChange={(e) => handleFormChange('duration_min', e.target.value)}
                     data-guide="duration_min"
-                  />
+                  />) : null}
 
-                  <Input
+                  {!Array.isArray(form.service_specs) ? (<Input
                     label="Instrumentos"
                     value={form.instruments}
                     onChange={(e) => handleFormChange('instruments', e.target.value)}
                     data-guide="instruments"
-                  />
+                  />) : null}
 
                   <Input
                     label="Local"
@@ -1841,6 +1847,10 @@ async function carregarModelosContrato({ force = false } = {}) {
                 </div>
               </Card>
 
+              <Card title="Serviços do evento">
+                {Array.isArray(form.service_specs) ? <ServiceSpecsEditor value={form.service_specs} onChange={(specs) => setForm(prev => ({ ...prev, service_specs: specs, ...legacyServiceProjection(specs) }))} />
+                  : <div className="space-y-3"><p>Defina formação, instrumentos e duração por serviço. Os dados antigos serão aproveitados.</p><button type="button" onClick={() => setForm(prev => ({ ...prev, service_specs: getServiceSpecs(prev) }))} className="rounded-xl border border-violet-300 px-4 py-3 font-semibold text-violet-800">Detalhar serviços contratados</button></div>}
+              </Card>
               <Card title="Operação">
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                   <label className="flex items-center justify-between rounded-2xl border border-slate-200 p-4">
@@ -1854,7 +1864,7 @@ async function carregarModelosContrato({ force = false } = {}) {
                     />
                   </label>
 
-                  <Input
+                  {!Array.isArray(form.service_specs) ? (<Input
                     label="Receptivo (h)"
                     type="number"
                     min="0"
@@ -1862,8 +1872,8 @@ async function carregarModelosContrato({ force = false } = {}) {
                     value={form.reception_hours}
                     onChange={(e) => handleFormChange('reception_hours', e.target.value)}
                     data-guide="reception_hours"
-                  />
-                  {Number(form.reception_hours || 0) > 0 ? (
+                  />) : null}
+                  {!Array.isArray(form.service_specs) && Number(form.reception_hours || 0) > 0 ? (
                     <>
                       <Select
                         label="Formação do receptivo"
@@ -1899,11 +1909,11 @@ async function carregarModelosContrato({ force = false } = {}) {
                   </label>
                 </div>
 
-                {(parseInt(form.reception_hours, 10) || 0) > 0 ? (
+                {!Array.isArray(form.service_specs) && (parseInt(form.reception_hours, 10) || 0) > 0 ? (
                   <div className="mt-4 rounded-2xl border border-slate-200 p-4">
                     <p className="mb-3 text-sm font-semibold text-slate-700">Detalhes do receptivo</p>
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                      <Input
+                      {!Array.isArray(form.service_specs) ? (<Input
                         label="Receptivo (h)"
                         type="number"
                         min="0"
@@ -1911,7 +1921,7 @@ async function carregarModelosContrato({ force = false } = {}) {
                         value={form.reception_hours}
                         onChange={(e) => handleFormChange('reception_hours', e.target.value)}
                         data-guide="reception_hours"
-                      />
+                      />) : null}
                       <Input
                         label="Formação do receptivo"
                         value={form.reception_formation}

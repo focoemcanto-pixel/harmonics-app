@@ -1,4 +1,5 @@
 'use client';
+import ServiceSpecsSummary from '@/components/contracts/ServiceSpecsSummary';
 
 import { useMemo, useState } from 'react';
 import { normalizeTimeStrict } from '@/lib/time/normalize-time';
@@ -414,6 +415,7 @@ function EventCard({
         <span className="line-clamp-1">{item?.locationName || '-'}</span>
       </div>
 
+      {item?.serviceSpecs?.length ? <ServiceSpecsSummary row={{ service_specs: item.serviceSpecs }} /> : null}
       <div className="mt-1 flex items-start gap-2 text-[13px] font-semibold text-[#a89ec8] xl:text-[14px]">
         <span className="shrink-0">🎵</span>
         <span className="line-clamp-1">{item?.instruments || item?.formation || '-'}</span>

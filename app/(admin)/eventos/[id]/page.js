@@ -1,4 +1,6 @@
 'use client';
+import EventServices from '@/components/contracts/EventServices';
+import ContractRevisionPanel from '@/components/contracts/ContractRevisionPanel';
 
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
@@ -196,7 +198,7 @@ export default function EventoDetalhePage() {
           supabase.from('event_musicians').select('id, status').eq('event_id', eventId),
           supabase
             .from('contracts')
-            .select('id, status, signed_at, pdf_url, public_token, raw_payload')
+            .select('id, precontract_id, status, signed_at, pdf_url, public_token, raw_payload')
             .eq('event_id', eventId)
             .order('created_at', { ascending: false })
             .limit(1)
@@ -420,6 +422,8 @@ export default function EventoDetalhePage() {
 
   return (
     <AdminShell pageTitle="Detalhe do evento" activeItem="eventos">
+      {evento?.id ? <EventServices eventId={evento.id} /> : null}
+      {externalContract?.precontract_id && externalContract?.id && externalContract?.status === 'signed' ? <ContractRevisionPanel contractId={externalContract.id} /> : null}
       <div className="space-y-5">
         <header className="space-y-3">
           <div className="flex flex-wrap gap-2">

@@ -115,6 +115,8 @@ export default function ContratosPage() {
         token: resolvedToken,
         precontractId: pre.id,
         contractId: contract?.id || null,
+        pendingRevision: contract?.pending_revision || null,
+        financialReviewRequired: contract?.financial_review_required === true,
         eventoId: contract?.event_id || pre?.event_id || null,
         clienteNome,
         eventoTitulo,

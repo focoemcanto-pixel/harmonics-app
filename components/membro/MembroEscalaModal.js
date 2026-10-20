@@ -1,4 +1,5 @@
 'use client';
+import EventServices from '@/components/contracts/EventServices';
 
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../lib/supabase';
@@ -225,6 +226,7 @@ export default function MembroEscalaModal({ open, eventTitle, eventId = null, mu
               </div>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-[calc(env(safe-area-inset-bottom,0px)+16px)] pt-4 [-webkit-overflow-scrolling:touch]">
+              <EventServices eventId={immediateEventId} />
               {fallbackLoading && !hasScale ? <div className="space-y-2">{[0,1,2].map((key) => <div key={key} className="h-[92px] animate-pulse rounded-[16px] border border-white/10 bg-white/5" />)}</div> : !hasScale ? <div className="rounded-[16px] border border-dashed border-white/10 bg-white/5 px-4 py-5 text-center"><div className="text-[14px] font-semibold text-white/70">Sem escala montada até o momento.</div><div className="mt-1 text-[12px] font-medium text-white/50">{fallbackError || 'A escala deste evento ainda não foi definida pela administração.'}</div></div> : <div className="space-y-2">{displayedMusicians.map((item, index) => <MusicianRow key={`${item?.id || item?.musician_id || index}`} item={item} eventTitle={eventTitle} />)}</div>}
             </div>
           </div>

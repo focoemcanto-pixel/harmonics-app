@@ -1,3 +1,4 @@
+import { normalizeServiceSpecs, legacyServiceProjection } from '@/lib/contracts/service-specs.mjs';
 import { NextResponse } from 'next/server';
 import { withApiObservability } from '@/lib/observability/api-observability';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
@@ -51,6 +52,7 @@ const PRECONTRACT_SELECT_FIELDS = [
   'status',
   'public_token',
   'generated_link',
+  'service_specs',
   'custom_contract_enabled',
   'custom_contract_content',
   'custom_contract_rich_html',
@@ -290,7 +292,7 @@ async function handlePOST(request) {
     if (id) {
       const { data, error } = await supabase
         .from('precontracts')
-        .select('id, event_date, workspace_id, event_type_id, contract_template_id')
+        .select('id, event_date, workspace_id, event_type_id, contract_template_id, status')
         .eq('id', id)
         .eq('workspace_id', auth.workspaceId)
         .maybeSingle();
@@ -298,6 +300,17 @@ async function handlePOST(request) {
       existingItem = data || null;
     }
 
+    if (id && !existingItem) return NextResponse.json({ ok: false, message: 'Pré-contrato não encontrado.' }, { status: 404 });
+    if (id) {
+      const signed = await supabase.from('contracts').select('status,signed_at').eq('precontract_id', id).eq('workspace_id', auth.workspaceId).maybeSingle();
+      if (signed.error) throw signed.error;
+      if (signed.data?.status === 'signed' || signed.data?.signed_at) return NextResponse.json({ ok: false, message: 'Use Revisar contrato para alterar um contrato assinado.' }, { status: 409 });
+    }
+    if (existingItem?.status === 'signed') return NextResponse.json({ ok: false, message: 'Use Revisar contrato para alterar um contrato assinado.' }, { status: 409 });
+    if (Object.hasOwn(payload, 'service_specs') && payload.service_specs !== null) {
+      payload.service_specs = normalizeServiceSpecs(payload.service_specs);
+      Object.assign(payload, legacyServiceProjection(payload.service_specs));
+    }
     const existingDate = parseDateOnly(existingItem?.event_date);
     const isTryingPastDate = eventDate < todayStart;
     const isLegacyUnchangedPastEdit =

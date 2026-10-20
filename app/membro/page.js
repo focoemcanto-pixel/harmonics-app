@@ -935,7 +935,7 @@ export default function MembroPage() {
 
         supabase
           .from('precontracts')
-          .select('id, event_id, public_token, reception_hours, has_sound, has_transport'),
+          .select('id, event_id, public_token, service_specs, formation, instruments, duration_min, reception_formation, reception_instruments, reception_hours, has_sound, has_transport'),
 
         supabase
         .from('contracts')

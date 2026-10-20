@@ -3120,6 +3120,8 @@ if (contractSignedError) throw contractSignedError;
         <div className="mx-auto max-w-4xl">
           <Card>
             <div className="space-y-5 py-8 text-center">
+              {precontract.pending_revision ? <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-amber-900"><p>Versão {precontract.current_contract_version || 1} assinada e vigente. A revisão {precontract.pending_revision.version} aguarda nova assinatura.</p><a className="font-bold underline" href={precontract.pending_revision.link}>Revisar alterações e assinar a nova versão</a></div> : null}
+
               <p className="text-sm font-semibold tracking-wide text-emerald-600">
                 HARMONICS
               </p>

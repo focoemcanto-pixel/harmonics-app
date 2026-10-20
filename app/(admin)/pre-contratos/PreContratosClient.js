@@ -591,7 +591,7 @@ function PreviewContractModal({ open, item, onClose }) {
         <Card title="Preview do contrato" className="mt-4">
           {contractHtml ? (
             <div
-              className="prose prose-slate max-w-none text-sm"
+              className="hx-doc"
               dangerouslySetInnerHTML={{ __html: contractHtml }}
             />
           ) : fallbackNotes ? (

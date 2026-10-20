@@ -170,3 +170,50 @@ a {
     animation: none;
   }
 }
+
+/* ============================================================================
+   Documento de contrato (editor e preview). Espelha a hierarquia do PDF final
+   (lib/contracts/htmlToPdfService.js): títulos em caixa alta e peso forte, parágrafos
+   com respiro, listas com marcadores, separadores e alinhamentos.
+   ========================================================================= */
+.hx-doc {
+  color: #0c0d12;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 15px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.hx-doc > :first-child { margin-top: 0; }
+.hx-doc h1 { margin: 0 0 18px; font-size: 22px; font-weight: 800; line-height: 1.2; text-transform: uppercase; letter-spacing: -0.01em; }
+.hx-doc h2 { margin: 22px 0 10px; font-size: 18px; font-weight: 800; line-height: 1.25; text-transform: uppercase; }
+.hx-doc h3, .hx-doc h4, .hx-doc h5, .hx-doc h6 { margin: 16px 0 8px; font-size: 15px; font-weight: 800; line-height: 1.35; text-transform: uppercase; }
+.hx-doc p { margin: 0 0 10px; }
+.hx-doc strong, .hx-doc b { font-weight: 800; }
+.hx-doc em, .hx-doc i { font-style: italic; }
+.hx-doc u { text-decoration: underline; }
+.hx-doc ul, .hx-doc ol { margin: 6px 0 12px; padding-left: 24px; }
+.hx-doc ul { list-style: disc; }
+.hx-doc ol { list-style: decimal; }
+.hx-doc li { margin: 0 0 4px; }
+.hx-doc li > p { margin: 0; }
+.hx-doc hr { margin: 18px 0; border: 0; border-top: 1px solid #c7ccd4; }
+.hx-doc table { width: 100%; margin: 8px 0 14px; border-collapse: collapse; }
+.hx-doc td, .hx-doc th { padding: 6px 8px; border: 1px solid #d0d5dd; vertical-align: top; text-align: left; }
+
+/* Superfície de edição: área ampla tipo folha, foco e seleção claros. */
+.hx-doc-editor {
+  outline: none;
+  caret-color: #6d28d9;
+  cursor: text;
+}
+.hx-doc-editor ::selection { background: rgba(124, 58, 237, 0.2); }
+.hx-doc-editor:empty::before {
+  content: attr(data-placeholder);
+  color: #98a2b3;
+  pointer-events: none;
+}
+@media (max-width: 767px) {
+  .hx-doc { font-size: 15px; line-height: 1.65; }
+  .hx-doc h1 { font-size: 19px; }
+  .hx-doc h2 { font-size: 16px; }
+}

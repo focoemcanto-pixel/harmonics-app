@@ -105,19 +105,17 @@ export async function GET(_request, context) {
       return new NextResponse('Token inválido.', { status: 400 });
     }
 
-    let pdfBuffer = null;
-
-    try {
-      pdfBuffer = await fetchLegacyGasPreviewPdf({ token });
-    } catch (legacyError) {
-      console.warn('[CONTRACT_PREVIEW][LEGACY_GAS_FAILED]', {
-        token,
-        message: legacyError?.message || String(legacyError),
-      });
-    }
-
-    if (!pdfBuffer) {
+    const admin = getSupabaseAdminClient();
+    const pre = await admin.from('precontracts').select('contract_mode, custom_contract_enabled, service_specs').eq('public_token', token).maybeSingle();
+    if (pre.error) throw pre.error;
+    const internal = pre.data?.contract_mode === 'internal' || pre.data?.custom_contract_enabled === true || Array.isArray(pre.data?.service_specs);
+    let pdfBuffer;
+    if (internal) {
       pdfBuffer = await fetchInternalPreviewPdf({ token });
+    } else {
+      try { pdfBuffer = await fetchLegacyGasPreviewPdf({ token }); }
+      catch { /* Upstream legacy failures retain the existing internal fallback. */ }
+      if (!pdfBuffer) pdfBuffer = await fetchInternalPreviewPdf({ token });
     }
 
     return new NextResponse(pdfBuffer, {

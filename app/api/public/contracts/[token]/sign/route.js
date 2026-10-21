@@ -5,6 +5,7 @@ import { validateRequiredEnv } from '@/lib/config/validate-env';
 import { getAutomaticCosts } from '@/lib/eventos/eventos-finance';
 import { normalizeTimeStrict } from '@/lib/time/normalize-time';
 import { generateContractDocument } from '@/lib/contracts/generate-contract-document';
+import { resolveContractHtmlSource } from '@/lib/contracts/resolveContractHtmlSource';
 import { signInternalContract } from '@/lib/contracts/sign-internal-contract';
 import { executeAutomationEvent } from '@/lib/automation/execute-automation-event';
 import { getCurrentWorkspace } from '@/lib/workspaces/get-current-workspace';
@@ -228,6 +229,9 @@ async function handlePOST(request, context) {
     const resolvedWorkspaceId = asString(precontract?.workspace_id || workspaceContext.workspaceId) || null;
 
     let { data: contract } = await supabase.from('contracts').select('*').eq('precontract_id', precontract.id).maybeSingle();
+    if ((contract?.status === 'signed' && contract?.pdf_url) || precontract.status === 'signed') {
+      return NextResponse.json({ ok: false, message: 'Contrato já assinado. Solicite uma revisão.', fallbackAllowed: false }, { status: 409 });
+    }
     if (!contract?.id) {
       const inserted = await supabase.from('contracts').insert({
         precontract_id: precontract.id,
@@ -402,6 +406,7 @@ async function handlePOST(request, context) {
           contractId: finalContract?.id || contract?.id || null,
           precontractId: precontract.id,
           html: signedHtml,
+          contractSourceHtml: resolveContractHtmlSource(genJson?.context?.precontract || {}).html,
           signerName: asString(form.signer_name) || asString(form.full_name) || 'Não informado',
           signerCpf: cleanDigits(form.signer_cpf) || cleanDigits(form.cpf) || 'Não informado',
           origin: 'CLIENTE',
@@ -458,6 +463,8 @@ async function handlePOST(request, context) {
       );
     }
 
+    const signatureRecord = await supabase.from('contracts').select('raw_payload').eq('id', contract.id).single();
+    if (signatureRecord.error) throw signatureRecord.error;
     const { error: signedContractError } = await supabase.from('contracts').update({
       workspace_id: finalContract?.workspace_id || resolvedWorkspaceId,
       status: 'signed', signed_at: assinaturaEm, signature_name: asString(form.signer_name) || null,
@@ -465,7 +472,7 @@ async function handlePOST(request, context) {
       event_id: eventId || finalContract?.event_id || null,
       ...(generationMode === 'internal' ? { pdf_url: pdfUrl || null } : {}),
       raw_payload: {
-        ...(finalContract?.raw_payload || {}),
+        ...(signatureRecord.data?.raw_payload || finalContract?.raw_payload || {}),
         signed_contract_mode: generationMode,
         ...(signedHtml && generationMode !== 'internal'
           ? {

@@ -1,3 +1,4 @@
+import { lookupSignedRevision } from '@/lib/contracts/revisions';
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 
@@ -29,6 +30,9 @@ export async function GET(request, context) {
   try {
     const supabase = getSupabaseAdmin();
 
+    const archived = await lookupSignedRevision(supabase, token);
+    if (archived) return NextResponse.json({ ok: true, valid: true, status: 'signed', version: archived.version,
+      contract: { id: archived.contract_id, hash: archived.document_hash, client_name: archived.snapshot.client_name, event_date: archived.snapshot.event_date } });
     let contract = null;
     const byValidation = await supabase
       .from('contracts')

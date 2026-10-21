@@ -154,7 +154,7 @@ export async function GET(request) {
         .order('created_at', { ascending: false }),
       supabase
         .from('precontracts')
-        .select('id, event_id, public_token, reception_hours, has_sound, has_transport')
+        .select('id, event_id, public_token, service_specs, formation, instruments, duration_min, reception_formation, reception_instruments, reception_hours, has_sound, has_transport')
         .in('event_id', eventIds),
       supabase
         .from('contracts')

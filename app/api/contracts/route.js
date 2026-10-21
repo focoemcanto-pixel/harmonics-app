@@ -61,6 +61,12 @@ export async function GET(request) {
     if (preErr) throw preErr;
     if (conErr) throw conErr;
 
+    const revisions = await supabase.from('contract_revisions').select('contract_id, version, status, financial_review_required').eq('workspace_id', workspaceId).in('contract_id', (contracts || []).map(c => c.id)).order('version', { ascending: false });
+    if (revisions.error) throw revisions.error;
+    for (const contract of contracts || []) {
+      contract.pending_revision = (revisions.data || []).find(r => r.contract_id === contract.id && r.status === 'pending') || null;
+      contract.financial_review_required = (revisions.data || []).find(r => r.contract_id === contract.id && r.status === 'signed')?.financial_review_required === true;
+    }
     return NextResponse.json({
       ok: true,
       precontracts: precontracts || [],

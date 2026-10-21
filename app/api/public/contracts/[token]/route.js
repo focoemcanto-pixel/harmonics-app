@@ -24,6 +24,7 @@ function pickPrecontract(precontract) {
 
   return {
     id: precontract.id,
+    service_specs: precontract.service_specs ?? null,
     workspace_id: precontract.workspace_id || null,
     created_at: precontract.created_at || null,
     public_token: precontract.public_token || null,
@@ -210,8 +211,17 @@ export async function GET(_request, context) {
     const contractState = pickContract(contract);
     const precontractState = pickPrecontract(precontract);
     const source = await resolvePrecontractHtmlSource({ supabase, precontract });
-    precontractState.contract_source_html = source.html;
+    precontractState.contract_source_html = contract?.status === 'signed' ? (contract.signed_html || contract.raw_payload?.signed_contract_html || source.html) : source.html;
     const isSigned = contractState?.status === 'signed' || precontractState?.status === 'signed';
+    if (isSigned && contract?.id) {
+      const revisions = await supabase.from('contract_revisions').select('version, status, public_token, financial_review_required')
+        .eq('contract_id', contract.id).eq('workspace_id', precontract.workspace_id).order('version', { ascending: false });
+      if (revisions.error) throw revisions.error;
+      const pending = (revisions.data || []).find(r => r.status === 'pending');
+      precontractState.current_contract_version = (revisions.data || []).find(r => r.status === 'signed')?.version || 1;
+      precontractState.pending_revision = pending ? { version: pending.version, link: `/contrato/revisao/${pending.public_token}` } : null;
+    }
+
 
     return NextResponse.json({
       ok: true,

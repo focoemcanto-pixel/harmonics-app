@@ -208,7 +208,8 @@ export async function GET(_request, context) {
 
     const { html: sourceHtml } = await resolvePrecontractHtmlSource({ supabase, precontract });
 
-    const html = renderContractHtmlWithData(sourceHtml, templateData).trim();
+    const signedHtml = contract?.status === 'signed' ? (contract.signed_html || contract.raw_payload?.signed_contract_html) : '';
+    const html = String(signedHtml || renderContractHtmlWithData(sourceHtml, templateData)).trim();
 
     if (!html) {
       return new NextResponse('Template de contrato não encontrado para este pré-contrato.', {

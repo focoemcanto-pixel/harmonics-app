@@ -1,3 +1,4 @@
+import { lookupSignedRevision } from '@/lib/contracts/revisions';
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import {
@@ -60,6 +61,9 @@ async function latestContractWithPdf(supabase, column, value) {
 }
 
 async function resolveContractByToken(supabase, token) {
+  const archived = await lookupSignedRevision(supabase, token);
+  if (archived?.pdf_url && archived.public_token === token) return { id: archived.contract_id, workspace_id: archived.workspace_id, pdf_url: archived.pdf_url };
+
   const { data: byContract } = await supabase
     .from('contracts')
     .select('id, pdf_url, precontract_id, workspace_id')

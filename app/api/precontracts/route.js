@@ -233,8 +233,9 @@ async function handleGET(request) {
         .order('created_at', { ascending: false });
       if (contracts.error) throw contracts.error;
       for (const row of rows) {
-        const contract = (contracts.data || []).find((c) => c.precontract_id === row.id && c.status !== 'cancelled' && (c.status === 'signed' || c.signed_at));
+        const contract = (contracts.data || []).find((c) => c.precontract_id === row.id && (c.status === 'signed' || c.signed_at));
         row.signed_contract_id = contract?.id || null;
+        row.signed_contract_status = contract?.status || null;
       }
     }
     return NextResponse.json({ ok: true, data: rows, workspaceId: auth.workspaceId });

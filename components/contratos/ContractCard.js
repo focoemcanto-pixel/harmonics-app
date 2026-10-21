@@ -220,8 +220,8 @@ export default function ContractCard({ item, onCopyLink, onDeleteContract, selec
         <div className="mt-5 flex flex-wrap gap-3">
           <button type="button" onClick={handleOpenPreview} className="rounded-[16px] bg-violet-600 px-4 py-3 text-[14px] font-black text-white shadow-[0_10px_24px_rgba(124,58,237,0.22)]">Preview</button>
 
-          {item.assinadoEm && hasContractId ? <ContractRevisionPanel contractId={item.contractId} /> : null}
-          {hasPrecontract && !item.assinadoEm ? <Link href={editPrecontractHref} className="rounded-[16px] border border-violet-200 bg-white px-4 py-3 text-[14px] font-black text-violet-700 shadow-[0_10px_24px_rgba(124,58,237,0.08)]">Editar contrato</Link> : null}
+          {item.assinadoEm && hasContractId && item.statusRaw !== 'cancelled' ? <ContractRevisionPanel contractId={item.contractId} /> : null}
+          {hasPrecontract && !item.assinadoEm && item.statusRaw !== 'cancelled' ? <Link href={editPrecontractHref} className="rounded-[16px] border border-violet-200 bg-white px-4 py-3 text-[14px] font-black text-violet-700 shadow-[0_10px_24px_rgba(124,58,237,0.08)]">Editar contrato</Link> : null}
 
           {hasLink ? <Link href={item.linkContrato} className="rounded-[16px] bg-[#0f172a] px-4 py-3 text-[14px] font-black text-white shadow-[0_10px_24px_rgba(15,23,42,0.18)]">Abrir contrato</Link> : <button type="button" disabled className="cursor-not-allowed rounded-[16px] bg-slate-300 px-4 py-3 text-[14px] font-black text-white">Sem link</button>}
 

@@ -1602,6 +1602,14 @@ async function carregarModelosContrato({ force = false } = {}) {
   }
 
   async function gerarLinkContrato(item) {
+    if (item.status === 'cancelled' || item.signed_contract_status === 'cancelled') {
+      showToast?.('Este contrato está cancelado. O envio não pode reativá-lo.', 'error');
+      return;
+    }
+    if (item.public_token) {
+      openShareModalFromItem(item);
+      return;
+    }
     try {
       setGerandoLinkId(item.id);
 
@@ -1617,7 +1625,7 @@ async function carregarModelosContrato({ force = false } = {}) {
         .update({
           public_token: token,
           generated_link: link,
-          status: item.status === 'signed' ? 'signed' : 'link_generated',
+          status: item.signed_contract_id || item.status === 'signed' ? 'signed' : 'link_generated',
         })
         .eq('id', item.id)
         .select(PRECONTRACT_SELECT_FIELDS)
@@ -1626,7 +1634,7 @@ async function carregarModelosContrato({ force = false } = {}) {
       if (error) throw error;
 
       setItems((prev) => {
-        const current = sanitizeTimeFields(data);
+        const current = sanitizeTimeFields({ ...item, ...data });
         return [current, ...prev.filter((entry) => entry.id !== current.id)];
       });
       devLog('[CONTRACT_TOKEN_FLOW] token salvo após gerar link', {
@@ -1666,6 +1674,8 @@ async function carregarModelosContrato({ force = false } = {}) {
         .some((v) => String(v).toLowerCase().includes(termo))
     );
   }, [items, busca]);
+
+  const editingSigned = items.find((item) => String(item.id) === String(editandoId) && item.signed_contract_id);
 
   const pendingAdjustment = editandoId
     ? adjustmentRequestsByPrecontract.get(String(editandoId)) || null
@@ -2035,9 +2045,13 @@ async function carregarModelosContrato({ force = false } = {}) {
                     >
                       Ver preview
                     </Button>
-                    <Button onClick={() => openContractEditor({ readOnly: false })}>
+                    {editingSigned ? (
+                      editingSigned.signed_contract_status === 'cancelled'
+                        ? <p className="text-sm text-slate-600">Contrato cancelado. A assinatura anterior está preservada.</p>
+                        : <ContractRevisionPanel contractId={editingSigned.signed_contract_id} />
+                    ) : <Button onClick={() => openContractEditor({ readOnly: false })}>
                       Editar contrato
-                    </Button>
+                    </Button>}
                     <Button
                       variant="ghost"
                       onClick={() => {
@@ -2195,6 +2209,7 @@ async function carregarModelosContrato({ force = false } = {}) {
                 const adjustment = adjustmentRequestsByPrecontract.get(String(item.id)) || null;
                 const pending = String(adjustment?.status || '').toLowerCase() === 'pending';
                 const usesInternalModel = isInternalContractModel(item);
+                const isCancelled = item.status === 'cancelled' || item.signed_contract_status === 'cancelled';
                 return (
                 <Card
                   key={item.id}
@@ -2264,23 +2279,24 @@ async function carregarModelosContrato({ force = false } = {}) {
                     >
                       Visualizar contrato
                     </Button>
-                    {item.signed_contract_id ? (
+                    {!isCancelled && (item.signed_contract_id ? (
                       <ContractRevisionPanel contractId={item.signed_contract_id} />
                     ) : (
                       <Button variant="soft" onClick={() => iniciarEdicao(item)}>
                         Editar
                       </Button>
-                    )}
+                    ))}
+                    {isCancelled ? <p className="text-sm text-slate-600">Cancelado. Edição e envio indisponíveis; documentos anteriores preservados.</p> : null}
 
-                    <Button
+                    {!isCancelled && <Button
                       variant="secondary"
                       onClick={() => gerarLinkContrato(item)}
                       disabled={gerandoLinkId === item.id}
                     >
                       {gerandoLinkId === item.id ? 'Gerando...' : 'Abrir envio'}
-                    </Button>
+                    </Button>}
 
-                    {item.generated_link && (
+                    {!isCancelled && item.generated_link && (
                       <Button
                         variant="soft"
                         onClick={() => copiarLink(item.generated_link, item.id)}

@@ -143,7 +143,7 @@ export default function ContratosPage() {
     const usedContractIds = new Set(fromPrecontracts.map((item) => String(item.contractId || '')).filter(Boolean));
     const externalContracts = (contracts || [])
       .filter((contract) => {
-        if (usedContractIds.has(String(contract?.id || '')) || contract?.precontract_id) return false;
+        if (contract?.status === 'cancelled' || usedContractIds.has(String(contract?.id || '')) || contract?.precontract_id) return false;
         if (!contract?.id) {
           console.warn('[CONTRATOS_ADMIN] contrato externo ignorado sem id', contract);
           return false;

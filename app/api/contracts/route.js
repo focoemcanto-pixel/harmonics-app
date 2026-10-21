@@ -53,7 +53,7 @@ export async function GET(request) {
           .from('contracts')
           .select(CONTRACTS_SELECT_FIELDS)
           .eq('workspace_id', workspaceId)
-          .neq('status', 'cancelled')
+          .or('status.neq.cancelled,signed_at.not.is.null')
           .order('created_at', { ascending: false })
           .limit(limit),
       ]);

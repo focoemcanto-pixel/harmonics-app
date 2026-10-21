@@ -1,4 +1,5 @@
 'use client';
+import ContractRevisionPanel from '@/components/contracts/ContractRevisionPanel';
 import ServiceSpecsEditor from '@/components/contracts/ServiceSpecsEditor';
 import { getServiceSpecs, legacyServiceProjection } from '@/lib/contracts/service-specs.mjs';
 
@@ -2263,9 +2264,13 @@ async function carregarModelosContrato({ force = false } = {}) {
                     >
                       Visualizar contrato
                     </Button>
-                    <Button variant="soft" onClick={() => iniciarEdicao(item)}>
-                      Editar
-                    </Button>
+                    {item.signed_contract_id ? (
+                      <ContractRevisionPanel contractId={item.signed_contract_id} />
+                    ) : (
+                      <Button variant="soft" onClick={() => iniciarEdicao(item)}>
+                        Editar
+                      </Button>
+                    )}
 
                     <Button
                       variant="secondary"

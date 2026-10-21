@@ -224,7 +224,20 @@ async function handleGET(request) {
 
     if (error) throw error;
 
-    return NextResponse.json({ ok: true, data: data || [], workspaceId: auth.workspaceId });
+    const rows = data || [];
+    if (rows.length) {
+      const contracts = await supabase.from('contracts')
+        .select('id, precontract_id, status, signed_at')
+        .eq('workspace_id', auth.workspaceId)
+        .in('precontract_id', rows.map((row) => row.id))
+        .order('created_at', { ascending: false });
+      if (contracts.error) throw contracts.error;
+      for (const row of rows) {
+        const contract = (contracts.data || []).find((c) => c.precontract_id === row.id && c.status !== 'cancelled' && (c.status === 'signed' || c.signed_at));
+        row.signed_contract_id = contract?.id || null;
+      }
+    }
+    return NextResponse.json({ ok: true, data: rows, workspaceId: auth.workspaceId });
   } catch (error) {
     console.error('[PRECONTRACTS_API][GET][ERROR]', {
       message: error?.message,

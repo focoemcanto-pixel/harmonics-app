@@ -61,6 +61,16 @@ export async function GET(request) {
     if (preErr) throw preErr;
     if (conErr) throw conErr;
 
+    const eventIds = [...new Set((contracts || []).map((c) => c.event_id).filter(Boolean))];
+    if (eventIds.length) {
+      const events = await supabase.from('events')
+        .select('id, client_name, event_type, event_date, location_name, whatsapp_phone')
+        .eq('workspace_id', workspaceId).in('id', eventIds);
+      if (events.error) throw events.error;
+      const eventsById = new Map((events.data || []).map((event) => [event.id, event]));
+      for (const contract of contracts || []) contract.event = eventsById.get(contract.event_id) || null;
+    }
+
     const revisions = await supabase.from('contract_revisions').select('contract_id, version, status, financial_review_required').eq('workspace_id', workspaceId).in('contract_id', (contracts || []).map(c => c.id)).order('version', { ascending: false });
     if (revisions.error) throw revisions.error;
     for (const contract of contracts || []) {

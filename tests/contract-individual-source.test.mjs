@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { buildPrecontractValidityRenewal } from '../lib/contracts/precontract-expiration.js';
 import assert from 'node:assert/strict';
 import { resolvePrecontractHtmlSource, renderContractHtmlWithTemplateData } from '../lib/contracts/resolveContractHtmlSource.js';
 
@@ -80,7 +81,7 @@ function statefulDb() {
 test('actual save API persists only the customization, preserves token and finances, rejects cross-workspace and signed records', async () => {
   const supabase = statefulDb();
   const save = loadHandler('app/api/precontracts/route.js', {
-    NextResponse: response, getSupabaseAdmin: () => supabase,
+    NextResponse: response, getSupabaseAdmin: () => supabase, buildPrecontractValidityRenewal,
     requireWorkspaceAdmin: async () => ({ ok: true, workspaceId: 'w1' }),
   }, 'handlePOST');
   const request = (id, html, more = {}) => new Request('https://test/api/precontracts', { method: 'POST', body: JSON.stringify({ id,
@@ -98,7 +99,7 @@ test('actual save API persists only the customization, preserves token and finan
   supabase.rows.precontracts[0].workspace_id = 'w2';
   assert.equal((await save(request('a', '<p>Denied</p>'))).status, 404);
   supabase.rows.precontracts[0].workspace_id = 'w1';
-  supabase.rows.contracts.push({ precontract_id: 'a', signed_at: '2026-10-20' });
+  supabase.rows.contracts.push({ precontract_id: 'a', workspace_id: 'w1', signed_at: '2034-06-10' });
   assert.equal((await save(request('a', '<p>Denied</p>'))).status, 409);
   supabase.rows.contracts = [];
   assert.equal((await save(request('a', '', { restore_default: true }))).status, 200);
@@ -141,4 +142,67 @@ test('signature generation and PDF regeneration use individual HTML; signed snap
   const contract = { raw_payload: { signed_contract_html: generated.html } };
   supabase.rows.precontracts[0].custom_contract_rich_html = '<p>Later change</p>';
   assert.equal((await resolvePdf({ supabase, precontract: supabase.rows.precontracts[0], contract })).html, generated.html);
+});
+
+
+test('expired customization and manual renewal reactivate SAME link without losing draft or source', async () => {
+  for (const action of ['customize_contract', 'renew_validity']) {
+    const supabase = statefulDb();
+    Object.assign(supabase.rows.precontracts[0], { status: 'expired', created_at: '2030-01-01T00:00:00Z', custom_contract_rich_html: '<p>Preserved</p>' });
+    supabase.rows.contracts.push({ workspace_id: 'w1', precontract_id: 'a', status: 'draft', raw_payload: { client_form: { profession: 'Synthetic profession' } } });
+    const beforeContract = structuredClone(supabase.rows.contracts);
+    const save = loadHandler('app/api/precontracts/route.js', {
+      NextResponse: response, getSupabaseAdmin: () => supabase, buildPrecontractValidityRenewal,
+      requireWorkspaceAdmin: async () => ({ ok: true, workspaceId: 'w1' }),
+    }, 'handlePOST');
+    const result = await save(new Request('https://test/api/precontracts', { method: 'POST', body: JSON.stringify({ id: 'a', action, payload: { custom_contract_rich_html: '<p>Edited</p>' } }) }));
+    assert.equal(result.status, 200);
+    const row = supabase.rows.precontracts[0];
+    assert.equal(row.status, 'link_generated');
+    assert.equal(row.public_token, 'same-public-token');
+    assert.equal(row.created_at, '2030-01-01T00:00:00Z');
+    assert.ok(new Date(row.expires_at) > new Date());
+    assert.equal(row.custom_contract_rich_html, action === 'customize_contract' ? '<p>Edited</p>' : '<p>Preserved</p>');
+    assert.deepEqual(supabase.rows.contracts, beforeContract);
+    row.status = 'cancelled';
+    assert.equal((await save(new Request('https://test/api/precontracts', { method:'POST', body:JSON.stringify({id:'a',action}) }))).status, 409);
+  }
+});
+
+test('full precontract edit renews validity while preserving existing token, link, identity and creation date', async () => {
+  const supabase = statefulDb();
+  Object.assign(supabase.rows.precontracts[0], { status:'expired', event_date:'2038-08-14', created_at:'2030-02-03T09:00:00Z', generated_link:'https://fixture.test/contrato/same-public-token' });
+  const save = loadHandler('app/api/precontracts/route.js', {
+    NextResponse: response, getSupabaseAdmin: () => supabase, buildPrecontractValidityRenewal,
+    toMoneyNumber: value => Number(value || 0),
+    ensureInternalPrecontractTemplate: async ({payload}) => payload,
+    requireWorkspaceAdmin: async () => ({ok:true,workspaceId:'w1'}),
+  }, 'handlePOST');
+  const result = await save(new Request('https://test/api/precontracts', { method:'POST', body:JSON.stringify({id:'a',public_token:'unwanted-replacement',generated_link:'https://fixture.test/replacement',payload:{event_date:'2038-08-14',status:'link_generated',agreed_amount:1234,created_at:'2038-01-01T00:00:00Z'}}) }));
+  assert.equal(result.status,200);
+  const row=supabase.rows.precontracts[0];
+  assert.equal(row.id,'a');
+  assert.equal(row.public_token,'same-public-token');
+  assert.equal(row.generated_link,'https://fixture.test/contrato/same-public-token');
+  assert.equal(row.created_at,'2030-02-03T09:00:00Z');
+  assert.equal(row.status,'link_generated');
+  assert.ok(new Date(row.expires_at)>new Date());
+});
+
+test('manual renewal requires workspace admin and refuses signed or foreign records', async () => {
+  const supabase=statefulDb();
+  let auth={ok:false,status:401,error:'Unauthorized'};
+  const save=loadHandler('app/api/precontracts/route.js',{
+    NextResponse:response,getSupabaseAdmin:()=>supabase,buildPrecontractValidityRenewal,
+    requireWorkspaceAdmin:async()=>auth,
+  },'handlePOST');
+  const request=()=>new Request('https://test/api/precontracts',{method:'POST',body:JSON.stringify({id:'a',action:'renew_validity'})});
+  assert.equal((await save(request())).status,401);
+  assert.equal(supabase.writes.length,0);
+  auth={ok:true,workspaceId:'foreign-workspace'};
+  assert.equal((await save(request())).status,404);
+  auth={ok:true,workspaceId:'w1'};
+  supabase.rows.contracts.push({workspace_id:'w1',precontract_id:'a',status:'signed',signed_at:'2037-03-11'});
+  assert.equal((await save(request())).status,409);
+  assert.equal(supabase.writes.length,0);
 });

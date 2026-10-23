@@ -27,6 +27,7 @@ function pickPrecontract(precontract) {
     service_specs: precontract.service_specs ?? null,
     workspace_id: precontract.workspace_id || null,
     created_at: precontract.created_at || null,
+    expires_at: precontract.expires_at || null,
     public_token: precontract.public_token || null,
     generated_link: precontract.generated_link || null,
     status: precontract.status || null,

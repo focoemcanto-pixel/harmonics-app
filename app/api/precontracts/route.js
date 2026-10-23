@@ -1,3 +1,4 @@
+import { buildPrecontractValidityRenewal } from '@/lib/contracts/precontract-expiration';
 import { normalizeServiceSpecs, legacyServiceProjection } from '@/lib/contracts/service-specs.mjs';
 import { NextResponse } from 'next/server';
 import { withApiObservability } from '@/lib/observability/api-observability';
@@ -19,6 +20,7 @@ const PRECONTRACT_SELECT_FIELDS = [
   'id',
   'workspace_id',
   'created_at',
+  'expires_at',
   'client_name',
   'client_email',
   'client_phone',
@@ -266,27 +268,39 @@ async function handlePOST(request) {
     const id = String(body?.id || '').trim();
     const isCreating = !id;
     const payload = body?.payload && typeof body.payload === 'object' ? body.payload : {};
-    if (body?.action === 'customize_contract') {
+    if (body?.action === 'customize_contract' || body?.action === 'renew_validity') {
       if (!id) return NextResponse.json({ ok: false, message: 'Pré-contrato obrigatório.' }, { status: 400 });
       const { data: existing, error: lookupError } = await supabase.from('precontracts')
         .select('id, status').eq('id', id).eq('workspace_id', auth.workspaceId).maybeSingle();
       if (lookupError) throw lookupError;
       if (!existing) return NextResponse.json({ ok: false, message: 'Pré-contrato não encontrado.' }, { status: 404 });
       const { data: signedContract, error: signedError } = await supabase.from('contracts')
-        .select('status, signed_at').eq('precontract_id', id).maybeSingle();
+        .select('status, signed_at').eq('precontract_id', id).eq('workspace_id', auth.workspaceId).maybeSingle();
       if (signedError) throw signedError;
       if (existing.status === 'signed' || signedContract?.status === 'signed' || signedContract?.signed_at) {
         return NextResponse.json({ ok: false, message: 'Contrato assinado não pode ser personalizado.' }, { status: 409 });
+      }
+      if (['cancelled', 'canceled', 'archived', 'arquivado'].includes(existing.status) || signedContract?.status === 'cancelled') {
+        return NextResponse.json({ ok: false, message: 'Pré-contrato cancelado ou arquivado não pode ser renovado.' }, { status: 409 });
+      }
+      const renewal = buildPrecontractValidityRenewal(existing);
+      if (body.action === 'renew_validity') {
+        const result = await supabase.from('precontracts').update(renewal)
+          .eq('id', id).eq('workspace_id', auth.workspaceId).eq('status', existing.status)
+          .select(PRECONTRACT_SELECT_FIELDS).single();
+        if (result.error) throw result.error;
+        return NextResponse.json({ ok: true, data: result.data });
       }
       const html = String(payload.custom_contract_rich_html || '').trim();
       const restore = body.restore_default === true;
       if (!html && !restore) return NextResponse.json({ ok: false, message: 'Adicione conteúdo antes de salvar.' }, { status: 400 });
       const { data, error } = await supabase.from('precontracts').update({
+        ...renewal,
         custom_contract_enabled: !restore,
         custom_contract_content: restore ? null : html,
         custom_contract_rich_html: restore ? null : html,
         contract_mode: 'internal',
-      }).eq('id', id).eq('workspace_id', auth.workspaceId).neq('status', 'signed')
+      }).eq('id', id).eq('workspace_id', auth.workspaceId).eq('status', existing.status)
         .select(PRECONTRACT_SELECT_FIELDS).single();
       if (error) throw error;
       return NextResponse.json({ ok: true, data });
@@ -306,7 +320,7 @@ async function handlePOST(request) {
     if (id) {
       const { data, error } = await supabase
         .from('precontracts')
-        .select('id, event_date, workspace_id, event_type_id, contract_template_id, status')
+        .select('id, event_date, workspace_id, event_type_id, contract_template_id, status, public_token, generated_link')
         .eq('id', id)
         .eq('workspace_id', auth.workspaceId)
         .maybeSingle();
@@ -355,6 +369,16 @@ async function handlePOST(request) {
     });
 
     const writePayload = sanitizePrecontractWritePayload(payloadWithTemplate);
+    // A save renews validity without changing creation time, token or client draft.
+    if (!['cancelled', 'canceled', 'archived', 'arquivado', 'signed', 'assinado'].includes(writePayload.status)) {
+      Object.assign(writePayload, buildPrecontractValidityRenewal({ status: existingItem?.status || writePayload.status }));
+    }
+    if (id) {
+      delete writePayload.created_at;
+      writePayload.public_token = existingItem.public_token;
+      writePayload.generated_link = existingItem.generated_link;
+    }
+
 
     let data = null;
     if (id) {

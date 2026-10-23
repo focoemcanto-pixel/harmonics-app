@@ -1204,7 +1204,7 @@ async function carregarModelosContrato({ force = false } = {}) {
       setForm((prev) => ({ ...prev, ...changes }));
       setContractEditorOpen(false);
       showToast?.(editandoId
-        ? (restore ? 'Modelo padrão restaurado para este pré-contrato.' : 'Personalização do contrato salva com sucesso.')
+        ? (restore ? 'Modelo padrão restaurado para este pré-contrato.' : 'Personalização salva e validade renovada no mesmo link.')
         : 'Personalização aplicada ao rascunho. Salve o pré-contrato para gerar o link.', 'success');
       return true;
     } catch (error) {
@@ -1315,6 +1315,21 @@ async function carregarModelosContrato({ force = false } = {}) {
       whatsAppUrl: buildWhatsAppUrl(item.client_phone, message),
     });
     setShareModalOpen(true);
+  }
+
+  async function renovarValidade(item) {
+    try {
+      setSalvando(true);
+      const response = await fetch('/api/precontracts', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: item.id, action: 'renew_validity' }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.ok) throw new Error(result.message || 'Não foi possível renovar a validade.');
+      setItems(prev => prev.map(row => row.id === item.id ? result.data : row));
+      showToast?.('Validade renovada. O cliente já pode usar o mesmo link.', 'success');
+    } catch (error) { showToast?.(error.message, 'error'); }
+    finally { setSalvando(false); }
   }
 
   async function salvarPreContrato() {
@@ -2288,6 +2303,14 @@ async function carregarModelosContrato({ force = false } = {}) {
                     ))}
                     {isCancelled ? <p className="text-sm text-slate-600">Cancelado. Edição e envio indisponíveis; documentos anteriores preservados.</p> : null}
 
+                    {!isCancelled && !item.signed_contract_id && item.status !== 'signed' && !['archived', 'arquivado', 'canceled'].includes(item.status) && (
+                      <Button variant="soft" onClick={() => renovarValidade(item)} disabled={salvando}>
+                        Renovar validade
+                      </Button>
+                    )}
+                    {item.expires_at && !item.signed_contract_id && item.status !== 'signed' && (
+                      <p className="self-center text-sm text-slate-600">Validade: {new Date(item.expires_at).toLocaleString('pt-BR', { timeZone: 'America/Bahia' })}</p>
+                    )}
                     {!isCancelled && <Button
                       variant="secondary"
                       onClick={() => gerarLinkContrato(item)}

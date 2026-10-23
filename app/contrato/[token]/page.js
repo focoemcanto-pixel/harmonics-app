@@ -358,11 +358,13 @@ async function fetchPublicContract(token) {
   }
 
   if (!response.ok) {
-    throw new Error(
+    const error = new Error(
       payload?.message ||
         payload?.error ||
         `Falha ao consultar contrato público (status ${response.status}).`
     );
+    error.status = response.status;
+    throw error;
   }
 
   return normalizeContractData(payload);
@@ -1547,6 +1549,7 @@ const mapsLoaded = useGoogleMapsReady();
       }
       console.info('[CONTRACT_PUBLIC_UI][FALLBACK_TO_LEGACY]', { token, reason: 'not_found' });
     } catch (error) {
+      if (error?.status === 410) throw error;
       console.warn('[CONTRACT_PUBLIC_UI][FALLBACK_TO_LEGACY]', { token, reason: error?.message || 'public_api_error' });
     }
 
@@ -1562,6 +1565,7 @@ const mapsLoaded = useGoogleMapsReady();
         console.info('[CONTRACT_PUBLIC_UI][USING_PUBLIC_API]', { token });
       }
     } catch (error) {
+      if (error?.status === 410) throw error;
       console.warn('[CONTRACT_PUBLIC_UI][FALLBACK_TO_LEGACY]', { token, reason: error?.message || 'public_api_error' });
     }
 
@@ -1599,6 +1603,7 @@ const mapsLoaded = useGoogleMapsReady();
           console.info('[CONTRACT_PUBLIC_UI][USING_PUBLIC_API]', { token });
         }
       } catch (error) {
+        if (error?.status === 410) throw error;
         console.warn('[CONTRACT_PUBLIC_UI][FALLBACK_TO_LEGACY]', {
           token,
           reason: error?.message || 'public_api_error',

@@ -30,6 +30,7 @@ export async function POST(request, { params }) {
 
     const result = await saveExternalContractForEvent({
       supabase,
+      workspaceId: auth.workspaceId,
       eventId,
       file,
       replace,

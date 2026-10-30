@@ -1,0 +1,25 @@
+name: Validate external contract workspace fix
+
+on:
+  push:
+    branches:
+      - fix/external-contract-workspace-propagation
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - name: Focused regression test
+        run: node --import ./tests/helpers/register-alias.mjs --test tests/external-contract-workspace.test.mjs
+      - name: Existing test suite
+        run: npm test

@@ -449,7 +449,12 @@ function Finance() {
   ]
     .filter((x) => historyKind === "all" || x.kind === historyKind || (historyKind === "adjustment" && String(x.kind).startsWith("adjustment_")))
     .sort((a, b) => String(b.occurred_on).localeCompare(String(a.occurred_on)) || String(b.created_at).localeCompare(String(a.created_at)));
-  const movementEvents = relevant.filter((e) => e.id === movement?.event_id || matchesEventSearch({ event_name: e.client_name, event_date: e.event_date, location_name: e.location_name }, movementSearch));
+  // Recebimentos podem ser lançados também para eventos passados sem ficha financeira conferida.
+  // Não usar `relevant`: ele omite eventos antigos sem registro em op_finance_events.
+  const movementEvents = data.events
+    .filter((e) => !isCancelledEvent(e))
+    .filter((e) => e.id === movement?.event_id || matchesEventSearch({ event_name: e.client_name, event_date: e.event_date, location_name: e.location_name }, movementSearch))
+    .sort(compareEventDates);
 
   function historyRow(item) {
     const reversed = item.source === "ledger" && item.kind !== "reversal" && !activeIds.has(item.id);

@@ -154,6 +154,14 @@ const RECEIPT_STATUS = {
   paid: ["Quitado", "bg-emerald-50 text-emerald-700 ring-emerald-600/15"],
   overpaid: ["Conferir excesso", "bg-red-50 text-red-700 ring-red-600/15"],
 };
+function whatsappLink(phone) {
+  const digits = String(phone || "").replace(/\D/g, "");
+  if (!digits) return null;
+  const normalized = digits.startsWith("00") ? digits.slice(2) : digits;
+  const international = normalized.length === 10 || normalized.length === 11 ? `55${normalized}` : normalized;
+  if (!/^[1-9]\d{7,14}$/.test(international)) return null;
+  return `https://wa.me/${international}`;
+}
 const br = (date) => (date ? date.split("-").reverse().join("/") : "—");
 const monthLabel = (value) =>
   new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${value}-01T12:00:00Z`));
@@ -725,6 +733,12 @@ function Finance() {
                       </div>
                     ))}
                   </div>
+                  {whatsappLink(row.event.whatsapp_phone) && (
+                    <a href={whatsappLink(row.event.whatsapp_phone)} target="_blank" rel="noopener noreferrer" aria-label={`Abrir WhatsApp de ${row.event_name}`} className="mt-2 inline-flex min-h-11 items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-800 hover:bg-emerald-100">
+                      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5"><path d="M20.5 11.5a8.5 8.5 0 0 1-12.6 7.4L3.5 20l1.2-4.2A8.5 8.5 0 1 1 20.5 11.5Z"/><path d="M8.4 8.3c-.3.3-.5.8-.3 1.5.5 2.2 3.1 4.8 5.4 5.3.6.1 1.2 0 1.5-.3l.8-1.1-2-1-1 1c-1.1-.5-2.2-1.6-2.7-2.7l1-1-1-2-.7.3Z"/></svg>
+                      WhatsApp do cliente
+                    </a>
+                  )}
                   {row.overdue && <p className="mt-2 text-[13px] font-semibold text-red-700">Previsão de recebimento vencida.</p>}
                   <details className="mt-3 rounded-[14px] bg-[#f6f7f9] px-3 py-2">
                     <summary className="cursor-pointer text-[13px] font-semibold">Ver histórico ({history.length})</summary>

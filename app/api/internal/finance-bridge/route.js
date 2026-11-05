@@ -42,6 +42,22 @@ export async function POST(request){
   let body;
   try{body=JSON.parse(raw)}catch{return json({error:'invalid_json'},400);}
   const db=getSupabaseAdmin();
+  if(body?.action==='lookup'){
+   if(!UUID.test(body.event_id||''))return json({error:'invalid_event'},400);
+   const {data:event,error:eventError}=await db.from('events')
+     .select('id,workspace_id,client_name,event_date,status,agreed_amount')
+     .eq('workspace_id',env.workspace).eq('id',body.event_id).maybeSingle();
+   if(eventError)throw eventError;
+   if(!event)return json({error:'event_not_found'},404);
+   const {data:sheet,error:sheetError}=await db.from('op_finance_events')
+     .select('contract_cents,status').eq('workspace_id',env.workspace)
+     .eq('event_id',event.id).maybeSingle();
+   if(sheetError)throw sheetError;
+   return json({ok:true,event:{id:event.id,client_name:event.client_name,
+     event_date:event.event_date,status:event.status,
+     contract_cents:sheet?.contract_cents??Math.round(Number(event.agreed_amount||0)*100),
+     sheet_status:sheet?.status||'unchecked'}});
+  }
   if(body?.action==='receipt'){
    const valid=UUID.test(body.payment_key||'')&&UUID.test(body.event_id||'')
       &&Number.isSafeInteger(body.amount_cents)&&body.amount_cents>0

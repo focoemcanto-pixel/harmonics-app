@@ -35,6 +35,10 @@ grant all on public.op_finance_bridge_receipts,public.op_finance_bridge_outbox t
 create or replace function public.op_finance_bridge_capture()
 returns trigger language plpgsql security invoker set search_path='' as $$
 begin
+ if new.kind='reversal' and not exists(
+   select 1 from public.op_finance_ledger original
+   where original.id=new.reverses_id and original.kind='receipt'
+ ) then return new; end if;
  if new.event_id is not null and new.kind in ('receipt','reversal') and
     (new.kind='reversal' or coalesce(new.origin,'')<>'foco_hub') then
    insert into public.op_finance_bridge_outbox

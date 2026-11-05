@@ -6,6 +6,7 @@ on:
       - 'lib/finance-bridge/**'
       - 'supabase/migrations/20261104*'
       - 'tests/finance-bridge.test.mjs'
+      - 'tests/finance-bridge-persistence.sql'
       - 'package.json'
       - '.github/workflows/finance-bridge-ci.yml'
 permissions:
@@ -13,6 +14,19 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: synthetic-ci-only
+          POSTGRES_DB: finance_synthetic
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d finance_synthetic"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -21,5 +35,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run test:finance-bridge
+      - name: PostgreSQL isolated financial bridge, rollback-only
+        run: PGPASSWORD=synthetic-ci-only psql -v ON_ERROR_STOP=1 -h localhost -U postgres -d finance_synthetic -f tests/finance-bridge-persistence.sql
       - run: npm test
       - run: npm run build

@@ -53,12 +53,12 @@ begin
    (other,wrong_actor,'active','owner');
  insert into public.op_finance_events(workspace_id,event_id,contract_cents,status)
  values(w,e,350000,'checked');
- insert into public.op_finance_settings values(w,current_date-5,100000);
- rs:=public.op_finance_bridge_receive(w,actor,key1,e,80000,current_date,101,false);
+ insert into public.op_finance_settings values(w,(now() at time zone 'America/Bahia')::date-5,100000);
+ rs:=public.op_finance_bridge_receive(w,actor,key1,e,80000,(now() at time zone 'America/Bahia')::date,101,false);
  if rs->>'ok'<>'true' or rs->>'duplicate'<>'false'
    then raise exception 'Initial receipt failed: %',rs; end if;
  movement:=(rs->>'ledger_id')::uuid;
- rs:=public.op_finance_bridge_receive(w,actor,key1,e,80000,current_date,101,false);
+ rs:=public.op_finance_bridge_receive(w,actor,key1,e,80000,(now() at time zone 'America/Bahia')::date,101,false);
  if rs->>'duplicate'<>'true' or (rs->>'ledger_id')::uuid<>movement
    then raise exception 'Idempotent replay failed: %',rs; end if;
  select count(*) into n from public.op_finance_ledger where event_id=e and kind='receipt';
@@ -66,49 +66,49 @@ begin
  select count(*) into n from public.op_finance_bridge_outbox where event_id=e;
  if n<>0 then raise exception 'Hub-origin receipt should not loop back'; end if;
  begin
-  perform public.op_finance_bridge_receive(w,actor,key1,e,90000,current_date,101,false);
+  perform public.op_finance_bridge_receive(w,actor,key1,e,90000,(now() at time zone 'America/Bahia')::date,101,false);
   raise exception 'Idempotency payload mismatch was accepted';
  exception when others then
   if sqlerrm='Idempotency payload mismatch was accepted'
     then raise; end if;
  end;
  begin
-  perform public.op_finance_bridge_receive(w,wrong_actor,key2,e,10000,current_date,102,false);
+  perform public.op_finance_bridge_receive(w,wrong_actor,key2,e,10000,(now() at time zone 'America/Bahia')::date,102,false);
   raise exception 'Cross-workspace member was accepted';
  exception when others then
   if sqlerrm='Cross-workspace member was accepted' then raise; end if;
  end;
  begin
-  perform public.op_finance_bridge_receive(other,wrong_actor,key2,e,10000,current_date,102,false);
+  perform public.op_finance_bridge_receive(other,wrong_actor,key2,e,10000,(now() at time zone 'America/Bahia')::date,102,false);
   raise exception 'Cross-workspace event was accepted';
  exception when others then
   if sqlerrm='Cross-workspace event was accepted' then raise; end if;
  end;
  begin
-  perform public.op_finance_bridge_receive(w,actor,key2,e,300000,current_date,102,false);
+  perform public.op_finance_bridge_receive(w,actor,key2,e,300000,(now() at time zone 'America/Bahia')::date,102,false);
   raise exception 'Overpayment was accepted';
  exception when others then
   if sqlerrm='Overpayment was accepted' then raise; end if;
  end;
  -- Simulate a second partial receipt that stays below the contractual value.
- rs:=public.op_finance_bridge_receive(w,actor,key2,e,120000,current_date,102,false);
+ rs:=public.op_finance_bridge_receive(w,actor,key2,e,120000,(now() at time zone 'America/Bahia')::date,102,false);
  if rs->>'ok'<>'true' then raise exception 'Partial payment rejected'; end if;
  select count(*) into n from public.op_finance_bridge_receipts;
  if n<>2 then raise exception 'Unexpected bridge receipts %',n; end if;
  -- Existing legacy ledger entries are not touched by the bridge.
  insert into public.op_finance_ledger(
  workspace_id,event_id,kind,amount_cents,occurred_on,created_by,origin)
- values(w,e,'receipt',30000,current_date,actor,'legacy');
+ values(w,e,'receipt',30000,(now() at time zone 'America/Bahia')::date,actor,'legacy');
  select count(*) into n from public.op_finance_bridge_outbox
  where event_id=e and kind='receipt';
  if n<>1 then raise exception 'Native receipt failed to enqueue'; end if;
  -- A musician expense reversal must not enqueue a client refund.
  insert into public.op_finance_ledger(
   workspace_id,event_id,kind,amount_cents,occurred_on,created_by)
- values(w,e,'payment',9000,current_date,actor) returning id into movement;
+ values(w,e,'payment',9000,(now() at time zone 'America/Bahia')::date,actor) returning id into movement;
  insert into public.op_finance_ledger(
  workspace_id,event_id,kind,amount_cents,occurred_on,created_by,reverses_id)
- values(w,e,'reversal',9000,current_date,actor,movement);
+ values(w,e,'reversal',9000,(now() at time zone 'America/Bahia')::date,actor,movement);
  select count(*) into n from public.op_finance_bridge_outbox
  where kind='reversal';
  if n<>0 then raise exception 'Musician reversal misclassified as receipt'; end if;
@@ -117,17 +117,17 @@ begin
  where event_id=e and kind='receipt' and origin='legacy';
  insert into public.op_finance_ledger(
  workspace_id,event_id,kind,amount_cents,occurred_on,created_by,reverses_id)
- values(w,e,'reversal',30000,current_date,actor,movement);
+ values(w,e,'reversal',30000,(now() at time zone 'America/Bahia')::date,actor,movement);
  select count(*) into n from public.op_finance_bridge_outbox
  where kind='reversal';
  if n<>1 then raise exception 'Receipt reversal not captured'; end if;
  -- Same-day opening classification must be explicit (never guess).
  insert into public.op_finance_settings(workspace_id,opening_on,opening_cents)
- values(other,current_date,0);
+ values(other,(now() at time zone 'America/Bahia')::date,0);
  insert into public.events values('00000000-0000-4000-8000-000000000009',other,'confirmed',500);
  begin
   perform public.op_finance_bridge_receive(other,wrong_actor,key3,
-    '00000000-0000-4000-8000-000000000009',5000,current_date,104,null);
+    '00000000-0000-4000-8000-000000000009',5000,(now() at time zone 'America/Bahia')::date,104,null);
   raise exception 'Ambiguous opening date accepted';
  exception when others then if sqlerrm='Ambiguous opening date accepted' then raise; end if;
  end;

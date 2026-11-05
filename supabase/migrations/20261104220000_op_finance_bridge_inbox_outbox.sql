@@ -35,7 +35,7 @@ grant all on public.op_finance_bridge_receipts,public.op_finance_bridge_outbox t
 create or replace function public.op_finance_bridge_capture()
 returns trigger language plpgsql security invoker set search_path='' as $$
 begin
- if new.kind in ('receipt','reversal') and
+ if new.event_id is not null and new.kind in ('receipt','reversal') and
     (new.kind='reversal' or coalesce(new.origin,'')<>'foco_hub') then
    insert into public.op_finance_bridge_outbox
      (ledger_id,workspace_id,event_id,kind,amount_cents,occurred_on,reverses_id)
@@ -98,6 +98,9 @@ begin
  and not exists(select 1 from public.op_finance_ledger r where r.reverses_id=l.id);
  if received+p_amount_cents>cap then raise exception 'Receipt exceeds remaining contract'; end if;
  select * into opening from public.op_finance_settings where workspace_id=p_workspace;
+ if p_in_opening=true and (opening.workspace_id is null or p_occurred_on>opening.opening_on) then
+   raise exception 'Receipt after opening cannot be historical';
+ end if;
  if opening.workspace_id is not null and p_occurred_on=opening.opening_on and p_in_opening is null then
    raise exception 'Same-day opening balance requires explicit historical classification';
  end if;

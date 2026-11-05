@@ -4,6 +4,8 @@
 \set ON_ERROR_STOP on
 begin;
 create role service_role noinherit;
+create role anon noinherit;
+create role authenticated noinherit;
 create table public.workspaces(id uuid primary key);
 create table public.events(
  id uuid primary key,workspace_id uuid not null references public.workspaces(id),

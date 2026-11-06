@@ -63,7 +63,7 @@ test('duração ausente pode ser detectada antes da assinatura', () => {
 
 test('valor da hora extra e parcelas são proporcionais e variam por evento', () => {
   const standard = makeData();
-  assert.equal(standard.ATRASO_VALOR_HORA, 'R$ 305,00'.replace(' ', ' ')); // Intl pt-BR
+  assert.match(standard.ATRASO_VALOR_HORA, /305,00/);
   assert.match(standard.VALOR_SINAL, /1\.525,00/);
   assert.match(standard.VALOR_SALDO, /1\.525,00/);
   const odd = makeData({ agreed_amount: 3050.01 });

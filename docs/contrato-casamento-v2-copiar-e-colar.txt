@@ -1,0 +1,174 @@
+CONTRATO DE PRESTAÇÃO DE SERVIÇOS MUSICAIS PARA CASAMENTO
+
+IDENTIFICAÇÃO DAS PARTES
+
+CONTRATANTE:
+{{client_name}}, brasileiro(a), {{client_marital_status}}, {{client_profession}}, inscrito(a) no CPF nº {{client_cpf}} e RG nº {{client_rg}}, residente em {{client_address}}.
+
+CONTRATADO:
+MARCOS CRUZ, inscrita no CNPJ nº 29.671.912/0001-77, com sede na Rua Recanto Bela Vista, nº 5, Mussurunga II, Salvador/BA, CEP 41480-390, neste ato representada por MARCOS PERRELLA CRUZ, músico, conforme dados cadastrais da empresa.
+
+As partes celebram o presente contrato de prestação de serviços musicais, mediante as cláusulas seguintes.
+
+DO OBJETO E DOS SERVIÇOS EFETIVAMENTE CONTRATADOS
+
+Cláusula 1ª
+O CONTRATADO, por meio da Banda Harmonics, prestará os serviços musicais identificados abaixo no casamento previsto para {{event_date}}, às {{event_time}}, no endereço {{event_location}}.
+
+Serviços e formações incluídos no valor contratado:
+{{services_text}}
+
+Os instrumentos, formações, durações e observações de cada serviço acima integram este contrato e prevalecem sobre descrições genéricas. O repertório será definido de comum acordo, observados os prazos e as condições de execução combinados.
+
+{{#RECEPTIVO}}
+O receptivo integra o escopo deste contrato, com duração total informada de {{RECEPTIVO_DURACAO}}; seu início será alinhado à programação do evento, preservada a duração prevista.
+{{/RECEPTIVO}}
+
+{{#ANTESALA}}
+Também está contratado o serviço de {{ANTESALA_TEXTO}}, conforme escopo e tempo acordados.
+{{/ANTESALA}}
+
+Qualquer acréscimo, prorrogação ou serviço não descrito nesta contratação exigirá orçamento e concordância expressa do CONTRATANTE, salvo a taxa de atraso já previamente pactuada na Cláusula 2ª.
+
+DA CHEGADA, HORÁRIOS E ATRASOS
+
+Cláusula 2ª
+O CONTRATADO chegará com antecedência técnica adequada, normalmente até 2 (duas) horas antes do horário da cerimônia, para montagem, passagem de som e preparação, devendo estar pronto para iniciar a apresentação no horário previsto.
+
+Será concedida tolerância de 1 (uma) hora de atraso imputável à organização do evento, sem cobrança adicional. Após essa tolerância, será cobrado apenas o tempo efetivo excedente, proporcionalmente aos minutos de espera, à razão de {{ATRASO_VALOR_HORA}} por hora (10% do valor total contratado), sem arredondamento para hora cheia.
+
+A taxa será apurada e informada ao término dos serviços e não será cobrada se o atraso decorrer de causa imputável ao CONTRATADO ou de força maior não atribuível ao CONTRATANTE.
+
+Caso o atraso supere 2 (duas) horas do horário originalmente contratado, as partes buscarão ajustar a execução para respeitar a disponibilidade da equipe e compromissos profissionais preexistentes. Eventual redução só poderá atingir o tempo inviabilizado pelo atraso, com comunicação e justificativa, sem autorização para suprimir arbitrariamente o serviço.
+
+DOS INSTRUMENTOS E DA SONORIZAÇÃO
+
+Cláusula 3ª
+Os músicos levarão seus instrumentos e equipamentos pessoais necessários à execução musical. A responsabilidade pelo sistema de som obedecerá às condições efetivamente contratadas:
+
+{{#SOM_INCLUSO}}
+A estrutura de sonorização necessária às apresentações previstas neste contrato está incluída no valor global, sem cobrança adicional pelo mesmo escopo.
+{{/SOM_INCLUSO}}
+
+{{#SOM_NAO_INCLUSO}}
+A sonorização não está incluída no preço. Sua disponibilização será responsabilidade do CONTRATANTE ou de fornecedor por ele contratado, devendo atender às necessidades técnicas previamente informadas. A contratação posterior de som com o CONTRATADO exigirá orçamento e aceite expresso.
+{{/SOM_NAO_INCLUSO}}
+
+O local deverá disponibilizar energia e estrutura física compatíveis, acesso para carga e descarga e condições adequadas de montagem. Exigências extraordinárias não previstas deverão ser acordadas previamente.
+
+DA ESTRUTURA, COBERTURA E CONDIÇÕES CLIMÁTICAS
+
+Cláusula 4ª
+Em apresentações externas, o CONTRATANTE providenciará cobertura eficaz e segura, protegendo integralmente músicos, instrumentos e equipamentos de chuva, vento e exposição excessiva ao sol.
+
+Havendo intempéries, as partes priorizarão a transferência para local coberto e tecnicamente adequado no mesmo estabelecimento, sem cobrança adicional quando não houver alteração relevante do escopo.
+
+Na presença de risco concreto, o CONTRATADO poderá suspender temporariamente a apresentação enquanto persistir a situação de insegurança, comunicando o fato ao CONTRATANTE.
+
+Se condições extraordinárias, inevitáveis e não imputáveis às partes impossibilitarem totalmente a execução, será priorizada a remarcação para data mutuamente aceita e disponível. Na impossibilidade de acordo, os valores pagos serão restituídos, ressalvada eventual apuração de despesas necessárias, comprovadas e efetivamente irrecuperáveis, quando a dedução for juridicamente admissível, sem multa automática por força maior.
+
+Serviços já efetivamente realizados serão considerados proporcionalmente na apuração de eventual devolução. A restituição acordada será realizada em até 10 (dez) dias úteis após a formalização do encerramento, respeitados os direitos legais do consumidor.
+
+Responsabilidade por danos a instrumentos ou equipamentos dependerá de comprovação de ação ou omissão imputável à parte responsável.
+
+DAS AUTORIZAÇÕES E DESPESAS DO EVENTO
+
+Cláusula 5ª
+Alvarás, licenças do espaço e eventuais encargos de direitos autorais obedecerão à legislação aplicável e às responsabilidades do organizador e do estabelecimento. Valores adicionais exigidos pelo CONTRATADO deverão ter sido previstos ou previamente aprovados pelo CONTRATANTE.
+
+DO DESLOCAMENTO E DA LOGÍSTICA
+
+Cláusula 6ª
+{{#TRANSPORTE_INCLUSO}}
+O deslocamento da banda e dos equipamentos até {{event_location}} está incluído no preço global, sem cobrança adicional pelo percurso originalmente contratado.
+{{/TRANSPORTE_INCLUSO}}
+
+{{#TRANSPORTE_NAO_INCLUSO}}
+O transporte não integra o preço global; sua contratação, reembolso ou fornecimento deverá observar proposta específica e concordância escrita antes do evento. Não serão exigidos valores não previamente aceitos.
+{{/TRANSPORTE_NAO_INCLUSO}}
+
+Mudança posterior do endereço que implique custo logístico adicional dependerá de orçamento e aprovação expressa do CONTRATANTE. Necessidades especiais de hospedagem ou logística deverão constar da proposta antes da contratação.
+
+DA SEGURANÇA, HIDRATAÇÃO E ALIMENTAÇÃO
+
+Cláusula 7ª
+O CONTRATANTE assegurará condições estruturais adequadas e seguras para a equipe, inclusive acesso a água potável durante sua permanência no local. O CONTRATADO observará as regras de segurança no uso e na instalação de seus equipamentos.
+
+{{#ALIMENTACAO_RECEPTIVO_2H}}
+Como há receptivo musical contratado com duração igual ou superior a 2 (duas) horas, o CONTRATANTE disponibilizará refeição adequada para todos os músicos e profissionais técnicos envolvidos na execução, em horário previamente alinhado para não comprometer a apresentação. A refeição poderá ser servida pelo buffet do evento ou por alternativa equivalente, sem exigência do mesmo cardápio dos convidados.
+{{/ALIMENTACAO_RECEPTIVO_2H}}
+
+Se houver impossibilidade de fornecimento no local, as partes definirão previamente solução equivalente. Eventual descumprimento não autoriza cobrança automática não pactuada nem interrupção injustificada da apresentação.
+
+DAS ALTERAÇÕES DO EVENTO
+
+Cláusula 8ª
+Alterações de data, horário ou endereço deverão ser comunicadas assim que conhecidas e, preferencialmente, com no mínimo 3 (três) dias de antecedência. Mudanças dependerão da disponibilidade e do acordo expresso das partes. Custos adicionais deverão ser previamente orçados e autorizados.
+
+DA NÃO TRANSFERÊNCIA
+
+Cláusula 9ª
+Este contrato é personalíssimo e não poderá ser cedido sem prévia concordância da outra parte. Eventual substituição de integrante deverá preservar a formação artística, os instrumentos e a qualidade técnica contratados, mediante comunicação ao CONTRATANTE.
+
+DO VALOR, PARCELAS E PAGAMENTOS
+
+Cláusula 10ª
+O CONTRATANTE pagará o valor global de {{total_amount}} ({{total_amount_extenso}}), que compreende somente os serviços e as condições indicados na Cláusula 1ª e nas demais disposições de inclusão expressa.
+
+Pagamento:
+• Sinal de 50%, correspondente a {{VALOR_SINAL}}, até {{deposit_due_date}}.
+• Saldo de 50%, correspondente a {{VALOR_SALDO}}, até {{balance_due_date}}.
+
+{{#CARTAO}}
+Caso seja acordado pagamento por cartão, deverá ser realizado conforme as condições e o vencimento {{card_due_date}}, prevalecendo o parcelamento expressamente aprovado.
+{{/CARTAO}}
+
+Para transferências via PIX, o CONTRATADO indica a seguinte chave de recebimento autorizada:
+Chave PIX: markuezemarquinhos@hotmail.com
+Nome informado do recebedor: Foco Start
+
+O CONTRATADO assume responsabilidade pela indicação dessa chave e reconhecerá como pagamentos feitos em seu favor os valores efetivamente nela recebidos, comprovados por documento bancário. Se o nome exibido pelo banco divergir dos dados informados, o CONTRATANTE deverá confirmar a operação pelo canal de contato já utilizado com o CONTRATADO antes de transferir.
+
+Qualquer alteração da conta de recebimento exige confirmação escrita do CONTRATADO. Cobranças adicionais não previstas não poderão ser impostas unilateralmente.
+
+DA RESCISÃO E DOS CANCELAMENTOS
+
+Cláusula 11ª
+Cancelamento imotivado pelo CONTRATANTE: ressalvados os direitos legais aplicáveis, incidirá multa compensatória de 30% do valor global, destinada à reserva da data e aos custos de preparação. Se os valores pagos excederem a multa exigível, a diferença será restituída em até 10 (dez) dias úteis da formalização do cancelamento. A multa poderá ser revista nas hipóteses legais de excessividade ou cumprimento parcial.
+
+Cancelamento injustificado pelo CONTRATADO: o CONTRATADO restituirá integralmente os valores recebidos e pagará multa compensatória de 30% do valor global, em até 10 (dez) dias úteis, sem prejuízo dos direitos legais do CONTRATANTE.
+
+Em caso de força maior ou caso fortuito que impossibilite o evento sem responsabilidade das partes, aplicar-se-á a tentativa de remarcação e, se frustrada, as regras proporcionais de restituição previstas na Cláusula 4ª, sem multa automática.
+
+Persistem os direitos do consumidor, inclusive o arrependimento previsto no art. 49 do Código de Defesa do Consumidor quando aplicável, bem como a proibição de multas manifestamente excessivas e condições abusivas.
+
+O cancelamento e os acordos subsequentes deverão ser formalizados por meio escrito ou eletrônico verificável.
+
+DO FORO E DO ACEITE ELETRÔNICO
+
+Cláusula 12ª
+Para controvérsias oriundas deste contrato, fica eleito o foro de Salvador/BA, preservadas as regras legais de competência e os direitos de escolha de foro conferidos ao consumidor.
+
+As partes admitem a assinatura eletrônica pelo sistema Harmonics, mediante registro do aceite, identificação do signatário, data, hora e dados técnicos de autenticação e integridade, conforme legislação aplicável. A autenticidade e o alcance probatório dependerão das evidências efetivamente registradas no sistema.
+
+A documentação será armazenada digitalmente, com acesso ao conteúdo aceito e às evidências correspondentes. Aplicam-se a Medida Provisória nº 2.200-2/2001 e o artigo 107 do Código Civil, sem prejuízo das demais normas pertinentes.
+
+ASSINATURA
+
+CONTRATANTE:
+{{client_signature}}
+CPF: {{accepted_cpf}}
+
+CONTRATADO:
+BANDA HARMONICS
+Representante: Marcos Perrella Cruz
+
+CERTIFICAÇÃO DE ACEITE ELETRÔNICO
+
+Registro: {{signature_stamp}}
+Token do contrato: {{contract_token}}
+Signatário: {{accepted_name}}
+CPF: {{accepted_cpf}}
+Data/hora: {{accepted_datetime}}
+IP: {{accepted_ip}}
+Origem: {{accepted_origin}}

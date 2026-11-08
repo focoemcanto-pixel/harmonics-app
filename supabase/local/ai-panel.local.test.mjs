@@ -21,12 +21,21 @@ test.before(async () => {
   await sql('delete from workspaces where id = $1', [WS]);
   await sql("insert into workspaces (id, key, name, slug) values ($1, 'ws-panel-test', 'Workspace Painel Teste', 'ws-panel-test')", [WS]);
   await sql("insert into ai_workspace_settings (workspace_id, ai_enabled, mode, assistant_name, followup_enabled) values ($1, false, 'observe', 'Assistente Teste', false)", [WS]);
-  await sql("insert into event_types (workspace_id, name, slug, description, is_active) values ($1, 'Casamento', 'casamento', 'Cerimônia religiosa ou civil', true), ($1, 'Aniversário', 'aniversario', null, true), ($1, 'Inativo', 'inativo', null, false)", [WS]);
-  await sql(`insert into contract_templates (workspace_id, name, slug, is_active, is_default, content) values ($1, 'Modelo Teste', 'modelo-teste', true, true, $2)`, [WS,
+  const [tplWedding] = await sql(`insert into contract_templates (workspace_id, name, slug, is_active, is_default, content) values ($1, 'Modelo Teste', 'modelo-teste', true, true, $2) returning id`, [WS,
     '<p>CLÁUSULA 3 — O pagamento será feito com sinal de {{valor_sinal}} na assinatura e saldo de R$ 1.500,00 até 7 dias antes do evento, via PIX.</p>'
     + '<p>CLÁUSULA 5 — Em caso de cancelamento pelo CONTRATANTE com menos de 30 dias, o sinal não será devolvido; remarcação sujeita à agenda.</p>'
     + '<p>CLÁUSULA 6 — O CONTRATANTE disponibilizará ponto de energia 220V a até 10 metros e cobertura em caso de área externa.</p>'
     + '<p>Data do evento: 10/06/2098, contato (11) 91234-5678, email teste@example.test.</p>']);
+  const [tplBirthday] = await sql(`insert into contract_templates (workspace_id, name, slug, is_active, is_default, content) values ($1, 'Contrato padrão aniversário teste', 'aniv-teste', true, false, $2) returning id`, [WS,
+    '<p>Em caso de cancelamento com menos de 15 dias será cobrada multa de 50% (trinta por cento) sobre o valor total.</p>'
+    + '<p>A festa de aniversário terá duração de 2 horas, com tolerância de atraso de 30 minutos.</p>']);
+  await sql(`insert into contract_templates (workspace_id, name, slug, is_active, is_default, content) values ($1, 'Modelo avulso teste', 'avulso-teste', true, false, $2)`, [WS,
+    '<p>O CONTRATANTE fornecerá energia elétrica estabilizada e camarim para a equipe durante o evento.</p>']);
+  await sql("insert into event_types (workspace_id, name, slug, description, is_active, default_contract_template_id) values ($1, 'Casamento', 'casamento', 'Cerimônia religiosa ou civil', true, $2), ($1, 'Aniversário', 'aniversario', null, true, $3), ($1, 'Inativo', 'inativo', null, false, null)", [WS, tplWedding.id, tplBirthday.id]);
+  // Sugestões da 1ª versão do bootstrap (sem escopo): pendente deve ser substituída; ativa nunca é tocada.
+  await sql(`insert into ai_knowledge_items (workspace_id, item_key, kind, title, content, status, source, metadata) values
+    ($1, 'import-contract-templates-payment-legacy01', 'policy', 'Condições de pagamento', 'Conforme o modelo de contrato antigo: texto geral antigo de pagamento.', 'pending_approval', 'import', '{"origin":{"table":"contract_templates","id":"x","field":"content","imported_by":"bootstrap"}}'),
+    ($1, 'import-message-templates-legacy02', 'post_sale', 'Mensagem oficial antiga', 'Texto antigo aprovado de mensagem usado como regra.', 'active', 'import', '{"origin":{"table":"message_templates","id":"y","field":"body","imported_by":"bootstrap"}}')`, [WS]);
   await sql(`insert into message_templates (workspace_id, key, name, channel, recipient_type, body, is_active) values
     ($1, 'repertoire_pending_15_days_client_whatsapp', 'Repertório pendente', 'whatsapp', 'client', 'Olá {{nome_cliente}}! Faltam 15 dias para o seu evento. Acesse {{link_painel_cliente}} para montar o repertório do cortejo e da entrada.', true),
     ($1, 'invite_member_whatsapp', 'Convite músico', 'whatsapp', 'member', 'Olá {{nome}}, convite para o evento.', true)`, [WS]);
@@ -58,8 +67,11 @@ test('prévia não grava; criação gera sugestões PENDENTES com origem e sem v
   const res = await call('POST', '/api/ai/knowledge/bootstrap');
   created = res.body.created;
   assert.equal(created.length, preview.body.created.length);
-  const rows = await sql("select * from ai_knowledge_items where workspace_id = $1 and source = 'import'", [WS]);
+  const rows = await sql("select * from ai_knowledge_items where workspace_id = $1 and source = 'import' and metadata->'origin'->>'bootstrap_version' = '2'", [WS]);
   assert.equal(rows.length, created.length);
+  assert.deepEqual(res.body.replaced.map((r) => r.item_key), ['import-contract-templates-payment-legacy01']);
+  const legacy = await sql("select item_key, status from ai_knowledge_items where workspace_id = $1 and item_key like '%legacy%' order by item_key", [WS]);
+  assert.deepEqual(legacy.map((l) => l.status), ['rejected', 'active'], 'pendente antiga substituída; ativa preservada');
   assert.ok(rows.every((r) => r.status === 'pending_approval' && r.version === 1), 'nada é aprovado automaticamente');
   assert.ok(rows.every((r) => r.metadata?.origin?.table && r.metadata.origin.imported_by === 'bootstrap'), 'origem identificada');
   const all = rows.map((r) => r.content).join('\n');
@@ -67,10 +79,21 @@ test('prévia não grava; criação gera sugestões PENDENTES com origem e sem v
   assert.ok(!/\{\{/.test(all), 'sem variáveis de template');
   assert.ok(!/10\/06\/2098|91234|teste@example/.test(all), 'sem datas, telefones ou e-mails');
   const kinds = new Set(rows.map((r) => r.kind));
-  for (const k of ['faq', 'policy', 'rider', 'post_sale', 'rule']) assert.ok(kinds.has(k), `tipo ${k}`);
+  for (const k of ['faq', 'policy', 'rider', 'post_sale', 'rule', 'style']) assert.ok(kinds.has(k), `tipo ${k}`);
+  // Mensagens oficiais = só tom/fluxo.
+  assert.ok(rows.filter((r) => r.metadata.origin.table === 'message_templates').every((r) => r.kind === 'style' && /não é regra/.test(r.content)));
+  // Escopo por modelo/tipo de evento.
+  const birthday = rows.filter((r) => r.metadata.scope?.contract_template_name === 'Contrato padrão aniversário teste');
+  assert.ok(birthday.length >= 2 && birthday.every((r) => r.metadata.scope.event_types.join() === 'Aniversário' && r.metadata.scope.classified_by === 'default_contract_template'));
+  const cancel = birthday.find((r) => r.title.startsWith('Cancelamento'));
+  assert.ok(cancel.metadata.review.required && cancel.metadata.review.flags.includes('number_word_mismatch'), 'contradição 50% x trinta detectada');
+  const loose = rows.find((r) => r.metadata.scope?.contract_template_name === 'Modelo avulso teste');
+  assert.ok(loose.metadata.review.flags.includes('unclassified_scope'));
+  assert.ok(rows.filter((r) => r.title.startsWith('Condições de pagamento')).every((r) => r.metadata.review.flags.includes('contract_specific_terms')), 'pagamento = condição específica');
+  assert.ok(rows.every((r) => r.metadata.origin.table !== 'contract_templates' || r.metadata.scope), 'toda cláusula tem escopo');
   assert.ok(rows.some((r) => r.title === 'Tipos de evento atendidos' && r.content.includes('Casamento') && !r.content.includes('Inativo')));
   assert.ok(!rows.some((r) => /Convite músico/.test(r.title)), 'mensagens internas (músicos) não entram');
-  const payment = rows.find((r) => r.title === 'Condições de pagamento');
+  const payment = rows.find((r) => r.title === 'Condições de pagamento — Casamento');
   assert.deepEqual(payment.metadata.removed_dynamic.sort(), ['currency', 'template_variable']);
 });
 
@@ -87,35 +110,40 @@ test('idempotente e sem duplicar conteúdo já ensinado; localidades só como su
 });
 
 test('aprovação, nova versão e rollback pelo painel; só o ativo chega à IA', async () => {
-  const payment = created.find((c) => c.title === 'Condições de pagamento');
-  const ctx = async () => {
+  const payment = created.find((c) => c.title === 'Condições de pagamento — Casamento');
+  const ctx = async (tipo = 'casamento') => {
     clearKnowledgeCache();
-    const conv = { id: null, sales_stage: 'qualifying', lead_data: {} };
+    const conv = { id: null, sales_stage: 'qualifying', lead_data: { tipo_evento: tipo } };
     return buildCommercialContext({ supabase: getSupabaseAdmin(), workspaceId: WS, conversation: conv, latestText: 'Como funciona o pagamento?', settings: {}, customerStatus: 'lead' });
   };
   assert.ok(!(await ctx()).knowledgeText.includes('Condições de pagamento'), 'pendente não chega à IA');
 
-  assert.equal((await call('POST', `/api/ai/knowledge/${payment.id}`, { action: 'approve' })).status, 200);
+  const blocked = await call('POST', `/api/ai/knowledge/${payment.id}`, { action: 'approve' });
+  assert.deepEqual([blocked.status, blocked.body.code], [409, 'REVIEW_REQUIRED'], 'item duvidoso não aprova sem confirmação de revisão');
+  assert.equal((await call('POST', `/api/ai/knowledge/${payment.id}`, { action: 'approve', confirm_review: true })).status, 200);
   assert.ok((await ctx()).knowledgeText.includes('Condições de pagamento'));
+  assert.ok(!(await ctx('aniversário')).knowledgeText.includes('Condições de pagamento — Casamento'), 'cláusula de casamento não vaza para aniversário');
+  assert.ok(!(await ctx('')).knowledgeText.includes('Condições de pagamento — Casamento'), 'sem tipo de evento, nada com escopo');
 
   const v2 = await call('POST', '/api/ai/knowledge', { item_key: payment.item_key, kind: 'policy', title: 'Condições de pagamento', content: 'Sinal na assinatura e saldo até a semana do evento, por PIX ou transferência.', intents: 'payment', priority: 70 });
   assert.deepEqual([v2.status, v2.body.version, v2.body.status], [200, 2, 'pending_approval']);
   assert.ok(!(await ctx()).knowledgeText.includes('semana do evento'), 'v2 pendente não substitui v1');
-  await call('POST', `/api/ai/knowledge/${v2.body.id}`, { action: 'approve' });
+  await call('POST', `/api/ai/knowledge/${v2.body.id}`, { action: 'approve' }); // v2 manual (sem marcação) aprova direto
   assert.ok((await ctx()).knowledgeText.includes('semana do evento'));
 
-  await call('POST', `/api/ai/knowledge/${payment.id}`, { action: 'rollback' });
+  assert.equal((await call('POST', `/api/ai/knowledge/${payment.id}`, { action: 'rollback' })).status, 409, 'rollback para versão marcada também exige revisão');
+  await call('POST', `/api/ai/knowledge/${payment.id}`, { action: 'rollback', confirm_review: true });
   const versions = await sql('select version, status from ai_knowledge_items where workspace_id = $1 and item_key = $2 order by version', [WS, payment.item_key]);
   assert.deepEqual(versions.map((v) => [v.version, v.status]), [[1, 'active'], [2, 'archived']]);
   assert.ok(!(await ctx()).knowledgeText.includes('semana do evento'), 'rollback restaurou v1');
 
   const list = await call('GET', '/api/ai/knowledge');
   assert.ok(list.body.items.filter((i) => i.item_key === payment.item_key).length === 2, 'histórico de versões preservado');
-  const reject = created.find((c) => c.kind === 'style' || c.title.startsWith('Mensagem oficial'));
+  const reject = created.find((c) => c.kind === 'style');
   if (reject) {
     await call('POST', `/api/ai/knowledge/${reject.id}`, { action: 'reject' });
     assert.equal((await sql('select status from ai_knowledge_items where id = $1', [reject.id]))[0].status, 'rejected');
   }
-  const active = await sql("select count(*)::int n from ai_knowledge_items where workspace_id = $1 and source = 'import' and status = 'active'", [WS]);
+  const active = await sql("select count(*)::int n from ai_knowledge_items where workspace_id = $1 and source = 'import' and status = 'active' and metadata->'origin'->>'bootstrap_version' = '2'", [WS]);
   assert.equal(active[0].n, 1, 'somente o que foi aprovado está ativo');
 });

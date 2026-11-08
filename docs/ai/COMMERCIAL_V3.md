@@ -44,3 +44,14 @@ Cria sugestões `pending_approval` com `source='import'` e `metadata.origin {tab
 variáveis de template, datas, telefones e e-mails; não repete itens já importados nem conteúdo já ensinado;
 não altera configurações. Localidades do histórico de eventos aparecem só como sugestão em Localidades.
 Validação: `supabase/local/ai-panel.local.test.mjs` (handlers reais, sessão Owner sintética).
+
+### Bootstrap v2 — escopo e revisão
+- Cláusulas são extraídas **por modelo de contrato** e recebem `metadata.scope` (tipos de evento vinculados via
+  `default_contract_template_id`, ou pelo nome do modelo). Na conversa, item com escopo só entra se o tipo de evento
+  informado pelo cliente casar; sem tipo de evento, só conhecimento geral.
+- Revisão obrigatória (`metadata.review.required`) quando há número x extenso divergente (ex.: "50% (trinta por cento)"),
+  modelo sem tipo de evento, condição específica (percentuais/prazos/pagamento) ou modelos divergentes para o mesmo
+  tipo de evento. Aprovar exige confirmação explícita (`confirm_review`); nada é aprovado automaticamente.
+- Mensagens oficiais viram apenas referência de tom/fluxo (`style`), nunca regra.
+- Sugestões pendentes da 1ª versão sem escopo são substituídas (marcadas `rejected`); ativas nunca são alteradas.
+  Contratos e modelos oficiais não são modificados.

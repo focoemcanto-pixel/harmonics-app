@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server';
-import { guardWorkspaceAdmin } from '@/lib/api/route-guards';
+import { guardWorkspaceMember } from '@/lib/api/route-guards';
 
 export const dynamic = 'force-dynamic';
 
-// IA desligada por padrão. Este endpoint NÃO ativa canais nem envia mensagens.
-// Somente administradores do workspace podem trocar o responsável.
+// Assumir (owner=human): qualquer membro do workspace. Devolver à IA (owner=ai): só admin.
+// A RPC troca titularidade, incrementa a versão e cancela a fila pendente da IA atomicamente.
+// workspace_id vem SEMPRE da sessão, nunca do corpo.
 export async function POST(request, { params }) {
-  const guard = await guardWorkspaceAdmin(request, { logPrefix: '[AI][HANDOFF]' });
+  const guard = await guardWorkspaceMember(request, { logPrefix: '[AI][HANDOFF]' });
   if (!guard.ok) return guard.response;
 
   const { id } = await params;
@@ -15,25 +16,27 @@ export async function POST(request, { params }) {
   if (toOwner !== 'human' && toOwner !== 'ai') {
     return NextResponse.json({ ok: false, error: 'Responsável inválido.' }, { status: 400 });
   }
+  if (toOwner === 'ai' && !guard.auth.canAdminWorkspace) {
+    return NextResponse.json({ ok: false, error: 'Somente administradores devolvem conversas para a IA.' }, { status: 403 });
+  }
 
   const workspaceId = guard.auth.workspaceId;
   if (!workspaceId || !id) {
     return NextResponse.json({ ok: false, error: 'Conversa indisponível.' }, { status: 404 });
   }
 
-  // A RPC executa troca/versionamento/cancelamento pendente atomicamente.
-  // Não aceitar workspace_id do corpo da requisição.
   const { data, error } = await guard.supabase.rpc('ai_switch_conversation_owner', {
     p_workspace_id: workspaceId,
     p_conversation_id: id,
     p_to_owner: toOwner,
-    p_reason: typeof body?.reason === 'string' ? body.reason.slice(0, 500) : null,
-    p_actor_user_id: null,
+    p_reason: typeof body?.reason === 'string' ? body.reason.slice(0, 500) : 'manual',
+    p_actor_user_id: guard.auth.userId || null,
   });
 
   if (error) {
     console.error('[AI][HANDOFF][ERROR]', { code: error.code });
-    return NextResponse.json({ ok: false, error: 'Não foi possível transferir atendimento.' }, { status: 409 });
+    const status = error.code === 'P0002' ? 404 : 409;
+    return NextResponse.json({ ok: false, error: 'Não foi possível transferir atendimento.' }, { status });
   }
 
   const result = Array.isArray(data) ? data[0] : data;

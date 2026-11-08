@@ -1,5 +1,7 @@
 # Harmonics AI — híbrido V1 (fundação, desativada)
 
+> Continuação implementada em `HYBRID_INBOX_V2.md` (webhook, Inbox, IA, fila transacional).
+
 ## Estado desta branch
 Escopo aditivo e **inerte**: sem webhooks ativos, sem novo provedor,
 sem migração aplicada, sem mensagens enviadas e sem deploy.

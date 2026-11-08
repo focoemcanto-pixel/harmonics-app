@@ -5,6 +5,8 @@ on:
       - 'app/api/internal/finance-bridge/**'
       - 'lib/finance-bridge/**'
       - 'supabase/migrations/20261104*'
+      - 'supabase/migrations/20261107130000_op_finance_payment_sync.sql'
+      - 'tests/finance-payment-sync-persistence.sql'
       - 'tests/finance-bridge.test.mjs'
       - 'tests/finance-bridge-persistence.sql'
       - 'package.json'
@@ -37,5 +39,7 @@ jobs:
       - run: npm run test:finance-bridge
       - name: PostgreSQL isolated financial bridge, rollback-only
         run: PGPASSWORD=synthetic-ci-only psql -v ON_ERROR_STOP=1 -h localhost -U postgres -d finance_synthetic -f tests/finance-bridge-persistence.sql
+      - name: PostgreSQL payment-to-cash sync, rollback-only
+        run: PGPASSWORD=synthetic-ci-only psql -v ON_ERROR_STOP=1 -h localhost -U postgres -d finance_synthetic -f tests/finance-payment-sync-persistence.sql
       - run: npm test
       - run: npm run build

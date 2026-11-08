@@ -214,3 +214,32 @@ test('bootstrap: remove valores dinâmicos, extrai cláusulas e cidades', async 
   const again = await buildBootstrapCandidates({ eventTypes: [{ name: 'Casamento' }], contracts: [], messages: [], moments: [], addresses: [] });
   assert.deepEqual(candidates.map((c) => c.item_key), again.candidates.map((c) => c.item_key), 'item_key determinístico');
 });
+
+test('bootstrap v2: contradição número x extenso, escopo por modelo e mensagens como tom', async () => {
+  const { detectNumberWordMismatches, parsePtNumber, templateScope, matchesScope, buildBootstrapCandidates } = await import('../../lib/ai/commercial/bootstrap.mjs');
+  assert.deepEqual(detectNumberWordMismatches('multa de 50% (trinta por cento)').map((m) => [m.digits, m.parsed]), [[50, 30]]);
+  assert.deepEqual(detectNumberWordMismatches('multa de 30% (trinta por cento) e 15 (quinze) dias'), []);
+  assert.equal(parsePtNumber('vinte e cinco'), 25);
+  const types = [{ id: 'e1', name: 'Casamento', default_contract_template_id: 't1' }, { id: 'e2', name: 'Aniversário', default_contract_template_id: null }];
+  assert.deepEqual(templateScope({ id: 't1', name: 'Padrão' }, types).event_types, ['Casamento']);
+  assert.equal(templateScope({ id: 't2', name: 'Contrato padrão aniversário' }, types).classified_by, 'template_name');
+  assert.equal(templateScope({ id: 't3', name: 'Outro' }, types).classified_by, null);
+  assert.equal(matchesScope({ metadata: { scope: { event_types: ['Aniversário'] } } }, 'Casamento'), false);
+  assert.equal(matchesScope({ metadata: {} }, 'Casamento'), true);
+  const { candidates } = await buildBootstrapCandidates({
+    eventTypes: types,
+    contracts: [
+      { id: 't1', name: 'Padrão', content: '<p>Cancelamento com menos de 30 dias implica multa de 50% (trinta por cento) do valor.</p>' },
+      { id: 't3', name: 'Outro', content: '<p>O pagamento será feito por PIX com sinal na assinatura do contrato.</p>' },
+    ],
+    messages: [{ id: 'm1', key: 'payment_due_2_days_client_whatsapp', name: 'Lembrete', recipient_type: 'client', body: 'Olá! Seu pagamento vence em breve, qualquer dúvida estamos à disposição por aqui.' }],
+    moments: [], addresses: [],
+  });
+  const cancel = candidates.find((c) => c.title.startsWith('Cancelamento'));
+  assert.deepEqual([cancel.metadata.scope.event_types, cancel.metadata.review.required], [['Casamento'], true]);
+  assert.ok(cancel.metadata.review.flags.includes('number_word_mismatch'));
+  const pay = candidates.find((c) => c.title.startsWith('Condições de pagamento'));
+  assert.ok(pay.metadata.review.flags.includes('unclassified_scope') && pay.metadata.review.flags.includes('contract_specific_terms'));
+  const msg = candidates.find((c) => c.metadata.origin.table === 'message_templates');
+  assert.deepEqual([msg.kind, msg.intents], ['style', []]);
+});

@@ -50,7 +50,7 @@ export async function POST(request){
    if(!ids.length)return json({ok:true,workspace:env.workspace,generated_at:new Date().toISOString(),events:[]});
    // All three reads are scoped to the authenticated workspace. No financial data is changed.
    const [events,sheets,ledger]=await Promise.all([
-    db.from('events').select('id,event_date,musician_cost,sound_cost,extra_transport_cost,other_cost,is_demo')
+    db.from('events').select('id,event_date,musician_cost,sound_cost,extra_transport_cost,other_cost')
      .eq('workspace_id',env.workspace).in('id',ids),
     db.from('op_finance_events').select('event_id,status,costs').eq('workspace_id',env.workspace).in('event_id',ids),
     db.from('op_finance_ledger').select('id,event_id,cost_id,kind,amount_cents,reverses_id')

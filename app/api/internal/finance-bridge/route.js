@@ -42,6 +42,11 @@ export async function POST(request){
   let body;
   try{body=JSON.parse(raw)}catch{return json({error:'invalid_json'},400);}
   const db=getSupabaseAdmin();
+  if(body?.action==='receivables'){
+   const {data,error}=await db.rpc('op_finance_bridge_receivables',{p_workspace:env.workspace});
+   if(error)throw error;
+   return json({ok:true,workspace:env.workspace,generated_at:new Date().toISOString(),events:data||[]});
+  }
   if(body?.action==='lookup'){
    if(!UUID.test(body.event_id||''))return json({error:'invalid_event'},400);
    const {data:event,error:eventError}=await db.from('events')

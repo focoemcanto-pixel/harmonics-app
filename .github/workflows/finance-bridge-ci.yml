@@ -7,6 +7,8 @@ on:
       - 'supabase/migrations/20261104*'
       - 'supabase/migrations/20261107130000_op_finance_payment_sync.sql'
       - 'tests/finance-payment-sync-persistence.sql'
+      - 'supabase/migrations/20261108210000_op_finance_bridge_receivables.sql'
+      - 'tests/finance-bridge-receivables.sql'
       - 'tests/finance-bridge.test.mjs'
       - 'tests/finance-bridge-persistence.sql'
       - 'package.json'
@@ -41,5 +43,7 @@ jobs:
         run: PGPASSWORD=synthetic-ci-only psql -v ON_ERROR_STOP=1 -h localhost -U postgres -d finance_synthetic -f tests/finance-bridge-persistence.sql
       - name: PostgreSQL payment-to-cash sync, rollback-only
         run: PGPASSWORD=synthetic-ci-only psql -v ON_ERROR_STOP=1 -h localhost -U postgres -d finance_synthetic -f tests/finance-payment-sync-persistence.sql
+      - name: PostgreSQL bridge receivables, rollback-only
+        run: PGPASSWORD=synthetic-ci-only psql -v ON_ERROR_STOP=1 -h localhost -U postgres -d finance_synthetic -f tests/finance-bridge-receivables.sql
       - run: npm test
       - run: npm run build

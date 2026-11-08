@@ -78,7 +78,7 @@ export default function InboxSettingsClient() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-5 pb-10">
-      <Link href="/inbox" className="text-sm font-semibold text-violet-700">← Voltar ao Inbox</Link>
+      <div className="flex gap-3"><Link href="/inbox" className="text-sm font-semibold text-violet-700">← Voltar ao Inbox</Link><Link href="/inbox/inteligencia" className="text-sm font-semibold text-slate-600">Inteligência Comercial</Link></div>
 
       {g.kill_switch ? (
         <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">

@@ -1,0 +1,45 @@
+# Avaliação da IA comercial do Harmonics com promptfoo (MIT). Dados sintéticos.
+# Determinística (sem custo): npm run eval:ai
+description: Harmonics AI — regras comerciais determinísticas
+prompts:
+  - '{{text}}'
+providers:
+  - id: file://harmonics-provider.mjs
+defaultTest:
+  options:
+    disableVarExpansion: true
+tests:
+  - description: confirmação expressa gera pré-contrato
+    vars: { scenario: confirmation, text: 'CONFIRMO' }
+    assert: [{ type: equals, value: confirm }]
+  - description: confirmação com correção invalida
+    vars: { scenario: confirmation, text: 'confirmo, mas sem som' }
+    assert: [{ type: equals, value: other }]
+  - description: resposta ambígua não confirma
+    vars: { scenario: confirmation, text: 'pode ser' }
+    assert: [{ type: equals, value: other }]
+  - description: opt-out explícito
+    vars: { scenario: optout, text: 'não quero mais receber mensagens' }
+    assert: [{ type: equals, value: optout }]
+  - description: 'vou parar pra pensar não é opt-out'
+    vars: { scenario: optout, text: 'vou parar pra pensar e te aviso' }
+    assert: [{ type: equals, value: continue }]
+  - description: pedido de desconto vai para humano
+    vars: { scenario: handoff, text: 'consegue um desconto pra fechar?' }
+    assert: [{ type: equals, value: discount_request }]
+  - description: dúvida de pagamento fica com a IA (conhecimento aprovado)
+    vars: { scenario: handoff, text: 'como funciona o pagamento do sinal?' }
+    assert: [{ type: equals, value: ai }]
+  - description: objeção de preço usa estratégia específica + empatia
+    vars: { scenario: strategy, stage: proposal, text: 'achei um pouco caro' }
+    assert: [{ type: equals, value: 'price_objection,empathy' }]
+  - description: orçamento determinístico pela tabela oficial
+    vars: { scenario: quote, quote: '{"date":"2098-06-10","formation":"trio","reception":{"formation":"duo","hours":2},"location":"Cidade Base"}' }
+    assert:
+      - type: javascript
+        value: 'JSON.parse(output).final === true && JSON.parse(output).total === 4200'
+  - description: local bloqueado nunca recebe preço
+    vars: { scenario: quote, quote: '{"date":"2098-06-10","formation":"trio","location":"Cidade Bloqueada"}' }
+    assert:
+      - type: javascript
+        value: 'JSON.parse(output).ok === false && JSON.parse(output).reason === "territory_blocked" && JSON.parse(output).total === undefined'

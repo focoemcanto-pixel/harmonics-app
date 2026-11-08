@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { guardWorkspaceAdmin } from '@/lib/api/route-guards';
 import { dispatchOutbox } from '@/lib/ai/inbox/service.mjs';
+import { observeDraftCorrection } from '@/lib/ai/commercial/learning.mjs';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,7 +21,7 @@ export async function POST(request, { params }) {
   if (body?.action !== 'approve') return NextResponse.json({ ok: false, error: 'Ação inválida.' }, { status: 400 });
 
   const content = typeof body?.content === 'string' ? body.content.trim().slice(0, 4000) : null;
-  const { data: draft } = await guard.supabase.from('ai_message_outbox').select('conversation_id')
+  const { data: draft } = await guard.supabase.from('ai_message_outbox').select('conversation_id, content')
     .eq('id', id).eq('workspace_id', workspaceId).eq('status', 'draft').maybeSingle();
   if (!draft) return NextResponse.json({ ok: false, error: 'Rascunho não encontrado.' }, { status: 404 });
 
@@ -34,6 +35,16 @@ export async function POST(request, { params }) {
   });
   const row = Array.isArray(data) ? data[0] : data;
   if (error || !row?.outbox_id) return NextResponse.json({ ok: false, error: 'Rascunho indisponível.' }, { status: 409 });
+  if (content && content !== draft.content) {
+    // Correção humana vira sugestão de aprendizado (para aprovação), nunca regra automática.
+    const { data: lastCustomer } = await guard.supabase.from('ai_messages').select('content, transcript')
+      .eq('workspace_id', workspaceId).eq('conversation_id', draft.conversation_id).eq('direction', 'inbound')
+      .order('created_at', { ascending: false }).limit(1).maybeSingle();
+    await observeDraftCorrection({
+      supabase: guard.supabase, workspaceId, conversationId: draft.conversation_id,
+      aiText: draft.content, humanText: content, customerText: lastCustomer?.transcript || lastCustomer?.content || '',
+    }).catch(() => null);
+  }
   const results = await dispatchOutbox({ supabase: guard.supabase, workspaceId, limit: 5 });
   const mine = results.find((r) => r.id === row.outbox_id);
   return NextResponse.json({ ok: true, status: mine?.status || 'pending', error: mine?.error || null });

@@ -1,0 +1,52 @@
+name: Harmonics AI CI
+on:
+  pull_request:
+    paths:
+      - 'lib/ai/**'
+      - 'lib/logistics/**'
+      - 'app/api/ai/**'
+      - 'app/api/webhooks/whatsapp-cloud/**'
+      - 'app/api/cron/ai-inbox/**'
+      - 'components/inbox/**'
+      - 'supabase/migrations/202611*_harmonics_ai_*'
+      - 'supabase/local/**'
+      - 'tests/ai/**'
+      - 'evals/ai/**'
+      - '.github/workflows/ai-inbox-ci.yml'
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: synthetic-ci-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      PGHOST: localhost
+      PGPORT: '5432'
+      PGPASSWORD: synthetic-ci-only
+      LOCAL_DB_URL: postgresql://postgres:synthetic-ci-only@localhost:5432/harmonics_local
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.22.0'
+          cache: npm
+      - run: npm ci
+      - run: npm i --no-save pg
+      - name: Unit tests (inclui IA)
+        run: npm test
+      - name: Integração e concorrência em Postgres 16 (schema sem dados + migrations AI)
+        run: npm run test:ai-local
+      - name: Avaliação determinística (promptfoo)
+        run: npm run eval:ai

@@ -3,9 +3,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAppToast } from '@/components/ui/ToastProvider';
+import SupervisionCenter from '@/components/inbox/SupervisionCenter';
+import ManualPricingPanel from '@/components/inbox/ManualPricingPanel';
 
 const TABS = [
+  { key: 'center', label: 'Central' },
   { key: 'teach', label: 'Ensinar à IA' },
+  { key: 'manual', label: 'Manual e tabelas' },
   { key: 'learning', label: 'Aprendizado' },
   { key: 'areas', label: 'Localidades' },
   { key: 'musicians', label: 'Músicos' },
@@ -222,7 +226,7 @@ function BootstrapCard({ toast, onDone }) {
   );
 }
 
-const EMPTY_AREA = { name: '', status: 'served', match_terms: '', distance_km: '', travel_minutes: '', travel_fee: '', toll_fee: '', lodging_required: false, lodging_fee: '', notes: '' };
+const EMPTY_AREA = { name: '', status: 'served', match_terms: '', price_tier: '', distance_km: '', travel_minutes: '', travel_fee: '', toll_fee: '', sound_travel_fee: '', lodging_required: false, lodging_fee: '', notes: '' };
 
 function AreasTab({ toast }) {
   const [areas, setAreas] = useState([]);
@@ -247,7 +251,8 @@ function AreasTab({ toast }) {
           <Field label="Nome"><input className={INPUT} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
           <Field label="Status"><select className={INPUT} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}><option value="served">Atendida</option><option value="conditional">Condicional</option><option value="blocked">Bloqueada</option></select></Field>
           <Field label="Termos (cidades/bairros, vírgula)"><input className={INPUT} value={form.match_terms} onChange={(e) => setForm({ ...form, match_terms: e.target.value })} /></Field>
-          {[['distance_km', 'Distância (km)'], ['travel_minutes', 'Tempo (min)'], ['travel_fee', 'Deslocamento (R$)'], ['toll_fee', 'Pedágios (R$)'], ['lodging_fee', 'Hospedagem (R$)']].map(([k, l]) => (
+          <Field label="Faixa de preço (Manual §4)"><select className={INPUT} value={form.price_tier || ''} onChange={(e) => setForm({ ...form, price_tier: e.target.value })}><option value="">Região-base</option><option value="metro">Região metropolitana</option><option value="ate120">Até ~120 km</option><option value="custom">Personalizado (acima de 2h)</option></select></Field>
+          {[['distance_km', 'Distância (km)'], ['travel_minutes', 'Tempo (min)'], ['travel_fee', 'Deslocamento da banda (R$)'], ['sound_travel_fee', 'Deslocamento do som (R$)'], ['toll_fee', 'Pedágios (R$)'], ['lodging_fee', 'Hospedagem (R$)']].map(([k, l]) => (
             <Field key={k} label={l}><input type="number" step="any" className={INPUT} value={form[k]} onChange={(e) => setForm({ ...form, [k]: e.target.value })} /></Field>
           ))}
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.lodging_required} onChange={(e) => setForm({ ...form, lodging_required: e.target.checked })} />Exige hospedagem</label>
@@ -342,7 +347,13 @@ function SalesTab({ toast }) {
           <Field label="Dias (vírgula)"><input className={INPUT} value={(s.followup_days || []).join(', ')} onChange={(e) => setS({ ...s, followup_days: e.target.value.split(',').map((x) => Number(x.trim())).filter(Boolean) })} /></Field>
           <Field label="Templates Meta por passo (vírgula)"><input className={INPUT} value={(s.followup_templates || []).join(', ')} onChange={(e) => setS({ ...s, followup_templates: e.target.value.split(',').map((x) => x.trim()) })} /></Field>
         </div>
-        <p className="text-xs text-slate-500">Para automaticamente quando o cliente responde, contrata, recusa, pede para parar ou alguém da equipe assume.</p>
+        <p className="text-xs text-slate-500">Cadência do Manual: 2 dias (vai conversar com parceiro) ou 3 dias (comparando/indeciso) e última tentativa 5 dias depois; máximo de {s.followup_max ?? 2} abordagens. Para quando o cliente responde, contrata, recusa, pede para parar ou alguém da equipe assume.</p>
+        <Field label="Máximo de abordagens proativas (0–2)"><input type="number" min="0" max="2" className={INPUT} value={s.followup_max ?? 2} onChange={(e) => setS({ ...s, followup_max: Number(e.target.value) })} /></Field>
+        <label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={Boolean(s.signature_reminders_enabled)} onChange={(e) => setS({ ...s, signature_reminders_enabled: e.target.checked })} />Lembretes de assinatura do pré-contrato (templates Meta)</label>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Dias após o envio (vírgula)"><input className={INPUT} value={(s.signature_reminder_days || [2, 7, 12]).join(', ')} onChange={(e) => setS({ ...s, signature_reminder_days: e.target.value.split(',').map((x) => Number(x.trim())).filter(Boolean) })} /></Field>
+          <Field label="Templates por lembrete (vírgula)"><input className={INPUT} value={(s.signature_reminder_templates || []).join(', ')} onChange={(e) => setS({ ...s, signature_reminder_templates: e.target.value.split(',').map((x) => x.trim()) })} /></Field>
+        </div>
       </Card>
       <Card title="Fechamento e transferência">
         <label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={Boolean(s.autonomous_closing_enabled)} onChange={(e) => setS({ ...s, autonomous_closing_enabled: e.target.checked })} />Gerar pré-contrato automaticamente após confirmação expressa</label>
@@ -403,7 +414,7 @@ function PipelineTab() {
 }
 
 function SimulatorTab() {
-  const [f, setF] = useState({ date: '', time: '', formation: 'Trio', instruments: '', hasSound: false, receptionFormation: '', receptionHours: 0, location: '' });
+  const [f, setF] = useState({ date: '', time: '', formation: 'Trio', instruments: '', hasSound: false, receptionFormation: '', receptionHours: 0, location: '', modality: 'ceremony', hours: 0 });
   const [r, setR] = useState(null);
   async function run() { const { body } = await api('/api/ai/commercial/quote-preview', { method: 'POST', body: JSON.stringify(f) }); setR(body); }
   return (
@@ -417,6 +428,8 @@ function SimulatorTab() {
         <Field label="Receptivo (horas)"><input type="number" className={INPUT} value={f.receptionHours} onChange={(e) => setF({ ...f, receptionHours: e.target.value })} /></Field>
         <Field label="Local"><input className={INPUT} value={f.location} onChange={(e) => setF({ ...f, location: e.target.value })} /></Field>
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={f.hasSound} onChange={(e) => setF({ ...f, hasSound: e.target.checked })} />Com som</label>
+        <Field label="Modalidade"><select className={INPUT} value={f.modality} onChange={(e) => setF({ ...f, modality: e.target.value })}><option value="ceremony">Cerimônia</option><option value="show">Por tempo (avulso)</option></select></Field>
+        {f.modality === 'show' ? <Field label="Horas"><input type="number" className={INPUT} value={f.hours} onChange={(e) => setF({ ...f, hours: e.target.value })} /></Field> : null}
       </div>
       <button type="button" onClick={run} className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Calcular</button>
       {r?.quote ? (
@@ -437,8 +450,8 @@ function SimulatorTab() {
 
 export default function CommercialIntelligenceClient() {
   const toast = useAppToast();
-  const [tab, setTab] = useState('teach');
-  const Tab = { teach: TeachTab, learning: LearningTab, areas: AreasTab, musicians: MusiciansTab, sales: SalesTab, pipeline: PipelineTab, simulator: SimulatorTab }[tab];
+  const [tab, setTab] = useState('center');
+  const Tab = { center: SupervisionCenter, manual: ManualPricingPanel, teach: TeachTab, learning: LearningTab, areas: AreasTab, musicians: MusiciansTab, sales: SalesTab, pipeline: PipelineTab, simulator: SimulatorTab }[tab];
   return (
     <div className="mx-auto max-w-5xl space-y-4 pb-10">
       <div className="flex flex-wrap items-center gap-2">

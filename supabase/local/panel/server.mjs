@@ -8,6 +8,13 @@ const ROUTES = [
   [/^\/api\/ai\/service-areas$/, '../../../app/api/ai/service-areas/route.js'],
   [/^\/api\/ai\/learning$/, '../../../app/api/ai/learning/route.js'],
   [/^\/api\/ai\/settings$/, '../../../app/api/ai/settings/route.js'],
+  [/^\/api\/ai\/autonomy$/, '../../../app/api/ai/autonomy/route.js'],
+  [/^\/api\/ai\/manual\/import$/, '../../../app/api/ai/manual/import/route.js'],
+  [/^\/api\/ai\/pricing-proposals\/([^/]+)$/, '../../../app/api/ai/pricing-proposals/[id]/route.js'],
+  [/^\/api\/ai\/pricing-proposals$/, '../../../app/api/ai/pricing-proposals/route.js'],
+  [/^\/api\/ai\/closings\/([^/]+)$/, '../../../app/api/ai/closings/[id]/route.js'],
+  [/^\/api\/ai\/commercial\/queues$/, '../../../app/api/ai/commercial/queues/route.js'],
+  [/^\/api\/ai\/approvals\/([^/]+)$/, '../../../app/api/ai/approvals/[id]/route.js'],
 ];
 
 export async function handle(method, pathname, search, bodyText, headers = {}) {

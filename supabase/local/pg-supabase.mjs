@@ -22,6 +22,13 @@ function parseSelect(columns) {
   return { cols: cols.length ? cols : ['*'], embeds };
 }
 
+// Arrays de valores simples => array do Postgres (text[]/int[]); objetos e arrays de objetos => JSON.
+function toParam(v) {
+  if (v === undefined) return null;
+  if (Array.isArray(v) && v.every((x) => x === null || ['string', 'number', 'boolean'].includes(typeof x))) return v;
+  return typeof v === 'object' && v !== null && !(v instanceof Date) ? JSON.stringify(v) : v;
+}
+
 function pgError(error) {
   return { code: error.code, message: error.message, details: error.detail || null, hint: error.hint || null };
 }
@@ -97,7 +104,7 @@ export function createPgSupabase({ pool, role = 'service_role', sub = null }) {
       } else if (mode === 'insert' || mode === 'upsert') {
         const list = Array.isArray(payload) ? payload : [payload];
         const keys = [...new Set(list.flatMap((r) => Object.keys(r)))];
-        const values = list.map((r) => `(${keys.map((k) => { params.push(r[k] === undefined ? null : (typeof r[k] === 'object' && r[k] !== null && !(r[k] instanceof Date) ? JSON.stringify(r[k]) : r[k])); return `$${params.length}`; }).join(', ')})`);
+        const values = list.map((r) => `(${keys.map((k) => { params.push(toParam(r[k])); return `$${params.length}`; }).join(', ')})`);
         sql = `insert into public.${quoteIdent(table)} (${keys.map(quoteIdent).join(', ')}) values ${values.join(', ')}`;
         if (mode === 'upsert') {
           const target = String(options.onConflict || 'id').split(',').map((c) => quoteIdent(c.trim())).join(', ');
@@ -107,7 +114,7 @@ export function createPgSupabase({ pool, role = 'service_role', sub = null }) {
         }
         sql += ` returning ${returning ? selectList : '*'}`;
       } else if (mode === 'update') {
-        const sets = Object.entries(payload).map(([k, v]) => { params.push(typeof v === 'object' && v !== null ? JSON.stringify(v) : v); return `${quoteIdent(k)} = $${params.length}`; });
+        const sets = Object.entries(payload).map(([k, v]) => { params.push(toParam(v)); return `${quoteIdent(k)} = $${params.length}`; });
         sql = `update public.${quoteIdent(table)} set ${sets.join(', ')}${where(params)} returning ${returning ? selectList : '*'}`;
       } else if (mode === 'delete') {
         sql = `delete from public.${quoteIdent(table)}${where(params)} returning *`;

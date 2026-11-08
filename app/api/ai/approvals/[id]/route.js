@@ -19,7 +19,27 @@ export async function POST(request, { params }) {
     .update({ status: decision, decided_by: guard.auth.userId, decided_at: new Date().toISOString() })
     .eq('id', id).eq('workspace_id', workspaceId).eq('status', 'pending')
     .select('id, kind, conversation_id, details').maybeSingle();
+
   if (!approval) return NextResponse.json({ ok: false, error: 'Solicitação não encontrada.' }, { status: 404 });
+
+  if (approval.kind === 'participant_link') {
+    // Verificação humana do vínculo (Manual §13): só então o participante acessa dados do evento.
+    const participantId = approval.details?.participant_id;
+    const eventId = typeof body?.event_id === 'string' ? body.event_id : (approval.details?.candidate_event_ids || [])[0] || null;
+    if (participantId) {
+      let precontractId = null;
+      if (decision === 'approved' && eventId) {
+        const { data: pc } = await guard.supabase.from('precontracts').select('id').eq('workspace_id', workspaceId).eq('event_id', eventId).maybeSingle();
+        precontractId = pc?.id || null;
+      }
+      const permissions = Array.isArray(body?.permissions) ? body.permissions.filter((p) => ['repertoire', 'operational', 'panel', 'payments', 'signature'].includes(p)) : ['repertoire'];
+      await guard.supabase.from('ai_conversation_participants').update({
+        status: decision === 'approved' && eventId ? 'verified' : 'rejected', event_id: eventId, precontract_id: precontractId,
+        permissions, verified_by: guard.auth.userId, verified_at: new Date().toISOString(),
+      }).eq('id', participantId).eq('workspace_id', workspaceId);
+    }
+    return NextResponse.json({ ok: true });
+  }
 
   let quoteId = null;
   if (decision === 'approved' && approval.kind === 'proposal') {

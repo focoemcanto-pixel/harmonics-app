@@ -68,8 +68,9 @@ test('logística por km com distância rodoviária (ida e volta) e hospedagem po
 });
 
 test('margem abaixo do mínimo exige aprovação', () => {
-  const q = calculateQuote(BASE, { rules: RULES, areas: AREAS, minMarginPct: 80 });
-  assert.ok(q.margin < 80);
+  const q = calculateQuote(BASE, { rules: RULES, areas: AREAS, minMarginPct: 90 });
+  assert.ok(q.margin < 90);
+  assert.equal(q.internalCost.primaryVocalExcluded, true, 'vocalista principal não é custo (Manual §9.2)');
   assert.ok(q.approvals.includes('margin_below_minimum'));
   assert.equal(q.final, false);
 });
@@ -242,4 +243,70 @@ test('bootstrap v2: contradição número x extenso, escopo por modelo e mensage
   assert.ok(pay.metadata.review.flags.includes('unclassified_scope') && pay.metadata.review.flags.includes('contract_specific_terms'));
   const msg = candidates.find((c) => c.metadata.origin.table === 'message_templates');
   assert.deepEqual([msg.kind, msg.intents], ['style', []]);
+});
+
+test('Manual §9: custo interno sem cachê do vocalista principal, tecladista e extra de receptivo (valores sintéticos)', async () => {
+  const { estimateInternalCost } = await import('../../lib/ai/commercial/pricing.mjs');
+  const rules = [
+    { category: 'musician_fee', item_key: 'musician_local', amount: 300, valid_from: '2020-01-01' },
+    { category: 'musician_fee', item_key: 'keyboard_local', amount: 340, valid_from: '2020-01-01' },
+    { category: 'musician_fee', item_key: 'reception_extra_hour', amount: 80, valid_from: '2020-01-01' },
+  ];
+  const base = { rules, refDate: '2096-01-01', size: 3, instruments: ['voz', 'teclado', 'violino'] };
+  assert.equal(estimateInternalCost(base).musicians, 640, 'vocalista principal canta: só tecladista + violinista');
+  assert.equal(estimateInternalCost({ ...base, primaryVocalSings: false }).musicians, 940, 'vocalista contratada entra como custo');
+  const withReception = estimateInternalCost({ ...base, rSize: 3, rHours: 2 });
+  assert.equal(withReception.receptionExtras, 2 * 2 * 80, 'extra por hora só para músicos contratados (sem o principal)');
+  assert.equal(estimateInternalCost({ ...base, rules: [] }), null, 'sem cachês oficiais não há cálculo');
+});
+
+test('Manual §4/§7/§8: faixa por região, receptivo só com cerimônia, por tempo com som sob medida', () => {
+  const rules = [
+    { category: 'ceremony', item_key: 'trio', amount: 1500, valid_from: '2020-01-01', valid_until: '2096-05-31' },
+    { category: 'ceremony', item_key: 'trio', amount: 1700, valid_from: '2096-06-01' },
+    { category: 'ceremony', item_key: 'trio@metro', amount: 1650, valid_from: '2020-01-01' },
+    { category: 'transport', item_key: 'band_trip', amount: 150, valid_from: '2020-01-01' },
+    { category: 'other', item_key: 'show:trio_2h', amount: 1800, valid_from: '2020-01-01' },
+  ];
+  const areas = [{ name: 'Cidade Base', status: 'served', active: true }, { name: 'Cidade Metro', status: 'served', price_tier: 'metro', active: true }];
+  assert.equal(calculateQuote({ date: '2096-05-10', formation: 'trio', location: 'Cidade Base' }, { rules, areas }).total, 1500, 'tabela vigente na data do evento');
+  assert.equal(calculateQuote({ date: '2096-07-10', formation: 'trio', location: 'Cidade Base' }, { rules, areas }).total, 1700, 'nova tabela pela data do evento');
+  assert.equal(calculateQuote({ date: '2096-05-10', formation: 'trio', location: 'Cidade Metro' }, { rules, areas }).total, 1650 + 150);
+  const show = calculateQuote({ date: '2096-05-10', formation: 'trio', modality: 'show', hours: 2, reception: { hours: 1 }, location: 'Cidade Base' }, { rules, areas });
+  assert.equal(show.total, 1800);
+  assert.ok(show.approvals.includes('reception_requires_ceremony'));
+});
+
+test('cadência de follow-up, exceções e liberação de autonomia', async () => {
+  const { followupCadence } = await import('../../lib/ai/commercial/engine.mjs');
+  assert.deepEqual(followupCadence({ text: 'vou conversar com meu noivo e te falo' }), [2, 7]);
+  assert.deepEqual(followupCadence({ text: 'estou comparando orçamentos' }), [3, 8]);
+  assert.deepEqual(followupCadence({ text: 'x', max: 1 }), [3]);
+  const { exceptionReasons, autoSendAllowed } = await import('../../lib/ai/commercial/supervision.mjs');
+  const summary = { time: '16:00', location: 'Cidade Base', total: 3000, ceremony: { formation: 'Trio' } };
+  const et = { name: 'Casamento' };
+  assert.deepEqual(exceptionReasons({ summary, eventType: et, templateId: 't', reused: false }), []);
+  assert.deepEqual(exceptionReasons({ summary: { ...summary, time: null }, eventType: null, templateId: null, reused: true }).sort(), ['ceremony_time_missing', 'event_type_unknown', 'precontract_changed', 'template_missing']);
+  assert.equal(autoSendAllowed({ mode: 'supervised', conventional: true, summary, eventType: et }), false);
+  assert.equal(autoSendAllowed({ mode: 'assisted', conventional: true, rules: {}, summary, eventType: et }), false, 'assistido sem regras não envia');
+  assert.equal(autoSendAllowed({ mode: 'assisted', conventional: true, rules: { allowed_formations: ['trio'], max_total: 3500 }, summary, eventType: et }), true);
+  assert.equal(autoSendAllowed({ mode: 'assisted', conventional: true, rules: { max_total: 2000 }, summary, eventType: et }), false);
+  assert.equal(autoSendAllowed({ mode: 'autonomous', conventional: false, summary, eventType: et }), false, 'exceção nunca sai sozinha');
+  assert.equal(autoSendAllowed({ mode: 'autonomous', conventional: true, summary, eventType: et }), true);
+});
+
+test('importador do manual: seções, tabelas, vigência e cachês internos (Markdown sintético)', async () => {
+  const { splitSections, extractPricingProposals, extractKnowledgeFromManual, parseMoney } = await import('../../lib/ai/commercial/manual-import.mjs');
+  assert.equal(parseMoney('R$ 1.250,50'), 1250.5);
+  const md = '## 4. Tabelas de cerimônia\n### 4.1 Região-base — tabela até março de 2097\n| Formação | Valor |\n|---|---:|\n| Duo | R$ 900 |\n## 9. Cálculo de cachês, resultado e margem\n| Profissional | Base | Fora |\n|---|---:|---:|\n| Músico comum | R$ 200 | R$ 220 |\n## 12. Follow-up de orçamento\nPENDENTE: validar cadência com resultados reais do atendimento.\n';
+  const sections = splitSections(md);
+  const pricing = extractPricingProposals(sections);
+  assert.deepEqual(pricing.map((p) => [p.category, p.item_key, p.amount, p.valid_until || null]), [['ceremony', 'duo', 900, '2097-03-31'], ['musician_fee', 'musician_local', 200, null], ['musician_fee', 'musician_outside', 220, null]]);
+  const knowledge = await extractKnowledgeFromManual(sections);
+  assert.ok(knowledge.some((k) => k.title.startsWith('Sigilo comercial')));
+  assert.ok(!knowledge.some((k) => /200|220/.test(k.content)), 'cachê nunca vira conhecimento');
+  assert.ok(knowledge.find((k) => k.title.startsWith('Follow-up')).metadata.review.required);
+  const { whatsappLink } = await import('../../lib/ai/commercial/queues.mjs');
+  assert.equal(whatsappLink('+55 (11) 91234-5678'), 'https://wa.me/5511912345678');
+  assert.equal(whatsappLink('123'), null);
 });

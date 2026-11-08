@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
-import { guardWorkspaceMember } from '@/lib/api/route-guards';
+import { guardWorkspaceAdmin } from '@/lib/api/route-guards';
 import { getConversationDetail } from '@/lib/ai/inbox/inbox-queries.mjs';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request, { params }) {
-  const guard = await guardWorkspaceMember(request, { logPrefix: '[AI][CONVERSATION]' });
+  const guard = await guardWorkspaceAdmin(request, { logPrefix: '[AI][CONVERSATION]' });
   if (!guard.ok) return guard.response;
   const { id } = await params;
   const before = new URL(request.url).searchParams.get('before');
@@ -16,7 +16,7 @@ export async function GET(request, { params }) {
 
 // Encerrar/reabrir conversa.
 export async function PATCH(request, { params }) {
-  const guard = await guardWorkspaceMember(request, { logPrefix: '[AI][CONVERSATION][PATCH]' });
+  const guard = await guardWorkspaceAdmin(request, { logPrefix: '[AI][CONVERSATION][PATCH]' });
   if (!guard.ok) return guard.response;
   const { id } = await params;
   const body = await request.json().catch(() => ({}));

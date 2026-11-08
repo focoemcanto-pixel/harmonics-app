@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
-import { guardWorkspaceMember } from '@/lib/api/route-guards';
+import { guardWorkspaceAdmin } from '@/lib/api/route-guards';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request, { params }) {
-  const guard = await guardWorkspaceMember(request, { logPrefix: '[AI][READ]' });
+  const guard = await guardWorkspaceAdmin(request, { logPrefix: '[AI][READ]' });
   if (!guard.ok) return guard.response;
   const { id } = await params;
   const { error } = await guard.supabase.from('ai_conversations').update({ unread_count: 0 })

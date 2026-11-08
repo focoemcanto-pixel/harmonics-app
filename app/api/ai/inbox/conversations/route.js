@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-import { guardWorkspaceMember } from '@/lib/api/route-guards';
+import { guardWorkspaceAdmin } from '@/lib/api/route-guards';
 import { listConversations, getInboxCounters } from '@/lib/ai/inbox/inbox-queries.mjs';
 
 export const dynamic = 'force-dynamic';
 
 // Lista do Inbox + contadores. `updated_after` permite polling incremental (tempo real).
 export async function GET(request) {
-  const guard = await guardWorkspaceMember(request, { logPrefix: '[AI][INBOX][LIST]' });
+  const guard = await guardWorkspaceAdmin(request, { logPrefix: '[AI][INBOX][LIST]' });
   if (!guard.ok) return guard.response;
   const { searchParams } = new URL(request.url);
   const workspaceId = guard.auth.workspaceId;

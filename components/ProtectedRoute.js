@@ -19,7 +19,7 @@ function inferModuleFromPath(pathname = '') {
   if (pathname.startsWith('/sugestoes')) return 'sugestoes';
   if (pathname.startsWith('/avaliacoes')) return 'avaliacoes';
   if (pathname.startsWith('/dashboard')) return 'dashboard';
-  if (pathname.startsWith('/inbox')) return 'contratos';
+  if (pathname.startsWith('/inbox')) return 'usuarios';
   return null;
 }
 

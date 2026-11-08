@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { guardWorkspaceMember } from '@/lib/api/route-guards';
+import { guardWorkspaceAdmin } from '@/lib/api/route-guards';
 import { dispatchOutbox } from '@/lib/ai/inbox/service.mjs';
 import { isWithinCustomerServiceWindow } from '@/lib/ai/inbox/meta-client.mjs';
 
@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 
 // Resposta humana pelo Inbox: assume a conversa (cancela fila da IA) e envia na mesma ação.
 export async function POST(request, { params }) {
-  const guard = await guardWorkspaceMember(request, { logPrefix: '[AI][HUMAN_SEND]' });
+  const guard = await guardWorkspaceAdmin(request, { logPrefix: '[AI][HUMAN_SEND]' });
   if (!guard.ok) return guard.response;
   const { id } = await params;
   const body = await request.json().catch(() => ({}));

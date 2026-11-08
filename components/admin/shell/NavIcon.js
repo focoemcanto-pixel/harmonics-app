@@ -15,9 +15,10 @@ import {
   Users,
   Wallet,
   Zap,
+  MessageCircle,
 } from 'lucide-react';
 
-const ICONS = { Calculator, CalendarDays, Contact, FileText, LayoutDashboard, Link2, Music, Settings, Send, Sparkles, Star, Users, Wallet, Zap };
+const ICONS = { MessageCircle, Calculator, CalendarDays, Contact, FileText, LayoutDashboard, Link2, Music, Settings, Send, Sparkles, Star, Users, Wallet, Zap };
 
 export default function NavIcon({ name, size = 18, className = '' }) {
   const Icon = ICONS[name] || LayoutDashboard;

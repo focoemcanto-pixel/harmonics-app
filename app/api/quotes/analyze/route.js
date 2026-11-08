@@ -1,24 +1,15 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requireWorkspaceAdmin } from '@/lib/api/require-workspace-access';
+import { geocode, route, DEFAULT_LOGISTICS_ORIGIN } from '@/lib/logistics/google-distance.mjs';
 
-const ORIGIN = process.env.HARMONICS_LOGISTICS_ORIGIN || 'Salvador, BA, Brasil';
+const ORIGIN = DEFAULT_LOGISTICS_ORIGIN;
 
 function money(v){ return Math.round((Number(v)||0)*100)/100; }
 function musicianCount(f){ return ({solo:1,duo:2,trio:3,quarteto:4,quinteto:5,sexteto:6,septeto:7})[f]||0; }
 function slug(v){ return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase(); }
 function validRule(r,date){ return r.valid_from<=date && (!r.valid_until || r.valid_until>=date); }
 
-async function geocode(query,key){
- const u=new URL('https://maps.googleapis.com/maps/api/geocode/json'); u.searchParams.set('address',query); u.searchParams.set('region','br'); u.searchParams.set('key',key);
- const j=await fetch(u,{cache:'no-store'}).then(r=>r.json()); const x=j.results?.[0]; if(!x) return null;
- return {address:x.formatted_address,lat:x.geometry.location.lat,lng:x.geometry.location.lng,placeId:x.place_id};
-}
-async function route(origin,destination,key){
- const u=new URL('https://maps.googleapis.com/maps/api/distancematrix/json'); u.searchParams.set('origins',origin); u.searchParams.set('destinations',destination); u.searchParams.set('region','br'); u.searchParams.set('language','pt-BR'); u.searchParams.set('key',key);
- const j=await fetch(u,{cache:'no-store'}).then(r=>r.json()); const x=j.rows?.[0]?.elements?.[0]; if(!x||x.status!=='OK') return null;
- return {distanceKm:Math.round(x.distance.value/100)/10,travelMinutes:Math.round(x.duration.value/60),distanceText:x.distance.text,durationText:x.duration.text};
-}
 function logisticsImpact({distanceKm,travelMinutes,receptionHours,eventTime}){
  let impact=0; const reasons=[];
  if(distanceKm>35){ impact+=200; reasons.push('deslocamento fora da base próxima'); }

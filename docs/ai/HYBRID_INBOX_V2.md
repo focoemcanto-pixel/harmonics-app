@@ -51,7 +51,8 @@ ai_claim_outbox (FOR UPDATE SKIP LOCKED; revalida dono, versão, kill switch, ca
 `META_APP_SECRET`, `META_WEBHOOK_VERIFY_TOKEN`, `AI_CHANNEL_ENCRYPTION_KEY` (32 bytes base64:
 `openssl rand -base64 32`), `OPENAI_API_KEY` (já usado no app), `AI_INBOX_AI_ENABLED`,
 `AI_INBOX_KILL_SWITCH`, opcionais `AI_INBOX_MODEL` (padrão `gpt-4.1-mini`),
-`AI_INBOX_TRANSCRIBE_MODEL`, `AI_INBOX_DEBOUNCE_MS`, `META_GRAPH_VERSION`.
+`AI_INBOX_TRANSCRIBE_MODEL`, `AI_INBOX_DEBOUNCE_MS`, `META_GRAPH_VERSION`. Menu: `NEXT_PUBLIC_AI_INBOX_NAV=true`
+no build (sem ela o item fica oculto; `/inbox` continua acessível pela URL).
 
 ## Ativação (requer autorização do responsável)
 1. Aplicar migrations `20261107150000_*v1` e `20261108120000_*v2` (aditivas).

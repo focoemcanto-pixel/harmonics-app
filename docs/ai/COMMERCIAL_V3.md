@@ -35,3 +35,12 @@ Continua `HYBRID_INBOX_V2.md`. **Tudo desligado por padrão**; só atua com a IA
 conhecimento: "Voltar para vN". Reverter o código remove só rotas/telas novas; tabelas `ai_*` podem ficar.
 
 Origem e licenças dos componentes de terceiros: `lib/ai/commercial/THIRD_PARTY.md`.
+
+## Inicialização da base (bootstrap)
+Painel → Ensinar à IA → **Inicializar com dados do Harmonics** (prévia → criar). Fontes: tipos de evento,
+modelos de contrato (pagamento, cancelamento, horários, estrutura/rider, alimentação, repertório),
+mensagens oficiais para clientes, catálogo de momentos/estilos do repertório e funcionalidades do painel.
+Cria sugestões `pending_approval` com `source='import'` e `metadata.origin {table,id,field}`; remove preços,
+variáveis de template, datas, telefones e e-mails; não repete itens já importados nem conteúdo já ensinado;
+não altera configurações. Localidades do histórico de eventos aparecem só como sugestão em Localidades.
+Validação: `supabase/local/ai-panel.local.test.mjs` (handlers reais, sessão Owner sintética).

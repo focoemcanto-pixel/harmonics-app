@@ -31,7 +31,7 @@ function Field({ label, children }) {
 
 function Card({ title, children, actions }) {
   return (
-    <section className="space-y-3 rounded-3xl border border-slate-200 bg-white p-5">
+    <section className="space-y-3 rounded-3xl border border-slate-200 bg-white p-5 text-slate-900">
       <div className="flex items-center justify-between gap-2"><h2 className="text-base font-bold text-slate-900">{title}</h2>{actions}</div>
       {children}
     </section>
@@ -59,11 +59,17 @@ function TeachTab({ toast }) {
     load();
   }
   const latest = new Map();
-  for (const i of items) if (!latest.has(i.item_key) || latest.get(i.item_key).version < i.version) latest.set(i.item_key, i);
+  // Versão vigente: a ativa; sem ativa, a pendente/mais recente.
+  const rank = (i) => (i.status === 'active' ? 2 : i.status === 'pending_approval' ? 1 : 0);
+  for (const i of items) {
+    const cur = latest.get(i.item_key);
+    if (!cur || rank(i) > rank(cur) || (rank(i) === rank(cur) && i.version > cur.version)) latest.set(i.item_key, i);
+  }
   const shown = filter === 'current' ? [...latest.values()] : items.filter((i) => i.status === 'pending_approval');
 
   return (
     <div className="space-y-4">
+      <BootstrapCard toast={toast} onDone={() => { setFilter('pending'); load(); }} />
       <Card title="Ensinar em linguagem natural">
         <p className="text-xs text-slate-500">Regras, FAQs, políticas, rider e exemplos. Toda versão nova fica pendente até aprovação; versões antigas ficam guardadas para rollback.</p>
         <div className="grid gap-3 sm:grid-cols-3">
@@ -83,7 +89,7 @@ function TeachTab({ toast }) {
       </Card>
       <Card title="Conhecimento" actions={(
         <div className="flex gap-1 text-xs">
-          {[['current', 'Versões atuais'], ['pending', 'Pendentes']].map(([k, l]) => <button key={k} type="button" onClick={() => setFilter(k)} className={`rounded-full px-3 py-1 font-semibold ${filter === k ? 'bg-slate-900 text-white' : 'bg-slate-100'}`}>{l}</button>)}
+          {[['current', 'Versões atuais'], ['pending', 'Pendentes']].map(([k, l]) => <button key={k} type="button" onClick={() => setFilter(k)} className={`rounded-full px-3 py-1 font-semibold ${filter === k ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700'}`}>{l}</button>)}
         </div>
       )}>
         {!shown.length ? <p className="text-sm text-slate-500">Nada por aqui.</p> : null}
@@ -92,14 +98,17 @@ function TeachTab({ toast }) {
           return (
             <div key={i.id} className="rounded-2xl border border-slate-100 p-3 text-sm">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold">{KIND_LABELS[i.kind]}</span>
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-700">{KIND_LABELS[i.kind]}</span>
                 <strong>{i.title}</strong>
                 <span className="text-xs text-slate-500">v{i.version} · {STATUS_LABELS[i.status]} · prioridade {i.priority}{i.source === 'learned' ? ' · aprendido' : ''}</span>
               </div>
               <p className="mt-1 whitespace-pre-wrap text-slate-700">{i.content}</p>
               <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                {i.status === 'pending_approval' ? <><button type="button" onClick={() => act(i.id, 'approve')} className="rounded-lg bg-emerald-600 px-2 py-1 font-semibold text-white">Aprovar</button><button type="button" onClick={() => act(i.id, 'reject')} className="rounded-lg border px-2 py-1">Rejeitar</button></> : null}
-                {i.status === 'active' ? <button type="button" onClick={() => act(i.id, 'archive')} className="rounded-lg border px-2 py-1">Arquivar</button> : null}
+                {i.status === 'pending_approval' ? <><button type="button" onClick={() => act(i.id, 'approve')} className="rounded-lg bg-emerald-600 px-2 py-1 font-semibold text-white">Aprovar</button><button type="button" onClick={() => act(i.id, 'reject')} className="rounded-lg border border-slate-300 px-2 py-1 text-slate-700">Rejeitar</button></> : null}
+                {i.status === 'active' ? <button type="button" onClick={() => act(i.id, 'archive')} className="rounded-lg border border-slate-300 px-2 py-1 text-slate-700">Arquivar</button> : null}
+                {versions.filter((v) => v.status === 'pending_approval' && v.id !== i.id).map((v) => (
+                  <button key={v.id} type="button" onClick={() => act(v.id, 'approve')} className="rounded-lg bg-emerald-600 px-2 py-1 font-semibold text-white">Aprovar v{v.version} pendente</button>
+                ))}
                 {versions.filter((v) => v.status === 'archived' && v.id !== i.id).slice(0, 3).map((v) => (
                   <button key={v.id} type="button" onClick={() => act(v.id, 'rollback')} className="rounded-lg border border-amber-300 px-2 py-1 text-amber-800">Voltar para v{v.version}</button>
                 ))}
@@ -135,14 +144,54 @@ function LearningTab({ toast }) {
           {s.ai_text ? <div className="text-slate-500"><strong>IA sugeriu:</strong> {s.ai_text}</div> : null}
           <textarea rows={3} className={INPUT} value={edits[s.id]?.content ?? `Cliente: ${s.customer_text}\nResposta aprovada: ${s.human_text}`} onChange={(e) => setEdits({ ...edits, [s.id]: { ...(edits[s.id] || {}), content: e.target.value } })} />
           <div className="flex flex-wrap items-center gap-2 text-xs">
-            <select className="rounded-lg border px-2 py-1" value={edits[s.id]?.kind || (s.occurrences >= 3 ? 'faq' : 'example')} onChange={(e) => setEdits({ ...edits, [s.id]: { ...(edits[s.id] || {}), kind: e.target.value } })}>
+            <select className="rounded-lg border border-slate-300 px-2 py-1 text-slate-700" value={edits[s.id]?.kind || (s.occurrences >= 3 ? 'faq' : 'example')} onChange={(e) => setEdits({ ...edits, [s.id]: { ...(edits[s.id] || {}), kind: e.target.value } })}>
               <option value="example">Exemplo de estilo</option><option value="faq">FAQ</option><option value="response">Resposta por intenção</option>
             </select>
             <button type="button" onClick={() => decide(s, 'approved')} className="rounded-lg bg-emerald-600 px-2 py-1 font-semibold text-white">Aprovar</button>
-            <button type="button" onClick={() => decide(s, 'rejected')} className="rounded-lg border px-2 py-1">Descartar</button>
+            <button type="button" onClick={() => decide(s, 'rejected')} className="rounded-lg border border-slate-300 px-2 py-1 text-slate-700">Descartar</button>
           </div>
         </div>
       ))}
+    </Card>
+  );
+}
+
+const ORIGIN_LABELS = { event_types: 'Tipos de evento', contract_templates: 'Modelo de contrato', message_templates: 'Mensagens oficiais', suggestion_moments: 'Catálogo de repertório', harmonics_product: 'Funcionalidades do Harmonics' };
+
+function BootstrapCard({ toast, onDone }) {
+  const [preview, setPreview] = useState(null);
+  const [busy, setBusy] = useState(false);
+  async function run(apply) {
+    setBusy(true);
+    const { ok, body } = await api('/api/ai/knowledge/bootstrap', { method: apply ? 'POST' : 'GET' });
+    setBusy(false);
+    if (!ok) return toast.error(body?.error || 'Falha na inicialização.');
+    if (apply) {
+      toast.success(`${body.created.length} sugestões criadas (pendentes de aprovação).`);
+      setPreview(null);
+      onDone();
+    } else setPreview(body);
+  }
+  return (
+    <Card title="Inicializar com dados do Harmonics">
+      <p className="text-xs text-slate-500">Lê tipos de evento, modelos de contrato, mensagens oficiais e catálogo de repertório e cria sugestões versionadas com a origem identificada. Preços, datas e variáveis são removidos (continuam vindo das fontes oficiais). Nada é ativado sem sua aprovação; itens já importados não se repetem.</p>
+      <div className="flex gap-2">
+        <button type="button" disabled={busy} onClick={() => run(false)} className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 disabled:opacity-50">{busy && !preview ? 'Analisando…' : 'Ver prévia'}</button>
+        {preview?.created?.length ? <button type="button" disabled={busy} onClick={() => run(true)} className="rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Criar {preview.created.length} sugestões</button> : null}
+      </div>
+      {preview ? (
+        <div className="space-y-2 text-sm">
+          {!preview.created.length ? <p className="text-slate-500">Nada novo para importar.</p> : null}
+          {preview.created.map((c) => (
+            <div key={c.item_key} className="rounded-2xl border border-slate-100 p-3">
+              <div className="text-xs text-slate-500">{KIND_LABELS[c.kind]} · origem: {ORIGIN_LABELS[c.origin.table] || c.origin.table}{c.removed_dynamic?.length ? ` · removido: ${c.removed_dynamic.join(', ')}` : ''}</div>
+              <strong>{c.title}</strong>
+              <p className="text-slate-700">{c.content}</p>
+            </div>
+          ))}
+          {preview.skipped.length ? <p className="text-xs text-slate-500">Ignorados: {preview.skipped.map((s) => `${s.title} (${s.reason === 'already_imported' ? 'já importado' : 'conteúdo repetido'})`).join('; ')}</p> : null}
+        </div>
+      ) : null}
     </Card>
   );
 }
@@ -152,7 +201,12 @@ const EMPTY_AREA = { name: '', status: 'served', match_terms: '', distance_km: '
 function AreasTab({ toast }) {
   const [areas, setAreas] = useState([]);
   const [form, setForm] = useState(EMPTY_AREA);
-  const load = useCallback(async () => { const { ok, body } = await api('/api/ai/service-areas'); if (ok) setAreas(body.areas || []); }, []);
+  const [history, setHistory] = useState([]);
+  const load = useCallback(async () => {
+    const [{ ok, body }, preview] = await Promise.all([api('/api/ai/service-areas'), api('/api/ai/knowledge/bootstrap')]);
+    if (ok) setAreas(body.areas || []);
+    if (preview.ok) setHistory(preview.body.areaSuggestions || []);
+  }, []);
   useEffect(() => { const t = setTimeout(load, 0); return () => clearTimeout(t); }, [load]);
   async function save() {
     const { ok, body } = await api('/api/ai/service-areas', { method: 'POST', body: JSON.stringify(form) });
@@ -175,14 +229,22 @@ function AreasTab({ toast }) {
         <Field label="Observações"><input className={INPUT} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></Field>
         <button type="button" onClick={save} className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Salvar localidade</button>
       </Card>
+      {history.length ? (
+        <Card title="Sugeridas pelo histórico de eventos">
+          <p className="text-xs text-slate-500">Cidades onde já houve eventos. Revise status e taxas antes de salvar — nada é cadastrado automaticamente.</p>
+          <div className="flex flex-wrap gap-2">{history.map((h) => (
+            <button key={h.name} type="button" onClick={() => setForm({ ...EMPTY_AREA, name: h.name, match_terms: h.name.split(' - ')[0] })} className="rounded-full bg-slate-100 px-3 py-1 text-xs">{h.name} ({h.events})</button>
+          ))}</div>
+        </Card>
+      ) : null}
       <Card title="Localidades cadastradas">
         {areas.filter((a) => a.active).map((a) => (
           <div key={a.id} className="flex flex-wrap items-center gap-2 border-b border-slate-100 py-2 text-sm">
             <strong>{a.name}</strong>
             <span className="text-xs text-slate-500">{({ served: 'Atendida', conditional: 'Condicional', blocked: 'Bloqueada' })[a.status]} · {(a.match_terms || []).join(', ')}</span>
             <span className="ml-auto text-xs">{[a.travel_fee && `desl. R$${a.travel_fee}`, a.toll_fee && `pedágio R$${a.toll_fee}`, a.lodging_required && `hosp. ${a.lodging_fee ? `R$${a.lodging_fee}` : 'sem valor'}`].filter(Boolean).join(' · ') || 'sem taxa'}</span>
-            <button type="button" onClick={() => setForm({ ...EMPTY_AREA, ...a, match_terms: (a.match_terms || []).join(', ') })} className="rounded-lg border px-2 py-1 text-xs">Editar</button>
-            <button type="button" onClick={async () => { await api(`/api/ai/service-areas?id=${a.id}`, { method: 'DELETE' }); load(); }} className="rounded-lg border px-2 py-1 text-xs">Desativar</button>
+            <button type="button" onClick={() => setForm({ ...EMPTY_AREA, ...a, match_terms: (a.match_terms || []).join(', ') })} className="rounded-lg border border-slate-300 px-2 py-1 text-xs text-slate-700">Editar</button>
+            <button type="button" onClick={async () => { await api(`/api/ai/service-areas?id=${a.id}`, { method: 'DELETE' }); load(); }} className="rounded-lg border border-slate-300 px-2 py-1 text-xs text-slate-700">Desativar</button>
           </div>
         ))}
       </Card>

@@ -1,6 +1,7 @@
 import {NextResponse} from 'next/server';
 import {getSupabaseAdmin} from '@/lib/supabase-admin';
 import {verifyBridgeRequest} from '@/lib/finance-bridge/auth.mjs';
+import {enrichBridgeReceivables} from '@/lib/finance-bridge/receivables-enrichment.mjs';
 export const dynamic='force-dynamic';
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DATE=/^\d{4}-\d{2}-\d{2}$/;
@@ -45,7 +46,19 @@ export async function POST(request){
   if(body?.action==='receivables'){
    const {data,error}=await db.rpc('op_finance_bridge_receivables',{p_workspace:env.workspace});
    if(error)throw error;
-   return json({ok:true,workspace:env.workspace,generated_at:new Date().toISOString(),events:data||[]});
+   const ids=(data||[]).map(e=>e.event_id).filter(id=>UUID.test(String(id)));
+   if(!ids.length)return json({ok:true,workspace:env.workspace,generated_at:new Date().toISOString(),events:[]});
+   // All three reads are scoped to the authenticated workspace. No financial data is changed.
+   const [events,sheets,ledger]=await Promise.all([
+    db.from('events').select('id,event_date,musician_cost,sound_cost,extra_transport_cost,other_cost,is_demo')
+     .eq('workspace_id',env.workspace).in('id',ids),
+    db.from('op_finance_events').select('event_id,status,costs').eq('workspace_id',env.workspace).in('event_id',ids),
+    db.from('op_finance_ledger').select('id,event_id,cost_id,kind,amount_cents,reverses_id')
+     .eq('workspace_id',env.workspace).in('event_id',ids).in('kind',['payment','reversal'])
+   ]);
+   if(events.error||sheets.error||ledger.error)throw new Error('Cost snapshot unavailable');
+   const enriched=enrichBridgeReceivables(data||[],events.data||[],sheets.data||[],ledger.data||[]);
+   return json({ok:true,workspace:env.workspace,generated_at:new Date().toISOString(),events:enriched});
   }
   if(body?.action==='lookup'){
    if(!UUID.test(body.event_id||''))return json({error:'invalid_event'},400);

@@ -6,6 +6,8 @@ returns jsonb language sql stable security invoker set search_path='' as $$
  select coalesce(jsonb_agg(x order by x->>'event_date'),'[]'::jsonb) from (
   select jsonb_build_object(
    'event_id',e.id,'client_name',e.client_name,'event_date',e.event_date,'event_status',e.status,
+   -- Evento anterior à abertura do caixa operacional: recebimentos ficaram no legado, não aqui.
+   'before_opening',coalesce(e.event_date<(select o.opening_on from public.op_finance_settings o where o.workspace_id=p_workspace),false),
    'signed',exists(select 1 from public.contracts c where c.event_id=e.id and c.signed_at is not null),
    'contract_cents',coalesce((select s.contract_cents from public.op_finance_events s where s.event_id=e.id and s.status='checked'),round(coalesce(e.agreed_amount,0)*100)::bigint),
    'expected_receipt_on',(select s.expected_receipt_on from public.op_finance_events s where s.event_id=e.id),

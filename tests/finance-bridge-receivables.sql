@@ -36,6 +36,9 @@ begin
  ev:=r->0;
  if (ev->>'contract_cents')::bigint<>200000 or not (ev->>'signed')::boolean or jsonb_array_length(ev->'parcels')<>1 or (ev->'parcels'->0->>'amount_cents')::bigint<>100000
   or (ev->'receipts'->0->>'destination')<>'Conta externa' or (ev->'receipts'->0->>'reversed')::boolean then raise exception 'recebíveis: %',ev;end if;
+ if (ev->>'before_opening')::boolean then raise exception 'evento futuro marcado como anterior';end if;
+ insert into public.events(workspace_id,client_name,event_date,status,agreed_amount) values(w,'Cliente Antiga',today-60,'confirmado',500);
+ if not (select (x->>'before_opening')::boolean from jsonb_array_elements(public.op_finance_bridge_receivables(w)) x where x->>'client_name'='Cliente Antiga') then raise exception 'evento anterior à abertura não marcado';end if;
  if ev ? 'cpf' or ev::text like '%<p>%' then raise exception 'vazou dado do contrato';end if;
  perform public.op_finance_command(w,actor,gen_random_uuid(),jsonb_build_object('action','reverse','entry_id',led,'notes','teste'));
  if not (public.op_finance_bridge_receivables(w)->0->'receipts'->0->>'reversed')::boolean then raise exception 'estorno não aparece';end if;

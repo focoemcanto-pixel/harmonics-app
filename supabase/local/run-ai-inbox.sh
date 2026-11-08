@@ -8,7 +8,8 @@ $PSQL -d postgres -c 'drop database if exists harmonics_local' -c 'create databa
 for f in supabase/local/[0-9]*.sql \
   supabase/migrations/20261016180000_tenant_scope_config_tables.sql \
   supabase/migrations/20261107150000_harmonics_ai_hybrid_inbox_v1.sql \
-  supabase/migrations/20261108120000_harmonics_ai_hybrid_inbox_v2.sql; do
+  supabase/migrations/20261108120000_harmonics_ai_hybrid_inbox_v2.sql \
+  supabase/migrations/20261109120000_harmonics_ai_commercial_v3.sql; do
   $PSQL -d harmonics_local -f "$f"
 done
-node --import ./tests/helpers/register-alias.mjs --test supabase/local/ai-inbox.local.test.mjs
+node --import ./tests/helpers/register-alias.mjs --test-concurrency=1 --test supabase/local/ai-inbox.local.test.mjs supabase/local/ai-commercial.local.test.mjs

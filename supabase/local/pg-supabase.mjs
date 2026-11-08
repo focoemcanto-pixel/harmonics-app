@@ -2,7 +2,8 @@
 // Cada chamada roda em uma transação com `set local role` + `request.jwt.claims`, como o
 // PostgREST faz: role 'service_role' (ignora RLS) ou 'authenticated'/'anon' (RLS real).
 // Subconjunto suportado: select (com `alias:tabela(*)` via <alias>_id), eq/neq/is/in/gt/gte/lt/lte,
-// order, limit, single/maybeSingle, insert, update, upsert(onConflict, ignoreDuplicates), delete.
+// not('is'), ilike, order, limit, single/maybeSingle, insert, update, upsert(onConflict, ignoreDuplicates),
+// delete e rpc (argumentos nomeados).
 // Uso exclusivo em testes contra banco local descartável.
 
 function quoteIdent(name) {
@@ -62,6 +63,8 @@ export function createPgSupabase({ pool, role = 'service_role', sub = null }) {
         const c = quoteIdent(col);
         if (op === 'is') return value === null ? `${c} is null` : `${c} is ${value ? 'true' : 'false'}`;
         if (op === 'in') { params.push(value); return `${c} = any($${params.length})`; }
+        if (op === 'not_is') return value === null ? `${c} is not null` : `${c} is not ${value ? 'true' : 'false'}`;
+        if (op === 'ilike') { params.push(value); return `${c}::text ilike $${params.length}`; }
         params.push(value);
         const sqlOp = { eq: '=', neq: '<>', gt: '>', gte: '>=', lt: '<', lte: '<=' }[op];
         return `${c} ${sqlOp} $${params.length}`;
@@ -129,6 +132,8 @@ export function createPgSupabase({ pool, role = 'service_role', sub = null }) {
       eq(c, v) { filters.push(['eq', c, v]); return query; },
       neq(c, v) { filters.push(['neq', c, v]); return query; },
       is(c, v) { filters.push(['is', c, v]); return query; },
+      not(c, op, v) { if (op !== 'is') throw new Error(`not(${op}) não suportado`); filters.push(['not_is', c, v]); return query; },
+      ilike(c, v) { filters.push(['ilike', c, v]); return query; },
       in(c, v) { filters.push(['in', c, v]); return query; },
       gt(c, v) { filters.push(['gt', c, v]); return query; },
       gte(c, v) { filters.push(['gte', c, v]); return query; },
@@ -153,5 +158,20 @@ export function createPgSupabase({ pool, role = 'service_role', sub = null }) {
     return query;
   }
 
-  return { from: builder, rpc: async () => ({ data: null, error: { message: 'rpc não suportado no adaptador local' } }) };
+  // RPC com argumentos nomeados (como o PostgREST). Função escalar => valor; void => null.
+  async function rpc(fn, args = {}) {
+    const params = [];
+    const named = Object.entries(args).map(([k, v]) => { params.push(v); return `${quoteIdent(k)} => $${params.length}`; });
+    const { rows: meta } = await run(
+      `select p.proretset, t.typname, t.typtype from pg_proc p join pg_type t on t.oid = p.prorettype
+        where p.proname = $1 and p.pronamespace = 'public'::regnamespace limit 1`, [fn]);
+    const { rows, error } = await run(`select * from public.${quoteIdent(fn)}(${named.join(', ')})`, params);
+    if (error) return { data: null, error };
+    const info = meta?.[0];
+    if (info && info.typname === 'void') return { data: null, error: null };
+    if (info && !info.proretset && info.typtype === 'b') return { data: rows?.[0]?.[fn] ?? null, error: null };
+    return { data: rows, error: null };
+  }
+
+  return { from: builder, rpc };
 }

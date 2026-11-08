@@ -23,14 +23,29 @@ export async function POST(request, { params }) {
   if (body?.decision !== 'approved') return NextResponse.json({ ok: false, error: 'Decisão inválida.' }, { status: 400 });
   const validFrom = /^\d{4}-\d{2}-\d{2}$/.test(String(body?.valid_from || '')) ? body.valid_from : p.valid_from;
   if (!validFrom) return NextResponse.json({ ok: false, code: 'VALID_FROM_REQUIRED', error: 'Informe a data de início da vigência (data do evento é a referência).' }, { status: 400 });
-  if (p.valid_until && p.valid_until < validFrom) return NextResponse.json({ ok: false, error: 'Vigência final anterior à inicial.' }, { status: 400 });
-  const { data: clash } = await guard.supabase.from('quote_price_rules').select('id').eq('workspace_id', ws).eq('category', p.category).eq('item_key', p.item_key).eq('valid_from', validFrom).maybeSingle();
-  if (clash) return NextResponse.json({ ok: false, code: 'RULE_EXISTS', error: 'Já existe regra oficial com essa vigência; ajuste a data ou edite a regra existente.' }, { status: 409 });
+  const day = (v) => (v instanceof Date ? v.toISOString().slice(0, 10) : String(v || '').slice(0, 10));
+  if (p.valid_until && day(p.valid_until) < validFrom) return NextResponse.json({ ok: false, error: 'Vigência final anterior à inicial.' }, { status: 400 });
+  // Reserva atômica da proposta (duplo clique / aprovações concorrentes gravam uma única regra).
+  const { data: claimed } = await guard.supabase.from('ai_pricing_proposals')
+    .update({ status: 'approved', valid_from: validFrom, decided_by: guard.auth.userId, decided_at: now })
+    .eq('id', p.id).eq('workspace_id', ws).eq('status', 'pending').select('id').maybeSingle();
+  if (!claimed) return NextResponse.json({ ok: false, error: 'Proposta já decidida.' }, { status: 409 });
+  const revert = () => guard.supabase.from('ai_pricing_proposals').update({ status: 'pending', valid_from: p.valid_from, decided_by: null, decided_at: null }).eq('id', p.id);
+  const { data: existing } = await guard.supabase.from('quote_price_rules').select('id, amount, valid_from, valid_until')
+    .eq('workspace_id', ws).eq('category', p.category).eq('item_key', p.item_key);
+  if ((existing || []).some((r) => day(r.valid_from) === validFrom)) {
+    await revert();
+    return NextResponse.json({ ok: false, code: 'RULE_EXISTS', error: 'Já existe regra oficial com essa vigência; ajuste a data ou edite a regra existente.' }, { status: 409 });
+  }
   const { error } = await guard.supabase.from('quote_price_rules').insert({
     workspace_id: ws, category: p.category, item_key: p.item_key, label: p.label, amount: p.amount, valid_from: validFrom, valid_until: p.valid_until,
     metadata: { source: p.source, proposal_id: p.id, ...(p.metadata || {}) },
   });
-  if (error) return NextResponse.json({ ok: false, error: 'Falha ao gravar regra oficial.' }, { status: 500 });
-  await guard.supabase.from('ai_pricing_proposals').update({ status: 'approved', valid_from: validFrom, decided_by: guard.auth.userId, decided_at: now }).eq('id', p.id);
-  return NextResponse.json({ ok: true });
+  if (error) {
+    await revert();
+    return NextResponse.json({ ok: false, error: 'Falha ao gravar regra oficial.' }, { status: 500 });
+  }
+  // Regras oficiais anteriores continuam valendo para eventos fora da nova vigência (a data do evento decide).
+  const overlapping = (existing || []).map((r) => ({ amount: Number(r.amount), valid_from: day(r.valid_from), valid_until: r.valid_until ? day(r.valid_until) : null }));
+  return NextResponse.json({ ok: true, overlapping });
 }

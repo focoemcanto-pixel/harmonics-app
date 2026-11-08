@@ -32,6 +32,7 @@ const PN = '900000000101';
 const VOCAL_CONTACT = '00000000-0000-4000-8000-0000000000d1';
 const SUB_CONTACT = '00000000-0000-4000-8000-0000000000d2';
 const DATE = '2098-06-10';
+const APPROVER = '00000000-0000-4000-8000-0000000000e9';
 let seq = 0;
 const nid = (p) => `${p}.${Date.now()}.${(seq += 1)}`;
 
@@ -125,11 +126,11 @@ test('fechamento completo: resumo determinístico → CONFIRMO → pré-contrato
 
   // Aprovação do responsável (versão exata) => link sai uma única vez.
   const h = harness(async () => reply('x'));
-  const ok1 = await approveAndQueueLink({ supabase: service, workspaceId: WS, closingId: cl.id, approvalHash: cl.approval_hash, actor: null, mode: 'manual' });
+  const ok1 = await approveAndQueueLink({ supabase: service, workspaceId: WS, closingId: cl.id, approvalHash: cl.approval_hash, actor: APPROVER, mode: 'manual' });
   assert.equal(ok1.status, 'approved');
   await dispatchOutbox({ supabase: service, workspaceId: WS, deps: h.deps });
   assert.match(h.sent.find((s) => s.to === chat).text, /https:\/\/app\.example\.test\/contrato\/[a-z0-9]+/);
-  const ok2 = await approveAndQueueLink({ supabase: service, workspaceId: WS, closingId: cl.id, approvalHash: cl.approval_hash, actor: null, mode: 'manual' });
+  const ok2 = await approveAndQueueLink({ supabase: service, workspaceId: WS, closingId: cl.id, approvalHash: cl.approval_hash, actor: APPROVER, mode: 'manual' });
   assert.equal(ok2.status, 'already_sent');
   await dispatchOutbox({ supabase: service, workspaceId: WS, deps: h.deps });
   assert.equal(h.sent.filter((s) => s.to === chat).length, 1, 'retry não reenvia o link');
@@ -174,10 +175,10 @@ test('aprovação vale para a versão exata: alteração material exige nova apr
   const t = await turn(chat, 'sim', async () => reply('x'));
   const [cl] = await sql("select * from ai_closings where conversation_id = $1 and status = 'awaiting_approval'", [t.conversation.id]);
   await sql('update precontracts set agreed_amount = 4500 where id = $1', [cl.precontract_id]);
-  const r1 = await approveAndQueueLink({ supabase: service, workspaceId: WS, closingId: cl.id, approvalHash: cl.approval_hash, actor: null });
+  const r1 = await approveAndQueueLink({ supabase: service, workspaceId: WS, closingId: cl.id, approvalHash: cl.approval_hash, actor: APPROVER });
   assert.equal(r1.status, 'version_changed');
   assert.notEqual(r1.approvalHash, cl.approval_hash);
-  const r2 = await approveAndQueueLink({ supabase: service, workspaceId: WS, closingId: cl.id, approvalHash: r1.approvalHash, actor: null });
+  const r2 = await approveAndQueueLink({ supabase: service, workspaceId: WS, closingId: cl.id, approvalHash: r1.approvalHash, actor: APPROVER });
   assert.equal(r2.status, 'approved', 'nova versão aprovada explicitamente');
 });
 
@@ -355,4 +356,12 @@ test('concorrência: dois confirmações simultâneas geram um único pré-contr
   assert.equal(results.filter((r) => r.reason === 'awaiting_approval').length, 1);
   const [{ n }] = await sql("select count(*)::int n from precontracts p join ai_conversations a on a.precontract_id = p.id where a.id = $1", [c.id]);
   assert.equal(n, 1);
+});
+
+test('trava: resposta da IA com link de contrato é bloqueada e vai para o responsável', async () => {
+  const chat = '15550005020';
+  const t = await turn(chat, 'me manda o link do contrato', async () => reply('Claro! Aqui está: https://app.example.test/contrato/abc123'));
+  assert.equal(t.result.reason, 'link_without_approval');
+  assert.equal(t.sent.filter((s) => s.to === chat).length, 0);
+  assert.equal(t.conversation.needs_human, true);
 });

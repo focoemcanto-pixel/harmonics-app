@@ -168,7 +168,7 @@ test('lembretes de assinatura: agendados no envio e cancelados quando assinado',
   await sql("update ai_workspace_settings set signature_reminders_enabled = true, signature_reminder_templates = '{lembrete_um,lembrete_dois,lembrete_tres}', ai_enabled = true, mode = 'auto' where workspace_id = $1", [WS]);
   const supabase = getSupabaseAdmin();
   const { approveAndQueueLink } = await import('../../lib/ai/commercial/supervision.mjs');
-  const r = await approveAndQueueLink({ supabase, workspaceId: WS, closingId: c.closingId, approvalHash: c.hash, actor: null });
+  const r = await approveAndQueueLink({ supabase, workspaceId: WS, closingId: c.closingId, approvalHash: c.hash, actor: '00000000-0000-4000-8000-0000000000e1' });
   const { data: settings } = await supabase.from('ai_workspace_settings').select('*').eq('workspace_id', WS).maybeSingle();
   await markLinkSent({ supabase, workspaceId: WS, outboxId: r.outboxId, settings });
   const fu = await sql("select step, status from ai_followups where conversation_id = $1 and kind = 'signature' order by step", [c.conv.id]);
@@ -199,4 +199,62 @@ test('participante de outro número: pedido de vínculo sem dados privados; link
   await sql("update precontracts set status = 'signed' where id = $1", [owner.pc.id]);
   const link = await executeTool('obter_link_cliente', {}, { ...ctx, conversation: { ...guest } });
   assert.match(link.link, /\/cliente\/tok15550007004$/);
+});
+
+test('bloqueio no banco: sem aprovador humano só envia com autonomia liberada e caso convencional; link automático sai como IA', async () => {
+  const supabase = getSupabaseAdmin();
+  const s = await seedClosing('15550007010');
+  await sql("update ai_workspace_settings set autonomy_mode = 'supervised' where workspace_id = $1", [WS]);
+  const rpc = (mode) => supabase.rpc('ai_approve_closing', { p_workspace_id: WS, p_closing_id: s.closingId, p_approval_hash: s.hash, p_actor: null, p_mode: mode, p_message: 'x' });
+  assert.equal((await rpc('supervised')).data[0].status, 'approval_required', 'supervisionado nunca aprova sozinho');
+  await sql("update ai_workspace_settings set autonomy_mode = 'autonomous' where workspace_id = $1", [WS]);
+  assert.equal((await rpc('autonomous')).data[0].status, 'approval_required', 'caso não convencional exige aprovação');
+  await sql('update ai_closings set conventional = true where id = $1', [s.closingId]);
+  assert.equal((await rpc('assisted')).data[0].status, 'approval_required', 'modo informado precisa ser o liberado');
+  assert.equal((await rpc('autonomous')).data[0].status, 'approved');
+  const [out] = await sql('select sender_type, author_user_id from ai_message_outbox where idempotency_key = $1', [`closing-link:${s.closingId}`]);
+  assert.deepEqual([out.sender_type, out.author_user_id], ['ai', null], 'envio automático respeita kill switch e travas da IA');
+  await sql("update ai_workspace_settings set autonomy_mode = 'supervised' where workspace_id = $1", [WS]);
+});
+
+test('validade: link aprovado grava expires_at de 15 dias; pré-contratos antigos não são alterados', async () => {
+  const supabase = getSupabaseAdmin();
+  const [legacy] = await sql("insert into precontracts (workspace_id, event_date, formation, status, created_at) values ($1, '2096-03-01', 'Duo', 'link_generated', now() - interval '3 days') returning id", [WS]);
+  const s = await seedClosing('15550007011');
+  const { approveAndQueueLink } = await import('../../lib/ai/commercial/supervision.mjs');
+  await approveAndQueueLink({ supabase, workspaceId: WS, closingId: s.closingId, approvalHash: s.hash, actor: '00000000-0000-4000-8000-0000000000e1' });
+  const [pc] = await sql("select status, round(extract(epoch from (expires_at - now())) / 86400) as days from precontracts where id = $1", [s.pc.id]);
+  assert.deepEqual([pc.status, Number(pc.days)], ['link_generated', 15]);
+  const [old] = await sql('select expires_at from precontracts where id = $1', [legacy.id]);
+  assert.equal(old.expires_at, null, 'registro antigo segue com a regra anterior (created_at + 7)');
+});
+
+test('tabelas: aprovações concorrentes gravam uma única regra oficial', async () => {
+  await sql("insert into ai_pricing_proposals (workspace_id, source, category, item_key, label, amount) values ($1, 'concorrencia', 'ceremony', 'quarteto', 'Quarteto teste', 2000)", [WS]);
+  const p = (await call('GET', '/api/ai/pricing-proposals')).body.proposals.find((x) => x.source === 'concorrencia');
+  const results = await Promise.all([1, 2, 3].map(() => call('POST', `/api/ai/pricing-proposals/${p.id}`, { decision: 'approved', valid_from: '2030-01-01' })));
+  assert.equal(results.filter((r) => r.status === 200).length, 1);
+  assert.equal((await sql("select count(*)::int n from quote_price_rules where workspace_id = $1 and item_key = 'quarteto'", [WS]))[0].n, 1);
+});
+
+test('lembretes: idempotentes no reenvio/concorrência e reiniciados para um novo pré-contrato', async () => {
+  const supabase = getSupabaseAdmin();
+  await sql("update ai_workspace_settings set signature_reminders_enabled = true, signature_reminder_templates = '{l1,l2,l3}', ai_enabled = true, mode = 'auto' where workspace_id = $1", [WS]);
+  const { data: settings } = await supabase.from('ai_workspace_settings').select('*').eq('workspace_id', WS).maybeSingle();
+  const s = await seedClosing('15550007012');
+  const { approveAndQueueLink } = await import('../../lib/ai/commercial/supervision.mjs');
+  const r = await approveAndQueueLink({ supabase, workspaceId: WS, closingId: s.closingId, approvalHash: s.hash, actor: '00000000-0000-4000-8000-0000000000e1' });
+  const marks = await Promise.all([1, 2, 3].map(() => markLinkSent({ supabase, workspaceId: WS, outboxId: r.outboxId, settings })));
+  assert.equal(marks.filter(Boolean).length, 1, 'só uma transição para link_sent');
+  assert.equal((await sql("select count(*)::int n from ai_followups where conversation_id = $1 and kind = 'signature'", [s.conv.id]))[0].n, 3);
+  await sql("update ai_followups set due_at = now() - interval '1 minute' where conversation_id = $1 and kind = 'signature' and step = 1", [s.conv.id]);
+  await Promise.all([1, 2].map(() => supabase.rpc('ai_claim_due_followups', { p_limit: 10 })));
+  assert.equal((await sql("select count(*)::int n from ai_message_outbox where conversation_id = $1 and idempotency_key like 'followup:%'", [s.conv.id]))[0].n, 1, 'claim concorrente não duplica lembrete');
+  // Mesmo pré-contrato: reagendar não altera nada; novo pré-contrato reinicia a sequência.
+  await supabase.rpc('ai_schedule_signature_reminders', { p_workspace_id: WS, p_conversation_id: s.conv.id, p_precontract_id: s.pc.id, p_days: [2, 7, 12], p_templates: ['l1', 'l2', 'l3'] });
+  assert.equal((await sql("select status from ai_followups where conversation_id = $1 and kind = 'signature' and step = 1", [s.conv.id]))[0].status, 'sent');
+  const [pc2] = await sql("insert into precontracts (workspace_id, event_date, formation, status) values ($1, '2096-03-01', 'Duo', 'link_generated') returning id", [WS]);
+  await supabase.rpc('ai_schedule_signature_reminders', { p_workspace_id: WS, p_conversation_id: s.conv.id, p_precontract_id: pc2.id, p_days: [2, 7, 12], p_templates: ['l1', 'l2', 'l3'] });
+  const rows = await sql("select status, precontract_id from ai_followups where conversation_id = $1 and kind = 'signature' order by step", [s.conv.id]);
+  assert.ok(rows.every((x) => x.status === 'scheduled' && x.precontract_id === pc2.id));
 });

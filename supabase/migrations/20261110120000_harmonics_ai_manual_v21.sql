@@ -50,12 +50,14 @@ create unique index if not exists ai_closings_one_open_idx
   where status in ('awaiting_confirmation','confirmed','precontract_created','awaiting_approval','approved');
 
 -- Envio do link aprovado: humano aprova a versão exata; idempotente por fechamento.
+-- Sem aprovador humano (p_actor nulo) só é aceito se o Owner liberou assistido/autônomo e o caso é
+-- convencional; nesse caso a mensagem sai como IA (sujeita a kill switch e às travas da IA).
 create or replace function public.ai_approve_closing(
   p_workspace_id uuid, p_closing_id uuid, p_approval_hash text, p_actor uuid, p_mode text, p_message text
 ) returns table (outbox_id uuid, status text)
 language plpgsql security invoker set search_path = public as $$
 #variable_conflict use_column
-declare cl public.ai_closings%rowtype; c public.ai_conversations%rowtype; o_id uuid;
+declare cl public.ai_closings%rowtype; c public.ai_conversations%rowtype; o_id uuid; v_mode text; v_sender text;
 begin
   select * into cl from public.ai_closings where id = p_closing_id and workspace_id = p_workspace_id for update;
   if not found then raise exception 'closing not found' using errcode = 'P0002'; end if;
@@ -64,12 +66,22 @@ begin
   end if;
   if cl.status <> 'awaiting_approval' then return query select null::uuid, 'not_awaiting'::text; return; end if;
   if cl.approval_hash is distinct from p_approval_hash then return query select null::uuid, 'version_changed'::text; return; end if;
+  if p_actor is null then
+    select autonomy_mode into v_mode from public.ai_workspace_settings where workspace_id = p_workspace_id;
+    if coalesce(v_mode, 'supervised') = 'supervised' or not cl.conventional or coalesce(array_length(cl.exception_reasons, 1), 0) > 0
+       or p_mode is distinct from v_mode then
+      return query select null::uuid, 'approval_required'::text; return;
+    end if;
+    v_sender := 'ai';
+  else
+    v_sender := 'human';
+  end if;
   select * into c from public.ai_conversations where id = cl.conversation_id and workspace_id = p_workspace_id for update;
   insert into public.ai_message_outbox (workspace_id, conversation_id, owner_version, idempotency_key, content, status, sender_type, author_user_id)
-  values (p_workspace_id, c.id, c.owner_version, 'closing-link:' || cl.id::text, p_message, 'pending', 'human', p_actor)
+  values (p_workspace_id, c.id, c.owner_version, 'closing-link:' || cl.id::text, p_message, 'pending', v_sender, p_actor)
   on conflict (workspace_id, idempotency_key) do nothing
   returning id into o_id;
-  update public.ai_closings set status = 'approved', approved_by = p_actor, approved_at = now(), approval_mode = p_mode,
+  update public.ai_closings set status = 'approved', approved_by = p_actor, approved_at = now(), approval_mode = coalesce(p_mode, 'manual'),
          link_outbox_id = coalesce(o_id, link_outbox_id), updated_at = now()
    where id = cl.id;
   return query select o_id, 'approved'::text;
@@ -150,9 +162,13 @@ create or replace function public.ai_schedule_signature_reminders(
 declare i integer; n integer := 0;
 begin
   for i in 1 .. coalesce(array_length(p_days, 1), 0) loop
+    -- Idempotente para o mesmo pré-contrato; um NOVO pré-contrato da conversa reinicia a sequência.
     insert into public.ai_followups (workspace_id, conversation_id, kind, step, due_at, template_name, precontract_id)
     values (p_workspace_id, p_conversation_id, 'signature', i, now() + make_interval(days => p_days[i]), p_templates[i], p_precontract_id)
-    on conflict (workspace_id, conversation_id, kind, step) do nothing;
+    on conflict (workspace_id, conversation_id, kind, step) do update
+      set precontract_id = excluded.precontract_id, due_at = excluded.due_at, template_name = excluded.template_name,
+          status = 'scheduled', cancel_reason = null, outbox_id = null, updated_at = now()
+      where public.ai_followups.precontract_id is distinct from excluded.precontract_id;
     n := n + 1;
   end loop;
   return n;
@@ -207,6 +223,9 @@ begin
     return query select f.id, f.workspace_id, f.conversation_id, o_id, f.step;
   end loop;
 end $$;
+
+-- Validade explícita do pré-contrato (já existe em produção; no-op lá).
+alter table public.precontracts add column if not exists expires_at timestamptz;
 
 -- ---------------------------------------------------------------------------
 -- Regiões de preço, participantes e propostas de tabela (pendentes de aprovação)

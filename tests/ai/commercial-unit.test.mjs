@@ -199,3 +199,18 @@ test('entradas do painel e configurações comerciais saneadas', () => {
   assert.equal(s.min_margin_pct, 95);
   assert.equal(s.autonomous_closing_enabled, true);
 });
+
+test('bootstrap: remove valores dinâmicos, extrai cláusulas e cidades', async () => {
+  const { sanitizeStaticText, extractContractClauses, cityFromAddress, buildBootstrapCandidates } = await import('../../lib/ai/commercial/bootstrap.mjs');
+  const s = sanitizeStaticText('Sinal de {{valor_sinal}} e saldo de R$ 1.500,00 até 10/06/2098, contato (11) 91234-5678.');
+  assert.ok(!/R\$|\{\{|2098|91234/.test(s.text));
+  assert.deepEqual(s.removed.sort(), ['currency', 'date', 'phone', 'template_variable']);
+  assert.equal(sanitizeStaticText('R$ 10').text, null);
+  const clauses = extractContractClauses('<p>O pagamento será por PIX com sinal na assinatura do contrato.</p><p>O CONTRATANTE fornecerá energia elétrica e cobertura no local.</p>');
+  assert.deepEqual(clauses.map((c) => c.topic.key), ['payment', 'structure']);
+  assert.equal(cityFromAddress('Rua 1, 100 - Cidade Alfa - BA'), 'Cidade Alfa - BA');
+  assert.equal(cityFromAddress('sem cidade'), null);
+  const { candidates } = await buildBootstrapCandidates({ eventTypes: [{ name: 'Casamento' }], contracts: [], messages: [], moments: [], addresses: [] });
+  const again = await buildBootstrapCandidates({ eventTypes: [{ name: 'Casamento' }], contracts: [], messages: [], moments: [], addresses: [] });
+  assert.deepEqual(candidates.map((c) => c.item_key), again.candidates.map((c) => c.item_key), 'item_key determinístico');
+});

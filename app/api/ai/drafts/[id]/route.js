@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-import { guardWorkspaceMember } from '@/lib/api/route-guards';
+import { guardWorkspaceAdmin } from '@/lib/api/route-guards';
 import { dispatchOutbox } from '@/lib/ai/inbox/service.mjs';
 
 export const dynamic = 'force-dynamic';
 
 // Rascunho da IA (modo 'draft'): aprovar (opcionalmente editado) envia como humano; descartar cancela.
 export async function POST(request, { params }) {
-  const guard = await guardWorkspaceMember(request, { logPrefix: '[AI][DRAFT]' });
+  const guard = await guardWorkspaceAdmin(request, { logPrefix: '[AI][DRAFT]' });
   if (!guard.ok) return guard.response;
   const { id } = await params;
   const body = await request.json().catch(() => ({}));

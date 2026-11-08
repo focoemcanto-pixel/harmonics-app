@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server';
-import { guardWorkspaceMember } from '@/lib/api/route-guards';
+import { guardWorkspaceAdmin } from '@/lib/api/route-guards';
 
 export const dynamic = 'force-dynamic';
 
-// Assumir (owner=human): qualquer membro do workspace. Devolver à IA (owner=ai): só admin.
+// Fase de visualização: somente owner/admin do workspace assume ou devolve conversas.
 // A RPC troca titularidade, incrementa a versão e cancela a fila pendente da IA atomicamente.
 // workspace_id vem SEMPRE da sessão, nunca do corpo.
 export async function POST(request, { params }) {
-  const guard = await guardWorkspaceMember(request, { logPrefix: '[AI][HANDOFF]' });
+  const guard = await guardWorkspaceAdmin(request, { logPrefix: '[AI][HANDOFF]' });
   if (!guard.ok) return guard.response;
 
   const { id } = await params;
@@ -15,9 +15,6 @@ export async function POST(request, { params }) {
   const toOwner = body?.owner;
   if (toOwner !== 'human' && toOwner !== 'ai') {
     return NextResponse.json({ ok: false, error: 'Responsável inválido.' }, { status: 400 });
-  }
-  if (toOwner === 'ai' && !guard.auth.canAdminWorkspace) {
-    return NextResponse.json({ ok: false, error: 'Somente administradores devolvem conversas para a IA.' }, { status: 403 });
   }
 
   const workspaceId = guard.auth.workspaceId;

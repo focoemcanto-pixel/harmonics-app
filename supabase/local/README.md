@@ -19,3 +19,5 @@ Não faz parte do `npm test` (precisa de Postgres).
 
 Fora do alcance local (precisa de Auth/PostgREST hospedados): UI e2e de cadastro/login e o
 checkout real no Asaas sandbox.
+
+Inbox híbrido (IA/WhatsApp): `./supabase/local/run-ai-inbox.sh` — mesmo pré-requisito; Meta e LLM são simulados.

@@ -160,11 +160,31 @@ test('saída do modelo: corta longa, bloqueia placeholder', () => {
 // --- prompt / memória -------------------------------------------------------
 test('prompt: identificação transparente na primeira resposta e memória do lead', () => {
   const first = buildSystemPrompt({ settings: { assistant_name: 'Lia' }, companyName: 'Empresa Exemplo', conversation: { lead_data: { tipo_evento: 'casamento' } }, isFirstAiReply: true });
-  assert.match(first, /assistente virtual da Empresa Exemplo/);
+  assert.match(first, /Sou a Lia, assistente da Empresa Exemplo/);
+  assert.match(first, /assistente virtual \(IA\)/);
   assert.match(first, /NUNCA invente/);
   assert.match(first, /casamento/);
   const later = buildSystemPrompt({ settings: {}, isFirstAiReply: false });
   assert.match(later, /não repita a apresentação/);
+  assert.doesNotMatch(later, /Primeiro contato/);
+});
+
+test('prompt: identidade configurável (nome + empresa apresentada) e resposta objetiva a orçamento', () => {
+  const settings = { assistant_name: 'Aurora', assistant_company: 'Conjunto Exemplo' };
+  const first = buildSystemPrompt({ settings, companyName: 'Workspace Interno', isFirstAiReply: true });
+  assert.match(first, /Você é Aurora, assistente da Conjunto Exemplo/);
+  assert.match(first, /Sou a Aurora, assistente da Conjunto Exemplo/);
+  assert.doesNotMatch(first, /Workspace Interno/);
+  assert.match(first, /já pediu orçamento/);
+  assert.match(first, /peça só a data e o local/);
+  const later = buildSystemPrompt({ settings, companyName: 'Workspace Interno', isFirstAiReply: false });
+  assert.doesNotMatch(later, /Sou a Aurora/);
+  assert.match(later, /não repita a apresentação/);
+  assert.equal(parseSettingsInput({ assistant_company: '  Conjunto Exemplo ' }).assistant_company, 'Conjunto Exemplo');
+  assert.equal(parseSettingsInput({ assistant_company: null }).assistant_company, null);
+  assert.equal('assistant_company' in parseSettingsInput({}), false);
+  // Sem assistant_company, usa o nome público do workspace (comportamento anterior).
+  assert.match(buildSystemPrompt({ settings: { assistant_name: 'Aurora' }, companyName: 'Workspace Interno', isFirstAiReply: true }), /assistente da Workspace Interno/);
 });
 
 test('histórico vira entrada cronológica com transcrição de áudio', () => {

@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
+const REVIEW_LABELS = { conflict: 'Conflito com regra oficial', differs: 'Diverge da regra oficial', identical: 'Igual à regra oficial', same_value_new_key: 'Mesmo valor, chave nova', new: 'Novo' };
+const REVIEW_TONES = { conflict: 'bg-rose-100 text-rose-800', differs: 'bg-amber-100 text-amber-800', identical: 'bg-slate-100 text-slate-600', same_value_new_key: 'bg-sky-100 text-sky-800', new: 'bg-emerald-100 text-emerald-800' };
+const byReview = (a, b) => String(a.metadata?.review?.group || 'Z').localeCompare(String(b.metadata?.review?.group || 'Z')) || String(a.metadata?.section || '').localeCompare(String(b.metadata?.section || ''), 'pt-BR', { numeric: true });
 const CATEGORY_LABELS = { ceremony: 'Cerimônia', reception: 'Receptivo adicional', sound: 'Sonorização', transport: 'Deslocamento', musician_fee: 'Cachê (interno)', other: 'Outros' };
 
 async function api(url, options = {}) {
@@ -25,6 +28,12 @@ export default function ManualPricingPanel({ toast }) {
     else { toast.success(`${body.knowledge.length} conhecimento(s) e ${body.pricing.length} proposta(s) criados, todos pendentes.`); setPreview(null); load(); }
   }
   async function decide(p, decision) {
+    if (decision === 'approved') {
+      const from = dates[p.id] || p.valid_from;
+      if (!from) return toast.error('Informe a data de início da vigência antes de aprovar.');
+      const msg = `${p.label}: aprovar a partir de ${from}${p.valid_until ? ` até ${p.valid_until}` : ' SEM data final (vale até nova tabela)'}?`;
+      if (typeof window !== 'undefined' && !window.confirm(msg)) return;
+    }
     const { ok, body } = await api(`/api/ai/pricing-proposals/${p.id}`, { method: 'POST', body: JSON.stringify({ decision, valid_from: dates[p.id] || undefined }) });
     if (!ok) return toast.error(body?.error || 'Falha.');
     load();
@@ -57,12 +66,14 @@ export default function ManualPricingPanel({ toast }) {
         <h2 className="text-base font-bold">Propostas de tabela (aprovação do Owner)</h2>
         <p className="text-xs text-slate-500">Aprovar grava na tabela oficial de Orçamentos (quote_price_rules) com a vigência informada; a data do evento define qual tabela vale. Regras oficiais existentes nunca são sobrescritas.</p>
         {!proposals.length ? <p className="text-sm text-slate-500">Nenhuma proposta pendente.</p> : null}
-        {proposals.map((p) => (
+        {[...proposals].sort(byReview).map((p) => (
           <div key={p.id} className="flex flex-wrap items-center gap-2 border-b border-slate-100 py-1 text-xs">
             <span className="rounded-full bg-slate-100 px-2 py-0.5 font-semibold text-slate-700">{CATEGORY_LABELS[p.category] || p.category}</span>
             <span className="min-w-[180px]">{p.label}</span>
             <strong>R$ {Number(p.amount).toLocaleString('pt-BR')}</strong>
-            <span className="text-slate-500">{p.metadata?.section} {p.valid_until ? `até ${p.valid_until}` : ''} {p.metadata?.pending_validity ? '· vigência a confirmar' : ''}</span>
+            <span className="text-slate-500">{p.metadata?.section} {p.valid_until ? `até ${p.valid_until}` : '· sem data final'} {p.metadata?.pending_validity ? '· vigência a confirmar' : ''}</span>
+            {p.metadata?.review?.status ? <span className={`rounded-full px-2 py-0.5 font-semibold ${REVIEW_TONES[p.metadata.review.status] || 'bg-slate-100'}`}>{REVIEW_LABELS[p.metadata.review.status] || p.metadata.review.status}</span> : null}
+            {p.metadata?.review?.note ? <span className="basis-full text-[11px] text-slate-500">{p.metadata.review.note}</span> : null}
             <input type="date" className="ml-auto rounded border border-slate-200 px-1" value={dates[p.id] || p.valid_from || ''} onChange={(e) => setDates({ ...dates, [p.id]: e.target.value })} title="Início da vigência" />
             <button type="button" onClick={() => decide(p, 'approved')} className="rounded-lg bg-emerald-600 px-2 py-1 font-semibold text-white">Aprovar</button>
             <button type="button" onClick={() => decide(p, 'rejected')} className="rounded-lg border border-slate-300 px-2 py-1 text-slate-700">Rejeitar</button>

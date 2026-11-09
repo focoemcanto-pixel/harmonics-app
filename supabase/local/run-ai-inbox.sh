@@ -10,7 +10,8 @@ for f in supabase/local/[0-9]*.sql \
   supabase/migrations/20261107150000_harmonics_ai_hybrid_inbox_v1.sql \
   supabase/migrations/20261108120000_harmonics_ai_hybrid_inbox_v2.sql \
   supabase/migrations/20261109120000_harmonics_ai_commercial_v3.sql \
-  supabase/migrations/20261110120000_harmonics_ai_manual_v21.sql; do
+  supabase/migrations/20261110120000_harmonics_ai_manual_v21.sql \
+  supabase/migrations/20261111120000_harmonics_ai_assistant_identity.sql; do
   $PSQL -d harmonics_local -f "$f"
 done
 node --import ./tests/helpers/register-alias.mjs --test-concurrency=1 --test supabase/local/ai-inbox.local.test.mjs supabase/local/ai-commercial.local.test.mjs

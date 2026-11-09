@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { withApiObservability } from '@/lib/observability/api-observability';
 import { guardWorkspaceAdmin, guardWorkspaceMember } from '@/lib/api/route-guards';
-import { loadWorkspacePricing, workspaceSettingsSlug } from '@/lib/settings/workspace-pricing';
+import { loadWorkspacePricing, loadWorkspaceOfficialPriceRules, workspaceSettingsSlug } from '@/lib/settings/workspace-pricing';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,13 +12,17 @@ async function handleGET(request) {
   const guard = await guardWorkspaceMember(request, { logPrefix: '[GET /api/settings/pricing]' });
   if (!guard.ok) return guard.response;
 
-  const { data, error } = await loadWorkspacePricing({ supabase: guard.supabase, workspaceId: guard.auth.workspaceId });
+  const [{ data, error }, official] = await Promise.all([
+    loadWorkspacePricing({ supabase: guard.supabase, workspaceId: guard.auth.workspaceId }),
+    loadWorkspaceOfficialPriceRules({ supabase: guard.supabase, workspaceId: guard.auth.workspaceId }),
+  ]);
   if (error) {
     console.error('[GET /api/settings/pricing][ERROR]', { code: error.code, message: error.message });
     return NextResponse.json({ ok: false, error: 'Não foi possível carregar os preços.' }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true, pricing: data || null });
+  // official_rules: regras de preço com vigência (sem custos internos), para o preenchimento por data do evento.
+  return NextResponse.json({ ok: true, pricing: data || null, official_rules: official?.error ? [] : official?.data || [] });
 }
 
 async function handlePUT(request) {

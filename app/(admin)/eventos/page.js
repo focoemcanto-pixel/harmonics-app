@@ -54,6 +54,7 @@ import {
   buildCostBreakdown,
   sanitizeCustomCosts,
 } from '@/lib/eventos/eventos-finance';
+import { resolveEventPrices } from '@/lib/quotes/official-prices.mjs';
 import {
   isPastEvent,
   isTodayEvent,
@@ -548,6 +549,8 @@ export default function EventosPage() {
   const [scaleSummaryByEventId, setScaleSummaryByEventId] = useState(new Map());
   const [, setPricingId] = useState(null);
   const [pricing, setPricing] = useState(getDefaultPricing());
+  // Regras oficiais com vigência (mesma fonte da Nara e de Orçamentos).
+  const [officialRules, setOfficialRules] = useState([]);
   const [financeCostDefaults, setFinanceCostDefaults] = useState({
     musician_unit_cost: 0,
     sound_default_cost: 0,
@@ -830,6 +833,9 @@ export default function EventosPage() {
       const json = await response.json().catch(() => null);
       if (!response.ok || !json?.ok) throw new Error(json?.error || 'Falha ao carregar preços.');
       const data = json.pricing;
+      const rules = Array.isArray(json.official_rules) ? json.official_rules : [];
+      setOfficialRules(rules);
+      eventosAdminCache.officialRules = rules;
 
       if (data) {
         const normalizedPricing = hydratePricingFromCanonical(data);
@@ -948,6 +954,7 @@ export default function EventosPage() {
       setContracts(eventosAdminCache.contracts || []);
       setContatos(eventosAdminCache.contatos || []);
       if (eventosAdminCache.pricingId) setPricingId(eventosAdminCache.pricingId);
+      if (Array.isArray(eventosAdminCache.officialRules)) setOfficialRules(eventosAdminCache.officialRules);
       if (eventosAdminCache.pricing) {
         setPricing((prev) => ({
           ...prev,
@@ -1048,13 +1055,23 @@ export default function EventosPage() {
     nextReceptionHours = form.reception_hours,
     nextHasSound = form.has_sound
   ) {
-    const formationPrice = getAutomaticFormationPrice(nextFormation, pricing);
-    const receptionPrice = getAutomaticReceptionPrice(
-      nextFormation,
-      nextReceptionHours,
-      pricing
-    );
-    const soundPrice = nextHasSound ? toNumber(pricing.sound_price) : 0;
+    // Preço vigente na data do evento (tabela oficial); a tabela do Eventos cobre o que não tiver regra.
+    const official = resolveEventPrices({
+      rules: officialRules,
+      date: form.event_date || null,
+      formation: nextFormation,
+      receptionHours: nextReceptionHours,
+      hasSound: !!nextHasSound,
+      fallback: {
+        ceremony: getAutomaticFormationPrice(nextFormation, pricing),
+        reception: getAutomaticReceptionPrice(nextFormation, nextReceptionHours, pricing),
+        sound: toNumber(pricing.sound_price),
+      },
+    });
+    const formationPrice = official.ceremony;
+    const receptionPrice = official.reception;
+    const soundPrice = nextHasSound ? official.sound : 0;
+    if (official.soundRequiresValidation) toast.warning('Sonorização com receptivo acima de 2h: valor sob validação, preencha manualmente.');
     const automaticCosts = getAutomaticCosts({
       formation: nextFormation,
       hasSound: !!nextHasSound,

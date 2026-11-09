@@ -43,3 +43,13 @@ Testes: `npm test`, `npm run test:ai-local` (inclui `ai-manual.local.test.mjs`),
   Eventos (`pricing_settings`) fica só como reserva para itens sem regra oficial.
 - Deslocamento da banda: a Nara usa `band_trip` ou, na falta, `standard_trip` (sem duplicar regras).
 - Orçamentos: o custo do técnico aparece em `costs.soundTechCost` e entra no lucro estimado; a fórmula do preço sugerido não muda.
+
+## Fonte única de preços: Eventos e painel do cliente (v7)
+
+- `lib/quotes/official-prices.mjs`: preços por data do evento a partir de `quote_price_rules` (mesma regra da Nara e de
+  Orçamentos). A tabela do módulo Eventos (`pricing_settings`) só cobre itens sem regra oficial (ex.: Solo e Septeto).
+- Tela Eventos: o preenchimento automático (ao escolher formação, receptivo ou som) usa a data do evento. Eventos já salvos
+  não são recalculados. `/api/settings/pricing` devolve `official_rules` sem custos internos (`musician_fee` nunca sai).
+- Painel do cliente e repertório: ofertas de receptivo pela regra oficial vigente na data do evento.
+- `lib/quotes/rule-change.mjs` + `POST /api/pricing/rules/preview` (somente Owner, somente leitura): planeja uma alteração
+  com vigência — encerra na véspera a regra vigente, respeita regra futura, recusa início repetido e avisa retroatividade.

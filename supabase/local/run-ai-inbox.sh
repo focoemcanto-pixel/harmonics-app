@@ -26,3 +26,5 @@ node --import ./tests/helpers/register-alias.mjs --test supabase/local/nara-sim.
 node --import ./tests/helpers/register-alias.mjs --test supabase/local/vocalists.local.test.mjs
 NEXT_PUBLIC_SUPABASE_URL=http://local SUPABASE_SERVICE_ROLE_KEY=local \
   node --import ./supabase/local/panel/register.mjs --test supabase/local/vocalists-approval.local.test.mjs
+PANEL_WORKSPACE_ID=00000000-0000-4000-8000-0000000000f7 NEXT_PUBLIC_SUPABASE_URL=http://local SUPABASE_SERVICE_ROLE_KEY=local \
+  node --import ./supabase/local/panel/register.mjs --test supabase/local/reset-test.local.test.mjs

@@ -83,3 +83,14 @@ test('memória orienta o uso dos sinais (opção enxuta e resumo para quem decid
   assert.match(block, /resumo curto para ela mostrar/);
   assert.doesNotMatch(formatClientMemory({ lead_data: { nome: 'Cliente Teste' } }), /Como usar agora/);
 });
+
+test('destinatário de saída: só o número de teste da Meta envia celular BR no formato com 9º dígito', async () => {
+  const { outboundRecipient } = await import('../lib/ai/inbox/service.mjs');
+  const test = { display_phone: '+1 555-000-0000' };
+  assert.equal(outboundRecipient('557188887777', test), '5571988887777', 'wa_id antigo -> formato autorizado na Meta');
+  assert.equal(outboundRecipient('5571988887777', test), '5571988887777', 'já com 13 dígitos: inalterado');
+  assert.equal(outboundRecipient('557133334444', test), '557133334444', 'fixo (inicia em 3): inalterado');
+  assert.equal(outboundRecipient('15550001111', test), '15550001111', 'outro país: inalterado');
+  assert.equal(outboundRecipient('557188887777', { display_phone: '+55 71 3000-0000' }), '557188887777', 'canal real: inalterado');
+  assert.equal(outboundRecipient('557188887777', {}), '557188887777', 'sem canal identificado: inalterado');
+});

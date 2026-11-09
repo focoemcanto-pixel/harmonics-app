@@ -19,3 +19,14 @@ no banco do workspace; não é versionado no repositório (contém cachês e mar
 
 Migration: `20261110120000_harmonics_ai_manual_v21.sql` (aditiva; não altera `quote_price_rules` nem contratos).
 Testes: `npm test`, `npm run test:ai-local` (inclui `ai-manual.local.test.mjs`), `npm run eval:ai`.
+
+## Identidade da assistente e organização das tabelas (v5)
+
+- `ai_workspace_settings.assistant_company` (migration `20261111120000_harmonics_ai_assistant_identity.sql`, aditiva):
+  a assistente se apresenta como "<assistant_name>, assistente da <assistant_company>"; nulo usa o nome público do workspace.
+- Apresentação só na primeira resposta da IA na conversa; se o cliente já pediu orçamento, a apresentação vem na mesma
+  mensagem da resposta objetiva (valores com data e local; senão, pede só data e local). Depois disso, sem reapresentação.
+- Importação do Manual: seções com até 2.000 caracteres e corte nunca logo após o número de um item de lista.
+- Cada proposta de preço importada recebe `metadata.official` (regras oficiais da mesma chave ou chave antiga equivalente)
+  e `metadata.review.status` (`new`, `identical`, `same_value_new_key`, `differs`, `conflict`), exibidos no painel.
+  Aprovação continua exigindo data de início e confirmação explícita, inclusive do aviso "sem data final".

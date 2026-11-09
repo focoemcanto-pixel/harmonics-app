@@ -310,3 +310,35 @@ test('importador do manual: seções, tabelas, vigência e cachês internos (Mar
   assert.equal(whatsappLink('+55 (11) 91234-5678'), 'https://wa.me/5511912345678');
   assert.equal(whatsappLink('123'), null);
 });
+
+test('sanitizeStaticText: não corta logo após o número de um item de lista', async () => {
+  const { sanitizeStaticText } = await import('../../lib/ai/commercial/bootstrap.mjs');
+  const steps = Array.from({ length: 6 }, (_, i) => `${i + 1}. Passo sintético número ${i + 1} com texto de exemplo suficiente.`).join(' ');
+  const text = `Ordem sintética: ${steps} Fim.`;
+  const out = sanitizeStaticText(text, { maxLen: 200 }).text;
+  assert.ok(out.length <= 200);
+  assert.doesNotMatch(out, /\s\d{1,2}\.$/); // nunca termina em "4."
+  assert.match(out, /suficiente\.$/);
+  // Limite padrão (700) continua para as extrações de contratos; o manual usa um limite maior.
+  const { MANUAL_SECTION_MAX } = await import('../../lib/ai/commercial/manual-import.mjs');
+  assert.ok(MANUAL_SECTION_MAX > 700);
+  assert.equal(sanitizeStaticText(`${'Frase sintética longa de exemplo. '.repeat(40)}`).text.length <= 700, true);
+});
+
+test('compareWithOfficial: classifica propostas contra regras oficiais sintéticas', async () => {
+  const { compareWithOfficial } = await import('../../lib/ai/commercial/manual-import.mjs');
+  const rules = [
+    { category: 'reception', item_key: 'duo_1h', amount: '111.00', valid_from: '2031-01-01', valid_until: null },
+    { category: 'ceremony', item_key: 'duo', amount: '222.00', valid_from: '2031-01-01', valid_until: '2031-12-31' },
+    { category: 'sound', item_key: 'church', amount: '333.00', valid_from: '2031-01-01', valid_until: null },
+    { category: 'transport', item_key: 'standard_trip', amount: '44.00', valid_from: '2031-01-01', valid_until: null },
+  ];
+  const st = (p) => compareWithOfficial(p, rules).review.status;
+  assert.equal(st({ category: 'reception', item_key: 'duo_1h', amount: 111 }), 'identical');
+  assert.equal(st({ category: 'ceremony', item_key: 'duo', amount: 222, valid_until: '2032-05-31' }), 'conflict');
+  assert.equal(st({ category: 'reception', item_key: 'duo_1h', amount: 111, metadata: { pending_validity: true } }), 'conflict');
+  assert.equal(st({ category: 'sound', item_key: 'church', amount: 300 }), 'differs');
+  assert.equal(st({ category: 'transport', item_key: 'band_trip', amount: 44 }), 'same_value_new_key');
+  assert.equal(st({ category: 'other', item_key: 'show:duo_1h', amount: 10 }), 'new');
+  assert.deepEqual(compareWithOfficial({ category: 'sound', item_key: 'church', amount: 300 }, rules).official, [{ amount: 333, valid_from: '2031-01-01', valid_until: null }]);
+});

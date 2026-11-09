@@ -157,6 +157,9 @@ export default function InboxSettingsClient() {
         <label className="block text-sm">Nome da assistente
           <input value={settings.assistant_name || ''} onChange={(e) => setSettings({ ...settings, assistant_name: e.target.value })} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" />
         </label>
+        <label className="block text-sm">Como a assistente apresenta a empresa (ex.: “assistente da Sua Banda”)
+          <input value={settings.assistant_company || ''} placeholder="Nome público do workspace" onChange={(e) => setSettings({ ...settings, assistant_company: e.target.value })} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" />
+        </label>
         <label className="block text-sm">Sobre a empresa (a IA só usa o que estiver aqui ou no sistema)
           <textarea rows={3} value={settings.business_description || ''} onChange={(e) => setSettings({ ...settings, business_description: e.target.value })} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" />
         </label>

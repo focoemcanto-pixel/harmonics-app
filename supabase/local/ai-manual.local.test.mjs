@@ -105,6 +105,8 @@ test('importação do manual: prévia, conhecimento e tabelas pendentes, cachês
   assert.equal(p.find((x) => x.item_key === 'duo' && x.category === 'ceremony').valid_until.toISOString().slice(0, 10), '2097-05-31');
   assert.ok(p.filter((x) => x.category === 'musician_fee').every((x) => x.metadata.internal));
   assert.equal(res.body.pricing.length, p.length);
+  // Cada proposta chega organizada contra as regras oficiais (aqui não há regras: tudo "novo").
+  assert.ok(p.every((x) => x.metadata.review?.status && Array.isArray(x.metadata.official)));
   const again = await call('POST', '/api/ai/manual/import', { markdown: MANUAL, dry_run: false });
   assert.deepEqual([again.body.knowledge.length, again.body.pricing.length], [0, 0], 'idempotente');
 });

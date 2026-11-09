@@ -826,15 +826,11 @@ export default function EventosPage() {
 
   async function carregarFinanceCostDefaults() {
     try {
-      const { data, error } = await supabase
-        .from('finance_cost_defaults')
-        .select(
-          'slug, musician_unit_cost, sound_default_cost, transport_default_cost, other_default_cost, custom_costs, notes'
-        )
-        .eq('slug', 'default')
-        .maybeSingle();
-
-      if (error) throw error;
+      // Custos internos: só pelo servidor (Owner/Admin/Financeiro).
+      const response = await fetch('/api/settings/finance-costs', { cache: 'no-store' });
+      const json = await response.json().catch(() => null);
+      if (!response.ok || !json?.ok) return;
+      const data = json.costs;
       if (!data) return;
 
       const normalizedCostDefaults = {
@@ -1270,14 +1266,14 @@ export default function EventosPage() {
         notes: String(pricing.finance_notes || pricing.notes || ''),
         custom_costs: sanitizeCustomCosts(pricing.custom_costs),
       };
-      const { error: financeError } = await supabase.from('finance_cost_defaults').upsert(costPayload, { onConflict: 'slug' });
-      if (financeError) throw financeError;
-      const { data: reloadedCosts, error: reloadCostsError } = await supabase
-        .from('finance_cost_defaults')
-        .select('id, slug, musician_unit_cost, sound_default_cost, transport_default_cost, other_default_cost, custom_costs, notes')
-        .eq('slug', 'default')
-        .maybeSingle();
-      if (reloadCostsError) throw reloadCostsError;
+      const saveResponse = await fetch('/api/settings/finance-costs', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ costs: costPayload }),
+      });
+      const saveJson = await saveResponse.json().catch(() => null);
+      if (!saveResponse.ok || !saveJson?.ok) throw new Error(saveJson?.error || 'Falha ao salvar os custos padrão.');
+      const reloadedCosts = saveJson.costs;
       const normalizedReloadedCosts = {
         musician_unit_cost: toNumber(reloadedCosts?.musician_unit_cost),
         sound_default_cost: toNumber(reloadedCosts?.sound_default_cost),

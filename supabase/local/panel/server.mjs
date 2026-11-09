@@ -18,6 +18,7 @@ const ROUTES = [
   [/^\/api\/pricing\/rules\/preview$/, '../../../app/api/pricing/rules/preview/route.js'],
   [/^\/api\/pricing\/rules$/, '../../../app/api/pricing/rules/route.js'],
   [/^\/api\/settings\/pricing$/, '../../../app/api/settings/pricing/route.js'],
+  [/^\/api\/settings\/finance-costs$/, '../../../app/api/settings/finance-costs/route.js'],
 ];
 
 export async function handle(method, pathname, search, bodyText, headers = {}) {

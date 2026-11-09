@@ -1,6 +1,8 @@
--- Governança das tabelas oficiais de preço (quote_price_rules)
---  - Leitura: membros ativos do workspace; custos internos (musician_fee) só Owner/Admin.
---  - Escrita: somente pelo servidor (service_role), via public.apply_price_rule_change (atômica e auditada).
+-- Governança das tabelas oficiais de preço (quote_price_rules) e de orçamentos (quotes)
+--  - Leitura de regras: membros ativos do workspace; custos internos (musician_fee) só Owner/Admin.
+--  - Escrita de regras: somente pelo servidor (service_role), via public.apply_price_rule_change (atômica e auditada).
+--  - Orçamentos (quotes, com custos/lucro no snapshot): o app só acessa pelo servidor; o navegador fica sem escrita
+--    e a leitura passa a ser só de Owner/Admin/Financeiro. A política de leitura de integração (arm_read_quote) é mantida.
 --    Nenhuma alteração de dados existentes: só políticas, permissões, uma tabela de auditoria e funções.
 
 -- 1) Auditoria das alterações (append-only).
@@ -37,6 +39,22 @@ create policy quote_price_rules_member_select on public.quote_price_rules
   );
 revoke insert, update, delete, truncate on public.quote_price_rules from anon, authenticated;
 revoke all on public.quote_price_rules from anon;
+
+-- 2b) Orçamentos: sem escrita pelo navegador; leitura só para quem pode ver custos.
+drop policy if exists quotes_workspace on public.quotes;
+drop policy if exists "workspace quotes" on public.quotes;
+drop policy if exists quotes_finance_select on public.quotes;
+create policy quotes_finance_select on public.quotes
+  for select to authenticated
+  using (
+    workspace_id in (
+      select wm.workspace_id from public.workspace_members wm
+       where wm.user_id = (select auth.uid()) and wm.status = 'active'
+         and lower(wm.role) in ('owner', 'admin', 'administrador', 'financeiro')
+    )
+  );
+revoke insert, update, delete, truncate on public.quotes from anon, authenticated;
+revoke all on public.quotes from anon;
 
 -- 3) Estado de uma chave (para detectar alteração concorrente entre a prévia e a confirmação).
 create or replace function public.price_rules_state_hash(p_workspace_id uuid, p_category text, p_item_key text)

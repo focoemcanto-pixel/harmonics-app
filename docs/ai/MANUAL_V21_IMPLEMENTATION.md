@@ -65,3 +65,8 @@ Testes: `npm test`, `npm run test:ai-local` (inclui `ai-manual.local.test.mjs`),
 - Central → **Tabelas**: consulta por categoria, nova vigência com prévia, motivo e histórico.
 - Tabela antiga do Eventos (`pricing_settings`): somente leitura (`PUT /api/settings/pricing` → 423). Os custos padrão do
   financeiro continuam editáveis na mesma aba.
+- Orçamentos (`quotes`, com custos e lucro no snapshot): o navegador perde a escrita e a leitura fica restrita a
+  Owner/Admin/Financeiro (o app acessa pelo servidor). A política de leitura da integração (`arm_read_quote`) é mantida.
+- Custos padrão do financeiro (`finance_cost_defaults`, sem política de acesso no navegador): lidos e gravados pela nova rota
+  `GET/PUT /api/settings/finance-costs` (somente Owner/Admin/Financeiro, escopo do workspace), usada pelas telas Eventos e
+  Pagamentos.

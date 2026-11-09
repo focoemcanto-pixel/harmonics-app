@@ -76,3 +76,19 @@ test('navegador não grava regras nem lê custo interno sem ser Owner/Admin', as
   assert.equal(memberSees.some((r) => r.category === 'musician_fee'), false, 'membro comum não vê custo interno');
   assert.equal(ownerSees.some((r) => r.category === 'musician_fee'), true, 'Owner vê custo interno');
 });
+
+test('orçamentos: navegador sem escrita; leitura só para Owner/Admin/Financeiro', async () => {
+  await q("insert into quotes (workspace_id, status) values ($1, 'draft')", [WS]).catch(async () => q("insert into quotes (workspace_id) values ($1)", [WS]));
+  const asUser = async (uid, sql, params) => {
+    const client = await pool.connect();
+    try {
+      await client.query('begin');
+      await client.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify({ sub: uid, role: 'authenticated' })]);
+      await client.query('set local role authenticated');
+      return (await client.query(sql, params)).rows;
+    } finally { await client.query('rollback').catch(() => {}); client.release(); }
+  };
+  assert.equal((await asUser(MEMBER, 'select id from quotes where workspace_id = $1', [WS])).length, 0, 'membro comum não lê orçamentos (custos)');
+  assert.ok((await asUser(OWNER, 'select id from quotes where workspace_id = $1', [WS])).length > 0, 'Owner lê');
+  await assert.rejects(asUser(OWNER, 'delete from quotes where workspace_id = $1', [WS]), /permission denied/);
+});

@@ -286,3 +286,17 @@ test('Central → Tabelas: prévia e nova vigência só pelo Owner, auditadas; t
   const get = await call('GET', '/api/settings/pricing', null, 'admin');
   assert.ok(get.body.official_rules.every((r) => r.category !== 'musician_fee'), 'regras públicas sem custo interno');
 });
+
+test('custos padrão do financeiro: só pelo servidor e para perfis autorizados', async () => {
+  assert.equal((await call('GET', '/api/settings/finance-costs', null, 'none')).status, 401);
+  assert.equal((await call('GET', '/api/settings/finance-costs', null, 'viewer')).status, 403);
+  assert.equal((await call('PUT', '/api/settings/finance-costs', { costs: { musician_unit_cost: 1 } }, 'viewer')).status, 403);
+  assert.equal((await call('PUT', '/api/settings/finance-costs', { costs: { sound_default_cost: -5 } })).status, 400);
+  const saved = await call('PUT', '/api/settings/finance-costs', { costs: { musician_unit_cost: 123, sound_default_cost: 45, notes: 'sintético' } });
+  assert.equal(saved.status, 200);
+  assert.equal(Number(saved.body.costs.musician_unit_cost), 123);
+  const again = await call('PUT', '/api/settings/finance-costs', { costs: { sound_default_cost: 46 } });
+  assert.equal(Number(again.body.costs.musician_unit_cost), 123, 'atualiza a mesma linha do workspace');
+  assert.equal(Number((await call('GET', '/api/settings/finance-costs')).body.costs.sound_default_cost), 46);
+  assert.equal((await sql('select count(*)::int n from finance_cost_defaults where workspace_id = $1', [WS]))[0].n, 1);
+});

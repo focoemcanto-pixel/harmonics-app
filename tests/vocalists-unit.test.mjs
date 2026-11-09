@@ -92,3 +92,54 @@ test('tool_choice só é enviado na 1ª rodada e apenas para ferramenta existent
   await generateReply({ system: 's', input: [], tools, executeTool: async () => ({ ok: true }), env: { OPENAI_API_KEY: 'x' }, fetchImpl, toolChoice: 'inexistente' });
   assert.equal(bodies[0].tool_choice, undefined);
 });
+
+test('fechamento confirmado não promete envio de link antes da aprovação', async () => {
+  const { PREPARING_MESSAGE } = await import('../lib/ai/commercial/supervision.mjs');
+  assert.doesNotMatch(PREPARING_MESSAGE, /link|te envio|envio|já já|em instantes|assim que estiver pronto/i);
+  assert.match(PREPARING_MESSAGE, /equipe vai revisar/);
+});
+
+test('pagamento: sem regra aprovada não cita percentuais, Pix ou cartão; com regra aprovada, mantém', async () => {
+  const { stripUnapprovedPaymentClaims, PAYMENT_DEFERRAL } = await import('../lib/ai/agent/policy.mjs');
+  const { hasApprovedPaymentRule } = await import('../lib/ai/commercial/engine.mjs');
+  const { formatStrategiesForPrompt } = await import('../lib/ai/commercial/strategies.mjs');
+  const reply = 'Entendo! Os valores seguem a tabela. Dá para pagar 50% até duas semanas antes. Também aceitamos Pix e cartão. Quer ver um duo?';
+  const out = stripUnapprovedPaymentClaims(reply, { paymentApproved: false });
+  assert.doesNotMatch(out, /50%|pix|cart[aã]o/i);
+  assert.match(out, /Os valores seguem a tabela\./);
+  assert.match(out, /Quer ver um duo\?/);
+  assert.ok(out.endsWith(PAYMENT_DEFERRAL));
+  assert.equal(stripUnapprovedPaymentClaims(reply, { paymentApproved: true }), reply);
+  // "entrada da noiva" não é condição de pagamento.
+  const entrada = 'Tocamos na entrada da noiva e na saída dos noivos.';
+  assert.equal(stripUnapprovedPaymentClaims(entrada, { paymentApproved: false }), entrada);
+  assert.equal(stripUnapprovedPaymentClaims('Sem entrada imediata obrigatória.', { paymentApproved: false }), PAYMENT_DEFERRAL);
+
+  const pending = [{ status: 'pending_approval', kind: 'policy', title: 'Condições de pagamento', content: '50% e Pix' }];
+  assert.equal(hasApprovedPaymentRule(pending), false, 'pendente não vale');
+  assert.equal(hasApprovedPaymentRule([{ ...pending[0], status: 'active' }]), true);
+  const without = formatStrategiesForPrompt(['price_objection'], { paymentApproved: false });
+  assert.doesNotMatch(without, /sem entrada imediata obrigatória|ofereça combinar Pix/i);
+  assert.match(without, /NÃO cite percentuais/);
+  assert.match(formatStrategiesForPrompt(['price_objection']), /EXATAMENTE como estão no conhecimento aprovado/);
+});
+
+test('aprovação específica: mudança de data, horário, duração, receptivo, formação ou local é detectada', async () => {
+  const { requestSnapshot, snapshotDrift } = await import('../lib/ai/commercial/vocalists.mjs');
+  const snap = requestSnapshot({ contact_id: 'c', event_id: 'e', event_date: '2090-01-10', start_time: '16:00:00', duration_min: 60, reception_hours: 0, formation: 'Duo', location: 'Capela X' });
+  const ev = { event_date: '2090-01-10', event_time: '16:00', duration_min: 60, reception_hours: null, formation: 'duo', location_name: 'capela x', status: 'confirmado' };
+  assert.deepEqual(snapshotDrift(snap, ev), []);
+  assert.deepEqual(snapshotDrift(snap, { ...ev, event_date: '2090-01-11', event_time: '17:00', reception_hours: 2 }), ['date', 'time', 'reception_hours']);
+  assert.deepEqual(snapshotDrift(snap, { ...ev, duration_min: 90, formation: 'Trio', location_name: 'Outro' }), ['duration_min', 'formation', 'location']);
+  assert.deepEqual(snapshotDrift(snap, { ...ev, status: 'cancelado' }), ['evento_cancelado']);
+  assert.deepEqual(snapshotDrift(snap, null), ['evento_removido']);
+});
+
+test('sem a migração aplicada (tabela inexistente), convites comuns seguem exatamente como hoje', async () => {
+  const { guardInviteDispatch, guardInviteResponse } = await import('../lib/ai/commercial/vocalists.mjs');
+  const missing = { data: null, error: { code: 'PGRST205', message: "Could not find the table 'public.ai_vocalist_requests'" } };
+  const chain = new Proxy({}, { get: (_t, k) => (k === 'then' ? (r) => r(missing) : k === 'maybeSingle' ? async () => missing : () => chain) });
+  const supabase = { from: () => chain };
+  assert.deepEqual(await guardInviteDispatch({ supabase, inviteId: 'x' }), { allow: true, managed: false });
+  assert.deepEqual(await guardInviteResponse({ supabase, inviteId: 'x', action: 'accept' }), { allow: true, managed: false });
+});

@@ -21,6 +21,6 @@ export async function POST(request, { params }) {
     supabase: guard.supabase, workspaceId: ws, requestId: id, actor: guard.auth.userId, decision: body.decision,
     overrideConflict: body.override_conflict === true, note: typeof body.note === 'string' ? body.note.slice(0, 300) : null, settings: settings || {},
   });
-  const status = result.ok ? 200 : { not_found: 404, already_decided: 409, conflict: 409, invite_failed: 500 }[result.status] || 400;
+  const status = result.ok ? 200 : { not_found: 404, already_decided: 409, conflict: 409, changed: 409, cancelled: 409, invite_failed: 500 }[result.status] || 400;
   return NextResponse.json(result, { status });
 }

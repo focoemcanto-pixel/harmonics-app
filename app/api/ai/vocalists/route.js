@@ -17,5 +17,7 @@ export async function GET(request) {
     guard.supabase.from('ai_vocalist_requests').select('*').eq('workspace_id', ws).order('created_at', { ascending: false }).limit(100),
     guard.supabase.from('ai_vocalist_events').select('request_id, action, actor, details, created_at').eq('workspace_id', ws).order('created_at', { ascending: false }).limit(100),
   ]);
-  return NextResponse.json({ ok: true, is_owner: isWorkspaceOwner(guard.auth), rules: settings?.vocalist_rules || {}, pendencies, requests: requests.data || [], audit: events.data || [] });
+  // Sem a migração de vocalistas aplicada: painel informa e mostra só a leitura da agenda.
+  const migrationPending = Boolean(requests.error);
+  return NextResponse.json({ ok: true, migration_pending: migrationPending, is_owner: isWorkspaceOwner(guard.auth), rules: settings?.vocalist_rules || {}, pendencies, requests: requests.data || [], audit: events.data || [] });
 }

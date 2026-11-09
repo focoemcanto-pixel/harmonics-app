@@ -60,3 +60,26 @@ test('sales-skills: indecisão gera recomendação única; preço diagnostica an
   assert.match(formatStrategiesForPrompt(['price_objection'], { repeatedObjection: 'price' }), /repetiu uma objeção/);
   assert.doesNotMatch(formatStrategiesForPrompt(['price_objection']), /repetiu uma objeção/);
 });
+
+test('Langfuse: atributos nativos (geração, custo, sessão) e nenhum conteúdo de mensagem', async () => {
+  const { replyTraceAttributes, buildOtlpPayload } = await import('../lib/ai/commercial/observability.mjs');
+  const attrs = replyTraceAttributes({
+    result: { model: 'modelo-x', inputTokens: 100, outputTokens: 20, costUsd: 0.0012, toolCalls: ['calcular_orcamento'] },
+    conversation: { id: 'conv-uuid', sales_stage: 'proposal', lead_data: { nome: 'Cliente Teste', orcamento: 'apertado' }, objections: ['price'] },
+    commercial: { strategyKeys: ['price_objection'], knowledgeIds: ['k1'], paymentApproved: false }, workspaceId: 'ws', outcome: 'draft',
+  });
+  assert.equal(attrs['langfuse.observation.type'], 'generation');
+  assert.equal(attrs['gen_ai.usage.cost'], 0.0012);
+  assert.equal(attrs['session.id'], 'conv-uuid');
+  assert.equal(attrs['harmonics.memory_fields'], 2);
+  assert.doesNotMatch(JSON.stringify(attrs), /Cliente Teste|apertado/, 'só contagem, nunca o conteúdo da memória');
+  const payload = buildOtlpPayload({ name: 'ai.reply', startMs: 1, endMs: 2, attributes: attrs });
+  assert.ok(payload.resourceSpans[0].scopeSpans[0].spans[0].attributes.some((a) => a.key === 'gen_ai.usage.cost'));
+});
+
+test('memória orienta o uso dos sinais (opção enxuta e resumo para quem decide)', () => {
+  const block = formatClientMemory({ lead_data: { nome: 'Cliente Teste', orcamento: 'apertado', decisores: 'mae' } });
+  assert.match(block, /Como usar agora: orçamento sensível/);
+  assert.match(block, /resumo curto para ela mostrar/);
+  assert.doesNotMatch(formatClientMemory({ lead_data: { nome: 'Cliente Teste' } }), /Como usar agora/);
+});

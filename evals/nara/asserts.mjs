@@ -22,13 +22,13 @@ export function noUnapprovedPayment(output) { const bad = T(output).find((t) => 
 export function diagnosesObjection(output) {
   // Skill de objeções: diagnosticar antes de rebater (orçamento x valor) ou trocar (formação) — nunca só "não dá".
   const r = norm(last(output).reply);
-  const diag = /(cabe no (seu|orcamento)|faixa de (valor|investimento)|quanto (voces|vc|voce) (pensa|imagina|reservou)|o que (e|seria) mais importante|valor ou|orcamento (previsto|planejado|de voces))/.test(r);
+  const diag = /(cabe no (seu|orcamento)|o que pesa|o que (esta|ta) incluso|faixa de (valor|investimento)|quanto (voces|vc|voce) (pensa|imagina|reservou)|o que (e|seria) mais importante|valor ou|orcamento (previsto|planejado|de voces))/.test(r);
   const trade = /(duo|outra formacao|formacao (menor|enxuta)|sem som|som do espaco|ajustar a formacao)/.test(r);
   return ok(diag || trade, diag ? 'diagnosticou a objeção' : trade ? 'ofereceu troca (formação/escopo)' : 'não diagnosticou nem ofereceu troca');
 }
 export function asksDiagnostic(output) {
   const r = norm(last(output).reply);
-  return ok(/\?/.test(r) && /(cabe no|faixa|quanto (voces|vc|voce)|mais importante|orcamento (previsto|planejado|de voces)|o que pesa|o que (te|lhe) preocupa)/.test(r), 'pergunta diagnóstica (orçamento x valor)');
+  return ok(/\?/.test(r) && /(cabe no|o que pesa|incluso|faixa|quanto (voces|vc|voce)|mais importante|orcamento (previsto|planejado|de voces)|o que pesa|o que (te|lhe) preocupa)/.test(r), 'pergunta diagnóstica (orçamento x valor)');
 }
 export function noPressure(output) { const bad = T(output).find((t) => PRESSURE.test(norm(t.reply))); return ok(!bad, bad ? `pressão/urgência artificial: ${bad.reply.slice(0, 80)}` : 'sem urgência artificial'); }
 export function offersSummary(output) { const r = norm(last(output).reply); return ok(/(resumo|mandar (os|as) (detalhes|informacoes)|enviar (um|o) resumo|mostrar (pro|para o|a))/.test(r), 'oferece resumo para quem decide'); }

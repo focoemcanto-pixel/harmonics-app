@@ -786,11 +786,14 @@ function PagamentosPageContent() {
         .eq('slug', 'default')
         .single();
       if (defaultsError) throw defaultsError;
+      // Custo do técnico por duração do receptivo (regras oficiais internas, somente admin).
+      const pricingJson = await fetch('/api/settings/pricing', { cache: 'no-store' }).then((r) => r.json()).catch(() => null);
+      const soundTechRules = Array.isArray(pricingJson?.sound_tech_rules) ? pricingJson.sound_tech_rules : [];
 
       const today = new Date().toISOString().slice(0, 10);
       const { data: pendingEvents, error: pendingError } = await supabase
         .from('events')
-        .select('id, client_name, event_date, event_type, formation, has_sound, has_transport, transport_price, agreed_amount, payment_status, status, musician_cost, sound_cost, extra_transport_cost, other_cost, profit_amount')
+        .select('id, client_name, event_date, event_type, formation, has_sound, has_transport, transport_price, reception_hours, agreed_amount, payment_status, status, musician_cost, sound_cost, extra_transport_cost, other_cost, profit_amount')
         .order('event_date', { ascending: true });
       if (pendingError) throw pendingError;
 
@@ -803,6 +806,9 @@ function PagamentosPageContent() {
             hasTransport: !!eventItem?.has_transport,
             transportPrice: eventItem?.transport_price,
             pricing: defaults || {},
+            receptionHours: toNumber(eventItem?.reception_hours),
+            eventDate: eventItem?.event_date || null,
+            soundTechRules,
           });
           const currentCost =
             toNumber(eventItem?.musician_cost) +
@@ -823,6 +829,7 @@ function PagamentosPageContent() {
             current_cost: currentCost,
             current_net: currentNet,
             defaults,
+            soundTechRules,
             calculated,
           };
         });
@@ -862,6 +869,9 @@ function PagamentosPageContent() {
           hasTransport: !!row?.has_transport,
           transportPrice: row?.transport_price,
           pricing: row.defaults || {},
+          receptionHours: toNumber(row?.reception_hours),
+          eventDate: row?.event_date || null,
+          soundTechRules: row.soundTechRules || [],
         });
         const totalCost =
           toNumber(calculated.musicianCost) +

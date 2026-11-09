@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requireWorkspaceAdmin } from '@/lib/api/require-workspace-access';
 import { geocode, route, DEFAULT_LOGISTICS_ORIGIN } from '@/lib/logistics/google-distance.mjs';
+import { resolveSoundPricing, hasDurationSoundRules } from '@/lib/quotes/sound-rules.mjs';
 
 const ORIGIN = DEFAULT_LOGISTICS_ORIGIN;
 
@@ -27,7 +28,7 @@ export async function POST(request){
   const body=await request.json(); const date=body.eventDate||new Date().toISOString().slice(0,10); const formation=slug(body.formation); const receptionHours=Number(body.receptionHours||0);
   const {data:rules,error}=await supabase.from('quote_price_rules').select('*').eq('workspace_id',auth.workspaceId); if(error)throw error;
   const pick=(category,key)=>Number((rules||[]).filter(r=>r.category===category&&r.item_key===key&&validRule(r,date)).sort((a,b)=>b.valid_from.localeCompare(a.valid_from))[0]?.amount||0);
-  const base=pick('ceremony',formation), reception=receptionHours?pick('reception',formation+'_'+receptionHours+'h'):0, sound=body.hasSound?pick('sound',receptionHours?'church_reception':'church'):0;
+  const base=pick('ceremony',formation), reception=receptionHours?pick('reception',formation+'_'+receptionHours+'h'):0, soundPlan=body.hasSound?resolveSoundPricing({receptionHours,pick:(c,k)=>pick(c,k)||null,hasDurationRules:hasDurationSoundRules(rules,(r)=>validRule(r,date))}):null, sound=soundPlan?.amount||0;
   let logistics={suggestedSurcharge:0,overnightLikely:false,reasons:[]}, location=null, routing=null;
   const mapsKey=String(process.env.GOOGLE_MAPS_KEY||'').trim();
   if(body.location && mapsKey){ location=await geocode(body.location,mapsKey); if(location){ routing=await route(ORIGIN,location.address,mapsKey); if(routing)logistics=logisticsImpact({...routing,receptionHours,eventTime:body.eventTime}); } }
@@ -49,6 +50,8 @@ export async function POST(request){
   const commercial=money(Math.max(healthyFloor,tableTotal*0.94));
   const suggested=money(Math.max(commercial,tableTotal));
   const analysis=[routing?`${routing.distanceText} / ${routing.durationText} por trecho a partir da base logística.`:'Logística ainda sem rota confirmada.', logistics.reasons.length?`Atenções: ${logistics.reasons.join(', ')}.`:'Sem agravantes logísticos automáticos identificados.'].join(' ');
-  return NextResponse.json({ok:true,pricing:{base,reception,sound,logistics:logistics.suggestedSurcharge,tableTotal,healthyFloor,commercial,suggested},costs:{musicianUnit:unitFee,musicianCost:estimatedMusicianCost,transportCost:transportOperationalCost,estimatedCost,estimatedProfit:money(suggested-estimatedCost),longCommitment},location,routing,logistics,analysis,origin:ORIGIN});
+  // Técnico de som: custo interno informado à parte (não altera a fórmula do preço sugerido).
+  const soundTechCost=money(soundPlan?.techCost||0);
+  return NextResponse.json({ok:true,pricing:{base,reception,sound,logistics:logistics.suggestedSurcharge,tableTotal,healthyFloor,commercial,suggested,soundRequiresValidation:Boolean(soundPlan?.requiresValidation)},costs:{musicianUnit:unitFee,musicianCost:estimatedMusicianCost,transportCost:transportOperationalCost,soundTechCost,soundMargin:soundPlan?.margin??null,soundMarginBelowMinimum:Boolean(soundPlan?.marginBelowMinimum),estimatedCost,estimatedProfit:money(suggested-estimatedCost-soundTechCost),longCommitment},location,routing,logistics,analysis,origin:ORIGIN});
  }catch(error){console.error('[QUOTES_ANALYZE][ERROR]',error);return NextResponse.json({ok:false,message:error?.message||'Falha ao analisar orçamento.'},{status:500});}
 }

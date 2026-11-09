@@ -30,3 +30,16 @@ Testes: `npm test`, `npm run test:ai-local` (inclui `ai-manual.local.test.mjs`),
 - Cada proposta de preço importada recebe `metadata.official` (regras oficiais da mesma chave ou chave antiga equivalente)
   e `metadata.review.status` (`new`, `identical`, `same_value_new_key`, `differs`, `conflict`), exibidos no painel.
   Aprovação continua exigindo data de início e confirmação explícita, inclusive do aviso "sem data final".
+
+## Sonorização por duração e preços de referência (v6)
+
+- Regra única em `lib/quotes/sound-rules.mjs`, usada pela Nara, pela API `/api/quotes/analyze` e pela prévia de Orçamentos:
+  `sound/church` (cerimônia), `sound/church_reception_<h>h` (h = 1..2) e o custo interno do técnico em
+  `musician_fee/sound_tech[_reception_<h>h]` (nunca exibido ao cliente). Receptivo acima de 2h (ou fracionado) não tem preço
+  automático: exige validação. Margem mínima do som: 500 (abaixo disso, a Nara pede aprovação e Orçamentos sinaliza).
+- Compatibilidade: enquanto não existir regra `church_reception_<h>h` vigente na data, vale o esquema anterior
+  (`church_reception` único). Assim o deploy do código não altera preços antes da troca de dados aprovada.
+- `consultar_precos` passa a ler as regras oficiais vigentes na data do evento (como `calcular_orcamento`); a tabela do módulo
+  Eventos (`pricing_settings`) fica só como reserva para itens sem regra oficial.
+- Deslocamento da banda: a Nara usa `band_trip` ou, na falta, `standard_trip` (sem duplicar regras).
+- Orçamentos: o custo do técnico aparece em `costs.soundTechCost` e entra no lucro estimado; a fórmula do preço sugerido não muda.

@@ -272,6 +272,8 @@ test('Manual §4/§7/§8: faixa por região, receptivo só com cerimônia, por t
   assert.equal(calculateQuote({ date: '2096-05-10', formation: 'trio', location: 'Cidade Base' }, { rules, areas }).total, 1500, 'tabela vigente na data do evento');
   assert.equal(calculateQuote({ date: '2096-07-10', formation: 'trio', location: 'Cidade Base' }, { rules, areas }).total, 1700, 'nova tabela pela data do evento');
   assert.equal(calculateQuote({ date: '2096-05-10', formation: 'trio', location: 'Cidade Metro' }, { rules, areas }).total, 1650 + 150);
+  const legacyKey = rules.map((r) => (r.item_key === 'band_trip' ? { ...r, item_key: 'standard_trip' } : r));
+  assert.equal(calculateQuote({ date: '2096-05-10', formation: 'trio', location: 'Cidade Metro' }, { rules: legacyKey, areas }).total, 1650 + 150, 'standard_trip serve sem regra duplicada');
   const show = calculateQuote({ date: '2096-05-10', formation: 'trio', modality: 'show', hours: 2, reception: { hours: 1 }, location: 'Cidade Base' }, { rules, areas });
   assert.equal(show.total, 1800);
   assert.ok(show.approvals.includes('reception_requires_ceremony'));

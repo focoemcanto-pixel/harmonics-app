@@ -710,15 +710,11 @@ function PagamentosPageContent() {
   async function abrirModalCustosPadrao() {
     try {
       setProcessingAction('default-costs-load');
-      const { data, error } = await supabase
-        .from('finance_cost_defaults')
-        .select(
-          'slug, musician_unit_cost, sound_default_cost, transport_default_cost, other_default_cost, custom_costs, notes'
-        )
-        .eq('slug', 'default')
-        .maybeSingle();
-
-      if (error) throw error;
+      // Custos internos: só pelo servidor (Owner/Admin/Financeiro).
+      const costsResponse = await fetch('/api/settings/finance-costs', { cache: 'no-store' });
+      const costsJson = await costsResponse.json().catch(() => null);
+      if (!costsResponse.ok || !costsJson?.ok) throw new Error(costsJson?.error || 'Falha ao carregar os custos padrão.');
+      const data = costsJson.costs;
 
       setDefaultCostsForm({
         musician_unit_cost: String(data?.musician_unit_cost ?? ''),
@@ -763,10 +759,13 @@ function PagamentosPageContent() {
         notes: String(defaultCostsForm.notes || '').trim() || null,
       };
 
-      const { error } = await supabase
-        .from('finance_cost_defaults')
-        .upsert(payload, { onConflict: 'slug' });
-      if (error) throw error;
+      const saveResponse = await fetch('/api/settings/finance-costs', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ costs: payload }),
+      });
+      const saveJson = await saveResponse.json().catch(() => null);
+      if (!saveResponse.ok || !saveJson?.ok) throw new Error(saveJson?.error || 'Falha ao salvar os custos padrão.');
 
       toast.success('Custos padrão salvos com sucesso.');
     } catch (error) {
@@ -780,15 +779,12 @@ function PagamentosPageContent() {
   async function abrirAplicacaoCustosModal() {
     try {
       setProcessingAction('default-costs-load-pending');
-      const { data: defaults, error: defaultsError } = await supabase
-        .from('finance_cost_defaults')
-        .select('musician_unit_cost, sound_default_cost, transport_default_cost, other_default_cost, custom_costs')
-        .eq('slug', 'default')
-        .single();
-      if (defaultsError) throw defaultsError;
-      // Custo do técnico por duração do receptivo (regras oficiais internas, somente admin).
-      const pricingJson = await fetch('/api/settings/pricing', { cache: 'no-store' }).then((r) => r.json()).catch(() => null);
-      const soundTechRules = Array.isArray(pricingJson?.sound_tech_rules) ? pricingJson.sound_tech_rules : [];
+      // Custos internos e custo do técnico por duração: só pelo servidor (Owner/Admin/Financeiro).
+      const defaultsResponse = await fetch('/api/settings/finance-costs', { cache: 'no-store' });
+      const defaultsJson = await defaultsResponse.json().catch(() => null);
+      if (!defaultsResponse.ok || !defaultsJson?.ok || !defaultsJson.costs) throw new Error(defaultsJson?.error || 'Custos padrão não encontrados.');
+      const defaults = defaultsJson.costs;
+      const soundTechRules = Array.isArray(defaultsJson.sound_tech_rules) ? defaultsJson.sound_tech_rules : [];
 
       const today = new Date().toISOString().slice(0, 10);
       const { data: pendingEvents, error: pendingError } = await supabase

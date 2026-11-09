@@ -44,7 +44,6 @@ import { normalizeTimeStrict, isValidTime, sanitizeTimeFields } from '@/lib/time
 import {
   normalizeFormation,
   getDefaultPricing,
-  buildCanonicalFormationPrices,
   hydratePricingFromCanonical,
   getAutomaticFormationPrice,
   getAutomaticReceptionPrice,
@@ -187,34 +186,6 @@ function normalizeEventosListParams(value) {
   };
 }
 
-const PRICING_FIELDS_TO_CONFIRM = [
-  'price_solo',
-  'price_duo',
-  'price_trio',
-  'price_quarteto',
-  'price_quinteto',
-  'price_sexteto',
-  'price_septeto',
-  'sound_price',
-  'reception_duo_1h',
-  'reception_duo_2h',
-  'reception_duo_3h',
-  'reception_trio_1h',
-  'reception_trio_2h',
-  'reception_trio_3h',
-  'reception_quarteto_1h',
-  'reception_quarteto_2h',
-  'reception_quarteto_3h',
-  'reception_quinteto_1h',
-  'reception_quinteto_2h',
-  'reception_quinteto_3h',
-  'reception_sexteto_1h',
-  'reception_sexteto_2h',
-  'reception_sexteto_3h',
-  'reception_septeto_1h',
-  'reception_septeto_2h',
-  'reception_septeto_3h',
-];
 const COST_FIELDS_TO_CONFIRM = [
   'musician_unit_cost',
   'sound_default_cost',
@@ -860,15 +831,11 @@ export default function EventosPage() {
 
   async function carregarFinanceCostDefaults() {
     try {
-      const { data, error } = await supabase
-        .from('finance_cost_defaults')
-        .select(
-          'slug, musician_unit_cost, sound_default_cost, transport_default_cost, other_default_cost, custom_costs, notes'
-        )
-        .eq('slug', 'default')
-        .maybeSingle();
-
-      if (error) throw error;
+      // Custos internos: só pelo servidor (Owner/Admin/Financeiro).
+      const response = await fetch('/api/settings/finance-costs', { cache: 'no-store' });
+      const json = await response.json().catch(() => null);
+      if (!response.ok || !json?.ok) return;
+      const data = json.costs;
       if (!data) return;
 
       const normalizedCostDefaults = {
@@ -1296,46 +1263,12 @@ export default function EventosPage() {
     };
   }, [financeCostDefaults.custom_costs, form, pricing]);
 
+  // Tabela de preços antiga do Eventos: somente leitura (preços oficiais com vigência na Central).
+  // Aqui só os custos padrão do financeiro continuam editáveis.
   async function salvarPricing() {
     try {
       setSalvando(true);
       eventosAdminCache.updatedAt = 0;
-
-      const pricingPayload = {
-        slug: 'default',
-        price_solo: toNumber(pricing.price_solo),
-        price_duo: toNumber(pricing.price_duo),
-        price_trio: toNumber(pricing.price_trio),
-        price_quarteto: toNumber(pricing.price_quarteto),
-        price_quinteto: toNumber(pricing.price_quinteto),
-        price_sexteto: toNumber(pricing.price_sexteto),
-        price_septeto: toNumber(pricing.price_septeto),
-        sound_price: toNumber(pricing.sound_price),
-        reception_duo_1h: toNumber(pricing.reception_duo_1h),
-        reception_duo_2h: toNumber(pricing.reception_duo_2h),
-        reception_duo_3h: toNumber(pricing.reception_duo_3h),
-        reception_trio_1h: toNumber(pricing.reception_trio_1h),
-        reception_trio_2h: toNumber(pricing.reception_trio_2h),
-        reception_trio_3h: toNumber(pricing.reception_trio_3h),
-        reception_quarteto_1h: toNumber(pricing.reception_quarteto_1h),
-        reception_quarteto_2h: toNumber(pricing.reception_quarteto_2h),
-        reception_quarteto_3h: toNumber(pricing.reception_quarteto_3h),
-        reception_quinteto_1h: toNumber(pricing.reception_quinteto_1h),
-        reception_quinteto_2h: toNumber(pricing.reception_quinteto_2h),
-        reception_quinteto_3h: toNumber(pricing.reception_quinteto_3h),
-        reception_sexteto_1h: toNumber(pricing.reception_sexteto_1h),
-        reception_sexteto_2h: toNumber(pricing.reception_sexteto_2h),
-        reception_sexteto_3h: toNumber(pricing.reception_sexteto_3h),
-        reception_septeto_1h: toNumber(pricing.reception_septeto_1h),
-        reception_septeto_2h: toNumber(pricing.reception_septeto_2h),
-        reception_septeto_3h: toNumber(pricing.reception_septeto_3h),
-        formation_prices: buildCanonicalFormationPrices(pricing),
-      };
-
-      if (pricing.formation_prices && typeof pricing.formation_prices === 'object') {
-        pricingPayload.formation_prices = buildCanonicalFormationPrices(pricing);
-      }
-
       const costPayload = {
         slug: 'default',
         musician_unit_cost: toNumber(pricing.musician_unit_cost),
@@ -1345,143 +1278,33 @@ export default function EventosPage() {
         notes: String(pricing.finance_notes || pricing.notes || ''),
         custom_costs: sanitizeCustomCosts(pricing.custom_costs),
       };
-
-      console.info('[EVENTOS][PRICING_SAVE][START]', {
-        pricingPayload,
-        costPayload,
-      });
-
-      const pricingSaveResponse = await fetch('/api/settings/pricing', {
+      const saveResponse = await fetch('/api/settings/finance-costs', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pricing: pricingPayload }),
+        body: JSON.stringify({ costs: costPayload }),
       });
-      const pricingSaveJson = await pricingSaveResponse.json().catch(() => null);
-      if (!pricingSaveResponse.ok || !pricingSaveJson?.ok) {
-        throw new Error(pricingSaveJson?.error || 'Não foi possível salvar os preços.');
-      }
-      const pricingData = pricingSaveJson.pricing;
-
-      let financeDefaultsError = null;
-      const { error: financeError } = await supabase
-        .from('finance_cost_defaults')
-        .upsert(costPayload, { onConflict: 'slug' });
-
-      if (financeError) {
-        financeDefaultsError = financeError;
-        console.error('[EVENTOS][PRICING_SAVE][FINANCE_COST_DEFAULTS_ERROR]', {
-          message: financeError?.message,
-          details: financeError?.details,
-          hint: financeError?.hint,
-          code: financeError?.code,
-        });
-      }
-
-      console.info('[EVENTOS][PRICING_SAVE][UPSERT_OK]');
-
-      const reloadedPricing = pricingData;
-      if (!reloadedPricing) {
-        throw new Error('Os preços não retornaram após salvar.');
-      }
-
-      let reloadedCosts = null;
-      const { data: costsData, error: reloadCostsError } = await supabase
-        .from('finance_cost_defaults')
-        .select(
-          'id, slug, musician_unit_cost, sound_default_cost, transport_default_cost, other_default_cost, custom_costs, notes'
-        )
-        .eq('slug', 'default')
-        .maybeSingle();
-
-      if (reloadCostsError) {
-        if (!financeDefaultsError) throw reloadCostsError;
-      } else {
-        reloadedCosts = costsData;
-      }
-
-      console.info('[EVENTOS][PRICING_SAVE][RELOAD_OK]', {
-        pricingId: reloadedPricing?.id,
-        costDefaultsId: reloadedCosts?.id,
-        priceSolo: reloadedPricing?.price_solo,
-        musicianUnitCost: reloadedCosts?.musician_unit_cost,
-      });
-
-      const normalizedReloadedPricing = hydratePricingFromCanonical(reloadedPricing);
-      const normalizedReloadedCosts = reloadedCosts
-        ? {
-            musician_unit_cost: toNumber(reloadedCosts.musician_unit_cost),
-            sound_default_cost: toNumber(reloadedCosts.sound_default_cost),
-            transport_default_cost: toNumber(reloadedCosts.transport_default_cost),
-            other_default_cost: toNumber(reloadedCosts.other_default_cost),
-            custom_costs: sanitizeCustomCosts(reloadedCosts.custom_costs),
-            notes: String(reloadedCosts.notes || ''),
-          }
-        : null;
-      const combinedPricing = {
-        ...normalizedReloadedPricing,
-        musician_unit_cost: normalizedReloadedCosts?.musician_unit_cost ?? toNumber(pricing.musician_unit_cost),
-        sound_default_cost: normalizedReloadedCosts?.sound_default_cost ?? toNumber(pricing.sound_default_cost),
-        transport_default_cost:
-          normalizedReloadedCosts?.transport_default_cost ?? toNumber(pricing.transport_default_cost),
-        other_default_cost: normalizedReloadedCosts?.other_default_cost ?? toNumber(pricing.other_default_cost),
-        custom_costs: normalizedReloadedCosts?.custom_costs ?? sanitizeCustomCosts(pricing.custom_costs),
-        finance_notes: normalizedReloadedCosts?.notes ?? String(pricing.finance_notes || pricing.notes || ''),
+      const saveJson = await saveResponse.json().catch(() => null);
+      if (!saveResponse.ok || !saveJson?.ok) throw new Error(saveJson?.error || 'Falha ao salvar os custos padrão.');
+      const reloadedCosts = saveJson.costs;
+      const normalizedReloadedCosts = {
+        musician_unit_cost: toNumber(reloadedCosts?.musician_unit_cost),
+        sound_default_cost: toNumber(reloadedCosts?.sound_default_cost),
+        transport_default_cost: toNumber(reloadedCosts?.transport_default_cost),
+        other_default_cost: toNumber(reloadedCosts?.other_default_cost),
+        custom_costs: sanitizeCustomCosts(reloadedCosts?.custom_costs),
+        notes: String(reloadedCosts?.notes || ''),
       };
-
-      const pricingConfirmed = PRICING_FIELDS_TO_CONFIRM.every(
-        (field) => toNumber(reloadedPricing?.[field]) === toNumber(pricingPayload?.[field])
-      );
-      const costsConfirmed = COST_FIELDS_TO_CONFIRM.every((field) => {
-        if (!normalizedReloadedCosts) return false;
-        return toNumber(normalizedReloadedCosts?.[field]) === toNumber(costPayload?.[field]);
-      });
-      const shouldConfirmCosts = !financeDefaultsError;
-      const hasConfirmedReload = pricingConfirmed && (!shouldConfirmCosts || costsConfirmed);
-
-      setPricing((prev) => ({
-        ...prev,
-        ...combinedPricing,
-      }));
-
-      if (normalizedReloadedCosts) {
-        setFinanceCostDefaults(normalizedReloadedCosts);
-      } else {
-        setFinanceCostDefaults({
-          musician_unit_cost: toNumber(pricing.musician_unit_cost),
-          sound_default_cost: toNumber(pricing.sound_default_cost),
-          transport_default_cost: toNumber(pricing.transport_default_cost),
-          other_default_cost: toNumber(pricing.other_default_cost),
-          custom_costs: sanitizeCustomCosts(pricing.custom_costs),
-          notes: String(pricing.finance_notes || pricing.notes || ''),
-        });
-      }
-
-      if (reloadedPricing?.id || pricingData?.id) {
-        const nextPricingId = reloadedPricing?.id || pricingData?.id;
-        setPricingId(nextPricingId);
-        eventosAdminCache.pricingId = nextPricingId;
-      }
-
+      const confirmed = COST_FIELDS_TO_CONFIRM.every((field) => toNumber(normalizedReloadedCosts[field]) === toNumber(costPayload[field]));
+      setFinanceCostDefaults(normalizedReloadedCosts);
+      const combinedPricing = { ...pricing, ...normalizedReloadedCosts, finance_notes: normalizedReloadedCosts.notes };
+      setPricing((prev) => ({ ...prev, ...combinedPricing }));
       eventosAdminCache.pricing = combinedPricing;
       eventosAdminCache.updatedAt = Date.now();
-
-      if (!hasConfirmedReload) {
-        toast.warning(
-          'Os dados foram enviados, mas não retornaram atualizados. Verifique as permissões ou o banco.'
-        );
-      } else if (financeDefaultsError) {
-        toast.warning('Preços salvos, mas não foi possível salvar custos padrão.');
-      } else {
-        toast.success('Configuração de preços salva com sucesso.');
-      }
+      if (confirmed) toast.success('Custos padrão salvos com sucesso.');
+      else toast.warning('Os custos foram enviados, mas não retornaram atualizados. Verifique as permissões ou o banco.');
     } catch (error) {
-      console.error('[EVENTOS][PRICING_SAVE_ERROR]', {
-        message: error?.message,
-        details: error?.details,
-        hint: error?.hint,
-        code: error?.code,
-      });
-      toast.error('Erro ao salvar configuração de preços.');
+      console.error('[EVENTOS][COST_DEFAULTS_SAVE_ERROR]', { message: error?.message, code: error?.code });
+      toast.error('Erro ao salvar os custos padrão.');
     } finally {
       setSalvando(false);
     }
@@ -2624,12 +2447,7 @@ export default function EventosPage() {
           )}
 
           {desktopTab === 'precos' && (
-            <EventosPricingTab
-              pricing={pricing}
-              setPricing={setPricing}
-              salvarPricing={salvarPricing}
-              salvando={salvando}
-            />
+            <EventosPricingTab pricing={pricing} setPricing={setPricing} salvarCustosPadrao={salvarPricing} salvando={salvando} />
           )}
         </div>
 
@@ -2680,12 +2498,7 @@ export default function EventosPage() {
           {safeMobileTab === 'lista' && renderLista()}
 
           {safeMobileTab === 'precos' && (
-            <EventosPricingTab
-              pricing={pricing}
-              setPricing={setPricing}
-              salvarPricing={salvarPricing}
-              salvando={salvando}
-            />
+            <EventosPricingTab pricing={pricing} setPricing={setPricing} salvarCustosPadrao={salvarPricing} salvando={salvando} />
           )}
         </div>
       </div>

@@ -6,17 +6,22 @@ import { Field, Input } from '../admin/AdminFormPrimitives';
 export default function EventosPricingTab({
   pricing,
   setPricing,
-  salvarPricing,
+  salvarCustosPadrao,
   salvando,
 }) {
   return (
     <section className="rounded-[24px] border border-[#e4e7ec] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)] md:p-6">
       <AdminSectionTitle
-        title="Preços automáticos"
-        subtitle="Configure formações, som e receptivo para preencher os eventos automaticamente."
+        title="Preços automáticos (tabela antiga)"
+        subtitle="Somente leitura. Os preços oficiais, com vigência por data do evento, são editados na Central."
       />
 
-      <div className="grid grid-cols-1 gap-5">
+      <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+        Esta tabela não é mais editável. Ela só completa itens sem regra oficial (ex.: Solo e Septeto). Para alterar preços,
+        use <a className="font-bold underline" href="/inbox/inteligencia?tab=tables">Central → Tabelas</a> (somente o Owner).
+      </div>
+
+      <fieldset disabled className="grid grid-cols-1 gap-5 opacity-80">
         <div>
           <p className="mb-3 text-sm font-semibold text-slate-700">
             Formações e som
@@ -167,9 +172,10 @@ export default function EventosPricingTab({
             </table>
           </div>
         </div>
+      </fieldset>
 
-
-
+      {/* Custos padrão do financeiro: continuam editáveis (não fazem parte da tabela de preços). */}
+      <div className="mt-5 grid grid-cols-1 gap-5">
         <div>
           <p className="mb-3 text-sm font-semibold text-slate-700">
             Custos padrão
@@ -226,11 +232,11 @@ export default function EventosPricingTab({
         <div>
           <button
             type="button"
-            onClick={salvarPricing}
+            onClick={salvarCustosPadrao}
             disabled={salvando}
             className="rounded-[18px] bg-violet-600 px-5 py-4 text-[14px] font-black text-white shadow-[0_12px_28px_rgba(124,58,237,0.18)] disabled:opacity-60"
           >
-            {salvando ? 'Salvando...' : 'Salvar preços automáticos'}
+            {salvando ? 'Salvando...' : 'Salvar custos padrão'}
           </button>
         </div>
       </div>

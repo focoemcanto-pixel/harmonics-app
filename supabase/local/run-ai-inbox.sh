@@ -11,7 +11,8 @@ for f in supabase/local/[0-9]*.sql \
   supabase/migrations/20261108120000_harmonics_ai_hybrid_inbox_v2.sql \
   supabase/migrations/20261109120000_harmonics_ai_commercial_v3.sql \
   supabase/migrations/20261110120000_harmonics_ai_manual_v21.sql \
-  supabase/migrations/20261111120000_harmonics_ai_assistant_identity.sql; do
+  supabase/migrations/20261111120000_harmonics_ai_assistant_identity.sql \
+  supabase/migrations/20261112120000_price_rules_governance.sql; do
   $PSQL -d harmonics_local -f "$f"
 done
 node --import ./tests/helpers/register-alias.mjs --test-concurrency=1 --test supabase/local/ai-inbox.local.test.mjs supabase/local/ai-commercial.local.test.mjs
@@ -19,3 +20,4 @@ PANEL_WORKSPACE_ID=00000000-0000-4000-8000-0000000000f1 NEXT_PUBLIC_SUPABASE_URL
   node --import ./supabase/local/panel/register.mjs --test supabase/local/ai-panel.local.test.mjs
 PANEL_WORKSPACE_ID=00000000-0000-4000-8000-0000000000f3 NEXT_PUBLIC_SUPABASE_URL=http://local SUPABASE_SERVICE_ROLE_KEY=local NEXT_PUBLIC_APP_URL=https://app.example.test \
   node --import ./supabase/local/panel/register.mjs --test supabase/local/ai-manual.local.test.mjs
+node --test supabase/local/price-rules.local.test.mjs

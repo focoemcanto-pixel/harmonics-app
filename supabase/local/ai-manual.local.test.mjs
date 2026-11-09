@@ -260,3 +260,45 @@ test('lembretes: idempotentes no reenvio/concorrência e reiniciados para um nov
   const rows = await sql("select status, precontract_id from ai_followups where conversation_id = $1 and kind = 'signature' order by step", [s.conv.id]);
   assert.ok(rows.every((x) => x.status === 'scheduled' && x.precontract_id === pc2.id));
 });
+
+test('Central → Tabelas: prévia e nova vigência só pelo Owner, auditadas; tabela antiga do Eventos só leitura', async () => {
+  await sql("insert into quote_price_rules (workspace_id, category, item_key, label, amount, valid_from) values ($1,'reception','trio_3h','Trio 3h',1234,'2090-01-01')", [WS]);
+  const change = { category: 'reception', item_key: 'trio_3h', label: 'Trio 3h', amount: 1290, valid_from: '2091-02-01' };
+  assert.equal((await call('POST', '/api/pricing/rules/preview', change, 'admin')).status, 403, 'Admin não altera tabela');
+  const prev = await call('POST', '/api/pricing/rules/preview', change);
+  assert.equal(prev.status, 200);
+  assert.deepEqual(prev.body.plan.ops.map((o) => o.type), ['close', 'insert']);
+  assert.ok(prev.body.expected_hash);
+  assert.equal((await call('POST', '/api/pricing/rules', { ...change, reason: 'teste', expected_hash: prev.body.expected_hash })).status, 400, 'sem confirmação explícita');
+  assert.equal((await call('POST', '/api/pricing/rules', { ...change, reason: 'teste', expected_hash: prev.body.expected_hash, confirm: true }, 'admin')).status, 403);
+  const ok = await call('POST', '/api/pricing/rules', { ...change, reason: 'ajuste sintético', expected_hash: prev.body.expected_hash, confirm: true });
+  assert.equal(ok.status, 200);
+  const again = await call('POST', '/api/pricing/rules', { ...change, valid_from: '2091-03-01', reason: 'repetido', expected_hash: prev.body.expected_hash, confirm: true });
+  assert.equal(again.status, 409, 'prévia antiga recusada');
+  assert.equal(again.body.code, 'state_changed');
+  const rows = await sql("select amount::int a, valid_from::text f, valid_until::text u from quote_price_rules where workspace_id=$1 and item_key='trio_3h' order by valid_from", [WS]);
+  assert.deepEqual(rows, [{ a: 1234, f: '2090-01-01', u: '2091-01-31' }, { a: 1290, f: '2091-02-01', u: null }]);
+  const list = await call('GET', '/api/pricing/rules', null, 'admin');
+  assert.equal(list.body.is_owner, false);
+  assert.ok(list.body.changes.some((c) => c.reason === 'ajuste sintético'));
+  const put = await call('PUT', '/api/settings/pricing', { pricing: { reception_quarteto_3h: 9999 } });
+  assert.equal(put.status, 423);
+  const get = await call('GET', '/api/settings/pricing', null, 'admin');
+  assert.ok(get.body.official_rules.every((r) => r.category !== 'musician_fee'), 'regras públicas sem custo interno');
+});
+
+test('custos padrão do financeiro: só pelo servidor e para perfis autorizados', async () => {
+  assert.equal((await call('GET', '/api/settings/finance-costs', null, 'none')).status, 401);
+  assert.equal((await call('GET', '/api/settings/finance-costs', null, 'viewer')).status, 403);
+  assert.equal((await call('PUT', '/api/settings/finance-costs', { costs: { musician_unit_cost: 1 } }, 'viewer')).status, 403);
+  assert.equal((await call('PUT', '/api/settings/finance-costs', { costs: { sound_default_cost: -5 } })).status, 400);
+  const saved = await call('PUT', '/api/settings/finance-costs', { costs: { musician_unit_cost: 123, sound_default_cost: 45, notes: 'sintético' } });
+  assert.equal(saved.status, 200);
+  assert.equal(Number(saved.body.costs.musician_unit_cost), 123);
+  const again = await call('PUT', '/api/settings/finance-costs', { costs: { sound_default_cost: 46 } });
+  assert.equal(Number(again.body.costs.musician_unit_cost), 123, 'atualiza a mesma linha do workspace');
+  const got = (await call('GET', '/api/settings/finance-costs')).body;
+  assert.equal(Number(got.costs.sound_default_cost), 46);
+  assert.ok(Array.isArray(got.sound_tech_rules), 'custo do técnico entregue só a perfis do financeiro');
+  assert.equal((await sql('select count(*)::int n from finance_cost_defaults where workspace_id = $1', [WS]))[0].n, 1);
+});

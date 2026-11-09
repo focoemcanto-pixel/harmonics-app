@@ -551,6 +551,8 @@ export default function EventosPage() {
   const [pricing, setPricing] = useState(getDefaultPricing());
   // Regras oficiais com vigência (mesma fonte da Nara e de Orçamentos).
   const [officialRules, setOfficialRules] = useState([]);
+  // Custo interno do técnico por duração (somente admin; vem de /api/settings/pricing).
+  const [soundTechRules, setSoundTechRules] = useState([]);
   const [financeCostDefaults, setFinanceCostDefaults] = useState({
     musician_unit_cost: 0,
     sound_default_cost: 0,
@@ -836,6 +838,9 @@ export default function EventosPage() {
       const rules = Array.isArray(json.official_rules) ? json.official_rules : [];
       setOfficialRules(rules);
       eventosAdminCache.officialRules = rules;
+      const techRules = Array.isArray(json.sound_tech_rules) ? json.sound_tech_rules : [];
+      setSoundTechRules(techRules);
+      eventosAdminCache.soundTechRules = techRules;
 
       if (data) {
         const normalizedPricing = hydratePricingFromCanonical(data);
@@ -955,6 +960,7 @@ export default function EventosPage() {
       setContatos(eventosAdminCache.contatos || []);
       if (eventosAdminCache.pricingId) setPricingId(eventosAdminCache.pricingId);
       if (Array.isArray(eventosAdminCache.officialRules)) setOfficialRules(eventosAdminCache.officialRules);
+      if (Array.isArray(eventosAdminCache.soundTechRules)) setSoundTechRules(eventosAdminCache.soundTechRules);
       if (eventosAdminCache.pricing) {
         setPricing((prev) => ({
           ...prev,
@@ -997,6 +1003,9 @@ export default function EventosPage() {
           hasTransport: toNumber(value) > 0,
           transportPrice: value,
           pricing: financeCostDefaults,
+          receptionHours: toNumber(prev.reception_hours),
+          eventDate: prev.event_date || null,
+          soundTechRules,
         });
 
         return {
@@ -1078,6 +1087,9 @@ export default function EventosPage() {
       hasTransport: Boolean(form.has_transport),
       transportPrice: form.transport_price,
       pricing: financeCostDefaults,
+      receptionHours: toNumber(nextReceptionHours),
+      eventDate: form.event_date || null,
+      soundTechRules,
     });
 
     setForm((prev) => ({

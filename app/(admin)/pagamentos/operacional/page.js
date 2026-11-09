@@ -334,7 +334,7 @@ function Finance() {
   });
   function openEvent(e, source = data) {
     const saved = source.sheets.find((s) => s.event_id === e.id);
-    const costs = suggestedCosts(e, saved?.costs, source.musicians, source.defaults, () => crypto.randomUUID());
+    const costs = suggestedCosts(e, saved?.costs, source.musicians, source.defaults, () => crypto.randomUUID(), { soundTechRules: source.sound_tech_rules || [] });
     setDraft({
       event: e,
       revision: saved?.revision || 0,

@@ -9,7 +9,7 @@ import { resolveContractHtmlSource } from '@/lib/contracts/resolveContractHtmlSo
 import { signInternalContract } from '@/lib/contracts/sign-internal-contract';
 import { executeAutomationEvent } from '@/lib/automation/execute-automation-event';
 import { getCurrentWorkspace } from '@/lib/workspaces/get-current-workspace';
-import { loadWorkspaceCostDefaults } from '@/lib/settings/workspace-pricing';
+import { loadWorkspaceCostDefaults, loadWorkspaceSoundTechRules } from '@/lib/settings/workspace-pricing';
 import {
   PRECONTRACT_EXPIRED_MESSAGE,
   expirePrecontractIfNeeded,
@@ -129,12 +129,20 @@ async function upsertEventFromSignature({ supabase, precontract, contactId, form
     workspaceId: asString(precontract?.workspace_id || workspaceId) || null,
     select: 'musician_unit_cost, sound_default_cost, transport_default_cost, other_default_cost, custom_costs',
   });
+  // Custo do técnico por duração do receptivo e data do evento (regras oficiais internas).
+  const { data: soundTechRules } = await loadWorkspaceSoundTechRules({
+    supabase,
+    workspaceId: asString(precontract?.workspace_id || workspaceId) || null,
+  });
   const automaticCosts = getAutomaticCosts({
     formation: precontract?.formation,
     hasSound: !!precontract?.has_sound,
     hasTransport: !!precontract?.has_transport,
     transportPrice: precontract?.add_transport || 0,
     pricing: financeDefaults || {},
+    receptionHours: Number(precontract?.reception_hours || 0),
+    eventDate: brToIsoDate(form?.event_date) || precontract?.event_date || null,
+    soundTechRules: soundTechRules || [],
   });
   const agreedAmount = Number(precontract?.agreed_amount || 0);
   const totalCosts = Number(automaticCosts.musicianCost || 0) + Number(automaticCosts.soundCost || 0) + Number(automaticCosts.extraTransportCost || 0) + Number(automaticCosts.otherCost || 0);

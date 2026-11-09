@@ -23,6 +23,10 @@ tests:
     assert:
       - { type: javascript, value: file://asserts.mjs:intro, metric: abordagem }
       - { type: javascript, value: file://asserts.mjs:quoteTableNow, metric: abordagem }
+  - description: Q2 pedido genérico de orçamento de casamento, sem data
+    vars: { turns_json: '["Oi, boa tarde! Gostaria de um orçamento pra música do meu casamento."]' }
+    assert:
+      - { type: javascript, value: file://asserts.mjs:quoteTableNow, metric: abordagem }
   - description: N1 pedido de desconto (preço)
     vars: { turns_json: '["Oi! Quanto fica um trio com som pra casamento dia 20/03/2027 em Salvador? A cerimônia é às 16h.","Achei um pouco salgado... consegue fazer um desconto?"]' }
     assert:

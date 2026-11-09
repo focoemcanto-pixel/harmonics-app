@@ -169,6 +169,15 @@ export default function InboxClient({ canAdmin = false }) {
     loadDetail(selectedId); loadList();
   }
 
+  async function resetTest() {
+    const msg = 'Reiniciar o teste da Nara com este contato?\n\nApaga o histórico, a memória e as respostas pendentes SÓ desta conversa de teste. A próxima mensagem começa como primeiro atendimento.\n\nTabelas, configurações, outros contatos e o WaSender não são alterados.';
+    if (typeof window === 'undefined' || !window.confirm(msg)) return;
+    const { ok, body } = await api(`/api/ai/conversations/${selectedId}/reset-test`, { method: 'POST', body: JSON.stringify({ confirm: 'REINICIAR' }) });
+    if (!ok) return toast.error(body?.error || 'Não foi possível reiniciar.');
+    toast.success('Teste reiniciado. Envie uma nova mensagem pelo WhatsApp de teste.');
+    setSelectedId(null); setDetail(null); loadList();
+  }
+
   async function setState(state) {
     const { ok } = await api(`/api/ai/conversations/${selectedId}`, { method: 'PATCH', body: JSON.stringify({ state }) });
     if (!ok) return toast.error('Não foi possível atualizar.');
@@ -287,6 +296,9 @@ export default function InboxClient({ canAdmin = false }) {
                 <button type="button" onClick={() => switchOwner('human')} className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-semibold text-white">Assumir atendimento</button>
               ) : canAdmin ? (
                 <button type="button" onClick={() => switchOwner('ai')} className="rounded-xl bg-violet-600 px-3 py-2 text-xs font-semibold text-white">Devolver para IA</button>
+              ) : null}
+              {canAdmin && detail?.is_test_channel ? (
+                <button type="button" onClick={resetTest} className="rounded-xl border border-rose-300 px-3 py-2 text-xs font-semibold text-rose-700">Reiniciar teste da Nara</button>
               ) : null}
               <button type="button" onClick={() => setState(conversation.state === 'closed' ? 'open' : 'closed')} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700">
                 {conversation.state === 'closed' ? 'Reabrir' : 'Encerrar'}

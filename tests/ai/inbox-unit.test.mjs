@@ -347,5 +347,29 @@ test('orçamento primeiro: pedido de valores com data e sem formação força a 
   assert.equal(requiredQuoteTableFor('Qual o valor?', { data_evento: '2090-09-12' }), 'consultar_precos');
   assert.equal(requiredQuoteTableFor('Quanto fica um trio dia 12/09/2090?'), null, 'com formação continua calcular_orcamento');
   assert.equal(requiredToolFor('Quanto fica um trio dia 12/09/2090?'), 'calcular_orcamento');
-  assert.equal(requiredQuoteTableFor('Quanto custa?'), null, 'sem data: pede só o que falta');
+  assert.equal(requiredQuoteTableFor('Quanto custa a música pro casamento?'), 'consultar_precos', 'pedido genérico: tabela mesmo sem data');
+  assert.equal(requiredQuoteTableFor('Quanto custa pra um aniversário?'), null, 'outro tipo de evento não usa a tabela de cerimônia');
+});
+
+test('tabela de cerimônia no formato padrão do Owner, com preços da tabela oficial vigente', async () => {
+  const { formatCeremonyTable } = await import('../../lib/ai/agent/tools.mjs');
+  const msg = formatCeremonyTable([
+    { formacao: 'Duo', valor_cerimonia: 1000 }, { formacao: 'Trio', valor_cerimonia: 1500 },
+    { formacao: 'Quarteto', valor_cerimonia: 2050.5 }, { formacao: 'Sexteto', valor_cerimonia: 12000 },
+  ]);
+  assert.ok(msg.startsWith('🎶 Orçamentos Cerimônia 🎶\n\n✨ Duo – R$ 1.000\nVoz\nPiano'));
+  assert.match(msg, /✨ Trio – R\$ 1\.500\nVoz\nViolão ou Piano\nViolino/);
+  assert.match(msg, /✨ Quarteto – R\$ 2\.050,50\nVoz\nPiano\nViolão\nViolino/);
+  assert.match(msg, /✨ Sexteto – R\$ 12\.000\nVoz\nPiano\nViolão\nViolino\nSaxofone\nCajón \(percussão\)\/Bateria/);
+  assert.ok(msg.endsWith('Obs.: Som não incluso. Caso deseje sonorização conosco, podemos enviar o orçamento adicional.'));
+  assert.doesNotMatch(msg, /Quinteto/, 'formação sem preço oficial na data não aparece');
+
+  const R = (item_key, amount) => ({ workspace_id: 'ws-f', category: 'ceremony', item_key, amount, valid_from: '2090-01-01', valid_until: null });
+  const effects = {};
+  const supabase = fakeSupabase({ quote_price_rules: [R('duo', 1000), R('trio', 1500)] });
+  await executeTool('consultar_precos', { data: '2090-05-05' }, { supabase, workspaceId: 'ws-f', effects });
+  assert.match(effects.quoteTableText, /✨ Duo – R\$ 1\.000/, 'texto pronto enviado como está');
+  const comSom = {};
+  await executeTool('consultar_precos', { data: '2090-05-05', com_som: true }, { supabase, workspaceId: 'ws-f', effects: comSom });
+  assert.equal(comSom.quoteTableText, undefined, 'pedido com som segue o cálculo, não a tabela padrão');
 });

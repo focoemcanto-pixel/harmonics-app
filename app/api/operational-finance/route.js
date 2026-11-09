@@ -106,6 +106,13 @@ export async function GET(request) {
           m.snapshot_name ||
           "Músico sem identificação",
       }));
+    // Custo interno do técnico por duração (regras oficiais); só para sugerir fichas novas.
+    const { data: soundTechRules } = await db
+      .from("quote_price_rules")
+      .select("category,item_key,amount,valid_from,valid_until")
+      .eq("workspace_id", w)
+      .eq("category", "musician_fee")
+      .like("item_key", "sound_tech%");
     return NextResponse.json(
       {
         ok: true,
@@ -115,6 +122,7 @@ export async function GET(request) {
         defaults,
         settings: settings[0] || null,
         musicians,
+        sound_tech_rules: soundTechRules || [],
       },
       { headers: { "Cache-Control": "no-store" } },
     );

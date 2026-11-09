@@ -297,6 +297,8 @@ test('custos padrão do financeiro: só pelo servidor e para perfis autorizados'
   assert.equal(Number(saved.body.costs.musician_unit_cost), 123);
   const again = await call('PUT', '/api/settings/finance-costs', { costs: { sound_default_cost: 46 } });
   assert.equal(Number(again.body.costs.musician_unit_cost), 123, 'atualiza a mesma linha do workspace');
-  assert.equal(Number((await call('GET', '/api/settings/finance-costs')).body.costs.sound_default_cost), 46);
+  const got = (await call('GET', '/api/settings/finance-costs')).body;
+  assert.equal(Number(got.costs.sound_default_cost), 46);
+  assert.ok(Array.isArray(got.sound_tech_rules), 'custo do técnico entregue só a perfis do financeiro');
   assert.equal((await sql('select count(*)::int n from finance_cost_defaults where workspace_id = $1', [WS]))[0].n, 1);
 });

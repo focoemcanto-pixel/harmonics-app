@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { withApiObservability } from '@/lib/observability/api-observability';
 import { guardWorkspaceAdmin, guardWorkspaceMember } from '@/lib/api/route-guards';
-import { loadWorkspacePricing, loadWorkspaceOfficialPriceRules } from '@/lib/settings/workspace-pricing';
+import { loadWorkspacePricing, loadWorkspaceOfficialPriceRules, loadWorkspaceSoundTechRules } from '@/lib/settings/workspace-pricing';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,9 +10,11 @@ async function handleGET(request) {
   const guard = await guardWorkspaceMember(request, { logPrefix: '[GET /api/settings/pricing]' });
   if (!guard.ok) return guard.response;
 
-  const [{ data, error }, official] = await Promise.all([
+  const isAdmin = ['owner', 'admin'].includes(String(guard.auth?.role || '').toLowerCase());
+  const [{ data, error }, official, tech] = await Promise.all([
     loadWorkspacePricing({ supabase: guard.supabase, workspaceId: guard.auth.workspaceId }),
     loadWorkspaceOfficialPriceRules({ supabase: guard.supabase, workspaceId: guard.auth.workspaceId }),
+    isAdmin ? loadWorkspaceSoundTechRules({ supabase: guard.supabase, workspaceId: guard.auth.workspaceId }) : Promise.resolve({ data: [] }),
   ]);
   if (error) {
     console.error('[GET /api/settings/pricing][ERROR]', { code: error.code, message: error.message });
@@ -20,7 +22,13 @@ async function handleGET(request) {
   }
 
   // official_rules: regras de preço com vigência (sem custos internos), para o preenchimento por data do evento.
-  return NextResponse.json({ ok: true, pricing: data || null, official_rules: official?.error ? [] : official?.data || [] });
+  // sound_tech_rules: custo interno do técnico (somente administradores; uso no financeiro).
+  return NextResponse.json({
+    ok: true,
+    pricing: data || null,
+    official_rules: official?.error ? [] : official?.data || [],
+    sound_tech_rules: isAdmin && !tech?.error ? tech?.data || [] : [],
+  });
 }
 
 async function handlePUT(request) {

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requireWorkspaceAccess } from '@/lib/api/require-workspace-access';
-import { loadWorkspaceCostDefaults, workspaceSettingsSlug } from '@/lib/settings/workspace-pricing';
+import { loadWorkspaceCostDefaults, loadWorkspaceSoundTechRules, workspaceSettingsSlug } from '@/lib/settings/workspace-pricing';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,9 +20,13 @@ async function access(request) {
 export async function GET(request) {
   const { supabase, auth } = await access(request);
   if (!auth.ok) return NextResponse.json({ ok: false, error: auth.error }, { status: auth.status || 401 });
-  const { data, error } = await loadWorkspaceCostDefaults({ supabase, workspaceId: auth.workspaceId, select: FIELDS });
+  const [{ data, error }, tech] = await Promise.all([
+    loadWorkspaceCostDefaults({ supabase, workspaceId: auth.workspaceId, select: FIELDS }),
+    loadWorkspaceSoundTechRules({ supabase, workspaceId: auth.workspaceId }),
+  ]);
   if (error) return NextResponse.json({ ok: false, error: 'Não foi possível carregar os custos padrão.' }, { status: 500 });
-  return NextResponse.json({ ok: true, costs: data || null });
+  // sound_tech_rules: custo interno do técnico por duração (mesmos perfis autorizados).
+  return NextResponse.json({ ok: true, costs: data || null, sound_tech_rules: tech?.error ? [] : tech?.data || [] });
 }
 
 export async function PUT(request) {

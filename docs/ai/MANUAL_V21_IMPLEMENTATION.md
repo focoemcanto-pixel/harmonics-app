@@ -129,3 +129,20 @@ Modo padrão (CI): modelo roteirizado. Modo real: `OPENAI_API_KEY=... NARA_SIM_O
   perfis de músicos funcionam como hoje; o painel de vocalistas avisa que aguarda a migração).
 - Testes: `tests/vocalists-unit.test.mjs` e `supabase/local/vocalists-approval.local.test.mjs` (rota real do
   membro e serviço real de envio, dados sintéticos).
+
+## Potencialização da Nara (memória, sales-skills, avaliações e observabilidade)
+
+Sem trocar a arquitetura: tudo roda no pipeline atual (prompt + ferramentas + travas determinísticas).
+
+- **Memória contextual por cliente** (`lib/ai/commercial/memory.mjs`): além dos dados do evento, guarda sinais
+  comerciais ditos pela própria cliente — `orcamento`, `decisores`, `prioridades`, `prazo_decisao` — por extração
+  determinística (sem LLM extra) e pela ferramenta `registrar_dados_evento`. Escopo: workspace + conversa (única por
+  número). CPF, CNPJ, cartão e sequências longas de dígitos são rejeitados e nem o valor vai para a auditoria. O
+  prompt recebe um bloco "MEMÓRIA DA CLIENTE (somente desta conversa)" com objeções anteriores e como usar os sinais.
+- **Técnicas das sales-skills** (`lib/ai/commercial/strategies.mjs`): triagem de preço valor × orçamento antes de
+  rebater, troca de escopo em vez de desconto, modo indecisão com uma recomendação clara, objeção repetida = parar de
+  rebater e oferecer a equipe. Nenhuma regra comercial (preço, pagamento, política) foi alterada; regras continuam
+  dependendo de aprovação do Owner no conhecimento.
+- **Avaliações**: `npm run eval:ai` (determinística, roda no CI) e `npm run eval:nara` (modelo real, conversas
+  sintéticas pela rota de simulação de uma prévia; exige `NARA_SIM_URL` e `NARA_SIM_TOKEN`).
+- **Langfuse** (opcional, desligado sem chaves): spans OTLP com geração, tokens, custo e sessão; só metadados.

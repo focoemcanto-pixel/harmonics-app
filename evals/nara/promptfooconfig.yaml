@@ -18,6 +18,11 @@ tests:
     assert:
       - { type: javascript, value: file://asserts.mjs:intro, metric: abordagem }
       - { type: javascript, value: file://asserts.mjs:quoteNow, metric: abordagem }
+  - description: Q1 orçamento com data e local, sem formação (tabela primeiro)
+    vars: { turns_json: '["Oi! Quanto fica a música pro meu casamento dia 14/08/2027 em Salvador?"]' }
+    assert:
+      - { type: javascript, value: file://asserts.mjs:intro, metric: abordagem }
+      - { type: javascript, value: file://asserts.mjs:quoteTableNow, metric: abordagem }
   - description: N1 pedido de desconto (preço)
     vars: { turns_json: '["Oi! Quanto fica um trio com som pra casamento dia 20/03/2027 em Salvador? A cerimônia é às 16h.","Achei um pouco salgado... consegue fazer um desconto?"]' }
     assert:

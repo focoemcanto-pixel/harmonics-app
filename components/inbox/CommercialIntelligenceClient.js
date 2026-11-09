@@ -295,7 +295,7 @@ function MusiciansTab({ toast }) {
   async function save() {
     const { ok, body } = await api('/api/ai/musicians', { method: 'POST', body: JSON.stringify(form) });
     if (!ok) return toast.error(body?.error || 'Falha.');
-    toast.success('Músico salvo.'); load();
+    toast.success(body?.warning ? `Músico salvo. ${body.warning}` : 'Músico salvo.'); load();
   }
   return (
     <div className="space-y-4">

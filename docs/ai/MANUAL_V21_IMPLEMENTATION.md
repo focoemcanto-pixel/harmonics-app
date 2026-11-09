@@ -107,3 +107,25 @@ Modo padrão (CI): modelo roteirizado. Modo real: `OPENAI_API_KEY=... NARA_SIM_O
 - Correções comerciais da simulação: apresentação garantida no 1º contato, orçamento imediato com formação/data/local,
   nunca "disponível", fechamento aberto quando a cliente decide, explicação do que a equipe confirma, repertório só do
   conhecimento aprovado e transferência sem prometer prazo (cita o responsável configurado).
+
+### Ajustes finais de vocalistas (aprovação específica, revalidação e pagamento)
+
+- **Fechamento sem promessa de link:** após o "CONFIRMO" a assistente diz que a equipe vai revisar o
+  pré-contrato; não promete envio de link nem prazo antes da aprovação.
+- **Aprovação específica:** ao aprovar, o pedido guarda `approved_snapshot` (músico, evento, data, horário,
+  duração, receptivo, formação, local, quem aprovou e quando). Se o evento mudar antes da aprovação, aprovar
+  não cria convite e nasce um novo pedido com os dados atuais (`replaces_request_id`).
+- **Revalidação antes de QUALQUER disparo:** `guardInviteDispatch` roda no serviço de envio de convite
+  (individual, em lote e pela escala), no lembrete automático e em `executeAutomationEvent` para
+  `invite_member`/lembrete. Sem aprovação vigente, convite diferente do aprovado, evento alterado/cancelado ou
+  conflito novo => não envia; mudança relevante gera novo pedido para aprovação. Convites comuns (sem pedido
+  da assistente) não mudam; falha inesperada na revalidação bloqueia o envio.
+- **Pagamento:** percentuais, prazos, entrada, parcelas, Pix e cartão só com regra **ativa** (aprovada) no
+  conhecimento. Sem ela, a estratégia de negociação não oferece facilidades e uma trava determinística remove
+  essas frases da resposta, dizendo que a equipe envia as condições junto com a proposta.
+- **Painel do membro:** recusa marca o pedido como recusado e gera pendência para o Owner retornar à cliente;
+  aceite confirma na escala e encerra as pendências do evento. Nenhuma mensagem automática à cliente.
+- **Antes da migração:** guardas e telas toleram a ausência das tabelas/colunas novas (convites comuns e
+  perfis de músicos funcionam como hoje; o painel de vocalistas avisa que aguarda a migração).
+- Testes: `tests/vocalists-unit.test.mjs` e `supabase/local/vocalists-approval.local.test.mjs` (rota real do
+  membro e serviço real de envio, dados sintéticos).

@@ -28,9 +28,19 @@ export async function POST(request) {
   if (input.is_primary_vocal) {
     await guard.supabase.from('ai_musician_profiles').update({ is_primary_vocal: false }).eq('workspace_id', workspaceId).neq('contact_id', input.contact_id);
   }
-  const { data, error } = await guard.supabase.from('ai_musician_profiles')
-    .upsert({ ...input, workspace_id: workspaceId, updated_at: new Date().toISOString() }, { onConflict: 'workspace_id,contact_id' })
+  const save = (row) => guard.supabase.from('ai_musician_profiles')
+    .upsert({ ...row, workspace_id: workspaceId, updated_at: new Date().toISOString() }, { onConflict: 'workspace_id,contact_id' })
     .select('*').maybeSingle();
+  let { data, error } = await save(input);
+  let warning = null;
+  // Antes da migração de vocalistas as colunas novas não existem: salva o perfil sem elas e avisa.
+  if (error && ['42703', 'PGRST204'].includes(error.code)) {
+    const { voice, client_presentable, presentation_urls, ...legacy } = input;
+    ({ data, error } = await save(legacy));
+    if (!error && (voice || client_presentable || (presentation_urls || []).length)) {
+      warning = 'Voz, autorização e links de apresentação ficam disponíveis após a migração de vocalistas.';
+    }
+  }
   if (error) return NextResponse.json({ ok: false, error: 'Falha ao salvar.' }, { status: 500 });
-  return NextResponse.json({ ok: true, profile: data });
+  return NextResponse.json({ ok: true, profile: data, warning });
 }

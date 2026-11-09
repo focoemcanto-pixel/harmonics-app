@@ -47,6 +47,10 @@ create table if not exists public.ai_vocalist_requests (
   decided_at timestamptz,
   responded_at timestamptz,
   notes text,
+  -- Aprovação específica: músico + evento + data + horário + duração + receptivo + formação + local.
+  -- Revalidada antes de qualquer disparo; mudança relevante => nova aprovação.
+  approved_snapshot jsonb,
+  replaces_request_id uuid references public.ai_vocalist_requests(id) on delete set null,
   created_by text not null default 'ai',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()

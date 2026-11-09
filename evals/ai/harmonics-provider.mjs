@@ -9,6 +9,7 @@ const load = async () => ({
   ...(await import('../../lib/ai/agent/policy.mjs')),
   ...(await import('../../lib/ai/commercial/strategies.mjs')),
   ...(await import('../../lib/ai/commercial/pricing.mjs')),
+  ...(await import('../../lib/ai/commercial/memory.mjs')),
 });
 
 const TABLES = {
@@ -23,13 +24,16 @@ export default class HarmonicsDeterministicProvider {
   id() { return 'harmonics-deterministic'; }
   async callApi(_prompt, context) {
     const { scenario, text, stage, quote } = context.vars;
-    const { classifyConfirmation, detectOptOut, detectHandoffTrigger, selectStrategies, calculateQuote } = await load();
+    const { classifyConfirmation, detectOptOut, detectHandoffTrigger, selectStrategies, calculateQuote, extractSignals, stripUnapprovedPaymentClaims, isSensitiveValue } = await load();
     let output;
     if (scenario === 'confirmation') output = classifyConfirmation(text);
     else if (scenario === 'optout') output = detectOptOut(text) ? 'optout' : 'continue';
     else if (scenario === 'handoff') output = detectHandoffTrigger(text)?.reason || 'ai';
     else if (scenario === 'strategy') output = selectStrategies({ stage, text }).join(',');
     else if (scenario === 'quote') output = JSON.stringify(calculateQuote(JSON.parse(quote), TABLES));
+    else if (scenario === 'signals') output = JSON.stringify(extractSignals(text));
+    else if (scenario === 'payment') output = stripUnapprovedPaymentClaims(text, { paymentApproved: false });
+    else if (scenario === 'sensitive') output = String(isSensitiveValue(text));
     else output = 'unknown_scenario';
     return { output };
   }

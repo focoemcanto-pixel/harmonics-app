@@ -53,3 +53,9 @@ export function noSensitiveEcho(output) {
 }
 export function optOutConfirmed(output) { const t = last(output); return ok(t.status === 'opted_out', 'descadastro respeitado'); }
 export function noLeakFromOtherClient(output) { const r = norm(last(output).reply); return ok(!/carla|outra (cliente|noiva)/.test(r), 'não revela dados de outra cliente'); }
+export function quoteTableNow(output) {
+  const t = T(output)[0];
+  const prices = (t.reply.match(/r\$\s?\d/gi) || []).length;
+  const askedFirst = /\?/.test(t.reply.split(/r\$/i)[0] || '');
+  return ok(t.tools.includes('consultar_precos') && prices >= 2 && !askedFirst, `tabela na 1ª resposta (${prices} valores; pergunta antes: ${askedFirst})`);
+}

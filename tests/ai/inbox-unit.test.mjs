@@ -325,3 +325,27 @@ test('preços de referência: regra oficial vigente na data vence a tabela do Ev
   assert.equal(long.valor_som, null);
   assert.match(long.som_observacao, /sob medida/);
 });
+
+test('orçamento primeiro: sem formação, tabela vigente só com valores oficiais da data', async () => {
+  const R = (item_key, amount, valid_from, valid_until = null) => ({ workspace_id: 'ws-t', category: 'ceremony', item_key, amount, valid_from, valid_until });
+  const supabase = fakeSupabase({
+    quote_price_rules: [R('duo', 1000, '2090-01-01', '2091-05-31'), R('duo', 1100, '2091-06-01'), R('trio', 1500, '2090-01-01')],
+    pricing_settings: [{ workspace_id: 'ws-t', price_solo: 500, price_septeto: 3000, price_duo: 999, price_trio: 999 }],
+  });
+  const old = await executeTool('consultar_precos', { data: '2091-03-10' }, { supabase, workspaceId: 'ws-t' });
+  assert.deepEqual(old.tabela.map((l) => [l.formacao, l.valor_cerimonia]), [['Duo', 1000], ['Trio', 1500]], 'só formações com regra oficial; Solo/Septeto legados ficam fora');
+  const novo = await executeTool('consultar_precos', { data: '2091-07-10' }, { supabase, workspaceId: 'ws-t' });
+  assert.equal(novo.tabela.find((l) => l.formacao === 'Duo').valor_cerimonia, 1100, 'vigência pela data do evento');
+  assert.match(novo.orientacao, /sem perguntas antes/);
+  const vazio = await executeTool('consultar_precos', { data: '2091-07-10' }, { supabase: fakeSupabase({ pricing_settings: [{ workspace_id: 'ws-x', price_trio: 1 }] }), workspaceId: 'ws-x' });
+  assert.equal(vazio.ok, false, 'sem regra oficial não inventa tabela');
+});
+
+test('orçamento primeiro: pedido de valores com data e sem formação força a tabela', async () => {
+  const { requiredQuoteTableFor, requiredToolFor } = await import('../../lib/ai/agent/policy.mjs');
+  assert.equal(requiredQuoteTableFor('Oi! Quanto fica a música pro casamento dia 12/09/2090 em Salvador?'), 'consultar_precos');
+  assert.equal(requiredQuoteTableFor('Qual o valor?', { data_evento: '2090-09-12' }), 'consultar_precos');
+  assert.equal(requiredQuoteTableFor('Quanto fica um trio dia 12/09/2090?'), null, 'com formação continua calcular_orcamento');
+  assert.equal(requiredToolFor('Quanto fica um trio dia 12/09/2090?'), 'calcular_orcamento');
+  assert.equal(requiredQuoteTableFor('Quanto custa?'), null, 'sem data: pede só o que falta');
+});

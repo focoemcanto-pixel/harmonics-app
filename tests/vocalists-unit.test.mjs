@@ -55,9 +55,40 @@ test('correções 2, 3, 4, 6 no prompt e 7 na transferência', () => {
   assert.match(p, /chame calcular_orcamento ANTES de responder/);
   assert.match(p, /nunca diga que uma data, a banda ou um músico está "disponível"/);
   assert.match(p, /chame preparar_fechamento NA MESMA resposta/);
-  assert.match(p, /Repertório e estilos: afirme apenas o que estiver no conhecimento aprovado/);
+  assert.match(p, /Repertório e estilos: NUNCA responda "sim, tocamos X"/);
   assert.match(p, /Nunca prometa um vocalista específico/);
   assert.equal(handoffMessage({ handoff_contact_name: 'Responsável Teste' }), 'Combinado! Vou chamar o Responsável Teste para continuar com você por aqui 😊');
   assert.equal(handoffMessage({}), HANDOFF_CUSTOMER_MESSAGE);
   assert.doesNotMatch(HANDOFF_CUSTOMER_MESSAGE, /instantes/);
+});
+
+test('ferramenta obrigatória determinística: orçamento, fechamento e CONFIRMO sem resumo', async () => {
+  const { requiredToolFor } = await import('../lib/ai/agent/policy.mjs');
+  assert.equal(requiredToolFor('Quanto fica um duo no dia 12/09/2027?'), 'calcular_orcamento');
+  assert.equal(requiredToolFor('Qual o valor?', { formacao: 'Trio', data_evento: '2027-09-12' }), 'calcular_orcamento');
+  assert.equal(requiredToolFor('Queremos fechar!', { formacao: 'Duo', data_evento: '2027-09-12' }), 'preparar_fechamento');
+  assert.equal(requiredToolFor('CONFIRMO', { formacao: 'Duo', data_evento: '2027-09-12' }), 'preparar_fechamento');
+  // Sem formação+data nada é forçado; "sim" solto não fecha.
+  assert.equal(requiredToolFor('Quanto custa?'), null);
+  assert.equal(requiredToolFor('Queremos fechar', { formacao: 'Duo' }), null);
+  assert.equal(requiredToolFor('sim', { formacao: 'Duo', data_evento: '2027-09-12' }), null);
+});
+
+test('tool_choice só é enviado na 1ª rodada e apenas para ferramenta existente', async () => {
+  const { generateReply } = await import('../lib/ai/agent/llm.mjs');
+  const bodies = [];
+  const fetchImpl = async (_url, init) => {
+    const body = JSON.parse(init.body); bodies.push(body);
+    const output = bodies.length === 1
+      ? [{ type: 'function_call', name: 'calcular_orcamento', call_id: 'c1', arguments: '{}' }]
+      : [{ type: 'message', content: [{ type: 'output_text', text: 'ok' }] }];
+    return { ok: true, json: async () => ({ output, output_text: bodies.length === 1 ? '' : 'ok', usage: {} }) };
+  };
+  const tools = [{ type: 'function', name: 'calcular_orcamento', parameters: { type: 'object', properties: {} } }];
+  await generateReply({ system: 's', input: [], tools, executeTool: async () => ({ ok: true }), env: { OPENAI_API_KEY: 'x' }, fetchImpl, toolChoice: 'calcular_orcamento' });
+  assert.deepEqual(bodies[0].tool_choice, { type: 'function', name: 'calcular_orcamento' });
+  assert.equal(bodies[1].tool_choice, undefined);
+  bodies.length = 0;
+  await generateReply({ system: 's', input: [], tools, executeTool: async () => ({ ok: true }), env: { OPENAI_API_KEY: 'x' }, fetchImpl, toolChoice: 'inexistente' });
+  assert.equal(bodies[0].tool_choice, undefined);
 });

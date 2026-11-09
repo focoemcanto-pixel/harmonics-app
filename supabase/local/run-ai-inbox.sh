@@ -12,7 +12,8 @@ for f in supabase/local/[0-9]*.sql \
   supabase/migrations/20261109120000_harmonics_ai_commercial_v3.sql \
   supabase/migrations/20261110120000_harmonics_ai_manual_v21.sql \
   supabase/migrations/20261111120000_harmonics_ai_assistant_identity.sql \
-  supabase/migrations/20261112120000_price_rules_governance.sql; do
+  supabase/migrations/20261112120000_price_rules_governance.sql \
+  supabase/migrations/20261113120000_harmonics_ai_vocalists.sql; do
   $PSQL -d harmonics_local -f "$f"
 done
 node --import ./tests/helpers/register-alias.mjs --test-concurrency=1 --test supabase/local/ai-inbox.local.test.mjs supabase/local/ai-commercial.local.test.mjs
@@ -22,3 +23,4 @@ PANEL_WORKSPACE_ID=00000000-0000-4000-8000-0000000000f3 NEXT_PUBLIC_SUPABASE_URL
   node --import ./supabase/local/panel/register.mjs --test supabase/local/ai-manual.local.test.mjs
 node --test supabase/local/price-rules.local.test.mjs
 node --import ./tests/helpers/register-alias.mjs --test supabase/local/nara-sim.local.test.mjs
+node --import ./tests/helpers/register-alias.mjs --test supabase/local/vocalists.local.test.mjs

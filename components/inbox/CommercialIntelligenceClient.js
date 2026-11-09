@@ -6,11 +6,13 @@ import { useAppToast } from '@/components/ui/ToastProvider';
 import SupervisionCenter from '@/components/inbox/SupervisionCenter';
 import ManualPricingPanel from '@/components/inbox/ManualPricingPanel';
 import PriceRulesPanel from '@/components/inbox/PriceRulesPanel';
+import VocalistsPanel from '@/components/inbox/VocalistsPanel';
 
 const TABS = [
   { key: 'center', label: 'Central' },
   { key: 'teach', label: 'Ensinar à IA' },
   { key: 'tables', label: 'Tabelas' },
+  { key: 'vocalists', label: 'Vocalistas' },
   { key: 'manual', label: 'Manual e propostas' },
   { key: 'learning', label: 'Aprendizado' },
   { key: 'areas', label: 'Localidades' },
@@ -287,7 +289,7 @@ function AreasTab({ toast }) {
 
 function MusiciansTab({ toast }) {
   const [data, setData] = useState({ profiles: [], contacts: [] });
-  const [form, setForm] = useState({ contact_id: '', display_name: '', instruments: '', roles: '', is_primary_vocal: false, fee: '', video_urls: '', portfolio_url: '' });
+  const [form, setForm] = useState({ contact_id: '', display_name: '', instruments: '', roles: '', is_primary_vocal: false, fee: '', video_urls: '', portfolio_url: '', voice: '', client_presentable: false, presentation_urls: '' });
   const load = useCallback(async () => { const { ok, body } = await api('/api/ai/musicians'); if (ok) setData(body); }, []);
   useEffect(() => { const t = setTimeout(load, 0); return () => clearTimeout(t); }, [load]);
   async function save() {
@@ -298,7 +300,7 @@ function MusiciansTab({ toast }) {
   return (
     <div className="space-y-4">
       <Card title="Catálogo de músicos">
-        <p className="text-xs text-slate-500">Ligado aos contatos e à escala do Harmonics. O vocalista principal é consultado em silêncio; outras vozes só são oferecidas com conflito confirmado ou pedido do cliente.</p>
+        <p className="text-xs text-slate-500">Ligado aos contatos e à escala do Harmonics. A assistente só gerencia vocalistas; a disponibilidade vem sempre da escala real. Só aparece para a cliente quem estiver autorizado e com links de apresentação.</p>
         <div className="grid gap-3 sm:grid-cols-3">
           <Field label="Contato"><select className={INPUT} value={form.contact_id} onChange={(e) => { const c = data.contacts.find((x) => x.id === e.target.value); setForm({ ...form, contact_id: e.target.value, display_name: form.display_name || c?.name || '' }); }}><option value="">Selecione…</option>{data.contacts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
           <Field label="Nome exibido"><input className={INPUT} value={form.display_name} onChange={(e) => setForm({ ...form, display_name: e.target.value })} /></Field>
@@ -306,7 +308,10 @@ function MusiciansTab({ toast }) {
           <Field label="Instrumentos"><input className={INPUT} placeholder="voz, violão" value={form.instruments} onChange={(e) => setForm({ ...form, instruments: e.target.value })} /></Field>
           <Field label="Funções"><input className={INPUT} placeholder="vocal, instrumental" value={form.roles} onChange={(e) => setForm({ ...form, roles: e.target.value })} /></Field>
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.is_primary_vocal} onChange={(e) => setForm({ ...form, is_primary_vocal: e.target.checked })} />Vocalista principal</label>
+          <Field label="Voz"><select className={INPUT} value={form.voice || ''} onChange={(e) => setForm({ ...form, voice: e.target.value })}><option value="">—</option><option value="masculino">Masculina</option><option value="feminino">Feminina</option></select></Field>
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={Boolean(form.client_presentable)} onChange={(e) => setForm({ ...form, client_presentable: e.target.checked })} />Autorizado a ser apresentado à cliente</label>
         </div>
+        <Field label="Links individuais de apresentação (https, vírgula)"><input className={INPUT} value={form.presentation_urls} onChange={(e) => setForm({ ...form, presentation_urls: e.target.value })} /></Field>
         <Field label="Vídeos (URLs https, vírgula)"><input className={INPUT} value={form.video_urls} onChange={(e) => setForm({ ...form, video_urls: e.target.value })} /></Field>
         <Field label="Portfólio (https)"><input className={INPUT} value={form.portfolio_url} onChange={(e) => setForm({ ...form, portfolio_url: e.target.value })} /></Field>
         <button type="button" onClick={save} className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Salvar músico</button>
@@ -316,7 +321,7 @@ function MusiciansTab({ toast }) {
           <div key={p.id} className="flex flex-wrap items-center gap-2 border-b border-slate-100 py-2 text-sm">
             <strong>{p.display_name}</strong>{p.is_primary_vocal ? <span className="rounded-full bg-violet-100 px-2 text-[11px] font-semibold text-violet-700">Vocalista principal</span> : null}
             <span className="text-xs text-slate-500">{(p.instruments || []).join(', ')} · {(p.roles || []).join(', ')} · {(p.video_urls || []).length} vídeo(s)</span>
-            <button type="button" onClick={() => setForm({ ...p, instruments: (p.instruments || []).join(', '), roles: (p.roles || []).join(', '), video_urls: (p.video_urls || []).join(', '), fee: p.fee ?? '', portfolio_url: p.portfolio_url || '' })} className="ml-auto rounded-lg border px-2 py-1 text-xs">Editar</button>
+            <button type="button" onClick={() => setForm({ ...p, instruments: (p.instruments || []).join(', '), roles: (p.roles || []).join(', '), video_urls: (p.video_urls || []).join(', '), presentation_urls: (p.presentation_urls || []).join(', '), voice: p.voice || '', fee: p.fee ?? '', portfolio_url: p.portfolio_url || '' })} className="ml-auto rounded-lg border px-2 py-1 text-xs">Editar</button>
           </div>
         ))}
       </Card>
@@ -459,7 +464,7 @@ export default function CommercialIntelligenceClient() {
     if (TABS.some((t) => t.key === wanted)) { const t = setTimeout(() => setTab(wanted), 0); return () => clearTimeout(t); }
     return undefined;
   }, []);
-  const Tab = { center: SupervisionCenter, tables: PriceRulesPanel, manual: ManualPricingPanel, teach: TeachTab, learning: LearningTab, areas: AreasTab, musicians: MusiciansTab, sales: SalesTab, pipeline: PipelineTab, simulator: SimulatorTab }[tab];
+  const Tab = { center: SupervisionCenter, tables: PriceRulesPanel, vocalists: VocalistsPanel, manual: ManualPricingPanel, teach: TeachTab, learning: LearningTab, areas: AreasTab, musicians: MusiciansTab, sales: SalesTab, pipeline: PipelineTab, simulator: SimulatorTab }[tab];
   return (
     <div className="mx-auto max-w-5xl space-y-4 pb-10">
       <div className="flex flex-wrap items-center gap-2">

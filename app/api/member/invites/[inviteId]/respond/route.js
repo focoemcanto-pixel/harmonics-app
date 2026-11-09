@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { guardInviteResponse } from '@/lib/ai/commercial/vocalists.mjs';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -228,6 +229,13 @@ export async function POST(request, context) {
 
     if (!isAdmin && String(invite.contact_id) !== String(contact.id)) {
       return NextResponse.json({ ok: false, error: 'Sem permissão para responder este convite.' }, { status: 403 });
+    }
+
+    // Convites de vocalista originados pela assistente: revalida a escala (conflito) e recusa respostas
+    // tardias antes de gravar. Convites comuns seguem o fluxo de sempre.
+    const guard = await guardInviteResponse({ supabase, inviteId: invite.id, action });
+    if (!guard.allow) {
+      return NextResponse.json({ ok: false, code: guard.reason, error: guard.message }, { status: 409 });
     }
 
     const respondedAt = nowIso();

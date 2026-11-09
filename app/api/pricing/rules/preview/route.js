@@ -30,10 +30,14 @@ export async function POST(request) {
     inWindow(guard.supabase.from('events').select('id', { count: 'exact', head: true })),
     inWindow(guard.supabase.from('precontracts').select('id', { count: 'exact', head: true })),
   ]);
+  const { data: stateHash } = await guard.supabase.rpc('price_rules_state_hash', {
+    p_workspace_id: ws, p_category: String(body?.category || ''), p_item_key: String(body?.item_key || ''),
+  });
   return NextResponse.json({
     ok: true,
     dry_run: true,
     plan,
+    expected_hash: stateHash || null,
     saved_in_window: { events: events.count ?? null, precontracts: precontracts.count ?? null, note: 'Valores já salvos não mudam.' },
   });
 }

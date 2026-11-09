@@ -15,6 +15,9 @@ const ROUTES = [
   [/^\/api\/ai\/closings\/([^/]+)$/, '../../../app/api/ai/closings/[id]/route.js'],
   [/^\/api\/ai\/commercial\/queues$/, '../../../app/api/ai/commercial/queues/route.js'],
   [/^\/api\/ai\/approvals\/([^/]+)$/, '../../../app/api/ai/approvals/[id]/route.js'],
+  [/^\/api\/pricing\/rules\/preview$/, '../../../app/api/pricing/rules/preview/route.js'],
+  [/^\/api\/pricing\/rules$/, '../../../app/api/pricing/rules/route.js'],
+  [/^\/api\/settings\/pricing$/, '../../../app/api/settings/pricing/route.js'],
 ];
 
 export async function handle(method, pathname, search, bodyText, headers = {}) {

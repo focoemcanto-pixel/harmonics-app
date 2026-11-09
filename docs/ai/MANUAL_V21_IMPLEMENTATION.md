@@ -53,3 +53,15 @@ Testes: `npm test`, `npm run test:ai-local` (inclui `ai-manual.local.test.mjs`),
 - Painel do cliente e repertório: ofertas de receptivo pela regra oficial vigente na data do evento.
 - `lib/quotes/rule-change.mjs` + `POST /api/pricing/rules/preview` (somente Owner, somente leitura): planeja uma alteração
   com vigência — encerra na véspera a regra vigente, respeita regra futura, recusa início repetido e avisa retroatividade.
+
+## Edição centralizada das tabelas com vigência (v8)
+
+- Migration `20261112120000_price_rules_governance.sql`: leitura de `quote_price_rules` por membros ativos (custos
+  internos `musician_fee` só Owner/Admin), **sem escrita pelo navegador**; tabela de auditoria `quote_price_rule_changes`;
+  `price_rules_state_hash` e `apply_price_rule_change` (atômica, serializada por chave, recusa prévia desatualizada e
+  início repetido, encerra a regra vigente na véspera e respeita regra futura).
+- API: `GET /api/pricing/rules` (Owner/Admin), `POST /api/pricing/rules` (somente Owner, motivo e confirmação explícita),
+  `POST /api/pricing/rules/preview` devolve `expected_hash`.
+- Central → **Tabelas**: consulta por categoria, nova vigência com prévia, motivo e histórico.
+- Tabela antiga do Eventos (`pricing_settings`): somente leitura (`PUT /api/settings/pricing` → 423). Os custos padrão do
+  financeiro continuam editáveis na mesma aba.

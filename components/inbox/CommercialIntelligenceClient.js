@@ -5,11 +5,13 @@ import Link from 'next/link';
 import { useAppToast } from '@/components/ui/ToastProvider';
 import SupervisionCenter from '@/components/inbox/SupervisionCenter';
 import ManualPricingPanel from '@/components/inbox/ManualPricingPanel';
+import PriceRulesPanel from '@/components/inbox/PriceRulesPanel';
 
 const TABS = [
   { key: 'center', label: 'Central' },
   { key: 'teach', label: 'Ensinar à IA' },
-  { key: 'manual', label: 'Manual e tabelas' },
+  { key: 'tables', label: 'Tabelas' },
+  { key: 'manual', label: 'Manual e propostas' },
   { key: 'learning', label: 'Aprendizado' },
   { key: 'areas', label: 'Localidades' },
   { key: 'musicians', label: 'Músicos' },
@@ -451,7 +453,13 @@ function SimulatorTab() {
 export default function CommercialIntelligenceClient() {
   const toast = useAppToast();
   const [tab, setTab] = useState('center');
-  const Tab = { center: SupervisionCenter, manual: ManualPricingPanel, teach: TeachTab, learning: LearningTab, areas: AreasTab, musicians: MusiciansTab, sales: SalesTab, pipeline: PipelineTab, simulator: SimulatorTab }[tab];
+  // Link direto (?tab=tables), lido após montar para não divergir da renderização do servidor.
+  useEffect(() => {
+    const wanted = new URLSearchParams(window.location.search).get('tab');
+    if (TABS.some((t) => t.key === wanted)) { const t = setTimeout(() => setTab(wanted), 0); return () => clearTimeout(t); }
+    return undefined;
+  }, []);
+  const Tab = { center: SupervisionCenter, tables: PriceRulesPanel, manual: ManualPricingPanel, teach: TeachTab, learning: LearningTab, areas: AreasTab, musicians: MusiciansTab, sales: SalesTab, pipeline: PipelineTab, simulator: SimulatorTab }[tab];
   return (
     <div className="mx-auto max-w-5xl space-y-4 pb-10">
       <div className="flex flex-wrap items-center gap-2">

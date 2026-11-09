@@ -307,3 +307,21 @@ test('filtros e busca do Inbox', () => {
   assert.deepEqual(calls, [['eq', 'needs_human', true], ['eq', 'state', 'open']]);
   assert.equal(sanitizeSearch('a%b,(c)*'), 'a b  c');
 });
+
+test('preços de referência: regra oficial vigente na data vence a tabela do Eventos', async () => {
+  const supabase = fakeSupabase({
+    pricing_settings: [{ workspace_id: 'ws-c', price_trio: 999, sound_price: 77 }],
+    quote_price_rules: [
+      { workspace_id: 'ws-c', category: 'ceremony', item_key: 'trio', amount: 1530, valid_from: '2090-01-01', valid_until: '2090-05-31' },
+      { workspace_id: 'ws-c', category: 'ceremony', item_key: 'trio', amount: 1870, valid_from: '2090-06-01', valid_until: null },
+      { workspace_id: 'ws-c', category: 'sound', item_key: 'church', amount: 640, valid_from: '2090-01-01', valid_until: null },
+      { workspace_id: 'ws-c', category: 'sound', item_key: 'church_reception_1h', amount: 720, valid_from: '2090-01-01', valid_until: null },
+    ],
+  });
+  const before = await executeTool('consultar_precos', { formacao: 'trio', com_som: true, data: '2090-05-31' }, { supabase, workspaceId: 'ws-c' });
+  const after = await executeTool('consultar_precos', { formacao: 'trio', com_som: true, data: '2090-06-01' }, { supabase, workspaceId: 'ws-c' });
+  assert.deepEqual([before.valor_cerimonia, before.valor_som, after.valor_cerimonia], [1530, 640, 1870]);
+  const long = await executeTool('consultar_precos', { formacao: 'trio', com_som: true, recepcao_horas: 3, data: '2090-07-01' }, { supabase, workspaceId: 'ws-c' });
+  assert.equal(long.valor_som, null);
+  assert.match(long.som_observacao, /sob medida/);
+});

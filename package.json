@@ -18,7 +18,8 @@
     "test:oauth-legacy": "node --import ./tests/helpers/register-alias.mjs --test tests/oauth-integration.test.mjs",
     "test:finance-bridge": "node --test tests/finance-bridge.test.mjs tests/finance-bridge-receivables-costs.test.mjs",
     "eval:ai": "PROMPTFOO_DISABLE_TELEMETRY=1 PROMPTFOO_DISABLE_UPDATE=1 npx --yes promptfoo@0.120.10 eval -c evals/ai/promptfooconfig.yaml --no-cache --no-write --no-progress-bar",
-    "test:ai-local": "./supabase/local/run-ai-inbox.sh"
+    "test:ai-local": "./supabase/local/run-ai-inbox.sh",
+    "sim:nara": "NARA_SIM_LLM=openai node --import ./tests/helpers/register-alias.mjs --test supabase/local/nara-sim.local.test.mjs"
   },
   "dependencies": {
     "@supabase/auth-helpers-nextjs": "^0.15.0",

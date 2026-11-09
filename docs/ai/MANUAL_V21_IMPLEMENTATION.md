@@ -70,3 +70,18 @@ Testes: `npm test`, `npm run test:ai-local` (inclui `ai-manual.local.test.mjs`),
 - Custos padrão do financeiro (`finance_cost_defaults`, sem política de acesso no navegador): lidos e gravados pela nova rota
   `GET/PUT /api/settings/finance-costs` (somente Owner/Admin/Financeiro, escopo do workspace), usada pelas telas Eventos e
   Pagamentos.
+
+## Conversas simuladas da assistente (sem WhatsApp)
+
+`supabase/local/nara-sim.local.test.mjs` roda conversas completas pelo pipeline real (ingestão → regras → prompt →
+ferramentas → fechamento supervisionado → envio falso) em Postgres local descartável, com dados sintéticos:
+
+- 1º contato pedindo orçamento: apresentação única e resposta objetiva pela tabela vigente na data; sem reapresentação depois.
+- Troca de vigência por data do evento e som por duração (0h/1h/2h); 3h ou mais vai para aprovação, sem total definitivo.
+- Ferramentas nunca devolvem custo interno ao modelo.
+- Desconto segue a negociação; link de contrato da IA é bloqueado; pedido de pessoa transfere; opt-out encerra.
+- Fechamento: resumo determinístico, CONFIRMO prepara o pré-contrato e nenhum link sai sem aprovação.
+- IA desligada globalmente não gera nada.
+
+Modo padrão (CI): modelo roteirizado. Modo real: `OPENAI_API_KEY=... NARA_SIM_OUT=/caminho/transcricao.json npm run sim:nara`
+(com o banco local já criado por `npm run test:ai-local`); grava a transcrição fora do repositório.

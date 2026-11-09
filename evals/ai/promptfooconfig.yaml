@@ -24,9 +24,9 @@ tests:
   - description: 'vou parar pra pensar não é opt-out'
     vars: { scenario: optout, text: 'vou parar pra pensar e te aviso' }
     assert: [{ type: equals, value: continue }]
-  - description: pedido de desconto vai para humano
+  - description: pedido de desconto segue a negociação (não transfere de imediato)
     vars: { scenario: handoff, text: 'consegue um desconto pra fechar?' }
-    assert: [{ type: equals, value: discount_request }]
+    assert: [{ type: equals, value: ai }]
   - description: dúvida de pagamento fica com a IA (conhecimento aprovado)
     vars: { scenario: handoff, text: 'como funciona o pagamento do sinal?' }
     assert: [{ type: equals, value: ai }]

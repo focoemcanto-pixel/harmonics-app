@@ -91,6 +91,9 @@ export default function InboxClient({ canAdmin = false }) {
   useEffect(() => {
     const timer = setTimeout(() => {
       if ('Notification' in window) setNotifyEnabled(Notification.permission === 'granted');
+      // Abrir conversa direto pelo cartão da Central (/inbox?c=<id>).
+      const fromQuery = new URLSearchParams(window.location.search).get('c');
+      if (fromQuery && /^[0-9a-f-]{36}$/i.test(fromQuery)) setSelectedId(fromQuery);
     }, 0);
     return () => clearTimeout(timer);
   }, []);

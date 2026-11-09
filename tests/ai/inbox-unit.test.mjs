@@ -145,7 +145,7 @@ test('controle de custos e turnos pede humano', () => {
 test('gatilhos de transferência humana', () => {
   assert.equal(detectHandoffTrigger('Quero falar com um atendente, por favor')?.reason, 'customer_requested_human');
   assert.equal(detectHandoffTrigger('Você é um robô?')?.reason, 'customer_requested_human');
-  assert.equal(detectHandoffTrigger('Consegue um desconto?')?.reason, 'discount_request');
+  assert.equal(detectHandoffTrigger('Consegue um desconto?'), null, 'desconto segue a ordem de negociação (Manual §10)');
   assert.equal(detectHandoffTrigger('Preciso alterar o contrato para outra data do evento')?.reason, 'contract_change');
   assert.equal(detectHandoffTrigger('Quero cancelar')?.reason, 'cancellation_or_refund');
   assert.equal(detectHandoffTrigger('Oi! Queria saber valores para casamento'), null);

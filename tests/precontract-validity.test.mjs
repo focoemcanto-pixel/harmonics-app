@@ -9,7 +9,7 @@ test('renewal uses current time and preserves creation time; legacy age fallback
   const renewed = { ...old, ...buildPrecontractValidityRenewal({ ...old, status:'expired' }, now) };
   assert.equal(renewed.status,'link_generated');
   assert.equal(renewed.created_at,old.created_at);
-  assert.equal(renewed.expires_at,'2035-03-17T12:00:00.000Z');
+  assert.equal(renewed.expires_at,'2035-03-25T12:00:00.000Z', 'renovação: 15 dias (Manual §15)');
   assert.equal(isPrecontractExpiredByAge(renewed, now),false);
   assert.equal(isPrecontractExpiredByAge(renewed,new Date(renewed.expires_at)),true);
 });
@@ -37,4 +37,22 @@ test('stale expiry request cannot overwrite a concurrent renewal', async () => {
   assert.equal(result.expired,false);
   assert.equal(result.precontract.expires_at,renewed.expires_at);
   assert.ok(equality.some(([key])=>key==='expires_at'));
+});
+
+test('Manual §15: 15 dias explícitos para novos envios; legado sem expires_at mantém 7 dias', async () => {
+  const { buildPrecontractExpiresAt, getPrecontractExpirationDays, getLegacyPrecontractExpirationDays } = await import('../lib/contracts/precontract-expiration.js');
+  assert.equal(getPrecontractExpirationDays(), 15);
+  assert.equal(getLegacyPrecontractExpirationDays(), 7);
+  assert.equal(buildPrecontractExpiresAt(new Date('2035-03-10T12:00:00Z')), '2035-03-25T12:00:00.000Z');
+  assert.equal(getPrecontractExpirationDate(old).toISOString(), '2035-01-08T12:00:00.000Z', 'registro antigo não é estendido');
+  const explicit = { ...old, expires_at: '2035-02-01T00:00:00.000Z' };
+  assert.equal(getPrecontractExpirationDate(explicit).toISOString(), '2035-02-01T00:00:00.000Z', 'expires_at existente é preservado');
+  const prev = process.env.PRECONTRACT_EXPIRATION_DAYS;
+  process.env.PRECONTRACT_EXPIRATION_DAYS = '10';
+  try {
+    assert.equal(getPrecontractExpirationDays(), 10);
+    assert.equal(getLegacyPrecontractExpirationDays(), 10, 'variável de ambiente continua mandando');
+  } finally {
+    if (prev === undefined) delete process.env.PRECONTRACT_EXPIRATION_DAYS; else process.env.PRECONTRACT_EXPIRATION_DAYS = prev;
+  }
 });

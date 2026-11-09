@@ -17,6 +17,7 @@ export async function POST(request) {
     date: body.date, formation: body.formation, instruments: body.instruments || '', hasSound: Boolean(body.hasSound),
     reception: { formation: body.receptionFormation || null, hours: Number(body.receptionHours || 0), instruments: body.receptionInstruments || '' },
     location: body.location || null,
+    modality: body.modality === 'show' ? 'show' : 'ceremony', hours: Number(body.hours || 0) || null,
   };
   const quote = await quoteForWorkspace({ supabase: guard.supabase, workspaceId: ws, input, settings, routeFn: createRouteFn() });
   const vocal = body.date ? await checkPrimaryVocal({ supabase: guard.supabase, workspaceId: ws, request: { date: body.date, time: body.time, durationMin: 60, bufferMin: settings?.schedule_buffer_minutes } }) : null;

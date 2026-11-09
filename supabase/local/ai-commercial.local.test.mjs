@@ -13,6 +13,8 @@ import { encryptSecret } from '../../lib/ai/inbox/secret-box.mjs';
 import { ingestWebhook, processConversationReply, dispatchOutbox, runInboxCycle } from '../../lib/ai/inbox/service.mjs';
 import { clearKnowledgeCache } from '../../lib/ai/commercial/engine.mjs';
 import { decideSuggestion } from '../../lib/ai/commercial/learning.mjs';
+import { approveAndQueueLink } from '../../lib/ai/commercial/supervision.mjs';
+import { buildQueues } from '../../lib/ai/commercial/queues.mjs';
 
 const DB_URL = process.env.LOCAL_DB_URL || 'postgresql://postgres@localhost/harmonics_local?host=/tmp&port=54329';
 const parsed = new URL(DB_URL);
@@ -30,6 +32,7 @@ const PN = '900000000101';
 const VOCAL_CONTACT = '00000000-0000-4000-8000-0000000000d1';
 const SUB_CONTACT = '00000000-0000-4000-8000-0000000000d2';
 const DATE = '2098-06-10';
+const APPROVER = '00000000-0000-4000-8000-0000000000e9';
 let seq = 0;
 const nid = (p) => `${p}.${Date.now()}.${(seq += 1)}`;
 
@@ -61,6 +64,7 @@ function harness(llm) {
 }
 const reply = (text, toolCalls = []) => ({ text, model: 'fake', inputTokens: 10, outputTokens: 5, costUsd: 0.0001, toolCalls });
 const closeTool = (extra = {}) => async ({ executeTool }) => {
+  await executeTool('registrar_dados_evento', { tipo_evento: 'Casamento' });
   await executeTool('preparar_fechamento', { data: DATE, horario: '16:00', formacao: 'Trio', instrumentos: 'violino, violoncelo e voz', com_som: true, recepcao_formacao: 'Duo', recepcao_horas: 2, local: 'Cidade Base', ...extra });
   return reply('texto do modelo que não deve sair', ['preparar_fechamento']);
 };
@@ -77,6 +81,8 @@ async function turn(chat, text, llm) {
 test.before(async () => {
   await sql("delete from workspaces where id = $1", [WS]);
   await sql("insert into workspaces (id, key, name, slug) values ($1, 'ws-c-test', 'Workspace Comercial Teste', 'ws-c-test')", [WS]);
+  const [tpl] = await sql("insert into contract_templates (workspace_id, name, slug, is_active, content) values ($1, 'Modelo Casamento Teste', 'casamento-c-test', true, '<p>Cláusula sintética.</p>') returning id", [WS]);
+  await sql("insert into event_types (workspace_id, name, slug, is_active, default_contract_template_id) values ($1, 'Casamento', 'casamento-c-test', true, $2)", [WS, tpl.id]);
   await sql("insert into ai_channels (workspace_id, phone_number_id, access_token_encrypted, status) values ($1, $2, $3, 'active')", [WS, PN, await encryptSecret('token-sintetico-para-testes-0002', KEY)]);
   await sql(`insert into ai_workspace_settings (workspace_id, ai_enabled, mode, autonomous_closing_enabled, followup_enabled, followup_days, followup_templates)
              values ($1, true, 'auto', true, true, '{2,5,10}', '{retorno_um,retorno_dois,retorno_tres}')`, [WS]);
@@ -103,22 +109,40 @@ test('fechamento completo: resumo determinístico → CONFIRMO → pré-contrato
   assert.equal((await sql("select status from ai_closings where conversation_id = $1", [first.conversation.id]))[0].status, 'awaiting_confirmation');
 
   const confirm = await turn(chat, 'CONFIRMO', async () => { throw new Error('LLM não deve ser chamado na confirmação'); });
-  assert.equal(confirm.result.reason, 'precontract_created');
-  const link = confirm.sent.find((s) => s.to === chat).text;
-  assert.match(link, /https:\/\/app\.example\.test\/contrato\/[a-z0-9]+/);
-  const [pc] = await sql('select * from precontracts where id = $1', [confirm.conversation.precontract_id]);
+  assert.equal(confirm.result.reason, 'awaiting_approval', 'modo supervisionado: aguarda aprovação do responsável');
+  const prep = confirm.sent.find((s) => s.to === chat).text;
+  assert.ok(!/contrato\//.test(prep), 'nenhum link sai antes da aprovação');
+  const [cl] = await sql('select * from ai_closings where conversation_id = $1 and status = $2', [confirm.conversation.id, 'awaiting_approval']);
+  assert.ok(cl.approval_hash && cl.conventional === true, 'caso convencional preparado com hash da versão');
+  const [pc] = await sql('select p.*, et.name as et_name from precontracts p left join event_types et on et.id = p.event_type_id where p.id = $1', [confirm.conversation.precontract_id]);
   assert.deepEqual(
-    [pc.event_date.toISOString().slice(0, 10), pc.formation, pc.instruments, pc.has_sound, pc.reception_hours, pc.reception_formation, Number(pc.base_amount), Number(pc.add_reception), Number(pc.add_sound), Number(pc.agreed_amount), pc.status],
-    [DATE, 'Trio', 'violino, violoncelo, voz', true, 2, 'Duo', 3000, 1200, 700, 4900, 'link_generated'],
+    [pc.event_date.toISOString().slice(0, 10), pc.formation, pc.instruments, pc.has_sound, pc.reception_hours, pc.reception_formation, Number(pc.base_amount), Number(pc.add_reception), Number(pc.add_sound), Number(pc.agreed_amount), pc.status, pc.et_name, Boolean(pc.contract_template_id)],
+    [DATE, 'Trio', 'violino, violoncelo, voz', true, 2, 'Duo', 3000, 1200, 700, 4900, 'draft', 'Casamento', true],
   );
   assert.deepEqual([pc.client_name, pc.client_email, pc.client_phone, pc.location_address], [null, null, null, null], 'dados pessoais ficam para o cliente');
+  const queues = await buildQueues({ supabase: service, workspaceId: WS });
+  const qcard = queues.contracts.find((c) => c.closing_id === cl.id);
+  assert.equal(qcard.whatsapp_url, `https://wa.me/${chat}`);
+
+  // Aprovação do responsável (versão exata) => link sai uma única vez.
+  const h = harness(async () => reply('x'));
+  const ok1 = await approveAndQueueLink({ supabase: service, workspaceId: WS, closingId: cl.id, approvalHash: cl.approval_hash, actor: APPROVER, mode: 'manual' });
+  assert.equal(ok1.status, 'approved');
+  await dispatchOutbox({ supabase: service, workspaceId: WS, deps: h.deps });
+  assert.match(h.sent.find((s) => s.to === chat).text, /https:\/\/app\.example\.test\/contrato\/[a-z0-9]+/);
+  const ok2 = await approveAndQueueLink({ supabase: service, workspaceId: WS, closingId: cl.id, approvalHash: cl.approval_hash, actor: APPROVER, mode: 'manual' });
+  assert.equal(ok2.status, 'already_sent');
+  await dispatchOutbox({ supabase: service, workspaceId: WS, deps: h.deps });
+  assert.equal(h.sent.filter((s) => s.to === chat).length, 1, 'retry não reenvia o link');
+  const [after] = await sql('select status, sent_at from ai_closings where id = $1', [cl.id]);
+  assert.equal(after.status, 'link_sent');
+  assert.equal((await sql('select status from precontracts where id = $1', [pc.id]))[0].status, 'link_generated');
+  assert.equal((await conv(chat)).sales_stage, 'contract_sent');
   const [quote] = await sql('select status, precontract_id from quotes where id = $1', [confirm.conversation.quote_id]);
   assert.deepEqual([quote.status, quote.precontract_id], ['approved', pc.id]);
-  assert.equal(confirm.conversation.sales_stage, 'contract_sent');
 
   // Repetir a confirmação não cria outro pré-contrato.
-  const again = await turn(chat, 'confirmo', async () => reply('Seu link já foi enviado acima 😊'));
-  assert.notEqual(again.result.reason, 'precontract_created');
+  await turn(chat, 'confirmo', async () => reply('Seu link já foi enviado acima 😊'));
   const [{ n }] = await sql("select count(*)::int n from precontracts where workspace_id = $1", [WS]);
   assert.equal(n, 1);
 });
@@ -145,15 +169,45 @@ test('revalidação: preço mudou entre resumo e confirmação => humano, sem pr
   assert.equal(t.conversation.precontract_id, null);
 });
 
-test('fechamento autônomo desligado: confirmação vira aprovação humana', async () => {
-  await sql('update ai_workspace_settings set autonomous_closing_enabled = false where workspace_id = $1', [WS]);
+test('aprovação vale para a versão exata: alteração material exige nova aprovação', async () => {
   const chat = '15550005004';
   await turn(chat, 'bora fechar', closeTool());
   const t = await turn(chat, 'sim', async () => reply('x'));
-  await sql('update ai_workspace_settings set autonomous_closing_enabled = true where workspace_id = $1', [WS]);
-  assert.equal(t.result.reason, 'autonomous_closing_disabled');
-  assert.equal(t.conversation.precontract_id, null);
-  assert.equal((await sql("select count(*)::int n from ai_approvals where conversation_id = $1 and kind = 'closing'", [t.conversation.id]))[0].n, 1);
+  const [cl] = await sql("select * from ai_closings where conversation_id = $1 and status = 'awaiting_approval'", [t.conversation.id]);
+  await sql('update precontracts set agreed_amount = 4500 where id = $1', [cl.precontract_id]);
+  const r1 = await approveAndQueueLink({ supabase: service, workspaceId: WS, closingId: cl.id, approvalHash: cl.approval_hash, actor: APPROVER });
+  assert.equal(r1.status, 'version_changed');
+  assert.notEqual(r1.approvalHash, cl.approval_hash);
+  const r2 = await approveAndQueueLink({ supabase: service, workspaceId: WS, closingId: cl.id, approvalHash: r1.approvalHash, actor: APPROVER });
+  assert.equal(r2.status, 'approved', 'nova versão aprovada explicitamente');
+});
+
+test('autonomia progressiva: assistido só dentro das regras; autônomo envia caso convencional', async () => {
+  await sql(`update ai_workspace_settings set autonomy_mode = 'assisted', assisted_rules = '{"allowed_formations":["Duo"]}' where workspace_id = $1`, [WS]);
+  const chat = '15550005017';
+  await turn(chat, 'quero fechar', closeTool());
+  const a = await turn(chat, 'CONFIRMO', async () => reply('x'));
+  assert.equal(a.result.reason, 'awaiting_approval', 'Trio fora das regras do assistido vai para o responsável');
+
+  await sql(`update ai_workspace_settings set autonomy_mode = 'autonomous', assisted_rules = '{}' where workspace_id = $1`, [WS]);
+  const chat2 = '15550005018';
+  await turn(chat2, 'quero fechar', closeTool());
+  const b = await turn(chat2, 'CONFIRMO', async () => reply('x'));
+  assert.equal(b.result.reason, 'precontract_auto_approved');
+  assert.match(b.sent.find((s) => s.to === chat2).text, /contrato\//);
+  const [cl] = await sql("select status, approval_mode from ai_closings where conversation_id = $1 and status in ('approved','link_sent')", [b.conversation.id]);
+  assert.deepEqual([cl.status, cl.approval_mode], ['link_sent', 'autonomous']);
+
+  // Exceção (sem tipo de evento identificado) nunca sai sozinha, mesmo no autônomo.
+  const chat3 = '15550005019';
+  await turn(chat3, 'quero fechar', async ({ executeTool }) => {
+    await executeTool('preparar_fechamento', { data: DATE, horario: '16:00', formacao: 'Trio', instrumentos: 'violino, violoncelo e voz', com_som: true, recepcao_formacao: 'Duo', recepcao_horas: 2, local: 'Cidade Base' });
+    return reply('x');
+  });
+  const c = await turn(chat3, 'CONFIRMO', async () => reply('x'));
+  assert.equal(c.result.reason, 'awaiting_approval');
+  assert.ok(c.result.exceptions.includes('event_type_unknown'));
+  await sql(`update ai_workspace_settings set autonomy_mode = 'supervised' where workspace_id = $1`, [WS]);
 });
 
 test('contrato assinado é preservado: nova confirmação não altera o pré-contrato', async () => {
@@ -253,7 +307,9 @@ test('follow-ups: agenda após resposta, cancela com resposta/humano/opt-out, te
   const chat = '15550005014';
   const t = await turn(chat, 'Oi! Queria saber valores para casamento', async () => reply('Oi! Que alegria! Para qual data seria?'));
   const fu = await sql("select step, status from ai_followups where conversation_id = $1 order by step", [t.conversation.id]);
-  assert.deepEqual(fu.map((f) => f.status), ['scheduled', 'scheduled', 'scheduled']);
+  assert.deepEqual(fu.map((f) => f.status), ['scheduled', 'scheduled'], 'máximo de 2 abordagens (Manual §12)');
+  const [d1, d2] = (await sql("select extract(day from due_at - now())::int as d from ai_followups where conversation_id = $1 order by step", [t.conversation.id])).map((r) => r.d);
+  assert.deepEqual([d1 >= 2 && d1 <= 3, d2 - d1], [true, 5]);
   // Cliente responde => cancela; IA responde de novo => reagenda.
   await say(chat, 'Seria em junho');
   assert.ok((await sql("select status from ai_followups where conversation_id = $1", [t.conversation.id])).every((f) => f.status === 'cancelled'));
@@ -297,7 +353,15 @@ test('concorrência: dois confirmações simultâneas geram um único pré-contr
   const c = await conv(chat);
   const h = harness(async () => reply('x'));
   const results = await Promise.all([1, 2, 3].map(() => processConversationReply({ supabase: service, workspaceId: WS, conversationId: c.id, deps: h.deps })));
-  assert.equal(results.filter((r) => r.reason === 'precontract_created').length, 1);
+  assert.equal(results.filter((r) => r.reason === 'awaiting_approval').length, 1);
   const [{ n }] = await sql("select count(*)::int n from precontracts p join ai_conversations a on a.precontract_id = p.id where a.id = $1", [c.id]);
   assert.equal(n, 1);
+});
+
+test('trava: resposta da IA com link de contrato é bloqueada e vai para o responsável', async () => {
+  const chat = '15550005020';
+  const t = await turn(chat, 'me manda o link do contrato', async () => reply('Claro! Aqui está: https://app.example.test/contrato/abc123'));
+  assert.equal(t.result.reason, 'link_without_approval');
+  assert.equal(t.sent.filter((s) => s.to === chat).length, 0);
+  assert.equal(t.conversation.needs_human, true);
 });

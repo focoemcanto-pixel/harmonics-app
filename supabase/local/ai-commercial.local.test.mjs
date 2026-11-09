@@ -103,7 +103,7 @@ test('fechamento completo: resumo determinístico → CONFIRMO → pré-contrato
   const summary = first.sent.find((s) => s.to === chat).text;
   assert.match(summary, /10\/06\/2098 às 16:00/);
   assert.match(summary, /R\$ 4\.900,00/);
-  assert.match(summary, /Vocalista Principal Teste/);
+  assert.doesNotMatch(summary, /Vocalista Principal Teste|Vocalista Substituto Teste/, 'resumo não promete vocalista');
   assert.ok(!summary.includes('texto do modelo'), 'resumo é sempre o determinístico');
   assert.equal(first.conversation.sales_stage, 'closing');
   assert.equal((await sql("select status from ai_closings where conversation_id = $1", [first.conversation.id]))[0].status, 'awaiting_confirmation');
@@ -222,36 +222,31 @@ test('contrato assinado é preservado: nova confirmação não altera o pré-con
   assert.deepEqual([after.formation, Number(after.agreed_amount), after.status], ['Duo', 1000, 'signed']);
 });
 
-test('vocalista principal: conflito real oferece só substituto verificado; agenda inconclusiva vai para revisão sem citar nome', async () => {
+test('vocalista prioritário em conflito: pendência para o Owner, sem substituto automático e sem citar agenda', async () => {
+  await sql("update ai_workspace_settings set vocalist_rules = jsonb_build_object('reception_masculino', $2::text) where workspace_id = $1", [WS, VOCAL_CONTACT]);
   const [ev] = await sql("insert into events (workspace_id, client_name, event_date, event_time, duration_min, status) values ($1, 'Evento Sintético', $2, '16:30', 90, 'confirmado') returning id", [WS, DATE]);
-  await sql("insert into event_musicians (event_id, musician_id, role, status) values ($1, $2, 'Voz', 'confirmed')", [ev.id, VOCAL_CONTACT]);
+  await sql("insert into event_musicians (event_id, musician_id, role, status) values ($1, $2, 'Vocal Masculino', 'confirmed')", [ev.id, VOCAL_CONTACT]);
   const chat = '15550005006';
   let output = null;
   await turn(chat, 'Tem disponibilidade dia 10/06/2098 às 16h?', async ({ executeTool }) => {
     output = await executeTool('consultar_disponibilidade', { data: DATE, horario: '16:00' });
-    return reply('Nessa data temos outra voz disponível.');
+    return reply('Não há compromisso registrado; a equipe confirma a agenda.');
   });
-  assert.deepEqual(output.substitutos.map((s) => s.nome), ['Vocalista Substituto Teste']);
-  assert.deepEqual(output.substitutos[0].videos, ['https://video.example.test/sub']);
+  assert.ok(!JSON.stringify(output).match(/Vocalista|substitut/i), 'não cita vocalistas nem oferece substituto');
+  assert.match(output.orientacao, /Nunca diga que a data ou alguém está "disponível"/);
 
-  await sql("update events set event_time = null where id = $1", [ev.id]);
-  const chat2 = '15550005007';
-  let out2 = null;
-  const t2 = await turn(chat2, 'E dia 10/06/2098?', async ({ executeTool }) => {
-    out2 = await executeTool('consultar_disponibilidade', { data: DATE, horario: '16:00' });
-    return reply('Vou confirmar a agenda e já te retorno!');
-  });
-  assert.ok(!JSON.stringify(out2).includes('Vocalista'), 'não cita nomes nem indisponibilidade');
-  assert.match(out2.orientacao, /Não fale de indisponibilidade/);
-  assert.equal((await sql("select count(*)::int n from ai_approvals where conversation_id = $1 and kind = 'availability_review'", [t2.conversation.id]))[0].n, 1);
-
-  // Fechamento com agenda inconclusiva não gera resumo.
+  // Fechamento com receptivo e voz masculina: prioridade cai em conflito real -> pendência, sem resumo.
   const chat3 = '15550005008';
-  const t3 = await turn(chat3, 'quero fechar', closeTool());
+  const t3 = await turn(chat3, 'quero fechar', closeTool({ voz: 'masculina' }));
   assert.equal(t3.conversation.needs_human, true);
   assert.equal((await sql('select count(*)::int n from ai_closings where conversation_id = $1', [t3.conversation.id]))[0].n, 0);
+  const reqs = await sql('select status, reason, contact_id from ai_vocalist_requests where conversation_id = $1', [t3.conversation.id]);
+  assert.deepEqual(reqs.map((r) => [r.status, r.reason, r.contact_id]), [['conflict', 'priority_reception', VOCAL_CONTACT]], 'sem substituição automática');
+  assert.equal((await sql("select count(*)::int n from invites where contact_id = $1", [VOCAL_CONTACT]))[0].n, 0, 'nenhum convite sem aprovação');
+  await sql('delete from ai_vocalist_requests where workspace_id = $1', [WS]);
   await sql('delete from event_musicians where event_id = $1', [ev.id]);
   await sql('delete from events where id = $1', [ev.id]);
+  await sql("update ai_workspace_settings set vocalist_rules = '{}'::jsonb where workspace_id = $1", [WS]);
 });
 
 test('território bloqueado: sem orçamento e com transferência', async () => {

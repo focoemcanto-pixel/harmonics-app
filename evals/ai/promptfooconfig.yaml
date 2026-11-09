@@ -43,3 +43,17 @@ tests:
     assert:
       - type: javascript
         value: 'JSON.parse(output).ok === false && JSON.parse(output).reason === "territory_blocked" && JSON.parse(output).total === undefined'
+  - description: indecisão gera recomendação única (sales-skills/JOLT)
+    vars: { scenario: strategy, stage: qualifying, text: 'estou entre trio e quarteto e com medo de errar' }
+    assert: [{ type: icontains, value: indecision }]
+  - description: memória guarda orçamento e quem decide (sinais da própria cliente)
+    vars: { scenario: signals, text: 'O orçamento está apertado e quem decide comigo é minha mãe.' }
+    assert: [{ type: equals, value: '{"orcamento":"orcamento esta apertado","decisores":"mae"}' }]
+  - description: CPF nunca é memorizado
+    vars: { scenario: sensitive, text: '123.456.789-09' }
+    assert: [{ type: equals, value: 'true' }]
+  - description: sem regra aprovada, condição de pagamento é removida
+    vars: { scenario: payment, text: 'Dá para parcelar no cartão. Quer ver um duo?' }
+    assert:
+      - { type: not-icontains, value: cartão }
+      - { type: icontains, value: Quer ver um duo }

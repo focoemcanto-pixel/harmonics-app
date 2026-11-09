@@ -1,7 +1,8 @@
 import { isAntesalaAuthorized } from '@/lib/cliente/antesala-authorization';
 import { notFound, redirect } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
-import { loadWorkspacePricing } from '@/lib/settings/workspace-pricing';
+import { loadWorkspacePricing, loadWorkspaceOfficialPriceRules } from '@/lib/settings/workspace-pricing';
+import { receptionOffer } from '@/lib/quotes/official-prices.mjs';
 import ClienteHome from '../../../../components/cliente/ClienteHome';
 import { resolveSupportWhatsAppConfig } from '../../../../lib/whatsapp/support-config';
 
@@ -521,13 +522,24 @@ function normalizeFormation(value) {
   return '';
 }
 
-function buildAntesalaQuoteOptions(formation, pricing = {}) {
+// Valores pela tabela oficial vigente na data do evento; a tabela do Eventos só cobre o que faltar.
+function buildAntesalaQuoteOptions(formation, pricing = {}, officialRules = [], eventDate = null) {
   const normalizedFormation = normalizeFormation(formation);
   if (!normalizedFormation) return [];
 
-  const oneHour = toNumber(pricing[`reception_${normalizedFormation}_1h`]);
-  const twoHours = toNumber(pricing[`reception_${normalizedFormation}_2h`]);
-  const threeHours = toNumber(pricing[`reception_${normalizedFormation}_3h`]);
+  const offer = receptionOffer({
+    rules: officialRules || [],
+    date: eventDate,
+    formation: normalizedFormation,
+    fallback: {
+      1: toNumber(pricing[`reception_${normalizedFormation}_1h`]),
+      2: toNumber(pricing[`reception_${normalizedFormation}_2h`]),
+      3: toNumber(pricing[`reception_${normalizedFormation}_3h`]),
+    },
+  });
+  const oneHour = toNumber(offer[1]);
+  const twoHours = toNumber(offer[2]);
+  const threeHours = toNumber(offer[3]);
 
   if (!oneHour && !twoHours && !threeHours) return [];
 
@@ -641,6 +653,7 @@ export default async function ClienteRepertorioPage({ params }) {
   let precontractsResp = { data: null, error: null };
   let contractsResp = { data: null, error: null };
   let pricingResp = { data: null, error: null };
+  let officialRulesResp = { data: [], error: null };
 
   try {
     [
@@ -650,6 +663,7 @@ export default async function ClienteRepertorioPage({ params }) {
       precontractsResp,
       contractsResp,
       pricingResp,
+      officialRulesResp,
     ] = await Promise.all([
       supabase
         .from('events')
@@ -682,6 +696,7 @@ export default async function ClienteRepertorioPage({ params }) {
         .maybeSingle(),
 
       loadWorkspacePricing({ supabase, eventId, select: CLIENT_PRICING_SELECT_FIELDS }),
+      loadWorkspaceOfficialPriceRules({ supabase, eventId }),
     ]);
   } catch (error) {
     console.error('[CLIENTE REPERTORIO PAGE] Falha inesperada ao carregar dados principais:', error);
@@ -861,7 +876,7 @@ export default async function ClienteRepertorioPage({ params }) {
       antesalaRequestedByClient: antesalaRequest.requestedByClient,
       antesalaRequestStatus: antesalaRequest.status,
       antesalaPriceIncrement: Number(event?.antesala_price_increment || 0),
-      antesalaQuoteOptions: buildAntesalaQuoteOptions(event?.formation, pricing),
+      antesalaQuoteOptions: buildAntesalaQuoteOptions(event?.formation, pricing, officialRulesResp?.data || [], event?.event_date || null),
       temReceptivo: Boolean(hasContractedReception),
       receptivoContratadoHoras: contractedReceptionHours || 0,
       receptivoDuracaoTravada: Boolean(hasContractedReception),

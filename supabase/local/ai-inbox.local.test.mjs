@@ -69,7 +69,7 @@ function deps(extra = {}) {
       sendTextMessage: meta.sendTextMessage,
       generateReply: async ({ executeTool }) => {
         await executeTool('registrar_dados_evento', { tipo_evento: 'casamento' });
-        const prices = await executeTool('consultar_precos', { formacao: 'Trio' });
+        const prices = await executeTool('consultar_precos', { formacao: 'Trio', local: 'Cidade Base Teste' });
         return { text: `Oi! Sou a assistente virtual. O trio parte de R$ ${prices.valor_cerimonia}. Qual a data?`, model: 'fake', inputTokens: 100, outputTokens: 20, costUsd: 0.0001, toolCalls: ['consultar_precos'] };
       },
       ...extra,
@@ -96,6 +96,7 @@ test.before(async () => {
   await sql("insert into ai_channels (workspace_id, phone_number_id, access_token_encrypted, status) values ($1, $2, $3, 'active'), ($4, $5, $3, 'active')", [WS_A, PN_A, token, WS_B, PN_B]);
   await sql("insert into ai_workspace_settings (workspace_id, ai_enabled, mode) values ($1, true, 'auto'), ($2, false, 'observe')", [WS_A, WS_B]);
   await sql("insert into pricing_settings (slug, workspace_id, price_trio) values ('ws-test-a', $1, 2500)", [WS_A]);
+  await sql("insert into ai_service_areas (workspace_id, name, status, match_terms, active) values ($1, 'Cidade Base Teste', 'served', '{cidade base teste}', true)", [WS_A]);
 });
 
 test.after(async () => { await pool.end(); });

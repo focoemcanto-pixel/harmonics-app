@@ -320,8 +320,8 @@ export default function InboxClient({ canAdmin = false }) {
             <div className="flex-1 space-y-2 overflow-y-auto px-4 py-4">
               {(detail.messages || []).map((m) => <MessageBubble key={m.id} message={m} />)}
               {failed.map((o) => (
-                <div key={o.id} className="ml-auto max-w-[80%] rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
-                  {o.status === 'unknown' ? 'Envio sem confirmação (não reenviado automaticamente)' : `Não enviado (${o.last_error || 'erro'})`}: “{o.content.slice(0, 120)}”
+                <div key={o.id} className="ml-auto max-w-[80%] whitespace-pre-wrap break-words rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
+                  {o.status === 'unknown' ? 'Envio sem confirmação (não reenviado automaticamente)' : `Não enviado (${o.last_error || 'erro'})`}:{'\n'}{o.content.slice(0, 400)}
                 </div>
               ))}
               <div ref={threadEndRef} />
@@ -350,7 +350,7 @@ export default function InboxClient({ canAdmin = false }) {
                 <textarea
                   value={editingDrafts[d.id] ?? d.content}
                   onChange={(e) => setEditingDrafts((prev) => ({ ...prev, [d.id]: e.target.value }))}
-                  rows={2}
+                  rows={Math.min(14, Math.max(2, String(editingDrafts[d.id] ?? d.content).split('\n').length))}
                   className="w-full rounded-xl border border-violet-200 bg-white px-3 py-2 text-sm"
                 />
                 <div className="flex gap-2">

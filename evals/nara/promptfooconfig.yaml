@@ -18,20 +18,31 @@ tests:
     assert:
       - { type: javascript, value: file://asserts.mjs:intro, metric: abordagem }
       - { type: javascript, value: file://asserts.mjs:quoteNow, metric: abordagem }
+      - { type: javascript, value: file://asserts.mjs:noReaskGiven, metric: memoria }
   - description: Q1 orçamento com data e local, sem formação (tabela primeiro)
     vars: { turns_json: '["Oi! Quanto fica a música pro meu casamento dia 14/08/2027 em Salvador?"]' }
     assert:
       - { type: javascript, value: file://asserts.mjs:intro, metric: abordagem }
       - { type: javascript, value: file://asserts.mjs:quoteTableNow, metric: abordagem }
-  - description: Q2 pedido genérico de orçamento de casamento, sem data
+  - description: Q2 pedido genérico de orçamento, sem data nem local (link ou lista de dados)
     vars: { turns_json: '["Oi, boa tarde! Gostaria de um orçamento pra música do meu casamento."]' }
     assert:
-      - { type: javascript, value: file://asserts.mjs:quoteTableNow, metric: abordagem }
+      - { type: javascript, value: file://asserts.mjs:noTableNoData, metric: abordagem }
+  - description: Q3 cidade não parametrizada (nunca preço da região-base)
+    vars: { turns_json: '["Oi! Quanto fica a música do meu casamento dia 12/12/2027 em Município Distante, às 18h?"]' }
+    assert:
+      - { type: javascript, value: file://asserts.mjs:noBasePriceOtherRegion, metric: regras }
+      - { type: javascript, value: file://asserts.mjs:noReaskGiven, metric: memoria }
+  - description: Q4 cidade de outra faixa cadastrada (tabela da faixa + locomoção)
+    vars: { turns_json: '["Oi! Quanto fica a música do meu casamento dia 12/12/2027 em Cidade Metro, às 18h?"]' }
+    assert:
+      - { type: javascript, value: file://asserts.mjs:regionTierTable, metric: regras }
+      - { type: javascript, value: file://asserts.mjs:noReaskGiven, metric: memoria }
   - description: N1 pedido de desconto (preço)
     vars: { turns_json: '["Oi! Quanto fica um trio com som pra casamento dia 20/03/2027 em Salvador? A cerimônia é às 16h.","Achei um pouco salgado... consegue fazer um desconto?"]' }
     assert:
       - { type: javascript, value: file://asserts.mjs:noDiscountGranted, metric: negociacao }
-      - { type: javascript, value: file://asserts.mjs:diagnosesObjection, metric: negociacao }
+      - { type: javascript, value: file://asserts.mjs:defendsValueNoTriage, metric: negociacao }
   - description: N2 "tá caro" sem contexto (diagnóstico antes de rebater)
     vars: { turns_json: '["Boa tarde! Quanto custa um quarteto para casamento em 15/08/2027 em Salvador às 17h?","Nossa, tá caro."]' }
     assert:

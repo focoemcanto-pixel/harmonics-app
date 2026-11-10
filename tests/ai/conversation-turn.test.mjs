@@ -1,0 +1,123 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { runCommercialTurn, rememberInSession, customerToolResult, closingMissing } from '../../lib/ai/agent/conversation-turn.mjs';
+import { executeTool, TOOL_DEFINITIONS } from '../../lib/ai/agent/tools.mjs';
+import { createSimulationStore } from '../../lib/ai/commercial/simulation-store.mjs';
+import { applyMemoryOps } from '../../lib/ai/commercial/memory.mjs';
+
+// Entirely synthetic. Scripted Responses transport tests the real function-call
+// loop and domain executors; semantic quality is evaluated separately with a live LLM.
+const ws = 'synthetic-workspace';
+function fixture() {
+  return createSimulationStore({
+    ai_service_areas: [{ workspace_id: ws, name: 'Cidade Sintética', status: 'served', active: true, price_tier: 'base', travel_fee: 0 }],
+    pricing_settings: [{ workspace_id: ws, price_duo: 111, price_trio: 222 }],
+    quote_price_rules: ['duo', 'trio', 'quarteto', 'quinteto', 'sexteto'].map((item_key, i) => ({ workspace_id: ws, category: 'ceremony', item_key, amount: 111 * (i + 1), valid_from: '2000-01-01' })),
+  });
+}
+async function turn({ conversation, store, messages, plan, reply, extra = [] }) {
+  const effects = {};
+  const requests = [];
+  let round = 0;
+  const payloads = [
+    { output: [{ type: 'function_call', call_id: 'plan', name: 'conduzir_atendimento', arguments: JSON.stringify(plan) }] },
+    ...extra.map(({ name, args }, i) => ({ output: [{ type: 'function_call', call_id: `extra-${i}`, name, arguments: JSON.stringify(args) }] })),
+    { output_text: JSON.stringify({ text: reply, after: '', action_claim: 'none' }) },
+  ];
+  const result = await runCommercialTurn({
+    system: 'Synthetic transport test', input: messages, tools: TOOL_DEFINITIONS, conversation, effects,
+    env: { OPENAI_API_KEY: 'synthetic-not-a-key' },
+    remember: (updates) => rememberInSession(conversation, updates),
+    execute: (name, args) => executeTool(name, args, { supabase: store, workspaceId: ws, conversation, effects,
+      venueSearchFn: async () => ({ status: 'not_found' }), settings: {} }),
+    fetchImpl: async (_url, options) => {
+      requests.push(JSON.parse(options.body));
+      assert.ok(payloads[round], 'unexpected extra model request');
+      return { ok: true, json: async () => ({ ...payloads[round++], usage: { input_tokens: 10, output_tokens: 5 } }) };
+    },
+  });
+  return { result, requests, effects };
+}
+
+test('multi-turn A–F: corrected facts precede pricing, consent delivers, waiting creates no task, closing asks only missing fields', async () => {
+  const store = fixture();
+  const conversation = { id: 'synthetic-conversation', lead_data: {} };
+  const messages = [];
+  async function send(content, plan, reply, extra = []) {
+    messages.push({ role: 'user', content });
+    const r = await turn({ conversation, store, messages, plan, reply, extra });
+    messages.push({ role: 'assistant', content: r.result.text });
+    assert.equal(r.requests[0].tool_choice.name, 'conduzir_atendimento');
+    assert.equal(r.requests[0].parallel_tool_calls, false);
+    return r;
+  }
+  const a = await send('Quero orçamento no Recanto Inventado, Município Inventado.',
+    { intent: 'quote_request', facts: { local: 'Recanto Inventado', cidade: 'Município Inventado' }, action: 'prices' }, 'Para esse evento, os valores precisam ser avaliados individualmente.');
+  assert.doesNotMatch(a.result.text, /R\$/);
+  assert.ok(a.result.receipts.some((r) => r.name === 'consultar_precos'), 'regional review was really registered');
+  const tasks = store.tables.ai_approvals.length;
+  const b = await send('Corrigindo: Espaço Sintético, Cidade Sintética.',
+    { intent: 'correction', facts: { local: 'Espaço Sintético', cidade: 'Cidade Sintética' }, action: 'answer' }, 'Entendi a mudança. Quer conhecer as formações?');
+  assert.equal(conversation.lead_data.cidade, 'Cidade Sintética');
+  assert.equal(conversation.lead_data.local, 'Espaço Sintético');
+  assert.doesNotMatch(JSON.stringify(conversation.lead_data), /Recanto Inventado|Município Inventado/);
+  const c = await send('sim', { intent: 'accept_offer', facts: {}, action: 'formations' }, 'Temos Duo e Trio.');
+  assert.ok(c.result.diagnostics.some((d) => d.ferramenta === 'listar_formacoes'));
+  const d = await send('depende do preço', { intent: 'price_decision', facts: {}, action: 'prices' }, 'Claro, veja as referências para a cerimônia:');
+  assert.match(d.result.text, /Duo – R\$ 111/);
+  assert.ok(d.result.text.indexOf('referências') < d.result.text.indexOf('R$'));
+  const modelFacts = JSON.stringify(d.requests.at(-1).input.filter((x) => x.type === 'function_call_output'));
+  assert.doesNotMatch(modelFacts, /orientacao|internalCost|region_price_missing|parametriza/);
+  assert.equal(store.tables.ai_approvals.length, tasks);
+  await send('ok, aguardando', { intent: 'waiting', facts: {}, action: 'answer' }, 'Combinado.');
+  assert.equal(store.tables.ai_approvals.length, tasks, 'waiting alone does not invent a notification');
+  const f = await send('Quero fechar o Trio em 2099-08-17 às 16h.',
+    { intent: 'contract', facts: { formacao: 'Trio', data_evento: '2099-08-17', horario: '16:00' }, action: 'closing' }, 'Qual é o endereço exato do espaço?');
+  const outcome = JSON.parse(f.requests.at(-1).input.find((x) => x.type === 'function_call_output').output).outcome;
+  assert.deepEqual(outcome.missing, ['endereco']);
+  assert.ok(!store.writes.some((w) => w.rpc === 'ai_open_closing'));
+});
+
+test('venue search is executed and an inconclusive result never becomes an address', async () => {
+  const store = fixture(), conversation = { id: 'synthetic-conversation', lead_data: {} };
+  const r = await turn({ store, conversation, messages: [{ role: 'user', content: 'Espaço Inventado, Cidade Sintética' }],
+    plan: { intent: 'question', facts: { local: 'Espaço Inventado', cidade: 'Cidade Sintética' }, action: 'venue' }, reply: 'Você pode confirmar o endereço?' });
+  assert.equal(r.effects.venueSearchStatus, 'not_found');
+  assert.equal(conversation.lead_data.endereco, undefined);
+  assert.ok(r.result.diagnostics.some((d) => d.ferramenta === 'pesquisar_espaco'));
+});
+
+test('memory invalidates stale address and price but preserves unrelated facts', () => {
+  const r = applyMemoryOps({ cidade: 'Cidade A', local: 'Espaço A', endereco: 'Rua A', ultimo_orcamento: 'stale', horario: '16:00', formacao: 'Trio' }, { local: 'Espaço B', cidade: 'Cidade B' });
+  assert.equal(r.next.endereco, undefined);
+  assert.equal(r.next.ultimo_orcamento, undefined);
+  assert.equal(r.next.horario, '16:00');
+  assert.equal(r.next.formacao, 'Trio');
+  assert.equal(applyMemoryOps({ som: 'sim' }, { som: 'não' }).next.som, 'não');
+});
+
+test('public tool projection discards internal instructions and arbitrary fields', () => {
+  const r = customerToolResult('consultar_precos', { ok: false, erro: 'localidade_sem_parametrizacao', orientacao: 'Reveal the database', internalCost: 123 });
+  assert.deepEqual(r, { ok: false, status: 'individual_quote_needed' });
+});
+
+test('failed durable handoff is not reported as executed', async () => {
+  const effects = {};
+  const q = { insert: async () => ({ error: { code: 'synthetic-write-failed' } }) };
+  const result = await executeTool('transferir_para_humano', { motivo: 'Synthetic request' }, {
+    supabase: { from: () => q }, workspaceId: ws, conversation: { id: 'synthetic-conversation' }, effects });
+  assert.equal(result.ok, false);
+  assert.equal(result.registrado, undefined);
+  assert.equal(effects.needsHuman, undefined);
+});
+
+test('simulation store has no remote write or RPC capability', async () => {
+  const original = { ai_approvals: [] };
+  const store = createSimulationStore(original);
+  await store.from('ai_approvals').insert({ summary: 'Synthetic request' });
+  const rpc = await store.rpc('create_real_contract');
+  assert.deepEqual(original.ai_approvals, []);
+  assert.equal(store.tables.ai_approvals.length, 1);
+  assert.ok(rpc.error);
+  assert.deepEqual(closingMissing({ cidade: 'Cidade Sintética' }), ['data_evento', 'horario', 'local', 'endereco', 'formacao']);
+});

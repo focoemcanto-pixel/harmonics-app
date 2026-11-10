@@ -15,7 +15,7 @@ test('local verificado com tabela aprovada permite oferecer tabela ou enviar com
   const offer = customerQuoteStage({ city: 'Salvador', venue: 'Espaço Aliança',
     locationConfirmed: true, table, hasOfficialPrices: true });
   assert.equal(offer.kind, 'offer_table');
-  assert.match(offer.reply, /tabela completa/);
+  assert.match(offer.reply, /tabela para comparar/);
   const send = customerQuoteStage({ city: 'Salvador', locationConfirmed: true,
     table, wantsTable: true, hasOfficialPrices: true });
   assert.equal(send.kind, 'official_table');
@@ -45,3 +45,4 @@ test('a tabela aprovada acompanha introdução contextual do modelo, sem alterar
   assert.match(r, /Claro, já separei/);
   assert.ok(r.endsWith(quoteTable));
 });
+

@@ -160,31 +160,31 @@ test('saída do modelo: corta longa, bloqueia placeholder', () => {
 // --- prompt / memória -------------------------------------------------------
 test('prompt: identificação transparente na primeira resposta e memória do lead', () => {
   const first = buildSystemPrompt({ settings: { assistant_name: 'Lia' }, companyName: 'Empresa Exemplo', conversation: { lead_data: { tipo_evento: 'casamento' } }, isFirstAiReply: true });
-  assert.match(first, /Sou a Lia, assistente da Empresa Exemplo/);
-  assert.match(first, /assistente virtual \(IA\)/);
-  assert.match(first, /NUNCA invente/);
+  assert.match(first, /apresente-se brevemente como Lia, assistente da Empresa Exemplo/);
+  assert.match(first, /assistente virtual/);
+  assert.match(first, /Nunca invente/);
   assert.match(first, /casamento/);
   const later = buildSystemPrompt({ settings: {}, isFirstAiReply: false });
-  assert.match(later, /não repita a apresentação/);
+  assert.match(later, /Você já se apresentou/);
   assert.doesNotMatch(later, /Primeiro contato/);
 });
 
 test('prompt: identidade configurável (nome + empresa apresentada) e resposta objetiva a orçamento', () => {
   const settings = { assistant_name: 'Aurora', assistant_company: 'Conjunto Exemplo' };
   const first = buildSystemPrompt({ settings, companyName: 'Workspace Interno', isFirstAiReply: true });
-  assert.match(first, /Você é Aurora, assistente da Conjunto Exemplo/);
-  assert.match(first, /Sou a Aurora, assistente da Conjunto Exemplo/);
+  assert.match(first, /Você é Aurora, assistente virtual da Conjunto Exemplo/);
+  assert.match(first, /apresente-se brevemente como Aurora, assistente da Conjunto Exemplo/);
   assert.doesNotMatch(first, /Workspace Interno/);
-  assert.match(first, /já pediu orçamento/);
-  assert.match(first, /peça só a data e o local/);
+  assert.match(first, /ORÇAMENTO INICIAL/);
+  assert.match(first, /basta a cidade declarada pelo cliente/);
   const later = buildSystemPrompt({ settings, companyName: 'Workspace Interno', isFirstAiReply: false });
   assert.doesNotMatch(later, /Sou a Aurora/);
-  assert.match(later, /não repita a apresentação/);
+  assert.match(later, /Você já se apresentou/);
   assert.equal(parseSettingsInput({ assistant_company: '  Conjunto Exemplo ' }).assistant_company, 'Conjunto Exemplo');
   assert.equal(parseSettingsInput({ assistant_company: null }).assistant_company, null);
   assert.equal('assistant_company' in parseSettingsInput({}), false);
   // Sem assistant_company, usa o nome público do workspace (comportamento anterior).
-  assert.match(buildSystemPrompt({ settings: { assistant_name: 'Aurora' }, companyName: 'Workspace Interno', isFirstAiReply: true }), /assistente da Workspace Interno/);
+  assert.match(buildSystemPrompt({ settings: { assistant_name: 'Aurora' }, companyName: 'Workspace Interno', isFirstAiReply: true }), /assistente virtual da Workspace Interno/);
 });
 
 test('histórico vira entrada cronológica com transcrição de áudio', () => {
@@ -250,7 +250,7 @@ test('aprovação e transferência sinalizam humano', async () => {
   assert.equal(effects.needsHuman.reason, 'discount_request');
   assert.equal(supabase.calls[0][1], 'ai_approvals');
   const e2 = {};
-  await executeTool('transferir_para_humano', { motivo: 'dúvida técnica' }, { effects: e2 });
+  await executeTool('transferir_para_humano', { motivo: 'dúvida técnica' }, { supabase, workspaceId: 'ws-a', conversation: conv, effects: e2 });
   assert.equal(e2.needsHuman.reason, 'ai_requested');
 });
 
@@ -377,3 +377,4 @@ test('tabela de cerimônia no formato padrão do Owner, com preços da tabela of
   await executeTool('consultar_precos', { local: 'Cidade Base', data: '2090-05-05', com_som: true }, { supabase, workspaceId: 'ws-f', effects: comSom });
   assert.equal(comSom.quoteTableText, undefined, 'pedido com som segue o cálculo, não a tabela padrão');
 });
+

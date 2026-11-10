@@ -67,7 +67,10 @@ export async function POST(request) {
   let sessionVenues = venues || [];
   // Endereço, CEP ou coordenadas enviados depois da busca: validar a cidade
   // ANTES de perguntar formação. Nunca tomar o nome do espaço como geolocalização confirmada.
-  const latestEvidence = [...messages].reverse().filter((m) => m.role === 'user')
+  const lastCorrection = messages.findLastIndex((m) => m.role === 'user' &&
+    /\b(na verdade|corrigindo|me enganei|mudei o local|mudou o local)\b/i.test(m.content));
+  const relevantMessages = lastCorrection >= 0 ? messages.slice(lastCorrection) : messages;
+  const latestEvidence = [...relevantMessages].reverse().filter((m) => m.role === 'user')
     .map((m) => extractLocationEvidence(m.content)).find(Boolean);
   const evidence = latestEvidence && lead.local
     ? await verifyLocationEvidence(latestEvidence) : null;
@@ -92,10 +95,13 @@ export async function POST(request) {
   if (checked.verified) sessionVenues = [...sessionVenues, checked.verified];
   const lastText = messages.at(-1).content;
   const locationRelevant = /\b(casamento|cerim[oô]nia|or[cç]amento|tabela|pre[cç]os?|valor|cidade|fica\s+em|localiza[cç][aã]o|endere[cç]o)\b/i.test(lastText);
-  if (lead.local && locationRelevant && locationCheck.action === 'ask') {
-    const reply = isFirstGeoMessage(messages)
-      ? ensureFirstContactIntro(locationCheck.text, { settings: context.settings || {}, companyName: context.companyName })
+  if (lead.local && (locationRelevant || latestEvidence) && locationCheck.action === 'ask') {
+    const guidance = latestEvidence && evidence?.status !== 'confirmed'
+      ? 'Não consegui confirmar a localização com esse dado. Você consegue me mandar o endereço completo ou um link com a localização exata? ☺️'
       : locationCheck.text;
+    const reply = isFirstGeoMessage(messages)
+      ? ensureFirstContactIntro(guidance, { settings: context.settings || {}, companyName: context.companyName })
+      : guidance;
     return NextResponse.json({ ok: true, reply, lead,
       diagnostic: { toolCalls: ['verificar_localidade'], results: [{ ferramenta: 'verificar_localidade', resultado: 'pendente', detalhe: locationCheck.reason }], simulated: true, mapsConnected: false, evidence: 'local_nao_verificado',
         webSearchStatus: checked.lookup?.status || 'nao_necessaria',

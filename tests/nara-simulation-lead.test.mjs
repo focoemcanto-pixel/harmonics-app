@@ -33,3 +33,10 @@ test('mensagem sem correção não troca local já confirmado', () => {
   ], {});
   assert.equal(out.local, 'Chácara de Alice');
 });
+
+test('entende Salvador e Feira de Santana sem nome do espaço para orçamento inicial', () => {
+  assert.equal(inferSimulationLead([{ role: 'user', content: 'Salvador' }], {}).cidade, 'Salvador');
+  assert.equal(inferSimulationLead([{ role: 'user', content: 'Feira de Santana, Bahia' }], {}).cidade, 'Feira de Santana');
+  assert.equal(inferSimulationLead([{ role: 'user', content: 'Camaçari' }], {}).cidade, 'Camaçari');
+  assert.equal(inferSimulationLead([{ role: 'user', content: 'na ribeira, phow' }], {}).cidade, undefined);
+});

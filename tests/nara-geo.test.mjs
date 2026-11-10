@@ -138,7 +138,7 @@ test('consultar_precos: espaço não verificado + cidade => pede endereço, sem 
   const r = await executeTool('consultar_precos', {}, c);
   assert.equal(r.erro, 'espaco_nao_verificado');
   assert.equal(c.effects.quoteTableText, undefined);
-  assert.match(c.effects.regionPendingText, /endereço ou a localização/);
+  assert.match(c.effects.regionPendingText, /localização dele|localização certinha/);
 });
 
 test('consultar_precos: outro estado => personalizado + pendência para o Owner, sem valores', async () => {

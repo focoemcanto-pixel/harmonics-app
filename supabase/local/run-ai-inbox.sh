@@ -13,7 +13,8 @@ for f in supabase/local/[0-9]*.sql \
   supabase/migrations/20261110120000_harmonics_ai_manual_v21.sql \
   supabase/migrations/20261111120000_harmonics_ai_assistant_identity.sql \
   supabase/migrations/20261112120000_price_rules_governance.sql \
-  supabase/migrations/20261113120000_harmonics_ai_vocalists.sql; do
+  supabase/migrations/20261113120000_harmonics_ai_vocalists.sql \
+  supabase/migrations/20261114120000_harmonics_ai_venues.sql; do
   $PSQL -d harmonics_local -f "$f"
 done
 node --import ./tests/helpers/register-alias.mjs --test-concurrency=1 --test supabase/local/ai-inbox.local.test.mjs supabase/local/ai-commercial.local.test.mjs
@@ -28,3 +29,5 @@ NEXT_PUBLIC_SUPABASE_URL=http://local SUPABASE_SERVICE_ROLE_KEY=local \
   node --import ./supabase/local/panel/register.mjs --test supabase/local/vocalists-approval.local.test.mjs
 PANEL_WORKSPACE_ID=00000000-0000-4000-8000-0000000000f7 NEXT_PUBLIC_SUPABASE_URL=http://local SUPABASE_SERVICE_ROLE_KEY=local \
   node --import ./supabase/local/panel/register.mjs --test supabase/local/reset-test.local.test.mjs
+PANEL_WORKSPACE_ID=00000000-0000-4000-8000-0000000000f8 NEXT_PUBLIC_SUPABASE_URL=http://local SUPABASE_SERVICE_ROLE_KEY=local \
+  node --import ./supabase/local/panel/register.mjs --test supabase/local/venues.local.test.mjs

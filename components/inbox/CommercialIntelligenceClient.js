@@ -16,6 +16,7 @@ const TABS = [
   { key: 'manual', label: 'Manual e propostas' },
   { key: 'learning', label: 'Aprendizado' },
   { key: 'areas', label: 'Localidades' },
+  { key: 'venues', label: 'Espaços' },
   { key: 'musicians', label: 'Músicos' },
   { key: 'sales', label: 'Vendas e remarketing' },
   { key: 'pipeline', label: 'Negociações' },
@@ -320,6 +321,76 @@ function AreasTab({ toast }) {
   );
 }
 
+const EMPTY_VENUE = { id: null, name: '', aliases: '', address: '', city: '', uf: 'BA', lat: '', lng: '', area_id: '', notes: '' };
+const VENUE_STATUS = { verified: 'Verificado', client_reported: 'Informado por cliente (conferir)', rejected: 'Rejeitado' };
+const VENUE_SOURCE = { owner: 'equipe', client_message: 'mensagem da cliente', whatsapp_location: 'localização do WhatsApp', maps: 'mapas' };
+
+function VenuesTab({ toast }) {
+  const [venues, setVenues] = useState([]);
+  const [areas, setAreas] = useState([]);
+  const [form, setForm] = useState(EMPTY_VENUE);
+  const [error, setError] = useState(null);
+  const load = useCallback(async () => {
+    const { ok, body } = await api('/api/ai/venues');
+    if (!ok) { setError(body?.error || 'Falha ao carregar.'); return; }
+    setError(null); setVenues(body.venues || []); setAreas(body.areas || []);
+  }, []);
+  useEffect(() => { const t = setTimeout(load, 0); return () => clearTimeout(t); }, [load]);
+  async function save(payload, msg) {
+    const { ok, body } = await api('/api/ai/venues', { method: 'POST', body: JSON.stringify(payload) });
+    if (!ok) return toast.error(body?.error || 'Falha.');
+    toast.success(msg); setForm(EMPTY_VENUE); load();
+  }
+  const edit = (v) => setForm({ ...EMPTY_VENUE, ...v, aliases: (v.aliases || []).join(', '), lat: v.lat ?? '', lng: v.lng ?? '', area_id: v.area_id || '', address: v.address || '', notes: v.notes || '' });
+  return (
+    <div className="space-y-4">
+      <Card title={form.id ? 'Conferir / editar espaço' : 'Novo espaço'}>
+        <p className="text-xs text-slate-500">Espaços verificados são reutilizados pela Nara sem perguntar de novo. Mesmo nome em cidades diferentes são espaços diferentes: sem a cidade, a Nara pergunta. Relatos de clientes só valem depois de verificados aqui.</p>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Field label="Nome do espaço"><input className={INPUT} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
+          <Field label="Apelidos (vírgula)"><input className={INPUT} value={form.aliases} onChange={(e) => setForm({ ...form, aliases: e.target.value })} /></Field>
+          <Field label="Endereço"><input className={INPUT} value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} /></Field>
+          <Field label="Cidade"><input className={INPUT} value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} /></Field>
+          <Field label="UF"><input className={INPUT} maxLength={2} value={form.uf} onChange={(e) => setForm({ ...form, uf: e.target.value.toUpperCase() })} /></Field>
+          <Field label="Localidade (faixa)"><select className={INPUT} value={form.area_id} onChange={(e) => setForm({ ...form, area_id: e.target.value })}>
+            <option value="">Pela cidade</option>
+            {areas.filter((a) => a.active !== false).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+          </select></Field>
+          <Field label="Latitude"><input className={INPUT} value={form.lat} onChange={(e) => setForm({ ...form, lat: e.target.value })} /></Field>
+          <Field label="Longitude"><input className={INPUT} value={form.lng} onChange={(e) => setForm({ ...form, lng: e.target.value })} /></Field>
+          <Field label="Observações"><input className={INPUT} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></Field>
+        </div>
+        <div className="flex gap-2">
+          <button type="button" onClick={() => save({ ...form, status: 'verified', source: form.source === 'maps' ? 'maps' : 'owner' }, 'Espaço verificado.')} className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Salvar como verificado</button>
+          {form.id ? <button type="button" onClick={() => setForm(EMPTY_VENUE)} className="rounded-xl border border-slate-300 px-4 py-2 text-sm">Cancelar</button> : null}
+        </div>
+      </Card>
+      <Card title="Espaços na memória">
+        {error ? <p className="text-sm text-amber-700">{error}</p> : null}
+        {!venues.length && !error ? <p className="text-sm text-slate-500">Nenhum espaço ainda.</p> : null}
+        {venues.map((v) => (
+          <div key={v.id} className={`space-y-1 border-b border-slate-100 py-2 text-sm ${v.status === 'rejected' ? 'opacity-50' : ''}`}>
+            <div className="flex flex-wrap items-center gap-2">
+              <strong>{v.name}</strong>
+              <span className="text-xs text-slate-500">{v.city} - {v.uf}{v.address ? ` · ${v.address}` : ''}</span>
+              <span className={`rounded-full px-2 text-xs ${v.status === 'verified' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>{VENUE_STATUS[v.status]}</span>
+              <span className="ml-auto flex gap-1">
+                <button type="button" onClick={() => edit(v)} className="rounded-lg border border-slate-300 px-2 py-1 text-xs text-slate-700">{v.status === 'verified' ? 'Editar' : 'Conferir'}</button>
+                {v.status !== 'rejected' ? <button type="button" onClick={() => save({ ...v, aliases: v.aliases || [], status: 'rejected' }, 'Espaço rejeitado.')} className="rounded-lg border border-slate-300 px-2 py-1 text-xs text-slate-700">Rejeitar</button> : null}
+              </span>
+            </div>
+            <div className="text-xs text-slate-500">
+              Fonte: {VENUE_SOURCE[v.source] || v.source}{v.verified_at ? ` · verificado em ${new Date(v.verified_at).toLocaleDateString('pt-BR')}` : ''}
+              {(v.aliases || []).length ? ` · apelidos: ${v.aliases.join(', ')}` : ''}
+              {v.lat != null ? ` · ${v.lat}, ${v.lng}` : ''}{v.mentions > 1 ? ` · citado ${v.mentions}x` : ''}
+            </div>
+          </div>
+        ))}
+      </Card>
+    </div>
+  );
+}
+
 function MusiciansTab({ toast }) {
   const [data, setData] = useState({ profiles: [], contacts: [] });
   const [form, setForm] = useState({ contact_id: '', display_name: '', instruments: '', roles: '', is_primary_vocal: false, fee: '', video_urls: '', portfolio_url: '', voice: '', client_presentable: false, presentation_urls: '' });
@@ -497,7 +568,7 @@ export default function CommercialIntelligenceClient() {
     if (TABS.some((t) => t.key === wanted)) { const t = setTimeout(() => setTab(wanted), 0); return () => clearTimeout(t); }
     return undefined;
   }, []);
-  const Tab = { center: SupervisionCenter, tables: PriceRulesPanel, vocalists: VocalistsPanel, manual: ManualPricingPanel, teach: TeachTab, learning: LearningTab, areas: AreasTab, musicians: MusiciansTab, sales: SalesTab, pipeline: PipelineTab, simulator: SimulatorTab }[tab];
+  const Tab = { center: SupervisionCenter, tables: PriceRulesPanel, vocalists: VocalistsPanel, manual: ManualPricingPanel, teach: TeachTab, learning: LearningTab, areas: AreasTab, venues: VenuesTab, musicians: MusiciansTab, sales: SalesTab, pipeline: PipelineTab, simulator: SimulatorTab }[tab];
   return (
     <div className="mx-auto max-w-5xl space-y-4 pb-10">
       <div className="flex flex-wrap items-center gap-2">

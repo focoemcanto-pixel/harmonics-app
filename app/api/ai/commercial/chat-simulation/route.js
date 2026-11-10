@@ -37,7 +37,15 @@ function inferSimulationLead(messages = [], saved = {}) {
     const date = content.match(/\b(\d{1,2})\/(\d{1,2})\/(20\d{2})\b/);
     if (date && !out.data_evento) out.data_evento = `${date[3]}-${date[2].padStart(2, '0')}-${date[1].padStart(2, '0')}`;
     const venue = content.match(/\b(?:na|no|em)\s+((?:ch[aá]cara|s[ií]tio|fazenda|espa[cç]o|sal[aã]o|igreja|capela|buffet|hotel|pousada|recanto)\s+[^,.!?;]+?)(?=\s+(?:dia|em|às|as)\s+\d|[,.!?;]|$)/i);
-    if (venue && !out.local) out.local = venue[1].trim().slice(0, 120);
+    const correction = /\b(na verdade|corrigindo|corre[cç][aã]o|me enganei|na realidade|mudei o local|mudou o local)\b/i.test(content);
+    if (venue && (!out.local || correction)) {
+      out.local = venue[1].trim().replace(/\s+em\s+[A-Za-zÀ-ÿ ]+$/i, '').slice(0, 120);
+      if (correction) delete out.cidade; // cidade anterior pertence ao local substituído
+    }
+    if (correction) {
+      const latestCity = content.match(/\b(?:em|fica em|é em)\s+(Salvador|Feira de Santana|Lauro de Freitas|Cama[cç]ari|Sim[oõ]es Filho)\b/i);
+      if (latestCity) out.cidade = latestCity[1];
+    }
     const city = content.match(/\b(?:fica|ser[aá]|[ée])\s+em\s+([A-Za-zÀ-ÿ][^.,!?;]{2,70})/i);
     if (city && !/\b(ch[aá]cara|s[ií]tio|igreja|sal[aã]o|espa[cç]o)\b/i.test(city[1])) out.cidade = city[1].trim().replace(/\s+bahia$/i, '').slice(0, 80);
     // Se a pessoa informou endereço do espaço, deixe a conversa avançar sem repetir a pergunta.

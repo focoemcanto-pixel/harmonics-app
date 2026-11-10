@@ -7,6 +7,7 @@ import SupervisionCenter from '@/components/inbox/SupervisionCenter';
 import ManualPricingPanel from '@/components/inbox/ManualPricingPanel';
 import PriceRulesPanel from '@/components/inbox/PriceRulesPanel';
 import VocalistsPanel from '@/components/inbox/VocalistsPanel';
+import ChatSimulationPanel from '@/components/inbox/ChatSimulationPanel';
 
 const TABS = [
   { key: 'center', label: 'Central' },
@@ -20,7 +21,8 @@ const TABS = [
   { key: 'musicians', label: 'Músicos' },
   { key: 'sales', label: 'Vendas e remarketing' },
   { key: 'pipeline', label: 'Negociações' },
-  { key: 'simulator', label: 'Simulador' },
+  { key: 'simulator', label: 'Calculadora' },
+  { key: 'chat', label: 'Chat de Testes' },
 ];
 const KIND_LABELS = { rule: 'Regra', faq: 'FAQ', policy: 'Política', rider: 'Rider técnico', example: 'Exemplo', style: 'Estilo', response: 'Resposta por intenção', post_sale: 'Pós-venda' };
 const STATUS_LABELS = { pending_approval: 'Aguardando aprovação', active: 'Ativa', archived: 'Arquivada', rejected: 'Rejeitada' };
@@ -568,7 +570,7 @@ export default function CommercialIntelligenceClient() {
     if (TABS.some((t) => t.key === wanted)) { const t = setTimeout(() => setTab(wanted), 0); return () => clearTimeout(t); }
     return undefined;
   }, []);
-  const Tab = { center: SupervisionCenter, tables: PriceRulesPanel, vocalists: VocalistsPanel, manual: ManualPricingPanel, teach: TeachTab, learning: LearningTab, areas: AreasTab, venues: VenuesTab, musicians: MusiciansTab, sales: SalesTab, pipeline: PipelineTab, simulator: SimulatorTab }[tab];
+  const Tab = { center: SupervisionCenter, tables: PriceRulesPanel, vocalists: VocalistsPanel, manual: ManualPricingPanel, teach: TeachTab, learning: LearningTab, areas: AreasTab, venues: VenuesTab, musicians: MusiciansTab, sales: SalesTab, pipeline: PipelineTab, simulator: SimulatorTab, chat: ChatSimulationPanel }[tab];
   return (
     <div className="mx-auto max-w-5xl space-y-4 pb-10">
       <div className="flex flex-wrap items-center gap-2">

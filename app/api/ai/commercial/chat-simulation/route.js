@@ -11,7 +11,7 @@ import { loadWorkspaceAiContext } from '@/lib/ai/inbox/service.mjs';
 import { inferSimulationLead, eventData } from '@/lib/ai/commercial/simulation-lead.mjs';
 import { extractLocationEvidence, verifyLocationEvidence } from '@/lib/ai/commercial/venue-location-evidence.mjs';
 import { analyzeLocation } from '@/lib/ai/commercial/geo.mjs';
-import { customerQuoteStage, isFullTableRequest } from '@/lib/ai/commercial/customer-quote-stage.mjs';
+import { customerQuoteStage, isFullTableRequest, naturalQuoteReply } from '@/lib/ai/commercial/customer-quote-stage.mjs';
 
 export const dynamic = 'force-dynamic';
 
@@ -142,7 +142,7 @@ export async function POST(request) {
       city, venue: lead.local, locationConfirmed: true, table: completeTable,
       wantsTable, hasOfficialPrices: Boolean(completeTable),
     });
-    if (stage) return NextResponse.json({ ok: true, reply: stage.reply, lead,
+    if (stage && (wantsTable || !completeTable)) return NextResponse.json({ ok: true, reply: stage.reply, lead,
       diagnostic: { simulated: true, phase: stage.kind,
         evidence: evidence?.status || (locationCheck.venue ? 'memoria_verificada' : 'cidade_confirmada'),
         pricing: completeTable ? 'official' : 'requires_owner_validation',
@@ -202,12 +202,11 @@ export async function POST(request) {
       tools: TOOLS, executeTool,
     });
     // Não disparar tabela em turnos que não pediram preços: ex. cliente apenas corrige bairro.
-    const fixed = effects.quoteTableText
-      ? (wantsTable
-        ? customerQuoteStage({ city: lead.cidade || '', locationConfirmed: true,
-            table: effects.quoteTableText, wantsTable: true, hasOfficialPrices: true }).reply
-        : customerQuoteStage({ city: lead.cidade || '', locationConfirmed: true,
-            table: effects.quoteTableText, hasOfficialPrices: true })?.reply || (result.text || '').trim())
+    const fixed = effects.quoteTableText && lead.cidade
+      ? naturalQuoteReply({
+        aiText: result.text, city: lead.cidade, table: effects.quoteTableText,
+        wantsTable,
+      })
       : (result.text || '').trim();
     const reply = isFirst ? ensureFirstContactIntro(fixed, { settings: context.settings || {}, companyName: context.companyName }) : fixed;
     if (!reply) return NextResponse.json({ ok: false, error: 'A Nara não gerou resposta nesta tentativa.' }, { status: 503 });

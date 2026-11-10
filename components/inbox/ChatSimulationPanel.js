@@ -46,7 +46,10 @@ export default function ChatSimulationPanel() {
         signal: controller.signal,
       });
       const data = await response.json().catch(() => ({}));
-      if (!response.ok || data.ok === false) throw new Error(data.error || 'Falha na simulação.');
+      if (!response.ok || data.ok === false) {
+        if (data.diagnostic) setDiagnostics((old) => [...old, { message: content, ...data.diagnostic }]);
+        throw new Error(data.error || 'Falha na simulação.');
+      }
       if (controller.signal.aborted) return;
       setMessages((old) => [...old, { role: 'assistant', content: data.reply }]);
       setLead(data.lead || {});
@@ -107,6 +110,9 @@ export default function ChatSimulationPanel() {
               <div key={i} className="rounded-xl bg-slate-50 p-3 text-xs">
                 <strong>Turno {i + 1}</strong>
                 <p className="mt-1 text-slate-600">Ferramentas: {d.toolCalls?.join(', ') || 'Nenhuma'}</p>
+                {d.errorCode && <p className="text-red-700">Validação: {d.errorCode}</p>}
+                {d.latencyMs && <p className="text-slate-500">Tempo: {(d.latencyMs / 1000).toFixed(1)} s</p>}
+                {d.intent && <p className="text-slate-600">Intenção: {d.intent}</p>}
                 {(d.results || []).map((r, n) => <p key={n} className="text-slate-600">{r.ferramenta}: {r.resultado}{r.detalhe ? ` · ${r.detalhe}` : ''}</p>)}
                 <p className="mt-1 text-slate-500">Modelo: {d.model || '—'} · Motor: {d.engineVersion || '—'} · Custo: US$ {Number(d.costUsd || 0).toFixed(5)} · Simulação sem efeitos comerciais</p>
                 {d.webSearchStatus && d.webSearchStatus !== 'nao_necessaria' && (

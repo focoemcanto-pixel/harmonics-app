@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { runCommercialTurn, rememberInSession, customerToolResult, closingMissing } from '../../lib/ai/agent/conversation-turn.mjs';
+import { runCommercialTurn, rememberInSession, customerToolResult, closingMissing, resolveCommercialAction } from '../../lib/ai/agent/conversation-turn.mjs';
 import { executeTool, TOOL_DEFINITIONS } from '../../lib/ai/agent/tools.mjs';
 import { createSimulationStore } from '../../lib/ai/commercial/simulation-store.mjs';
 import { applyMemoryOps } from '../../lib/ai/commercial/memory.mjs';
@@ -33,8 +33,8 @@ async function turn({ conversation, store, messages, plan, reply, extra = [] }) 
       venueSearchFn: async () => ({ status: 'not_found' }), settings: {} }),
     fetchImpl: async (_url, options) => {
       requests.push(JSON.parse(options.body));
-      assert.ok(payloads[round], 'unexpected extra model request');
-      return { ok: true, json: async () => ({ ...payloads[round++], usage: { input_tokens: 10, output_tokens: 5 } }) };
+      const selected = payloads[Math.min(round++, payloads.length - 1)];
+      return { ok: true, json: async () => ({ ...selected, usage: { input_tokens: 10, output_tokens: 5 } }) };
     },
   });
   return { result, requests, effects };
@@ -147,4 +147,13 @@ test('Postgres decimal strings preserve the approved fallback amount', () => {
     areas: [{ name: 'Cidade Sintética', status: 'served', active: true, travel_fee: 0 }],
   });
   assert.equal(q.items.find((i) => i.key === 'ceremony').amount, 1234.5);
+});
+
+test('semantic commercial precedence prevents optional discovery from blocking prices', () => {
+  assert.equal(resolveCommercialAction({ intent: 'quote_request', action: 'formations' }, { cidade: 'Cidade Sintética' }), 'prices');
+  assert.equal(resolveCommercialAction({ intent: 'price_decision', action: 'formations' }, { cidade: 'Cidade Sintética' }), 'prices');
+  assert.equal(resolveCommercialAction({ intent: 'correction', action: 'formations', facts: { cidade: 'Cidade Nova' } }, { cidade: 'Cidade Nova', _objetivo_comercial: 'pricing' }), 'prices');
+  assert.equal(resolveCommercialAction({ intent: 'accept_offer', action: 'formations' }, { cidade: 'Cidade Sintética', _objetivo_comercial: 'pricing' }), 'formations');
+  assert.equal(resolveCommercialAction({ intent: 'waiting', action: 'handoff' }, {}), 'answer');
+  assert.equal(resolveCommercialAction({ intent: 'contract', action: 'formations' }, {}), 'closing');
 });

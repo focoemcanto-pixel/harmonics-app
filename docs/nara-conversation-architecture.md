@@ -18,7 +18,7 @@ The simulator uses the same prompt, semantic turn and domain tools, backed by an
 
 ## Validation
 
-145 focused AI, memory, geographical and conversation tests passed locally. New multi-turn tests run the real Responses function-call loop with a scripted synthetic transport and real domain executors. They validate correction-before-pricing, consent execution, waiting without fabricated work, precise closing prerequisites, public tool projections, handoff failure and simulation isolation. These tests verify code contracts; they do not claim to measure a live model's semantic accuracy. Live-model preview and production checks must be recorded separately.
+147 focused AI, memory, geographical and conversation tests passed locally. New multi-turn tests run the real Responses function-call loop with a scripted synthetic transport and real domain executors. They validate correction-before-pricing, consent execution, waiting without fabricated work, precise closing prerequisites, public tool projections, handoff failure and simulation isolation. These tests verify code contracts; they do not claim to measure a live model's semantic accuracy. Live-model preview and production checks must be recorded separately.
 
 ## Models and cost
 
@@ -35,3 +35,9 @@ Sources: https://developers.openai.com/api/docs/models/gpt-4.1-mini , https://de
 ## Outstanding business input
 
 An approved regional price rule is required before numbers can be quoted for any unpriced city. Do not infer or copy a base-city tariff. This implementation intentionally does not invent regional prices, change the production model, enable paid search, or alter spending ceilings.
+
+## Semantic commercial precedence
+
+Live-model validation exposed a remaining v1 failure: the model could choose optional formation discovery despite a city-qualified quote request. Version `conversation-v2` therefore applies business precedence to the semantic intent: quote/price intents consult approved prices, a locality correction continues the remembered pricing goal, waiting acknowledges without inventing work, and contracting checks mandatory closing details. This is independent of wording and introduces no new fixed customer replies.
+
+Output validation can ask the same model to repair an invalid structured response within the existing four-round bound. Consultations are distinguished from recorded requests, and all retries count toward usage estimates. Simulator diagnostics include the engine, semantic intent, latency, estimated cost and safe error category.

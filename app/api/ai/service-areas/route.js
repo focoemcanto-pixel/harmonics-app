@@ -1,14 +1,23 @@
 import { NextResponse } from 'next/server';
 import { guardWorkspaceAdmin } from '@/lib/api/route-guards';
 import { parseServiceAreaInput } from '@/lib/ai/commercial/admin-input.mjs';
+import { previewArea } from '@/lib/ai/commercial/area-preview.mjs';
+import { listTiers } from '@/lib/quotes/tiers.mjs';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request) {
   const guard = await guardWorkspaceAdmin(request, { logPrefix: '[AI][AREAS]' });
   if (!guard.ok) return guard.response;
-  const { data } = await guard.supabase.from('ai_service_areas').select('*').eq('workspace_id', guard.auth.workspaceId).order('name');
-  return NextResponse.json({ ok: true, areas: data || [] });
+  const ws = guard.auth.workspaceId;
+  const dateParam = new URL(request.url).searchParams.get('date');
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(String(dateParam || '')) ? dateParam : new Date().toISOString().slice(0, 10);
+  const [{ data }, { data: rules }] = await Promise.all([
+    guard.supabase.from('ai_service_areas').select('*').eq('workspace_id', ws).order('name'),
+    guard.supabase.from('quote_price_rules').select('category, item_key, amount, valid_from, valid_until').eq('workspace_id', ws),
+  ]);
+  const areas = (data || []).map((a) => ({ ...a, preview: previewArea({ area: a, rules: rules || [], date }) }));
+  return NextResponse.json({ ok: true, date, areas, tiers: listTiers({ rules: rules || [], areas: data || [] }) });
 }
 
 // Upsert por nome (localidades atendidas, condicionais ou bloqueadas).

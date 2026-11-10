@@ -37,6 +37,8 @@ export async function POST(request, { params }) {
     await revert();
     return NextResponse.json({ ok: false, code: 'RULE_EXISTS', error: 'Já existe regra oficial com essa vigência; ajuste a data ou edite a regra existente.' }, { status: 409 });
   }
+  // Histórico auditado (mesma trilha das vigências criadas em Tabelas).
+  const { data: stateHashBefore } = await guard.supabase.rpc('price_rules_state_hash', { p_workspace_id: ws, p_category: p.category, p_item_key: p.item_key });
   const { error } = await guard.supabase.from('quote_price_rules').insert({
     workspace_id: ws, category: p.category, item_key: p.item_key, label: p.label, amount: p.amount, valid_from: validFrom, valid_until: p.valid_until,
     metadata: { source: p.source, proposal_id: p.id, ...(p.metadata || {}) },
@@ -45,6 +47,12 @@ export async function POST(request, { params }) {
     await revert();
     return NextResponse.json({ ok: false, error: 'Falha ao gravar regra oficial.' }, { status: 500 });
   }
+  await guard.supabase.from('quote_price_rule_changes').insert({
+    workspace_id: ws, actor: guard.auth.userId, action: 'new_validity', category: p.category, item_key: p.item_key,
+    reason: `Aprovação de proposta do Manual${p.metadata?.section ? ` (${p.metadata.section})` : ''}`.slice(0, 500),
+    closed_rule: null, next_rule: null, state_hash_before: stateHashBefore || '',
+    new_rule: { label: p.label, amount: Number(p.amount), valid_from: validFrom, valid_until: p.valid_until || null, proposal_id: p.id },
+  });
   // Regras oficiais anteriores continuam valendo para eventos fora da nova vigência (a data do evento decide).
   const overlapping = (existing || []).map((r) => ({ amount: Number(r.amount), valid_from: day(r.valid_from), valid_until: r.valid_until ? day(r.valid_until) : null }));
   return NextResponse.json({ ok: true, overlapping });

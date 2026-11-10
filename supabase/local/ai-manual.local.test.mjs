@@ -120,6 +120,9 @@ test('tabelas: só o Owner aprova, vigência obrigatória, sem sobrescrever regr
     const r = await call('POST', `/api/ai/pricing-proposals/${byKey(c, k).id}`, { decision: 'approved', valid_from: '2020-01-01' });
     assert.equal(r.status, 200, `${c}/${k}`);
   }
+  const audit = await sql("select item_key, action, reason, new_rule from quote_price_rule_changes where workspace_id = $1 and reason like 'Aprovação de proposta%'", [WS]);
+  assert.equal(audit.length, 6, 'cada aprovação de proposta entra no histórico auditado');
+  assert.ok(audit.every((a) => a.action === 'new_validity' && a.new_rule.valid_from === '2020-01-01'));
   await sql("insert into ai_pricing_proposals (workspace_id, source, category, item_key, label, amount) values ($1, 'teste', 'ceremony', 'trio', 'Trio duplicado', 9999)", [WS]);
   const dup = (await call('GET', '/api/ai/pricing-proposals')).body.proposals.find((x) => x.source === 'teste');
   assert.equal((await call('POST', `/api/ai/pricing-proposals/${dup.id}`, { decision: 'approved', valid_from: '2020-01-01' })).body.code, 'RULE_EXISTS');
@@ -301,4 +304,34 @@ test('custos padrão do financeiro: só pelo servidor e para perfis autorizados'
   assert.equal(Number(got.costs.sound_default_cost), 46);
   assert.ok(Array.isArray(got.sound_tech_rules), 'custo do técnico entregue só a perfis do financeiro');
   assert.equal((await sql('select count(*)::int n from finance_cost_defaults where workspace_id = $1', [WS]))[0].n, 1);
+});
+
+test('tabelas por faixa: faixas com localidades vinculadas e faixa personalizada criada pelo primeiro preço auditado', async () => {
+  const list = (await call('GET', '/api/pricing/rules')).body;
+  const metro = list.tiers.find((t) => t.slug === 'metro');
+  assert.ok(list.tiers.some((t) => t.slug === 'base') && list.tiers.some((t) => t.slug === 'ate120'));
+  assert.ok(metro.areas.some((a) => a.name === 'Cidade Metro'), 'faixa mostra as localidades vinculadas');
+  const change = { category: 'ceremony', item_key: 'duo@litoral-teste', label: 'Cerimônia Duo — Litoral Teste', amount: 1234, valid_from: '2096-01-01' };
+  const preview = (await call('POST', '/api/pricing/rules/preview', change)).body;
+  assert.equal(preview.ok, true);
+  const saved = await call('POST', '/api/pricing/rules', { ...change, reason: 'Faixa personalizada de teste', expected_hash: preview.expected_hash, confirm: true });
+  assert.equal(saved.status, 200, JSON.stringify(saved.body));
+  const after = (await call('GET', '/api/pricing/rules')).body;
+  assert.ok(after.tiers.some((t) => t.slug === 'litoral-teste' && t.label === 'Litoral Teste'));
+  assert.ok(after.changes.some((c) => c.item_key === 'duo@litoral-teste'), 'histórico auditado');
+});
+
+test('localidades: prévia herdada da faixa, origem do deslocamento e áreas inativas visíveis', async () => {
+  const areasAt = async () => JSON.parse((await handle('GET', '/api/ai/service-areas', '?date=2096-03-01', undefined, { 'content-type': 'application/json', 'x-test-auth': 'owner' })).body);
+  const res = await areasAt();
+  const metro = res.areas.find((a) => a.name === 'Cidade Metro');
+  assert.equal(metro.preview.tier_label, 'Metropolitana');
+  assert.ok(metro.preview.prices.some((p) => p.formation === 'Trio' && p.amount > 0), 'herda o preço aprovado da faixa');
+  assert.ok(res.tiers.some((t) => t.slug === 'litoral-teste'), 'faixa personalizada disponível para vincular');
+  await sql("update ai_service_areas set active = false where workspace_id = $1 and name = 'Cidade Metro'", [WS]);
+  const after = await areasAt();
+  const inactive = after.areas.find((a) => a.name === 'Cidade Metro');
+  assert.equal(inactive.active, false);
+  assert.ok(inactive.preview.issues.some((i) => i.code === 'inactive'));
+  await sql("update ai_service_areas set active = true where workspace_id = $1 and name = 'Cidade Metro'", [WS]);
 });

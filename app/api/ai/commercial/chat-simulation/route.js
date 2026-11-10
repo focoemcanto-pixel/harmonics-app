@@ -6,6 +6,7 @@ import { TOOL_DEFINITIONS, formatCeremonyTable } from '@/lib/ai/agent/tools.mjs'
 import { calculateQuote, hasRegionIssue, formatBRL } from '@/lib/ai/commercial/pricing.mjs';
 import { locationGate } from '@/lib/ai/commercial/geo.mjs';
 import { resolveVenueWithOnlineLookup } from '@/lib/ai/agent/location-gate.mjs';
+import { lookupVenueWeb } from '@/lib/ai/commercial/venue-web-search.mjs';
 import { loadWorkspaceAiContext } from '@/lib/ai/inbox/service.mjs';
 import { inferSimulationLead, eventData } from '@/lib/ai/commercial/simulation-lead.mjs';
 
@@ -71,7 +72,7 @@ export async function POST(request) {
   // Não permite que o LLM pule a pergunta de cidade/endereço ou peça formação antes de localizar.
   const checked = await resolveVenueWithOnlineLookup({
     local: lead.local || '', cidade: lead.cidade || '', areas: areas || [], venues: sessionVenues,
-    ...(process.env.CI ? { searchFn: async () => ({ status: 'unavailable' }) } : {}),
+    ...(process.env.CI ? { searchFn: async () => ({ status: 'unavailable' }) } : { webSearchFn: lookupVenueWeb }),
   });
   const locationCheck = checked.gate;
   if (checked.verified) sessionVenues = [...sessionVenues, checked.verified];

@@ -80,10 +80,17 @@ export async function POST(request) {
   const effects = { toolResults: [] };
   const tables = { rules: rules || [], areas: areas || [], pricing, logisticsRules: context.settings?.logistics_rules || {}, minMarginPct: context.settings?.min_margin_pct ?? null };
   const place = (args) => String(args?.local || lead.local || lead.cidade || '').trim();
-  const geo = (args) => confirmedCity && !args?.local
-    ? (() => { const a = analyzeLocation({ local: evidence.detail || confirmedCity, cidade: confirmedCity, areas: areas || [] });
-        return { action: evidence.uf !== 'BA' || a.kind === 'other_state' ? 'custom' : 'proceed', location: a.location, analysis: a }; })()
-    : locationGate({ local: place(args), cidade: String(args?.cidade || lead.cidade || ''), areas: areas || [], venues: sessionVenues });
+  const geo = (args = {}) => {
+    // A cidade declarada pelo cliente define a tabela INICIAL. A identificação do espaço
+    // é uma conferência auxiliar, nunca requisito para oferecer valores oficiais da cidade.
+    const city = String(confirmedCity || lead.cidade || '').trim();
+    if (city && (!args?.local || String(args.local).trim() === String(lead.local || '').trim())) {
+      const a = analyzeLocation({ local: city, cidade: city, areas: areas || [] });
+      return { action: a.kind === 'other_state' ? 'custom' : 'proceed', location: a.location, analysis: a };
+    }
+    return locationGate({ local: place(args), cidade: String(args?.cidade || lead.cidade || ''),
+      areas: areas || [], venues: sessionVenues });
+  };
   const date = (args) => isIso(args?.data) ? args.data : isIso(lead.data_evento) ? lead.data_evento : dateNow();
   // Portão obrigatório antes do modelo: um nome de espaço não verificado não é um endereço.
   // Não permite que o LLM pule a pergunta de cidade/endereço ou peça formação antes de localizar.
@@ -91,7 +98,9 @@ export async function POST(request) {
     local: lead.local || '', cidade: lead.cidade || '', areas: areas || [], venues: sessionVenues,
     ...(process.env.CI ? { searchFn: async () => ({ status: 'unavailable' }) } : { webSearchFn: lookupVenueWeb }),
   });
-  const locationCheck = confirmedCity ? geo({}) : checked.gate;
+  const locationCheck = String(lead.cidade || '').trim() &&
+    (checked.gate.reason === 'espaco_nao_verificado' || !lead.local || confirmedCity)
+    ? geo({}) : checked.gate;
   if (checked.verified) sessionVenues = [...sessionVenues, checked.verified];
   const lastText = messages.at(-1).content;
   const locationRelevant = /\b(casamento|cerim[oô]nia|or[cç]amento|tabela|pre[cç]os?|valor|cidade|fica\s+em|localiza[cç][aã]o|endere[cç]o)\b/i.test(lastText);
@@ -112,9 +121,9 @@ export async function POST(request) {
   // Após evidência geográfica confirmada, conduza a venda em vez de encerrar.
   // Tabela só é enviada se as cinco formações tiverem preços OFICIAIS na faixa.
   const wantsTable = isFullTableRequest(lastText);
-  const locationIsReliable = Boolean(confirmedCity || locationCheck.venue || (!lead.local && locationCheck.action === 'proceed'));
+  const locationIsReliable = Boolean(lead.cidade && locationCheck.action === 'proceed');
   const moveForward = Boolean(latestEvidence && evidence?.status === 'confirmed') ||
-    /\b(tabela|or[cç]amento|pre[cç]os?|valores?|forma[cç][aã]o|duo|trio|quarteto|quinteto|sexteto)\b/i.test(lastText);
+    /\b(tabela|or[cç]amento|pre[cç]os?|valores?|forma[cç][aã]o|duo|trio|quarteto|quinteto|sexteto|fica em|em salvador|em feira|em cama[cç]ari)\b/i.test(lastText);
   if (moveForward && locationIsReliable && locationCheck.action === 'proceed') {
     const city = confirmedCity || locationCheck.venue?.city || lead.cidade || '';
     const formationNames = ['Duo', 'Trio', 'Quarteto', 'Quinteto', 'Sexteto'];
@@ -192,7 +201,14 @@ export async function POST(request) {
       system, input: buildConversationInput(messages.map((m, i) => ({ direction: m.role === 'user' ? 'inbound' : 'outbound', sender_type: 'ai', content: m.content, created_at: new Date(1700000000000 + i * 1000).toISOString() }))),
       tools: TOOLS, executeTool,
     });
-    const fixed = effects.quoteTableText ? effects.quoteTableText : (result.text || '').trim();
+    // Não disparar tabela em turnos que não pediram preços: ex. cliente apenas corrige bairro.
+    const fixed = effects.quoteTableText
+      ? (wantsTable
+        ? customerQuoteStage({ city: lead.cidade || '', locationConfirmed: true,
+            table: effects.quoteTableText, wantsTable: true, hasOfficialPrices: true }).reply
+        : customerQuoteStage({ city: lead.cidade || '', locationConfirmed: true,
+            table: effects.quoteTableText, hasOfficialPrices: true })?.reply || (result.text || '').trim())
+      : (result.text || '').trim();
     const reply = isFirst ? ensureFirstContactIntro(fixed, { settings: context.settings || {}, companyName: context.companyName }) : fixed;
     if (!reply) return NextResponse.json({ ok: false, error: 'A Nara não gerou resposta nesta tentativa.' }, { status: 503 });
     return NextResponse.json({

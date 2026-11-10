@@ -60,3 +60,21 @@ export function quoteTableNow(output) {
   const askedFirst = /\?/.test(r.split('🎶')[0] || '');
   return ok(t.tools.includes('consultar_precos') && fmt && !askedFirst, `tabela padrão na 1ª resposta (formato: ${fmt}; pergunta antes: ${askedFirst})`);
 }
+export function noTableNoData(output) {
+  const r = norm(T(output)[0].reply);
+  const noPrices = !/r\$\s?\d/.test(r);
+  const asksData = /(monte|montar|link|noivos|data|local|horario)/.test(r);
+  return ok(noPrices && asksData, `sem dados: sem valores (${noPrices}) e pede link/dados (${asksData})`);
+}
+export function noBasePriceOtherRegion(output) {
+  const t = T(output)[0]; const r = norm(t.reply);
+  return ok(!/r\$\s?\d/.test(r) && !t.reply.includes('Orçamentos Cerimônia'), 'região não parametrizada: nenhum valor');
+}
+export function regionTierTable(output) {
+  const t = T(output)[0];
+  return ok(/✨ Trio – R\$ 1\.900/.test(t.reply) && /taxa de locomoção/.test(t.reply), 'tabela da faixa da região + aviso de locomoção');
+}
+export function defendsValueNoTriage(output) {
+  const r = norm(last(output).reply);
+  return ok(!/e mais pelo valor caber|o que pesa mais/.test(r), 'pedido explícito de desconto: sem pergunta de triagem');
+}

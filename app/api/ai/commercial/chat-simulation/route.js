@@ -12,6 +12,7 @@ import { inferSimulationLead, eventData } from '@/lib/ai/commercial/simulation-l
 import { extractLocationEvidence, verifyLocationEvidence } from '@/lib/ai/commercial/venue-location-evidence.mjs';
 import { analyzeLocation } from '@/lib/ai/commercial/geo.mjs';
 import { customerQuoteStage, isFullTableRequest, naturalQuoteReply } from '@/lib/ai/commercial/customer-quote-stage.mjs';
+import { formationIntent, formationOptionsReply } from '@/lib/ai/commercial/formation-dialogue.mjs';
 
 export const dynamic = 'force-dynamic';
 
@@ -103,6 +104,17 @@ export async function POST(request) {
     ? geo({}) : checked.gate;
   if (checked.verified) sessionVenues = [...sessionVenues, checked.verified];
   const lastText = messages.at(-1).content;
+  const previousReply = [...messages].reverse().find((m) => m.role === 'assistant')?.content || '';
+  const optionsIntent = formationIntent(lastText, previousReply);
+  if (optionsIntent === 'show_options' && lead.cidade) {
+    // Se o cliente aceita ver formações, mostrar imediatamente — não ofertar de novo.
+    // Números só vêm da tabela regional aprovada, mas formação/instrumentos são conhecidos.
+    return NextResponse.json({
+      ok: true, reply: formationOptionsReply({ city: lead.cidade }), lead,
+      diagnostic: { simulated: true, phase: 'formation_options', pricing: 'no_prices_promised',
+        toolCalls: [], results: [], webSearchStatus: checked.lookup?.status || 'nao_necessaria' },
+    }, { headers: { 'Cache-Control': 'no-store' } });
+  }
   const locationRelevant = /\b(casamento|cerim[oô]nia|or[cç]amento|tabela|pre[cç]os?|valor|cidade|fica\s+em|localiza[cç][aã]o|endere[cç]o)\b/i.test(lastText);
   if (lead.local && (locationRelevant || latestEvidence) && locationCheck.action === 'ask') {
     const guidance = latestEvidence && evidence?.status !== 'confirmed'

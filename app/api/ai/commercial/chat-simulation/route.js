@@ -39,12 +39,11 @@ function inferSimulationLead(messages = [], saved = {}) {
     const venue = content.match(/\b(?:na|no|em)\s+((?:ch[aá]cara|s[ií]tio|fazenda|espa[cç]o|sal[aã]o|igreja|capela|buffet|hotel|pousada|recanto)\s+[^,.!?;]+?)(?=\s+(?:dia|em|às|as)\s+\d|[,.!?;]|$)/i);
     const correction = /\b(na verdade|corrigindo|corre[cç][aã]o|me enganei|na realidade|mudei o local|mudou o local)\b/i.test(content);
     if (venue && (!out.local || correction)) {
-      out.local = venue[1].trim().replace(/\s+em\s+[A-Za-zÀ-ÿ ]+$/i, '').slice(0, 120);
-      if (correction) delete out.cidade; // cidade anterior pertence ao local substituído
-    }
-    if (correction) {
-      const latestCity = content.match(/\b(?:em|fica em|é em)\s+(Salvador|Feira de Santana|Lauro de Freitas|Cama[cç]ari|Sim[oõ]es Filho)\b/i);
-      if (latestCity) out.cidade = latestCity[1];
+      const named = venue[1].trim();
+      const cityPart = named.match(/^(.*?)\s+em\s+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ\s-]{2,60})$/i);
+      out.local = (cityPart ? cityPart[1] : named).slice(0, 120);
+      if (correction) delete out.cidade;
+      if (cityPart) out.cidade = cityPart[2].trim().slice(0, 80);
     }
     const city = content.match(/\b(?:fica|ser[aá]|[ée])\s+em\s+([A-Za-zÀ-ÿ][^.,!?;]{2,70})/i);
     if (city && !/\b(ch[aá]cara|s[ií]tio|igreja|sal[aã]o|espa[cç]o)\b/i.test(city[1])) out.cidade = city[1].trim().replace(/\s+bahia$/i, '').slice(0, 80);

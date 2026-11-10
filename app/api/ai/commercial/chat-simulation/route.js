@@ -12,7 +12,7 @@ import { inferSimulationLead, eventData } from '@/lib/ai/commercial/simulation-l
 import { extractLocationEvidence, verifyLocationEvidence } from '@/lib/ai/commercial/venue-location-evidence.mjs';
 import { analyzeLocation } from '@/lib/ai/commercial/geo.mjs';
 import { customerQuoteStage, isFullTableRequest, naturalQuoteReply } from '@/lib/ai/commercial/customer-quote-stage.mjs';
-import { formationIntent, formationOptionsReply } from '@/lib/ai/commercial/formation-dialogue.mjs';
+import { formationIntent, formationOptionsReply, guardCommercialReply } from '@/lib/ai/commercial/formation-dialogue.mjs';
 
 export const dynamic = 'force-dynamic';
 
@@ -220,7 +220,14 @@ export async function POST(request) {
         wantsTable,
       })
       : (result.text || '').trim();
-    const reply = isFirst ? ensureFirstContactIntro(fixed, { settings: context.settings || {}, companyName: context.companyName }) : fixed;
+    const checkedReply = guardCommercialReply({
+      reply: fixed,
+      city: lead.cidade || '',
+      latestCustomer: lastText,
+      previousAssistant: previousReply,
+      pricingPending: !effects.quoteTableText,
+    });
+    const reply = isFirst ? ensureFirstContactIntro(checkedReply, { settings: context.settings || {}, companyName: context.companyName }) : checkedReply;
     if (!reply) return NextResponse.json({ ok: false, error: 'A Nara não gerou resposta nesta tentativa.' }, { status: 503 });
     return NextResponse.json({
       ok: true, reply, lead, diagnostic: { toolCalls: result.toolCalls || [], results: effects.toolResults, model: result.model, costUsd: result.costUsd, simulated: true, mapsConnected: false, venueWebSearch: checked.lookup?.status || 'nao_necessaria', webAttribution: checked.lookup?.attribution || null },

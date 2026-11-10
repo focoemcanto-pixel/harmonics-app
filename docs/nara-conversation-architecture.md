@@ -18,7 +18,7 @@ The simulator uses the same prompt, semantic turn and domain tools, backed by an
 
 ## Validation
 
-132 focused AI, memory, geographical and conversation tests passed locally. New multi-turn tests run the real Responses function-call loop with a scripted synthetic transport and real domain executors. They validate correction-before-pricing, consent execution, waiting without fabricated work, precise closing prerequisites, public tool projections, handoff failure and simulation isolation. These tests verify code contracts; they do not claim to measure a live model's semantic accuracy. Live-model preview and production checks must be recorded separately.
+145 focused AI, memory, geographical and conversation tests passed locally. New multi-turn tests run the real Responses function-call loop with a scripted synthetic transport and real domain executors. They validate correction-before-pricing, consent execution, waiting without fabricated work, precise closing prerequisites, public tool projections, handoff failure and simulation isolation. These tests verify code contracts; they do not claim to measure a live model's semantic accuracy. Live-model preview and production checks must be recorded separately.
 
 ## Models and cost
 

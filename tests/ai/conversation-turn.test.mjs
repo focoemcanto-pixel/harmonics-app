@@ -94,6 +94,24 @@ test('memory invalidates stale address and price but preserves unrelated facts',
   assert.equal(r.next.horario, '16:00');
   assert.equal(r.next.formacao, 'Trio');
   assert.equal(applyMemoryOps({ som: 'sim' }, { som: 'não' }).next.som, 'não');
+  assert.equal(applyMemoryOps({ cidade: 'Cidade Sintética' }, { local: 'Primeiro Espaço' }).next.cidade, 'Cidade Sintética');
+});
+
+test('sound-inclusive table is rendered from official results without dropping prices', async () => {
+  const store = fixture(), conversation = { id: 'synthetic-conversation', lead_data: { cidade: 'Cidade Sintética' } };
+  store.tables.quote_price_rules.push({ workspace_id: ws, category: 'sound', item_key: 'church', amount: 77, valid_from: '2000-01-01' });
+  const r = await turn({ store, conversation, messages: [{ role: 'user', content: 'Quero as referências com som' }],
+    plan: { intent: 'quote_request', facts: {}, action: 'answer' }, reply: 'Veja as referências:',
+    extra: [{ name: 'consultar_precos', args: { com_som: true } }] });
+  assert.match(r.result.text, /Duo: cerimônia R\$ 111/);
+  assert.match(r.result.text, /som R\$ 77/);
+  assert.ok(r.result.toolCalls.includes('consultar_precos'));
+});
+
+test('invented prices in model prose fail closed', async () => {
+  await assert.rejects(() => turn({ store: fixture(), conversation: { id: 'synthetic-conversation', lead_data: {} },
+    messages: [{ role: 'user', content: 'Quanto custa?' }], plan: { intent: 'quote_request', facts: {}, action: 'answer' },
+    reply: 'O preço é R$ 999999.' }), /commercial_price_outside_renderer/);
 });
 
 test('public tool projection discards internal instructions and arbitrary fields', () => {

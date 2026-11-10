@@ -9,6 +9,9 @@ import { resolveVenueWithOnlineLookup } from '@/lib/ai/agent/location-gate.mjs';
 import { lookupVenueWeb } from '@/lib/ai/commercial/venue-web-search.mjs';
 import { loadWorkspaceAiContext } from '@/lib/ai/inbox/service.mjs';
 import { inferSimulationLead, eventData } from '@/lib/ai/commercial/simulation-lead.mjs';
+import { extractLocationEvidence, verifyLocationEvidence } from '@/lib/ai/commercial/venue-location-evidence.mjs';
+import { analyzeLocation } from '@/lib/ai/commercial/geo.mjs';
+import { customerQuoteStage, isFullTableRequest } from '@/lib/ai/commercial/customer-quote-stage.mjs';
 
 export const dynamic = 'force-dynamic';
 
@@ -62,31 +65,80 @@ export async function POST(request) {
   if (priceError || areaError) return NextResponse.json({ ok: false, error: 'Não foi possível consultar as tabelas comerciais.' }, { status: 503 });
   const lead = inferSimulationLead(messages, body?.lead || {});
   let sessionVenues = venues || [];
+  // Endereço, CEP ou coordenadas enviados depois da busca: validar a cidade
+  // ANTES de perguntar formação. Nunca tomar o nome do espaço como geolocalização confirmada.
+  const lastCorrection = messages.findLastIndex((m) => m.role === 'user' &&
+    /\b(na verdade|corrigindo|me enganei|mudei o local|mudou o local)\b/i.test(m.content));
+  const relevantMessages = lastCorrection >= 0 ? messages.slice(lastCorrection) : messages;
+  const latestEvidence = [...relevantMessages].reverse().filter((m) => m.role === 'user')
+    .map((m) => extractLocationEvidence(m.content)).find(Boolean);
+  const evidence = latestEvidence && lead.local
+    ? await verifyLocationEvidence(latestEvidence) : null;
+  const confirmedCity = evidence?.status === 'confirmed' ? evidence.city : null;
+  if (confirmedCity) lead.cidade = confirmedCity;
   const simulated = { lead_data: lead, sales_stage: 'qualifying', memory_summary: '', id: null };
   const effects = { toolResults: [] };
   const tables = { rules: rules || [], areas: areas || [], pricing, logisticsRules: context.settings?.logistics_rules || {}, minMarginPct: context.settings?.min_margin_pct ?? null };
   const place = (args) => String(args?.local || lead.local || lead.cidade || '').trim();
-  const geo = (args) => locationGate({ local: place(args), cidade: String(args?.cidade || lead.cidade || ''), areas: areas || [], venues: sessionVenues });
+  const geo = (args) => confirmedCity && !args?.local
+    ? (() => { const a = analyzeLocation({ local: evidence.detail || confirmedCity, cidade: confirmedCity, areas: areas || [] });
+        return { action: evidence.uf !== 'BA' || a.kind === 'other_state' ? 'custom' : 'proceed', location: a.location, analysis: a }; })()
+    : locationGate({ local: place(args), cidade: String(args?.cidade || lead.cidade || ''), areas: areas || [], venues: sessionVenues });
   const date = (args) => isIso(args?.data) ? args.data : isIso(lead.data_evento) ? lead.data_evento : dateNow();
   // Portão obrigatório antes do modelo: um nome de espaço não verificado não é um endereço.
   // Não permite que o LLM pule a pergunta de cidade/endereço ou peça formação antes de localizar.
-  const checked = await resolveVenueWithOnlineLookup({
+  const checked = confirmedCity ? { gate: geo({}), lookup: null, verified: null } : await resolveVenueWithOnlineLookup({
     local: lead.local || '', cidade: lead.cidade || '', areas: areas || [], venues: sessionVenues,
     ...(process.env.CI ? { searchFn: async () => ({ status: 'unavailable' }) } : { webSearchFn: lookupVenueWeb }),
   });
-  const locationCheck = checked.gate;
+  const locationCheck = confirmedCity ? geo({}) : checked.gate;
   if (checked.verified) sessionVenues = [...sessionVenues, checked.verified];
   const lastText = messages.at(-1).content;
   const locationRelevant = /\b(casamento|cerim[oô]nia|or[cç]amento|tabela|pre[cç]os?|valor|cidade|fica\s+em|localiza[cç][aã]o|endere[cç]o)\b/i.test(lastText);
-  if (lead.local && locationRelevant && locationCheck.action === 'ask') {
-    const reply = isFirstGeoMessage(messages)
-      ? ensureFirstContactIntro(locationCheck.text, { settings: context.settings || {}, companyName: context.companyName })
+  if (lead.local && (locationRelevant || latestEvidence) && locationCheck.action === 'ask') {
+    const guidance = latestEvidence && evidence?.status !== 'confirmed'
+      ? 'Não consegui confirmar a localização com esse dado. Você consegue me mandar o endereço completo ou um link com a localização exata? ☺️'
       : locationCheck.text;
+    const reply = isFirstGeoMessage(messages)
+      ? ensureFirstContactIntro(guidance, { settings: context.settings || {}, companyName: context.companyName })
+      : guidance;
     return NextResponse.json({ ok: true, reply, lead,
       diagnostic: { toolCalls: ['verificar_localidade'], results: [{ ferramenta: 'verificar_localidade', resultado: 'pendente', detalhe: locationCheck.reason }], simulated: true, mapsConnected: false, evidence: 'local_nao_verificado',
         webSearchStatus: checked.lookup?.status || 'nao_necessaria',
         webAttribution: checked.lookup?.attribution || null,
         note: 'Consulta online pelo OpenStreetMap. Sem confirmação não se presume endereço.' },
+    }, { headers: { 'Cache-Control': 'no-store' } });
+  }
+  // Após evidência geográfica confirmada, conduza a venda em vez de encerrar.
+  // Tabela só é enviada se as cinco formações tiverem preços OFICIAIS na faixa.
+  const wantsTable = isFullTableRequest(lastText);
+  const locationIsReliable = Boolean(confirmedCity || locationCheck.venue || (!lead.local && locationCheck.action === 'proceed'));
+  const moveForward = Boolean(latestEvidence && evidence?.status === 'confirmed') ||
+    /\b(tabela|or[cç]amento|pre[cç]os?|valores?|forma[cç][aã]o|duo|trio|quarteto|quinteto|sexteto)\b/i.test(lastText);
+  if (moveForward && locationIsReliable && locationCheck.action === 'proceed') {
+    const city = confirmedCity || locationCheck.venue?.city || lead.cidade || '';
+    const formationNames = ['Duo', 'Trio', 'Quarteto', 'Quinteto', 'Sexteto'];
+    const regionLocation = locationCheck.location;
+    const officialRows = formationNames.map((f) => {
+      const q = calculateQuote({ date: date({}), formation: f, location: regionLocation,
+        hasSound: false, reception: { hours: 0 } }, tables);
+      return { name: f, quote: q };
+    });
+    const available = officialRows.filter(({ quote: q }) => q && !hasRegionIssue(q) &&
+      q.sources?.ceremony === 'quote_price_rules' && q.items?.some((i) => i.key === 'ceremony' && Number(i.amount) > 0));
+    const completeTable = available.length === formationNames.length ? formatCeremonyTable(
+      available.map(({ name, quote }) => ({ formacao: name, valor_cerimonia: quote.items.find((i) => i.key === 'ceremony').amount })),
+    ) : '';
+    const stage = customerQuoteStage({
+      city, venue: lead.local, locationConfirmed: true, table: completeTable,
+      wantsTable, hasOfficialPrices: Boolean(completeTable),
+    });
+    if (stage) return NextResponse.json({ ok: true, reply: stage.reply, lead,
+      diagnostic: { simulated: true, phase: stage.kind,
+        evidence: evidence?.status || (locationCheck.venue ? 'memoria_verificada' : 'cidade_confirmada'),
+        pricing: completeTable ? 'official' : 'requires_owner_validation',
+        toolCalls: ['verificar_localidade', 'consultar_precos'], results: [],
+        webSearchStatus: checked.lookup?.status || 'nao_necessaria' },
     }, { headers: { 'Cache-Control': 'no-store' } });
   }
   function quote(args) {

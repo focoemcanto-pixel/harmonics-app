@@ -33,12 +33,12 @@ function inferSimulationLead(messages = [], saved = {}) {
   const out = eventData(saved);
   const userTexts = messages.filter((m) => m.role === 'user').map((m) => m.content || '');
   for (const content of userTexts) {
-    const date = content.match(/\\b(\\d{1,2})\\/(\\d{1,2})\\/(20\\d{2})\\b/);
+    const date = content.match(/\b(\d{1,2})\/(\d{1,2})\/(20\d{2})\b/);
     if (date && !out.data_evento) out.data_evento = `${date[3]}-${date[2].padStart(2, '0')}-${date[1].padStart(2, '0')}`;
-    const venue = content.match(/\\b(?:na|no|em)\\s+((?:ch[aá]cara|s[ií]tio|fazenda|espa[cç]o|sal[aã]o|igreja|capela|buffet|hotel|pousada|recanto)\\s+[^,.!?;]+?)(?=\\s+(?:dia|em|às|as)\\s+\\d|[,.!?;]|$)/i);
+    const venue = content.match(/\b(?:na|no|em)\s+((?:ch[aá]cara|s[ií]tio|fazenda|espa[cç]o|sal[aã]o|igreja|capela|buffet|hotel|pousada|recanto)\s+[^,.!?;]+?)(?=\s+(?:dia|em|às|as)\s+\d|[,.!?;]|$)/i);
     if (venue && !out.local) out.local = venue[1].trim().slice(0, 120);
-    const city = content.match(/\\b(?:fica|ser[aá]|[ée])\\s+em\\s+([A-Za-zÀ-ÿ][^.,!?;]{2,70})/i);
-    if (city && !/\\b(ch[aá]cara|s[ií]tio|igreja|sal[aã]o|espa[cç]o)\\b/i.test(city[1])) out.cidade = city[1].trim().replace(/\\s+bahia$/i, '').slice(0, 80);
+    const city = content.match(/\b(?:fica|ser[aá]|[ée])\s+em\s+([A-Za-zÀ-ÿ][^.,!?;]{2,70})/i);
+    if (city && !/\b(ch[aá]cara|s[ií]tio|igreja|sal[aã]o|espa[cç]o)\b/i.test(city[1])) out.cidade = city[1].trim().replace(/\s+bahia$/i, '').slice(0, 80);
   }
   return out;
 }
@@ -88,7 +88,7 @@ export async function POST(request) {
   // Não permite que o LLM pule a pergunta de cidade/endereço ou peça formação antes de localizar.
   const locationCheck = locationGate({ local: lead.local || '', cidade: lead.cidade || '', areas: areas || [], venues: venues || [] });
   const lastText = messages.at(-1).content;
-  const locationRelevant = /\\b(casamento|cerim[oô]nia|or[cç]amento|tabela|pre[cç]os?|valor|cidade|fica\\s+em|localiza[cç][aã]o|endere[cç]o)\\b/i.test(lastText);
+  const locationRelevant = /\b(casamento|cerim[oô]nia|or[cç]amento|tabela|pre[cç]os?|valor|cidade|fica\s+em|localiza[cç][aã]o|endere[cç]o)\b/i.test(lastText);
   if (lead.local && locationRelevant && locationCheck.action === 'ask') {
     const reply = isFirstGeoMessage(messages)
       ? ensureFirstContactIntro(locationCheck.text, { settings: context.settings || {}, companyName: context.companyName })

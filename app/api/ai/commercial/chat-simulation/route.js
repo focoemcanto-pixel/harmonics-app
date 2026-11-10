@@ -5,6 +5,7 @@ import { buildSystemPrompt, buildConversationInput, ensureFirstContactIntro } fr
 import { TOOL_DEFINITIONS, formatCeremonyTable } from '@/lib/ai/agent/tools.mjs';
 import { calculateQuote, hasRegionIssue, formatBRL } from '@/lib/ai/commercial/pricing.mjs';
 import { locationGate } from '@/lib/ai/commercial/geo.mjs';
+import { resolveVenueWithOnlineLookup } from '@/lib/ai/agent/location-gate.mjs';
 import { loadWorkspaceAiContext } from '@/lib/ai/inbox/service.mjs';
 
 export const dynamic = 'force-dynamic';
@@ -83,15 +84,21 @@ export async function POST(request) {
   ]);
   if (priceError || areaError) return NextResponse.json({ ok: false, error: 'Não foi possível consultar as tabelas comerciais.' }, { status: 503 });
   const lead = inferSimulationLead(messages, body?.lead || {});
+  let sessionVenues = venues || [];
   const simulated = { lead_data: lead, sales_stage: 'qualifying', memory_summary: '', id: null };
   const effects = { toolResults: [] };
   const tables = { rules: rules || [], areas: areas || [], pricing, logisticsRules: context.settings?.logistics_rules || {}, minMarginPct: context.settings?.min_margin_pct ?? null };
   const place = (args) => String(args?.local || lead.local || lead.cidade || '').trim();
-  const geo = (args) => locationGate({ local: place(args), cidade: String(args?.cidade || lead.cidade || ''), areas: areas || [], venues: venues || [] });
+  const geo = (args) => locationGate({ local: place(args), cidade: String(args?.cidade || lead.cidade || ''), areas: areas || [], venues: sessionVenues });
   const date = (args) => isIso(args?.data) ? args.data : isIso(lead.data_evento) ? lead.data_evento : dateNow();
   // Portão obrigatório antes do modelo: um nome de espaço não verificado não é um endereço.
   // Não permite que o LLM pule a pergunta de cidade/endereço ou peça formação antes de localizar.
-  const locationCheck = locationGate({ local: lead.local || '', cidade: lead.cidade || '', areas: areas || [], venues: venues || [] });
+  const checked = await resolveVenueWithOnlineLookup({
+    local: lead.local || '', cidade: lead.cidade || '', areas: areas || [], venues: sessionVenues,
+    ...(process.env.CI ? { searchFn: async () => ({ status: 'unavailable' }) } : {}),
+  });
+  const locationCheck = checked.gate;
+  if (checked.verified) sessionVenues = [...sessionVenues, checked.verified];
   const lastText = messages.at(-1).content;
   const locationRelevant = /\b(casamento|cerim[oô]nia|or[cç]amento|tabela|pre[cç]os?|valor|cidade|fica\s+em|localiza[cç][aã]o|endere[cç]o)\b/i.test(lastText);
   if (lead.local && locationRelevant && locationCheck.action === 'ask') {
@@ -99,7 +106,10 @@ export async function POST(request) {
       ? ensureFirstContactIntro(locationCheck.text, { settings: context.settings || {}, companyName: context.companyName })
       : locationCheck.text;
     return NextResponse.json({ ok: true, reply, lead,
-      diagnostic: { toolCalls: ['verificar_localidade'], results: [{ ferramenta: 'verificar_localidade', resultado: 'pendente', detalhe: locationCheck.reason }], simulated: true, mapsConnected: false, evidence: 'local_nao_verificado', note: 'Sem pesquisa web integrada. Não houve identificação do endereço.' },
+      diagnostic: { toolCalls: ['verificar_localidade'], results: [{ ferramenta: 'verificar_localidade', resultado: 'pendente', detalhe: locationCheck.reason }], simulated: true, mapsConnected: false, evidence: 'local_nao_verificado',
+        webSearchStatus: checked.lookup?.status || 'nao_necessaria',
+        webAttribution: checked.lookup?.attribution || null,
+        note: 'Consulta online pelo OpenStreetMap. Sem confirmação não se presume endereço.' },
     }, { headers: { 'Cache-Control': 'no-store' } });
   }
   function quote(args) {
@@ -157,7 +167,7 @@ export async function POST(request) {
     const reply = isFirst ? ensureFirstContactIntro(fixed, { settings: context.settings || {}, companyName: context.companyName }) : fixed;
     if (!reply) return NextResponse.json({ ok: false, error: 'A Nara não gerou resposta nesta tentativa.' }, { status: 503 });
     return NextResponse.json({
-      ok: true, reply, lead, diagnostic: { toolCalls: result.toolCalls || [], results: effects.toolResults, model: result.model, costUsd: result.costUsd, simulated: true, mapsConnected: false },
+      ok: true, reply, lead, diagnostic: { toolCalls: result.toolCalls || [], results: effects.toolResults, model: result.model, costUsd: result.costUsd, simulated: true, mapsConnected: false, venueWebSearch: checked.lookup?.status || 'nao_necessaria', webAttribution: checked.lookup?.attribution || null },
     }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
     console.error('[AI][CHAT_SIMULATION][ERROR]', { message: error?.message });

@@ -232,15 +232,24 @@ function BootstrapCard({ toast, onDone }) {
 
 const EMPTY_AREA = { name: '', status: 'served', match_terms: '', price_tier: '', distance_km: '', travel_minutes: '', travel_fee: '', toll_fee: '', sound_travel_fee: '', lodging_required: false, lodging_fee: '', notes: '' };
 
+const brl = (v) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+
 function AreasTab({ toast }) {
   const [areas, setAreas] = useState([]);
+  const [tiers, setTiers] = useState([]);
+  const [refDate, setRefDate] = useState(new Date().toISOString().slice(0, 10));
   const [form, setForm] = useState(EMPTY_AREA);
   const [history, setHistory] = useState([]);
   const load = useCallback(async () => {
-    const [{ ok, body }, preview] = await Promise.all([api('/api/ai/service-areas'), api('/api/ai/knowledge/bootstrap')]);
-    if (ok) setAreas(body.areas || []);
+    const [{ ok, body }, preview] = await Promise.all([api(`/api/ai/service-areas?date=${refDate}`), api('/api/ai/knowledge/bootstrap')]);
+    if (ok) { setAreas(body.areas || []); setTiers(body.tiers || []); }
     if (preview.ok) setHistory(preview.body.areaSuggestions || []);
-  }, []);
+  }, [refDate]);
+  async function reactivate(a) {
+    const { ok, body } = await api('/api/ai/service-areas', { method: 'POST', body: JSON.stringify({ ...a, match_terms: a.match_terms || [], active: true }) });
+    if (!ok) return toast.error(body?.error || 'Falha.');
+    toast.success(`${a.name} reativada.`); load();
+  }
   useEffect(() => { const t = setTimeout(load, 0); return () => clearTimeout(t); }, [load]);
   async function save() {
     const { ok, body } = await api('/api/ai/service-areas', { method: 'POST', body: JSON.stringify(form) });
@@ -255,7 +264,11 @@ function AreasTab({ toast }) {
           <Field label="Nome"><input className={INPUT} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
           <Field label="Status"><select className={INPUT} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}><option value="served">Atendida</option><option value="conditional">Condicional</option><option value="blocked">Bloqueada</option></select></Field>
           <Field label="Termos (cidades/bairros, vírgula)"><input className={INPUT} value={form.match_terms} onChange={(e) => setForm({ ...form, match_terms: e.target.value })} /></Field>
-          <Field label="Faixa de preço (Manual §4)"><select className={INPUT} value={form.price_tier || ''} onChange={(e) => setForm({ ...form, price_tier: e.target.value })}><option value="">Região-base</option><option value="metro">Região metropolitana</option><option value="ate120">Até ~120 km</option><option value="custom">Personalizado (acima de 2h)</option></select></Field>
+          <Field label="Faixa de preço (herda os valores de Tabelas → Por faixa)"><select className={INPUT} value={form.price_tier || ''} onChange={(e) => setForm({ ...form, price_tier: e.target.value })}>
+            <option value="">Região-base</option>
+            {tiers.filter((t) => t.slug !== 'base').map((t) => <option key={t.slug} value={t.slug}>{t.label}</option>)}
+            {form.price_tier && !tiers.some((t) => t.slug === form.price_tier) ? <option value={form.price_tier}>{form.price_tier}</option> : null}
+          </select></Field>
           {[['distance_km', 'Distância (km)'], ['travel_minutes', 'Tempo (min)'], ['travel_fee', 'Deslocamento da banda (R$)'], ['sound_travel_fee', 'Deslocamento do som (R$)'], ['toll_fee', 'Pedágios (R$)'], ['lodging_fee', 'Hospedagem (R$)']].map(([k, l]) => (
             <Field key={k} label={l}><input type="number" step="any" className={INPUT} value={form[k]} onChange={(e) => setForm({ ...form, [k]: e.target.value })} /></Field>
           ))}
@@ -273,15 +286,35 @@ function AreasTab({ toast }) {
         </Card>
       ) : null}
       <Card title="Localidades cadastradas">
-        {areas.filter((a) => a.active).map((a) => (
-          <div key={a.id} className="flex flex-wrap items-center gap-2 border-b border-slate-100 py-2 text-sm">
-            <strong>{a.name}</strong>
-            <span className="text-xs text-slate-500">{({ served: 'Atendida', conditional: 'Condicional', blocked: 'Bloqueada' })[a.status]} · {(a.match_terms || []).join(', ')}</span>
-            <span className="ml-auto text-xs">{[a.travel_fee && `desl. R$${a.travel_fee}`, a.toll_fee && `pedágio R$${a.toll_fee}`, a.lodging_required && `hosp. ${a.lodging_fee ? `R$${a.lodging_fee}` : 'sem valor'}`].filter(Boolean).join(' · ') || 'sem taxa'}</span>
-            <button type="button" onClick={() => setForm({ ...EMPTY_AREA, ...a, match_terms: (a.match_terms || []).join(', ') })} className="rounded-lg border border-slate-300 px-2 py-1 text-xs text-slate-700">Editar</button>
-            <button type="button" onClick={async () => { await api(`/api/ai/service-areas?id=${a.id}`, { method: 'DELETE' }); load(); }} className="rounded-lg border border-slate-300 px-2 py-1 text-xs text-slate-700">Desativar</button>
-          </div>
-        ))}
+        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+          <span>Preços herdados da faixa e deslocamento calculados pelo mesmo motor da Nara.</span>
+          <label className="ml-auto flex items-center gap-1">Vigência em<input type="date" className="rounded border border-slate-200 px-1" value={refDate} onChange={(e) => setRefDate(e.target.value || new Date().toISOString().slice(0, 10))} /></label>
+        </div>
+        {[...areas].sort((x, y) => Number(y.active !== false) - Number(x.active !== false)).map((a) => {
+          const p = a.preview || {};
+          return (
+            <div key={a.id} className={`space-y-1 border-b border-slate-100 py-2 text-sm ${a.active === false ? 'opacity-60' : ''}`}>
+              <div className="flex flex-wrap items-center gap-2">
+                <strong>{a.name}</strong>
+                <span className="rounded-full bg-slate-100 px-2 text-xs">{p.tier_label || 'Região-base'}</span>
+                <span className="text-xs text-slate-500">{({ served: 'Atendida', conditional: 'Condicional', blocked: 'Bloqueada' })[a.status]}{a.active === false ? ' · inativa' : ''} · {(a.match_terms || []).join(', ')}{a.distance_km ? ` · ${a.distance_km} km` : ''}</span>
+                <span className="ml-auto flex gap-1">
+                  <button type="button" onClick={() => setForm({ ...EMPTY_AREA, ...a, price_tier: a.price_tier || '', match_terms: (a.match_terms || []).join(', ') })} className="rounded-lg border border-slate-300 px-2 py-1 text-xs text-slate-700">Editar</button>
+                  {a.active === false
+                    ? <button type="button" onClick={() => reactivate(a)} className="rounded-lg border border-emerald-300 px-2 py-1 text-xs text-emerald-700">Reativar</button>
+                    : <button type="button" onClick={async () => { await api(`/api/ai/service-areas?id=${a.id}`, { method: 'DELETE' }); load(); }} className="rounded-lg border border-slate-300 px-2 py-1 text-xs text-slate-700">Desativar</button>}
+                </span>
+              </div>
+              <div className="text-xs text-slate-700">Cerimônia: {(p.prices || []).map((x) => `${x.formation} ${x.amount != null ? brl(x.amount) : '—'}`).join(' · ')}</div>
+              <div className="text-xs text-slate-500">
+                Deslocamento: {p.travel?.amount ? `${brl(p.travel.amount)} (${p.travel.label})` : p.travel?.label}
+                {' · '}Som: {p.sound_travel?.amount ? `${brl(p.sound_travel.amount)} (${p.sound_travel.label})` : p.sound_travel?.label}
+                {a.toll_fee ? ` · pedágio ${brl(a.toll_fee)}` : ''}{a.lodging_required ? ` · hospedagem ${a.lodging_fee ? brl(a.lodging_fee) : 'sem valor'}` : ''}
+              </div>
+              {(p.issues || []).map((i) => <div key={i.code} className="text-xs text-amber-700">⚠ {i.text}</div>)}
+            </div>
+          );
+        })}
       </Card>
     </div>
   );

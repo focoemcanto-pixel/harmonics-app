@@ -320,3 +320,18 @@ test('tabelas por faixa: faixas com localidades vinculadas e faixa personalizada
   assert.ok(after.tiers.some((t) => t.slug === 'litoral-teste' && t.label === 'Litoral Teste'));
   assert.ok(after.changes.some((c) => c.item_key === 'duo@litoral-teste'), 'histórico auditado');
 });
+
+test('localidades: prévia herdada da faixa, origem do deslocamento e áreas inativas visíveis', async () => {
+  const areasAt = async () => JSON.parse((await handle('GET', '/api/ai/service-areas', '?date=2096-03-01', undefined, { 'content-type': 'application/json', 'x-test-auth': 'owner' })).body);
+  const res = await areasAt();
+  const metro = res.areas.find((a) => a.name === 'Cidade Metro');
+  assert.equal(metro.preview.tier_label, 'Metropolitana');
+  assert.ok(metro.preview.prices.some((p) => p.formation === 'Trio' && p.amount > 0), 'herda o preço aprovado da faixa');
+  assert.ok(res.tiers.some((t) => t.slug === 'litoral-teste'), 'faixa personalizada disponível para vincular');
+  await sql("update ai_service_areas set active = false where workspace_id = $1 and name = 'Cidade Metro'", [WS]);
+  const after = await areasAt();
+  const inactive = after.areas.find((a) => a.name === 'Cidade Metro');
+  assert.equal(inactive.active, false);
+  assert.ok(inactive.preview.issues.some((i) => i.code === 'inactive'));
+  await sql("update ai_service_areas set active = true where workspace_id = $1 and name = 'Cidade Metro'", [WS]);
+});

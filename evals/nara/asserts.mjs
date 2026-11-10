@@ -63,7 +63,7 @@ export function quoteTableNow(output) {
 export function noTableNoData(output) {
   const r = norm(T(output)[0].reply);
   const noPrices = !/r\$\s?\d/.test(r);
-  const asksData = /(monte|montar|link|noivos|data|local|horario)/.test(r);
+  const asksData = /noivos:/.test(r) && /data:/.test(r) && /local:/.test(r) && /horario:/.test(r);
   return ok(noPrices && asksData, `sem dados: sem valores (${noPrices}) e pede link/dados (${asksData})`);
 }
 export function noBasePriceOtherRegion(output) {

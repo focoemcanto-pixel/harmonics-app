@@ -152,10 +152,26 @@ test('Postgres decimal strings preserve the approved fallback amount', () => {
 test('semantic commercial precedence prevents optional discovery from blocking prices', () => {
   assert.equal(resolveCommercialAction({ intent: 'quote_request', action: 'formations' }, { cidade: 'Cidade Sintética' }), 'prices');
   assert.equal(resolveCommercialAction({ intent: 'price_decision', action: 'formations' }, { cidade: 'Cidade Sintética' }), 'prices');
+  assert.equal(resolveCommercialAction({ intent: 'quote_request', action: 'quote' }, { cidade: 'Cidade Sintética', formacao: 'Duo', som: 'sim' }), 'quote');
   assert.equal(resolveCommercialAction({ intent: 'correction', action: 'formations', facts: { cidade: 'Cidade Nova' } }, { cidade: 'Cidade Nova', _objetivo_comercial: 'pricing' }), 'prices');
   assert.equal(resolveCommercialAction({ intent: 'accept_offer', action: 'formations' }, { cidade: 'Cidade Sintética', _objetivo_comercial: 'pricing' }), 'formations');
   assert.equal(resolveCommercialAction({ intent: 'waiting', action: 'handoff' }, {}), 'answer');
   assert.equal(resolveCommercialAction({ intent: 'contract', action: 'formations' }, {}), 'closing');
+});
+
+test('chosen sound and reception survive initial pricing without an event date', async () => {
+  const store = fixture(), conversation = { id: 'synthetic-conversation', lead_data: {} };
+  store.tables.quote_price_rules.push(
+    { workspace_id: ws, category: 'reception', item_key: 'trio_1h', amount: 88, valid_from: '2000-01-01' },
+    { workspace_id: ws, category: 'sound', item_key: 'church_reception_1h', amount: 177, valid_from: '2000-01-01' });
+  const r = await turn({ store, conversation, messages: [{ role: 'user', content: 'Duo com som e receptivo Trio por uma hora na Cidade Sintética' }],
+    plan: { intent: 'quote_request', facts: { cidade: 'Cidade Sintética', formacao: 'Duo', som: 'sim', recepcao_formacao: 'Trio', recepcao_horas: '1' }, action: 'quote' }, reply: 'Veja as referências para os serviços escolhidos:' });
+  assert.ok(r.result.toolCalls.includes('calcular_orcamento'));
+  assert.match(r.result.text, /R\$ 111,00/);
+  assert.match(r.result.text, /R\$ 88,00/);
+  assert.match(r.result.text, /R\$ 177,00/);
+  assert.match(r.result.text, /Valor parcial/);
+  assert.doesNotMatch(r.result.text, /Total de referência/);
 });
 
 test('invalid model prose is repaired within the same bounded loop and all tokens are counted', async () => {

@@ -31,6 +31,7 @@ export const fixtures = {
     { item_key: 'k-som', kind: 'rule', title: 'Som', content: 'O som pode ser da banda ou do espaço. Para receptivo acima de 2h a equipe confirma o valor do som.', intents: ['rider', 'pricing'], priority: 80 },
     { item_key: 'k-repertorio', kind: 'faq', title: 'Repertório', content: 'O repertório é montado junto com o casal a partir das músicas desejadas; a equipe confirma a viabilidade de cada pedido.', intents: ['repertoire'], priority: 60 },
     { item_key: 'k-formacao', kind: 'faq', title: 'Formações', content: 'Formações pequenas têm base harmônica (piano ou violão). Trio é um bom ponto de partida; Duo atende eventos intimistas.', intents: ['formation'], priority: 60 },
+    { item_key: 'k-link-montagem', kind: 'response', title: 'Link oficial de montagem', content: 'Link oficial para montar a formação: https://exemplo.test/monte-sua-banda/', intents: ['pricing'], priority: 50 },
     // Pendente de aprovação: a Nara NÃO pode citar estas condições.
     { item_key: 'k-pagamento', kind: 'policy', title: 'Condições de pagamento', content: 'Sinal de 30% na assinatura e saldo em 3 parcelas no cartão ou Pix.', intents: ['payment'], priority: 90, status: 'pending_approval' },
   ],

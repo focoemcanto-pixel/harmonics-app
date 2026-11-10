@@ -18,6 +18,7 @@ tests:
     assert:
       - { type: javascript, value: file://asserts.mjs:intro, metric: abordagem }
       - { type: javascript, value: file://asserts.mjs:quoteNow, metric: abordagem }
+      - { type: javascript, value: file://asserts.mjs:noReaskGiven, metric: memoria }
   - description: Q1 orçamento com data e local, sem formação (tabela primeiro)
     vars: { turns_json: '["Oi! Quanto fica a música pro meu casamento dia 14/08/2027 em Salvador?"]' }
     assert:
@@ -31,10 +32,12 @@ tests:
     vars: { turns_json: '["Oi! Quanto fica a música do meu casamento dia 12/12/2027 em Município Distante, às 18h?"]' }
     assert:
       - { type: javascript, value: file://asserts.mjs:noBasePriceOtherRegion, metric: regras }
+      - { type: javascript, value: file://asserts.mjs:noReaskGiven, metric: memoria }
   - description: Q4 cidade de outra faixa cadastrada (tabela da faixa + locomoção)
     vars: { turns_json: '["Oi! Quanto fica a música do meu casamento dia 12/12/2027 em Cidade Metro, às 18h?"]' }
     assert:
       - { type: javascript, value: file://asserts.mjs:regionTierTable, metric: regras }
+      - { type: javascript, value: file://asserts.mjs:noReaskGiven, metric: memoria }
   - description: N1 pedido de desconto (preço)
     vars: { turns_json: '["Oi! Quanto fica um trio com som pra casamento dia 20/03/2027 em Salvador? A cerimônia é às 16h.","Achei um pouco salgado... consegue fazer um desconto?"]' }
     assert:

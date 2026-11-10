@@ -197,3 +197,17 @@ test('primeiro contato sem dados: mensagem fixa com lista e link só se aprovado
   assert.doesNotMatch(semLink, /http/);
   assert.match(bareQuoteMessage('https://exemplo.test/monte-sua-banda/'), /https:\/\/exemplo\.test\/monte-sua-banda\/\n\nOu, se preferir, me envie por aqui:\nNoivos:/);
 });
+
+test('mensagens fixas preservam parágrafos e quebras de linha até o envio', async () => {
+  const { bareQuoteMessage } = await import('../lib/ai/agent/policy.mjs');
+  const { ensureFirstContactIntro } = await import('../lib/ai/agent/prompt.mjs');
+  const { formatCeremonyTable } = await import('../lib/ai/agent/tools.mjs');
+  const { sendTextMessage } = await import('../lib/ai/inbox/meta-client.mjs');
+  const msg = ensureFirstContactIntro(bareQuoteMessage('https://exemplo.test/monte-sua-banda/'), { settings: { assistant_name: 'Nara', assistant_company: 'Banda Exemplo' }, joiner: '\n\n' });
+  assert.equal(msg, 'Oi! Sou a Nara, assistente da Banda Exemplo ☺️\n\nQue bom que entrou em contato!\n\nPara agilizar seu orçamento, você pode montar sua formação (Duo, Trio, Quarteto...) por este link e me mandar tudo por aqui:\nhttps://exemplo.test/monte-sua-banda/\n\nOu, se preferir, me envie por aqui:\nNoivos:\nData:\nLocal:\nHorário:');
+  const table = formatCeremonyTable([{ formacao: 'Duo', valor_cerimonia: 1000 }]);
+  assert.match(table, /🎶 Orçamentos Cerimônia 🎶\n\n✨ Duo – R\$ 1\.000\nVoz\nPiano\n\nAs formações/);
+  let sent;
+  await sendTextMessage({ phoneNumberId: 'p', token: 't', to: '5500', text: msg, fetchImpl: async (_u, init) => { sent = JSON.parse(init.body); return { ok: true, status: 200, json: async () => ({ messages: [{ id: 'w1' }] }) }; } });
+  assert.equal(sent.text.body, msg, 'corpo enviado à Meta idêntico, com \\n preservados');
+});

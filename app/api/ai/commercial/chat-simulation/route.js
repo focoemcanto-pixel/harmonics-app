@@ -27,6 +27,27 @@ function normalizeMessages(input) {
   }));
   return messages.length && messages.every((m) => m.role && m.content && m.content.length <= MAX_TEXT) ? messages : null;
 }
+// Recupera contexto básico do histórico, mesmo quando o modelo não chamou registrar_dados_evento.
+// Mantém os campos somente nesta simulação e nunca transforma texto ambíguo em endereço confirmado.
+function inferSimulationLead(messages = [], saved = {}) {
+  const out = eventData(saved);
+  const userTexts = messages.filter((m) => m.role === 'user').map((m) => m.content || '');
+  for (const content of userTexts) {
+    const date = content.match(/\b(\d{1,2})\/(\d{1,2})\/(20\d{2})\b/);
+    if (date && !out.data_evento) out.data_evento = `${date[3]}-${date[2].padStart(2, '0')}-${date[1].padStart(2, '0')}`;
+    const venue = content.match(/\b(?:na|no|em)\s+((?:ch[aá]cara|s[ií]tio|fazenda|espa[cç]o|sal[aã]o|igreja|capela|buffet|hotel|pousada|recanto)\s+[^,.!?;]+?)(?=\s+(?:dia|em|às|as)\s+\d|[,.!?;]|$)/i);
+    if (venue && !out.local) out.local = venue[1].trim().slice(0, 120);
+    const city = content.match(/\b(?:fica|ser[aá]|[ée])\s+em\s+([A-Za-zÀ-ÿ][^.,!?;]{2,70})/i);
+    if (city && !/\b(ch[aá]cara|s[ií]tio|igreja|sal[aã]o|espa[cç]o)\b/i.test(city[1])) out.cidade = city[1].trim().replace(/\s+bahia$/i, '').slice(0, 80);
+    // Se a pessoa informou endereço do espaço, deixe a conversa avançar sem repetir a pergunta.
+    const address = content.match(/\b(rua|avenida|estrada|rodovia|travessa|alameda|bairro)\b[^.!?;]{4,120}/i);
+    if (address && out.local && !out.local.toLowerCase().includes(address[0].toLowerCase())) {
+      out.local = `${out.local}, ${address[0].trim()}`.slice(0, 150);
+    }
+  }
+  return out;
+}
+
 function eventData(raw) {
   const fields = ['tipo_evento', 'data_evento', 'horario', 'local', 'cidade', 'formacao', 'instrumentos', 'som', 'recepcao_formacao', 'recepcao_horas'];
   const data = {};
@@ -41,6 +62,8 @@ function briefQuote(q) {
     orientacao: hasRegionIssue(q) ? 'Não informe valores. A equipe confirma a região e o orçamento.' : q.final ? 'Valor de referência, não confirme reserva.' : 'Não informe um total definitivo.',
   };
 }
+
+function isFirstGeoMessage(messages) { return !messages.some((m) => m.role === 'assistant'); }
 
 export async function POST(request) {
   const guard = await guardWorkspaceAdmin(request, { logPrefix: '[AI][CHAT_SIMULATION]' });
@@ -59,13 +82,26 @@ export async function POST(request) {
     guard.supabase.from('ai_venues').select('*').eq('workspace_id', ws).eq('status', 'verified'),
   ]);
   if (priceError || areaError) return NextResponse.json({ ok: false, error: 'Não foi possível consultar as tabelas comerciais.' }, { status: 503 });
-  const lead = eventData(body?.lead || {});
+  const lead = inferSimulationLead(messages, body?.lead || {});
   const simulated = { lead_data: lead, sales_stage: 'qualifying', memory_summary: '', id: null };
   const effects = { toolResults: [] };
   const tables = { rules: rules || [], areas: areas || [], pricing, logisticsRules: context.settings?.logistics_rules || {}, minMarginPct: context.settings?.min_margin_pct ?? null };
   const place = (args) => String(args?.local || lead.local || lead.cidade || '').trim();
   const geo = (args) => locationGate({ local: place(args), cidade: String(args?.cidade || lead.cidade || ''), areas: areas || [], venues: venues || [] });
   const date = (args) => isIso(args?.data) ? args.data : isIso(lead.data_evento) ? lead.data_evento : dateNow();
+  // Portão obrigatório antes do modelo: um nome de espaço não verificado não é um endereço.
+  // Não permite que o LLM pule a pergunta de cidade/endereço ou peça formação antes de localizar.
+  const locationCheck = locationGate({ local: lead.local || '', cidade: lead.cidade || '', areas: areas || [], venues: venues || [] });
+  const lastText = messages.at(-1).content;
+  const locationRelevant = /\b(casamento|cerim[oô]nia|or[cç]amento|tabela|pre[cç]os?|valor|cidade|fica\s+em|localiza[cç][aã]o|endere[cç]o)\b/i.test(lastText);
+  if (lead.local && locationRelevant && locationCheck.action === 'ask') {
+    const reply = isFirstGeoMessage(messages)
+      ? ensureFirstContactIntro(locationCheck.text, { settings: context.settings || {}, companyName: context.companyName })
+      : locationCheck.text;
+    return NextResponse.json({ ok: true, reply, lead,
+      diagnostic: { toolCalls: ['verificar_localidade'], results: [{ ferramenta: 'verificar_localidade', resultado: 'pendente', detalhe: locationCheck.reason }], simulated: true, mapsConnected: false, evidence: 'local_nao_verificado', note: 'Sem pesquisa web integrada. Não houve identificação do endereço.' },
+    }, { headers: { 'Cache-Control': 'no-store' } });
+  }
   function quote(args) {
     const g = geo(args);
     if (g.action !== 'proceed') return { gate: g };

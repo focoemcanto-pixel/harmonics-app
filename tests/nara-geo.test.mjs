@@ -1,7 +1,7 @@
 // Inteligência geográfica da Nara — dados 100% sintéticos (localidades e espaços inventados).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { analyzeLocation, otherStateIn, composeLocation, askCityMessage, customQuoteMessage, knownTravelMinutes } from '../lib/ai/commercial/geo.mjs';
+import { analyzeLocation, locationGate, otherStateIn, composeLocation, askCityMessage, customQuoteMessage, knownTravelMinutes } from '../lib/ai/commercial/geo.mjs';
 import { calculateQuote, hasRegionIssue, isCustomQuote } from '../lib/ai/commercial/pricing.mjs';
 
 const AREAS = [
@@ -28,6 +28,18 @@ test('espaço + cidade em mensagens separadas são combinados', () => {
   const r = analyzeLocation({ local: 'Chácara Recanto Inventado', cidade: 'Vila Vizinha Teste', areas: AREAS });
   assert.equal(r.kind, 'area');
   assert.equal(r.area.id, 'a2');
+});
+
+test('nome de espaço sem verificação não vira endereço apenas por informar a cidade', () => {
+  const initial = locationGate({ local: 'Chácara Recanto Inventado', areas: AREAS });
+  assert.equal(initial.action, 'ask');
+  assert.equal(initial.reason, 'cidade_necessaria');
+  const next = locationGate({ local: 'Chácara Recanto Inventado', cidade: 'Vila Vizinha Teste', areas: AREAS });
+  assert.equal(next.action, 'ask');
+  assert.equal(next.reason, 'espaco_nao_verificado');
+  assert.match(next.text, /endereço ou a localização/);
+  const specific = locationGate({ local: 'Chácara Recanto Inventado, Rua das Flores 10, Vila Vizinha Teste', areas: AREAS });
+  assert.equal(specific.action, 'proceed');
 });
 
 test('cidade sem cadastro não recebe faixa automática', () => {
@@ -119,12 +131,14 @@ test('consultar_precos: só o espaço => pergunta fixa da cidade, sem valores e 
   assert.equal(inserts.filter(([t]) => t === 'ai_approvals').length, 0);
 });
 
-test('consultar_precos: espaço + cidade cadastrada (mensagens separadas) => tabela oficial', async () => {
+test('consultar_precos: espaço não verificado + cidade => pede endereço, sem inventar localização', async () => {
   const { executeTool } = await import('../lib/ai/agent/tools.mjs');
   const { supabase } = fakeDb(TOOL_TABLES());
   const c = toolCtx(supabase, { local: 'Chácara Recanto Inventado', cidade: 'Cidade Base Teste' });
-  await executeTool('consultar_precos', {}, c);
-  assert.match(c.effects.quoteTableText, /✨ Duo – R\$ 1\.000/);
+  const r = await executeTool('consultar_precos', {}, c);
+  assert.equal(r.erro, 'espaco_nao_verificado');
+  assert.equal(c.effects.quoteTableText, undefined);
+  assert.match(c.effects.regionPendingText, /endereço ou a localização/);
 });
 
 test('consultar_precos: outro estado => personalizado + pendência para o Owner, sem valores', async () => {

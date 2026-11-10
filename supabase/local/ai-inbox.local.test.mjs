@@ -6,6 +6,7 @@
 //
 // Rodar: ./supabase/local/run-ai-inbox.sh
 import test from 'node:test';
+import { semanticLlm } from '../../tests/helpers/semantic-llm.mjs';
 import assert from 'node:assert/strict';
 import { createPgSupabase } from './pg-supabase.mjs';
 import { encryptSecret } from '../../lib/ai/inbox/secret-box.mjs';
@@ -62,19 +63,18 @@ function fakeMeta() {
 
 function deps(extra = {}) {
   const meta = fakeMeta();
-  return {
-    meta,
-    deps: {
-      env: ENV,
-      sendTextMessage: meta.sendTextMessage,
-      generateReply: async ({ executeTool }) => {
-        await executeTool('registrar_dados_evento', { tipo_evento: 'casamento' });
-        const prices = await executeTool('consultar_precos', { formacao: 'Trio', local: 'Cidade Base Teste' });
-        return { text: `Oi! Sou a assistente virtual. O trio parte de R$ ${prices.valor_cerimonia}. Qual a data?`, model: 'fake', inputTokens: 100, outputTokens: 20, costUsd: 0.0001, toolCalls: ['consultar_precos'] };
-      },
-      ...extra,
+  const config = {
+    env: ENV,
+    sendTextMessage: meta.sendTextMessage,
+    generateReply: async ({ executeTool }) => {
+      await executeTool('registrar_dados_evento', { tipo_evento: 'casamento' });
+      await executeTool('consultar_precos', { formacao: 'Trio', local: 'Cidade Base Teste' });
+      return { text: 'Oi! Sou a assistente virtual. Veja a referência para o Trio:', model: 'fake', inputTokens: 100, outputTokens: 20, costUsd: 0.0001, toolCalls: ['consultar_precos'] };
     },
+    ...extra,
   };
+  config.generateReply = semanticLlm(config.generateReply);
+  return { meta, deps: config };
 }
 
 async function sql(text, params) {
@@ -137,7 +137,7 @@ test('IA responde com dados reais do workspace, enfileira e despacha uma vez', a
   assert.equal(result.status, 'pending');
   const sent = await dispatchOutbox({ supabase: service, workspaceId: WS_A, deps: d });
   assert.deepEqual(sent.map((s) => s.status), ['sent']);
-  assert.match(meta.sent[0].text, /R\$ 2500/, 'preço vem de pricing_settings do workspace');
+  assert.match(meta.sent[0].text, /R\$ 2\.500/, 'preço vem de pricing_settings do workspace');
   const [out] = await sql("select * from ai_messages where conversation_id = $1 and direction = 'outbound'", [conv.id]);
   assert.deepEqual([out.sender_type, out.origin], ['ai', 'api_ai']);
   const lead = (await conversationOf()).lead_data;
@@ -416,3 +416,4 @@ test('reenvio da Meta após falha no meio do lote reprocessa sem duplicar', asyn
   const again = await ingestWebhook({ supabase: service, rawBody, payload });
   assert.equal(again.duplicate, true);
 });
+

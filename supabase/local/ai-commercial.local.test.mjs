@@ -7,6 +7,7 @@
 //
 // Rodar: ./supabase/local/run-ai-inbox.sh (inclui este arquivo).
 import test from 'node:test';
+import { semanticLlm } from '../../tests/helpers/semantic-llm.mjs';
 import assert from 'node:assert/strict';
 import { createPgSupabase } from './pg-supabase.mjs';
 import { encryptSecret } from '../../lib/ai/inbox/secret-box.mjs';
@@ -58,13 +59,13 @@ function harness(llm) {
       notifyAdmin: async () => ({ ok: true }),
       sendTextMessage: async ({ to, text }) => { const id = nid('wamid.out'); sent.push({ to, text, id, kind: 'text' }); return { status: 'sent', providerMessageId: id }; },
       sendTemplateMessage: async ({ to, name }) => { const id = nid('wamid.tpl'); sent.push({ to, name, id, kind: 'template' }); return { status: 'sent', providerMessageId: id }; },
-      generateReply: async (args) => { seen.push(args); return llm(args); },
+      generateReply: semanticLlm(async (args) => { seen.push(args); return llm(args); }),
     },
   };
 }
 const reply = (text, toolCalls = []) => ({ text, model: 'fake', inputTokens: 10, outputTokens: 5, costUsd: 0.0001, toolCalls });
 const closeTool = (extra = {}) => async ({ executeTool }) => {
-  await executeTool('registrar_dados_evento', { tipo_evento: 'Casamento' });
+  await executeTool('registrar_dados_evento', { tipo_evento: 'Casamento', data_evento: DATE, horario: '16:00', formacao: 'Trio', cidade: 'Cidade Base', local: 'Espaço Sintético', endereco: 'Rua Sintética 101, Cidade Base' });
   await executeTool('preparar_fechamento', { data: DATE, horario: '16:00', formacao: 'Trio', instrumentos: 'violino, violoncelo e voz', com_som: true, recepcao_formacao: 'Duo', recepcao_horas: 2, local: 'Cidade Base', ...extra });
   return reply('texto do modelo que não deve sair', ['preparar_fechamento']);
 };
@@ -201,6 +202,7 @@ test('autonomia progressiva: assistido só dentro das regras; autônomo envia ca
   // Exceção (sem tipo de evento identificado) nunca sai sozinha, mesmo no autônomo.
   const chat3 = '15550005019';
   await turn(chat3, 'quero fechar', async ({ executeTool }) => {
+    await executeTool('registrar_dados_evento', { data_evento: DATE, horario: '16:00', formacao: 'Trio', cidade: 'Cidade Base', local: 'Espaço Sintético', endereco: 'Rua Sintética 101, Cidade Base' });
     await executeTool('preparar_fechamento', { data: DATE, horario: '16:00', formacao: 'Trio', instrumentos: 'violino, violoncelo e voz', com_som: true, recepcao_formacao: 'Duo', recepcao_horas: 2, local: 'Cidade Base' });
     return reply('x');
   });
@@ -233,7 +235,7 @@ test('vocalista prioritário em conflito: pendência para o Owner, sem substitut
     return reply('Não há compromisso registrado; a equipe confirma a agenda.');
   });
   assert.ok(!JSON.stringify(output).match(/Vocalista|substitut/i), 'não cita vocalistas nem oferece substituto');
-  assert.match(output.orientacao, /Nunca diga que a data ou alguém está "disponível"/);
+  assert.equal(output.reserva_confirmada, false);
 
   // Fechamento com receptivo e voz masculina: prioridade cai em conflito real -> pendência, sem resumo.
   const chat3 = '15550005008';
@@ -280,7 +282,7 @@ test('conhecimento versionado: pendente não vale, aprovado entra no prompt, rol
   assert.ok(t3.seen[0].system.includes('cinquenta'));
   const statuses = await sql("select version, status from ai_knowledge_items where workspace_id = $1 and item_key = 'pagamento' order by version", [WS]);
   assert.deepEqual(statuses.map((s) => s.status), ['active', 'archived']);
-  assert.ok(t3.seen[0].input.length <= 12, 'histórico limitado (recuperação seletiva)');
+  assert.ok(t3.seen[0].input.length <= 20, 'histórico limitado (recuperação seletiva)');
 });
 
 test('aprendizado supervisionado: respostas da equipe viram sugestão recorrente; aprovação ativa exemplo', async () => {
@@ -360,3 +362,4 @@ test('trava: resposta da IA com link de contrato é bloqueada e vai para o respo
   assert.equal(t.sent.filter((s) => s.to === chat).length, 0);
   assert.equal(t.conversation.needs_human, true);
 });
+

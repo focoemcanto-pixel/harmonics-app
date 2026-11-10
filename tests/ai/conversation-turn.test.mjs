@@ -157,3 +157,29 @@ test('semantic commercial precedence prevents optional discovery from blocking p
   assert.equal(resolveCommercialAction({ intent: 'waiting', action: 'handoff' }, {}), 'answer');
   assert.equal(resolveCommercialAction({ intent: 'contract', action: 'formations' }, {}), 'closing');
 });
+
+test('invalid model prose is repaired within the same bounded loop and all tokens are counted', async () => {
+  const conversation = { id: 'synthetic-conversation', lead_data: {} };
+  const requests = [];
+  const payloads = [
+    { output: [{ type: 'function_call', call_id: 'plan', name: 'conduzir_atendimento', arguments: JSON.stringify({ intent: 'question', facts: {}, action: 'answer' }) }] },
+    { output_text: JSON.stringify({ text: 'Custa R$ 999999.', after: '', action_claim: 'none' }) },
+    { output_text: JSON.stringify({ text: 'Em qual cidade será a cerimônia?', after: '', action_claim: 'none' }) },
+  ];
+  const result = await runCommercialTurn({ system: 'Synthetic repair test', input: [{ role: 'user', content: 'Olá' }],
+    tools: [], conversation, env: { OPENAI_API_KEY: 'synthetic-not-a-key' },
+    remember: (updates) => rememberInSession(conversation, updates), execute: async () => { throw new Error('No domain action requested'); },
+    fetchImpl: async (_url, options) => {
+      requests.push(JSON.parse(options.body));
+      const payload = payloads.shift();
+      assert.ok(payload, 'repair is bounded');
+      return { ok: true, json: async () => ({ ...payload, usage: { input_tokens: 10, output_tokens: 5 } }) };
+    },
+  });
+  assert.equal(requests.length, 3);
+  assert.match(requests[2].input.at(-1).content, /commercial_price_outside_renderer/);
+  assert.equal(result.text, 'Em qual cidade será a cerimônia?');
+  assert.equal(result.inputTokens, 30);
+  assert.equal(result.outputTokens, 15);
+  assert.ok(result.costUsd > 0);
+});

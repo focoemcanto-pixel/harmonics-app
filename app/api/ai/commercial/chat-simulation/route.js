@@ -29,7 +29,7 @@ function normalizeMessages(input) {
 }
 // Recupera contexto básico do histórico, mesmo quando o modelo não chamou registrar_dados_evento.
 // Mantém os campos somente nesta simulação e nunca transforma texto ambíguo em endereço confirmado.
-export function inferSimulationLead(messages = [], saved = {}) {
+function inferSimulationLead(messages = [], saved = {}) {
   const out = eventData(saved);
   const userTexts = messages.filter((m) => m.role === 'user').map((m) => m.content || '');
   for (const content of userTexts) {

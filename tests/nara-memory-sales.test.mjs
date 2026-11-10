@@ -184,3 +184,16 @@ test('assuntos pessoais: acolher sem compromisso; sem dados, sem tabela', () => 
   assert.match(p, /Noivos \/ Data \/ Local \/ Horário/);
   assert.match(p, /NÃO informe valor algum \(nem da região-base\)/);
 });
+
+test('primeiro contato sem dados: mensagem fixa com lista e link só se aprovado', async () => {
+  const { isBareQuoteRequest, bareQuoteMessage } = await import('../lib/ai/agent/policy.mjs');
+  assert.equal(isBareQuoteRequest('Olá, tudo bom? Gostaria de fazer um orçamento com vocês. Boa noite'), true);
+  assert.equal(isBareQuoteRequest('Quanto fica um trio?'), false, 'com formação: segue o orçamento');
+  assert.equal(isBareQuoteRequest('Orçamento para 12/12 em Cidade Base'), false, 'com data: segue a tabela');
+  assert.equal(isBareQuoteRequest('Qual o valor?', { local: 'Cidade Base' }), false, 'local já informado');
+  assert.equal(isBareQuoteRequest('Orçamento pra festa de aniversário'), false);
+  const semLink = bareQuoteMessage(null);
+  assert.match(semLink, /Noivos:\nData:\nLocal:\nHorário:$/);
+  assert.doesNotMatch(semLink, /http/);
+  assert.match(bareQuoteMessage('https://exemplo.test/monte-sua-banda/'), /https:\/\/exemplo\.test\/monte-sua-banda\/\n\nOu, se preferir, me envie por aqui:\nNoivos:/);
+});

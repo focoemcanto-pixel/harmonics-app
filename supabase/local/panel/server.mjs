@@ -6,6 +6,7 @@ const ROUTES = [
   [/^\/api\/ai\/knowledge\/([^/]+)$/, '../../../app/api/ai/knowledge/[id]/route.js'],
   [/^\/api\/ai\/knowledge$/, '../../../app/api/ai/knowledge/route.js'],
   [/^\/api\/ai\/service-areas$/, '../../../app/api/ai/service-areas/route.js'],
+  [/^\/api\/ai\/venues$/, '../../../app/api/ai/venues/route.js'],
   [/^\/api\/ai\/learning$/, '../../../app/api/ai/learning/route.js'],
   [/^\/api\/ai\/settings$/, '../../../app/api/ai/settings/route.js'],
   [/^\/api\/ai\/autonomy$/, '../../../app/api/ai/autonomy/route.js'],

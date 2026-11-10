@@ -8,7 +8,7 @@ test('um CEP verificado sem tabela aprovada não inventa valores ou encerra aten
   assert.equal(r.kind, 'pending_pricing');
   assert.match(r.reply, /Feira de Santana/);
   assert.doesNotMatch(r.reply, /tabela automática|não temos tabela|Posso ajudar com mais alguma coisa|já enviei|equipe vai retornar/i);
-  assert.match(r.reply, /Duo, Trio, Quarteto, Quinteto e Sexteto/);
+  assert.match(r.reply, /Duo a Sexteto/);
 });
 test('local verificado com tabela aprovada permite oferecer tabela ou enviar completa', () => {
   const table = '✨ Duo – R$ 1.300\n✨ Trio – R$ 1.900';
@@ -19,7 +19,8 @@ test('local verificado com tabela aprovada permite oferecer tabela ou enviar com
   const send = customerQuoteStage({ city: 'Salvador', locationConfirmed: true,
     table, wantsTable: true, hasOfficialPrices: true });
   assert.equal(send.kind, 'official_table');
-  assert.equal(send.reply, table);
+  assert.match(send.reply, /Separei aqui as opções de cerimônia para Salvador/);
+  assert.ok(send.reply.includes(table));
 });
 test('não tenta selecionar formação antes da localização e entende solicitação de tabela', () => {
   assert.equal(customerQuoteStage({ city: 'Feira de Santana', locationConfirmed: false }), null);

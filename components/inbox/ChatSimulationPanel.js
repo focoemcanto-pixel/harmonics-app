@@ -108,7 +108,10 @@ export default function ChatSimulationPanel() {
                 <strong>Turno {i + 1}</strong>
                 <p className="mt-1 text-slate-600">Ferramentas: {d.toolCalls?.join(', ') || 'Nenhuma'}</p>
                 {(d.results || []).map((r, n) => <p key={n} className="text-slate-600">{r.ferramenta}: {r.resultado}{r.detalhe ? ` · ${r.detalhe}` : ''}</p>)}
-                <p className="mt-1 text-slate-500">Modelo: {d.model || '—'} · Simulação sem efeitos externos</p>
+                <p className="mt-1 text-slate-500">Modelo: {d.model || '—'} · Simulação sem efeitos comerciais</p>
+                {d.webSearchStatus && d.webSearchStatus !== 'nao_necessaria' && (
+                  <p className="mt-1 text-slate-600">Busca online do espaço: {d.webSearchStatus === 'found' ? 'localizado' : d.webSearchStatus === 'not_found' ? 'não localizado' : d.webSearchStatus === 'ambiguous' ? 'mais de um resultado' : 'indisponível'} · {d.webAttribution || '© OpenStreetMap contributors'}</p>
+                )}
               </div>
             ))}
             {Object.keys(lead).length > 0 && <div className="rounded-xl bg-violet-50 p-3 text-xs"><strong>Memória temporária do atendimento</strong><pre className="mt-1 whitespace-pre-wrap break-all">{JSON.stringify(lead, null, 2)}</pre></div>}

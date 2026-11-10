@@ -131,14 +131,15 @@ test('consultar_precos: só o espaço => pergunta fixa da cidade, sem valores e 
   assert.equal(inserts.filter(([t]) => t === 'ai_approvals').length, 0);
 });
 
-test('consultar_precos: espaço não verificado + cidade => pede endereço, sem inventar localização', async () => {
+test('consultar_precos: cidade informada libera tabela aprovada mesmo sem espaço localizado', async () => {
   const { executeTool } = await import('../lib/ai/agent/tools.mjs');
   const { supabase } = fakeDb(TOOL_TABLES());
   const c = toolCtx(supabase, { local: 'Chácara Recanto Inventado', cidade: 'Cidade Base Teste' });
   const r = await executeTool('consultar_precos', {}, c);
-  assert.equal(r.erro, 'espaco_nao_verificado');
-  assert.equal(c.effects.quoteTableText, undefined);
-  assert.match(c.effects.regionPendingText, /localização dele|localização certinha/);
+  assert.equal(r.ok, true);
+  assert.ok(c.effects.quoteTableText?.includes('Duo'));
+  assert.equal(c.effects.venueAddressPending, true);
+  assert.equal(c.effects.regionPendingText, undefined);
 });
 
 test('consultar_precos: outro estado => personalizado + pendência para o Owner, sem valores', async () => {

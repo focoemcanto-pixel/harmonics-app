@@ -187,7 +187,8 @@ test('assuntos pessoais: acolher sem compromisso; sem dados, sem tabela', () => 
   const p = buildSystemPrompt({ settings: { assistant_name: 'Nara' }, companyName: 'X' });
   assert.match(p, /Assuntos pessoais da cliente/);
   assert.match(p, /Noivos \/ Data \/ Local \/ Horário/);
-  assert.match(p, /NÃO informe valor algum \(nem da região-base\)/);
+  assert.match(p, /NÃO invente números/);
+  assert.match(p, /Nunca exponha cadastro interno/);
 });
 
 test('primeiro contato sem dados: mensagem fixa com lista e link só se aprovado', async () => {

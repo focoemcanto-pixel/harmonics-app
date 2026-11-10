@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { guardWorkspaceAdmin } from '@/lib/api/route-guards';
 import { isWorkspaceOwner } from '@/lib/ai/commercial/owner.mjs';
 import { planRuleChange } from '@/lib/quotes/rule-change.mjs';
+import { listTiers } from '@/lib/quotes/tiers.mjs';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,14 +12,20 @@ export async function GET(request) {
   const guard = await guardWorkspaceAdmin(request, { logPrefix: '[PRICING_RULES]' });
   if (!guard.ok) return guard.response;
   const ws = guard.auth.workspaceId;
-  const [rules, changes] = await Promise.all([
+  const [rules, changes, areas] = await Promise.all([
     guard.supabase.from('quote_price_rules').select('id, category, item_key, label, amount, valid_from, valid_until, metadata')
       .eq('workspace_id', ws).order('category').order('item_key').order('valid_from'),
     guard.supabase.from('quote_price_rule_changes').select('id, actor, category, item_key, reason, closed_rule, new_rule, created_at')
       .eq('workspace_id', ws).order('created_at', { ascending: false }).limit(30),
+    guard.supabase.from('ai_service_areas').select('name, price_tier, active').eq('workspace_id', ws),
   ]);
   if (rules.error) return NextResponse.json({ ok: false, error: 'Falha ao ler as regras.' }, { status: 500 });
-  return NextResponse.json({ ok: true, is_owner: isWorkspaceOwner(guard.auth), rules: rules.data || [], changes: changes.error ? [] : changes.data || [] });
+  const ruleRows = rules.data || [];
+  const areaRows = areas.error ? [] : areas.data || [];
+  const tiers = listTiers({ rules: ruleRows, areas: areaRows }).map((t) => ({
+    ...t, areas: areaRows.filter((a) => (a.price_tier || 'base') === t.slug).map((a) => ({ name: a.name, active: a.active !== false })),
+  }));
+  return NextResponse.json({ ok: true, is_owner: isWorkspaceOwner(guard.auth), rules: ruleRows, tiers, changes: changes.error ? [] : changes.data || [] });
 }
 
 const ERRORS = {

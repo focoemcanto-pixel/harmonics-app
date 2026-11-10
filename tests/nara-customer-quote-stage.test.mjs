@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { customerQuoteStage, isFullTableRequest } from '../lib/ai/commercial/customer-quote-stage.mjs';
+import { customerQuoteStage, isFullTableRequest, naturalQuoteReply } from '../lib/ai/commercial/customer-quote-stage.mjs';
 
 test('um CEP verificado sem tabela aprovada não inventa valores ou encerra atendimento', () => {
   const r = customerQuoteStage({ city: 'Feira de Santana', venue: 'Chácara Beatriz',
@@ -26,4 +26,22 @@ test('não tenta selecionar formação antes da localização e entende solicita
   assert.equal(customerQuoteStage({ city: 'Feira de Santana', locationConfirmed: false }), null);
   assert.equal(isFullTableRequest('Quero a tabela completa'), true);
   assert.equal(isFullTableRequest('Pode mandar todos os valores?'), true);
+});
+
+test('preserva conversa espontânea do modelo sem tabela disparada do nada', () => {
+  const text = 'Ah, agora entendi! A Ribeira fica em Salvador. Você prefere Duo ou quer ver todas as opções?';
+  assert.equal(naturalQuoteReply({ aiText: text, city: 'Salvador', table: 'Duo – R$ 1400' }), text);
+});
+test('descarta vazamento técnico e não encerra uma negociação de orçamento', () => {
+  const r = naturalQuoteReply({ aiText: 'Não temos tabela automática no nosso sistema. Posso ajudar com mais alguma coisa?',
+    city: 'Salvador', table: 'Duo – R$ 1400' });
+  assert.doesNotMatch(r, /tabela automática|sistema|Posso ajudar com mais alguma coisa/i);
+  assert.match(r, /prefere.*tabela/i);
+});
+test('a tabela aprovada acompanha introdução contextual do modelo, sem alterar preços', () => {
+  const quoteTable = 'Duo – R$ 1400\nTrio – R$ 2000';
+  const r = naturalQuoteReply({ aiText: 'Claro, já separei as opções para Salvador! Dá uma olhada:',
+    city: 'Salvador', table: quoteTable, wantsTable: true });
+  assert.match(r, /Claro, já separei/);
+  assert.ok(r.endsWith(quoteTable));
 });

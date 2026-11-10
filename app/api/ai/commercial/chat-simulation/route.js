@@ -5,7 +5,6 @@ import { buildSystemPrompt, buildConversationInput, ensureFirstContactIntro } fr
 import { TOOL_DEFINITIONS, formatCeremonyTable } from '@/lib/ai/agent/tools.mjs';
 import { calculateQuote, hasRegionIssue, formatBRL } from '@/lib/ai/commercial/pricing.mjs';
 import { locationGate } from '@/lib/ai/commercial/geo.mjs';
-import { normalizeFormation } from '@/lib/eventos/eventos-finance';
 import { loadWorkspaceAiContext } from '@/lib/ai/inbox/service.mjs';
 
 export const dynamic = 'force-dynamic';

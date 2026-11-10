@@ -46,7 +46,7 @@ test('bloco de memória no prompt: só esta cliente, rótulos legíveis, objeç�
   assert.match(block, /Objeções já levantadas: preço/);
   assert.doesNotMatch(block, /12345678909/);
   const prompt = buildSystemPrompt({ settings: { assistant_name: 'Nara' }, companyName: 'X', conversation });
-  assert.match(prompt, /MEMÓRIA DA CLIENTE \(somente desta conversa; nunca mencione outras clientes\)/);
+  assert.match(prompt, /FATOS ATUAIS \(esta conversa/);
   assert.equal(formatClientMemory({}), 'nenhum dado registrado ainda');
 });
 
@@ -185,10 +185,10 @@ test('desconto no estilo da casa e memória das decisões aprovadas', async () =
 
 test('assuntos pessoais: acolher sem compromisso; sem dados, sem tabela', () => {
   const p = buildSystemPrompt({ settings: { assistant_name: 'Nara' }, companyName: 'X' });
-  assert.match(p, /Assuntos pessoais da cliente/);
-  assert.match(p, /Noivos \/ Data \/ Local \/ Horário/);
-  assert.match(p, /NÃO invente números/);
-  assert.match(p, /Nunca exponha cadastro interno/);
+  assert.match(p, /Uma pergunta útil por vez/);
+  assert.match(p, /basta a cidade declarada pelo cliente/);
+  assert.match(p, /Nunca invente/);
+  assert.match(p, /Nunca diga nomes de ferramentas/);
 });
 
 test('primeiro contato sem dados: mensagem fixa com lista e link só se aprovado', async () => {
@@ -225,3 +225,4 @@ test('localidade sem parametrização: resposta fixa, sem valores e sem pergunta
   assert.doesNotMatch(m.replace(/tá bom\?/, ''), /\?/, 'nenhuma pergunta de dados');
   assert.doesNotMatch(m, /R\$/);
 });
+

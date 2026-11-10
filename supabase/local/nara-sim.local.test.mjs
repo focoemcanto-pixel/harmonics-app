@@ -9,6 +9,7 @@
 //
 // Rodar: ./supabase/local/run-ai-inbox.sh (inclui este arquivo).
 import test from 'node:test';
+import { semanticLlm } from '../../tests/helpers/semantic-llm.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { createPgSupabase } from './pg-supabase.mjs';
@@ -58,7 +59,7 @@ async function turn(scenario, chat, text, script) {
       seen.push(args);
       const executeTool = async (name, a) => { const out = await args.executeTool(name, a); toolOutputs.push({ name, args: a, out }); return out; };
       if (REAL) return realGenerateReply({ ...args, executeTool, env: ENV });
-      return script ? script({ ...args, executeTool }) : reply('Combinado!');
+      return semanticLlm(script || (async () => reply('Combinado!')))({ ...args, executeTool });
     },
   };
   const c = await conv(chat);
@@ -101,15 +102,16 @@ test('1º contato já pedindo orçamento: apresenta uma vez, resposta objetiva p
   const chat = '15550007001';
   const t1 = await turn('orcamento-direto', chat, 'Oi! Quanto fica um trio com som para casamento em 10/03/2091 na Cidade Base?', async ({ executeTool }) => {
     const q = await executeTool('calcular_orcamento', { formacao: 'Trio', data: '2091-03-10', com_som: true, local: 'Cidade Base' });
-    return reply(`Oi! Sou a ${ASSISTANT}, assistente da ${COMPANY} ☺️ Para essa data: ${q.itens.join(' · ')}. Total ${q.total}.`, ['calcular_orcamento']);
+    return reply(`Oi! Sou a ${ASSISTANT}, assistente da ${COMPANY} ☺️ Veja a referência para essa data:`, ['calcular_orcamento']);
   });
   const prompt1 = t1.seen[0]?.system || '';
-  assert.match(prompt1, new RegExp(`Você é ${ASSISTANT}, assistente da ${COMPANY}`));
-  assert.match(prompt1, /Primeiro contato/);
-  assert.match(prompt1, /já pediu orçamento/);
+  assert.match(prompt1, new RegExp(`Você é ${ASSISTANT}, assistente virtual da ${COMPANY}`));
+  assert.match(prompt1, /Primeira resposta/);
+  assert.match(prompt1, /ORÇAMENTO INICIAL/);
   if (!REAL) {
     const q = t1.toolOutputs.find((t) => t.name === 'calcular_orcamento').out;
-    assert.equal(q.total, 'R$ 1.720,00', 'cerimônia 1.110 + som 610 (tabela antiga na data)');
+    assert.match(t1.out, /Total de referência: R\$ 1\.720,00/, 'cerimônia 1.110 + som 610 (tabela antiga na data)');
+    assert.equal(q.orcamento_pronto, true);
     assert.equal(q.requer_aprovacao, false);
     assert.ok(!JSON.stringify(q).match(/internalCost|margin|musician_fee|sound_tech|técnico|R\$ 110,00|R\$ 90,00/i), 'ferramenta não devolve custo interno ao modelo');
     assert.match(t1.out, new RegExp(`Sou a ${ASSISTANT}`));
@@ -118,14 +120,15 @@ test('1º contato já pedindo orçamento: apresenta uma vez, resposta objetiva p
   }
   const t2 = await turn('orcamento-direto', chat, 'E se for em julho de 2091, com 1h de receptivo?', async ({ executeTool }) => {
     const q = await executeTool('calcular_orcamento', { formacao: 'Trio', data: '2091-07-10', com_som: true, recepcao_horas: 1, local: 'Cidade Base' });
-    return reply(`Em julho: ${q.itens.join(' · ')}. Total ${q.total}.`, ['calcular_orcamento']);
+    return reply('Em julho, com uma hora de receptivo:', ['calcular_orcamento']);
   });
   const prompt2 = t2.seen[0]?.system || '';
   assert.doesNotMatch(prompt2, /Primeiro contato/, 'sem nova apresentação depois da primeira resposta');
-  assert.match(prompt2, /não repita a apresentação/);
+  assert.match(prompt2, /Você já se apresentou/);
   if (!REAL) {
     const q = t2.toolOutputs.find((t) => t.name === 'calcular_orcamento').out;
-    assert.equal(q.total, 'R$ 2.460,00', 'tabela nova 1.330 + receptivo 410 + som com 1h 720');
+    assert.match(t2.out, /Total de referência: R\$ 2\.460,00/, 'tabela nova 1.330 + receptivo 410 + som com 1h 720');
+    assert.equal(q.orcamento_pronto, true);
   } else {
     assert.ok(!t2.out.includes(`Sou a ${ASSISTANT}`), 'modelo real não se reapresenta');
   }
@@ -140,7 +143,8 @@ test('som com receptivo acima de 2h: sem preço automático, vai para aprovaçã
   if (!REAL) {
     const q = t.toolOutputs.find((x) => x.name === 'calcular_orcamento').out;
     assert.equal(q.requer_aprovacao, true);
-    assert.equal(q.total, null, 'sem total definitivo');
+    assert.equal(q.total, undefined, 'valores não são reescritos pelo modelo');
+    assert.doesNotMatch(t.out, /Total de referência/, 'sem total definitivo');
   }
   const approvals = await sql("select kind, summary from ai_approvals where workspace_id = $1 and conversation_id = $2", [WS, t.conversation.id]);
   if (!REAL || t.toolOutputs.some((x) => x.name === 'calcular_orcamento')) assert.ok(approvals.some((a) => a.kind === 'pricing_exception' && /sound_duration_requires_validation/.test(a.summary)));
@@ -165,7 +169,7 @@ test('desconto segue a negociação; pedido de pessoa transfere; link de contrat
 test('fechamento supervisionado: resumo determinístico, CONFIRMO prepara o pré-contrato e nenhum link sai sem aprovação', async () => {
   const chat = '15550007004';
   const f = await turn('fechamento', chat, 'Quero fechar!', async ({ executeTool }) => {
-    await executeTool('registrar_dados_evento', { tipo_evento: 'Casamento' });
+    await executeTool('registrar_dados_evento', { tipo_evento: 'Casamento', data_evento: '2091-03-10', horario: '16:00', formacao: 'Trio', cidade: 'Cidade Base', local: 'Espaço Sintético', endereco: 'Rua Sintética 101, Cidade Base' });
     await executeTool('preparar_fechamento', { data: '2091-03-10', horario: '16:00', formacao: 'Trio', instrumentos: 'violino, violoncelo e voz', com_som: true, local: 'Cidade Base' });
     return reply('(texto do modelo ignorado)', ['preparar_fechamento']);
   });
@@ -196,3 +200,4 @@ test('opt-out encerra acompanhamento; IA desligada globalmente não gera nada', 
   assert.equal(r.reason, 'global_ai_disabled');
   assert.equal(called, false);
 });
+

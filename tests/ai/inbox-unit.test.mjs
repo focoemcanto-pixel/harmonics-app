@@ -216,9 +216,11 @@ function fakeSupabase(tables = {}) {
   return { from, calls };
 }
 
+const BASE_AREA = (ws) => ({ workspace_id: ws, name: 'Cidade Base', match_terms: ['cidade base'], status: 'served', active: true });
+
 test('preços: só do workspace; sem cadastro não inventa', async () => {
-  const supabase = fakeSupabase({ pricing_settings: [{ workspace_id: 'ws-a', price_trio: 1234, reception_trio_2h: 321, sound_price: 111 }] });
-  const ok = await executeTool('consultar_precos', { formacao: 'trio', recepcao_horas: 2, com_som: true }, { supabase, workspaceId: 'ws-a' });
+  const supabase = fakeSupabase({ pricing_settings: [{ workspace_id: 'ws-a', price_trio: 1234, reception_trio_2h: 321, sound_price: 111 }], ai_service_areas: [BASE_AREA('ws-a')] });
+  const ok = await executeTool('consultar_precos', { local: 'Cidade Base', formacao: 'trio', recepcao_horas: 2, com_som: true }, { supabase, workspaceId: 'ws-a' });
   assert.deepEqual([ok.valor_cerimonia, ok.valor_recepcao, ok.valor_som], [1234, 321, 111]);
   const missing = await executeTool('consultar_precos', { formacao: 'trio' }, { supabase, workspaceId: 'ws-b' });
   assert.equal(missing.ok, false);
@@ -311,6 +313,7 @@ test('filtros e busca do Inbox', () => {
 test('preços de referência: regra oficial vigente na data vence a tabela do Eventos', async () => {
   const supabase = fakeSupabase({
     pricing_settings: [{ workspace_id: 'ws-c', price_trio: 999, sound_price: 77 }],
+    ai_service_areas: [BASE_AREA('ws-c')],
     quote_price_rules: [
       { workspace_id: 'ws-c', category: 'ceremony', item_key: 'trio', amount: 1530, valid_from: '2090-01-01', valid_until: '2090-05-31' },
       { workspace_id: 'ws-c', category: 'ceremony', item_key: 'trio', amount: 1870, valid_from: '2090-06-01', valid_until: null },
@@ -318,10 +321,10 @@ test('preços de referência: regra oficial vigente na data vence a tabela do Ev
       { workspace_id: 'ws-c', category: 'sound', item_key: 'church_reception_1h', amount: 720, valid_from: '2090-01-01', valid_until: null },
     ],
   });
-  const before = await executeTool('consultar_precos', { formacao: 'trio', com_som: true, data: '2090-05-31' }, { supabase, workspaceId: 'ws-c' });
-  const after = await executeTool('consultar_precos', { formacao: 'trio', com_som: true, data: '2090-06-01' }, { supabase, workspaceId: 'ws-c' });
+  const before = await executeTool('consultar_precos', { local: 'Cidade Base', formacao: 'trio', com_som: true, data: '2090-05-31' }, { supabase, workspaceId: 'ws-c' });
+  const after = await executeTool('consultar_precos', { local: 'Cidade Base', formacao: 'trio', com_som: true, data: '2090-06-01' }, { supabase, workspaceId: 'ws-c' });
   assert.deepEqual([before.valor_cerimonia, before.valor_som, after.valor_cerimonia], [1530, 640, 1870]);
-  const long = await executeTool('consultar_precos', { formacao: 'trio', com_som: true, recepcao_horas: 3, data: '2090-07-01' }, { supabase, workspaceId: 'ws-c' });
+  const long = await executeTool('consultar_precos', { local: 'Cidade Base', formacao: 'trio', com_som: true, recepcao_horas: 3, data: '2090-07-01' }, { supabase, workspaceId: 'ws-c' });
   assert.equal(long.valor_som, null);
   assert.match(long.som_observacao, /sob medida/);
 });
@@ -331,12 +334,13 @@ test('orçamento primeiro: sem formação, tabela vigente só com valores oficia
   const supabase = fakeSupabase({
     quote_price_rules: [R('duo', 1000, '2090-01-01', '2091-05-31'), R('duo', 1100, '2091-06-01'), R('trio', 1500, '2090-01-01')],
     pricing_settings: [{ workspace_id: 'ws-t', price_solo: 500, price_septeto: 3000, price_duo: 999, price_trio: 999 }],
+    ai_service_areas: [BASE_AREA('ws-t')],
   });
-  const old = await executeTool('consultar_precos', { data: '2091-03-10' }, { supabase, workspaceId: 'ws-t' });
+  const old = await executeTool('consultar_precos', { local: 'Cidade Base', data: '2091-03-10' }, { supabase, workspaceId: 'ws-t' });
   assert.deepEqual(old.tabela.map((l) => [l.formacao, l.valor_cerimonia]), [['Duo', 1000], ['Trio', 1500]], 'só formações com regra oficial; Solo/Septeto legados ficam fora');
-  const novo = await executeTool('consultar_precos', { data: '2091-07-10' }, { supabase, workspaceId: 'ws-t' });
+  const novo = await executeTool('consultar_precos', { local: 'Cidade Base', data: '2091-07-10' }, { supabase, workspaceId: 'ws-t' });
   assert.equal(novo.tabela.find((l) => l.formacao === 'Duo').valor_cerimonia, 1100, 'vigência pela data do evento');
-  assert.match(novo.orientacao, /sem perguntas antes/);
+  assert.match(novo.orientacao, /Não a repita/);
   const vazio = await executeTool('consultar_precos', { data: '2091-07-10' }, { supabase: fakeSupabase({ pricing_settings: [{ workspace_id: 'ws-x', price_trio: 1 }] }), workspaceId: 'ws-x' });
   assert.equal(vazio.ok, false, 'sem regra oficial não inventa tabela');
 });
@@ -347,7 +351,7 @@ test('orçamento primeiro: pedido de valores com data e sem formação força a 
   assert.equal(requiredQuoteTableFor('Qual o valor?', { data_evento: '2090-09-12' }), 'consultar_precos');
   assert.equal(requiredQuoteTableFor('Quanto fica um trio dia 12/09/2090?'), null, 'com formação continua calcular_orcamento');
   assert.equal(requiredToolFor('Quanto fica um trio dia 12/09/2090?'), 'calcular_orcamento');
-  assert.equal(requiredQuoteTableFor('Quanto custa a música pro casamento?'), 'consultar_precos', 'pedido genérico: tabela mesmo sem data');
+  assert.equal(requiredQuoteTableFor('Quanto custa a música pro casamento?'), null, 'sem data e local: link/lista de dados, nunca tabela');
   assert.equal(requiredQuoteTableFor('Quanto custa pra um aniversário?'), null, 'outro tipo de evento não usa a tabela de cerimônia');
 });
 
@@ -366,10 +370,10 @@ test('tabela de cerimônia no formato padrão do Owner, com preços da tabela of
 
   const R = (item_key, amount) => ({ workspace_id: 'ws-f', category: 'ceremony', item_key, amount, valid_from: '2090-01-01', valid_until: null });
   const effects = {};
-  const supabase = fakeSupabase({ quote_price_rules: [R('duo', 1000), R('trio', 1500)] });
-  await executeTool('consultar_precos', { data: '2090-05-05' }, { supabase, workspaceId: 'ws-f', effects });
+  const supabase = fakeSupabase({ quote_price_rules: [R('duo', 1000), R('trio', 1500)], ai_service_areas: [BASE_AREA('ws-f')] });
+  await executeTool('consultar_precos', { local: 'Cidade Base', data: '2090-05-05' }, { supabase, workspaceId: 'ws-f', effects });
   assert.match(effects.quoteTableText, /✨ Duo – R\$ 1\.000/, 'texto pronto enviado como está');
   const comSom = {};
-  await executeTool('consultar_precos', { data: '2090-05-05', com_som: true }, { supabase, workspaceId: 'ws-f', effects: comSom });
+  await executeTool('consultar_precos', { local: 'Cidade Base', data: '2090-05-05', com_som: true }, { supabase, workspaceId: 'ws-f', effects: comSom });
   assert.equal(comSom.quoteTableText, undefined, 'pedido com som segue o cálculo, não a tabela padrão');
 });

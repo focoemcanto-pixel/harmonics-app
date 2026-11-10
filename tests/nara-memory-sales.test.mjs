@@ -1,7 +1,8 @@
 // Memória contextual da cliente (padrão mem0, determinística) e técnicas das sales-skills. Dados sintéticos.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { extractSignals, applyMemoryOps, isSensitiveValue, formatClientMemory, persistMemory } from '../lib/ai/commercial/memory.mjs';
+import { extractSignals, applyMemoryOps, isSensitiveValue, formatClientMemory, persistMemory, MEMORY_FIELDS } from '../lib/ai/commercial/memory.mjs';
+const MEMORY_FIELDS_INCLUDES = (k) => MEMORY_FIELDS.includes(k);
 import { selectStrategies, formatStrategiesForPrompt, STRATEGIES } from '../lib/ai/commercial/strategies.mjs';
 import { repeatedObjection } from '../lib/ai/commercial/engine.mjs';
 import { buildSystemPrompt } from '../lib/ai/agent/prompt.mjs';
@@ -93,4 +94,93 @@ test('destinatário de saída: só o número de teste da Meta envia celular BR n
   assert.equal(outboundRecipient('15550001111', test), '15550001111', 'outro país: inalterado');
   assert.equal(outboundRecipient('557188887777', { display_phone: '+55 71 3000-0000' }), '557188887777', 'canal real: inalterado');
   assert.equal(outboundRecipient('557188887777', {}), '557188887777', 'sem canal identificado: inalterado');
+});
+
+test('localidade: nunca aplica preço da região-base a outra região; sinaliza parametrização', async () => {
+  const { calculateQuote, hasRegionIssue } = await import('../lib/ai/commercial/pricing.mjs');
+  const rules = [
+    { category: 'ceremony', item_key: 'trio', amount: 1500, valid_from: '2090-01-01' },
+    { category: 'ceremony', item_key: 'trio@metro', amount: 2100, valid_from: '2090-01-01' },
+    { category: 'transport', item_key: 'standard_trip', amount: 150, valid_from: '2090-01-01' },
+  ];
+  const areas = [
+    { name: 'Cidade Base', match_terms: ['cidade base'], status: 'served', active: true },
+    { name: 'Cidade Metro', match_terms: ['cidade metro'], status: 'served', active: true, price_tier: 'metro' },
+    { name: 'Cidade Sem Faixa', match_terms: ['cidade sem faixa'], status: 'served', active: true, price_tier: 'ate120' },
+  ];
+  const q = (location) => calculateQuote({ date: '2090-03-01', formation: 'Trio', location }, { rules, areas });
+  const base = q('Cidade Base');
+  assert.equal(base.items.find((i) => i.key === 'ceremony').amount, 1500);
+  assert.equal(hasRegionIssue(base), false);
+  const metro = q('Espaço Exemplo, Cidade Metro');
+  assert.deepEqual(metro.items.map((i) => [i.key, i.amount]), [['ceremony', 2100], ['travel', 150]], 'faixa própria + locomoção');
+  const semFaixa = q('Cidade Sem Faixa');
+  assert.equal(semFaixa.items.find((i) => i.key === 'ceremony'), undefined, 'faixa sem preço próprio não cai na base');
+  assert.equal(hasRegionIssue(semFaixa), true);
+  const desconhecida = q('Município Não Cadastrado');
+  assert.equal(desconhecida.items.find((i) => i.key === 'ceremony'), undefined, 'local sem área: sem preço base');
+  assert.ok(desconhecida.approvals.includes('region_not_parameterized'));
+});
+
+test('tabela padrão por localidade: base, faixa com aviso de locomoção e região não parametrizada', async () => {
+  const { executeTool } = await import('../lib/ai/agent/tools.mjs');
+  const inserts = [];
+  const tables = {
+    quote_price_rules: [
+      { workspace_id: 'w', category: 'ceremony', item_key: 'duo', amount: 1000, valid_from: '2090-01-01' },
+      { workspace_id: 'w', category: 'ceremony', item_key: 'duo@metro', amount: 1400, valid_from: '2090-01-01' },
+    ],
+    ai_service_areas: [
+      { workspace_id: 'w', name: 'Cidade Base', match_terms: ['cidade base'], status: 'served', active: true },
+      { workspace_id: 'w', name: 'Cidade Metro', match_terms: ['cidade metro'], status: 'served', active: true, price_tier: 'metro' },
+    ],
+    ai_approvals: [],
+  };
+  const from = (table) => {
+    const filters = [];
+    const q = {
+      select() { return q; }, eq(c, v) { filters.push([c, v]); return q; }, in() { return q; }, order() { return q; }, limit() { return q; },
+      insert(row) { inserts.push([table, row]); return Promise.resolve({ error: null }); },
+      update() { return q; }, async maybeSingle() { return { data: null, error: null }; },
+      then(resolve) { resolve({ data: (tables[table] || []).filter((r) => filters.every(([c, v]) => r[c] === v)), error: null }); },
+    };
+    return q;
+  };
+  const ctx = (local) => ({ supabase: { from }, workspaceId: 'w', conversation: { id: 'c1', lead_data: { data_evento: '2090-05-05', local } }, effects: {} });
+  const semLocal = await executeTool('consultar_precos', {}, { ...ctx(''), conversation: { id: 'c1', lead_data: {} } });
+  assert.equal(semLocal.erro, 'local_necessario');
+  const b = ctx('Cidade Base'); await executeTool('consultar_precos', {}, b);
+  assert.match(b.effects.quoteTableText, /✨ Duo – R\$ 1\.000/);
+  assert.doesNotMatch(b.effects.quoteTableText, /locomoção/);
+  const m = ctx('Espaço Exemplo, Cidade Metro'); await executeTool('consultar_precos', {}, m);
+  assert.match(m.effects.quoteTableText, /✨ Duo – R\$ 1\.400/);
+  assert.match(m.effects.quoteTableText, /Para eventos fora de Cidade Base cobramos uma taxa de locomoção\.$/);
+  const x = ctx('Município Não Cadastrado'); const r = await executeTool('consultar_precos', {}, x);
+  assert.equal(r.erro, 'localidade_sem_parametrizacao');
+  assert.equal(x.effects.quoteTableText, undefined, 'nenhum valor sai');
+  assert.ok(inserts.some(([t, row]) => t === 'ai_approvals' && row.details?.region_parameterization), 'pendência para o Owner');
+});
+
+test('desconto no estilo da casa e memória das decisões aprovadas', async () => {
+  const { detectObjections } = await import('../lib/ai/commercial/strategies.mjs');
+  assert.ok(detectObjections('Teria como fazer algum valor a menos?').includes('discount'));
+  const txt = formatStrategiesForPrompt(['price_objection'], { discountAsk: true, paymentApproved: false });
+  assert.match(txt, /^- PEDIDO EXPLÍCITO DE DESCONTO/);
+  assert.match(txt, /NÃO faça pergunta de triagem/);
+  const block = formatClientMemory({
+    lead_data: { nome: 'Cliente Teste', ultimo_orcamento: 'Trio — 2090-05-05: R$ 1.500' },
+    team_decisions: [{ kind: 'discount', status: 'approved', summary: 'Desconto aprovado para Trio: total R$ 1.400' }, { kind: 'discount', status: 'rejected', summary: 'Pedido de R$ 1.000 recusado' }],
+  });
+  assert.match(block, /Último orçamento apresentado: Trio — 2090-05-05: R\$ 1\.500/);
+  assert.match(block, /Decisão da equipe \(APROVADA, desconto\): Desconto aprovado/);
+  assert.match(block, /Decisão da equipe \(RECUSADA, desconto\)/);
+  assert.match(block, /NÃO estejam acima.*não confirme/);
+  assert.ok(MEMORY_FIELDS_INCLUDES('ultimo_orcamento'));
+});
+
+test('assuntos pessoais: acolher sem compromisso; sem dados, sem tabela', () => {
+  const p = buildSystemPrompt({ settings: { assistant_name: 'Nara' }, companyName: 'X' });
+  assert.match(p, /Assuntos pessoais da cliente/);
+  assert.match(p, /Noivos \/ Data \/ Local \/ Horário/);
+  assert.match(p, /NÃO informe valor algum \(nem da região-base\)/);
 });

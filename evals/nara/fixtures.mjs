@@ -17,12 +17,14 @@ export const fixtures = {
     ...[['duo', 450, 700], ['trio', 700, 1000], ['quarteto', 1000, 1300]].flatMap(([k, a, b]) => [R('reception', `${k}_1h`, a), R('reception', `${k}_2h`, b)]),
     R('musician_fee', 'sound_tech', 250), R('musician_fee', 'sound_tech_reception_1h', 350), R('musician_fee', 'sound_tech_reception_2h', 450),
     R('transport', 'standard_trip', 150),
+    ...[['duo', 1300], ['trio', 1900], ['quarteto', 2300]].map(([k, v]) => R('ceremony', `${k}@metro`, v)),
   ],
   pricing: { price_solo: 650, price_duo: 1100, price_trio: 1600, price_quarteto: 2000, price_quinteto: 2300, price_sexteto: 2600, price_septeto: 3000, sound_price: 750 },
   areas: [
     { name: 'Cidade Base', match_terms: ['salvador', 'cidade base'], status: 'served' },
     { name: 'Cidade Vizinha', match_terms: ['lauro de freitas'], status: 'served' },
     { name: 'Litoral Distante', match_terms: ['praia do forte'], status: 'conditional', notes: 'Fora da região-base: logística confirmada pela equipe.' },
+    { name: 'Cidade Metro', match_terms: ['cidade metro'], status: 'served', price_tier: 'metro' },
   ],
   eventTypes: [{ name: 'Casamento', default_contract_template_id: 'tpl-sim' }],
   knowledge: [

@@ -211,3 +211,11 @@ test('mensagens fixas preservam parágrafos e quebras de linha até o envio', as
   await sendTextMessage({ phoneNumberId: 'p', token: 't', to: '5500', text: msg, fetchImpl: async (_u, init) => { sent = JSON.parse(init.body); return { ok: true, status: 200, json: async () => ({ messages: [{ id: 'w1' }] }) }; } });
   assert.equal(sent.text.body, msg, 'corpo enviado à Meta idêntico, com \\n preservados');
 });
+
+test('localidade sem parametrização: resposta fixa, sem valores e sem perguntas', async () => {
+  const { regionPendingMessage } = await import('../lib/ai/agent/tools.mjs');
+  const m = regionPendingMessage('Município Exemplo');
+  assert.equal(m, 'Para o seu evento em Município Exemplo, a equipe vai confirmar os valores certinho e já te retorna por aqui, tá bom? ☺️');
+  assert.doesNotMatch(m.replace(/tá bom\?/, ''), /\?/, 'nenhuma pergunta de dados');
+  assert.doesNotMatch(m, /R\$/);
+});

@@ -63,7 +63,7 @@ export function quoteTableNow(output) {
 export function noTableNoData(output) {
   const r = norm(T(output)[0].reply);
   const noPrices = !/r\$\s?\d/.test(r);
-  const asksData = /noivos:/.test(r) && /data:/.test(r) && /local:/.test(r) && /horario:/.test(r);
+  const asksData = /noivos:/.test(r) && /data:/.test(r) && /local:/.test(r) && /horario:/.test(r) && r.includes('https://exemplo.test/monte-sua-banda/');
   return ok(noPrices && asksData, `sem dados: sem valores (${noPrices}) e pede link/dados (${asksData})`);
 }
 export function noBasePriceOtherRegion(output) {
@@ -77,4 +77,12 @@ export function regionTierTable(output) {
 export function defendsValueNoTriage(output) {
   const r = norm(last(output).reply);
   return ok(!/e mais pelo valor caber|o que pesa mais/.test(r), 'pedido explícito de desconto: sem pergunta de triagem');
+}
+export function noReaskGiven(output) {
+  const t = T(output); const lastT = t.at(-1); const said = norm(t.map((x) => x.customer).join(' ')); const r = norm(lastT.reply);
+  const asks = [];
+  if (/casamento/.test(said) && /(que|qual) tipo de evento|e para (qual|que) evento|que evento/.test(r)) asks.push('tipo de evento');
+  if (/\d{1,2}\/\d{1,2}/.test(said) && /qual (e |seria )?a data|que dia/.test(r)) asks.push('data');
+  if (/\b(\d{1,2}h|\d{1,2}:\d{2})/.test(said) && /(qual|que) (o )?horario|que horas/.test(r)) asks.push('horário');
+  return ok(!asks.length, asks.length ? `repetiu pergunta: ${asks.join(', ')}` : 'não repete dados já informados');
 }

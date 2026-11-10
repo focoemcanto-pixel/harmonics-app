@@ -85,7 +85,6 @@ Critério: guard detectado no código. PUBLIC TOKEN = autorização por token do
 | `/api/events` | WORKSPACE MEMBER |
 | `/api/files/contracts/[id]/download` | WORKSPACE MEMBER |
 | `/api/files/payments/[id]/download` | WORKSPACE MEMBER |
-| `/api/google/maps-key` | PUBLIC |
 | `/api/google/oauth/callback` | PUBLIC TOKEN |
 | `/api/google/oauth/force-reauth` | PLATFORM ADMIN |
 | `/api/google/oauth/start` | PLATFORM ADMIN |

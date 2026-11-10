@@ -11,6 +11,7 @@ import { loadWorkspaceAiContext } from '@/lib/ai/inbox/service.mjs';
 import { inferSimulationLead, eventData } from '@/lib/ai/commercial/simulation-lead.mjs';
 import { extractLocationEvidence, verifyLocationEvidence } from '@/lib/ai/commercial/venue-location-evidence.mjs';
 import { analyzeLocation } from '@/lib/ai/commercial/geo.mjs';
+import { customerQuoteStage, isFullTableRequest } from '@/lib/ai/commercial/customer-quote-stage.mjs';
 
 export const dynamic = 'force-dynamic';
 
@@ -78,7 +79,7 @@ export async function POST(request) {
   const place = (args) => String(args?.local || lead.local || lead.cidade || '').trim();
   const geo = (args) => confirmedCity && !args?.local
     ? (() => { const a = analyzeLocation({ local: evidence.detail || confirmedCity, cidade: confirmedCity, areas: areas || [] });
-        return { action: a.kind === 'other_state' ? 'custom' : 'proceed', location: a.location, analysis: a }; })()
+        return { action: evidence.uf !== 'BA' || a.kind === 'other_state' ? 'custom' : 'proceed', location: a.location, analysis: a }; })()
     : locationGate({ local: place(args), cidade: String(args?.cidade || lead.cidade || ''), areas: areas || [], venues: sessionVenues });
   const date = (args) => isIso(args?.data) ? args.data : isIso(lead.data_evento) ? lead.data_evento : dateNow();
   // Portão obrigatório antes do modelo: um nome de espaço não verificado não é um endereço.
@@ -100,6 +101,38 @@ export async function POST(request) {
         webSearchStatus: checked.lookup?.status || 'nao_necessaria',
         webAttribution: checked.lookup?.attribution || null,
         note: 'Consulta online pelo OpenStreetMap. Sem confirmação não se presume endereço.' },
+    }, { headers: { 'Cache-Control': 'no-store' } });
+  }
+  // Após evidência geográfica confirmada, conduza a venda em vez de encerrar.
+  // Tabela só é enviada se as cinco formações tiverem preços OFICIAIS na faixa.
+  const wantsTable = isFullTableRequest(lastText);
+  const locationIsReliable = Boolean(confirmedCity || locationCheck.venue || (!lead.local && locationCheck.action === 'proceed'));
+  const moveForward = Boolean(latestEvidence && evidence?.status === 'confirmed') ||
+    /\b(tabela|or[cç]amento|pre[cç]os?|valores?|forma[cç][aã]o|duo|trio|quarteto|quinteto|sexteto)\b/i.test(lastText);
+  if (moveForward && locationIsReliable && locationCheck.action === 'proceed') {
+    const city = confirmedCity || locationCheck.venue?.city || lead.cidade || '';
+    const formationNames = ['Duo', 'Trio', 'Quarteto', 'Quinteto', 'Sexteto'];
+    const regionLocation = locationCheck.location;
+    const officialRows = formationNames.map((f) => {
+      const q = calculateQuote({ date: date({}), formation: f, location: regionLocation,
+        hasSound: false, reception: { hours: 0 } }, tables);
+      return { name: f, quote: q };
+    });
+    const available = officialRows.filter(({ quote: q }) => q && !hasRegionIssue(q) &&
+      q.sources?.ceremony === 'quote_price_rules' && q.items?.some((i) => i.key === 'ceremony' && Number(i.amount) > 0));
+    const completeTable = available.length === formationNames.length ? formatCeremonyTable(
+      available.map(({ name, quote }) => ({ formacao: name, valor_cerimonia: quote.items.find((i) => i.key === 'ceremony').amount })),
+    ) : '';
+    const stage = customerQuoteStage({
+      city, venue: lead.local, locationConfirmed: true, table: completeTable,
+      wantsTable, hasOfficialPrices: Boolean(completeTable),
+    });
+    if (stage) return NextResponse.json({ ok: true, reply: stage.reply, lead,
+      diagnostic: { simulated: true, phase: stage.kind,
+        evidence: evidence?.status || (locationCheck.venue ? 'memoria_verificada' : 'cidade_confirmada'),
+        pricing: completeTable ? 'official' : 'requires_owner_validation',
+        toolCalls: ['verificar_localidade', 'consultar_precos'], results: [],
+        webSearchStatus: checked.lookup?.status || 'nao_necessaria' },
     }, { headers: { 'Cache-Control': 'no-store' } });
   }
   function quote(args) {

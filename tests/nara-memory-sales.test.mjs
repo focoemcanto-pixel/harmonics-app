@@ -152,7 +152,7 @@ test('tabela padrão por localidade: base, faixa com aviso de locomoção e regi
   const b = ctx('Cidade Base'); await executeTool('consultar_precos', {}, b);
   assert.match(b.effects.quoteTableText, /✨ Duo – R\$ 1\.000/);
   assert.doesNotMatch(b.effects.quoteTableText, /locomoção/);
-  const m = ctx('Espaço Exemplo, Cidade Metro'); await executeTool('consultar_precos', {}, m);
+  const m = ctx('Cidade Metro'); // Cidade cadastrada; espaço sem verificação deve pedir endereço. await executeTool('consultar_precos', {}, m);
   assert.match(m.effects.quoteTableText, /✨ Duo – R\$ 1\.400/);
   assert.match(m.effects.quoteTableText, /Para eventos fora de Cidade Base cobramos uma taxa de locomoção\.$/);
   tables.ai_service_areas.push({ workspace_id: 'w', name: 'Cidade Faixa Vazia', match_terms: ['cidade faixa vazia'], status: 'served', active: true, price_tier: 'ate120', travel_fee: 150 });

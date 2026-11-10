@@ -4,6 +4,7 @@ import { runCommercialTurn, rememberInSession, customerToolResult, closingMissin
 import { executeTool, TOOL_DEFINITIONS } from '../../lib/ai/agent/tools.mjs';
 import { createSimulationStore } from '../../lib/ai/commercial/simulation-store.mjs';
 import { applyMemoryOps } from '../../lib/ai/commercial/memory.mjs';
+import { calculateQuote } from '../../lib/ai/commercial/pricing.mjs';
 
 // Entirely synthetic. Scripted Responses transport tests the real function-call
 // loop and domain executors; semantic quality is evaluated separately with a live LLM.
@@ -138,4 +139,12 @@ test('simulation store has no remote write or RPC capability', async () => {
   assert.equal(store.tables.ai_approvals.length, 1);
   assert.ok(rpc.error);
   assert.deepEqual(closingMissing({ cidade: 'Cidade Sintética' }), ['data_evento', 'horario', 'local', 'endereco', 'formacao']);
+});
+
+test('Postgres decimal strings preserve the approved fallback amount', () => {
+  const q = calculateQuote({ date: '2099-01-10', formation: 'Trio', location: 'Cidade Sintética' }, {
+    pricing: { price_trio: '1234.50' }, rules: [],
+    areas: [{ name: 'Cidade Sintética', status: 'served', active: true, travel_fee: 0 }],
+  });
+  assert.equal(q.items.find((i) => i.key === 'ceremony').amount, 1234.5);
 });

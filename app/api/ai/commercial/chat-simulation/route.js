@@ -39,6 +39,11 @@ function inferSimulationLead(messages = [], saved = {}) {
     if (venue && !out.local) out.local = venue[1].trim().slice(0, 120);
     const city = content.match(/\b(?:fica|ser[aá]|[ée])\s+em\s+([A-Za-zÀ-ÿ][^.,!?;]{2,70})/i);
     if (city && !/\b(ch[aá]cara|s[ií]tio|igreja|sal[aã]o|espa[cç]o)\b/i.test(city[1])) out.cidade = city[1].trim().replace(/\s+bahia$/i, '').slice(0, 80);
+    // Se a pessoa informou endereço do espaço, deixe a conversa avançar sem repetir a pergunta.
+    const address = content.match(/\b(rua|avenida|estrada|rodovia|travessa|alameda|bairro)\b[^.!?;]{4,120}/i);
+    if (address && out.local && !out.local.toLowerCase().includes(address[0].toLowerCase())) {
+      out.local = `${out.local}, ${address[0].trim()}`.slice(0, 150);
+    }
   }
   return out;
 }

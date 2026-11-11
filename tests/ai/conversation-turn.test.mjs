@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { runCommercialTurn, rememberInSession, customerToolResult, closingMissing, resolveCommercialAction, commercialReplyIssue, shouldPreventQuoteReplay } from '../../lib/ai/agent/conversation-turn.mjs';
+import { runCommercialTurn, rememberInSession, customerToolResult, closingMissing, resolveCommercialAction, commercialReplyIssue, shouldPreventQuoteReplay, isDirectClosingRequest } from '../../lib/ai/agent/conversation-turn.mjs';
 import { executeTool, TOOL_DEFINITIONS } from '../../lib/ai/agent/tools.mjs';
 import { createSimulationStore } from '../../lib/ai/commercial/simulation-store.mjs';
 import { applyMemoryOps } from '../../lib/ai/commercial/memory.mjs';
@@ -41,6 +41,54 @@ async function turn({ conversation, store, messages, plan, reply, extra = [], re
   });
   return { result, requests, effects };
 }
+
+test('direct closing requests outrank offers of reception alternatives', () => {
+  assert.ok(isDirectClosingRequest('Como fechamos?'));
+  assert.ok(isDirectClosingRequest('Vamos fechar trio + 1hr de receptivo'));
+  assert.equal(isDirectClosingRequest('Como funciona o repertório?'), false);
+  assert.equal(resolveCommercialAction({
+    intent: 'contract', action: 'reception_options', comparison_formations: ['Duo','Trio'],
+  }, { cidade: 'Cidade Sintética', formacao: 'Trio', recepcao_horas: '1' },
+  { preventQuoteReplay: true }), 'closing');
+  assert.deepEqual(closingMissing({
+    cidade: 'Cidade Sintética', local: 'Espaço Sintético',
+    data_evento: '2099-08-17', horario: '16:00', formacao: 'Trio',
+  }), [], 'exact entrance address is filled out later on the contract link');
+});
+
+test('close intent persists until the last missing hour arrives; then resume summary, never compare durations', async () => {
+  const conversation = { id: 'synthetic-closing-continuation', lead_data: {
+    tipo_evento: 'Casamento', cidade: 'Cidade Sintética', local: 'Espaço Sintético',
+    data_evento: '2099-08-17', formacao: 'Trio', recepcao_horas: '1',
+    ultimo_orcamento: 'Trio + receptivo 1h: orçamento apresentado',
+    _objetivo_comercial: 'pricing',
+  } };
+  const store = fixture();
+  const first = await turn({
+    store, conversation, messages: [{ role: 'user', content: 'Como fechamos?' }],
+    plan: { intent: 'question', action: 'reception_options', facts: {} },
+    reply: 'Perfeito! Para avançar, só preciso do horário da cerimônia.',
+  });
+  assert.equal(conversation.lead_data._objetivo_comercial, 'closing');
+  assert.ok(!first.result.diagnostics.some((d) => d.ferramenta === 'comparar_receptivo'));
+  const outcome = JSON.parse(first.requests.at(-1).input.find((x) => x.type === 'function_call_output').output).outcome;
+  assert.deepEqual(outcome.missing, ['horario']);
+  const second = await turn({
+    store, conversation,
+    messages: [
+      { role: 'assistant', content: first.result.text },
+      { role: 'user', content: '16 hrs (violino, piano e voz)' },
+    ],
+    plan: { intent: 'correction', action: 'answer', facts: { horario: '16:00', instrumentos: 'violino, piano e voz' } },
+    reply: 'Agora vou conferir o resumo para sua confirmação.',
+  });
+  assert.equal(conversation.lead_data.horario, '16:00');
+  assert.equal(conversation.lead_data.instrumentos, 'violino, piano e voz');
+  assert.ok(second.result.diagnostics.some((d) => d.ferramenta === 'preparar_fechamento'),
+    'resume the real closing tool instead of answering generically');
+  assert.ok(!second.result.diagnostics.some((d) => d.ferramenta === 'comparar_receptivo'));
+  assert.ok(!second.result.diagnostics.some((d) => d.ferramenta === 'consultar_precos'));
+});
 
 test('same-second WhatsApp inbound stays after earlier outbound when sorting timestamps', () => {
   const input = buildConversationInput([
@@ -214,10 +262,9 @@ test('multi-turn A–F: corrected facts precede pricing, consent delivers, waiti
   await send('ok, aguardando', { intent: 'waiting', facts: {}, action: 'answer' }, 'Combinado.');
   assert.equal(store.tables.ai_approvals.length, tasks, 'waiting alone does not invent a notification');
   const f = await send('Quero fechar o Trio em 2099-08-17 às 16h.',
-    { intent: 'contract', facts: { formacao: 'Trio', data_evento: '2099-08-17', horario: '16:00' }, action: 'closing' }, 'Qual é o endereço exato do espaço?');
-  const outcome = JSON.parse(f.requests.at(-1).input.find((x) => x.type === 'function_call_output').output).outcome;
-  assert.deepEqual(outcome.missing, ['endereco']);
-  assert.ok(!store.writes.some((w) => w.rpc === 'ai_open_closing'));
+    { intent: 'contract', facts: { formacao: 'Trio', data_evento: '2099-08-17', horario: '16:00' }, action: 'closing' }, 'Vamos conferir os detalhes finais.');
+  assert.ok(f.result.toolCalls.includes('preparar_fechamento'), 'an exact door number must not block summary preparation');
+  assert.doesNotMatch(f.result.text, /qual é o endereço exato/i);
 });
 
 test('venue search is executed and an inconclusive result never becomes an address', async () => {
@@ -279,7 +326,7 @@ test('simulation store has no remote write or RPC capability', async () => {
   assert.deepEqual(original.ai_approvals, []);
   assert.equal(store.tables.ai_approvals.length, 1);
   assert.ok(rpc.error);
-  assert.deepEqual(closingMissing({ cidade: 'Cidade Sintética' }), ['data_evento', 'horario', 'local', 'endereco', 'formacao']);
+  assert.deepEqual(closingMissing({ cidade: 'Cidade Sintética' }), ['data_evento', 'horario', 'local', 'formacao']);
 });
 
 test('Postgres decimal strings preserve the approved fallback amount', () => {

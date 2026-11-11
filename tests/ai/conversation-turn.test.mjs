@@ -233,6 +233,12 @@ test('a repertoire preference is not a confirmed commercial commitment', () => {
   }
 });
 
+test('an inconclusive explicit venue search requests location without blocking city-only pricing', () => {
+  assert.equal(commercialReplyIssue(JSON.stringify({ text: 'Não consegui identificar essa alternativa. Pode enviar a localização?', after: '', action_claim: 'none' }), [], { venueLocationNeeded: true }), null);
+  assert.equal(commercialReplyIssue(JSON.stringify({ text: 'Não encontrei o local. Posso ajudar com outra coisa.', after: '', action_claim: 'none' }), [], { venueLocationNeeded: true }), 'commercial_venue_location_needed');
+  assert.equal(commercialReplyIssue(JSON.stringify({ text: 'Veja a referência para a cidade informada.', after: '', action_claim: 'none' }), [], { venueLocationNeeded: false }), null);
+});
+
 test('repertoire approval comes from server-provided evidence, not customer preference', async () => {
   const conversation = { id: 'synthetic-conversation', lead_data: { preferencias: 'Artista Sintético' } };
   const r = await turn({ store: fixture(), conversation, messages: [{ role: 'user', content: 'Artista Sintético' }],

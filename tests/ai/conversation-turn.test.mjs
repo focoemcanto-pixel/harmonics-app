@@ -223,18 +223,22 @@ test('a repertoire preference is not a confirmed commercial commitment', () => {
   for (const text of ['O repertório terá músicas do Artista Sintético.', 'Incluindo músicas do Artista Sintético.', 'Tocamos as músicas solicitadas.']) {
     assert.equal(commercialReplyIssue(JSON.stringify({ text, after: '', action_claim: 'none' })), 'commercial_repertoire_unverified');
   }
-  for (const text of ['A preferência é pelo Artista Sintético, com viabilidade a confirmar.', 'Não posso confirmar que tocamos essas músicas sem avaliação.']) {
+  for (const text of ['A preferência é pelo Artista Sintético, com viabilidade a confirmar.', 'Não posso confirmar que tocamos essas músicas sem avaliação.', 'Podemos incluir a recepção no orçamento.', 'Ainda precisamos confirmar se podemos tocar essas músicas.']) {
     assert.equal(commercialReplyIssue(JSON.stringify({ text, after: '', action_claim: 'none' })), null);
   }
-  assert.equal(commercialReplyIssue(JSON.stringify({ text: 'Tocamos as músicas solicitadas.', after: '', action_claim: 'none' }), [], { repertoireApproved: true }), null);
+  const actual = JSON.stringify({ text: 'Tocamos músicas do Artista Sintético.', after: '', action_claim: 'none' });
+  assert.equal(commercialReplyIssue(actual, [], { repertoireEvidence: 'Tocamos músicas do Artista Sintético.' }), null);
+  for (const repertoireEvidence of ['Não tocamos músicas do Artista Sintético; a viabilidade precisa de avaliação.', 'É preciso confirmar se tocamos músicas do Artista Sintético.', 'Tocamos músicas do Outro Artista.']) {
+    assert.equal(commercialReplyIssue(actual, [], { repertoireEvidence }), 'commercial_repertoire_unverified');
+  }
 });
 
 test('repertoire approval comes from server-provided evidence, not customer preference', async () => {
   const conversation = { id: 'synthetic-conversation', lead_data: { preferencias: 'Artista Sintético' } };
   const r = await turn({ store: fixture(), conversation, messages: [{ role: 'user', content: 'Artista Sintético' }],
-    plan: { intent: 'question', action: 'answer', facts: {} }, reply: 'Tocamos as músicas solicitadas.',
-    repertoireEvidence: 'Referência aprovada: Artista Sintético.' });
-  assert.equal(r.result.text, 'Tocamos as músicas solicitadas.');
+    plan: { intent: 'question', action: 'answer', facts: {} }, reply: 'Tocamos músicas do Artista Sintético.',
+    repertoireEvidence: 'Tocamos músicas do Artista Sintético.' });
+  assert.equal(r.result.text, 'Tocamos músicas do Artista Sintético.');
   const requests = [];
   const payloads = [
     { output: [{ type: 'function_call', call_id: 'plan', name: 'conduzir_atendimento', arguments: JSON.stringify({ intent: 'question', facts: {}, action: 'answer' }) }] },

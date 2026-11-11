@@ -355,16 +355,16 @@ test('invalid model prose is repaired within the same bounded loop and all token
 test('simulation summary acceptance survives requests, repeats without effects, and corrections reopen the conversation', async () => {
   const { simulationClosingSignature } = await import('../../lib/ai/commercial/closing.mjs');
   const lead = { cidade: 'Cidade Sintética', formacao: 'Trio', recepcao_horas: '1' };
-  const state = { status: 'awaiting_confirmation', signature: simulationClosingSignature(lead), hash: 'synthetic' };
+  const state = { status: 'awaiting_confirmation', signature: simulationClosingSignature(lead), hash: 'synthetic', lastReply: 'Resumo sintético' };
   let conversation = { lead_data: structuredClone(lead), simulation_closing: state };
   const opts = { simulated: true, system: 'Synthetic', tools: [], effects: {}, env: {},
     generate: () => assert.fail('confirmation must not invoke the model'), execute: () => assert.fail('confirmation must not invoke domain writes') };
-  let r = await runCommercialTurn({ ...opts, conversation, input: [{ role: 'user', content: 'ok, tudo certo' }] });
+  let r = await runCommercialTurn({ ...opts, conversation, input: [{ role: 'assistant', content: 'Resumo sintético' }, { role: 'user', content: 'ok, tudo certo' }] });
   assert.match(r.text, /Dados confirmados nesta simulação/);
   assert.doesNotMatch(r.text, /confira o resumo|Está tudo certo/);
   assert.equal(conversation.simulation_closing.status, 'confirmed');
   conversation = JSON.parse(JSON.stringify(conversation)); // next HTTP request
-  r = await runCommercialTurn({ ...opts, conversation, input: [{ role: 'user', content: 'confirmo' }] });
+  r = await runCommercialTurn({ ...opts, conversation, input: [{ role: 'assistant', content: r.text }, { role: 'user', content: 'confirmo' }] });
   assert.match(r.text, /já foi registrado/);
   assert.equal(r.costUsd, 0);
   const store = fixture();
@@ -405,10 +405,42 @@ test('a requested two-formation price comparison excludes unrelated formations',
 
 test('real closing duplicate confirmation only queues an idempotent acknowledgement', async () => {
   const { handleClosingReply } = await import('../../lib/ai/commercial/engine.mjs');
-  const store = createSimulationStore({ ai_closings: [{ id: 'synthetic-closing', workspace_id: ws, conversation_id: 'synthetic', status: 'awaiting_approval', created_at: '2098-01-01' }] });
-  const r = await handleClosingReply({ supabase: store, workspaceId: ws, conversation: { id: 'synthetic' }, ownerVersion: 0, latestText: 'ok tudo certo' });
+  const store = createSimulationStore({ ai_closings: [{ id: 'synthetic-closing', workspace_id: ws, conversation_id: 'synthetic', status: 'awaiting_approval', summary_text: 'Resumo sintético', created_at: '2098-01-01' }] });
+  const r = await handleClosingReply({ supabase: store, workspaceId: ws, conversation: { id: 'synthetic' }, ownerVersion: 0, latestText: 'ok tudo certo', messages: [{ direction: 'outbound', content: 'Resumo sintético' }] });
   assert.equal(r.reason, 'closing_already_confirmed');
   assert.deepEqual(store.writes, [{ rpc: 'ai_enqueue_ai_reply', operation: 'simulation' }]);
   assert.equal(store.tables.ai_closings.length, 1);
   assert.equal(await handleClosingReply({ supabase: store, workspaceId: ws, conversation: { id: 'synthetic' }, latestText: 'Quero mudar a formação' }), null);
+});
+
+
+test('explicit reception price request works before choosing hours, including incomplete regional alternatives', async () => {
+  const store = fixture();
+  store.tables.ai_service_areas[0].price_tier = 'synthetic-tier';
+  store.tables.ai_service_areas[0].travel_fee = 0;
+  store.tables.quote_price_rules.push(
+    { workspace_id: ws, category: 'ceremony', item_key: 'trio@synthetic-tier', amount: 319, valid_from: '2000-01-01' },
+    { workspace_id: ws, category: 'reception', item_key: 'trio_1h@synthetic-tier', amount: 47, valid_from: '2000-01-01' });
+  const conversation = { id: 'synthetic', lead_data: { cidade: 'Cidade Sintética', formacao: 'Trio' } };
+  const r = await turn({ conversation, store, messages: [{ role: 'user', content: 'Quais os preços para adicionar receptivo?' }],
+    plan: { intent: 'quote_request', facts: {}, action: 'reception_options' }, reply: 'Veja as durações:' });
+  assert.ok(r.result.toolCalls.includes('comparar_receptivo'));
+  assert.match(r.result.text, /366,00/);
+  assert.match(r.result.text, /2h: valor a confirmar/);
+  assert.match(r.result.text, /3h: valor a confirmar/);
+  conversation.lead_data.recepcao_horas = '1';
+  const effects = {};
+  const result = await executeTool('comparar_receptivo', {}, { supabase: store, workspaceId: ws, conversation, effects, settings: {} });
+  assert.equal(result.ok, true);
+  assert.match(effects.quoteText, /Sua escolha:[\s\S]*366,00/);
+});
+
+test('short affirmatives after a different topic are not swallowed by historical closings', async () => {
+  const { handleClosingReply } = await import('../../lib/ai/commercial/engine.mjs');
+  const { acceptSimulationClosing, simulationClosingSignature } = await import('../../lib/ai/commercial/closing.mjs');
+  const store = createSimulationStore({ ai_closings: [{ id: 'synthetic', workspace_id: ws, conversation_id: 'synthetic', status: 'awaiting_approval', summary_text: 'Resumo sintético' }] });
+  const r = await handleClosingReply({ supabase: store, workspaceId: ws, conversation: { id: 'synthetic' }, latestText: 'sim', messages: [{ direction: 'outbound', content: 'Quer conhecer os instrumentos?' }] });
+  assert.equal(r, null); assert.equal(store.writes.length, 0);
+  const conversation = { lead_data: {}, simulation_closing: { status: 'confirmed', signature: simulationClosingSignature({}), lastReply: 'Aceite simulado anterior' } };
+  assert.equal(acceptSimulationClosing(conversation, 'sim', 'Quer conhecer os instrumentos?'), null);
 });

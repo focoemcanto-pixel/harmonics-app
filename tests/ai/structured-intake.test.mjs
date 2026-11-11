@@ -40,6 +40,10 @@ test('ordinary WhatsApp conversation remains free and is not parsed as a form', 
   assert.equal(parseStructuredEventRequest('Oi, queria orçamento em Salvador para um casamento'), null);
   assert.equal(parseStructuredEventRequest('Consegue me dizer os preços?'), null);
 });
+test('explicit exclusion of professional sound is not misread as an add-on', () => {
+  const form = FORM.replace('Incluir como serviço adicional no orçamento', 'Não incluir sonorização');
+  assert.equal(parseStructuredEventRequest(form).som, 'não');
+});
 test('invalid dates and omitted optional information are never guessed', () => {
   const message = FORM.replace('14/03/2027','31/02/2027')
     .replace(/Experiência:.*\n/,'')

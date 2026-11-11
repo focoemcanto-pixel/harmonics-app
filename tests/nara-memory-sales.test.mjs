@@ -185,7 +185,8 @@ test('desconto no estilo da casa e memória das decisões aprovadas', async () =
 
 test('assuntos pessoais: acolher sem compromisso; sem dados, sem tabela', () => {
   const p = buildSystemPrompt({ settings: { assistant_name: 'Nara' }, companyName: 'X' });
-  assert.match(p, /Uma pergunta útil por vez/);
+  assert.match(p, /agrupe-os em uma única mensagem/);
+  assert.match(p, /sem roteiro fixo|não copie modelos literalmente/i);
   assert.match(p, /basta a cidade declarada pelo cliente/);
   assert.match(p, /Nunca invente/);
   assert.match(p, /Nunca diga nomes de ferramentas/);

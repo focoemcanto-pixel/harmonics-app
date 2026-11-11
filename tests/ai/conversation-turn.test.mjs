@@ -57,11 +57,13 @@ test('multi-turn A–F: corrected facts precede pricing, consent delivers, waiti
     { intent: 'quote_request', facts: { local: 'Recanto Inventado', cidade: 'Município Inventado' }, action: 'prices' }, 'Para esse evento, os valores precisam ser avaliados individualmente.');
   assert.doesNotMatch(a.result.text, /R\$/);
   assert.ok(a.result.receipts.some((r) => r.name === 'consultar_precos'), 'regional review was really registered');
+  assert.equal(conversation.lead_data._cotacao_status, 'review');
   const tasks = store.tables.ai_approvals.length;
   const b = await send('Corrigindo: Espaço Sintético, Cidade Sintética.',
-    { intent: 'correction', facts: { local: 'Espaço Sintético', cidade: 'Cidade Sintética' }, action: 'answer' }, 'Entendi a mudança. Quer conhecer as formações?');
+    { intent: 'correction', facts: { local: 'Espaço Sintético', cidade: 'Cidade Sintética' }, action: 'venue' }, 'Entendi a mudança. Quer conhecer as formações?');
   assert.equal(conversation.lead_data.cidade, 'Cidade Sintética');
   assert.equal(conversation.lead_data.local, 'Espaço Sintético');
+  assert.equal(conversation.lead_data._cotacao_status, 'approved');
   assert.doesNotMatch(JSON.stringify(conversation.lead_data), /Recanto Inventado|Município Inventado/);
   const c = await send('sim', { intent: 'accept_offer', facts: {}, action: 'formations' }, 'Temos Duo e Trio.');
   assert.ok(c.result.diagnostics.some((d) => d.ferramenta === 'listar_formacoes'));
@@ -170,6 +172,42 @@ test('all regional pricing failures preserve the review boundary without exposin
     assert.equal(result.simulated, true);
     assert.equal(result.erro, undefined);
   }
+});
+
+test('pending review still blocks official-price offers after accepting a formation', async () => {
+  const conversation = { id: 'synthetic-conversation', lead_data: { cidade: 'Município Inventado', _cotacao_status: 'review' } };
+  const r = await turn({ store: fixture(), conversation, messages: [{ role: 'user', content: 'ok' }],
+    plan: { intent: 'accept_offer', action: 'formations', facts: {} }, reply: 'O Duo combina voz e piano.' });
+  assert.equal(conversation.lead_data._cotacao_status, 'review');
+  assert.ok(r.result.toolCalls.includes('listar_formacoes'));
+  assert.equal(commercialReplyIssue(JSON.stringify({ text: 'Posso seguir para os valores oficiais do Duo.', after: '', action_claim: 'none' }), [], { quoteNeedsReview: true }), 'commercial_quote_requires_review');
+  assert.equal(commercialReplyIssue(JSON.stringify({ text: 'O Duo combina voz e piano.', after: '', action_claim: 'none' }), [], { quoteNeedsReview: true }), null);
+  for (const text of ['Não posso apresentar valores oficiais para esse evento sem avaliação individual.', 'Não consigo trazer os preços agora.', 'Não temos valores oficiais aprovados.']) {
+    assert.equal(commercialReplyIssue(JSON.stringify({ text, after: '', action_claim: 'none' }), [], { quoteNeedsReview: true }), null);
+  }
+  assert.equal(commercialReplyIssue(JSON.stringify({ text: 'Não posso apresentar valores agora, mas posso enviar os valores oficiais do Duo.', after: '', action_claim: 'none' }), [], { quoteNeedsReview: true }), 'commercial_quote_requires_review');
+  const refusal = await turn({ store: fixture(), conversation, messages: [{ role: 'user', content: 'Quero preço agora.' }],
+    plan: { intent: 'question', action: 'answer', facts: {} }, reply: 'Não posso apresentar valores oficiais para esse evento sem avaliação individual.' });
+  assert.equal(refusal.requests.length, 2, 'a compliant refusal must not consume repair rounds');
+});
+
+test('invalid semantic plan is repaired before a customer reply can escape', async () => {
+  const conversation = { id: 'synthetic-conversation', lead_data: {} };
+  const payloads = [
+    { output: [{ type: 'function_call', call_id: 'bad', name: 'conduzir_atendimento', arguments: JSON.stringify({ intent: 'question', facts: {}, action: 'invented_action' }) }] },
+    { output_text: JSON.stringify({ text: 'Recebi.', after: '', action_claim: 'none' }) },
+    { output: [{ type: 'function_call', call_id: 'good', name: 'conduzir_atendimento', arguments: JSON.stringify({ intent: 'question', facts: { cidade: 'Cidade Sintética' }, action: 'answer' }) }] },
+    { output_text: JSON.stringify({ text: 'Entendi a cidade.', after: '', action_claim: 'none' }) },
+  ];
+  const result = await runCommercialTurn({ system: 'Synthetic plan repair', input: [{ role: 'user', content: 'Cidade Sintética' }],
+    tools: [], conversation, env: { OPENAI_API_KEY: 'synthetic-not-a-key' },
+    remember: (updates) => rememberInSession(conversation, updates), execute: async () => { throw new Error('No domain action expected'); },
+    fetchImpl: async () => ({ ok: true, json: async () => ({ ...payloads.shift(), usage: { input_tokens: 10, output_tokens: 5 } }) }),
+  });
+  assert.equal(payloads.length, 0);
+  assert.equal(conversation.lead_data.cidade, 'Cidade Sintética');
+  assert.equal(result.text, 'Entendi a cidade.');
+  assert.equal(result.inputTokens, 40);
 });
 
 test('simulated closing summaries cannot invite real document creation', () => {

@@ -182,6 +182,13 @@ test('pending review still blocks official-price offers after accepting a format
   assert.ok(r.result.toolCalls.includes('listar_formacoes'));
   assert.equal(commercialReplyIssue(JSON.stringify({ text: 'Posso seguir para os valores oficiais do Duo.', after: '', action_claim: 'none' }), [], { quoteNeedsReview: true }), 'commercial_quote_requires_review');
   assert.equal(commercialReplyIssue(JSON.stringify({ text: 'O Duo combina voz e piano.', after: '', action_claim: 'none' }), [], { quoteNeedsReview: true }), null);
+  for (const text of ['Não posso apresentar valores oficiais para esse evento sem avaliação individual.', 'Não consigo trazer os preços agora.', 'Não temos valores oficiais aprovados.']) {
+    assert.equal(commercialReplyIssue(JSON.stringify({ text, after: '', action_claim: 'none' }), [], { quoteNeedsReview: true }), null);
+  }
+  assert.equal(commercialReplyIssue(JSON.stringify({ text: 'Não posso apresentar valores agora, mas posso enviar os valores oficiais do Duo.', after: '', action_claim: 'none' }), [], { quoteNeedsReview: true }), 'commercial_quote_requires_review');
+  const refusal = await turn({ store: fixture(), conversation, messages: [{ role: 'user', content: 'Quero preço agora.' }],
+    plan: { intent: 'question', action: 'answer', facts: {} }, reply: 'Não posso apresentar valores oficiais para esse evento sem avaliação individual.' });
+  assert.equal(refusal.requests.length, 2, 'a compliant refusal must not consume repair rounds');
 });
 
 test('invalid semantic plan is repaired before a customer reply can escape', async () => {

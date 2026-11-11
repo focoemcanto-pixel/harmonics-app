@@ -67,6 +67,50 @@ test('completed Harmonics site request is remembered and quoted without a second
   assert.doesNotMatch(r.result.text, /me informe\s+(a )?(data|cidade|forma[cç][aã]o)/i);
 });
 
+test('registered space is identified by name before requesting city', async () => {
+  const store = createSimulationStore({
+    ai_venues: [{ workspace_id: ws, name: 'Espaço Exemplo Norte', name_norm: 'espaco exemplo norte',
+      aliases: ['Espaço Exemplo'], city: 'Cidade Sintética', city_norm: 'cidade sintetica',
+      uf: 'BA', address: 'Rua Inventada, Centro, Cidade Sintética, BA', status: 'verified' }],
+  });
+  const result = await executeTool('pesquisar_espaco', { local: 'Espaço Exemplo' },
+    { supabase: store, workspaceId: ws, conversation: { lead_data: {} }, effects: {} });
+  assert.equal(result.ok, true);
+  assert.equal(result.status, 'found');
+  assert.equal(result.cidade, 'Cidade Sintética');
+  assert.equal(result.confirmacao_recomendada, true);
+  assert.equal(resolveCommercialAction({ intent: 'quote_request', action: 'answer' },
+    { local: 'Espaço Exemplo', _objetivo_comercial: 'pricing' }), 'venue');
+});
+
+test('homonymous verified venues offer cities for one natural confirmation', async () => {
+  const store = createSimulationStore({
+    ai_venues: [
+      { workspace_id: ws, name: 'Espaço Exemplo Sul', name_norm: 'espaco exemplo sul',
+        aliases: ['Espaço Exemplo'], city: 'Cidade Sintética', city_norm: 'cidade sintetica',
+        uf: 'BA', address: 'Av. Inventada, Bairro Sul, Cidade Sintética, BA', status: 'verified' },
+      { workspace_id: ws, name: 'Espaço Exemplo Norte', name_norm: 'espaco exemplo norte',
+        aliases: ['Espaço Exemplo'], city: 'Vila Vizinha Sintética', city_norm: 'vila vizinha sintetica',
+        uf: 'BA', address: 'Rua Imaginária, Vila Vizinha Sintética, BA', status: 'verified' },
+    ],
+  });
+  const result = await executeTool('pesquisar_espaco', { local: 'Espaço Exemplo' },
+    { supabase: store, workspaceId: ws, conversation: { lead_data: {} }, effects: {} });
+  assert.equal(result.status, 'ambiguous');
+  assert.deepEqual(result.candidatos.map(v => v.cidade).sort(), ['Cidade Sintética', 'Vila Vizinha Sintética']);
+  assert.equal(result.confirmacao_recomendada, true);
+  assert.equal(customerToolResult('pesquisar_espaco', result).status, 'lookup_ambiguous');
+  assert.equal(customerToolResult('pesquisar_espaco', result).candidatos.length, 2);
+});
+
+test('unknown venue without city does not silently assume the business hometown', async () => {
+  const store = createSimulationStore({ ai_venues: [] });
+  const result = await executeTool('pesquisar_espaco', { local: 'Espaço Desconhecido Sintético' },
+    { supabase: store, workspaceId: ws, conversation: { lead_data: {} }, effects: {} });
+  assert.equal(result.ok, false);
+  assert.deepEqual(result.missing, ['cidade']);
+});
+
 test('multi-turn A–F: corrected facts precede pricing, consent delivers, waiting creates no task, closing asks only missing fields', async () => {
   const store = fixture();
   const conversation = { id: 'synthetic-conversation', lead_data: {} };

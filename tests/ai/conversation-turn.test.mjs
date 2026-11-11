@@ -6,6 +6,7 @@ import { createSimulationStore } from '../../lib/ai/commercial/simulation-store.
 import { applyMemoryOps } from '../../lib/ai/commercial/memory.mjs';
 import { calculateQuote } from '../../lib/ai/commercial/pricing.mjs';
 import { renderSummaryText } from '../../lib/ai/commercial/closing.mjs';
+import { buildConversationInput } from '../../lib/ai/agent/prompt.mjs';
 
 // Entirely synthetic. Scripted Responses transport tests the real function-call
 // loop and domain executors; semantic quality is evaluated separately with a live LLM.
@@ -40,6 +41,17 @@ async function turn({ conversation, store, messages, plan, reply, extra = [], re
   });
   return { result, requests, effects };
 }
+
+test('same-second WhatsApp inbound stays after earlier outbound when sorting timestamps', () => {
+  const input = buildConversationInput([
+    { direction: 'inbound', content: 'E se for em julho, com 1h de receptivo?',
+      provider_created_at: '2026-11-11T22:00:00.000Z', created_at: '2026-11-11T22:00:00.950Z' },
+    { direction: 'outbound', sender_type: 'ai', content: 'Tabela enviada há instantes.',
+      created_at: '2026-11-11T22:00:00.620Z' },
+  ]);
+  assert.equal(input.at(-1).role, 'user');
+  assert.match(input.at(-1).content, /julho/);
+});
 
 test('pricing explanation after official ceremony table must not resend the table', async () => {
   const conversation = {

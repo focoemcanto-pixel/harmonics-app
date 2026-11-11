@@ -157,9 +157,46 @@ test('semantic commercial precedence prevents optional discovery from blocking p
   assert.equal(resolveCommercialAction({ intent: 'price_decision', action: 'formations' }, { cidade: 'Cidade Sintética' }), 'prices');
   assert.equal(resolveCommercialAction({ intent: 'quote_request', action: 'quote' }, { cidade: 'Cidade Sintética', formacao: 'Duo', som: 'sim' }), 'quote');
   assert.equal(resolveCommercialAction({ intent: 'correction', action: 'formations', facts: { cidade: 'Cidade Nova' } }, { cidade: 'Cidade Nova', _objetivo_comercial: 'pricing' }), 'prices');
+  assert.equal(resolveCommercialAction({ intent: 'venue', action: 'venue', facts: { cidade: 'Cidade Nova' } }, { cidade: 'Cidade Nova', _objetivo_comercial: 'pricing' }), 'prices');
+  assert.equal(resolveCommercialAction({ intent: 'question', action: 'venue', facts: { cidade: 'Cidade Nova' } }, { cidade: 'Cidade Nova', _objetivo_comercial: 'pricing' }), 'prices');
   assert.equal(resolveCommercialAction({ intent: 'accept_offer', action: 'formations' }, { cidade: 'Cidade Sintética', _objetivo_comercial: 'pricing' }), 'formations');
   assert.equal(resolveCommercialAction({ intent: 'waiting', action: 'handoff' }, {}), 'answer');
   assert.equal(resolveCommercialAction({ intent: 'contract', action: 'formations' }, {}), 'closing');
+});
+
+test('event venue followed by city is remembered and continues its original quote', async () => {
+  const store = fixture();
+  const conversation = { id: 'synthetic-conversation', lead_data: { _objetivo_comercial: 'pricing' } };
+  const first = await turn({ store, conversation, messages: [{ role: 'user', content: 'Espaço Aliança' }],
+    plan: { intent: 'venue', action: 'venue', facts: { local: 'Espaço Aliança' } },
+    reply: 'Em qual cidade fica?' });
+  assert.equal(conversation.lead_data.local, 'Espaço Aliança');
+  assert.equal(conversation.lead_data.cidade, undefined);
+  const second = await turn({ store, conversation, messages: [
+    { role: 'user', content: 'Espaço Aliança' }, { role: 'assistant', content: first.result.text },
+    { role: 'user', content: 'Cidade Sintética' },
+  ], plan: { intent: 'question', action: 'venue', facts: { cidade: 'Cidade Sintética' } },
+  reply: 'Já posso apresentar os valores aprovados.' });
+  assert.equal(conversation.lead_data.cidade, 'Cidade Sintética');
+  assert.equal(conversation.lead_data.local, 'Espaço Aliança', 'first city must not erase the venue');
+  assert.ok(second.result.toolCalls.includes('consultar_precos'), 'city must resume the quote rather than generic review');
+  assert.match(second.result.text, /R\\$\\s*111/);
+});
+
+test('exploratory alternative venue does not silently replace confirmed event location', async () => {
+  const conversation = { id: 'synthetic-conversation', lead_data: {
+    local: 'Espaço Atual', cidade: 'Cidade Sintética', _objetivo_comercial: 'pricing',
+  } };
+  const r = await turn({ store: fixture(), conversation,
+    messages: [{ role: 'user', content: 'E o Espaço Alternativo na outra cidade?' }],
+    plan: { intent: 'question', action: 'venue',
+      facts: { local: 'Espaço Alternativo', cidade: 'Cidade Alternativa' },
+      venue_query: { local: 'Espaço Alternativo', cidade: 'Cidade Alternativa' } },
+    reply: 'Posso pesquisar essa alternativa, sem mudar seu evento.' });
+  assert.equal(conversation.lead_data.local, 'Espaço Atual');
+  assert.equal(conversation.lead_data.cidade, 'Cidade Sintética');
+  assert.ok(r.result.toolCalls.includes('pesquisar_espaco'));
+  assert.ok(!r.result.toolCalls.includes('consultar_precos'));
 });
 
 test('all regional pricing failures preserve the review boundary without exposing internals', () => {

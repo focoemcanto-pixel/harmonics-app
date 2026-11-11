@@ -262,6 +262,28 @@ test('repertoire approval comes from server-provided evidence, not customer pref
   assert.equal(repaired.inputTokens, 30);
 });
 
+test('a validated closing summary completes without asking the model to classify its receipt again', async () => {
+  const conversation = { id: 'synthetic-conversation', lead_data: { data_evento: '2099-08-17', horario: '16:00', cidade: 'Cidade Sintética', local: 'Espaço Sintético', endereco: 'Rua Sintética, 1', formacao: 'Duo' } };
+  const effects = {};
+  let requests = 0;
+  const result = await runCommercialTurn({ system: 'Synthetic trusted-summary completion', input: [{ role: 'user', content: 'Quero fechar.' }],
+    tools: [], conversation, effects, env: { OPENAI_API_KEY: 'synthetic-not-a-key' },
+    remember: (updates) => rememberInSession(conversation, updates),
+    execute: async (name) => {
+      assert.equal(name, 'preparar_fechamento');
+      effects.closingSummaryText = 'Resumo financeiro sintético validado. Confirmação apenas simulada.';
+      return { ok: true, registrado: true, simulated: true, receipt: 'synthetic-receipt' };
+    },
+    fetchImpl: async () => {
+      assert.equal(++requests, 1, 'no further model request after the trusted summary');
+      return { ok: true, json: async () => ({ usage: { input_tokens: 10, output_tokens: 5 }, output: [{ type: 'function_call', call_id: 'plan', name: 'conduzir_atendimento', arguments: JSON.stringify({ intent: 'contract', facts: {}, action: 'closing' }) }] }) };
+    },
+  });
+  assert.equal(result.text, effects.closingSummaryText);
+  assert.equal(result.receipts[0].simulated, true);
+  assert.equal(result.inputTokens, 10);
+});
+
 test('simulated closing summaries cannot invite real document creation', () => {
   const summary = { date: '2099-08-17', time: '16:00', ceremony: { formation: 'Duo', instruments: [] }, sound: false, total: 111 };
   const simulated = renderSummaryText(summary, { simulated: true });

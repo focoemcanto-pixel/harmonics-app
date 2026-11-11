@@ -50,7 +50,7 @@ export async function POST(request) {
       system: buildSystemPrompt({ settings: context.settings || {}, companyName: context.companyName, conversation,
         isFirstAiReply: !messages.some((m) => m.role === 'assistant'), knowledge: commercial.knowledgeText })
         + '\nAMBIENTE DE TESTE: ações ficam apenas na memória temporária. Se houver registrado=true com simulated=true, explique que o encaminhamento é simulado; não afirme envio real. Mesmo após CONFIRMO, nenhum pré-contrato, reserva ou link real pode ser criado ou enviado neste chat. Não peça confirmação para gerar documento real. Pesquisa pública gratuita de espaços está conectada; não use busca paga.',
-      input: messages, tools: TOOLS, conversation, effects,
+      input: messages, tools: TOOLS, conversation, effects, repertoireEvidence: commercial.repertoireEvidence,
       remember: (updates) => rememberInSession(conversation, updates),
       execute: async (name, args) => {
         if (!ALLOWED.has(name)) return { ok: false };

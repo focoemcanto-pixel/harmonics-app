@@ -49,14 +49,14 @@ export async function POST(request) {
     const result = await runCommercialTurn({
       system: buildSystemPrompt({ settings: context.settings || {}, companyName: context.companyName, conversation,
         isFirstAiReply: !messages.some((m) => m.role === 'assistant'), knowledge: commercial.knowledgeText })
-        + '\nAMBIENTE DE TESTE: ações ficam apenas na memória temporária. Se houver registrado=true com simulated=true, explique que o encaminhamento é simulado; não afirme envio real. Pesquisa pública gratuita de espaços está conectada; não use busca paga.',
+        + '\nAMBIENTE DE TESTE: ações ficam apenas na memória temporária. Se houver registrado=true com simulated=true, explique que o encaminhamento é simulado; não afirme envio real. Mesmo após CONFIRMO, nenhum pré-contrato, reserva ou link real pode ser criado ou enviado neste chat. Não peça confirmação para gerar documento real. Pesquisa pública gratuita de espaços está conectada; não use busca paga.',
       input: messages, tools: TOOLS, conversation, effects,
       remember: (updates) => rememberInSession(conversation, updates),
       execute: async (name, args) => {
         if (!ALLOWED.has(name)) return { ok: false };
         const before = local.writes.length;
         const raw = await executeTool(name, args, { supabase: local, workspaceId, conversation, effects,
-          settings: context.settings || {}, ownerVersion: 0, venueSearchFn: process.env.CI
+          settings: context.settings || {}, simulated: true, ownerVersion: 0, venueSearchFn: process.env.CI
             ? async () => ({ status: 'unavailable' }) : lookupVenueOnline });
         return { ...raw, ...(raw?.registrado || (raw?.ok && ['preparar_fechamento'].includes(name) && local.writes.length > before)
           ? { registrado: true, simulated: true } : {}) };

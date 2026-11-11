@@ -57,7 +57,7 @@ test('pricing explanation after official ceremony table must not resend the tabl
     reply: 'Na cerimônia acompanhamos os cortejos até a saída do altar; a duração depende do roteiro. O receptivo acontece depois, se contratado.' });
   assert.doesNotMatch(r.result.text, /Orçamentos Cerimônia/);
   assert.match(r.result.text, /duração depende do roteiro/);
-  assert.ok(!r.result.toolCalls.includes('consultar_precos'), 'no pricing tool is executed again');
+  assert.ok(!r.result.diagnostics.some((d) => d.ferramenta === 'consultar_precos'), 'no pricing executor is run again');
   assert.equal(conversation.lead_data.ultimo_orcamento, 'Tabela de cerimônia enviada — Cidade Sintética');
 });
 

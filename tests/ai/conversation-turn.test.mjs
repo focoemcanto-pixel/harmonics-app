@@ -17,7 +17,7 @@ function fixture() {
     quote_price_rules: ['duo', 'trio', 'quarteto', 'quinteto', 'sexteto'].map((item_key, i) => ({ workspace_id: ws, category: 'ceremony', item_key, amount: 111 * (i + 1), valid_from: '2000-01-01' })),
   });
 }
-async function turn({ conversation, store, messages, plan, reply, extra = [] }) {
+async function turn({ conversation, store, messages, plan, reply, extra = [], repertoireEvidence = '' }) {
   const effects = {};
   const requests = [];
   let round = 0;
@@ -27,7 +27,7 @@ async function turn({ conversation, store, messages, plan, reply, extra = [] }) 
     { output_text: JSON.stringify({ text: reply, after: '', action_claim: 'none' }) },
   ];
   const result = await runCommercialTurn({
-    system: 'Synthetic transport test', input: messages, tools: TOOL_DEFINITIONS, conversation, effects,
+    system: 'Synthetic transport test', input: messages, tools: TOOL_DEFINITIONS, conversation, effects, repertoireEvidence,
     env: { OPENAI_API_KEY: 'synthetic-not-a-key' },
     remember: (updates) => rememberInSession(conversation, updates),
     execute: (name, args) => executeTool(name, args, { supabase: store, workspaceId: ws, conversation, effects,
@@ -208,6 +208,58 @@ test('invalid semantic plan is repaired before a customer reply can escape', asy
   assert.equal(conversation.lead_data.cidade, 'Cidade Sintética');
   assert.equal(result.text, 'Entendi a cidade.');
   assert.equal(result.inputTokens, 40);
+});
+
+test('rendered prices reject redundant offers while allowing a present-tense introduction', () => {
+  for (const text of ['Posso apresentar os valores oficiais?', 'Vou trazer os detalhes para você em instantes.', 'Estou preparando a referência de valores.']) {
+    assert.equal(commercialReplyIssue(JSON.stringify({ text, after: '', action_claim: 'none' }), [], { quoteRendered: true }), 'commercial_quote_already_rendered');
+  }
+  for (const text of ['Aqui estão os valores oficiais:', 'Segue o orçamento oficial:', 'Referência para a formação escolhida:']) {
+    assert.equal(commercialReplyIssue(JSON.stringify({ text, after: '', action_claim: 'none' }), [], { quoteRendered: true }), null);
+  }
+});
+
+test('a repertoire preference is not a confirmed commercial commitment', () => {
+  for (const text of ['O repertório terá músicas do Artista Sintético.', 'Incluindo músicas do Artista Sintético.', 'Tocamos as músicas solicitadas.']) {
+    assert.equal(commercialReplyIssue(JSON.stringify({ text, after: '', action_claim: 'none' })), 'commercial_repertoire_unverified');
+  }
+  for (const text of ['A preferência é pelo Artista Sintético, com viabilidade a confirmar.', 'Não posso confirmar que tocamos essas músicas sem avaliação.', 'Podemos incluir a recepção no orçamento.', 'Ainda precisamos confirmar se podemos tocar essas músicas.']) {
+    assert.equal(commercialReplyIssue(JSON.stringify({ text, after: '', action_claim: 'none' })), null);
+  }
+  const actual = JSON.stringify({ text: 'Tocamos músicas do Artista Sintético.', after: '', action_claim: 'none' });
+  assert.equal(commercialReplyIssue(actual, [], { repertoireEvidence: 'Tocamos músicas do Artista Sintético.' }), null);
+  for (const repertoireEvidence of ['Não tocamos músicas do Artista Sintético; a viabilidade precisa de avaliação.', 'É preciso confirmar se tocamos músicas do Artista Sintético.', 'Tocamos músicas do Outro Artista.']) {
+    assert.equal(commercialReplyIssue(actual, [], { repertoireEvidence }), 'commercial_repertoire_unverified');
+  }
+});
+
+test('an inconclusive explicit venue search requests location without blocking city-only pricing', () => {
+  assert.equal(commercialReplyIssue(JSON.stringify({ text: 'Não consegui identificar essa alternativa. Pode enviar a localização?', after: '', action_claim: 'none' }), [], { venueLocationNeeded: true }), null);
+  assert.equal(commercialReplyIssue(JSON.stringify({ text: 'Não encontrei o local. Posso ajudar com outra coisa.', after: '', action_claim: 'none' }), [], { venueLocationNeeded: true }), 'commercial_venue_location_needed');
+  assert.equal(commercialReplyIssue(JSON.stringify({ text: 'Veja a referência para a cidade informada.', after: '', action_claim: 'none' }), [], { venueLocationNeeded: false }), null);
+});
+
+test('repertoire approval comes from server-provided evidence, not customer preference', async () => {
+  const conversation = { id: 'synthetic-conversation', lead_data: { preferencias: 'Artista Sintético' } };
+  const r = await turn({ store: fixture(), conversation, messages: [{ role: 'user', content: 'Artista Sintético' }],
+    plan: { intent: 'question', action: 'answer', facts: {} }, reply: 'Tocamos músicas do Artista Sintético.',
+    repertoireEvidence: 'Tocamos músicas do Artista Sintético.' });
+  assert.equal(r.result.text, 'Tocamos músicas do Artista Sintético.');
+  const requests = [];
+  const payloads = [
+    { output: [{ type: 'function_call', call_id: 'plan', name: 'conduzir_atendimento', arguments: JSON.stringify({ intent: 'question', facts: {}, action: 'answer' }) }] },
+    { output_text: JSON.stringify({ text: 'O repertório terá músicas do Artista Sintético.', after: '', action_claim: 'none' }) },
+    { output_text: JSON.stringify({ text: 'Registrei a preferência; a viabilidade das canções precisa de confirmação.', after: '', action_claim: 'none' }) },
+  ];
+  const repaired = await runCommercialTurn({ system: 'Synthetic repertoire repair', input: [{ role: 'user', content: 'Artista Sintético' }],
+    tools: [], conversation, env: { OPENAI_API_KEY: 'synthetic-not-a-key' },
+    repertoireEvidence: 'Outro conhecimento aprovado, sem esse artista.',
+    remember: (updates) => rememberInSession(conversation, updates), execute: async () => { throw new Error('No domain action expected'); },
+    fetchImpl: async (_url, options) => { requests.push(JSON.parse(options.body)); return { ok: true, json: async () => ({ ...payloads.shift(), usage: { input_tokens: 10, output_tokens: 5 } }) }; },
+  });
+  assert.equal(requests.length, 3);
+  assert.match(repaired.text, /precisa de confirmação/);
+  assert.equal(repaired.inputTokens, 30);
 });
 
 test('simulated closing summaries cannot invite real document creation', () => {

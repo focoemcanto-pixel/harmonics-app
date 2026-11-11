@@ -41,6 +41,32 @@ async function turn({ conversation, store, messages, plan, reply, extra = [], re
   return { result, requests, effects };
 }
 
+test('completed Harmonics site request is remembered and quoted without a second questionnaire', async () => {
+  const store = fixture();
+  const conversation = { id: 'synthetic-form-client', lead_data: {} };
+  const form = [
+    'NOVO PEDIDO DE ORÇAMENTO — HARMONICS',
+    'DADOS DO EVENTO:',
+    'Tipo: Casamento',
+    'Data: 14/03/2027',
+    'Horário: 16:00',
+    'Local: Espaço Sintético',
+    'Cidade: Cidade Sintética',
+    'FORMAÇÃO SELECIONADA:',
+    'Trio',
+  ].join('\\n');
+  const r = await turn({ store, conversation, messages: [{ role: 'user', content: form }],
+    // Deliberately poor planning from the model must not hide a complete form.
+    plan: { intent: 'question', action: 'answer', facts: {} },
+    reply: 'Preparei uma referência de orçamento para o seu evento.' });
+  assert.equal(conversation.lead_data.cidade, 'Cidade Sintética');
+  assert.equal(conversation.lead_data.formacao, 'Trio');
+  assert.equal(conversation.lead_data.data_evento, '2027-03-14');
+  assert.equal(conversation.lead_data._objetivo_comercial, 'pricing');
+  assert.ok(r.result.toolCalls.includes('calcular_orcamento'));
+  assert.doesNotMatch(r.result.text, /me informe\\s+(a )?(data|cidade|forma[cç][aã]o)/i);
+});
+
 test('multi-turn A–F: corrected facts precede pricing, consent delivers, waiting creates no task, closing asks only missing fields', async () => {
   const store = fixture();
   const conversation = { id: 'synthetic-conversation', lead_data: {} };

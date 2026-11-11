@@ -6,6 +6,7 @@ const SCENARIO = 'Oi! Quero orçamento para meu casamento dia 11/12/2027 na Chá
 
 export default function ChatSimulationPanel() {
   const [messages, setMessages] = useState([]);
+  const [simulationClosing, setSimulationClosing] = useState(null);
   const [lead, setLead] = useState({});
   const [draft, setDraft] = useState('');
   const [pending, setPending] = useState(false);
@@ -20,6 +21,7 @@ export default function ChatSimulationPanel() {
     requestRef.current = null;
     setMessages([]);
     setLead({});
+    setSimulationClosing(null);
     setDiagnostics([]);
     setDraft('');
     setPending(false);
@@ -41,7 +43,7 @@ export default function ChatSimulationPanel() {
       const response = await fetch('/api/ai/commercial/chat-simulation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: next, lead }),
+        body: JSON.stringify({ messages: next, lead, simulationClosing }),
         cache: 'no-store',
         signal: controller.signal,
       });
@@ -53,6 +55,7 @@ export default function ChatSimulationPanel() {
       if (controller.signal.aborted) return;
       setMessages((old) => [...old, { role: 'assistant', content: data.reply }]);
       setLead(data.lead || {});
+      setSimulationClosing(data.simulationClosing || null);
       setDiagnostics((old) => [...old, { message: content, ...(data.diagnostic || {}) }]);
     } catch (e) {
       if (!controller.signal.aborted) setError(e.message || 'Falha ao conversar com a Nara. Você pode tentar novamente.');

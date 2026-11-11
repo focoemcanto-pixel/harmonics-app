@@ -17,7 +17,7 @@ function fixture() {
     quote_price_rules: ['duo', 'trio', 'quarteto', 'quinteto', 'sexteto'].map((item_key, i) => ({ workspace_id: ws, category: 'ceremony', item_key, amount: 111 * (i + 1), valid_from: '2000-01-01' })),
   });
 }
-async function turn({ conversation, store, messages, plan, reply, extra = [], repertoireEvidence = '' }) {
+async function turn({ conversation, store, messages, plan, reply, extra = [], repertoireEvidence = '', simulated = false }) {
   const effects = {};
   const requests = [];
   let round = 0;
@@ -27,7 +27,7 @@ async function turn({ conversation, store, messages, plan, reply, extra = [], re
     { output_text: JSON.stringify({ text: reply, after: '', action_claim: 'none' }) },
   ];
   const result = await runCommercialTurn({
-    system: 'Synthetic transport test', input: messages, tools: TOOL_DEFINITIONS, conversation, effects, repertoireEvidence,
+    system: 'Synthetic transport test', input: messages, tools: TOOL_DEFINITIONS, conversation, effects, repertoireEvidence, simulated,
     env: { OPENAI_API_KEY: 'synthetic-not-a-key' },
     remember: (updates) => rememberInSession(conversation, updates),
     execute: (name, args) => executeTool(name, args, { supabase: store, workspaceId: ws, conversation, effects,
@@ -318,7 +318,7 @@ test('chosen sound and reception survive initial pricing without an event date',
     { workspace_id: ws, category: 'sound', item_key: 'church_reception_1h', amount: 177, valid_from: '2000-01-01' });
   const r = await turn({ store, conversation, messages: [{ role: 'user', content: 'Duo com som e receptivo Trio por uma hora na Cidade Sintética' }],
     plan: { intent: 'quote_request', facts: { cidade: 'Cidade Sintética', formacao: 'Duo', som: 'sim', recepcao_formacao: 'Trio', recepcao_horas: '1' }, action: 'quote' }, reply: 'Veja as referências para os serviços escolhidos:' });
-  assert.ok(r.result.toolCalls.includes('calcular_orcamento'));
+  assert.ok(r.result.toolCalls.includes('comparar_receptivo'));
   assert.match(r.result.text, /R\$ 111,00/);
   assert.match(r.result.text, /R\$ 88,00/);
   assert.match(r.result.text, /R\$ 177,00/);
@@ -350,4 +350,65 @@ test('invalid model prose is repaired within the same bounded loop and all token
   assert.equal(result.inputTokens, 30);
   assert.equal(result.outputTokens, 15);
   assert.ok(result.costUsd > 0);
+});
+
+test('simulation summary acceptance survives requests, repeats without effects, and corrections reopen the conversation', async () => {
+  const { simulationClosingSignature } = await import('../../lib/ai/commercial/closing.mjs');
+  const lead = { cidade: 'Cidade Sintética', formacao: 'Trio', recepcao_horas: '1' };
+  const state = { status: 'awaiting_confirmation', signature: simulationClosingSignature(lead), hash: 'synthetic' };
+  let conversation = { lead_data: structuredClone(lead), simulation_closing: state };
+  const opts = { simulated: true, system: 'Synthetic', tools: [], effects: {}, env: {},
+    generate: () => assert.fail('confirmation must not invoke the model'), execute: () => assert.fail('confirmation must not invoke domain writes') };
+  let r = await runCommercialTurn({ ...opts, conversation, input: [{ role: 'user', content: 'ok, tudo certo' }] });
+  assert.match(r.text, /Dados confirmados nesta simulação/);
+  assert.doesNotMatch(r.text, /confira o resumo|Está tudo certo/);
+  assert.equal(conversation.simulation_closing.status, 'confirmed');
+  conversation = JSON.parse(JSON.stringify(conversation)); // next HTTP request
+  r = await runCommercialTurn({ ...opts, conversation, input: [{ role: 'user', content: 'confirmo' }] });
+  assert.match(r.text, /já foi registrado/);
+  assert.equal(r.costUsd, 0);
+  const store = fixture();
+  const edited = await turn({ conversation, store, messages: [{ role: 'user', content: 'Mude para duas horas.' }],
+    plan: { intent: 'correction', action: 'reception_options', facts: { recepcao_horas: '2' } }, reply: 'Atualizei a duração.', simulated: true });
+  assert.equal(conversation.simulation_closing, null, 'correction invalidates the accepted summary');
+  assert.equal(conversation.lead_data.recepcao_horas, '2');
+  assert.match(edited.result.text, /Sua escolha/);
+  const { acceptSimulationClosing } = await import('../../lib/ai/commercial/closing.mjs');
+  assert.equal(acceptSimulationClosing(conversation, 'confirmo'), null, 'stale summary cannot be accepted');
+});
+
+test('reception comparison uses the complete official calculator for all durations and preserves the chosen duration', async () => {
+  const store = fixture();
+  for (const [h, amount] of [[1, 37], [2, 61], [3, 89]]) store.tables.quote_price_rules.push({ workspace_id: ws, category: 'reception', item_key: `trio_${h}h`, amount, valid_from: '2000-01-01' });
+  const conversation = { id: 'synthetic', lead_data: { cidade: 'Cidade Sintética', data_evento: '2098-05-21', formacao: 'Duo', recepcao_formacao: 'Trio' } };
+  const effects = {};
+  let r = await executeTool('comparar_receptivo', {}, { supabase: store, workspaceId: ws, conversation, effects, settings: {} });
+  assert.equal(r.ok, true);
+  for (const amount of [148, 172, 200]) assert.ok(effects.quoteText.includes(`R$ ${amount},00`));
+  assert.equal(conversation.lead_data.recepcao_horas, undefined, 'comparison does not select a duration');
+  conversation.lead_data.recepcao_horas = '1';
+  await executeTool('comparar_receptivo', {}, { supabase: store, workspaceId: ws, conversation, effects, settings: {} });
+  assert.match(effects.quoteText, /Sua escolha:[\s\S]*1h[\s\S]*148,00/);
+  store.tables.quote_price_rules = store.tables.quote_price_rules.filter(r => r.item_key !== 'trio_3h');
+  await executeTool('comparar_receptivo', {}, { supabase: store, workspaceId: ws, conversation, effects, settings: {} });
+  assert.match(effects.quoteText, /3h: valor a confirmar/);
+  assert.doesNotMatch(effects.quoteText, /200,00/);
+});
+
+test('a requested two-formation price comparison excludes unrelated formations', async () => {
+  const conversation = { id: 'synthetic', lead_data: { cidade: 'Cidade Sintética' } };
+  const r = await turn({ conversation, store: fixture(), messages: [{ role: 'user', content: 'Compare os preços de Duo e Trio.' }],
+    plan: { intent: 'price_decision', action: 'prices', facts: {}, comparison_formations: ['Duo', 'Trio'] }, reply: 'Veja as duas opções:' });
+  assert.match(r.result.text, /Duo/); assert.match(r.result.text, /Trio/);
+  assert.doesNotMatch(r.result.text, /Quarteto|Quinteto|Sexteto/);
+});
+
+test('real closing duplicate confirmation only queues an idempotent acknowledgement', async () => {
+  const { handleClosingReply } = await import('../../lib/ai/commercial/engine.mjs');
+  const store = createSimulationStore({ ai_closings: [{ id: 'synthetic-closing', workspace_id: ws, conversation_id: 'synthetic', status: 'awaiting_approval', created_at: '2098-01-01' }] });
+  const r = await handleClosingReply({ supabase: store, workspaceId: ws, conversation: { id: 'synthetic' }, ownerVersion: 0, latestText: 'ok tudo certo' });
+  assert.equal(r.reason, 'closing_already_confirmed');
+  assert.deepEqual(store.writes, [{ rpc: 'ai_enqueue_ai_reply', operation: 'simulation' }]);
+  assert.equal(store.tables.ai_closings.length, 1);
+  assert.equal(await handleClosingReply({ supabase: store, workspaceId: ws, conversation: { id: 'synthetic' }, latestText: 'Quero mudar a formação' }), null);
 });

@@ -10,7 +10,7 @@ import { lookupVenueOnline } from '@/lib/ai/commercial/venue-online.mjs';
 
 export const dynamic = 'force-dynamic';
 const ALLOWED = new Set(['listar_formacoes', 'consultar_rider', 'verificar_localidade', 'pesquisar_espaco',
-  'consultar_precos', 'calcular_orcamento', 'registrar_dados_evento', 'solicitar_aprovacao',
+  'comparar_receptivo', 'consultar_precos', 'calcular_orcamento', 'registrar_dados_evento', 'solicitar_aprovacao',
   'transferir_para_humano', 'preparar_fechamento']);
 const TOOLS = TOOL_DEFINITIONS.filter((t) => ALLOWED.has(t.name));
 
@@ -41,7 +41,7 @@ export async function POST(request) {
     // no regex replay of old messages can resurrect a corrected venue.
     const conversation = { id: 'simulation', workspace_id: workspaceId,
       lead_data: body?.lead && typeof body.lead === 'object' && !Array.isArray(body.lead) ? body.lead : {},
-      sales_stage: 'qualifying', memory_summary: '' };
+      simulation_closing: body?.simulationClosing || null, sales_stage: 'qualifying', memory_summary: '' };
     const local = createSimulationStore({ ...Object.fromEntries(loaded), ai_conversations: [conversation] });
     const effects = {};
     const commercial = await buildCommercialContext({ supabase: local, workspaceId, conversation,
@@ -50,7 +50,7 @@ export async function POST(request) {
       system: buildSystemPrompt({ settings: context.settings || {}, companyName: context.companyName, conversation,
         isFirstAiReply: !messages.some((m) => m.role === 'assistant'), knowledge: commercial.knowledgeText })
         + '\nAMBIENTE DE TESTE: ações ficam apenas na memória temporária. Se houver registrado=true com simulated=true, explique que o encaminhamento é simulado; não afirme envio real. Mesmo após CONFIRMO, nenhum pré-contrato, reserva ou link real pode ser criado ou enviado neste chat. Não peça confirmação para gerar documento real. Pesquisa pública gratuita de espaços está conectada; não use busca paga.',
-      input: messages, tools: TOOLS, conversation, effects, repertoireEvidence: commercial.repertoireEvidence,
+      input: messages, tools: TOOLS, conversation, effects, simulated: true, repertoireEvidence: commercial.repertoireEvidence,
       remember: (updates) => rememberInSession(conversation, updates),
       execute: async (name, args) => {
         if (!ALLOWED.has(name)) return { ok: false };
@@ -62,7 +62,7 @@ export async function POST(request) {
           ? { registrado: true, simulated: true } : {}) };
       },
     });
-    return NextResponse.json({ ok: true, reply: result.text, lead: conversation.lead_data,
+    return NextResponse.json({ ok: true, reply: result.text, lead: conversation.lead_data, simulationClosing: conversation.simulation_closing || null,
       diagnostic: { engineVersion: NARA_ENGINE_VERSION, intent: result.intent, toolCalls: result.toolCalls,
         results: result.diagnostics, model: result.model, costUsd: result.costUsd,
         inputTokens: result.inputTokens, outputTokens: result.outputTokens, latencyMs: Date.now() - startedAt, simulated: true,

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { runCommercialTurn, rememberInSession, customerToolResult, closingMissing } from '../../lib/ai/agent/conversation-turn.mjs';
+import { runCommercialTurn, rememberInSession, customerToolResult, closingMissing, resolveCommercialAction } from '../../lib/ai/agent/conversation-turn.mjs';
 import { executeTool, TOOL_DEFINITIONS } from '../../lib/ai/agent/tools.mjs';
 import { createSimulationStore } from '../../lib/ai/commercial/simulation-store.mjs';
 import { applyMemoryOps } from '../../lib/ai/commercial/memory.mjs';
@@ -33,8 +33,8 @@ async function turn({ conversation, store, messages, plan, reply, extra = [] }) 
       venueSearchFn: async () => ({ status: 'not_found' }), settings: {} }),
     fetchImpl: async (_url, options) => {
       requests.push(JSON.parse(options.body));
-      assert.ok(payloads[round], 'unexpected extra model request');
-      return { ok: true, json: async () => ({ ...payloads[round++], usage: { input_tokens: 10, output_tokens: 5 } }) };
+      const selected = payloads[Math.min(round++, payloads.length - 1)];
+      return { ok: true, json: async () => ({ ...selected, usage: { input_tokens: 10, output_tokens: 5 } }) };
     },
   });
   return { result, requests, effects };
@@ -147,4 +147,55 @@ test('Postgres decimal strings preserve the approved fallback amount', () => {
     areas: [{ name: 'Cidade Sintética', status: 'served', active: true, travel_fee: 0 }],
   });
   assert.equal(q.items.find((i) => i.key === 'ceremony').amount, 1234.5);
+});
+
+test('semantic commercial precedence prevents optional discovery from blocking prices', () => {
+  assert.equal(resolveCommercialAction({ intent: 'quote_request', action: 'formations' }, { cidade: 'Cidade Sintética' }), 'prices');
+  assert.equal(resolveCommercialAction({ intent: 'price_decision', action: 'formations' }, { cidade: 'Cidade Sintética' }), 'prices');
+  assert.equal(resolveCommercialAction({ intent: 'quote_request', action: 'quote' }, { cidade: 'Cidade Sintética', formacao: 'Duo', som: 'sim' }), 'quote');
+  assert.equal(resolveCommercialAction({ intent: 'correction', action: 'formations', facts: { cidade: 'Cidade Nova' } }, { cidade: 'Cidade Nova', _objetivo_comercial: 'pricing' }), 'prices');
+  assert.equal(resolveCommercialAction({ intent: 'accept_offer', action: 'formations' }, { cidade: 'Cidade Sintética', _objetivo_comercial: 'pricing' }), 'formations');
+  assert.equal(resolveCommercialAction({ intent: 'waiting', action: 'handoff' }, {}), 'answer');
+  assert.equal(resolveCommercialAction({ intent: 'contract', action: 'formations' }, {}), 'closing');
+});
+
+test('chosen sound and reception survive initial pricing without an event date', async () => {
+  const store = fixture(), conversation = { id: 'synthetic-conversation', lead_data: {} };
+  store.tables.quote_price_rules.push(
+    { workspace_id: ws, category: 'reception', item_key: 'trio_1h', amount: 88, valid_from: '2000-01-01' },
+    { workspace_id: ws, category: 'sound', item_key: 'church_reception_1h', amount: 177, valid_from: '2000-01-01' });
+  const r = await turn({ store, conversation, messages: [{ role: 'user', content: 'Duo com som e receptivo Trio por uma hora na Cidade Sintética' }],
+    plan: { intent: 'quote_request', facts: { cidade: 'Cidade Sintética', formacao: 'Duo', som: 'sim', recepcao_formacao: 'Trio', recepcao_horas: '1' }, action: 'quote' }, reply: 'Veja as referências para os serviços escolhidos:' });
+  assert.ok(r.result.toolCalls.includes('calcular_orcamento'));
+  assert.match(r.result.text, /R\$ 111,00/);
+  assert.match(r.result.text, /R\$ 88,00/);
+  assert.match(r.result.text, /R\$ 177,00/);
+  assert.match(r.result.text, /Valor parcial/);
+  assert.doesNotMatch(r.result.text, /Total de referência/);
+});
+
+test('invalid model prose is repaired within the same bounded loop and all tokens are counted', async () => {
+  const conversation = { id: 'synthetic-conversation', lead_data: {} };
+  const requests = [];
+  const payloads = [
+    { output: [{ type: 'function_call', call_id: 'plan', name: 'conduzir_atendimento', arguments: JSON.stringify({ intent: 'question', facts: {}, action: 'answer' }) }] },
+    { output_text: JSON.stringify({ text: 'Custa R$ 999999.', after: '', action_claim: 'none' }) },
+    { output_text: JSON.stringify({ text: 'Em qual cidade será a cerimônia?', after: '', action_claim: 'none' }) },
+  ];
+  const result = await runCommercialTurn({ system: 'Synthetic repair test', input: [{ role: 'user', content: 'Olá' }],
+    tools: [], conversation, env: { OPENAI_API_KEY: 'synthetic-not-a-key' },
+    remember: (updates) => rememberInSession(conversation, updates), execute: async () => { throw new Error('No domain action requested'); },
+    fetchImpl: async (_url, options) => {
+      requests.push(JSON.parse(options.body));
+      const payload = payloads.shift();
+      assert.ok(payload, 'repair is bounded');
+      return { ok: true, json: async () => ({ ...payload, usage: { input_tokens: 10, output_tokens: 5 } }) };
+    },
+  });
+  assert.equal(requests.length, 3);
+  assert.match(requests[2].input.at(-1).content, /commercial_price_outside_renderer/);
+  assert.equal(result.text, 'Em qual cidade será a cerimônia?');
+  assert.equal(result.inputTokens, 30);
+  assert.equal(result.outputTokens, 15);
+  assert.ok(result.costUsd > 0);
 });

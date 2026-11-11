@@ -24,6 +24,7 @@ export async function POST(request) {
     return NextResponse.json({ ok: false, error: 'Envie uma conversa de teste válida.' }, { status: 400 });
   }
   const workspaceId = guard.auth.workspaceId;
+  const startedAt = Date.now();
   try {
     const context = await loadWorkspaceAiContext(guard.supabase, workspaceId);
     // Only approved commercial reference data; no client, contact or event reads.
@@ -64,11 +65,11 @@ export async function POST(request) {
     return NextResponse.json({ ok: true, reply: result.text, lead: conversation.lead_data,
       diagnostic: { engineVersion: NARA_ENGINE_VERSION, intent: result.intent, toolCalls: result.toolCalls,
         results: result.diagnostics, model: result.model, costUsd: result.costUsd,
-        inputTokens: result.inputTokens, outputTokens: result.outputTokens, simulated: true,
+        inputTokens: result.inputTokens, outputTokens: result.outputTokens, latencyMs: Date.now() - startedAt, simulated: true,
         webSearchStatus: effects.venueSearchStatus || 'nao_necessaria', receipts: result.receipts } },
     { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
     console.error('[AI][CHAT_SIMULATION][ERROR]', { code: error?.message });
-    return NextResponse.json({ ok: false, error: 'Não foi possível concluir esta resposta da Nara. Tente novamente.' }, { status: 503 });
+    return NextResponse.json({ ok: false, error: 'Não foi possível concluir esta resposta da Nara. Tente novamente.', diagnostic: { engineVersion: NARA_ENGINE_VERSION, errorCode: /^(?:commercial_[a-z_]+|llm_http_\d{3}|llm_not_configured)$/.test(error?.message || '') ? error.message : 'commercial_turn_failed', costUsd: error?.usage?.costUsd ?? null, latencyMs: Date.now() - startedAt, simulated: true } }, { status: 503 });
   }
 }

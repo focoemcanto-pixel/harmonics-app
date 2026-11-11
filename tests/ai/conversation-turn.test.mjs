@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { runCommercialTurn, rememberInSession, customerToolResult, closingMissing, resolveCommercialAction, commercialReplyIssue } from '../../lib/ai/agent/conversation-turn.mjs';
+import { runCommercialTurn, rememberInSession, customerToolResult, closingMissing, resolveCommercialAction, commercialReplyIssue, shouldPreventQuoteReplay } from '../../lib/ai/agent/conversation-turn.mjs';
 import { executeTool, TOOL_DEFINITIONS } from '../../lib/ai/agent/tools.mjs';
 import { createSimulationStore } from '../../lib/ai/commercial/simulation-store.mjs';
 import { applyMemoryOps } from '../../lib/ai/commercial/memory.mjs';
@@ -72,6 +72,21 @@ test('explicit new price request may resend a quote when requested by the custom
     reply: 'Claro, segue novamente para você.' });
   assert.match(r.result.text, /Orçamentos Cerimônia/);
   assert.ok(r.result.toolCalls.includes('consultar_precos'));
+});
+
+test('hypothetical July reception scenario is an intentional new quote', () => {
+  assert.equal(shouldPreventQuoteReplay({
+    text: 'E se for em julho de 2091, com 1h de receptivo?',
+    previouslyQuoted: true,
+  }), false);
+  assert.equal(shouldPreventQuoteReplay({
+    text: 'Como funciona? Quanto tempo de duração?',
+    previouslyQuoted: true,
+  }), true);
+  assert.equal(shouldPreventQuoteReplay({
+    text: 'Pode comparar os valores de Duo e Trio?',
+    previouslyQuoted: true,
+  }), false);
 });
 
 test('fresh changes in formation reopen quote but casual followups do not', () => {

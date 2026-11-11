@@ -180,7 +180,7 @@ test('event venue followed by city is remembered and continues its original quot
   assert.equal(conversation.lead_data.cidade, 'Cidade Sintética');
   assert.equal(conversation.lead_data.local, 'Espaço Aliança', 'first city must not erase the venue');
   assert.ok(second.result.toolCalls.includes('consultar_precos'), 'city must resume the quote rather than generic review');
-  assert.match(second.result.text, /R\\$\\s*111/);
+  assert.match(second.result.text, /R\$\s*111/);
 });
 
 test('exploratory alternative venue does not silently replace confirmed event location', async () => {

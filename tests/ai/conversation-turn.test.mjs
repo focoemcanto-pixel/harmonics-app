@@ -176,7 +176,7 @@ test('event venue followed by city is remembered and continues its original quot
     { role: 'user', content: 'Espaço Aliança' }, { role: 'assistant', content: first.result.text },
     { role: 'user', content: 'Cidade Sintética' },
   ], plan: { intent: 'question', action: 'venue', facts: { cidade: 'Cidade Sintética' } },
-  reply: 'Já posso apresentar os valores aprovados.' });
+  reply: 'Separei as opções da cerimônia para você:' });
   assert.equal(conversation.lead_data.cidade, 'Cidade Sintética');
   assert.equal(conversation.lead_data.local, 'Espaço Aliança', 'first city must not erase the venue');
   assert.ok(second.result.toolCalls.includes('consultar_precos'), 'city must resume the quote rather than generic review');
@@ -192,7 +192,7 @@ test('exploratory alternative venue does not silently replace confirmed event lo
     plan: { intent: 'question', action: 'venue',
       facts: { local: 'Espaço Alternativo', cidade: 'Cidade Alternativa' },
       venue_query: { local: 'Espaço Alternativo', cidade: 'Cidade Alternativa' } },
-    reply: 'Posso pesquisar essa alternativa, sem mudar seu evento.' });
+    reply: 'Você pode mandar o link ou a localização certinha dessa alternativa para eu conferir, sem alterar seu evento?' });
   assert.equal(conversation.lead_data.local, 'Espaço Atual');
   assert.equal(conversation.lead_data.cidade, 'Cidade Sintética');
   assert.ok(r.result.toolCalls.includes('pesquisar_espaco'));

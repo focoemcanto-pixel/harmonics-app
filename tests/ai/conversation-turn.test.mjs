@@ -41,6 +41,47 @@ async function turn({ conversation, store, messages, plan, reply, extra = [], re
   return { result, requests, effects };
 }
 
+test('pricing explanation after official ceremony table must not resend the table', async () => {
+  const conversation = {
+    id: 'synthetic-repeat-check',
+    lead_data: { tipo_evento: 'Casamento', local: 'Espaço Exemplo',
+      cidade: 'Cidade Sintética', ultimo_orcamento: 'Tabela de cerimônia enviada — Cidade Sintética' },
+  };
+  const messages = [
+    { role: 'assistant', content: '🎶 Orçamentos Cerimônia 🎶\nDuo – R$ 111\nTrio – R$ 222' },
+    { role: 'user', content: 'Como funciona? Quanto tempo de duração?' },
+  ];
+  const r = await turn({ conversation, store: fixture(), messages,
+    plan: { intent: 'quote_request', action: 'prices', facts: {} },
+    extra: [{ name: 'consultar_precos', args: {} }],
+    reply: 'Na cerimônia acompanhamos os cortejos até a saída do altar; a duração depende do roteiro. O receptivo acontece depois, se contratado.' });
+  assert.doesNotMatch(r.result.text, /Orçamentos Cerimônia/);
+  assert.match(r.result.text, /duração depende do roteiro/);
+  assert.ok(!r.result.toolCalls.includes('consultar_precos'), 'no pricing tool is executed again');
+  assert.equal(conversation.lead_data.ultimo_orcamento, 'Tabela de cerimônia enviada — Cidade Sintética');
+});
+
+test('explicit new price request may resend a quote when requested by the customer', async () => {
+  const conversation = { id: 'synthetic-requote', lead_data: {
+    cidade: 'Cidade Sintética', ultimo_orcamento: 'Tabela de cerimônia enviada — Cidade Sintética',
+  } };
+  const r = await turn({ conversation, store: fixture(), messages: [
+    { role: 'assistant', content: '🎶 Orçamentos Cerimônia 🎶\nDuo – R$ 111' },
+    { role: 'user', content: 'Pode me enviar novamente a tabela de preços?' },
+  ], plan: { intent: 'quote_request', action: 'prices', facts: {} },
+    reply: 'Claro, segue novamente para você.' });
+  assert.match(r.result.text, /Orçamentos Cerimônia/);
+  assert.ok(r.result.toolCalls.includes('consultar_precos'));
+});
+
+test('fresh changes in formation reopen quote but casual followups do not', () => {
+  const previous = { ultimo_orcamento: 'Cerimônia aprovada', cidade: 'Cidade Sintética', formacao: 'Duo' };
+  assert.equal(resolveCommercialAction({ intent: 'quote_request', action: 'prices', facts: {} },
+    previous, { preventQuoteReplay: true }), 'answer');
+  assert.equal(resolveCommercialAction({ intent: 'price_decision', action: 'prices', facts: { formacao: 'Trio' } },
+    { ...previous, formacao: 'Trio' }), 'quote');
+});
+
 test('completed Harmonics site request is remembered and quoted without a second questionnaire', async () => {
   const store = fixture();
   const conversation = { id: 'synthetic-form-client', lead_data: {} };

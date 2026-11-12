@@ -137,6 +137,39 @@ test('complete site forms are remembered before the model replies, no extra mode
   assert.match(answer.text,/recebi seu pedido/);
 });
 
+test('new city recorded by the model permits fresh official quote without repeating old prices', async () => {
+  const ctx = base(), effects = {}, called = [];
+  ctx.conversation.lead_data.ultimo_orcamento = 'Tabela anterior';
+  const result = await runNaraV2({
+    ...ctx, effects,
+    input:[
+      {role:'assistant',content:'🎶 Orçamentos Cerimônia 🎶\nDuo ...'},
+      {role:'user',content:'Agora o casamento será na Cidade Nova.'},
+    ],
+    execute:async(name,args)=>{
+      called.push(name);
+      if(name==='registrar_dados_evento'){
+        ctx.conversation.lead_data.cidade = args.cidade;
+        return {ok:true,salvo:true};
+      }
+      if(name==='consultar_precos'){
+        effects.quoteTableText = '🎶 Orçamento atualizado: Trio R$ 1.850';
+        return {ok:true};
+      }
+      return {ok:false};
+    },
+    agentFactory:fakeAgent(async cfg=>{
+      await cfg.tools.registrar_dados_evento.execute({cidade:'Cidade Nova'});
+      const quote = await cfg.tools.consultar_precos.execute({});
+      assert.equal(quote.ok,true);
+      return 'Com a cidade corrigida, veja a cotação oficial da região.';
+    }),
+  });
+  assert.equal(ctx.conversation.lead_data.cidade,'Cidade Nova');
+  assert.deepEqual(called,['registrar_dados_evento','consultar_precos']);
+  assert.match(result.text,/Orçamento atualizado: Trio R\$ 1.850/);
+});
+
 test('final simulated confirmation advances without model call or real contract', async () => {
   const lead={cidade:'Cidade Sintética',data_evento:'2027-03-14',horario:'16:00',
     formacao:'Trio',local:'Espaço Exemplo'};

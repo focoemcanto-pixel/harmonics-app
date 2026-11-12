@@ -6,6 +6,10 @@ const SCENARIO = 'Oi! Quero orçamento para meu casamento dia 11/12/2027 na Chá
 
 export default function ChatSimulationPanel() {
   const [messages, setMessages] = useState([]);
+  const [engine, setEngine] = useState('legacy');
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('engine') === 'v2') setEngine('v2');
+  }, []);
   const [simulationClosing, setSimulationClosing] = useState(null);
   const [lead, setLead] = useState({});
   const [draft, setDraft] = useState('');
@@ -28,6 +32,16 @@ export default function ChatSimulationPanel() {
     setError('');
   }
 
+  function selectEngine(next) {
+    if (next === engine) return;
+    restart();
+    setEngine(next);
+    const url = new URL(window.location.href);
+    if (next === 'v2') url.searchParams.set('engine', 'v2');
+    else url.searchParams.delete('engine');
+    window.history.replaceState(null, '', url.pathname + url.search + url.hash);
+  }
+
   async function send(event) {
     event?.preventDefault();
     const content = draft.trim();
@@ -43,7 +57,7 @@ export default function ChatSimulationPanel() {
       const response = await fetch('/api/ai/commercial/chat-simulation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: next, lead, simulationClosing }),
+        body: JSON.stringify({ messages: next, lead, simulationClosing, engine }),
         cache: 'no-store',
         signal: controller.signal,
       });
@@ -71,17 +85,25 @@ export default function ChatSimulationPanel() {
     <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white text-slate-900">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
         <div>
-          <h2 className="text-base font-bold">Chat de Testes — Nara</h2>
-          <p className="text-xs text-slate-500">Motor real de IA e regras oficiais · nenhuma mensagem enviada ao WhatsApp</p>
+          <h2 className="text-base font-bold">Chat de Testes — Nara {engine === 'v2' ? 'Agent v2' : 'Atual'}</h2>
+          <p className="text-xs text-slate-500">{engine === 'v2' ? 'AI SDK · agente conversacional experimental · somente simulação' : 'Motor atual · regras oficiais'} · nenhuma mensagem enviada ao WhatsApp</p>
         </div>
-        <button type="button" onClick={restart} className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold hover:bg-slate-50">Reiniciar conversa</button>
+        <div className="flex flex-wrap items-center gap-2">
+          <div role="group" aria-label="Selecionar motor de teste" className="flex rounded-xl border border-slate-300 bg-slate-50 p-1">
+            <button type="button" onClick={() => selectEngine('legacy')} aria-pressed={engine === 'legacy'}
+              className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${engine === 'legacy' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>Atual</button>
+            <button type="button" onClick={() => selectEngine('v2')} aria-pressed={engine === 'v2'}
+              className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${engine === 'v2' ? 'bg-violet-700 text-white' : 'text-slate-500'}`}>Nara Agent v2</button>
+          </div>
+          <button type="button" onClick={restart} className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold hover:bg-slate-50">Reiniciar conversa</button>
+        </div>
       </div>
       <div className="h-[440px] space-y-4 overflow-y-auto bg-slate-50 p-4 sm:p-5" aria-live="polite">
         {!messages.length && (
           <div className="mx-auto mt-12 max-w-md space-y-4 text-center">
             <div className="text-3xl">🎶</div>
             <h3 className="font-semibold">Converse com a Nara como se fosse um cliente</h3>
-            <p className="text-sm text-slate-500">Teste identificação de espaços, perguntas, orçamentos e continuidade. Este chat é temporário e isolado.</p>
+            <p className="text-sm text-slate-500">Teste espaços, receptivo, dúvidas, orçamentos e continuidade. {engine === 'v2' ? 'O novo motor decide quando responder e quando consultar ferramentas, sem roteiro de ações fixas.' : 'Este é o motor atual para comparação.'} Este chat é temporário e isolado.</p>
             <button type="button" onClick={() => setDraft(SCENARIO)} className="rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-semibold text-violet-700">Preparar teste: Chácara de Alice</button>
           </div>
         )}

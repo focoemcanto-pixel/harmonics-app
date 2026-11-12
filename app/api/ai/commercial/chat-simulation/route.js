@@ -7,6 +7,7 @@ import { createSimulationStore } from '@/lib/ai/commercial/simulation-store.mjs'
 import { loadWorkspaceAiContext } from '@/lib/ai/inbox/service.mjs';
 import { buildCommercialContext } from '@/lib/ai/commercial/engine.mjs';
 import { lookupVenueOnline } from '@/lib/ai/commercial/venue-online.mjs';
+import { runNaraV2, NARA_V2_VERSION, V2_ALLOWED } from '@/lib/ai/agent/v2.mjs';
 
 export const dynamic = 'force-dynamic';
 const ALLOWED = new Set(['listar_formacoes', 'consultar_rider', 'verificar_localidade', 'pesquisar_espaco',
@@ -23,6 +24,7 @@ export async function POST(request) {
     || messages.some((m) => !['assistant', 'user'].includes(m?.role) || typeof m.content !== 'string' || !m.content.trim() || m.content.length > 1800)) {
     return NextResponse.json({ ok: false, error: 'Envie uma conversa de teste válida.' }, { status: 400 });
   }
+  const engine = body?.engine === 'v2' ? 'v2' : 'legacy';
   const workspaceId = guard.auth.workspaceId;
   const startedAt = Date.now();
   try {
@@ -46,30 +48,36 @@ export async function POST(request) {
     const effects = {};
     const commercial = await buildCommercialContext({ supabase: local, workspaceId, conversation,
       latestText: messages.at(-1).content, settings: context.settings, customerStatus: 'lead' });
-    const result = await runCommercialTurn({
+    const sandboxExecute = async (name, args) => {
+      if (!(engine === 'v2' ? V2_ALLOWED.includes(name) : ALLOWED.has(name))) return { ok: false };
+      const before = local.writes.length;
+      const raw = await executeTool(name, args, { supabase: local, workspaceId, conversation, effects,
+        settings: context.settings || {}, simulated: true, ownerVersion: 0, venueSearchFn: process.env.CI
+          ? async () => ({ status: 'unavailable' }) : lookupVenueOnline });
+      return { ...raw, ...(raw?.registrado || (raw?.ok && ['preparar_fechamento'].includes(name) && local.writes.length > before)
+        ? { registrado: true, simulated: true } : {}) };
+    };
+    const result = engine === 'v2'
+      ? await runNaraV2({ input: messages, conversation, commercial, effects,
+          settings: context.settings || {}, companyName: context.companyName,
+          execute: sandboxExecute, simulated: true })
+      : await runCommercialTurn({
       system: buildSystemPrompt({ settings: context.settings || {}, companyName: context.companyName, conversation,
         isFirstAiReply: !messages.some((m) => m.role === 'assistant'), knowledge: commercial.knowledgeText })
         + '\nAMBIENTE DE TESTE: ações ficam apenas na memória temporária. Se houver registrado=true com simulated=true, explique que o encaminhamento é simulado; não afirme envio real. Mesmo após CONFIRMO, nenhum pré-contrato, reserva ou link real pode ser criado ou enviado neste chat. Não peça confirmação para gerar documento real. Pesquisa pública gratuita de espaços está conectada; não use busca paga.',
       input: messages, tools: TOOLS, conversation, effects, simulated: true, repertoireEvidence: commercial.repertoireEvidence,
       remember: (updates) => rememberInSession(conversation, updates),
-      execute: async (name, args) => {
-        if (!ALLOWED.has(name)) return { ok: false };
-        const before = local.writes.length;
-        const raw = await executeTool(name, args, { supabase: local, workspaceId, conversation, effects,
-          settings: context.settings || {}, simulated: true, ownerVersion: 0, venueSearchFn: process.env.CI
-            ? async () => ({ status: 'unavailable' }) : lookupVenueOnline });
-        return { ...raw, ...(raw?.registrado || (raw?.ok && ['preparar_fechamento'].includes(name) && local.writes.length > before)
-          ? { registrado: true, simulated: true } : {}) };
-      },
+      execute: sandboxExecute,
     });
     return NextResponse.json({ ok: true, reply: result.text, lead: conversation.lead_data, simulationClosing: conversation.simulation_closing || null,
-      diagnostic: { engineVersion: NARA_ENGINE_VERSION, intent: result.intent, toolCalls: result.toolCalls,
+      diagnostic: { engineVersion: result.engineVersion || (engine === 'v2' ? NARA_V2_VERSION : NARA_ENGINE_VERSION),
+        engine, intent: result.intent, toolCalls: result.toolCalls,
         results: result.diagnostics, model: result.model, costUsd: result.costUsd,
         inputTokens: result.inputTokens, outputTokens: result.outputTokens, latencyMs: Date.now() - startedAt, simulated: true,
         webSearchStatus: effects.venueSearchStatus || 'nao_necessaria', receipts: result.receipts } },
     { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
     console.error('[AI][CHAT_SIMULATION][ERROR]', { code: error?.message });
-    return NextResponse.json({ ok: false, error: 'Não foi possível concluir esta resposta da Nara. Tente novamente.', diagnostic: { engineVersion: NARA_ENGINE_VERSION, errorCode: /^(?:commercial_[a-z_]+|llm_http_\d{3}|llm_not_configured)$/.test(error?.message || '') ? error.message : 'commercial_turn_failed', costUsd: error?.usage?.costUsd ?? null, latencyMs: Date.now() - startedAt, simulated: true } }, { status: 503 });
+    return NextResponse.json({ ok: false, error: 'Não foi possível concluir esta resposta da Nara. Tente novamente.', diagnostic: { engineVersion: engine === 'v2' ? NARA_V2_VERSION : NARA_ENGINE_VERSION, errorCode: /^(?:commercial_[a-z_]+|llm_http_\d{3}|llm_not_configured)$/.test(error?.message || '') ? error.message : 'commercial_turn_failed', costUsd: error?.usage?.costUsd ?? null, latencyMs: Date.now() - startedAt, simulated: true } }, { status: 503 });
   }
 }

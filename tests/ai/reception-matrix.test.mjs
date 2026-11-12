@@ -47,5 +47,5 @@ test('regional tier never inherits base reception prices', () => {
 test('blank date is only an indicative table and does not block intake', () => {
   const result=receptionMatrix({ location:'Cidade Sintética',rules:rules(),areas:area});
   assert.equal(result.ok,true);
-  assert.match(result.text,/1h R\\$ 125,00/);
+  assert.match(result.text,/1h R\$ 125,00/);
 });

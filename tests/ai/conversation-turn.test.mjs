@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { runCommercialTurn, rememberInSession, customerToolResult, closingMissing, resolveCommercialAction, commercialReplyIssue, shouldPreventQuoteReplay, isDirectClosingRequest } from '../../lib/ai/agent/conversation-turn.mjs';
+import { runCommercialTurn, rememberInSession, customerToolResult, closingMissing, resolveCommercialAction, commercialReplyIssue, shouldPreventQuoteReplay, isDirectClosingRequest, isOpenReceptionInquiry } from '../../lib/ai/agent/conversation-turn.mjs';
 import { executeTool, TOOL_DEFINITIONS } from '../../lib/ai/agent/tools.mjs';
 import { createSimulationStore } from '../../lib/ai/commercial/simulation-store.mjs';
 import { applyMemoryOps } from '../../lib/ai/commercial/memory.mjs';
@@ -88,6 +88,61 @@ test('close intent persists until the last missing hour arrives; then resume sum
     'resume the real closing tool instead of answering generically');
   assert.ok(!second.result.diagnostics.some((d) => d.ferramenta === 'comparar_receptivo'));
   assert.ok(!second.result.diagnostics.some((d) => d.ferramenta === 'consultar_precos'));
+});
+
+test('open reception interest displays a 5x3 matrix even after ceremony table, without inventing Duo', async () => {
+  const store = fixture(), conversation = {
+    id: 'synthetic-reception-open',
+    lead_data: { cidade: 'Cidade Sintética', ultimo_orcamento: 'Tabela de cerimônia já entregue',
+      _objetivo_comercial: 'pricing' },
+  };
+  for (let i=0;i<5;i++) for (let hours=1;hours<=3;hours++) {
+    const formation=['duo','trio','quarteto','quinteto','sexteto'][i];
+    store.tables.quote_price_rules.push({workspace_id:ws,category:'reception',
+      item_key:formation+'_'+hours+'h',amount:100*(i+1)+hours*10,valid_from:'2000-01-01'});
+  }
+  const response = await turn({store, conversation,
+    messages:[{role:'assistant',content:'🎶 Orçamentos Cerimônia 🎶\\nDuo – R$ 111'},
+      {role:'user',content:'E receptivo!'}],
+    // Even if the LLM hallucinates a choice, the customer's latest text wins.
+    plan:{intent:'quote_request',action:'quote',facts:{formacao:'Duo',recepcao_horas:'1'}},
+    extra:[{name:'consultar_precos',args:{}}],
+    reply:'No receptivo vocês podem escolher outra formação e duração.'});
+  assert.equal(isOpenReceptionInquiry('E receptivo!'),true);
+  assert.equal(isOpenReceptionInquiry('Quero receptivo Duo por 1h'),false);
+  assert.equal(isOpenReceptionInquiry('Sem receptivo'),false);
+  assert.equal(conversation.lead_data.formacao,undefined);
+  assert.equal(conversation.lead_data.recepcao_horas,undefined);
+  assert.ok(response.result.diagnostics.some(x=>x.ferramenta==='consultar_tabela_receptivo'));
+  assert.ok(!response.result.diagnostics.some(x=>x.ferramenta==='consultar_precos'));
+  assert.match(response.result.text,/Receptivo após a cerimônia/);
+  assert.match(response.result.text,/Trio: 1h R\$ 210,00/);
+  assert.match(response.result.text,/Sexteto: 1h R\$ 510,00/);
+  assert.match(response.result.text,/formação do receptivo pode ser diferente/);
+  assert.doesNotMatch(response.result.text,/Orçamentos Cerimônia/);
+});
+
+test('simulated summary accepts Exatamente then advances to a virtual pre-contract step without writing anything', async () => {
+  const { acceptSimulationClosing, simulationClosingSignature, classifyConfirmation } =
+    await import('../../lib/ai/commercial/closing.mjs');
+  const lead={data_evento:'2099-12-11',horario:'16:00',cidade:'Cidade Sintética',
+    local:'Casa Sintética',formacao:'Trio',recepcao_horas:'0'};
+  const initial='Simulação de fechamento — confira o resumo. Nenhum pré-contrato ou reserva será criado:';
+  const conversation={lead_data:lead,simulation_closing:{status:'awaiting_confirmation',
+    signature:simulationClosingSignature(lead),lastReply:initial}};
+  assert.equal(classifyConfirmation('Exatamente'),'confirm');
+  const confirmed=acceptSimulationClosing(conversation,'Exatamente',initial);
+  assert.match(confirmed,/Dados confirmados/);
+  assert.equal(conversation.simulation_closing.status,'confirmed');
+  assert.equal(classifyConfirmation('Pode fazer contrato'),'confirm');
+  const next=acceptSimulationClosing(conversation,'Pode fazer contrato',confirmed);
+  assert.match(next,/pré-contrato simulada/);
+  assert.match(next,/Nenhum link, contrato, reserva ou envio real/);
+  assert.equal(conversation.simulation_closing.status,'precontract_preview');
+  assert.doesNotMatch(next,/confira o resumo/);
+  const duplicate=acceptSimulationClosing(conversation,'Pode fazer contrato',next);
+  assert.match(duplicate,/já foi simulada/);
+  assert.equal(acceptSimulationClosing(conversation,'Pode fazer contrato','mensagem diferente'),null);
 });
 
 test('same-second WhatsApp inbound stays after earlier outbound when sorting timestamps', () => {
@@ -647,10 +702,12 @@ test('explicit reception price request works before choosing hours, including in
   const conversation = { id: 'synthetic', lead_data: { cidade: 'Cidade Sintética', formacao: 'Trio' } };
   const r = await turn({ conversation, store, messages: [{ role: 'user', content: 'Quais os preços para adicionar receptivo?' }],
     plan: { intent: 'quote_request', facts: {}, action: 'reception_options' }, reply: 'Veja as durações:' });
-  assert.ok(r.result.toolCalls.includes('comparar_receptivo'));
-  assert.match(r.result.text, /366,00/);
-  assert.match(r.result.text, /2h: valor a confirmar/);
-  assert.match(r.result.text, /3h: valor a confirmar/);
+  assert.ok(r.result.toolCalls.includes('consultar_tabela_receptivo'),
+    'unselected reception questions return a formation x duration matrix');
+  assert.ok(r.result.text.includes('Trio: 1h R$ 47,00'));
+  assert.ok(r.result.text.includes('2h a confirmar'));
+  assert.ok(r.result.text.includes('3h a confirmar'));
+  assert.ok(!r.result.toolCalls.includes('comparar_receptivo'));
   conversation.lead_data.recepcao_horas = '1';
   const effects = {};
   const result = await executeTool('comparar_receptivo', {}, { supabase: store, workspaceId: ws, conversation, effects, settings: {} });

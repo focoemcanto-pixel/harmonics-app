@@ -10,7 +10,7 @@ import { lookupVenueOnline } from '@/lib/ai/commercial/venue-online.mjs';
 
 export const dynamic = 'force-dynamic';
 const ALLOWED = new Set(['listar_formacoes', 'consultar_rider', 'verificar_localidade', 'pesquisar_espaco',
-  'comparar_receptivo', 'consultar_precos', 'calcular_orcamento', 'registrar_dados_evento', 'solicitar_aprovacao',
+  'consultar_tabela_receptivo', 'comparar_receptivo', 'consultar_precos', 'calcular_orcamento', 'registrar_dados_evento', 'solicitar_aprovacao',
   'transferir_para_humano', 'preparar_fechamento']);
 const TOOLS = TOOL_DEFINITIONS.filter((t) => ALLOWED.has(t.name));
 

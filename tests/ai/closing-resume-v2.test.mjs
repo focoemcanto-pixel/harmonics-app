@@ -38,3 +38,25 @@ test('no automatic closing if required event facts are missing', async () => {
   assert.equal(called.includes('preparar_fechamento'), false);
   assert.match(result.text, /horário/);
 });
+
+test('closing resumes in same turn after model registers final required field', async () => {
+  const conversation = { lead_data: { ...lead, horario: null } };
+  const effects = {};
+  const called = [];
+  const result = await runNaraV2({
+    conversation, effects, simulated: true,
+    input: [{ role: 'user', content: 'Às 15h' }],
+    execute: async (name, args) => {
+      called.push(name);
+      if (name === 'registrar_dados_evento') { conversation.lead_data.horario = args.horario; return { ok: true }; }
+      if (name === 'preparar_fechamento') { effects.closingSummaryText = 'Simulação de fechamento — resumo oficial'; return { ok: true }; }
+      return { ok: false };
+    },
+    agentFactory: cfg => ({ generate: async () => {
+      await cfg.tools.registrar_dados_evento.execute({ horario: '15:00' });
+      return { text: 'Obrigado, registrei o horário.', totalUsage: {} };
+    } }),
+  });
+  assert.deepEqual(called, ['registrar_dados_evento', 'preparar_fechamento']);
+  assert.equal(result.text, 'Simulação de fechamento — resumo oficial');
+});

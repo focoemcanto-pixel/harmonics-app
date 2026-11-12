@@ -702,10 +702,12 @@ test('explicit reception price request works before choosing hours, including in
   const conversation = { id: 'synthetic', lead_data: { cidade: 'Cidade Sintética', formacao: 'Trio' } };
   const r = await turn({ conversation, store, messages: [{ role: 'user', content: 'Quais os preços para adicionar receptivo?' }],
     plan: { intent: 'quote_request', facts: {}, action: 'reception_options' }, reply: 'Veja as durações:' });
-  assert.ok(r.result.toolCalls.includes('comparar_receptivo'));
-  assert.match(r.result.text, /366,00/);
-  assert.match(r.result.text, /2h: valor a confirmar/);
-  assert.match(r.result.text, /3h: valor a confirmar/);
+  assert.ok(r.result.toolCalls.includes('consultar_tabela_receptivo'),
+    'unselected reception questions return a formation x duration matrix');
+  assert.ok(r.result.text.includes('Trio: 1h R$ 47,00'));
+  assert.ok(r.result.text.includes('2h a confirmar'));
+  assert.ok(r.result.text.includes('3h a confirmar'));
+  assert.ok(!r.result.toolCalls.includes('comparar_receptivo'));
   conversation.lead_data.recepcao_horas = '1';
   const effects = {};
   const result = await executeTool('comparar_receptivo', {}, { supabase: store, workspaceId: ws, conversation, effects, settings: {} });

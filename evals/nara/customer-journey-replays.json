@@ -1,0 +1,120 @@
+{
+  "purpose": "Replay evaluation fixtures reconstructed from previously supplied customer cases and test logs; not verbatim transcripts. No customer PII. These are acceptance scenarios, not proof of live execution.",
+  "cases": [
+    {
+      "id": "casa-rio",
+      "origin": "user simulated dialogue 2026-11-12",
+      "event": {
+        "date": "2026-12-11",
+        "venue": "Cerimonial Casa Rio",
+        "city": "Lauro de Freitas",
+        "ceremony": [
+          "female vocal",
+          "keyboard",
+          "violin"
+        ],
+        "reception": [
+          "female vocal",
+          "guitar",
+          "cajon"
+        ],
+        "receptionHours": 2,
+        "sound": false
+      },
+      "customerTurns": [
+        "Boa noite, gostaria de um orçamento",
+        "Casamento, 11/12/2026, Casa Rio",
+        "Quero trio com voz feminina, teclado e violino",
+        "Não preciso de sonorização",
+        "E receptivo?",
+        "Quero voz, violão e cajón por duas horas",
+        "Quanto fica tudo?",
+        "Pode fazer o contrato"
+      ],
+      "assertions": [
+        "Retain confirmed event/date/location and distinct ceremony/reception formations",
+        "Do not repeat all formation tables when asking total",
+        "Identify that instrument names do not prove musician identities",
+        "If singer continues and guitar/cajon are new, internal reception cost is R$1100; do not expose or treat as automatic retail price",
+        "Obtain official selling price or mark total pending approval",
+        "Do not claim a real contract was created"
+      ]
+    },
+    {
+      "id": "espaco-alianca",
+      "origin": "prior V2 test dialogue 2026-11-11",
+      "event": {
+        "date": "2026-12-16",
+        "venue": "Espaço Aliança",
+        "city": "Salvador",
+        "ceremonyFormation": "Trio",
+        "receptionHours": 1,
+        "ceremonyTime": "16:00",
+        "ceremonyInstruments": [
+          "violin",
+          "piano",
+          "voice"
+        ]
+      },
+      "customerTurns": [
+        "Gostaria de orçamento para casamento no Espaço Aliança em 16/12/2026",
+        "Quero trio na cerimônia",
+        "Quanto tempo vocês tocam?",
+        "Quero uma hora de receptivo",
+        "Quanto fica cerimônia e receptivo?",
+        "Quero fechar",
+        "Será às 16h, com violino, piano e voz"
+      ],
+      "assertions": [
+        "Answer duration question without replaying entire price table",
+        "Maintain ceremony formation and reception hours separately",
+        "Do not assume reception roster is same as ceremony roster without confirmation",
+        "Do not promise real reservation or contract in simulator",
+        "Ask only missing contract information at closing"
+      ]
+    },
+    {
+      "id": "camacari-negotiation",
+      "origin": "historical anonymized customer case, Camaçari/Espaço Lilás",
+      "event": {
+        "city": "Camaçari",
+        "venue": "Espaço Lilás"
+      },
+      "customerTurns": [
+        "Olá, gostaria de um orçamento",
+        "O casamento será em Camaçari, no Espaço Lilás",
+        "O valor ficou acima do que esperávamos",
+        "Há alguma facilidade de pagamento?",
+        "Conseguimos confirmar a data?",
+        "Como fazemos o contrato e o pagamento?"
+      ],
+      "assertions": [
+        "Consult region-specific official pricing, not historical amount",
+        "Explain available payment methods only if current policy verified",
+        "Do not grant historical exceptional discount automatically",
+        "Check actual availability before promising reservation",
+        "Only claim contract/link/payment after verified system receipt"
+      ]
+    },
+    {
+      "id": "feira-salvador-correction",
+      "origin": "previous long test replay",
+      "customerTurns": [
+        "Casamento em Feira de Santana, gostaria de orçamento",
+        "Pode mostrar as formações?",
+        "Na verdade será em Salvador",
+        "Gostei do trio, com uma hora de receptivo",
+        "O espaço fornece o som",
+        "Vou conversar com minha noiva",
+        "Quero fechar"
+      ],
+      "assertions": [
+        "No invented price for unsupported region",
+        "Correct location and reprice using approved Salvador rates",
+        "Persist 1h reception and no sound",
+        "Waiting for partner does not trigger handoff",
+        "Closing stays simulated"
+      ]
+    }
+  ]
+}

@@ -39,7 +39,14 @@ test('regional tier never inherits base reception prices', () => {
   const withoutTier = receptionMatrix({location:'Cidade Especial',rules:rules(),areas:tier});
   assert.equal(withoutTier.ok,false);
   const regional = rules().map(x=>({...x,item_key:`${x.item_key}@exclusive`,amount:x.amount+1000}));
-  const withTier = receptionMatrix({location:'Cidade Especial',rules:[...rules(),...regional],areas:tier});
+  // Regional pricing must also contain ceremony prices: don't quote an add-on
+  // as if a complete regional event proposal were already approved.
+  const ceremonyRegional = formations.map(formation=>({
+    category:'ceremony',item_key:formation.toLowerCase()+'@exclusive',
+    amount:2200,valid_from:'2000-01-01',
+  }));
+  const withTier = receptionMatrix({location:'Cidade Especial',
+    rules:[...rules(),...regional,...ceremonyRegional],areas:tier});
   assert.equal(withTier.ok,true);
   assert.equal(withTier.rows[0].prices[0],1125);
 });

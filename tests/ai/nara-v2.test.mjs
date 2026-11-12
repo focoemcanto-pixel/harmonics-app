@@ -67,6 +67,10 @@ test('a question about duration after the quote does not reopen the price table'
     latestText:'E receptivo!',
     input:[{role:'assistant',content:'🎶 Orçamentos Cerimônia 🎶\nTrio R$ 1.750'}],
   }),false);
+  assert.equal(v2PriceReplayBlocked({ latestText:'Trio',
+    lead:{ ultimo_orcamento:'Tabela enviada' } }),false, 'short formation selection is a fresh quote');
+  assert.equal(v2PriceReplayBlocked({ latestText:'Trio',
+    lead:{ ultimo_orcamento:'Tabela enviada',formacao:'Trio' } }),true, 'identical choice should not resend the quote');
 });
 
 test('reception question inserts the official matrix, no ceremony repetition or invented selection', async () => {

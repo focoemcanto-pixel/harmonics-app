@@ -116,8 +116,8 @@ test('open reception interest displays a 5x3 matrix even after ceremony table, w
   assert.ok(response.result.diagnostics.some(x=>x.ferramenta==='consultar_tabela_receptivo'));
   assert.ok(!response.result.diagnostics.some(x=>x.ferramenta==='consultar_precos'));
   assert.match(response.result.text,/Receptivo após a cerimônia/);
-  assert.match(response.result.text,/Trio: 1h R\\$ 210,00/);
-  assert.match(response.result.text,/Sexteto: 1h R\\$ 510,00/);
+  assert.match(response.result.text,/Trio: 1h R\$ 210,00/);
+  assert.match(response.result.text,/Sexteto: 1h R\$ 510,00/);
   assert.match(response.result.text,/formação do receptivo pode ser diferente/);
   assert.doesNotMatch(response.result.text,/Orçamentos Cerimônia/);
 });

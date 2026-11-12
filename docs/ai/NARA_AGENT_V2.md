@@ -24,8 +24,8 @@ Motor conversacional de teste em paralelo à Nara atual. Baseado no Vercel AI SD
 
 ## Configuração e segurança
 - Dependências: ai 7, @ai-sdk/openai 4, lockfile versionado.
-- Modelo de teste: AI_NARA_V2_MODEL (padrão gpt-4.1). Produção atual permanece com seu próprio AI_INBOX_MODEL.
-- Limite por turno: até seis etapas, teto de tempo de 45s, sem armazenamento da requisição pela API (store=false).
+- Modelo de teste: AI_NARA_V2_MODEL (padrão gpt-6.1-sol, para comparar inteligência avançada com o GPT-4.1-mini atual). Produção atual permanece com seu próprio AI_INBOX_MODEL.
+- Limite por turno: até seis etapas, teto de tempo de 45s, até 1200 tokens de saída por etapa, sem armazenamento da requisição pela API (store=false).
 - Os acessos de teste exigem guardWorkspaceAdmin.
 - Voltar ao motor Atual desativa o teste v2 imediatamente, sem afetar a produção.
 - Não há gravação de dados pessoais, conteúdos privados das 15 conversas ou mensagens reais do WhatsApp no repositório público.

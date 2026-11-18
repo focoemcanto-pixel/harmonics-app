@@ -289,7 +289,9 @@ test('V2 simulated sales journey gates the quote and carries the selected Trio i
   const input = [];
   const scope = (rows) => rows.map((item) => ({ workspace_id: workspaceId, ...item }));
   const activePayment = { id: 'policy-example', kind: 'policy', status: 'active', title: 'Pagamento',
-    content: 'Pix em duas etapas, sete dias e um dia antes do evento.', intents: ['payment'], priority: 100 };
+    content: 'Pix em duas etapas, sete dias e um dia antes do evento. '
+      + 'Para consultar formas adicionais de pagamento, use as condições vigentes para o evento. '.repeat(18),
+    intents: ['payment'], priority: 88 };
   const knowledge = scope([...fixtures.knowledge.map((item) => ({ status: 'active', ...item })), activePayment]);
 
   async function turn(content, callback) {
@@ -331,7 +333,7 @@ test('V2 simulated sales journey gates the quote and carries the selected Trio i
   });
   assert.ok(quote.effects.quoteTableText);
   await turn('Como funciona o pagamento?', ({ instructions }) => {
-    assert.match(instructions, /Condições de pagamento ativas para esta dúvida:\n.*sete dias/s);
+    assert.match(instructions, /Condições de pagamento ativas para esta dúvida\..*sete dias/s);
     assert.doesNotMatch(instructions, /Sinal de 30%/);
     return 'O pagamento é via Pix em duas etapas, sete dias e um dia antes do evento.';
   });

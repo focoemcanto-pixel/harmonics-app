@@ -149,7 +149,7 @@ test('new city recorded by the model permits fresh official quote without repeat
     execute:async(name,args)=>{
       called.push(name);
       if(name==='registrar_dados_evento'){
-        ctx.conversation.lead_data.cidade = args.cidade;
+        Object.assign(ctx.conversation.lead_data, args);
         return {ok:true,salvo:true};
       }
       if(name==='consultar_precos'){
@@ -159,7 +159,7 @@ test('new city recorded by the model permits fresh official quote without repeat
       return {ok:false};
     },
     agentFactory:fakeAgent(async cfg=>{
-      await cfg.tools.registrar_dados_evento.execute({cidade:'Cidade Nova'});
+      await cfg.tools.registrar_dados_evento.execute({cidade:'Cidade Nova', tipo_evento:'Casamento'});
       const quote = await cfg.tools.consultar_precos.execute({});
       assert.equal(quote.ok,true);
       return 'Com a cidade corrigida, veja a cotação oficial da região.';
@@ -259,7 +259,7 @@ test('V2 carries the form and corrected location across turns and scopes approve
 test('V2 defers changed reception personnel and keeps the official path for the same lineup', async () => {
   for (const hours of [1, 2, 3]) {
     const ctx = base();
-    ctx.conversation.lead_data = { formacao: 'Trio', instrumentos: 'Piano, violino e voz',
+    ctx.conversation.lead_data = { tipo_evento: 'Casamento', formacao: 'Trio', instrumentos: 'Piano, violino e voz',
       recepcao_formacao: 'Trio', recepcao_horas: String(hours) };
     const calls = [];
     const result = await runNaraV2({
@@ -277,4 +277,98 @@ test('V2 defers changed reception personnel and keeps the official path for the 
     assert.deepEqual(calls, ['calcular_orcamento']);
     assert.equal(result.diagnostics.filter((entry) => entry.resultado === 'revisao_equipe_receptivo').length, 4);
   }
+});
+
+test('V2 simulated sales journey gates the quote and carries the selected Trio into explicit acceptance', async () => {
+  const [{ fixtures }, { buildCommercialContext }, { createSimulationStore }, { executeTool }] = await Promise.all([
+    import('../../evals/nara/fixtures.mjs'), import('../../lib/ai/commercial/engine.mjs'),
+    import('../../lib/ai/commercial/simulation-store.mjs'), import('../../lib/ai/agent/tools.mjs'),
+  ]);
+  const workspaceId = 'synthetic-journey';
+  let conversation = { id: 'simulation', workspace_id: workspaceId, lead_data: {}, sales_stage: 'qualifying' };
+  const input = [];
+  const scope = (rows) => rows.map((item) => ({ workspace_id: workspaceId, ...item }));
+  const activePayment = { id: 'policy-example', kind: 'policy', status: 'active', title: 'Pagamento',
+    content: 'Pix em duas etapas, sete dias e um dia antes do evento.', intents: ['payment'], priority: 100 };
+  const knowledge = scope([...fixtures.knowledge.map((item) => ({ status: 'active', ...item })), activePayment]);
+
+  async function turn(content, callback) {
+    const effects = {};
+    const supabase = createSimulationStore({
+      ai_conversations: [conversation], ai_service_areas: scope(fixtures.areas),
+      pricing_settings: scope([fixtures.pricing]), quote_price_rules: scope(fixtures.rules),
+    });
+    const ctx = { conversation, workspaceId, supabase, effects, settings: fixtures.settings,
+      simulated: true, ownerVersion: 0, routeFn: async () => null };
+    input.push({ role: 'user', content });
+    const result = await runNaraV2({ ...ctx, input, modelOverride: {},
+      loadCommercial: () => buildCommercialContext({ ...ctx, latestText: content,
+        referenceKnowledge: knowledge, customerStatus: 'lead' }),
+      execute: (name, args) => executeTool(name, args, ctx),
+      agentFactory: fakeAgent(callback ?? (() => assert.fail('Model must not run on this turn'))),
+    });
+    assert.ok(!supabase.writes.some((write) =>
+      ['quotes', 'contracts', 'precontracts', 'ai_message_outbox'].includes(write.table)));
+    input.push({ role: 'assistant', content: result.text });
+    conversation = JSON.parse(JSON.stringify(conversation));
+    return { result, effects };
+  }
+
+  await turn('Olá, gostaria de um orçamento', () => 'Qual é a data, o local e o tipo de evento?');
+  await turn('17/12/2096, na Casa Rio de Ensaio, 16:30', async ({ tools }) => {
+    await tools.registrar_dados_evento.execute({ data_evento: '17/12/2096',
+      local: 'Casa Rio de Ensaio', horario: '16:30', tipo_evento: 'Casamento' });
+    return 'Em qual cidade fica esse espaço?';
+  });
+  await turn('Na Cidade Base mesmo', async ({ tools }) => {
+    await tools.registrar_dados_evento.execute({ cidade: 'Cidade Base' });
+    assert.equal((await tools.consultar_precos.execute({})).status, 'event_type_required');
+    return 'Qual é o tipo de evento?';
+  });
+  const quote = await turn('Cerimônia do meu casamento', async ({ tools }) => {
+    await tools.registrar_dados_evento.execute({ tipo_evento: 'Casamento' });
+    assert.ok((await tools.consultar_precos.execute({})).ok);
+    return 'Veja as opções.';
+  });
+  assert.ok(quote.effects.quoteTableText);
+  await turn('Como funciona o pagamento?', ({ instructions }) => {
+    assert.match(instructions, /Condições de pagamento ativas para esta dúvida:\n.*sete dias/s);
+    assert.doesNotMatch(instructions, /Sinal de 30%/);
+    return 'O pagamento é via Pix em duas etapas, sete dias e um dia antes do evento.';
+  });
+  await turn('u');
+  await turn('Pretendo fechar com vocês, como fazemos?', async ({ tools }) => {
+    assert.equal((await tools.preparar_fechamento.execute({ formacao: 'Duo' })).status, 'closing_details_required');
+    return 'Qual das formações você quer para a cerimônia?';
+  });
+  const closing = await turn('Trio', async ({ tools }) => {
+    await tools.registrar_dados_evento.execute({ formacao: 'Trio' });
+    assert.ok((await tools.preparar_fechamento.execute({ formacao: 'Duo', com_som: true })).ok);
+    return 'Confira.';
+  });
+  assert.match(closing.result.text, /Casa Rio de Ensaio/);
+  assert.match(closing.result.text, /Cerimônia: Trio/);
+  assert.match(closing.result.text, /Sonorização: não incluída/);
+  const final = await turn('confirmo');
+  assert.equal(final.result.intent, 'accept_offer');
+  assert.equal(conversation.simulation_closing.status, 'confirmed');
+  assert.deepEqual(final.result.toolCalls, []);
+  assert.doesNotMatch(final.result.text, /em breve|entraremos em contato|https?:/i);
+});
+
+
+test('V2 rejects a confirmation referring to a summary with superseded event details', async () => {
+  const lead = { tipo_evento: 'Casamento', local: 'Salão de Ensaio', formacao: 'Trio' };
+  const previousReply = 'Confira o resumo do Trio.';
+  const conversation = { lead_data: { ...lead, formacao: 'Duo' }, simulation_closing: {
+    status: 'awaiting_confirmation', signature: simulationClosingSignature(lead), lastReply: previousReply,
+  } };
+  const result = await runNaraV2({ ...base(), conversation,
+    input: [{ role: 'assistant', content: previousReply }, { role: 'user', content: 'confirmo' }],
+    execute: () => assert.fail('No action on stale confirmation'),
+    agentFactory: () => assert.fail('No model on stale confirmation'),
+  });
+  assert.equal(conversation.simulation_closing, null);
+  assert.notEqual(result.intent, 'accept_offer');
+  assert.match(result.text, /resumo atualizado/i);
 });

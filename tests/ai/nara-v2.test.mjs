@@ -266,8 +266,8 @@ test('V2 defers changed reception personnel and keeps the official path for the 
       ...ctx, input: [{ role: 'user', content: 'Quero fechar com essa formação para o receptivo.' }],
       execute: async (name) => { calls.push(name); return { ok: true }; },
       agentFactory: fakeAgent(async ({ tools }) => {
-        const changed = { formacao: 'Trio', recepcao_instrumentos: 'Voz, piano e cajón' };
-        for (const name of ['calcular_orcamento', 'comparar_receptivo', 'preparar_fechamento']) {
+        const changed = { formacao: 'Trio', recepcao_horas: hours, recepcao_instrumentos: 'Voz, piano e cajón' };
+        for (const name of ['calcular_orcamento', 'comparar_receptivo', 'consultar_precos', 'preparar_fechamento']) {
           assert.equal((await tools[name].execute(changed)).status, 'reception_personnel_review_required');
         }
         await tools.calcular_orcamento.execute({ formacao: 'Trio', recepcao_instrumentos: 'Voz, violino e piano' });
@@ -275,6 +275,6 @@ test('V2 defers changed reception personnel and keeps the official path for the 
       }),
     });
     assert.deepEqual(calls, ['calcular_orcamento']);
-    assert.equal(result.diagnostics.filter((entry) => entry.resultado === 'revisao_equipe_receptivo').length, 3);
+    assert.equal(result.diagnostics.filter((entry) => entry.resultado === 'revisao_equipe_receptivo').length, 4);
   }
 });

@@ -325,10 +325,9 @@ test('V2 simulated sales journey gates the quote and carries the selected Trio i
     assert.equal((await tools.consultar_precos.execute({})).status, 'event_type_required');
     return 'Qual é o tipo de evento?';
   });
-  const quote = await turn('Cerimônia do meu casamento', async ({ tools }) => {
-    await tools.registrar_dados_evento.execute({ tipo_evento: 'Casamento' });
-    assert.ok((await tools.consultar_precos.execute({})).ok);
-    return 'Veja as opções.';
+  const quote = await turn('É para a cerimônia do casamento.', ({ instructions }) => {
+    assert.match(instructions, /Evento: Casamento/);
+    return 'Ainda falta conferir os valores.';
   });
   assert.ok(quote.effects.quoteTableText);
   await turn('Como funciona o pagamento?', ({ instructions }) => {
@@ -341,10 +340,9 @@ test('V2 simulated sales journey gates the quote and carries the selected Trio i
     assert.equal((await tools.preparar_fechamento.execute({ formacao: 'Duo' })).status, 'closing_details_required');
     return 'Qual das formações você quer para a cerimônia?';
   });
-  const closing = await turn('Trio', async ({ tools }) => {
-    await tools.registrar_dados_evento.execute({ formacao: 'Trio' });
-    assert.ok((await tools.preparar_fechamento.execute({ formacao: 'Duo', com_som: true })).ok);
-    return 'Confira.';
+  const closing = await turn('Trio', ({ instructions }) => {
+    assert.match(instructions, /Formação: Trio/);
+    return 'Preferem piano ou violão?';
   });
   assert.match(closing.result.text, /Casa Rio de Ensaio/);
   assert.match(closing.result.text, /Cerimônia: Trio/);

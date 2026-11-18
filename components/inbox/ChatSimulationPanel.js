@@ -72,7 +72,11 @@ export default function ChatSimulationPanel() {
       setSimulationClosing(data.simulationClosing || null);
       setDiagnostics((old) => [...old, { message: content, ...(data.diagnostic || {}) }]);
     } catch (e) {
-      if (!controller.signal.aborted) setError(e.message || 'Falha ao conversar com a Nara. Você pode tentar novamente.');
+      if (!controller.signal.aborted) {
+        setMessages(messages);
+        setDraft(content);
+        setError(e.message || 'Falha ao conversar com a Nara. Você pode tentar novamente.');
+      }
     } finally {
       if (requestRef.current === controller) {
         requestRef.current = null;

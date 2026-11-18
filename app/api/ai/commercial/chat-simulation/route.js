@@ -44,10 +44,13 @@ export async function POST(request) {
     const conversation = { id: 'simulation', workspace_id: workspaceId,
       lead_data: body?.lead && typeof body.lead === 'object' && !Array.isArray(body.lead) ? body.lead : {},
       simulation_closing: body?.simulationClosing || null, sales_stage: 'qualifying', memory_summary: '' };
-    const local = createSimulationStore({ ...Object.fromEntries(loaded), ai_conversations: [conversation] });
+    const reference = Object.fromEntries(loaded);
+    const local = createSimulationStore({ ...reference, ai_conversations: [conversation] });
     const effects = {};
-    const commercial = await buildCommercialContext({ supabase: local, workspaceId, conversation,
-      latestText: messages.at(-1).content, settings: context.settings, customerStatus: 'lead' });
+    const loadCommercial = () => buildCommercialContext({ supabase: local, workspaceId, conversation,
+      latestText: messages.at(-1).content, settings: context.settings, customerStatus: 'lead',
+      referenceKnowledge: engine === 'v2' ? reference.ai_knowledge_items : undefined });
+    const commercial = engine === 'legacy' ? await loadCommercial() : null;
     const sandboxExecute = async (name, args) => {
       if (!(engine === 'v2' ? V2_ALLOWED.includes(name) : ALLOWED.has(name))) return { ok: false };
       const before = local.writes.length;
@@ -58,7 +61,7 @@ export async function POST(request) {
         ? { registrado: true, simulated: true } : {}) };
     };
     const result = engine === 'v2'
-      ? await runNaraV2({ input: messages, conversation, commercial, effects,
+      ? await runNaraV2({ input: messages, conversation, loadCommercial, effects,
           settings: context.settings || {}, companyName: context.companyName,
           execute: sandboxExecute, simulated: true })
       : await runCommercialTurn({

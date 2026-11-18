@@ -196,3 +196,85 @@ test('final simulated confirmation advances without model call or real contract'
   assert.equal(agentInvocations,0);
   assert.equal(ctx.conversation.simulation_closing.status,'precontract_preview');
 });
+
+test('V2 carries the form and corrected location across turns and scopes approved retrieval on the first turn', async () => {
+  const { buildCommercialContext } = await import('../../lib/ai/commercial/engine.mjs');
+  const { createSimulationStore } = await import('../../lib/ai/commercial/simulation-store.mjs');
+  const ctx = base();
+  ctx.conversation.workspace_id = 'synthetic-workspace';
+  const item = { kind: 'faq', title: 'Repertório de casamento', intents: ['repertoire'],
+    metadata: { scope: { event_types: ['Casamento'] } }, priority: 65 };
+  const knowledge = [
+    { ...item, id: 'music', status: 'active', content: 'A equipe avalia os pedidos musicais do casal.' },
+    { ...item, id: 'pending', status: 'pending_approval', content: 'Referência musical pendente.' },
+    { ...item, id: 'oversize', status: 'active', priority: 99, content: 'Repertório '.repeat(240) },
+  ];
+  const customers = [
+    FORM + '\nPodemos escolher as músicas do cortejo? Quero orçamento.',
+    'Corrigindo: o local é Salão Fictício, na Cidade de Ensaio.',
+    'Ainda não temos horário. O orçamento segue?',
+    'Achei caro, tem desconto?',
+    'Ainda quero saber se tem desconto.',
+    'E sobre o repertório, podemos sugerir músicas?',
+  ];
+  const input = [];
+  for (const [turn, content] of customers.entries()) {
+    input.push({ role: 'user', content });
+    const local = createSimulationStore({ ai_conversations: [ctx.conversation] });
+    const result = await runNaraV2({
+      ...ctx, input,
+      loadCommercial: () => buildCommercialContext({
+        supabase: local, workspaceId: ctx.conversation.workspace_id,
+        conversation: ctx.conversation, latestText: content, customerStatus: 'lead',
+        referenceKnowledge: knowledge,
+      }),
+      execute: async (name, args) => {
+        assert.equal(name, 'registrar_dados_evento');
+        const { rememberInSession } = await import('../../lib/ai/agent/conversation-turn.mjs');
+        rememberInSession(ctx.conversation, args);
+        return { ok: true };
+      },
+      agentFactory: fakeAgent(async ({ instructions, tools }) => {
+        if (turn === 0 || turn === 5) {
+          assert.match(instructions, /equipe avalia os pedidos musicais/);
+          assert.doesNotMatch(instructions, /Referência musical pendente|(?:Repertório ){40}/);
+        }
+        if (turn === 1) await tools.registrar_dados_evento.execute({ local: 'Salão Fictício', cidade: 'Cidade de Ensaio', horario: 'remover' });
+        if (turn >= 2) {
+          assert.match(instructions, /Salão Fictício/);
+          assert.doesNotMatch(instructions, /Local: Espaço Exemplo|Horário: 16:00/);
+        }
+        if (turn === 3) assert.doesNotMatch(instructions, /repetiu uma objeção/);
+        if (turn === 4) assert.match(instructions, /repetiu uma objeção/);
+        return 'Vou considerar as suas escolhas.';
+      }),
+    });
+    input.push({ role: 'assistant', content: result.text });
+  }
+  assert.equal(ctx.conversation.lead_data.formacao, 'Trio');
+  assert.equal(ctx.conversation.lead_data.cidade, 'Cidade de Ensaio');
+  assert.equal(ctx.conversation.lead_data.horario, undefined);
+});
+
+test('V2 defers changed reception personnel and keeps the official path for the same lineup', async () => {
+  for (const hours of [1, 2, 3]) {
+    const ctx = base();
+    ctx.conversation.lead_data = { formacao: 'Trio', instrumentos: 'Piano, violino e voz',
+      recepcao_formacao: 'Trio', recepcao_horas: String(hours) };
+    const calls = [];
+    const result = await runNaraV2({
+      ...ctx, input: [{ role: 'user', content: 'Quero fechar com essa formação para o receptivo.' }],
+      execute: async (name) => { calls.push(name); return { ok: true }; },
+      agentFactory: fakeAgent(async ({ tools }) => {
+        const changed = { formacao: 'Trio', recepcao_instrumentos: 'Voz, piano e cajón' };
+        for (const name of ['calcular_orcamento', 'comparar_receptivo', 'preparar_fechamento']) {
+          assert.equal((await tools[name].execute(changed)).status, 'reception_personnel_review_required');
+        }
+        await tools.calcular_orcamento.execute({ formacao: 'Trio', recepcao_instrumentos: 'Voz, violino e piano' });
+        return 'A equipe confirma a composição solicitada.';
+      }),
+    });
+    assert.deepEqual(calls, ['calcular_orcamento']);
+    assert.equal(result.diagnostics.filter((entry) => entry.resultado === 'revisao_equipe_receptivo').length, 3);
+  }
+});

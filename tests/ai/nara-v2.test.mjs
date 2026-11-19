@@ -196,3 +196,17 @@ test('final simulated confirmation advances without model call or real contract'
   assert.equal(agentInvocations,0);
   assert.equal(ctx.conversation.simulation_closing.status,'precontract_preview');
 });
+
+test('supervised Inbox drafts use V2 and omit simulated closing instructions', async () => {
+  const result = await runNaraV2({
+    ...base(), simulated: false, supervisedDraft: true, env: { NARA_V2_SUPERVISED: 'true' },
+    input: [{ role: 'user', content: 'Olá' }], execute: async () => ({ ok: true }),
+    agentFactory: fakeAgent(config => {
+      assert.match(config.instructions, /revisada pela equipe/);
+      assert.doesNotMatch(config.instructions, /No Chat de Testes/);
+      return 'Como podemos ajudar?';
+    }),
+  });
+  assert.equal(result.simulated, false);
+  assert.equal(result.engineVersion, NARA_V2_VERSION);
+});

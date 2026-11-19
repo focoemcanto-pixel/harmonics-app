@@ -220,9 +220,9 @@ export async function POST(request) {
 
     const currentPaidAmount = Number(eventRow.paid_amount || 0);
     const totalAmount = Number(eventRow.agreed_amount || 0);
-    const nextPaidAmount = currentPaidAmount + amount;
+    const nextPaidAmount = currentPaidAmount;
     const nextOpenAmount = Math.max(totalAmount - nextPaidAmount, 0);
-    const paymentStatus = nextOpenAmount <= 0 && totalAmount > 0 ? 'Pago' : 'Parcial';
+    const paymentStatus = nextOpenAmount <= 0 && totalAmount > 0 ? 'Pago' : currentPaidAmount > 0 ? 'Parcial' : 'Pendente';
 
     let proofFileUrl = null;
     if (proofFile) {
@@ -282,30 +282,6 @@ export async function POST(request) {
 
     if (paymentInsertError) throw paymentInsertError;
 
-    const paymentUpdatePayload = {
-      paid_amount: nextPaidAmount,
-      open_amount: nextOpenAmount,
-      payment_status: paymentStatus,
-    };
-    console.log('[PAYMENT_PROOF][PAYMENT_UPDATE_PAYLOAD]', {
-      eventId,
-      workspaceId,
-      payload: paymentUpdatePayload,
-    });
-
-    const { error: updateEventError } = await supabase
-      .from('events')
-      .update(paymentUpdatePayload)
-      .eq('id', eventId)
-      .eq('workspace_id', workspaceId);
-
-    if (updateEventError) throw updateEventError;
-    console.log('[PAYMENT_PROOF][PAYMENT_UPDATE_RESULT]', {
-      eventId,
-      workspaceId,
-      ok: true,
-    });
-
     const appBaseUrl = resolveAppBaseUrl(request);
     const adminPaymentsLink = appBaseUrl
       ? `${appBaseUrl}/a/pagamento/${insertedPayment.id}`
@@ -313,9 +289,9 @@ export async function POST(request) {
 
     const alertMessage = [
       `💰 Novo pagamento informado por ${eventRow.client_name || 'Cliente'}`,
-      `Valor pago: ${formatMoney(amount)}`,
+      `Valor informado: ${formatMoney(amount)}`,
       `Total do contrato: ${formatMoney(totalAmount)}`,
-      `Restante: ${formatMoney(nextOpenAmount)}`,
+      `Saldo confirmado antes da conciliação: ${formatMoney(nextOpenAmount)}`,
       `📅 Evento: ${formatDateBR(eventRow.event_date)}`,
       eventRow.location_name ? `📍 Local: ${eventRow.location_name}` : null,
       paymentMethod ? `Forma de pagamento: ${normalizeMethodLabel(paymentMethod)}` : null,

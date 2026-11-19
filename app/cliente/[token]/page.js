@@ -611,12 +611,12 @@ function buildFinancialData({ event, precontract, payments = [] }) {
   }, 0);
 
   const fallbackPaidAmount = Math.max(toMoneyNumber(event?.paid_amount), 0);
-  const paidAmount = paidFromPayments > 0 ? paidFromPayments : fallbackPaidAmount;
+  const paidAmount = normalizedPayments.length ? paidFromPayments : fallbackPaidAmount;
 
   const eventOpenAmount = toNonNegativeNumber(event?.open_amount);
   const calculatedOpenAmount = Math.max(totalAmount - paidAmount, 0);
   const openAmount =
-    totalAmount > 0 && eventOpenAmount !== null && paidFromPayments <= 0
+    totalAmount > 0 && eventOpenAmount !== null && !normalizedPayments.length
       ? Math.max(eventOpenAmount, 0)
       : calculatedOpenAmount;
 
@@ -626,7 +626,7 @@ function buildFinancialData({ event, precontract, payments = [] }) {
   }).paymentStatus;
 
   const statusSource = normalizeFinanceStatus(event?.payment_status);
-  const financialStatus = formatFinanceStatusLabel(statusSource || computedStatus);
+  const financialStatus = formatFinanceStatusLabel(normalizedPayments.length ? computedStatus : statusSource || computedStatus);
 
   const pendingFromPayments = normalizedPayments
     .filter((entry) => {

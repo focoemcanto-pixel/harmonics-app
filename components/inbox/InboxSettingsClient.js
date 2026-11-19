@@ -129,7 +129,7 @@ export default function InboxSettingsClient() {
             <strong>Coexistência real ainda não confirmada nesta sessão.</strong> Conclua o Embedded Signup do número Business e clique em “Verificar número / Coexistence”. A verificação precisa indicar “App Business: sim” e ter sido feita nas últimas 24 horas. Mantenha a IA desligada enquanto isso.
           </div>
         ) : null}
-        <p className="text-xs text-slate-600"><strong>Importante:</strong> atualmente a Nara V2 só opera no simulador. O modo automático do WhatsApp utiliza outro motor até a integração e validação da V2.</p>
+        <p className="text-xs text-slate-600"><strong>Importante:</strong> o canal comercial exige Coexistência confirmada e piloto supervisionado habilitado no servidor. Cada resposta da Nara V2 requer revisão no Inbox.</p>
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="text-sm">Phone Number ID
             <input value={channel.phone_number_id} onChange={(e) => setChannel({ ...channel, phone_number_id: e.target.value })} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" />

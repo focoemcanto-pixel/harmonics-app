@@ -3,6 +3,7 @@ import { guardWorkspaceAdmin } from '@/lib/api/route-guards';
 import { readGlobalAiFlags } from '@/lib/ai/agent/policy.mjs';
 import { encryptSecret } from '@/lib/ai/inbox/secret-box.mjs';
 import { parseSettingsInput, parseChannelInput } from '@/lib/ai/inbox/settings-input.mjs';
+import { prepareChannelIdentityUpdate, nextChannelRevision } from '@/lib/ai/inbox/channel-identity.mjs';
 
 export const dynamic = 'force-dynamic';
 
@@ -49,15 +50,6 @@ export async function PUT(request) {
   const body = await request.json().catch(() => ({}));
   const now = new Date().toISOString();
 
-  const settings = parseSettingsInput(body?.settings || {});
-  if (Object.keys(settings).length) {
-    const { error } = await guard.supabase.from('ai_workspace_settings')
-      .upsert({ workspace_id: workspaceId, ...settings, updated_by: guard.auth.userId, updated_at: now }, { onConflict: 'workspace_id' });
-    if (error) {
-      console.error('[AI][SETTINGS][ERROR]', { code: error.code });
-      return NextResponse.json({ ok: false, error: 'Falha ao salvar configurações.' }, { status: 500 });
-    }
-  }
 
   if (body?.channel) {
     const { fields, accessToken } = parseChannelInput(body.channel);
@@ -68,15 +60,29 @@ export async function PUT(request) {
         return NextResponse.json({ ok: false, error: 'Criptografia de credenciais não configurada no servidor.' }, { status: 503 });
       }
     }
-    const { data: existing } = await guard.supabase.from('ai_channels').select('id, access_token_encrypted')
+    const { data: existing, error: readError } = await guard.supabase.from('ai_channels')
+      .select('id, phone_number_id, waba_id, display_phone, access_token_encrypted, updated_at')
       .eq('workspace_id', workspaceId).eq('provider', 'meta_cloud').maybeSingle();
-    if (fields.status === 'active' && !(fields.access_token_encrypted || existing?.access_token_encrypted)) {
+    if (readError) {
+      console.error('[AI][SETTINGS][CHANNEL_READ_ERROR]', { code: readError.code });
+      return NextResponse.json({ ok: false, error: 'Não foi possível consultar o canal.' }, { status: 503 });
+    }
+    const { fields: safeFields } = prepareChannelIdentityUpdate({
+      existing, fields, tokenRotated: Boolean(accessToken),
+    });
+    if (safeFields.status === 'active' && !(safeFields.access_token_encrypted || existing?.access_token_encrypted)) {
       return NextResponse.json({ ok: false, error: 'Informe o token de acesso antes de ativar o canal.' }, { status: 400 });
     }
+    // CAS por updated_at: atualização concorrente não pode sobrescrever a
+    // identidade vigente nem revalidar um diagnóstico de outro número.
     const result = existing
-      ? await guard.supabase.from('ai_channels').update({ ...fields, updated_at: now }).eq('id', existing.id)
-      : fields.phone_number_id
-        ? await guard.supabase.from('ai_channels').insert({ workspace_id: workspaceId, ...fields })
+      ? await guard.supabase.from('ai_channels')
+        .update({ ...safeFields, updated_at: nextChannelRevision(existing.updated_at) })
+        .eq('id', existing.id).eq('workspace_id', workspaceId)
+        .eq('provider', 'meta_cloud').eq('updated_at', existing.updated_at)
+        .select('id').maybeSingle()
+      : safeFields.phone_number_id
+        ? await guard.supabase.from('ai_channels').insert({ workspace_id: workspaceId, ...safeFields })
         : { error: { code: 'missing_phone_number_id' } };
     if (result.error) {
       const duplicate = result.error.code === '23505';
@@ -84,6 +90,21 @@ export async function PUT(request) {
         ok: false,
         error: duplicate ? 'Este número já está vinculado a outro workspace.' : 'Falha ao salvar canal (Phone Number ID obrigatório).',
       }, { status: duplicate ? 409 : 400 });
+    }
+    if (existing && !result.data) {
+      return NextResponse.json({
+        ok: false, error: 'O canal foi alterado em outra sessão. Atualize a página e confira o número antes de salvar.',
+      }, { status: 409 });
+    }
+  }
+
+  const settings = parseSettingsInput(body?.settings || {});
+  if (Object.keys(settings).length) {
+    const { error } = await guard.supabase.from('ai_workspace_settings')
+      .upsert({ workspace_id: workspaceId, ...settings, updated_by: guard.auth.userId, updated_at: now }, { onConflict: 'workspace_id' });
+    if (error) {
+      console.error('[AI][SETTINGS][ERROR]', { code: error.code });
+      return NextResponse.json({ ok: false, error: 'Falha ao salvar configurações.' }, { status: 500 });
     }
   }
 

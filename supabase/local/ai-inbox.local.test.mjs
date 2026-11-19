@@ -93,7 +93,7 @@ test.before(async () => {
   await sql("delete from workspaces where id = any($1)", [[WS_A, WS_B]]);
   await sql("insert into workspaces (id, key, name, slug) values ($1, 'ws-a-test', 'Workspace A Teste', 'ws-a-test'), ($2, 'ws-b-test', 'Workspace B Teste', 'ws-b-test')", [WS_A, WS_B]);
   const token = await encryptSecret('token-sintetico-para-testes-0001', KEY);
-  await sql("insert into ai_channels (workspace_id, phone_number_id, access_token_encrypted, status) values ($1, $2, $3, 'active'), ($4, $5, $3, 'active')", [WS_A, PN_A, token, WS_B, PN_B]);
+  await sql("insert into ai_channels (workspace_id, phone_number_id, access_token_encrypted, status, display_phone) values ($1, $2, $3, 'active','15550000000'), ($4, $5, $3, 'active','15550000001')", [WS_A, PN_A, token, WS_B, PN_B]);
   await sql("insert into ai_workspace_settings (workspace_id, ai_enabled, mode) values ($1, true, 'auto'), ($2, false, 'observe')", [WS_A, WS_B]);
   await sql("insert into pricing_settings (slug, workspace_id, price_trio) values ('ws-test-a', $1, 2500)", [WS_A]);
   await sql("insert into ai_service_areas (workspace_id, name, status, match_terms, active) values ($1, 'Cidade Base Teste', 'served', '{cidade base teste}', true)", [WS_A]);
@@ -326,7 +326,6 @@ test('aprovação de rascunho: o texto revisado é enviado pela equipe', async (
   const { data } = await service.rpc('ai_enqueue_ai_reply', { p_workspace_id: WS_A, p_conversation_id: conv.id, p_expected_owner_version: conv.owner_version, p_idempotency_key: id('k'), p_content: 'sugestão', p_as_draft: true });
   const draftId = data[0].outbox_id;
   await service.rpc('ai_approve_draft', { p_workspace_id: WS_A, p_outbox_id: draftId, p_actor_user_id: null, p_content: 'sugestão revisada' });
-  await service.rpc('ai_switch_conversation_owner', { p_workspace_id: WS_A, p_conversation_id: conv.id, p_to_owner: 'human', p_reason: 'draft_approved', p_actor_user_id: null });
   const { meta, deps: d } = deps();
   await dispatchOutbox({ supabase: service, workspaceId: WS_A, deps: d });
   assert.deepEqual(meta.sent.map((s) => s.text), ['sugestão revisada']);

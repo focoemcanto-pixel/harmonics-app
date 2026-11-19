@@ -75,7 +75,7 @@ test.before(async () => {
   await sql("insert into workspaces (id, key, name, slug) values ($1, 'ws-nara-sim', 'Workspace Simulação', 'ws-nara-sim')", [WS]);
   const [tpl] = await sql("insert into contract_templates (workspace_id, name, slug, is_active, content) values ($1, 'Modelo Casamento Sim', 'casamento-sim', true, '<p>Cláusula sintética.</p>') returning id", [WS]);
   await sql("insert into event_types (workspace_id, name, slug, is_active, default_contract_template_id) values ($1, 'Casamento', 'casamento-sim', true, $2)", [WS, tpl.id]);
-  await sql("insert into ai_channels (workspace_id, phone_number_id, access_token_encrypted, status) values ($1, $2, $3, 'active')", [WS, PN, await encryptSecret('token-sintetico-simulacao-0001', KEY)]);
+  await sql("insert into ai_channels (workspace_id, phone_number_id, access_token_encrypted, status, display_phone) values ($1, $2, $3, 'active','15550000000')", [WS, PN, await encryptSecret('token-sintetico-simulacao-0001', KEY)]);
   await sql(`insert into ai_workspace_settings (workspace_id, ai_enabled, mode, autonomy_mode, assistant_name, assistant_company, handoff_contact_name, followup_enabled)
              values ($1, true, 'auto', 'supervised', $2, $3, 'Responsável Teste', false)`, [WS, ASSISTANT, COMPANY]);
   // Tabela sintética: troca de vigência em 2091-06-01; som por duração com técnico interno (margem 500).

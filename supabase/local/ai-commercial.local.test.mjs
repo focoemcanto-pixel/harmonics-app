@@ -84,7 +84,7 @@ test.before(async () => {
   await sql("insert into workspaces (id, key, name, slug) values ($1, 'ws-c-test', 'Workspace Comercial Teste', 'ws-c-test')", [WS]);
   const [tpl] = await sql("insert into contract_templates (workspace_id, name, slug, is_active, content) values ($1, 'Modelo Casamento Teste', 'casamento-c-test', true, '<p>Cláusula sintética.</p>') returning id", [WS]);
   await sql("insert into event_types (workspace_id, name, slug, is_active, default_contract_template_id) values ($1, 'Casamento', 'casamento-c-test', true, $2)", [WS, tpl.id]);
-  await sql("insert into ai_channels (workspace_id, phone_number_id, access_token_encrypted, status) values ($1, $2, $3, 'active')", [WS, PN, await encryptSecret('token-sintetico-para-testes-0002', KEY)]);
+  await sql("insert into ai_channels (workspace_id, phone_number_id, access_token_encrypted, status, display_phone) values ($1, $2, $3, 'active','15550000000')", [WS, PN, await encryptSecret('token-sintetico-para-testes-0002', KEY)]);
   await sql(`insert into ai_workspace_settings (workspace_id, ai_enabled, mode, autonomous_closing_enabled, followup_enabled, followup_days, followup_templates)
              values ($1, true, 'auto', true, true, '{2,5,10}', '{retorno_um,retorno_dois,retorno_tres}')`, [WS]);
   await sql(`insert into quote_price_rules (workspace_id, category, item_key, label, amount, valid_from) values

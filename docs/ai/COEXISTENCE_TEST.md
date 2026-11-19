@@ -43,3 +43,30 @@ rodar com aprovação explícita do responsável. A IA continua desligada durant
 Canal `Pausado` em `/inbox/configuracoes` (o Inbox para de enviar; o número segue no app). Para
 desfazer o vínculo com a Cloud API: Business Manager → WhatsApp → número → desconectar. O número
 continua no app WhatsApp Business.
+
+
+## 6. Gate adicional — piloto Nara V2 com atendimento real
+
+**Não confundir deploy do Worker com ativação da IA.** O canal de teste Meta (`+1 555…`) não é o número comercial. Uma verificação bem-sucedida da Cloud API desse número **não confirma Coexistência** do WhatsApp Business real.
+
+1. Vincular o número comercial existente via Embedded Signup com fluxo específico de Coexistência; preservar o aplicativo Business; re-vincular e testar WaSender (onboarding pode desconectar dispositivos).
+2. Consultar o número real via `POST /api/ai/channel/eligibility` no dashboard autenticado. Exigir `ok=true` e `isOnBizApp=true` para este piloto, sem confiar em toggles editáveis, e revalidar em até 24 horas da ativação.
+3. Manter canal em `observe` e IA desligada até receber **mensagem real** de um contato de teste, **eco real** de resposta pelo app Business e retorno da titularidade `human` com descarte de respostas pendentes. Testar manualmente o botão “Devolver para IA” em conversa de teste.
+4. **Nara V2 atualmente é simulador-only** (`runNaraV2(... simulated:false)` rejeita com `nara_v2_simulator_only`), enquanto o atendimento real usa `runCommercialTurn`. Antes de ativar `auto`, implementar/adaptar uma rota V2 para produção, preservando gate, dedupe, outbox, versões, limites, aprovação e testes locais. Não habilitar o motor antigo por engano.
+5. Só depois dos cenários ponta a ponta, começar por poucos contatos e limites de custo/respostas/turnos conservadores. O usuário pode assumir pelo WhatsApp Business; a Nara só recupera conversa pela ação administrativa no Inbox.
+6. Links, propostas, contratos, descontos e movimentos financeiros sensíveis seguem sob aprovação; comprovantes entram no status informado/em análise, sem gerar crédito bancário sem conciliação.
+7. Verificar com evidências operacionais que `AI_INBOX_AI_ENABLED`, kill switch, `ai_workspace_settings`, canal e geração de resposta estão consistentes. O botão “Desligar IA agora” e o status “Pausado” devem interromper o fluxo no teste de rollback.
+
+**Este roteiro não ativa o número nem o motor.** O cadastro do WhatsApp existente exige a ação autenticada de onboarding Meta e aceite no aparelho do titular; não simular Coexistência alterando o valor da coluna.
+
+## 7. Segurança ao trocar Phone Number ID, WABA ou token
+
+A PR #841 inclui um gate de identidade obrigatório no backend:
+
+- Salvar um Phone Number ID, WABA, número exibido diferente ou novo token **invalida** `last_eligibility`, define `coexistence=false`, reseta histórico de diagnóstico/webhook e força `status='paused'`. Novo canal também nasce pausado.
+- O botão "Verificar número / Coexistence" somente consulta as credenciais já **salvas**; alterações não salvas no formulário precisam ser persistidas primeiro.
+- As rotas de salvamento e diagnóstico usam atualização condicional pela revisão `updated_at` (compare-and-swap). Se uma consulta Meta começou antes de salvar outro número/token e termina depois, sua tentativa de persistir o diagnóstico antigo retorna **409**, sem escrever sobre o número novo.
+- Caso uma configuração seja alterada em outra sessão, o salvamento também retorna **409**. Recarregar o painel e repetir a verificação no número realmente conectado.
+- Cobertura de regressão: `tests/ai/channel-identity.test.mjs` (identidade, token, consultas concorrentes, troca de credenciais em voo e isolamento de workspace).
+
+Estes gates não substituem o QR/Embedded Signup nem comprovam que o número comercial foi conectado; não ativar IA até passar no roteiro real.

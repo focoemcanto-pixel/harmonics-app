@@ -300,6 +300,7 @@ test('configurações: limites saneados e token só com tamanho mínimo', () => 
   assert.equal(parseSettingsInput({ mode: 'turbo' }).mode, undefined);
   const c = parseChannelInput({ phone_number_id: ' 123-456 ', status: 'active', access_token: 'curto', workspace_id: 'x' });
   assert.deepEqual(c, { fields: { phone_number_id: '123456', status: 'active' }, accessToken: null });
+  assert.equal(parseChannelInput({ coexistence: true }).fields.coexistence, undefined, 'cliente não pode falsificar Coexistência');
 });
 
 test('filtros e busca do Inbox', () => {

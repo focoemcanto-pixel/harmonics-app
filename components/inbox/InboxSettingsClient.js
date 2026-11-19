@@ -62,6 +62,17 @@ export default function InboxSettingsClient() {
   }
 
   async function checkEligibility() {
+    // A consulta lê SEMPRE as credenciais já salvas no servidor, não o
+    // formulário local. Bloquear diagnóstico antigo enquanto houver mudanças.
+    const saved = state?.channel || {};
+    const numberDigits = (value) => String(value || '').replace(/\D/g, '');
+    if (numberDigits(channel.phone_number_id) !== numberDigits(saved.phone_number_id) ||
+        String(channel.waba_id || '').trim() !== String(saved.waba_id || '').trim() ||
+        numberDigits(channel.display_phone) !== numberDigits(saved.display_phone) ||
+        token.trim()) {
+      toast.error('Salve primeiro o número e as credenciais. A verificação deve ser feita para o canal já salvo.');
+      return;
+    }
     setChecking(true);
     const response = await fetch('/api/ai/channel/eligibility', { method: 'POST' });
     const body = await response.json().catch(() => ({}));
@@ -74,6 +85,14 @@ export default function InboxSettingsClient() {
   if (!state) return <div className="p-6 text-sm text-slate-500">Carregando…</div>;
   const g = state.global || {};
   const elig = state.channel?.last_eligibility;
+  // Números +1 555... são de TESTE Meta. Nunca confundir com o Business comercial.
+  const phoneDigits = String(channel.display_phone || '').replace(/\D/g, '');
+  const isMetaTestNumber = /^1555\d{7}$/.test(phoneDigits);
+  const coexistenceVerified = elig?.ok === true && elig?.isOnBizApp === true;
+  const checkedAtMs = Date.parse(elig?.checked_at || '');
+  const eligibilityIsRecent = Number.isFinite(checkedAtMs)
+    && Date.now() - checkedAtMs >= 0
+    && Date.now() - checkedAtMs <= 24 * 60 * 60 * 1000;
   const webhookUrl = typeof window !== 'undefined' ? `${window.location.origin}/api/webhooks/whatsapp-cloud` : '/api/webhooks/whatsapp-cloud';
 
   return (
@@ -100,7 +119,17 @@ export default function InboxSettingsClient() {
 
       <section className="space-y-3 rounded-3xl border border-slate-200 bg-white p-5">
         <h2 className="text-base font-bold text-slate-900">Canal WhatsApp Cloud API (Coexistence)</h2>
-        <p className="text-xs text-slate-500">O número continua no app WhatsApp Business. O WaSender e as automações atuais não são alterados.</p>
+        <p className="text-xs text-slate-600">Na Coexistência, o número comercial continua no app WhatsApp Business. <strong>Atenção:</strong> a conexão inicial pela Meta pode desconectar aparelhos vinculados, incluindo a sessão do WaSender. Antes de ativar, faça backup, reconecte o WaSender e teste os convites/lembretes.</p>
+        {isMetaTestNumber ? (
+          <div role="alert" className="rounded-2xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
+            <strong>Número de teste Meta identificado.</strong> Este não é o número comercial. A Nara V2 continua no Chat de Testes; não habilite respostas automáticas reais neste canal.
+          </div>
+        ) : !coexistenceVerified || !eligibilityIsRecent ? (
+          <div role="alert" className="rounded-2xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
+            <strong>Coexistência real ainda não confirmada nesta sessão.</strong> Conclua o Embedded Signup do número Business e clique em “Verificar número / Coexistence”. A verificação precisa indicar “App Business: sim” e ter sido feita nas últimas 24 horas. Mantenha a IA desligada enquanto isso.
+          </div>
+        ) : null}
+        <p className="text-xs text-slate-600"><strong>Importante:</strong> atualmente a Nara V2 só opera no simulador. O modo automático do WhatsApp utiliza outro motor até a integração e validação da V2.</p>
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="text-sm">Phone Number ID
             <input value={channel.phone_number_id} onChange={(e) => setChannel({ ...channel, phone_number_id: e.target.value })} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" />

@@ -77,15 +77,6 @@ function resolveAppBaseUrl(request) {
   return origin.replace(/\/$/, '');
 }
 
-function sanitizeExtension(value) {
-  const extension = String(value || 'bin')
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, '')
-    .slice(0, 8);
-
-  return extension || 'bin';
-}
-
 function validateProofFile(file) {
   if (!file) return;
 
@@ -134,16 +125,6 @@ export async function POST(request) {
     const proofFile = payload.proofFile instanceof File ? payload.proofFile : null;
     const proofFileName = normalizeText(proofFile?.name || payload.proofFileName);
 
-    console.log('[PAYMENT_PROOF][UPLOAD_INPUT]', {
-      hasToken: Boolean(token),
-      amount,
-      paymentDate,
-      paymentMethod,
-      proofFileName,
-      proofFileSize: proofFile?.size || 0,
-      proofFileType: proofFile?.type || null,
-    });
-
     if (!token || !amount || !paymentDate) {
       return NextResponse.json(
         { ok: false, error: 'Campos obrigatórios: token, amount, paymentDate.' },
@@ -176,20 +157,9 @@ export async function POST(request) {
     }
 
     const eventId = precontract?.event_id || contract?.event_id || null;
-    const tokenResolution = precontract?.event_id
-      ? 'precontract_token'
-      : contract?.event_id
-        ? 'contract_token'
-        : 'none';
-
     if (!eventId) {
       return NextResponse.json({ ok: false, error: 'Token inválido.' }, { status: 404 });
     }
-
-    console.log('[PAYMENT_PROOF][TOKEN_RESOLVED]', {
-      eventId,
-      tokenResolution,
-    });
 
     const { data: eventRow, error: eventError } = await supabase
       .from('events')
@@ -225,19 +195,18 @@ export async function POST(request) {
     const paymentStatus = nextOpenAmount <= 0 && totalAmount > 0 ? 'Pago' : currentPaidAmount > 0 ? 'Parcial' : 'Pendente';
 
     let proofFileUrl = null;
+    let digest = null;
     if (proofFile) {
       const bucketName = resolvePaymentProofBucketName();
-      const extension = sanitizeExtension(proofFile.name?.split('.').pop() || 'bin');
+      const arrayBuffer = await proofFile.arrayBuffer();
+      const hash = await crypto.subtle.digest('SHA-256', arrayBuffer);
+      digest = Array.from(new Uint8Array(hash), byte => byte.toString(16).padStart(2, '0')).join('');
+      const extension = { 'application/pdf': 'pdf', 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }[proofFile.type] || 'bin';
       const objectPath = buildWorkspacePaymentProofPath({
         workspaceId,
         eventId,
-        fileName: `${Date.now()}-${Math.random().toString(36).slice(2)}.${extension}`,
+        fileName: `${digest}.${extension}`,
       });
-      const arrayBuffer = await proofFile.arrayBuffer();
-
-      console.log('[PAYMENT_PROOF][UPLOAD_BUCKET]', bucketName);
-      console.log('[PAYMENT_PROOF][UPLOAD_PATH]', objectPath);
-
       const { error: uploadError } = await supabase.storage
         .from(bucketName)
         .upload(objectPath, arrayBuffer, {
@@ -245,21 +214,13 @@ export async function POST(request) {
           upsert: false,
         });
 
-      if (uploadError) throw uploadError;
+      if (uploadError && String(uploadError.statusCode) !== '409' && uploadError.error !== 'Duplicate') throw uploadError;
 
       // Segurança multi-tenant: armazenar apenas o path interno.
       // A abertura deve passar por /api/payments/[id]/proof-signed-url
       // ou /api/storage/payment-proof/preview, que validam workspace/RBAC.
       proofFileUrl = objectPath;
-      console.log('[PAYMENT_PROOF][STORED_PROOF_PATH]', proofFileUrl);
     }
-
-    console.log('[PAYMENT_PROOF][UPLOAD_RESULT]', {
-      eventId,
-      workspaceId,
-      proofFileName,
-      proofFileUrl,
-    });
 
     const noteWithAttachment = [notes, proofFileName ? `Arquivo: ${proofFileName}` : null]
       .filter(Boolean)
@@ -276,10 +237,22 @@ export async function POST(request) {
         status: 'em_analise',
         notes: noteWithAttachment || null,
         proof_file_url: proofFileUrl,
+        ...(digest ? { proof_sha256: digest } : {}),
       })
       .select('id, workspace_id, amount, payment_date, payment_method, status, notes, proof_file_url, created_at')
       .single();
 
+    if (paymentInsertError?.code === '23505' && digest) {
+      const { data: previous, error } = await supabase.from('payments')
+        .select('id, workspace_id, amount, payment_date, payment_method, status, notes, proof_file_url, created_at')
+        .eq('workspace_id', workspaceId).eq('event_id', eventId).eq('proof_sha256', digest).maybeSingle();
+      if (error || !previous) throw paymentInsertError;
+      if (Number(previous.amount) !== amount || previous.payment_date !== paymentDate || previous.payment_method !== paymentMethod) {
+        return NextResponse.json({ ok: false, error: 'Este comprovante já está associado a outro lançamento. Solicite revisão da equipe.' }, { status: 409 });
+      }
+      return NextResponse.json({ ok: true, duplicate: true, payment: previous,
+        financeiro: { valorTotal: totalAmount, valorPago: currentPaidAmount, saldo: nextOpenAmount, status: paymentStatus } });
+    }
     if (paymentInsertError) throw paymentInsertError;
 
     const appBaseUrl = resolveAppBaseUrl(request);
@@ -304,8 +277,8 @@ export async function POST(request) {
 
     try {
       await sendAdminWhatsAppAlert(alertMessage, { workspaceId });
-    } catch (whatsappError) {
-      console.error('[API CLIENTE PAGAMENTOS] Falha ao enviar alerta admin:', whatsappError);
+    } catch {
+      console.error('[API CLIENTE PAGAMENTOS] Falha ao enviar alerta admin.');
     }
 
     return NextResponse.json({
@@ -319,7 +292,7 @@ export async function POST(request) {
       },
     });
   } catch (error) {
-    console.error('[API CLIENTE PAGAMENTOS] Erro:', error);
+    console.error('[API CLIENTE PAGAMENTOS] Erro ao registrar lançamento.');
     return NextResponse.json(
       { ok: false, error: error?.message || 'Não foi possível informar o pagamento.' },
       { status: 500 }

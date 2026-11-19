@@ -11,7 +11,7 @@ const rec = { name, category: 'amenity', type: 'place_of_worship', osm_type: 'no
   display_name: `${name}, Rua das Nuvens, ${city}, Bahia`, lat: '-12.1', lon: '-37.9',
   address: { town: city, state: 'Bahia' } };
 
-function fixture({ results = [rec], distance = 51000, seconds = 1900, fail = false, areas = [], town = city, webHint = false } = {}) {
+function fixture({ results = [rec], distance = 51000, seconds = 1900, fail = false, areas = [], town = city, webHint = false, geoapify = false } = {}) {
   const rules = [
     ['ceremony', 'duo@metro', 611], ['ceremony', 'duo@ate120', 944],
     ['ceremony', 'trio@ate120', 1044], ['transport', 'standard_trip', 83], ['transport', 'sound_trip', 39],
@@ -43,6 +43,7 @@ function fixture({ results = [rec], distance = 51000, seconds = 1900, fail = fal
   const network = [];
   const env = { AI_NARA_ROAD_GEO_ENABLED: 'true', AI_NARA_NOMINATIM_URL: 'https://map.test',
     AI_NARA_OSRM_URL: 'https://route.test', AI_NARA_MAPS_REVISION: 'test-map-1' };
+  if (geoapify) env.AI_NARA_GEOAPIFY_API_KEY = 'test-provider-key';
   if (webHint) Object.assign(env, { AI_VENUE_WEB_SEARCH_ENABLED: 'true', OPENAI_API_KEY: 'test-key' });
   const services = () => createRoadGeoServices({ env, fetchImpl: async (url, options) => {
     const u = new URL(url);
@@ -56,6 +57,19 @@ function fixture({ results = [rec], distance = 51000, seconds = 1900, fail = fal
           annotations: [{ type: 'url_citation', url: source }],
           text: JSON.stringify({ status: 'found', name, city, address: rec.display_name, source_url: source }) }] },
       ] });
+    }
+    if (u.hostname === 'api.geoapify.com') {
+      assert.equal(u.searchParams.get('apiKey'), 'test-provider-key');
+      if (u.pathname === '/v1/geocode/search') {
+        assert.equal(u.searchParams.get('filter'), 'countrycode:br');
+        return Response.json({ results: [{ name, city, state_code: 'BA', country_code: 'br',
+          result_type: 'amenity', lat: -12.1, lon: -37.9, formatted: rec.display_name, place_id: 'venue-1',
+          datasource: { attribution: '© OpenStreetMap contributors' } }] });
+      }
+      assert.equal(u.pathname, '/v1/routing');
+      assert.equal(u.searchParams.get('waypoints'), '-12.9,-38.5|-12.1,-37.9');
+      assert.equal(u.searchParams.get('mode'), 'drive');
+      return Response.json({ results: [{ distance, time: seconds, distance_units: 'meters' }] });
     }
     if (u.hostname === 'map.test') {
       return Response.json(webHint && !u.searchParams.get('q').includes('Rua das Nuvens') ? [] : results);
@@ -174,4 +188,37 @@ test('sem OSRM, a pesquisa direta ainda identifica a cidade e deixa a rota pende
   assert.equal(effects.roadGeo.webSource, 'https://parish.example.test/address');
   assert.ok(f.network.includes('api.openai.com'));
   assert.ok(!f.network.includes('route.test'));
+});
+
+test('Geoapify verifica o espaço, calcula rota e reaproveita evidência com atribuição', async () => {
+  const f = fixture({ geoapify: true });
+  const first = await f.run();
+  assert.equal(first.quote.ok, true);
+  assert.equal(first.effects.roadGeo.source, 'https://www.geoapify.com/');
+  assert.equal(first.effects.roadGeo.tier, 'ate120');
+  assert.equal(first.effects.roadGeo.route.distanceKm, 51);
+  assert.deepEqual(first.effects.roadGeo.calls.map(({ provider }) => provider), ['geoapify', 'geoapify']);
+
+  const repeated = await f.run();
+  assert.equal(repeated.effects.roadGeo.cache, 'hit');
+  assert.equal(repeated.effects.roadGeo.attribution, '© OpenStreetMap contributors');
+  assert.deepEqual(repeated.effects.roadGeo.calls, []);
+  assert.equal(f.network.length, 2);
+  assert.doesNotMatch(JSON.stringify(Array.from(f.rows.values())), /test-provider-key/);
+});
+
+test('Geoapify aceita grafia municipal equivalente sem trocar município por bairro', async () => {
+  const service = createRoadGeoServices({
+    env: { AI_NARA_ROAD_GEO_ENABLED: 'true', AI_NARA_GEOAPIFY_API_KEY: 'test-provider-key' },
+    fetchImpl: async (url) => {
+      assert.equal(url.searchParams.get('type'), 'city');
+      const municipality = { city: 'Vila d’Areia', state: 'Bahia', country_code: 'br',
+        result_type: 'city', lat: -12.1, lon: -37.9, place_id: 'municipality-1' };
+      return Response.json({ results: [
+        { ...municipality, result_type: 'suburb', place_id: 'neighborhood-1' }, municipality,
+      ] });
+    },
+  });
+  const result = await service.search({ venue: 'Vila Dareia', mode: 'city' });
+  assert.equal(result.venue.sourceId, 'municipality-1');
 });

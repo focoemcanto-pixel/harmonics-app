@@ -80,7 +80,10 @@ export async function POST(request) {
         engine, intent: result.intent, toolCalls: result.toolCalls,
         results: result.diagnostics, model: result.model, costUsd: result.costUsd,
         inputTokens: result.inputTokens, outputTokens: result.outputTokens, latencyMs: Date.now() - startedAt, simulated: true,
-        geography: effects.roadGeo, webSearchStatus: effects.venueSearchStatus || 'nao_necessaria', receipts: result.receipts } },
+        geography: effects.roadGeo || (engine === 'v2' ? {
+          status: !roadGeo ? 'disabled' : !roadGeo.search || !roadGeo.provider ? 'provider_missing' : 'not_used',
+          cache: 'not_used', calls: [],
+        } : undefined), webSearchStatus: effects.venueSearchStatus || 'nao_necessaria', receipts: result.receipts } },
     { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
     console.error('[AI][CHAT_SIMULATION][ERROR]', { code: error?.message });

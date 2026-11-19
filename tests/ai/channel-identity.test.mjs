@@ -164,3 +164,17 @@ test('workspace diferente não consegue modificar o canal', async () => {
   });
   assert.equal(result.data, null);
 });
+
+test('commercial pilot checks official identity, allowed contact and diagnosis freshness', async () => {
+  const { supervisedPilotEligible } = await import('../../lib/ai/inbox/channel-identity.mjs');
+  const now = Date.UTC(2030, 0, 1);
+  const channel = { display_phone: '+1 202 555 0100', coexistence: true,
+    last_eligibility: { ok: true, isOnBizApp: true, displayPhone: '12025550100', checked_at: new Date(now).toISOString() } };
+  const env = { NARA_V2_SUPERVISED: 'true', NARA_PILOT_BUSINESS_PHONE: '12025550100', NARA_PILOT_CONTACTS: '12025550101' };
+  const args = { channel, env, now, chatId: '12025550101' };
+  assert.equal(supervisedPilotEligible(args), true);
+  assert.equal(supervisedPilotEligible({ ...args, chatId: '12025550102' }), false);
+  assert.equal(supervisedPilotEligible({ ...args, now: now + 86400000 }), false);
+  assert.equal(supervisedPilotEligible({ ...args, channel: { ...channel, display_phone: '12025550102' } }), false);
+  assert.equal(supervisedPilotEligible({ ...args, env: {} }), false);
+});

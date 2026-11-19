@@ -148,8 +148,9 @@ export default function ChatSimulationPanel() {
                   <div className="mt-2 space-y-1 text-slate-600">
                     <p>Geografia · {d.geography.status || 'pendente'} · Cache: {d.geography.cache} · Faixa: {d.geography.tier || '—'}</p>
                     {d.geography.route && <p>Rota por {d.geography.provider}: {d.geography.route.distanceKm.toFixed(1)} km · {d.geography.route.travelMinutes.toFixed(0)} min</p>}
-                    {d.geography.source && <p>Fonte do mapa: {d.geography.source} · © OpenStreetMap contributors</p>}
-                    {d.geography.webSource && <p>Fonte pública: {d.geography.webSource}</p>}
+                    {d.geography.source && <p>Fonte do mapa: <a className="underline" href={d.geography.source} target="_blank" rel="noreferrer">© OpenStreetMap contributors</a></p>}
+                    {d.geography.webSource && <p>Fonte pública: <a className="underline" href={d.geography.webSource} target="_blank" rel="noreferrer">abrir referência</a></p>}
+                    {d.geography.webSearchFeeUsd > 0 && <p>Pesquisa web: US$ {d.geography.webSearchFeeUsd.toFixed(2)} em chamadas, além dos tokens.</p>}
                     {d.geography.checkedAt && <p>Verificado em {new Date(d.geography.checkedAt).toLocaleString('pt-BR', { timeZone: 'America/Bahia' })}</p>}
                     {d.geography.calls.map((call, n) => <p key={n}>{call.provider} · {call.cached ? 'cache do provedor' : call.status} · {call.latencyMs} ms{call.usage ? ` · ${call.usage.searchCalls} buscas, ${call.usage.inputTokens ?? '—'}/${call.usage.outputTokens ?? '—'} tokens` : ''}</p>)}
                   </div>

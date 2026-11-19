@@ -11,7 +11,7 @@ const rec = { name, category: 'amenity', type: 'place_of_worship', osm_type: 'no
   display_name: `${name}, Rua das Nuvens, ${city}, Bahia`, lat: '-12.1', lon: '-37.9',
   address: { town: city, state: 'Bahia' } };
 
-function fixture({ results = [rec], distance = 51000, seconds = 1900, fail = false, areas = [], town = city } = {}) {
+function fixture({ results = [rec], distance = 51000, seconds = 1900, fail = false, areas = [], town = city, webHint = false } = {}) {
   const rules = [
     ['ceremony', 'duo@metro', 611], ['ceremony', 'duo@ate120', 944],
     ['ceremony', 'trio@ate120', 1044], ['transport', 'standard_trip', 83], ['transport', 'sound_trip', 39],
@@ -43,10 +43,23 @@ function fixture({ results = [rec], distance = 51000, seconds = 1900, fail = fal
   const network = [];
   const env = { AI_NARA_ROAD_GEO_ENABLED: 'true', AI_NARA_NOMINATIM_URL: 'https://map.test',
     AI_NARA_OSRM_URL: 'https://route.test', AI_NARA_MAPS_REVISION: 'test-map-1' };
-  const services = () => createRoadGeoServices({ env, fetchImpl: async (url) => {
+  if (webHint) Object.assign(env, { AI_VENUE_WEB_SEARCH_ENABLED: 'true', OPENAI_API_KEY: 'test-key' });
+  const services = () => createRoadGeoServices({ env, fetchImpl: async (url, options) => {
     const u = new URL(url);
     network.push(u.hostname);
-    if (u.hostname === 'map.test') return Response.json(results);
+    if (u.hostname === 'api.openai.com') {
+      assert.equal(JSON.parse(options.body).max_tool_calls, 1);
+      const source = 'https://parish.example.test/address';
+      return Response.json({ output: [
+        { type: 'web_search_call', action: { type: 'search' } },
+        { type: 'message', content: [{ type: 'output_text',
+          annotations: [{ type: 'url_citation', url: source }],
+          text: JSON.stringify({ status: 'found', name, city, address: rec.display_name, source_url: source }) }] },
+      ] });
+    }
+    if (u.hostname === 'map.test') {
+      return Response.json(webHint && !u.searchParams.get('q').includes('Rua das Nuvens') ? [] : results);
+    }
     assert.match(u.pathname, /^\/route\/v1\/driving\//);
     return fail ? new Response(null, { status: 503 }) : Response.json({
       code: 'Ok', waypoints: [{ distance: 7 }, { distance: 6 }], routes: [{ distance, duration: seconds }],
@@ -140,4 +153,13 @@ test('somente a cidade pode geocodificar o município e liberar estimativa inici
   assert.equal(quote.ok, true);
   assert.equal(effects.roadGeo.precision, 'municipality');
   assert.equal(effects.venueAddressPending, true);
+});
+
+test('pesquisa citada fica pendente sem confirmação independente no mapa', async () => {
+  const f = fixture({ results: [], webHint: true });
+  const { quote, effects } = await f.run();
+  assert.equal(quote.ok, false);
+  assert.equal(effects.roadGeo.status, 'unverified');
+  assert.deepEqual(f.network, ['map.test', 'api.openai.com', 'map.test']);
+  assert.equal(effects.roadGeo.webSearchFeeUsd, 0.01);
 });

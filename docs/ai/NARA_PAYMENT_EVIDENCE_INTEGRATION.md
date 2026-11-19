@@ -44,3 +44,33 @@ A categoria inicial `candidate` **não significa que a mídia seja comprovante**
 ## Operação nesta PR
 
 A variável `NARA_PAYMENT_EVIDENCE_CAPTURE_ENABLED` é propositalmente **ausente/desligada**. A migration proposta não deve ser aplicada diretamente em produção sem staging e backup. O código não cria mensagens de saída. O status do número e o estado de deploy não foram validados pela PR.
+
+## Regra adicional: painel do cliente e WhatsApp são a MESMA entrada
+
+Auditado em `app/api/cliente/pagamentos/route.js` e `app/cliente/[token]/page.js`:
+
+- O painel do cliente atualmente envia `multipart/form-data` a `/api/cliente/pagamentos`, salva o anexo no bucket privado `payment-proofs`, cria a linha `payments` com status `em_analise`, e a aba Financeiro mostra o histórico `payments` com arquivo e data.
+- **Nara não deve criar uma segunda tabela comercial de pagamentos.** `ai_payment_evidence` é somente fila de evidências de WhatsApp; a linha definitiva, quando validada, deve usar a mesma `payments` que o painel já lê. A chave de origem precisa vincular `ai_payment_evidence.message_id` ao `payments.id`.
+- A Nara deve comparar evento/contato vinculado, parcela, valor em centavos, data do comprovante, forma de pagamento e, quando houver, identificador da transação ou digest SHA-256. Deve consultar `payments` existentes antes de criar outro.
+- Se o pagamento do cliente já tem a mesma fonte/arquivo, **não criar outro**. Se há UM pagamento existente com evento, valor, data e forma coincidentes, mas sem arquivo, anexar ao mesmo `payments.id`. Se já existe arquivo sem verificação de igualdade, ou há mais de um pagamento compatível, sinalizar `needs_review` e não lançar automaticamente. Sem candidato correspondente e com vínculo inequívoco, inserir pagamento `em_analise` com o arquivo.
+- Documento do WhatsApp deve usar exatamente o mesmo armazenamento privado e o mesmo mecanismo de visualização com URL assinada utilizado pelo painel do cliente. Não usar token público do cliente como credencial da Nara; usar operação de servidor autorizada e restrita ao workspace.
+- O cliente verá a mesma linha com origem "Enviado por WhatsApp — registrado pela Nara", data do pagamento, valor, comprovante e estado "Pagamento informado / aguardando conciliação". Somente a confirmação financeira independente mudará para "Confirmado".
+- **Não fazer um segundo lançamento independente** em `op_finance_ledger`: a bridge financeira lê recibos reais dali, e o gatilho existente só deve recebê-los quando a confirmação estiver concluída.
+
+### Inconsistência já encontrada para corrigir antes da automação
+
+O endpoint atual `/api/cliente/pagamentos` **incrementa manualmente** `events.paid_amount` e reduz `events.open_amount` mesmo quando registra `payments.status='em_analise'`. Já `lib/finance/event-finance.js` considera como recebido somente pagamentos confirmados; a página do cliente também usa fallback para o snapshot do evento. Assim o valor exibido pode depender da rota que o atualizou.
+
+Antes do lançamento de comprovantes pela Nara, criar projeção canônica para **valor informado** (incluindo `em_analise`) e **valor confirmado** (somente baixa conciliada), consistente na tela do cliente, no dashboard e no fluxo de caixa. Revisar/testar a rota do cliente para que não marque caixa confirmado por `em_analise`. Não alterar contratos ou pagamentos históricos.
+
+### Implementado nesta extensão
+
+`lib/ai/inbox/payment-submission-plan.mjs` é uma **decisão pura sem escrita**, com os estados `already_registered`, `attach_existing`, `create_pending` e `needs_review`. A função evita cadastrar duas vezes um pagamento já reconhecido e rejeita casos ambíguos. Ainda faltam processamento de mídia, hash efetivo, execução transacional da operação na tabela `payments` e atualização da interface.
+
+### Aceite ponta a ponta futuro
+
+1. Cliente envia comprovante no painel; a Nara recebe o mesmo pelo WhatsApp e não duplica valor/anexo.
+2. Cliente apenas envia WhatsApp; Nara faz o upload privado, cria pagamento `em_analise` e ambos os painéis exibem o mesmo item/arquivo com data real.
+3. Cliente já inseriu o pagamento sem arquivo; Nara apenas anexa e preserva `payments.id`.
+4. Pagamentos múltiplos/parciais no mesmo evento, dois comprovantes com mesmo valor e mesmo dia, comprovantes reenviados e hashes repetidos.
+5. Fluxo de caixa/Plug confirma ou contesta, sem crédito bancário antecipado e sem duplicidade da ponte.

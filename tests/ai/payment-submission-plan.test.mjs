@@ -47,6 +47,7 @@ test('datas/valores divergentes e pagamentos rejeitados não são vinculados sil
   assert.equal(plan({ ...base, existingPayments: [payment({ status: 'rejeitado' })] }).reason, 'existing_payment_rejected');
   assert.equal(plan({ ...base, existingPayments: [payment({ payment_method: 'cartao' })] }).reason, 'method_mismatch');
   assert.equal(plan({ ...base, paymentDate: null, existingPayments: [] }).action, 'needs_review');
+  assert.equal(plan({ ...base, paymentDate: '2030-02-31', existingPayments: [] }).action, 'needs_review');
   assert.equal(plan({ ...base, amountCents: 0, existingPayments: [] }).action, 'needs_review');
 });
 

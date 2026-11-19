@@ -31,7 +31,7 @@ export async function GET(request) {
     return data ? reply({ ok: true, session: data }) : reply({ ok: false }, 404);
   }
   const { data, error } = await guard.supabase.from(SIMULATION_SESSIONS).select('id,revision,state,updated_at')
-    .eq('workspace_id', guard.auth.workspaceId).not('state->closing', 'is', null).order('updated_at', { ascending: false }).limit(50);
+    .eq('workspace_id', guard.auth.workspaceId).not('state->>closing', 'is', null).order('updated_at', { ascending: false }).limit(50);
   if (error) return reply({ ok: false }, 503);
   return reply({ ok: true, sessions: data.filter(row => row.state.closing).map(({ id, revision, state }) => ({
     id, revision, status: state.closing.status, summary: state.closing.text, reason: state.closing.reason,

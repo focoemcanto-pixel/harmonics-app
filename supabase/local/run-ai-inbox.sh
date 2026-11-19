@@ -14,7 +14,9 @@ for f in supabase/local/[0-9]*.sql \
   supabase/migrations/20261111120000_harmonics_ai_assistant_identity.sql \
   supabase/migrations/20261112120000_price_rules_governance.sql \
   supabase/migrations/20261113120000_harmonics_ai_vocalists.sql \
-  supabase/migrations/20261114120000_harmonics_ai_venues.sql; do
+  supabase/migrations/20261114120000_harmonics_ai_venues.sql \
+  supabase/migrations/20261119120000_nara_payment_evidence_stage.sql \
+  supabase/migrations/20261119170000_harmonics_ai_atomic_draft.sql; do
   $PSQL -d harmonics_local -f "$f"
 done
 node --import ./tests/helpers/register-alias.mjs --test-concurrency=1 --test supabase/local/ai-inbox.local.test.mjs supabase/local/ai-commercial.local.test.mjs

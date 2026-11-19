@@ -26,10 +26,6 @@ export async function POST(request, { params }) {
   if (!draft) return NextResponse.json({ ok: false, error: 'Rascunho não encontrado.' }, { status: 404 });
 
   // Aprovar = humano assume a conversa e envia o texto revisado.
-  await guard.supabase.rpc('ai_switch_conversation_owner', {
-    p_workspace_id: workspaceId, p_conversation_id: draft.conversation_id, p_to_owner: 'human',
-    p_reason: 'draft_approved', p_actor_user_id: guard.auth.userId,
-  });
   const { data, error } = await guard.supabase.rpc('ai_approve_draft', {
     p_workspace_id: workspaceId, p_outbox_id: id, p_actor_user_id: guard.auth.userId, p_content: content,
   });

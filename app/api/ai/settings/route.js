@@ -3,7 +3,7 @@ import { guardWorkspaceAdmin } from '@/lib/api/route-guards';
 import { readGlobalAiFlags } from '@/lib/ai/agent/policy.mjs';
 import { encryptSecret } from '@/lib/ai/inbox/secret-box.mjs';
 import { parseSettingsInput, parseChannelInput } from '@/lib/ai/inbox/settings-input.mjs';
-import { prepareChannelIdentityUpdate, nextChannelRevision } from '@/lib/ai/inbox/channel-identity.mjs';
+import { prepareChannelIdentityUpdate, updateChannelIfCurrent } from '@/lib/ai/inbox/channel-identity.mjs';
 
 export const dynamic = 'force-dynamic';
 
@@ -76,11 +76,9 @@ export async function PUT(request) {
     // CAS por updated_at: atualização concorrente não pode sobrescrever a
     // identidade vigente nem revalidar um diagnóstico de outro número.
     const result = existing
-      ? await guard.supabase.from('ai_channels')
-        .update({ ...safeFields, updated_at: nextChannelRevision(existing.updated_at) })
-        .eq('id', existing.id).eq('workspace_id', workspaceId)
-        .eq('provider', 'meta_cloud').eq('updated_at', existing.updated_at)
-        .select('id').maybeSingle()
+      ? await updateChannelIfCurrent({
+        supabase: guard.supabase, workspaceId, channel: existing, changes: safeFields,
+      })
       : safeFields.phone_number_id
         ? await guard.supabase.from('ai_channels').insert({ workspace_id: workspaceId, ...safeFields })
         : { error: { code: 'missing_phone_number_id' } };

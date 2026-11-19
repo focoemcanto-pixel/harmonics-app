@@ -93,7 +93,7 @@ test.before(async () => {
   await sql("delete from workspaces where id = any($1)", [[WS_A, WS_B]]);
   await sql("insert into workspaces (id, key, name, slug) values ($1, 'ws-a-test', 'Workspace A Teste', 'ws-a-test'), ($2, 'ws-b-test', 'Workspace B Teste', 'ws-b-test')", [WS_A, WS_B]);
   const token = await encryptSecret('token-sintetico-para-testes-0001', KEY);
-  await sql("insert into ai_channels (workspace_id, phone_number_id, access_token_encrypted, status) values ($1, $2, $3, 'active'), ($4, $5, $3, 'active')", [WS_A, PN_A, token, WS_B, PN_B]);
+  await sql("insert into ai_channels (workspace_id, phone_number_id, access_token_encrypted, status, display_phone) values ($1, $2, $3, 'active','15550000000'), ($4, $5, $3, 'active','15550000001')", [WS_A, PN_A, token, WS_B, PN_B]);
   await sql("insert into ai_workspace_settings (workspace_id, ai_enabled, mode) values ($1, true, 'auto'), ($2, false, 'observe')", [WS_A, WS_B]);
   await sql("insert into pricing_settings (slug, workspace_id, price_trio) values ('ws-test-a', $1, 2500)", [WS_A]);
   await sql("insert into ai_service_areas (workspace_id, name, status, match_terms, active) values ($1, 'Cidade Base Teste', 'served', '{cidade base teste}', true)", [WS_A]);
@@ -326,7 +326,6 @@ test('aprovação de rascunho: o texto revisado é enviado pela equipe', async (
   const { data } = await service.rpc('ai_enqueue_ai_reply', { p_workspace_id: WS_A, p_conversation_id: conv.id, p_expected_owner_version: conv.owner_version, p_idempotency_key: id('k'), p_content: 'sugestão', p_as_draft: true });
   const draftId = data[0].outbox_id;
   await service.rpc('ai_approve_draft', { p_workspace_id: WS_A, p_outbox_id: draftId, p_actor_user_id: null, p_content: 'sugestão revisada' });
-  await service.rpc('ai_switch_conversation_owner', { p_workspace_id: WS_A, p_conversation_id: conv.id, p_to_owner: 'human', p_reason: 'draft_approved', p_actor_user_id: null });
   const { meta, deps: d } = deps();
   await dispatchOutbox({ supabase: service, workspaceId: WS_A, deps: d });
   assert.deepEqual(meta.sent.map((s) => s.text), ['sugestão revisada']);
@@ -417,3 +416,33 @@ test('reenvio da Meta após falha no meio do lote reprocessa sem duplicar', asyn
   assert.equal(again.duplicate, true);
 });
 
+
+test('reviewed commercial drafts recheck emergency stop before transport', async () => {
+  const business = '12025550130';
+  const chat = '12025550131';
+  const diagnosis = { ok:true, isOnBizApp:true, displayPhone:business, checked_at:new Date().toISOString() };
+  const pilot = { ...ENV, NARA_V2_SUPERVISED:'true', NARA_PILOT_BUSINESS_PHONE:business, NARA_PILOT_CONTACTS:chat };
+  await sql("update ai_channels set display_phone=$2,coexistence=true,last_eligibility=$3 where workspace_id=$1", [WS_A,business,diagnosis]);
+  await sql("update ai_workspace_settings set mode='draft',ai_enabled=true where workspace_id=$1", [WS_A]);
+  try {
+    await deliver(customerMsg('Teste sintético de revisão', { chat }));
+    const conv = await conversationOf(chat);
+    for (const stop of [true,false]) {
+      await service.rpc('ai_switch_conversation_owner', {p_workspace_id:WS_A,p_conversation_id:conv.id,p_to_owner:'ai',p_reason:'dashboard',p_actor_user_id:null});
+      const current = await conversationOf(chat);
+      const draft = await service.rpc('ai_enqueue_ai_reply',{p_workspace_id:WS_A,p_conversation_id:conv.id,
+        p_expected_owner_version:current.owner_version,p_idempotency_key:'ai:'+id('draft'),p_content:'Resposta sintética',p_as_draft:true});
+      const outboxId = draft.data[0].outbox_id;
+      const approval = await service.rpc('ai_approve_draft',{p_workspace_id:WS_A,p_outbox_id:outboxId,
+        p_actor_user_id:'00000000-0000-4000-8000-0000000000aa',p_content:null});
+      assert.equal(approval.data[0].outbox_id,outboxId);
+      const d=deps({env:{...pilot,AI_INBOX_KILL_SWITCH:String(stop)}});
+      const outcomes=await dispatchOutbox({supabase:service,workspaceId:WS_A,deps:d.deps});
+      assert.equal(outcomes.find(row=>row.id===outboxId)?.status,stop?'failed':'sent');
+      assert.equal(d.meta.sent.length,stop?0:1);
+    }
+  } finally {
+    await sql("update ai_channels set display_phone='15550000000',coexistence=false,last_eligibility=null where workspace_id=$1",[WS_A]);
+    await sql("update ai_workspace_settings set mode='auto' where workspace_id=$1",[WS_A]);
+  }
+});

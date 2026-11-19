@@ -197,6 +197,20 @@ test('final simulated confirmation advances without model call or real contract'
   assert.equal(ctx.conversation.simulation_closing.status,'precontract_preview');
 });
 
+test('supervised Inbox drafts use V2 and omit simulated closing instructions', async () => {
+  const result = await runNaraV2({
+    ...base(), simulated: false, supervisedDraft: true, env: { NARA_V2_SUPERVISED: 'true' },
+    input: [{ role: 'user', content: 'Olá' }], execute: async () => ({ ok: true }),
+    agentFactory: fakeAgent(config => {
+      assert.match(config.instructions, /revisada pela equipe/);
+      assert.doesNotMatch(config.instructions, /No Chat de Testes/);
+      return 'Como podemos ajudar?';
+    }),
+  });
+  assert.equal(result.simulated, false);
+  assert.equal(result.engineVersion, NARA_V2_VERSION);
+});
+
 test('V2 carries the form and corrected location across turns and scopes approved retrieval on the first turn', async () => {
   const { buildCommercialContext } = await import('../../lib/ai/commercial/engine.mjs');
   const { createSimulationStore } = await import('../../lib/ai/commercial/simulation-store.mjs');
@@ -462,3 +476,4 @@ test('precontract review renders the configured template read-only with pending 
   assert.notEqual((await buildSimulationDocument({ supabase, workspaceId, closing })).hash, document.hash);
   assert.equal(await buildSimulationDocument({ supabase, workspaceId: 'different-workspace', closing }), null);
 });
+

@@ -128,7 +128,7 @@ export default function ChatSimulationPanel() {
           <textarea className="min-h-[44px] max-h-36 flex-1 resize-y rounded-xl border border-slate-200 px-3 py-2 text-sm" rows={2} placeholder="Escreva como um cliente no WhatsApp..." value={draft} maxLength={1200} disabled={pending || messages.length >= 38} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }} />
           <button type="submit" disabled={pending || !draft.trim() || messages.length >= 38} className="rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white disabled:opacity-40">Enviar</button>
         </form>
-        <p className="text-[11px] text-slate-500">Teste isolado: sem clientes reais, contratos, pagamentos, pendências ou gravação de aprendizado. O modelo de IA pode gerar consumo mínimo de tokens. Pesquisa pública gratuita de espaços conectada. Encaminhamentos são simulados.</p>
+        <p className="text-[11px] text-slate-500">Teste isolado: sem clientes reais, contratos ou pagamentos. A pesquisa de locais e o modelo dependem dos provedores configurados. A memória geográfica de teste fica separada. Encaminhamentos são simulados.</p>
         {messages.length >= 38 && <p className="text-xs text-amber-700">Limite de mensagens alcançado. Reinicie para testar outro cenário.</p>}
       </div>
       <details className="border-t border-slate-100 px-4 py-3 text-sm">
@@ -144,6 +144,16 @@ export default function ChatSimulationPanel() {
                 {d.intent && <p className="text-slate-600">Intenção: {d.intent}</p>}
                 {(d.results || []).map((r, n) => <p key={n} className="text-slate-600">{r.ferramenta}: {r.resultado}{r.detalhe ? ` · ${r.detalhe}` : ''}</p>)}
                 <p className="mt-1 text-slate-500">Modelo: {d.model || '—'} · Motor: {d.engineVersion || '—'} · Custo: US$ {Number(d.costUsd || 0).toFixed(5)} · Simulação sem efeitos comerciais</p>
+                {d.geography && (
+                  <div className="mt-2 space-y-1 text-slate-600">
+                    <p>Geografia · {d.geography.status || 'pendente'} · Cache: {d.geography.cache} · Faixa: {d.geography.tier || '—'}</p>
+                    {d.geography.route && <p>Rota por {d.geography.provider}: {d.geography.route.distanceKm.toFixed(1)} km · {d.geography.route.travelMinutes.toFixed(0)} min</p>}
+                    {d.geography.source && <p>Fonte do mapa: {d.geography.source} · © OpenStreetMap contributors</p>}
+                    {d.geography.webSource && <p>Fonte pública: {d.geography.webSource}</p>}
+                    {d.geography.checkedAt && <p>Verificado em {new Date(d.geography.checkedAt).toLocaleString('pt-BR', { timeZone: 'America/Bahia' })}</p>}
+                    {d.geography.calls.map((call, n) => <p key={n}>{call.provider} · {call.cached ? 'cache do provedor' : call.status} · {call.latencyMs} ms{call.usage ? ` · ${call.usage.searchCalls} buscas, ${call.usage.inputTokens ?? '—'}/${call.usage.outputTokens ?? '—'} tokens` : ''}</p>)}
+                  </div>
+                )}
                 {d.webSearchStatus && d.webSearchStatus !== 'nao_necessaria' && (
                   <p className="mt-1 text-slate-600">Busca online do espaço: {d.webSearchStatus === 'found' ? 'localizado' : d.webSearchStatus === 'not_found' ? 'não localizado' : d.webSearchStatus === 'ambiguous' ? 'mais de um resultado' : 'indisponível'} · {d.webAttribution || '© OpenStreetMap contributors'}</p>
                 )}

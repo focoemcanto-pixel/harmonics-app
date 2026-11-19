@@ -6,6 +6,8 @@ import { runCommercialTurn, rememberInSession, NARA_ENGINE_VERSION } from '@/lib
 import { createSimulationStore } from '@/lib/ai/commercial/simulation-store.mjs';
 import { loadWorkspaceAiContext } from '@/lib/ai/inbox/service.mjs';
 import { buildCommercialContext } from '@/lib/ai/commercial/engine.mjs';
+import { createRoadGeoServices } from '@/lib/ai/commercial/road-location.mjs';
+import { createRouteFn } from '@/lib/logistics/google-distance.mjs';
 import { lookupVenueOnline } from '@/lib/ai/commercial/venue-online.mjs';
 import { runNaraV2, NARA_V2_VERSION, V2_ALLOWED } from '@/lib/ai/agent/v2.mjs';
 
@@ -47,6 +49,8 @@ export async function POST(request) {
     const reference = Object.fromEntries(loaded);
     const local = createSimulationStore({ ...reference, ai_conversations: [conversation] });
     const effects = {};
+    const roadGeo = engine === 'v2' ? createRoadGeoServices() : null;
+    const routeFn = roadGeo ? createRouteFn() : null;
     const loadCommercial = () => buildCommercialContext({ supabase: local, workspaceId, conversation,
       latestText: messages.at(-1).content, settings: context.settings, customerStatus: 'lead',
       referenceKnowledge: engine === 'v2' ? reference.ai_knowledge_items : undefined });
@@ -55,7 +59,8 @@ export async function POST(request) {
       if (!(engine === 'v2' ? V2_ALLOWED.includes(name) : ALLOWED.has(name))) return { ok: false };
       const before = local.writes.length;
       const raw = await executeTool(name, args, { supabase: local, workspaceId, conversation, effects,
-        settings: context.settings || {}, simulated: true, ownerVersion: 0, venueSearchFn: process.env.CI
+        settings: context.settings || {}, simulated: true, ownerVersion: 0,
+        roadGeo, routeFn, geoSupabase: guard.supabase, venueWebSearchFn: roadGeo?.webSearch, venueSearchFn: process.env.CI
           ? async () => ({ status: 'unavailable' }) : lookupVenueOnline });
       return { ...raw, ...(raw?.registrado || (raw?.ok && ['preparar_fechamento'].includes(name) && local.writes.length > before)
         ? { registrado: true, simulated: true } : {}) };
@@ -77,7 +82,7 @@ export async function POST(request) {
         engine, intent: result.intent, toolCalls: result.toolCalls,
         results: result.diagnostics, model: result.model, costUsd: result.costUsd,
         inputTokens: result.inputTokens, outputTokens: result.outputTokens, latencyMs: Date.now() - startedAt, simulated: true,
-        webSearchStatus: effects.venueSearchStatus || 'nao_necessaria', receipts: result.receipts } },
+        geography: effects.roadGeo, webSearchStatus: effects.venueSearchStatus || 'nao_necessaria', receipts: result.receipts } },
     { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
     console.error('[AI][CHAT_SIMULATION][ERROR]', { code: error?.message });

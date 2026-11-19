@@ -24,6 +24,17 @@ export async function POST(request) {
   }
   const status = await fetchPhoneNumberStatus({ phoneNumberId: channel.phone_number_id, token });
   const checkedAt = new Date().toISOString();
-  await guard.supabase.from('ai_channels').update({ last_eligibility: { ...status, checked_at: checkedAt } }).eq('id', channel.id);
+  const update = {
+    last_eligibility: { ...status, checked_at: checkedAt },
+    // O banco deve refletir somente o sinal oficial da Meta, jamais um checkbox
+    // arbitrário vindo do cliente. Falhas não promovem o número a Coexistência.
+    coexistence: status.ok === true && status.isOnBizApp === true,
+  };
+  const { error: updateError } = await guard.supabase.from('ai_channels')
+    .update(update).eq('id', channel.id).eq('workspace_id', workspaceId);
+  if (updateError) {
+    console.error('[AI][ELIGIBILITY][STORE_ERROR]', { code: updateError.code });
+    return NextResponse.json({ ok: false, error: 'Falha ao registrar diagnóstico na configuração do canal.' }, { status: 503 });
+  }
   return NextResponse.json({ ok: status.ok, eligibility: { ...status, checked_at: checkedAt } });
 }

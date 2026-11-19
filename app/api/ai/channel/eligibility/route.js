@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { guardWorkspaceAdmin } from '@/lib/api/route-guards';
 import { decryptSecret } from '@/lib/ai/inbox/secret-box.mjs';
 import { fetchPhoneNumberStatus } from '@/lib/ai/inbox/meta-client.mjs';
-import { nextChannelRevision } from '@/lib/ai/inbox/channel-identity.mjs';
+import { updateChannelIfCurrent } from '@/lib/ai/inbox/channel-identity.mjs';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,14 +35,10 @@ export async function POST(request) {
     // O diagnóstico pertence à identidade consultada. Consultas concorrentes
     // ou com token/Phone Number ID já trocado não podem revalidar o canal.
     coexistence: status.ok === true && status.isOnBizApp === true,
-    updated_at: nextChannelRevision(channel.updated_at),
   };
-  const { data: saved, error: updateError } = await guard.supabase.from('ai_channels')
-    .update(update)
-    .eq('id', channel.id).eq('workspace_id', workspaceId).eq('provider', 'meta_cloud')
-    .eq('phone_number_id', channel.phone_number_id)
-    .eq('updated_at', channel.updated_at)
-    .select('id').maybeSingle();
+  const { data: saved, error: updateError } = await updateChannelIfCurrent({
+    supabase: guard.supabase, workspaceId, channel, changes: update, matchPhone: true,
+  });
   if (updateError) {
     console.error('[AI][ELIGIBILITY][STORE_ERROR]', { code: updateError.code });
     return NextResponse.json({ ok: false, error: 'Falha ao registrar diagnóstico na configuração do canal.' }, { status: 503 });

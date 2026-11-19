@@ -373,3 +373,33 @@ test('V2 rejects a confirmation referring to a summary with superseded event det
   assert.notEqual(result.intent, 'accept_offer');
   assert.match(result.text, /resumo atualizado/i);
 });
+
+test('supervised simulator releases one link only after approval and enforces the exact 15-day boundary', async () => {
+  const { requestSimulationReview, decideSimulationReview, simulationLinkStatus, SIMULATION_VALIDITY_MS } =
+    await import('../../lib/ai/commercial/simulation-supervision.mjs');
+  const { simulationClosingSignature } = await import('../../lib/ai/commercial/closing.mjs');
+  const lead = { formacao: 'Duo', som: 'não', recepcao_horas: '0' };
+  const draft = { status: 'awaiting_confirmation', lastReply: 'Confira e diga CONFIRMO',
+    signature: simulationClosingSignature(lead), summary: { total: 1700 } };
+  assert.equal(requestSimulationReview(draft, lead, draft.lastReply, 'pode gerar'), null);
+  assert.equal(requestSimulationReview(draft, { ...lead, som: 'sim' }, draft.lastReply, 'CONFIRMO'), null);
+  const closing = requestSimulationReview(draft, lead, draft.lastReply, 'CONFIRMO');
+  const state = { id: crypto.randomUUID(), lead, messages: [], closing };
+  assert.equal(simulationLinkStatus(closing, 'fake'), 404);
+  const now = new Date('2027-01-01T00:00:00Z');
+  const approved = decideSimulationReview(state, { action: 'approve', actor: 'admin', now });
+  assert.equal(approved.messages.length, 1);
+  assert.ok(approved.messages[0].link.includes(state.id));
+  assert.equal(decideSimulationReview(approved, { action: 'approve', actor: 'admin', now }), null);
+  assert.equal(simulationLinkStatus(approved.closing, approved.closing.token, new Date(+now + SIMULATION_VALIDITY_MS - 1)), 200);
+  assert.equal(simulationLinkStatus(approved.closing, approved.closing.token, new Date(+now + SIMULATION_VALIDITY_MS)), 410);
+  const expired = decideSimulationReview(approved, { action: 'expire', now });
+  assert.equal(simulationLinkStatus(expired.closing, approved.closing.token, now), 410);
+  for (const action of ['adjust', 'reject']) {
+    assert.equal(decideSimulationReview(state, { action, actor: 'admin', now }), null);
+    const decided = decideSimulationReview(state, { action, actor: 'admin', reason: 'Revise a formação', now });
+    assert.equal(decided.closing.status, action === 'adjust' ? 'changes_requested' : 'rejected');
+    assert.equal(decided.messages[0].link, undefined);
+    assert.equal(decideSimulationReview(decided, { action: 'approve', actor: 'admin', now }), null);
+  }
+});

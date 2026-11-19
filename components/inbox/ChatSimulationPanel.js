@@ -11,6 +11,9 @@ export default function ChatSimulationPanel() {
     if (new URLSearchParams(window.location.search).get('engine') === 'v2') setEngine('v2');
   }, []);
   const [simulationClosing, setSimulationClosing] = useState(null);
+  const [sessionId, setSessionId] = useState(null);
+  const [review, setReview] = useState(null);
+  const sessionRef = useRef({ id: null, revision: 0 });
   const [lead, setLead] = useState({});
   const [draft, setDraft] = useState('');
   const [pending, setPending] = useState(false);
@@ -18,6 +21,38 @@ export default function ChatSimulationPanel() {
   const [diagnostics, setDiagnostics] = useState([]);
   const endRef = useRef(null);
   const requestRef = useRef(null);
+
+  function applySession(session) {
+    const current = sessionRef.current;
+    if (current.id !== session.id || session.revision <= current.revision) return;
+    sessionRef.current = { id: session.id, revision: session.revision };
+    setMessages(session.state.messages);
+    setLead(session.state.lead);
+    setReview(session.state.closing);
+  }
+
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('simulation');
+    if (id) {
+      sessionRef.current = { id, revision: 0 };
+      setSessionId(id);
+    }
+  }, []);
+  useEffect(() => {
+    if (!sessionId || engine !== 'v2') return;
+    let active = true;
+    const refresh = async () => {
+      if (requestRef.current) return;
+      const response = await fetch('/api/ai/commercial/simulation-supervision?id=' + encodeURIComponent(sessionId), { cache: 'no-store' }).catch(() => null);
+      if (response?.ok && active && !requestRef.current) {
+        const data = await response.json();
+        if (data.session) applySession(data.session);
+      }
+    };
+    refresh();
+    const timer = setInterval(refresh, 2000);
+    return () => { active = false; clearInterval(timer); };
+  }, [sessionId, engine]);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, [messages, pending]);
 
   function restart() {
@@ -26,6 +61,12 @@ export default function ChatSimulationPanel() {
     setMessages([]);
     setLead({});
     setSimulationClosing(null);
+    sessionRef.current = { id: null, revision: 0 };
+    setSessionId(null);
+    setReview(null);
+    const url = new URL(window.location.href);
+    url.searchParams.delete('simulation');
+    window.history.replaceState(null, '', url.pathname + url.search + url.hash);
     setDiagnostics([]);
     setDraft('');
     setPending(false);
@@ -53,11 +94,15 @@ export default function ChatSimulationPanel() {
     setPending(true);
     const controller = new AbortController();
     requestRef.current = controller;
+    if (engine === 'v2' && !sessionRef.current.id) {
+      sessionRef.current = { id: crypto.randomUUID(), revision: 0 };
+      setSessionId(sessionRef.current.id);
+    }
     try {
       const response = await fetch('/api/ai/commercial/chat-simulation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: next, lead, simulationClosing, engine }),
+        body: JSON.stringify({ messages: next, lead, simulationClosing, engine, sessionId: sessionRef.current.id, revision: sessionRef.current.revision }),
         cache: 'no-store',
         signal: controller.signal,
       });
@@ -67,8 +112,15 @@ export default function ChatSimulationPanel() {
         throw new Error(data.error || 'Falha na simulação.');
       }
       if (controller.signal.aborted) return;
-      setMessages((old) => [...old, { role: 'assistant', content: data.reply }]);
-      setLead(data.lead || {});
+      if (data.session) {
+        applySession(data.session);
+        const url = new URL(window.location.href);
+        url.searchParams.set('simulation', data.session.id);
+        window.history.replaceState(null, '', url.pathname + url.search + url.hash);
+      } else {
+        setMessages((old) => [...old, { role: 'assistant', content: data.reply }]);
+        setLead(data.lead || {});
+      }
       setSimulationClosing(data.simulationClosing || null);
       setDiagnostics((old) => [...old, { message: content, ...(data.diagnostic || {}) }]);
     } catch (e) {
@@ -116,6 +168,7 @@ export default function ChatSimulationPanel() {
             <div className={`max-w-[88%] whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm shadow-sm sm:max-w-[77%] ${m.role === 'user' ? 'bg-slate-900 text-white' : 'border border-slate-200 bg-white text-slate-800'}`}>
               <div className={`mb-1 text-[10px] font-bold uppercase tracking-wide ${m.role === 'user' ? 'text-slate-300' : 'text-violet-700'}`}>{m.role === 'user' ? 'Cliente (simulado)' : 'Nara'}</div>
               {m.content}
+              {m.link && <a className="mt-2 block font-semibold underline" href={m.link} target="_blank" rel="noreferrer">Abrir link fictício de pré-contrato</a>}
             </div>
           </div>
         ))}
@@ -123,6 +176,12 @@ export default function ChatSimulationPanel() {
         <div ref={endRef} />
       </div>
       <div className="space-y-2 border-t border-slate-100 p-4">
+        {review?.status === 'awaiting_approval' && (
+          <div className="flex flex-wrap items-center gap-3 rounded-lg bg-amber-50 p-2 text-xs text-amber-900">
+            <strong>Aguardando aprovação</strong>
+            <a className="underline" href={`?tab=center&simulation=${sessionId}`} target="_blank" rel="noreferrer">Abrir fila no dashboard de IA</a>
+          </div>
+        )}
         {error && <div role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{error} <span className="font-semibold">Se a mensagem já estiver no histórico, reinicie para repetir.</span></div>}
         <form onSubmit={send} className="flex items-end gap-2">
           <textarea className="min-h-[44px] max-h-36 flex-1 resize-y rounded-xl border border-slate-200 px-3 py-2 text-sm" rows={2} placeholder="Escreva como um cliente no WhatsApp..." value={draft} maxLength={1200} disabled={pending || messages.length >= 38} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }} />

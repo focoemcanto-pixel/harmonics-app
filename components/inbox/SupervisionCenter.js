@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import NaraApprovals from './NaraApprovals';
 import { HANDOFF_REASON_LABELS } from '@/lib/ai/agent/policy.mjs';
 
 const KIND_LABELS = {
@@ -99,65 +100,7 @@ function AutonomyCard({ toast }) {
   );
 }
 
-const SIMULATION_API = '/api/ai/commercial/simulation-supervision';
-const SIMULATION_STATUS = {
-  awaiting_approval: 'Aguardando aprovação', approved: 'Aprovado', changes_requested: 'Ajustes solicitados',
-  rejected: 'Recusado', superseded: 'Substituído',
-};
-
-function SimulationApprovals() {
-  const [rows, setRows] = useState(null);
-  const [reasons, setReasons] = useState({});
-  const [busy, setBusy] = useState(null);
-  const [error, setError] = useState('');
-  const [selected, setSelected] = useState(null);
-  useEffect(() => { setSelected(new URLSearchParams(window.location.search).get('simulation')); }, []);
-  const reload = useCallback(async () => {
-    const { ok, body } = await api(SIMULATION_API).catch(() => ({}));
-    if (ok) setRows(body.sessions || []);
-  }, []);
-  useEffect(() => { reload(); const timer = setInterval(reload, 5000); return () => clearInterval(timer); }, [reload]);
-  async function decide(row, action) {
-    setBusy(row.id);
-    setError('');
-    try {
-      const { ok, body } = await api(SIMULATION_API, { method: 'POST', body: JSON.stringify({
-        id: row.id, revision: row.revision, action, reason: reasons[row.id],
-      }) });
-      if (!ok) setError(body.error || 'Não foi possível aplicar a decisão.');
-      await reload();
-    } catch { setError('Não foi possível aplicar a decisão.'); }
-    finally { setBusy(null); }
-  }
-  if (!rows) return null;
-  const visible = selected ? rows.filter(row => row.id === selected) : rows;
-  return (
-    <Section title="Fechamentos de teste" count={visible.length}>
-      {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
-      {visible.map(row => (
-        <article key={row.id} className="space-y-2 rounded-xl border border-slate-200 p-3 text-sm">
-          <strong>{SIMULATION_STATUS[row.status]}</strong>
-          <Link className="ml-3 underline" href={`?tab=chat&engine=v2&simulation=${row.id}`}>Abrir conversa de teste</Link>
-          <pre className="whitespace-pre-wrap text-xs">{row.summary}</pre>
-          {row.reason && <p>{row.reason}</p>}
-          {row.status === 'awaiting_approval' && (
-            <div className="flex flex-wrap gap-2">
-              <input aria-label="Motivo do ajuste ou recusa" maxLength={300} value={reasons[row.id] || ''} onChange={e => setReasons(old => ({ ...old, [row.id]: e.target.value }))} className="rounded border px-2" />
-              <button disabled={Boolean(busy)} onClick={() => decide(row, 'approve')} className={BTN + ' bg-emerald-700 text-white'}>Aprovar</button>
-              <button disabled={Boolean(busy) || !reasons[row.id]?.trim()} onClick={() => decide(row, 'adjust')} className={BTN + ' bg-amber-100'}>Solicitar ajustes</button>
-              <button disabled={Boolean(busy) || !reasons[row.id]?.trim()} onClick={() => decide(row, 'reject')} className={BTN + ' bg-red-100'}>Recusar</button>
-            </div>
-          )}
-          {row.status === 'approved' && <p>Validade do link de teste até {new Date(row.expiresAt).toLocaleString('pt-BR')}.
-            {row.testExpiredAt ? ' Expiração simulada aplicada.' : <button disabled={Boolean(busy)} onClick={() => decide(row, 'expire')} className={BTN + ' ml-2 bg-slate-100'}>Simular expiração</button>}
-          </p>}
-        </article>
-      ))}
-    </Section>
-  );
-}
-
-export default function SupervisionCenter({ toast }) {
+export function OperationalSupervision({ toast }) {
   const [q, setQ] = useState(null);
   const load = useCallback(async () => { const { ok, body } = await api('/api/ai/commercial/queues'); if (ok) setQ(body); }, []);
   useEffect(() => { const t = setTimeout(load, 0); const i = setInterval(load, 15000); return () => { clearTimeout(t); clearInterval(i); }; }, [load]);
@@ -178,7 +121,6 @@ export default function SupervisionCenter({ toast }) {
   if (!q) return <p className="text-sm text-slate-500">Carregando…</p>;
   return (
     <div className="space-y-4">
-      <SimulationApprovals />
       <AutonomyCard toast={toast} />
       <Section title={`Precisa de ${q.handoff_name || 'atenção humana'}`} count={q.marcos.length}>
         {q.marcos.map((c) => (
@@ -213,6 +155,15 @@ export default function SupervisionCenter({ toast }) {
       <Section title="Aprendizado e aprovações de conteúdo" count={q.learning.suggestions + q.learning.knowledge + q.learning.pricing}>
         <p className="text-sm text-slate-700">{q.learning.suggestions} sugestão(ões) de aprendizado · {q.learning.knowledge} conhecimento(s) pendente(s) · {q.learning.pricing} proposta(s) de tabela.</p>
       </Section>
+    </div>
+  );
+}
+
+export default function SupervisionCenter({ toast, simulationOnly }) {
+  return (
+    <div className="space-y-4">
+      <NaraApprovals simulationOnly={simulationOnly} />
+      {!simulationOnly && <OperationalSupervision toast={toast} />}
     </div>
   );
 }

@@ -403,3 +403,62 @@ test('supervised simulator releases one link only after approval and enforces th
     assert.equal(decideSimulationReview(decided, { action: 'approve', actor: 'admin', now }), null);
   }
 });
+
+test('supervised review keeps confirmations, reasons and proposals in a single conversation across versions', async () => {
+  const { requestSimulationReview, decideSimulationReview, updateSimulationProposal, simulationLinkStatus } =
+    await import('../../lib/ai/commercial/simulation-supervision.mjs');
+  const now = new Date('2027-03-06T12:00:00Z');
+  const lead = { nome: 'Cliente Sintético', formacao: 'Trio', horario: '15:00' };
+  const buildDraft = (facts, total) => ({ status: 'awaiting_confirmation', lastReply: 'Confira e diga CONFIRMO',
+    signature: simulationClosingSignature(facts), summary: { total } });
+  const draft = buildDraft(lead, 4183);
+  const review = requestSimulationReview(draft, lead, draft.lastReply, 'CONFIRMO', now);
+  const first = { id: crypto.randomUUID(), lead, messages: [], ...updateSimulationProposal({ lead }, lead, null, review, now) };
+  const adjusted = decideSimulationReview(first, { action: 'adjust', reason: 'Rever o horário', actor: 'admin', now });
+  const nextLead = { ...lead, horario: '17:00' };
+  const nextDraft = buildDraft(nextLead, 5327);
+  const changed = { ...adjusted, ...updateSimulationProposal(adjusted, nextLead, nextDraft, null, now), lead: nextLead };
+  assert.equal(changed.closing.status, 'superseded');
+  assert.equal(decideSimulationReview(changed, { action: 'approve', actor: 'admin', now }), null);
+  const nextReview = requestSimulationReview(nextDraft, nextLead, nextDraft.lastReply, 'CONFIRMO', now);
+  const second = { ...changed, ...updateSimulationProposal(changed, nextLead, null, nextReview, now) };
+  assert.equal(second.id, first.id);
+  assert.equal(second.versions.length, 1);
+  assert.equal(second.versions[0].reason, 'Rever o horário');
+  assert.equal(second.versions[0].previousStatus, 'changes_requested');
+  assert.equal(second.versions[0].confirmedAt, now.toISOString());
+  assert.equal(second.versions[0].summary.total, 4183);
+  assert.equal(second.closing.summary.total, 5327);
+  const approved = decideSimulationReview(second, { action: 'approve', actor: 'admin', now, document: { html: '<p>Revisado</p>' } });
+  const newer = updateSimulationProposal(approved, lead, draft, null, now);
+  assert.equal(simulationLinkStatus(newer.closing, approved.closing.token, now), 404);
+  assert.equal(newer.closing.document, undefined);
+});
+
+test('precontract review renders the configured template read-only with pending fields and a content-bound hash', async () => {
+  const { buildSimulationDocument, simulationDocumentPage } = await import('../../lib/ai/commercial/simulation-contract.js');
+  const { createSimulationStore } = await import('../../lib/ai/commercial/simulation-store.mjs');
+  const workspaceId = 'workspace-synthetic';
+  const supabase = createSimulationStore({
+    event_types: [{ id: 'type', name: 'Celebração de teste', workspace_id: workspaceId, default_contract_template_id: 'template' }],
+    contract_templates: [{ id: 'template', workspace_id: workspaceId,
+      source_rich_html: '<h1>Modelo associado</h1><p>{{NOME}} · {{CPF}} · {{LOCAL_EVENTO}} · {{VALOR_TOTAL}}</p>{{#RECEPTIVO}}<p>Receptivo {{RECEPTIVO_DURACAO}}</p>{{/RECEPTIVO}}' }],
+  });
+  const closing = { lead: { nome: 'Cliente <Teste>', tipo_evento: 'Celebração de teste' }, summary: {
+    date: '2030-02-14', time: '16:00', location: 'Espaço Fictício', ceremony: { formation: 'Trio', instruments: ['Piano'] },
+    reception: { formation: 'Duo', instruments: ['Piano'], hours: 2 }, sound: false, total: 5327, items: [],
+  } };
+  const document = await buildSimulationDocument({ supabase, workspaceId, closing });
+  assert.match(document.html, /Modelo associado/);
+  assert.match(document.html, /Cliente &lt;Teste&gt;/);
+  assert.match(document.html, /Pendente: CPF/);
+  assert.match(document.html, /Pendente: Endereço do evento/);
+  assert.match(document.html, /5\.327,00/);
+  assert.match(document.html, /Receptivo 2h/);
+  assert.equal(document.payment.depositDate, '31/01/2030');
+  assert.match(simulationDocumentPage(document.html), /Sem assinatura/);
+  assert.deepEqual(supabase.writes, []);
+  supabase.tables.contract_templates[0].source_rich_html += '<p>Cláusula extra</p>';
+  assert.notEqual((await buildSimulationDocument({ supabase, workspaceId, closing })).hash, document.hash);
+  assert.equal(await buildSimulationDocument({ supabase, workspaceId: 'different-workspace', closing }), null);
+});

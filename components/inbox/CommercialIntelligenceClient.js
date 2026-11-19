@@ -561,26 +561,35 @@ function SimulatorTab() {
   );
 }
 
-export default function CommercialIntelligenceClient() {
+const SIMULATION_TABS = [{ key: 'center', label: 'Aprovações' }, { key: 'chat', label: 'Chat de Testes' }];
+
+export default function CommercialIntelligenceClient({ simulationOnly }) {
   const toast = useAppToast();
   const [tab, setTab] = useState('center');
+  const visibleTabs = simulationOnly ? SIMULATION_TABS : TABS;
   // Link direto (?tab=tables), lido após montar para não divergir da renderização do servidor.
   useEffect(() => {
     const wanted = new URLSearchParams(window.location.search).get('tab');
-    if (TABS.some((t) => t.key === wanted)) { const t = setTimeout(() => setTab(wanted), 0); return () => clearTimeout(t); }
+    if (visibleTabs.some((t) => t.key === wanted)) { const t = setTimeout(() => setTab(wanted), 0); return () => clearTimeout(t); }
     return undefined;
-  }, []);
+  }, [visibleTabs]);
   const Tab = { center: SupervisionCenter, tables: PriceRulesPanel, vocalists: VocalistsPanel, manual: ManualPricingPanel, teach: TeachTab, learning: LearningTab, areas: AreasTab, venues: VenuesTab, musicians: MusiciansTab, sales: SalesTab, pipeline: PipelineTab, simulator: SimulatorTab, chat: ChatSimulationPanel }[tab];
   return (
-    <div className="mx-auto max-w-5xl space-y-4 pb-10">
-      <div className="flex flex-wrap items-center gap-2">
+    <div className="mx-auto max-w-6xl space-y-4 pb-10">
+      {!simulationOnly && <div className="flex flex-wrap items-center gap-2">
         <Link href="/inbox" className="text-sm font-semibold text-violet-700">← Inbox</Link>
         <Link href="/inbox/configuracoes" className="text-sm font-semibold text-slate-600">Canal e IA</Link>
-      </div>
+      </div>}
       <div className="flex gap-1 overflow-x-auto pb-1">
-        {TABS.map((t) => <button key={t.key} type="button" onClick={() => setTab(t.key)} className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold ${tab === t.key ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600'}`}>{t.label}</button>)}
+        {visibleTabs.map((t) => <button key={t.key} type="button" onClick={() => {
+          setTab(t.key);
+          const url = new URL(window.location.href);
+          url.searchParams.set('tab', t.key);
+          if (simulationOnly && t.key === 'chat') url.searchParams.set('engine', 'v2');
+          window.history.replaceState(null, '', url.pathname + url.search + url.hash);
+        }} className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold ${tab === t.key ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600'}`}>{t.label}</button>)}
       </div>
-      <Tab toast={toast} />
+      <Tab toast={toast} simulationOnly={simulationOnly} />
     </div>
   );
 }

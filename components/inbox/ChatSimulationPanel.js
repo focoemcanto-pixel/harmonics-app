@@ -4,9 +4,9 @@ import { useEffect, useRef, useState } from 'react';
 
 const SCENARIO = 'Oi! Quero orçamento para meu casamento dia 11/12/2027 na Chácara de Alice.';
 
-export default function ChatSimulationPanel() {
+export default function ChatSimulationPanel({ simulationOnly }) {
   const [messages, setMessages] = useState([]);
-  const [engine, setEngine] = useState('legacy');
+  const [engine, setEngine] = useState(simulationOnly ? 'v2' : 'legacy');
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get('engine') === 'v2') setEngine('v2');
   }, []);
@@ -145,12 +145,12 @@ export default function ChatSimulationPanel() {
           <p className="text-xs text-slate-500">{engine === 'v2' ? 'AI SDK · agente conversacional experimental · somente simulação' : 'Motor atual · regras oficiais'} · nenhuma mensagem enviada ao WhatsApp</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div role="group" aria-label="Selecionar motor de teste" className="flex rounded-xl border border-slate-300 bg-slate-50 p-1">
+          {!simulationOnly && <div role="group" aria-label="Selecionar motor de teste" className="flex rounded-xl border border-slate-300 bg-slate-50 p-1">
             <button type="button" onClick={() => selectEngine('legacy')} aria-pressed={engine === 'legacy'}
               className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${engine === 'legacy' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>Atual</button>
             <button type="button" onClick={() => selectEngine('v2')} aria-pressed={engine === 'v2'}
               className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${engine === 'v2' ? 'bg-violet-700 text-white' : 'text-slate-500'}`}>Nara Agent v2</button>
-          </div>
+          </div>}
           <button type="button" onClick={restart} className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold hover:bg-slate-50">Reiniciar conversa</button>
         </div>
       </div>
@@ -179,7 +179,7 @@ export default function ChatSimulationPanel() {
         {review?.status === 'awaiting_approval' && (
           <div className="flex flex-wrap items-center gap-3 rounded-lg bg-amber-50 p-2 text-xs text-amber-900">
             <strong>Aguardando aprovação</strong>
-            <a className="underline" href={`?tab=center&simulation=${sessionId}`} target="_blank" rel="noreferrer">Abrir fila no dashboard de IA</a>
+            <a className="underline" href={`?tab=center&simulation=${sessionId}`} target="_blank" rel="noreferrer">Abrir na Central de Aprovações</a>
           </div>
         )}
         {error && <div role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{error} <span className="font-semibold">Se a mensagem já estiver no histórico, reinicie para repetir.</span></div>}

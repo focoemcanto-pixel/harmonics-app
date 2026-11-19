@@ -9,8 +9,7 @@ import { buildCommercialContext } from '@/lib/ai/commercial/engine.mjs';
 import { createRoadGeoServices } from '@/lib/ai/commercial/road-location.mjs';
 import { lookupVenueOnline } from '@/lib/ai/commercial/venue-online.mjs';
 import { isSensitiveValue } from '@/lib/ai/commercial/memory.mjs';
-import { simulationClosingSignature } from '@/lib/ai/commercial/closing.mjs';
-import { SIMULATION_SESSIONS, isSimulationId, requestSimulationReview, supervisionEnabled } from '@/lib/ai/commercial/simulation-supervision.mjs';
+import { SIMULATION_SESSIONS, isSimulationId, requestSimulationReview, updateSimulationProposal, supervisionEnabled } from '@/lib/ai/commercial/simulation-supervision.mjs';
 import { runNaraV2, NARA_V2_VERSION, V2_ALLOWED } from '@/lib/ai/agent/v2.mjs';
 
 export const dynamic = 'force-dynamic';
@@ -52,12 +51,9 @@ export async function POST(request) {
   }
   async function saveTurn(result, conversation, review = null) {
     if (!supervised) return null;
-    const signature = simulationClosingSignature(conversation.lead_data);
-    const current = state.closing;
-    const superseded = current && (current.signature !== signature || (conversation.simulation_closing?.summary && !review));
-    const closing = review || (superseded ? { ...current, status: 'superseded', token: undefined } : current);
-    const newState = { ...state, lead: conversation.lead_data, draft: review ? null : conversation.simulation_closing,
-      closing, messages: [...messages, { role: 'assistant', content: result.text }] };
+    const proposal = updateSimulationProposal(state, conversation.lead_data, conversation.simulation_closing, review);
+    const newState = { ...state, ...proposal, lead: conversation.lead_data, draft: review ? null : conversation.simulation_closing,
+      messages: [...messages, { role: 'assistant', content: result.text }] };
     const values = { revision: body.revision + 1, state: newState, updated_at: new Date().toISOString() };
     const query = saved
       ? guard.supabase.from(SIMULATION_SESSIONS).update(values).eq('id', state.id).eq('workspace_id', workspaceId).eq('revision', body.revision)

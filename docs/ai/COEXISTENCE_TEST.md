@@ -58,3 +58,15 @@ continua no app WhatsApp Business.
 7. Verificar com evidências operacionais que `AI_INBOX_AI_ENABLED`, kill switch, `ai_workspace_settings`, canal e geração de resposta estão consistentes. O botão “Desligar IA agora” e o status “Pausado” devem interromper o fluxo no teste de rollback.
 
 **Este roteiro não ativa o número nem o motor.** O cadastro do WhatsApp existente exige a ação autenticada de onboarding Meta e aceite no aparelho do titular; não simular Coexistência alterando o valor da coluna.
+
+## 7. Segurança ao trocar Phone Number ID, WABA ou token
+
+A PR #841 inclui um gate de identidade obrigatório no backend:
+
+- Salvar um Phone Number ID, WABA, número exibido diferente ou novo token **invalida** `last_eligibility`, define `coexistence=false`, reseta histórico de diagnóstico/webhook e força `status='paused'`. Novo canal também nasce pausado.
+- O botão "Verificar número / Coexistence" somente consulta as credenciais já **salvas**; alterações não salvas no formulário precisam ser persistidas primeiro.
+- As rotas de salvamento e diagnóstico usam atualização condicional pela revisão `updated_at` (compare-and-swap). Se uma consulta Meta começou antes de salvar outro número/token e termina depois, sua tentativa de persistir o diagnóstico antigo retorna **409**, sem escrever sobre o número novo.
+- Caso uma configuração seja alterada em outra sessão, o salvamento também retorna **409**. Recarregar o painel e repetir a verificação no número realmente conectado.
+- Cobertura de regressão: `tests/ai/channel-identity.test.mjs` (identidade, token, consultas concorrentes, troca de credenciais em voo e isolamento de workspace).
+
+Estes gates não substituem o QR/Embedded Signup nem comprovam que o número comercial foi conectado; não ativar IA até passar no roteiro real.

@@ -160,6 +160,18 @@ test('pesquisa citada fica pendente sem confirmação independente no mapa', asy
   const { quote, effects } = await f.run();
   assert.equal(quote.ok, false);
   assert.equal(effects.roadGeo.status, 'unverified');
-  assert.deepEqual(f.network, ['map.test', 'api.openai.com', 'map.test']);
+  assert.deepEqual(f.network, ['api.openai.com', 'map.test', 'map.test']);
   assert.equal(effects.roadGeo.webSearchFeeUsd, 0.01);
+});
+
+test('sem OSRM, a pesquisa direta ainda identifica a cidade e deixa a rota pendente', async () => {
+  const f = fixture({ webHint: true });
+  delete f.env.AI_NARA_OSRM_URL;
+  f.env.GOOGLE_MAPS_KEY = 'ignored-test-key';
+  const { quote, effects } = await f.run();
+  assert.equal(quote.ok, false);
+  assert.equal(effects.roadGeo.status, 'provider_missing');
+  assert.equal(effects.roadGeo.webSource, 'https://parish.example.test/address');
+  assert.ok(f.network.includes('api.openai.com'));
+  assert.ok(!f.network.includes('route.test'));
 });

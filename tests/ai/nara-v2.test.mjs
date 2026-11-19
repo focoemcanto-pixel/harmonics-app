@@ -316,22 +316,23 @@ test('V2 simulated sales journey gates the quote and carries the selected Trio i
     return { result, effects };
   }
 
-  await turn('Olá, gostaria de um orçamento', () => 'Qual é a data, o local e o tipo de evento?');
+  await turn('Olá, gostaria de um orçamento', () => 'Qual é a data e o local?');
   await turn('17/12/2096, na Casa Rio de Ensaio, 16:30', async ({ tools }) => {
     await tools.registrar_dados_evento.execute({ data_evento: '17/12/2096',
       local: 'Casa Rio de Ensaio', horario: '16:30', tipo_evento: 'Casamento' });
     return 'Em qual cidade fica esse espaço?';
   });
-  await turn('Na Cidade Base mesmo', async ({ tools }) => {
+  const quote = await turn('Na Cidade Base mesmo', async ({ tools }) => {
     await tools.registrar_dados_evento.execute({ cidade: 'Cidade Base' });
-    assert.equal((await tools.consultar_precos.execute({})).status, 'event_type_required');
-    return 'Qual é o tipo de evento?';
+    await tools.consultar_precos.execute({});
+    return 'Aqui estão as opções para a cerimônia.';
   });
-  const quote = await turn('É para a cerimônia do casamento.', ({ instructions }) => {
-    assert.match(instructions, /Evento: Casamento/);
-    return 'Ainda falta conferir os valores.';
-  });
+  assert.equal(conversation.lead_data.tipo_evento, undefined);
   assert.ok(quote.effects.quoteTableText);
+  await turn('É para a cerimônia do casamento.', ({ instructions }) => {
+    assert.match(instructions, /Evento: Casamento/);
+    return 'Entendi, é para a cerimônia.';
+  });
   await turn('Como funciona o pagamento?', ({ instructions }) => {
     assert.match(instructions, /Condições de pagamento ativas para esta dúvida\..*sete dias/s);
     assert.doesNotMatch(instructions, /Sinal de 30%/);

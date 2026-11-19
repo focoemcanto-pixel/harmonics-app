@@ -73,10 +73,10 @@ const cases = [
       ['Olá, gostaria de um orçamento', noPrice],
       ['17/12/2096, na Casa Rio de Ensaio, 16:30', noPrice],
       ['Na Cidade Base mesmo', ({ lead, ...turn }) => {
-        noPrice(turn);
+        official(turn);
         assert.equal(lead.tipo_evento, undefined);
       }],
-      ['É para a cerimônia do meu casamento.', official],
+      ['É para a cerimônia do meu casamento.', noPrice],
       ['Perfeito! Como funciona a forma de pagamento?', ({ text, ...turn }) => {
         noPrice({ text });
         assert.doesNotMatch(text, /30%|três parcelas|3 parcelas|14 dias|48 horas/i);

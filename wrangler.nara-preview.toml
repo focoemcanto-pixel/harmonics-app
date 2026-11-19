@@ -1,0 +1,14 @@
+# Deploy only with `wrangler preview --name nara-v2-pr839 --config wrangler.nara-preview.toml`.
+name = "harmonics-app"
+main = ".open-next/worker.js"
+compatibility_date = "2026-03-27"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = ".open-next/assets"
+
+[previews.vars]
+AI_NARA_ROAD_GEO_ENABLED = "true"
+AI_VENUE_WEB_SEARCH_ENABLED = "true"
+AI_NARA_V2_MODEL = "gpt-6.1-sol"
+NEXT_PUBLIC_SUPABASE_URL = "https://xsmdnbovjovfvdgnncje.supabase.co"

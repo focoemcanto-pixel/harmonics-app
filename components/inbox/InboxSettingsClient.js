@@ -62,6 +62,17 @@ export default function InboxSettingsClient() {
   }
 
   async function checkEligibility() {
+    // A consulta lê SEMPRE as credenciais já salvas no servidor, não o
+    // formulário local. Bloquear diagnóstico antigo enquanto houver mudanças.
+    const saved = state?.channel || {};
+    const numberDigits = (value) => String(value || '').replace(/\D/g, '');
+    if (numberDigits(channel.phone_number_id) !== numberDigits(saved.phone_number_id) ||
+        String(channel.waba_id || '').trim() !== String(saved.waba_id || '').trim() ||
+        numberDigits(channel.display_phone) !== numberDigits(saved.display_phone) ||
+        token.trim()) {
+      toast.error('Salve primeiro o número e as credenciais. A verificação deve ser feita para o canal já salvo.');
+      return;
+    }
     setChecking(true);
     const response = await fetch('/api/ai/channel/eligibility', { method: 'POST' });
     const body = await response.json().catch(() => ({}));

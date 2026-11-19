@@ -16,9 +16,11 @@ for f in supabase/local/[0-9]*.sql \
   supabase/migrations/20261113120000_harmonics_ai_vocalists.sql \
   supabase/migrations/20261114120000_harmonics_ai_venues.sql \
   supabase/migrations/20261119120000_nara_payment_evidence_stage.sql \
-  supabase/migrations/20261119170000_harmonics_ai_atomic_draft.sql; do
+  supabase/migrations/20261119170000_harmonics_ai_atomic_draft.sql \
+  supabase/migrations/20261119235000_harmonics_ai_payment_proof_digest.sql; do
   $PSQL -d harmonics_local -f "$f"
 done
+$PSQL -d harmonics_local -f supabase/local/review-payment-proof.sql
 node --import ./tests/helpers/register-alias.mjs --test-concurrency=1 --test supabase/local/ai-inbox.local.test.mjs supabase/local/ai-commercial.local.test.mjs
 PANEL_WORKSPACE_ID=00000000-0000-4000-8000-0000000000f1 NEXT_PUBLIC_SUPABASE_URL=http://local SUPABASE_SERVICE_ROLE_KEY=local \
   node --import ./supabase/local/panel/register.mjs --test supabase/local/ai-panel.local.test.mjs

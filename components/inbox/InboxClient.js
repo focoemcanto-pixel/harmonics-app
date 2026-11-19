@@ -50,7 +50,35 @@ function OwnerBadge({ conversation }) {
     : <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">Equipe</span>;
 }
 
-function MessageBubble({ message }) {
+function ProofReview({ id }) {
+  const [status, setStatus] = useState('');
+  const [busy, setBusy] = useState(false);
+  async function submit(event) {
+    event.preventDefault();
+    const fields = new FormData(event.currentTarget);
+    setBusy(true);
+    try {
+      const result = await api('/api/ai/proofs/' + id, { method: 'POST', body: JSON.stringify({
+        eventId: fields.get('eventId').trim(), cents: Math.round(Number(fields.get('amount')) * 100),
+        day: fields.get('day'), method: fields.get('method'),
+      }) });
+      setStatus(result.ok ? 'Comprovante registrado no financeiro.' : result.body?.error || 'Falha ao registrar.');
+    } catch { setStatus('Falha de conexão.'); } finally { setBusy(false); }
+  }
+  return <details className="mt-2"><summary className="cursor-pointer font-medium">Revisar comprovante</summary>
+    <a href={'/api/ai/proofs/' + id} className="underline" download>Abrir arquivo</a>
+    <form onSubmit={submit} className="mt-2 grid gap-2">
+      <label>Identificador do evento <input name="eventId" required className="border rounded px-2" /></label>
+      <label>Valor informado (R$) <input name="amount" type="number" min="0.01" step="0.01" required className="border rounded px-2" /></label>
+      <label>Data do pagamento <input type="date" name="day" required /></label>
+      <label>Forma <select name="method" defaultValue="" required><option value="">Selecionar</option>
+        {['pix','transferencia','deposito','boleto','cartao','dinheiro'].map(value => <option key={value}>{value}</option>)}</select></label>
+      <button type="submit" disabled={busy} className="rounded bg-slate-900 px-3 py-2 text-white">Aprovar registro em análise</button>
+      <span role="status">{status}</span>
+    </form></details>;
+}
+
+function MessageBubble({ message, canAdmin }) {
   const inbound = message.direction === 'inbound';
   const author = inbound ? null
     : message.sender_type === 'ai' ? 'IA'
@@ -62,6 +90,7 @@ function MessageBubble({ message }) {
       <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm shadow-sm ${inbound ? 'bg-white text-slate-900' : message.sender_type === 'ai' ? 'bg-violet-600 text-white' : 'bg-emerald-600 text-white'}`}>
         {author ? <div className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide opacity-75">{author}</div> : null}
         {text ? <div className="whitespace-pre-wrap break-words">{text}</div> : null}
+        {canAdmin && message.proof_candidate && <ProofReview id={message.id} />}
         {message.transcript ? <div className={`mt-1 text-xs italic ${inbound ? 'text-slate-500' : 'opacity-80'}`}>🎤 {message.transcript}</div> : null}
         <div className="mt-1 text-right text-[10px] opacity-60">
           {formatTime(message.provider_created_at || message.created_at)}
@@ -318,7 +347,7 @@ export default function InboxClient({ canAdmin = false }) {
             ) : null}
 
             <div className="flex-1 space-y-2 overflow-y-auto px-4 py-4">
-              {(detail.messages || []).map((m) => <MessageBubble key={m.id} message={m} />)}
+              {(detail.messages || []).map((m) => <MessageBubble key={m.id} message={m} canAdmin={canAdmin} />)}
               {failed.map((o) => (
                 <div key={o.id} className="ml-auto max-w-[80%] whitespace-pre-wrap break-words rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
                   {o.status === 'unknown' ? 'Envio sem confirmação (não reenviado automaticamente)' : `Não enviado (${o.last_error || 'erro'})`}:{'\n'}{o.content.slice(0, 400)}

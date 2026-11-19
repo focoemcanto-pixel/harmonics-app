@@ -1,13 +1,14 @@
+# Deploy only with `wrangler preview --name nara-v2-pr839 --config wrangler.nara-preview.toml`.
 name = "harmonics-app"
-main = "cloudflare-worker.mjs"
+main = ".open-next/worker.js"
 compatibility_date = "2026-03-27"
 compatibility_flags = ["nodejs_compat"]
 
-# Assets configuration for static files (CSS, JS, fonts, images)
 [assets]
 directory = ".open-next/assets"
 
-# Automações de data: 09:05–18:05 em America/Sao_Paulo (UTC-3), de hora em hora.
-# Executadas pelo handler scheduled de cloudflare-worker.mjs (antes: schedule do GitHub Actions).
-[triggers]
-crons = ["5 12-21 * * *"]
+[previews.vars]
+AI_NARA_ROAD_GEO_ENABLED = "true"
+
+[build]
+command = "[ \"$WORKERS_CI_BRANCH\" = \"preview/nara-pr839-42d26186\" ] && env -u SUPABASE_SERVICE_ROLE_KEY -u WHATSAPP_API_KEY -u WHATSAPP_API_URL -u WHATSAPP_INSTANCE_ID npx --yes wrangler@4.135.0 preview --name nara-v2-pr839 --config wrangler.nara-preview.toml --tag 42d26186e3a0"

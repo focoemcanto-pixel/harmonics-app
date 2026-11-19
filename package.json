@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "env -u SUPABASE_SERVICE_ROLE_KEY -u WHATSAPP_API_KEY -u WHATSAPP_API_URL -u WHATSAPP_INSTANCE_ID -u NEXT_PUBLIC_GOOGLE_MAPS_API_KEY -u NEXT_PUBLIC_CONTRACT_SERVICE_URL NEXT_PUBLIC_SUPABASE_URL=https://xsmdnbovjovfvdgnncje.supabase.co NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhzbWRuYm92am92ZnZkZ25uY2plIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM3ODA5MjQsImV4cCI6MjA4OTM1NjkyNH0.7yn1rnka2ON4_u56NpgImv8RCt9r_LDQfI_Vp-9hVtw NODE_OPTIONS=--max-old-space-size=4096 next build",
     "build:worker": "npm run build && open-next build",
     "deploy": "npm run build:worker && wrangler deploy",
     "deploy:preview": "npm run build:worker && wrangler deploy --env preview",

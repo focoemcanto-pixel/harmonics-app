@@ -59,6 +59,7 @@ function fixture({ results = [rec], distance = 51000, seconds = 1900, fail = fal
       ] });
     }
     if (u.hostname === 'api.geoapify.com') {
+      assert.equal(options.redirect, 'manual');
       assert.equal(u.searchParams.get('apiKey'), 'test-provider-key');
       if (u.pathname === '/v1/geocode/search') {
         assert.equal(u.searchParams.get('filter'), 'countrycode:br');
@@ -211,7 +212,7 @@ test('Geoapify aceita grafia municipal equivalente sem trocar município por bai
   const service = createRoadGeoServices({
     env: { AI_NARA_ROAD_GEO_ENABLED: 'true', AI_NARA_GEOAPIFY_API_KEY: 'test-provider-key' },
     fetchImpl: async (url) => {
-      assert.equal(url.searchParams.get('type'), 'city');
+      assert.equal(new URL(url).searchParams.get('type'), 'city');
       const municipality = { city: 'Vila d’Areia', state: 'Bahia', country_code: 'br',
         result_type: 'city', lat: -12.1, lon: -37.9, place_id: 'municipality-1' };
       return Response.json({ results: [

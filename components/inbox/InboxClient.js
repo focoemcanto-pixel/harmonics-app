@@ -53,6 +53,20 @@ function OwnerBadge({ conversation }) {
 function ProofReview({ id }) {
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
+  const formRef = useRef(null);
+  async function suggest() {
+    setBusy(true);
+    try {
+      const result=await api('/api/ai/proofs/'+id,{method:'PATCH'});
+      if (!result.ok) { setStatus(result.body?.error || 'Falha de leitura.'); return; }
+      const {cents,day,method}=result.body.suggestion;
+      const fields=formRef.current.elements;
+      if(cents) fields.amount.value=(cents/100).toFixed(2);
+      if(day) fields.day.value=day;
+      if(method) fields.method.value=method;
+      setStatus('Confira os campos com o comprovante antes de aprovar.');
+    } catch { setStatus('Falha de conexão.'); } finally { setBusy(false); }
+  }
   async function submit(event) {
     event.preventDefault();
     const fields = new FormData(event.currentTarget);
@@ -67,7 +81,8 @@ function ProofReview({ id }) {
   }
   return <details className="mt-2"><summary className="cursor-pointer font-medium">Revisar comprovante</summary>
     <a href={'/api/ai/proofs/' + id} className="underline" download>Abrir arquivo</a>
-    <form onSubmit={submit} className="mt-2 grid gap-2">
+    <form ref={formRef} onSubmit={submit} className="mt-2 grid gap-2">
+      <button type="button" disabled={busy} onClick={suggest} className="rounded border px-2 py-1">Ler valor e data com a Nara</button>
       <label>Identificador do evento <input name="eventId" required className="border rounded px-2" /></label>
       <label>Valor informado (R$) <input name="amount" type="number" min="0.01" step="0.01" required className="border rounded px-2" /></label>
       <label>Data do pagamento <input type="date" name="day" required /></label>

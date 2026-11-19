@@ -73,3 +73,6 @@ begin
 end $$;
 revoke all on function public.ai_review_payment_proof(uuid,uuid,uuid,uuid,bigint,date,text,text,text) from public,anon,authenticated;
 grant execute on function public.ai_review_payment_proof(uuid,uuid,uuid,uuid,bigint,date,text,text,text) to service_role;
+
+alter table public.ai_payment_evidence add column if not exists extraction jsonb;
+alter table public.ai_payment_evidence add column if not exists extraction_started_at timestamptz;

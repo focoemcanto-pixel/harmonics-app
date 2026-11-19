@@ -152,7 +152,7 @@ export default function ChatSimulationPanel() {
                     {d.geography.webSource && <p>Fonte pública: <a className="underline" href={d.geography.webSource} target="_blank" rel="noreferrer">abrir referência</a></p>}
                     {d.geography.webSearchFeeUsd > 0 && <p>Pesquisa web: US$ {d.geography.webSearchFeeUsd.toFixed(2)} em chamadas, além dos tokens.</p>}
                     {d.geography.checkedAt && <p>Verificado em {new Date(d.geography.checkedAt).toLocaleString('pt-BR', { timeZone: 'America/Bahia' })}</p>}
-                    {d.geography.calls.map((call, n) => <p key={n}>{call.provider} · {call.cached ? 'cache do provedor' : call.status} · {call.latencyMs} ms{call.usage ? ` · ${call.usage.searchCalls} buscas, ${call.usage.inputTokens ?? '—'}/${call.usage.outputTokens ?? '—'} tokens` : ''}</p>)}
+                    {d.geography.calls.map((call, n) => <p key={n}>{call.provider} · {call.cached ? 'cache do provedor' : call.status}{call.httpStatus ? ` (HTTP ${call.httpStatus})` : ''} · {call.latencyMs} ms{call.usage ? ` · ${call.usage.searchCalls} buscas, ${call.usage.inputTokens ?? '—'}/${call.usage.outputTokens ?? '—'} tokens` : ''}</p>)}
                   </div>
                 )}
                 {d.webSearchStatus && d.webSearchStatus !== 'nao_necessaria' && (

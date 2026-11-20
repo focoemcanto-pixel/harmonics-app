@@ -13,6 +13,7 @@ export default function PublicFooter({ className = '' }) {
           <Link href="/planos" className="transition hover:text-white">Planos</Link>
           <Link href="/termos" className="transition hover:text-white">Termos de Uso</Link>
           <Link href="/privacidade" className="transition hover:text-white">Política de Privacidade</Link>
+          <Link href="/exclusao-de-dados" className="transition hover:text-white">Exclusão de dados</Link>
           <a href="mailto:focoemcanto@gmail.com" className="transition hover:text-white">Contato</a>
         </nav>
       </div>

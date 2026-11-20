@@ -7,6 +7,7 @@ import {
   prepareChannelIdentityUpdate,
   nextChannelRevision,
   updateChannelIfCurrent,
+  sandboxNaraV2DraftEligible,
 } from '../../lib/ai/inbox/channel-identity.mjs';
 
 const base = () => ({
@@ -177,4 +178,28 @@ test('commercial pilot checks official identity, allowed contact and diagnosis f
   assert.equal(supervisedPilotEligible({ ...args, now: now + 86400000 }), false);
   assert.equal(supervisedPilotEligible({ ...args, channel: { ...channel, display_phone: '12025550102' } }), false);
   assert.equal(supervisedPilotEligible({ ...args, env: {} }), false);
+});
+
+
+test('Nara V2 em sandbox exige ID exato, contato autorizado e geração apenas em rascunho', () => {
+  const channel = {
+    provider: 'meta_cloud', display_phone: '+1 555-111-2222', phone_number_id: 'pn-synthetic',
+    coexistence: false, status: 'active',
+  };
+  const env = {
+    NARA_V2_SUPERVISED: 'true', NARA_V2_SANDBOX_DRAFT: 'true',
+    NARA_V2_SANDBOX_PHONE_NUMBER_ID: 'pn-synthetic', NARA_V2_SANDBOX_CONTACTS: '5571999991111',
+  };
+  const eligible = (changes = {}) => sandboxNaraV2DraftEligible({ channel, chatId:'5571999991111', env, asDraft:true, ...changes });
+  assert.equal(eligible(), true);
+  assert.equal(eligible({ asDraft: false }), false);
+  assert.equal(eligible({ chatId: '5571888882222' }), false);
+  assert.equal(eligible({ env: { ...env, NARA_V2_SANDBOX_DRAFT: 'false' } }), false);
+  assert.equal(eligible({ env: { ...env, NARA_V2_SUPERVISED: 'false' } }), false);
+  assert.equal(eligible({ env: { ...env, NARA_V2_SANDBOX_PHONE_NUMBER_ID: 'wrong' } }), false);
+  assert.equal(eligible({ channel: { ...channel, status: 'paused' } }), false);
+  assert.equal(eligible({ channel: { ...channel, coexistence: true } }), false);
+  assert.equal(eligible({ channel: { ...channel, display_phone: '+55 71 99999-1111' } }), false);
+  assert.equal(eligible({ channel: { ...channel, phone_number_id: 'different' } }), false);
+  assert.equal(eligible({ channel: { ...channel, provider: 'other' } }), false);
 });

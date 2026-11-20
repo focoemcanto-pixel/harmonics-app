@@ -12,7 +12,7 @@ rodar com aprovação explícita do responsável. A IA continua desligada durant
 - [ ] Segredos no Worker de produção: `META_APP_SECRET`, `META_WEBHOOK_VERIFY_TOKEN`,
       `AI_CHANNEL_ENCRYPTION_KEY` (`openssl rand -base64 32`). **Não** definir `AI_INBOX_AI_ENABLED`.
 - [ ] Webhook do app Meta: `https://app.bandaharmonics.com/api/webhooks/whatsapp-cloud`, campos
-      `messages`, `smb_message_echoes`, `history`, `smb_app_state_sync`.
+      `messages`, `smb_message_echoes`, `history`, `smb_app_state_sync`, **`account_update`**.
 
 ## 2. Impactos conhecidos para avisar a equipe
 - Aparelhos vinculados (WhatsApp Web/Desktop) são desconectados no onboarding e podem ser re-vinculados.
@@ -70,3 +70,9 @@ A PR #841 inclui um gate de identidade obrigatório no backend:
 - Cobertura de regressão: `tests/ai/channel-identity.test.mjs` (identidade, token, consultas concorrentes, troca de credenciais em voo e isolamento de workspace).
 
 Estes gates não substituem o QR/Embedded Signup nem comprovam que o número comercial foi conectado; não ativar IA até passar no roteiro real.
+
+## 8. Eventos Meta de desligamento e reconexão
+- A Meta envia `account_update` **sem** `metadata.phone_number_id`. O serviço identifica o canal por `waba_id` da conta de mensagens, sem inferir a partir do número ou misturar workspaces.
+- `PARTNER_REMOVED`, `PARTNER_APP_UNINSTALLED`, `ACCOUNT_OFFBOARDED`, `ACCOUNT_DELETED`, restrição da conta e bloqueio `DISABLED_UPDATE` pausam imediatamente o canal, revogam a elegibilidade e desligam a IA do workspace. A fila de envio revalida esses gates.
+- `PARTNER_ADDED` / `ACCOUNT_RECONNECTED` **não** ligam a IA ou revalidam automaticamente a Coexistência: é preciso verificar novamente `is_on_biz_app=true` por Graph API e executar homologação.
+- A assinatura do webhook continua obrigatória. Assinar `account_update` no app Meta além dos quatro campos anteriores.

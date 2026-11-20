@@ -446,3 +446,28 @@ test('reviewed commercial drafts recheck emergency stop before transport', async
     await sql("update ai_workspace_settings set mode='auto' where workspace_id=$1",[WS_A]);
   }
 });
+
+test('account_update sem phone ID: desconexão pausa canal e desliga IA; reconexão não reativa', async () => {
+  const waba = 'waba-synthetic';
+  await sql("update ai_channels set waba_id=$2,status='active',coexistence=true where workspace_id=$1", [WS_A,waba]);
+  await sql("update ai_workspace_settings set ai_enabled=true where workspace_id=$1", [WS_A]);
+  try {
+    const payload = (event) => ({ object: 'whatsapp_business_account', entry: [{
+      id: waba, changes: [{ field: 'account_update', value: { event, waba_info: { waba_id:waba } } }],
+    }] });
+    const disconnected = await deliver(payload('PARTNER_REMOVED'));
+    assert.equal(disconnected.stats.accountPauses, 1);
+    assert.equal(disconnected.pending.length, 0);
+    const [channel] = await sql("select status,coexistence,last_eligibility from ai_channels where workspace_id=$1", [WS_A]);
+    const [settings] = await sql("select ai_enabled from ai_workspace_settings where workspace_id=$1", [WS_A]);
+    assert.deepEqual([channel.status,channel.coexistence,channel.last_eligibility,settings.ai_enabled],
+      ['paused',false,null,false]);
+    const reconnected = await deliver(payload('ACCOUNT_RECONNECTED'));
+    assert.equal(reconnected.stats.accountPauses, 0);
+    const [stillPaused] = await sql("select status,coexistence from ai_channels where workspace_id=$1", [WS_A]);
+    assert.deepEqual([stillPaused.status,stillPaused.coexistence], ['paused',false]);
+  } finally {
+    await sql("update ai_channels set waba_id=null,status='active',coexistence=false,last_eligibility=null where workspace_id=$1", [WS_A]);
+    await sql("update ai_workspace_settings set ai_enabled=true where workspace_id=$1", [WS_A]);
+  }
+});

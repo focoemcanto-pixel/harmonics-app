@@ -379,3 +379,24 @@ test('tabela de cerimônia no formato padrão do Owner, com preços da tabela of
   assert.equal(comSom.quoteTableText, undefined, 'pedido com som segue o cálculo, não a tabela padrão');
 });
 
+
+test('Meta account_update: desconexão do parceiro é parseada sem phone_number_id', () => {
+  const payload = (event, additional = {}) => ({
+    object: 'whatsapp_business_account',
+    entry: [{ id: 'waba-test', changes: [{ field: 'account_update', value: { event, ...additional } }] }],
+  });
+  const [removed] = parseMetaWebhook(payload('PARTNER_REMOVED', {
+    waba_info: { waba_id: 'waba-test' },
+    disconnection_info: { reason: 'PRIMARY_INACTIVITY', initiated_by: 'SYSTEM' },
+  }));
+  assert.deepEqual(removed, { kind: 'account_update', wabaId: 'waba-test', action: 'PARTNER_REMOVED', shouldPause: true });
+  for (const event of ['PARTNER_APP_UNINSTALLED', 'ACCOUNT_OFFBOARDED', 'ACCOUNT_DELETED', 'ACCOUNT_RESTRICTION']) {
+    assert.equal(parseMetaWebhook(payload(event))[0]?.shouldPause, true, event);
+  }
+  assert.equal(parseMetaWebhook(payload('DISABLED_UPDATE', { ban_info: { waba_ban_state: 'DISABLE' } }))[0]?.shouldPause, true);
+  for (const event of ['PARTNER_ADDED', 'ACCOUNT_RECONNECTED', 'PARTNER_APP_INSTALLED']) {
+    assert.equal(parseMetaWebhook(payload(event))[0]?.shouldPause, false, event);
+  }
+  assert.equal(parseMetaWebhook(payload('DISABLED_UPDATE', { ban_info: { waba_ban_state: 'REINSTATE' } }))[0]?.shouldPause, false);
+  assert.deepEqual(parseMetaWebhook({ object: 'whatsapp_business_account', entry: [{ changes: [{ field: 'account_update', value: { event: 'PARTNER_REMOVED' } }] }] }), []);
+});

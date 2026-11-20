@@ -400,3 +400,20 @@ test('Meta account_update: desconexão do parceiro é parseada sem phone_number_
   assert.equal(parseMetaWebhook(payload('DISABLED_UPDATE', { ban_info: { waba_ban_state: 'REINSTATE' } }))[0]?.shouldPause, false);
   assert.deepEqual(parseMetaWebhook({ object: 'whatsapp_business_account', entry: [{ changes: [{ field: 'account_update', value: { event: 'PARTNER_REMOVED' } }] }] }), []);
 });
+
+test('Meta App Review: instruções de exclusão são públicas e vinculadas à política', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { fileURLToPath } = await import('node:url');
+  const { dirname, resolve } = await import('node:path');
+  const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
+  const deletion = readFileSync(resolve(root, 'app/exclusao-de-dados/page.js'), 'utf8');
+  const privacy = readFileSync(resolve(root, 'app/privacidade/page.js'), 'utf8');
+  const terms = readFileSync(resolve(root, 'app/termos/page.js'), 'utf8');
+  const footer = readFileSync(resolve(root, 'components/public/PublicFooter.js'), 'utf8');
+  assert.match(deletion, /export default function DataDeletionPage/);
+  assert.match(deletion, /focoemcanto@gmail.com/);
+  assert.match(deletion, /href="\/privacidade"/);
+  assert.match(privacy, /PRIVACY_MARKDOWN/);
+  assert.match(terms, /TERMS_MARKDOWN/);
+  assert.match(footer, /href="\/exclusao-de-dados"/);
+});

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import NaraApprovals from './NaraApprovals';
 import { HANDOFF_REASON_LABELS } from '@/lib/ai/agent/policy.mjs';
 
 const KIND_LABELS = {
@@ -99,7 +100,7 @@ function AutonomyCard({ toast }) {
   );
 }
 
-export default function SupervisionCenter({ toast }) {
+export function OperationalSupervision({ toast }) {
   const [q, setQ] = useState(null);
   const load = useCallback(async () => { const { ok, body } = await api('/api/ai/commercial/queues'); if (ok) setQ(body); }, []);
   useEffect(() => { const t = setTimeout(load, 0); const i = setInterval(load, 15000); return () => { clearTimeout(t); clearInterval(i); }; }, [load]);
@@ -154,6 +155,15 @@ export default function SupervisionCenter({ toast }) {
       <Section title="Aprendizado e aprovações de conteúdo" count={q.learning.suggestions + q.learning.knowledge + q.learning.pricing}>
         <p className="text-sm text-slate-700">{q.learning.suggestions} sugestão(ões) de aprendizado · {q.learning.knowledge} conhecimento(s) pendente(s) · {q.learning.pricing} proposta(s) de tabela.</p>
       </Section>
+    </div>
+  );
+}
+
+export default function SupervisionCenter({ toast, simulationOnly }) {
+  return (
+    <div className="space-y-4">
+      <NaraApprovals simulationOnly={simulationOnly} />
+      {!simulationOnly && <OperationalSupervision toast={toast} />}
     </div>
   );
 }

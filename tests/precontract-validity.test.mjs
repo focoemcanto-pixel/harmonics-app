@@ -56,3 +56,45 @@ test('Manual §15: 15 dias explícitos para novos envios; legado sem expires_at 
     if (prev === undefined) delete process.env.PRECONTRACT_EXPIRATION_DAYS; else process.env.PRECONTRACT_EXPIRATION_DAYS = prev;
   }
 });
+
+
+test('precontract save accepts nullable legacy fields projected from structured services', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const { legacyServiceProjection } = await import('../lib/contracts/service-specs.mjs');
+  // Exercise the actual client payload without mounting the Next.js admin page.
+  const source = await readFile(new URL('../app/(admin)/pre-contratos/PreContratosClient.js', import.meta.url), 'utf8');
+  const save = source.slice(source.indexOf('async function salvarPreContrato()'));
+  const match = save.match(/const payload = \{[\s\S]*?\n      \};/);
+  assert.ok(match, 'save payload must be present');
+  const buildPayload = new Function('form', 'searchParams', 'financeiro', 'statusToSave',
+    'cleanPhone', 'normalizeTimeStrict', 'normalizeFormation', match[0] + '\nreturn payload;');
+  const base = {
+    client_name: ' Ana ', client_email: '', client_phone: '',
+    location_name: ' Local ', location_address: '', notes: '',
+    event_date: '2035-12-01', duration_min: 60,
+  };
+  const primary = { kind: 'primary', formation: 'Duo', roles: ['Piano'], duration_minutes: 60 };
+  const reception = { kind: 'reception', formation: 'Trio', roles: ['Voz'], duration_minutes: 120 };
+  const scenarios = [
+    { specs: [primary], fields: {} },
+    { specs: [], fields: {} },
+    { specs: [primary, { ...reception, roles: [] }], fields: {} },
+    { specs: [primary, reception], fields: {} },
+    { specs: [primary], fields: { client_name: null, client_email: null, location_name: null, location_address: null, notes: null }, guide: true },
+  ];
+  for (const { specs, fields, guide } of scenarios) {
+    const form = { ...base, ...legacyServiceProjection(specs), ...fields, service_specs: specs };
+    const payload = buildPayload(form, { get: () => guide ? 'precontract' : null }, {}, 'link_generated',
+      value => String(value ?? '').replace(/\D/g, ''), value => value ?? '', value => String(value ?? ''));
+    assert.equal(payload.client_name, String(form.client_name ?? '').trim() || null);
+    assert.equal(payload.location_name, String(form.location_name ?? '').trim() || null);
+    assert.equal(payload.location_address, null);
+    assert.equal(payload.client_email, null);
+    assert.equal(payload.notes, null);
+    assert.equal(payload.instruments, form.instruments || null);
+    assert.equal(payload.reception_formation, form.reception_hours > 0 ? form.reception_formation || '' : '');
+    assert.equal(payload.reception_instruments, form.reception_hours > 0 ? form.reception_instruments || '' : '');
+    assert.equal(payload.service_specs, specs);
+    if (guide) assert.equal(payload.metadata.location_name, null);
+  }
+});

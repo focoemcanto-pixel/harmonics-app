@@ -1375,8 +1375,8 @@ async function carregarModelosContrato({ force = false } = {}) {
       });
 
       const payload = {
-        client_name: form.client_name.trim() || null,
-        client_email: form.client_email.trim() || null,
+        client_name: String(form.client_name ?? '').trim() || null,
+        client_email: String(form.client_email ?? '').trim() || null,
         client_phone: cleanPhone(form.client_phone) || null,
 
         event_type: form.event_type || null,
@@ -1385,19 +1385,17 @@ async function carregarModelosContrato({ force = false } = {}) {
         event_time: normalizeTimeStrict(form.event_time) || null,
         duration_min: parseInt(form.duration_min, 10) || 60,
 
-        location_name: form.location_name.trim() || null,
-        location_address: form.location_address.trim() || null,
+        location_name: String(form.location_name ?? '').trim() || null,
+        location_address: String(form.location_address ?? '').trim() || null,
 
         formation: normalizeFormation(form.formation),
-        instruments: form.instruments.trim() || null,
-        reception_formation: form.reception_formation.trim() || null,
-        reception_instruments: form.reception_instruments.trim() || null,
+        instruments: String(form.instruments ?? '').trim() || null,
 
         has_sound: !!form.has_sound,
         reception_hours: parseInt(form.reception_hours, 10) || 0,
         has_transport: !!form.has_transport,
-        reception_formation: (parseInt(form.reception_hours, 10) || 0) > 0 ? (form.reception_formation.trim() || '') : '',
-        reception_instruments: (parseInt(form.reception_hours, 10) || 0) > 0 ? (form.reception_instruments.trim() || '') : '',
+        reception_formation: (parseInt(form.reception_hours, 10) || 0) > 0 ? (String(form.reception_formation ?? '').trim() || '') : '',
+        reception_instruments: (parseInt(form.reception_hours, 10) || 0) > 0 ? (String(form.reception_instruments ?? '').trim() || '') : '',
 
         base_amount: financeiro.base,
         add_reception: financeiro.addReception,
@@ -1412,7 +1410,7 @@ async function carregarModelosContrato({ force = false } = {}) {
         card_due_date: form.card_due_date || null,
         payment_card: form.payment_card === true,
 
-        notes: form.notes.trim() || null,
+        notes: String(form.notes ?? '').trim() || null,
         status: statusToSave,
         service_specs: form.service_specs,
         custom_contract_enabled: form.custom_contract_enabled === true,
@@ -1433,8 +1431,8 @@ async function carregarModelosContrato({ force = false } = {}) {
               metadata: {
                 is_onboarding_demo: true,
                 onboarding_step: 'precontract',
-                location_name: form.location_name.trim() || null,
-                location_address: form.location_address.trim() || null,
+                location_name: String(form.location_name ?? '').trim() || null,
+                location_address: String(form.location_address ?? '').trim() || null,
               },
             }
           : {}),
